@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, Plus } from "lucide-react";
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
@@ -20,6 +20,16 @@ export default function Transactions() {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [editCategory, setEditCategory] = useState("");
   const [editMemo, setEditMemo] = useState("");
+  const [editTaxWithheld, setEditTaxWithheld] = useState(0);
+
+  // W-2 add dialog state
+  const [showW2Dialog, setShowW2Dialog] = useState(false);
+  const [w2Date, setW2Date] = useState("");
+  const [w2Employer, setW2Employer] = useState("");
+  const [w2GrossPay, setW2GrossPay] = useState("");
+  const [w2FedWithheld, setW2FedWithheld] = useState("");
+  const [w2StateWithheld, setW2StateWithheld] = useState("");
+  const [w2Memo, setW2Memo] = useState("");
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -40,14 +50,53 @@ export default function Transactions() {
     setEditTx(tx);
     setEditCategory(tx.category);
     setEditMemo(tx.memo);
+    setEditTaxWithheld(tx.taxWithheld || 0);
   }
 
   function saveEdit() {
     if (!editTx) return;
     setTransactions((prev) =>
-      prev.map((t) => (t.id === editTx.id ? { ...t, category: editCategory, memo: editMemo } : t))
+      prev.map((t) =>
+        t.id === editTx.id
+          ? {
+              ...t,
+              category: editCategory,
+              memo: editMemo,
+              taxWithheld: editCategory === "W-2 Income" ? editTaxWithheld : undefined,
+            }
+          : t
+      )
     );
     setEditTx(null);
+  }
+
+  function addW2Income() {
+    const grossPay = parseFloat(w2GrossPay) || 0;
+    const fedWithheld = parseFloat(w2FedWithheld) || 0;
+    const stateWithheld = parseFloat(w2StateWithheld) || 0;
+    if (grossPay <= 0 || !w2Date || !w2Employer) return;
+
+    const newTx: Transaction = {
+      id: `w2-${Date.now()}`,
+      date: w2Date,
+      merchant: w2Employer,
+      amount: grossPay,
+      category: "W-2 Income",
+      account: "Chase Business Checking",
+      entity: "Personal",
+      deductible: false,
+      memo: w2Memo,
+      type: "income",
+      taxWithheld: fedWithheld + stateWithheld,
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+    setShowW2Dialog(false);
+    setW2Date("");
+    setW2Employer("");
+    setW2GrossPay("");
+    setW2FedWithheld("");
+    setW2StateWithheld("");
+    setW2Memo("");
   }
 
   return (
@@ -66,6 +115,10 @@ export default function Transactions() {
         <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
           <SlidersHorizontal className="h-4 w-4" />
           Filters
+        </Button>
+        <Button onClick={() => setShowW2Dialog(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Add W-2 Income
         </Button>
       </div>
 
@@ -131,7 +184,10 @@ export default function Transactions() {
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-card-foreground truncate">{tx.merchant}</p>
-                <p className="text-xs text-muted-foreground">{tx.date} · {tx.account} · {tx.entity}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tx.date} · {tx.account} · {tx.entity}
+                  {tx.taxWithheld ? ` · Withheld: ${fmt(tx.taxWithheld)}` : ""}
+                </p>
                 {tx.memo && <p className="text-xs text-muted-foreground italic mt-0.5">{tx.memo}</p>}
               </div>
               <div className="flex items-center gap-3 ml-4 shrink-0">
@@ -171,6 +227,17 @@ export default function Transactions() {
                   </SelectContent>
                 </Select>
               </div>
+              {editCategory === "W-2 Income" && (
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Tax Withheld</Label>
+                  <Input
+                    type="number"
+                    value={editTaxWithheld}
+                    onChange={(e) => setEditTaxWithheld(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                  />
+                </div>
+              )}
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
                 <Textarea value={editMemo} onChange={(e) => setEditMemo(e.target.value)} rows={3} />
@@ -181,6 +248,49 @@ export default function Transactions() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add W-2 Income dialog */}
+      <Dialog open={showW2Dialog} onOpenChange={setShowW2Dialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add W-2 Income</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
+                <Input type="date" value={w2Date} onChange={(e) => setW2Date(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Employer Name</Label>
+                <Input value={w2Employer} onChange={(e) => setW2Employer(e.target.value)} placeholder="Hospital System" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Pay</Label>
+              <Input type="number" value={w2GrossPay} onChange={(e) => setW2GrossPay(e.target.value)} placeholder="0.00" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Tax Withheld</Label>
+                <Input type="number" value={w2FedWithheld} onChange={(e) => setW2FedWithheld(e.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">State Tax Withheld</Label>
+                <Input type="number" value={w2StateWithheld} onChange={(e) => setW2StateWithheld(e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Memo</Label>
+              <Textarea value={w2Memo} onChange={(e) => setW2Memo(e.target.value)} rows={2} placeholder="Bi-weekly paycheck, etc." />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowW2Dialog(false)}>Cancel</Button>
+              <Button onClick={addW2Income}>Add Income</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
