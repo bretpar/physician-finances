@@ -48,6 +48,8 @@ export function useAddTransaction() {
         account_source: tx.account_source || "",
         category: tx.category || "Uncategorized",
         notes: tx.notes || "",
+        entity: tx.entity || "Unassigned",
+        company_type: tx.company_type || "",
       });
       if (error) throw error;
     },
