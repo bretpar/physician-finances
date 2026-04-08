@@ -1,44 +1,75 @@
 
+## Authentication & Multi-Tenant Architecture
 
-## Fix: Transactions Not Persisting Deletes
+### Important Notes
+- Lovable Cloud handles password hashing, sessions, and auth tokens automatically — no manual bcrypt needed
+- The initial admin user will be created via the signup flow (not pre-seeded), since auth systems don't allow inserting passwords via SQL
+- "Require password change on first login" isn't natively supported, but we can add a flag
 
-### Problem
-The Transactions page (`src/pages/Transactions.tsx`) operates entirely on **in-memory mock data**. Line 18 initializes state from `mockTransactions`, and the delete function (line 131) only removes from local state — it never calls the database. On reload, mock data reappears because nothing was actually deleted from the backend.
+### Phase 1: Database Schema
 
-The `useTransactions` / `useDeleteTransaction` hooks exist in `src/hooks/useTransactions.ts` and correctly talk to the database, but the Transactions page doesn't use them.
+**1a. Create `organizations` table**
+- `id`, `name`, `owner_user_id`, `created_at`, `updated_at`
+- RLS: members can view their own org
 
-### Plan
+**1b. Create `organization_members` table**
+- `user_id`, `organization_id`, `role` (enum: owner, admin, member)
+- RLS: members can view their own org's members; owners/admins can manage
 
-**1. Rewrite Transactions.tsx to use database hooks instead of local mock state**
+**1c. Create `app_role` enum**
+- Values: `owner`, `admin`, `member`
 
-- Replace `useState(mockTransactions)` with `useTransactions()` from the existing hook
-- Replace the local `executeDelete()` with `useDeleteTransaction().mutate(id)`
-- Replace local add logic with `useAddTransaction().mutate()`
-- Replace local edit/save logic with `useUpdateTransaction().mutate()`
-- Map `DbTransaction` fields (`vendor`, `transaction_date`, `account_source`) to the UI fields currently named (`merchant`, `date`, `account`)
-- The `entity` and `companyType` fields don't exist in the DB `transactions` table yet — will need a migration to add `entity` (text, default 'Unassigned') and `company_type` (text, default '') columns
+**1d. Create `has_org_role()` security definer function**
+- Prevents RLS recursion when checking roles
 
-**2. Database migration — add entity columns to transactions table**
+**1e. Add `organization_id` to all existing tables**
+- `transactions`, `companies`, `income_forecasts`, `tax_settings`, `profiles`, `plaid_items`, `mileage_entries`
+- Nullable initially (for migration safety), then scoped in queries
 
-```sql
-ALTER TABLE public.transactions
-  ADD COLUMN IF NOT EXISTS entity text NOT NULL DEFAULT 'Unassigned',
-  ADD COLUMN IF NOT EXISTS company_type text NOT NULL DEFAULT '';
-```
+**1f. Update all RLS policies**
+- Add organization-scoped access: users can only access data within their org
+- Use the security definer function for role checks
 
-**3. Update summary widgets to use DB data**
+### Phase 2: Auth UI
 
-- `useExpenseSummary` currently takes mock `Transaction[]` — update it to work with `DbTransaction[]` or the mapped format from the query results
+**2a. Create Login page** (`/login`)
+- Email + password form
+- Password validation (8+ chars, number, special char)
+- Clean, professional design matching app theme
 
-**4. Ensure no auth required for now**
+**2b. Create Signup page** (`/signup`)
+- For the initial admin: sign up with brendanparkermd@gmail.com
+- Auto-creates organization "Brendan Parker MD" and assigns owner role
+- Future users will be invited (signup can be restricted later)
 
-- Since the user hasn't added authentication yet, RLS will block all queries. The page likely shows empty data when hitting the DB. Either:
-  - Add a note that auth is needed, OR
-  - Temporarily add anon-access policies (not recommended for security)
-- Most likely the user is already authenticated or we should flag this dependency
+**2c. Create Auth guard component**
+- Wrap all routes — redirect to `/login` if not authenticated
+- Use `onAuthStateChange` listener
 
-### Technical detail
-- The `useDeleteTransaction` hook does a real `DELETE` (not soft-delete), which is correct
-- Query invalidation in the hooks will automatically refresh summaries and the transaction list after mutations
-- CSV export will continue to work since it operates on the filtered array
+**2d. Add logout button** to sidebar
 
+### Phase 3: Organization & Team Management
+
+**3a. Auto-provision on first login**
+- On signup: create org, add user as owner, create profile
+- Use a database trigger on `auth.users` insert
+
+**3b. Team management page** (`/team`)
+- List org members with roles
+- Owner/Admin can invite users (email input → creates auth user + org member)
+- Owner/Admin can change roles, remove members
+- Members see read-only list
+
+**3c. Show org name in header**
+
+### Phase 4: Data Migration
+
+**4a. Backfill `organization_id`** on existing rows (if any exist)
+**4b. Update all hooks/queries** to include `organization_id`
+**4c. Update all insert mutations** to include `organization_id`
+
+### What this does NOT include (future-ready)
+- Multi-org membership (schema supports it, UI doesn't)
+- Billing integration (placeholder only)
+- Invitation links (uses direct user creation for now)
+- Email verification (can enable later)
