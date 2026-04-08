@@ -9,12 +9,14 @@ import {
   Settings,
   Menu,
   X,
+  Car,
 } from "lucide-react";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transactions" },
   { to: "/tax-planning", icon: PiggyBank, label: "Tax Planning" },
+  { to: "/mileage", icon: Car, label: "Mileage" },
   { to: "/accounts", icon: Landmark, label: "Accounts" },
   { to: "/reports", icon: FileDown, label: "Reports" },
   { to: "/settings", icon: Settings, label: "Settings" },

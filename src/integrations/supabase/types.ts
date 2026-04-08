@@ -83,6 +83,39 @@ export type Database = {
         }
         Relationships: []
       }
+      mileage_entries: {
+        Row: {
+          company_name: string
+          created_at: string
+          id: string
+          miles: number
+          month: number
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          company_name?: string
+          created_at?: string
+          id?: string
+          miles?: number
+          month: number
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          id?: string
+          miles?: number
+          month?: number
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
       plaid_items: {
         Row: {
           access_token: string
