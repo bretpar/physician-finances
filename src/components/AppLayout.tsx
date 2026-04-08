@@ -6,6 +6,7 @@ import {
   PiggyBank,
   FileDown,
   Landmark,
+  Settings,
   Menu,
   X,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const navItems = [
   { to: "/tax-planning", icon: PiggyBank, label: "Tax Planning" },
   { to: "/accounts", icon: Landmark, label: "Accounts" },
   { to: "/reports", icon: FileDown, label: "Reports" },
+  { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
