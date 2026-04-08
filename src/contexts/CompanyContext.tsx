@@ -79,7 +79,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [user, loadCompanies]);
 
   const updateCompany = useCallback(async (id: string, updates: Partial<Company>) => {
-    const dbUpdates: Record<string, unknown> = {};
+    const dbUpdates: {
+      name?: string;
+      company_type?: string;
+      include_in_tax?: boolean;
+    } = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.companyType !== undefined) dbUpdates.company_type = updates.companyType;
     if (updates.includeInTax !== undefined) dbUpdates.include_in_tax = updates.includeInTax;
