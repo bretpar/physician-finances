@@ -9,6 +9,7 @@ import {
   Settings,
   Menu,
   X,
+  Car,
 } from "lucide-react";
 
 const navItems = [
