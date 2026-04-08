@@ -12,23 +12,33 @@ export type Transaction = {
   taxWithheld?: number;
 };
 
-export const categories = [
+export const expenseCategories = [
+  "Uncategorized",
   "Meals",
   "Travel",
+  "Software / Subscriptions",
   "Medical Equipment",
-  "Software Subscriptions",
   "CME / Education",
-  "Malpractice / Insurance",
   "Vehicle / Mileage",
   "Home Office",
   "Supplies",
-  "Personal / Exclude",
+  "Insurance",
+  "Professional Fees",
+  "Personal",
+];
+
+export const incomeCategories = [
   "1099 Income",
   "K-1 Income",
   "Side Business Income",
   "W-2 Income",
   "Other Income",
 ];
+
+export const categories = [...expenseCategories, ...incomeCategories];
+
+// Personal category is excluded from business calculations
+export const PERSONAL_CATEGORY = "Personal";
 
 export const accounts = [
   "Chase Business Checking",
@@ -51,10 +61,10 @@ export const mockTransactions: Transaction[] = [
   { id: "w2-2", date: "2026-04-15", merchant: "Regional Medical Center", amount: 12000, category: "W-2 Income", account: "Chase Business Checking", entity: "Personal", deductible: false, memo: "Bi-weekly paycheck", type: "income", taxWithheld: 3200 },
   { id: "4", date: "2026-04-06", merchant: "Delta Airlines", amount: -487.50, category: "Travel", account: "Amex Business Platinum", entity: "Medical Practice LLC", deductible: true, memo: "CME conference flight", type: "expense" },
   { id: "5", date: "2026-04-05", merchant: "Marriott Hotels", amount: -312.00, category: "Travel", account: "Amex Business Platinum", entity: "Medical Practice LLC", deductible: true, memo: "Conference hotel", type: "expense" },
-  { id: "6", date: "2026-04-04", merchant: "UpToDate Subscription", amount: -519.00, category: "Software Subscriptions", account: "Chase Business Checking", entity: "Medical Practice LLC", deductible: true, memo: "Annual renewal", type: "expense" },
+  { id: "6", date: "2026-04-04", merchant: "UpToDate Subscription", amount: -519.00, category: "Software / Subscriptions", account: "Chase Business Checking", entity: "Medical Practice LLC", deductible: true, memo: "Annual renewal", type: "expense" },
   { id: "7", date: "2026-04-03", merchant: "Stryker Medical", amount: -2340.00, category: "Medical Equipment", account: "Chase Business Checking", entity: "Medical Practice LLC", deductible: true, memo: "Surgical instruments", type: "expense" },
   { id: "8", date: "2026-04-02", merchant: "AMA CME Course", amount: -895.00, category: "CME / Education", account: "Capital One Venture", entity: "Medical Practice LLC", deductible: true, memo: "Board review course", type: "expense" },
-  { id: "9", date: "2026-04-01", merchant: "NORCAL Insurance", amount: -1850.00, category: "Malpractice / Insurance", account: "Chase Business Checking", entity: "Medical Practice LLC", deductible: true, memo: "Monthly premium", type: "expense" },
+  { id: "9", date: "2026-04-01", merchant: "NORCAL Insurance", amount: -1850.00, category: "Insurance", account: "Chase Business Checking", entity: "Medical Practice LLC", deductible: true, memo: "Monthly premium", type: "expense" },
   { id: "10", date: "2026-04-01", merchant: "Whole Foods Market", amount: -67.30, category: "Meals", account: "Amex Business Platinum", entity: "Medical Practice LLC", deductible: true, memo: "Staff lunch meeting", type: "expense" },
   { id: "11", date: "2026-03-31", merchant: "Shell Gas Station", amount: -54.20, category: "Vehicle / Mileage", account: "Capital One Venture", entity: "Medical Practice LLC", deductible: true, memo: "Hospital commute fuel", type: "expense" },
   { id: "12", date: "2026-03-30", merchant: "Amazon Business", amount: -189.00, category: "Supplies", account: "Amex Business Platinum", entity: "Medical Practice LLC", deductible: true, memo: "Office supplies", type: "expense" },
