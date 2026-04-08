@@ -181,7 +181,9 @@ export type Database = {
           account_source: string
           amount: number
           category: string
+          company_type: string
           created_at: string
+          entity: string
           id: string
           is_deleted: boolean
           notes: string | null
@@ -195,7 +197,9 @@ export type Database = {
           account_source?: string
           amount?: number
           category?: string
+          company_type?: string
           created_at?: string
+          entity?: string
           id?: string
           is_deleted?: boolean
           notes?: string | null
@@ -209,7 +213,9 @@ export type Database = {
           account_source?: string
           amount?: number
           category?: string
+          company_type?: string
           created_at?: string
+          entity?: string
           id?: string
           is_deleted?: boolean
           notes?: string | null

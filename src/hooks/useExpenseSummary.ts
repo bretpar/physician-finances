@@ -21,8 +21,8 @@ type AnyTransaction = DbTransaction | Transaction;
 function getAmount(tx: AnyTransaction): number { return tx.amount; }
 function getCategory(tx: AnyTransaction): string { return tx.category; }
 function getDate(tx: AnyTransaction): string { return "transaction_date" in tx ? tx.transaction_date : tx.date; }
-function getEntity(tx: AnyTransaction): string { return "account_source" in tx ? (tx as any).entity || "Unassigned" : (tx as Transaction).entity; }
-function getCompanyType(tx: AnyTransaction): string | undefined { return (tx as Transaction).companyType; }
+function getEntity(tx: AnyTransaction): string { return "entity" in tx ? (tx as any).entity || "Unassigned" : "Unassigned"; }
+function getCompanyType(tx: AnyTransaction): string { return "company_type" in tx ? (tx as any).company_type || "Unassigned" : (tx as Transaction).companyType || "Unassigned"; }
 function isExpense(tx: AnyTransaction): boolean { return getAmount(tx) < 0; }
 
 export function useExpenseSummary(transactions: AnyTransaction[], companies?: Company[]): ExpenseSummary {
@@ -41,17 +41,15 @@ export function useExpenseSummary(transactions: AnyTransaction[], companies?: Co
     const mtdExpenses = Math.abs(expenses.filter((t) => { const d = new Date(getDate(t)); return d.getMonth() === thisMonth && d.getFullYear() === thisYear; }).reduce((s, t) => s + getAmount(t), 0));
     const ytdExpenses = Math.abs(expenses.filter((t) => new Date(getDate(t)).getFullYear() === thisYear).reduce((s, t) => s + getAmount(t), 0));
 
-    // By company
     const byCompany: Record<string, number> = {};
     expenses.forEach((t) => {
       const entity = getEntity(t);
       byCompany[entity] = (byCompany[entity] || 0) + Math.abs(getAmount(t));
     });
 
-    // By company type
     const byCompanyType: Record<string, number> = {};
     expenses.forEach((t) => {
-      const ct = getCompanyType(t) || "Unassigned";
+      const ct = getCompanyType(t);
       byCompanyType[ct] = (byCompanyType[ct] || 0) + Math.abs(getAmount(t));
     });
 
