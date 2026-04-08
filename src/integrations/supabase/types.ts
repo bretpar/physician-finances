@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      companies: {
+        Row: {
+          company_type: string
+          created_at: string
+          id: string
+          include_in_tax: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_type?: string
+          created_at?: string
+          id?: string
+          include_in_tax?: boolean
+          name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_type?: string
+          created_at?: string
+          id?: string
+          include_in_tax?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tax_settings: {
+        Row: {
+          bno_rate: number
+          created_at: string
+          federal_rate: number
+          id: string
+          state_rate: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bno_rate?: number
+          created_at?: string
+          federal_rate?: number
+          id?: string
+          state_rate?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bno_rate?: number
+          created_at?: string
+          federal_rate?: number
+          id?: string
+          state_rate?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_source: string
