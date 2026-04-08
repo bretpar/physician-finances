@@ -24,7 +24,7 @@ export default function ExpenseSummaryWidgets({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <StatCard label="Business Expenses" value={fmt(totalBusinessExpenses)} icon={Briefcase} variant="default" />
-      <StatCard label="Personal Expenses" value={fmt(totalPersonalExpenses)} icon={User} variant="secondary" trend="Excluded from tax" />
+      <StatCard label="Personal Expenses" value={fmt(totalPersonalExpenses)} icon={User} variant="default" trend="Excluded from tax" />
       <StatCard label="Uncategorized" value={fmt(uncategorizedTotal)} icon={HelpCircle} variant="warning" trend="Needs review" />
       <StatCard label="Deductible Total" value={fmt(deductibleTotal)} icon={Receipt} variant="success" />
       <StatCard label="Month-to-Date" value={fmt(mtdExpenses)} icon={Calendar} variant="default" />
