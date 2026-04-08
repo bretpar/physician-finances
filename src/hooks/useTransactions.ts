@@ -13,6 +13,8 @@ export interface DbTransaction {
   notes: string | null;
   receipt_url: string | null;
   is_deleted: boolean;
+  entity: string;
+  company_type: string;
   created_at: string;
   updated_at: string;
 }
