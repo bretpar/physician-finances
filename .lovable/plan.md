@@ -1,5 +1,4 @@
 
-
 ## Customizable Tax Rate & Paycheck Set-Aside Tracker
 
 ### What this adds
@@ -34,4 +33,3 @@
 - **New**: Set-aside recommendation = selfEmploymentIncome × userRate (e.g. 20%)
 - Quarterly payment = (set-aside from 1099/K-1 income for that quarter) — still shows SE tax and B&O as separate line items
 - The set-aside rate is the user's personal target, not the statutory rate — it's what they want to put aside per paycheck based on their historical effective rate
-
