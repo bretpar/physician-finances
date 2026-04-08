@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { mockTransactions, categories, accounts, PERSONAL_CATEGORY, type Transaction } from "@/lib/mockData";
+import { categories, accounts, PERSONAL_CATEGORY } from "@/lib/mockData";
+import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction } from "@/hooks/useTransactions";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,7 +16,11 @@ import { useCompanies } from "@/contexts/CompanyContext";
 
 export default function Transactions() {
   const { companies } = useCompanies();
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const { data: transactions = [], isLoading } = useTransactions();
+  const deleteMutation = useDeleteTransaction();
+  const addMutation = useAddTransaction();
+  const updateMutation = useUpdateTransaction();
+
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterAccount, setFilterAccount] = useState("all");
@@ -27,14 +32,13 @@ export default function Transactions() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Edit dialog
-  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [editTx, setEditTx] = useState<DbTransaction | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editVendor, setEditVendor] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editEntity, setEditEntity] = useState("");
   const [editMemo, setEditMemo] = useState("");
-  const [editTaxWithheld, setEditTaxWithheld] = useState(0);
 
   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
@@ -65,16 +69,16 @@ export default function Transactions() {
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
-      if (search && !t.merchant.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
-      if (filterAccount !== "all" && t.account !== filterAccount) return false;
+      if (filterAccount !== "all" && t.account_source !== filterAccount) return false;
       if (filterCompany !== "all" && t.entity !== filterCompany) return false;
-      if (filterCompanyType !== "all" && (t.companyType || "Unassigned") !== filterCompanyType) return false;
+      if (filterCompanyType !== "all" && (t.company_type || "Unassigned") !== filterCompanyType) return false;
       if (filterQuick === "uncategorized" && t.category !== "Uncategorized") return false;
       if (filterQuick === "personal" && t.category !== PERSONAL_CATEGORY) return false;
       if (filterQuick === "unassigned" && t.entity !== "Unassigned") return false;
-      if (filterDateFrom && t.date < filterDateFrom) return false;
-      if (filterDateTo && t.date > filterDateTo) return false;
+      if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
+      if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
   }, [transactions, search, filterCategory, filterAccount, filterCompany, filterCompanyType, filterQuick, filterDateFrom, filterDateTo]);
@@ -84,43 +88,33 @@ export default function Transactions() {
   const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
   function getCompanyTypeForEntity(entityName: string) {
-    return companies.find((c) => c.name === entityName)?.companyType;
+    return companies.find((c) => c.name === entityName)?.companyType || "";
   }
 
-  function openEdit(tx: Transaction) {
+  function openEdit(tx: DbTransaction) {
     setEditTx(tx);
-    setEditDate(tx.date);
-    setEditVendor(tx.merchant);
+    setEditDate(tx.transaction_date);
+    setEditVendor(tx.vendor);
     setEditAmount(String(tx.amount));
     setEditCategory(tx.category);
     setEditEntity(tx.entity);
-    setEditMemo(tx.memo);
-    setEditTaxWithheld(tx.taxWithheld || 0);
+    setEditMemo(tx.notes || "");
   }
 
   function saveEdit() {
     if (!editTx) return;
     const newAmount = parseFloat(editAmount) || editTx.amount;
-    const isPersonal = editCategory === PERSONAL_CATEGORY;
     const companyType = getCompanyTypeForEntity(editEntity);
-    setTransactions((prev) =>
-      prev.map((t) =>
-        t.id === editTx.id
-          ? {
-              ...t,
-              date: editDate || t.date,
-              merchant: editVendor || t.merchant,
-              amount: newAmount,
-              category: editCategory,
-              entity: editEntity,
-              companyType,
-              memo: editMemo,
-              deductible: !isPersonal && newAmount < 0 && editCategory !== "Uncategorized",
-              taxWithheld: editCategory === "W-2 Income" ? editTaxWithheld : undefined,
-            }
-          : t
-      )
-    );
+    updateMutation.mutate({
+      id: editTx.id,
+      transaction_date: editDate || editTx.transaction_date,
+      vendor: editVendor || editTx.vendor,
+      amount: newAmount,
+      category: editCategory,
+      entity: editEntity,
+      company_type: companyType,
+      notes: editMemo,
+    });
     setEditTx(null);
   }
 
@@ -128,7 +122,7 @@ export default function Transactions() {
 
   function executeDelete() {
     if (!deleteTxId) return;
-    setTransactions((prev) => prev.filter((t) => t.id !== deleteTxId));
+    deleteMutation.mutate(deleteTxId);
     setDeleteTxId(null);
     if (editTx?.id === deleteTxId) setEditTx(null);
   }
@@ -137,20 +131,16 @@ export default function Transactions() {
     const amount = parseFloat(addAmount) || 0;
     if (!addDate || !addVendor || amount === 0) return;
     const companyType = getCompanyTypeForEntity(addEntity);
-    const newTx: Transaction = {
-      id: `manual-${Date.now()}`,
-      date: addDate,
-      merchant: addVendor,
+    addMutation.mutate({
+      transaction_date: addDate,
+      vendor: addVendor,
       amount,
       category: addCategory,
-      account: addAccount,
+      account_source: addAccount,
       entity: addEntity,
-      companyType,
-      deductible: addCategory !== PERSONAL_CATEGORY && addCategory !== "Uncategorized" && amount < 0,
-      memo: addMemo,
-      type: amount >= 0 ? "income" : "expense",
-    };
-    setTransactions((prev) => [newTx, ...prev]);
+      company_type: companyType,
+      notes: addMemo,
+    });
     setShowAddDialog(false);
     setAddDate(""); setAddVendor(""); setAddAmount(""); setAddCategory("Uncategorized"); setAddEntity("Unassigned"); setAddMemo("");
   }
@@ -160,29 +150,24 @@ export default function Transactions() {
     const fedWithheld = parseFloat(w2FedWithheld) || 0;
     const stateWithheld = parseFloat(w2StateWithheld) || 0;
     if (grossPay <= 0 || !w2Date || !w2Employer) return;
-    const companyType = getCompanyTypeForEntity(w2Company);
-    const newTx: Transaction = {
-      id: `w2-${Date.now()}`,
-      date: w2Date,
-      merchant: w2Employer,
+    const companyType = getCompanyTypeForEntity(w2Company) || "W2";
+    addMutation.mutate({
+      transaction_date: w2Date,
+      vendor: w2Employer,
       amount: grossPay,
       category: "W-2 Income",
-      account: "Chase Business Checking",
+      account_source: "Chase Business Checking",
       entity: w2Company,
-      companyType: companyType || "W2",
-      deductible: false,
-      memo: w2Memo,
-      type: "income",
-      taxWithheld: fedWithheld + stateWithheld,
-    };
-    setTransactions((prev) => [newTx, ...prev]);
+      company_type: companyType,
+      notes: w2Memo ? `${w2Memo} | Tax withheld: $${(fedWithheld + stateWithheld).toFixed(2)}` : `Tax withheld: $${(fedWithheld + stateWithheld).toFixed(2)}`,
+    });
     setShowW2Dialog(false);
     setW2Date(""); setW2Employer(""); setW2Company("Unassigned"); setW2GrossPay(""); setW2FedWithheld(""); setW2StateWithheld(""); setW2Memo("");
   }
 
   function exportCSV() {
-    const headers = ["Date", "Vendor", "Amount", "Category", "Account", "Company", "Company Type", "Notes", "Tax Withheld"];
-    const rows = filtered.map((t) => [t.date, t.merchant, t.amount, t.category, t.account, t.entity, t.companyType || "", t.memo, t.taxWithheld || ""]);
+    const headers = ["Date", "Vendor", "Amount", "Category", "Account", "Company", "Company Type", "Notes"];
+    const rows = filtered.map((t) => [t.transaction_date, t.vendor, t.amount, t.category, t.account_source, t.entity, t.company_type || "", t.notes || ""]);
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -200,6 +185,10 @@ export default function Transactions() {
         </SelectContent>
       </Select>
     );
+  }
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading transactions…</div>;
   }
 
   return (
@@ -321,8 +310,8 @@ export default function Transactions() {
               className="flex flex-col lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_40px] gap-1 lg:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors cursor-pointer items-center"
               onClick={() => openEdit(tx)}
             >
-              <span className="text-xs text-muted-foreground">{tx.date}</span>
-              <span className="text-sm font-medium text-card-foreground truncate">{tx.merchant}</span>
+              <span className="text-xs text-muted-foreground">{tx.transaction_date}</span>
+              <span className="text-sm font-medium text-card-foreground truncate">{tx.vendor}</span>
               <span className={`text-sm font-semibold tabular-nums text-right ${tx.amount >= 0 ? "text-success" : "text-destructive"}`}>
                 {fmt(tx.amount)}
               </span>
@@ -333,9 +322,9 @@ export default function Transactions() {
                 {tx.category}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                {tx.entity}{tx.companyType ? ` (${tx.companyType})` : ""}
+                {tx.entity}{tx.company_type ? ` (${tx.company_type})` : ""}
               </span>
-              <span className="text-xs text-muted-foreground italic truncate">{tx.memo}</span>
+              <span className="text-xs text-muted-foreground italic truncate">{tx.notes}</span>
               <Button
                 variant="ghost"
                 size="icon"
@@ -385,12 +374,6 @@ export default function Transactions() {
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Company / Entity</Label>
                 <CompanyDropdown value={editEntity} onChange={setEditEntity} />
               </div>
-              {editCategory === "W-2 Income" && (
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Tax Withheld</Label>
-                  <Input type="number" value={editTaxWithheld} onChange={(e) => setEditTaxWithheld(parseFloat(e.target.value) || 0)} />
-                </div>
-              )}
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
                 <Textarea value={editMemo} onChange={(e) => setEditMemo(e.target.value)} rows={3} />
