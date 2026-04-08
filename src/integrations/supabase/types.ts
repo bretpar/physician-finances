@@ -44,6 +44,45 @@ export type Database = {
         }
         Relationships: []
       }
+      income_forecasts: {
+        Row: {
+          company_name: string
+          company_type: string
+          created_at: string
+          expected_withholding: number
+          gross_income: number
+          id: string
+          month: string
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name?: string
+          company_type?: string
+          created_at?: string
+          expected_withholding?: number
+          gross_income?: number
+          id?: string
+          month: string
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string
+          company_type?: string
+          created_at?: string
+          expected_withholding?: number
+          gross_income?: number
+          id?: string
+          month?: string
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
