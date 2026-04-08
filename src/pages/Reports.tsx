@@ -1,14 +1,17 @@
 import { FileSpreadsheet, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { mockTransactions } from "@/lib/mockData";
+import { useTransactions } from "@/hooks/useTransactions";
 
 export default function Reports() {
+  const { data: transactions } = useTransactions();
+
   function downloadCSV() {
-    const headers = "Date,Merchant,Amount,Category,Account,Entity,Deductible,Memo\n";
-    const rows = mockTransactions
-      .map((t) => `${t.date},"${t.merchant}",${t.amount},"${t.category}","${t.account}","${t.entity}",${t.deductible},"${t.memo}"`)
+    const rows = transactions || [];
+    const headers = "Date,Vendor,Amount,Category,Account,Entity,Notes\n";
+    const csv = rows
+      .map((t) => `${t.transaction_date},"${t.vendor}",${t.amount},"${t.category}","${t.account_source}","${t.entity}","${t.notes || ""}"`)
       .join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv" });
+    const blob = new Blob([headers + csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
