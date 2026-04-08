@@ -12,23 +12,33 @@ export type Transaction = {
   taxWithheld?: number;
 };
 
-export const categories = [
+export const expenseCategories = [
+  "Uncategorized",
   "Meals",
   "Travel",
+  "Software / Subscriptions",
   "Medical Equipment",
-  "Software Subscriptions",
   "CME / Education",
-  "Malpractice / Insurance",
   "Vehicle / Mileage",
   "Home Office",
   "Supplies",
-  "Personal / Exclude",
+  "Insurance",
+  "Professional Fees",
+  "Personal",
+];
+
+export const incomeCategories = [
   "1099 Income",
   "K-1 Income",
   "Side Business Income",
   "W-2 Income",
   "Other Income",
 ];
+
+export const categories = [...expenseCategories, ...incomeCategories];
+
+// Personal category is excluded from business calculations
+export const PERSONAL_CATEGORY = "Personal";
 
 export const accounts = [
   "Chase Business Checking",
