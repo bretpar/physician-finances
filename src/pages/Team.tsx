@@ -162,7 +162,7 @@ export default function Team() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isAdminOrOwner && member.user_id !== user?.id ? (
-                    <Select value={member.role} onValueChange={(v) => handleRoleChange(member.id, v)}>
+                    <Select value={member.role} onValueChange={(v: string) => handleRoleChange(member.id, v)}>
                       <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="owner">Owner</SelectItem>
