@@ -118,7 +118,7 @@ export default function Team() {
   async function handleRoleChange(memberId: string, newRole: string) {
     const { error } = await supabase
       .from("organization_members")
-      .update({ role: newRole })
+      .update({ role: newRole as "owner" | "admin" | "member" })
       .eq("id", memberId);
     if (error) {
       toast.error(error.message);
