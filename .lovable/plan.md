@@ -1,42 +1,44 @@
 
 
-## W-2 Income and Tax Withholding Tracking
+## Fix: Transactions Not Persisting Deletes
 
-### What this adds
-A way to record your W-2 job income alongside the taxes already withheld from those paychecks. The system will then subtract your W-2 withholdings from your total estimated tax liability, so your quarterly estimate reflects only what you still owe from 1099/K-1 income.
+### Problem
+The Transactions page (`src/pages/Transactions.tsx`) operates entirely on **in-memory mock data**. Line 18 initializes state from `mockTransactions`, and the delete function (line 131) only removes from local state — it never calls the database. On reload, mock data reappears because nothing was actually deleted from the backend.
 
-### Changes
+The `useTransactions` / `useDeleteTransaction` hooks exist in `src/hooks/useTransactions.ts` and correctly talk to the database, but the Transactions page doesn't use them.
 
-**1. Extend the data model** (`src/lib/mockData.ts`)
-- Add `"W-2 Income"` to the categories list
-- Add an optional `taxWithheld` field to the `Transaction` type (number, defaults to 0) — used only for W-2 income transactions to record federal/state taxes already paid
-- Add sample W-2 mock transactions with `taxWithheld` values (e.g., employer paycheck of $12,000 with $3,200 withheld)
+### Plan
 
-**2. Update tax calculations** (`src/lib/mockData.ts` — `getSummary`)
-- Sum `taxWithheld` from all W-2 transactions in the period
-- Return `w2Income`, `w2Withheld` in the summary
-- Compute `remainingTaxLiability = totalTax - w2Withheld`
-- Adjust `quarterlyEstimate` to be based on remaining liability only (non-W-2 income tax minus W-2 withholdings already paid)
-- SE tax and B&O tax should only apply to non-W-2 income (W-2 employers handle FICA)
+**1. Rewrite Transactions.tsx to use database hooks instead of local mock state**
 
-**3. Add W-2 income entry in the Transactions page** (`src/pages/Transactions.tsx`)
-- Add an "Add W-2 Income" button at the top
-- Opens a dialog with fields: date, employer name, gross pay, federal tax withheld, state tax withheld, memo
-- Creates a transaction with category "W-2 Income" and stores withholding in `taxWithheld`
-- The existing edit dialog will also show `taxWithheld` field when category is "W-2 Income"
+- Replace `useState(mockTransactions)` with `useTransactions()` from the existing hook
+- Replace the local `executeDelete()` with `useDeleteTransaction().mutate(id)`
+- Replace local add logic with `useAddTransaction().mutate()`
+- Replace local edit/save logic with `useUpdateTransaction().mutate()`
+- Map `DbTransaction` fields (`vendor`, `transaction_date`, `account_source`) to the UI fields currently named (`merchant`, `date`, `account`)
+- The `entity` and `companyType` fields don't exist in the DB `transactions` table yet — will need a migration to add `entity` (text, default 'Unassigned') and `company_type` (text, default '') columns
 
-**4. Update Dashboard** (`src/pages/Dashboard.tsx`)
-- Add a stat card showing "W-2 Tax Withheld" so you can see credits against your liability
-- Adjust the "Tax Set-Aside" card to show the net amount still needed (total liability minus W-2 withholdings)
+**2. Database migration — add entity columns to transactions table**
 
-**5. Update Tax Planning page** (`src/pages/TaxPlanning.tsx`)
-- Add a "W-2 Withholdings" row in the tax breakdown showing taxes already paid
-- Show adjusted quarterly estimate: `(total tax - W-2 withheld) / remaining quarters`
-- Add a summary line: "Already covered by W-2 withholdings" vs "Still owed from 1099/K-1"
+```sql
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS entity text NOT NULL DEFAULT 'Unassigned',
+  ADD COLUMN IF NOT EXISTS company_type text NOT NULL DEFAULT '';
+```
 
-### Key tax logic
-- W-2 income is included in total income and federal tax calculation
-- SE tax (15.3%) applies only to 1099/K-1/side business income (not W-2)
-- B&O tax applies only to non-W-2 business income
-- Quarterly estimates = (federal tax on all income + SE tax on self-employment income + B&O) minus W-2 withholdings, divided by 4
+**3. Update summary widgets to use DB data**
+
+- `useExpenseSummary` currently takes mock `Transaction[]` — update it to work with `DbTransaction[]` or the mapped format from the query results
+
+**4. Ensure no auth required for now**
+
+- Since the user hasn't added authentication yet, RLS will block all queries. The page likely shows empty data when hitting the DB. Either:
+  - Add a note that auth is needed, OR
+  - Temporarily add anon-access policies (not recommended for security)
+- Most likely the user is already authenticated or we should flag this dependency
+
+### Technical detail
+- The `useDeleteTransaction` hook does a real `DELETE` (not soft-delete), which is correct
+- Query invalidation in the hooks will automatically refresh summaries and the transaction list after mutations
+- CSV export will continue to work since it operates on the filtered array
 
