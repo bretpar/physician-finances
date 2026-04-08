@@ -5,7 +5,8 @@ export type Transaction = {
   amount: number;
   category: string;
   account: string;
-  entity: string;
+  entity: string; // company name or "Unassigned"
+  companyType?: "1099" | "W2" | "K1";
   deductible: boolean;
   memo: string;
   type: "income" | "expense";
