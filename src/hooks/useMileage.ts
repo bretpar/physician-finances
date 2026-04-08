@@ -51,8 +51,10 @@ export function useAddMileageEntry() {
     mutationFn: async (entry: Pick<MileageEntry, "month" | "year" | "company_name" | "miles">) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+      const orgId = await getUserOrgId();
       const { error } = await supabase.from("mileage_entries").insert({
         user_id: user.id,
+        organization_id: orgId,
         month: entry.month,
         year: entry.year,
         company_name: entry.company_name,
