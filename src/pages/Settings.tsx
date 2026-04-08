@@ -67,7 +67,6 @@ export default function Settings() {
 
   function handleAddCompany() {
     addCompany({
-      id: `company-${Date.now()}`,
       name: "",
       companyType: "1099",
       includeInTax: true,

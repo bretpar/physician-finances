@@ -10,7 +10,11 @@ import {
   Menu,
   X,
   Car,
+  Users,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -19,12 +23,14 @@ const navItems = [
   { to: "/mileage", icon: Car, label: "Mileage" },
   { to: "/accounts", icon: Landmark, label: "Accounts" },
   { to: "/reports", icon: FileDown, label: "Reports" },
+  { to: "/team", icon: Users, label: "Team" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { organizationName, signOut, user } = useAuth();
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -46,9 +52,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
             <PiggyBank className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="text-base font-semibold text-sidebar-primary-foreground">MedFinance</h1>
-            <p className="text-xs text-sidebar-foreground">Physician Portal</p>
+            <p className="text-xs text-sidebar-foreground truncate">{organizationName || "Physician Portal"}</p>
           </div>
           <button
             className="ml-auto lg:hidden text-sidebar-foreground"
@@ -76,8 +82,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="px-4 py-4 border-t border-sidebar-border">
-          <p className="text-xs text-sidebar-foreground">Tax Year 2025</p>
+        <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
+          <p className="text-xs text-sidebar-foreground truncate">{user?.email}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={signOut}
+            className="w-full justify-start gap-2 text-sidebar-foreground hover:text-sidebar-primary-foreground"
+          >
+            <LogOut className="h-4 w-4" /> Sign Out
+          </Button>
         </div>
       </aside>
 

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getUserOrgId } from "@/hooks/useOrgId";
 
 export interface DbTransaction {
   id: string;
@@ -40,8 +41,10 @@ export function useAddTransaction() {
     mutationFn: async (tx: Partial<DbTransaction>) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+      const orgId = await getUserOrgId();
       const { error } = await supabase.from("transactions").insert({
         user_id: user.id,
+        organization_id: orgId,
         transaction_date: tx.transaction_date || new Date().toISOString().split("T")[0],
         vendor: tx.vendor || "",
         amount: tx.amount || 0,
