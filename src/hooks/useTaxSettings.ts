@@ -53,15 +53,15 @@ export function useUpdateTaxSettings() {
   return useMutation({
     mutationFn: async (settings: Partial<TaxRates> & { id: string }) => {
       const { id, ...rest } = settings;
-      const payload: Record<string, unknown> = {};
-      if (rest.federalRate !== undefined) payload.federal_rate = rest.federalRate;
-      if (rest.stateRate !== undefined) payload.state_rate = rest.stateRate;
-      if (rest.bnoRate !== undefined) payload.bno_rate = rest.bnoRate;
-      if (rest.filingStatus !== undefined) payload.filing_status = rest.filingStatus;
-      if (rest.lastYearTax !== undefined) payload.last_year_tax = rest.lastYearTax;
-      if (rest.standardDeductionOverride !== undefined) payload.standard_deduction_override = rest.standardDeductionOverride;
-      if (rest.ssWageCap !== undefined) payload.ss_wage_cap = rest.ssWageCap;
-      const { error } = await supabase.from("tax_settings").update(payload).eq("id", id);
+      const { error } = await supabase.from("tax_settings").update({
+        ...(rest.federalRate !== undefined && { federal_rate: rest.federalRate }),
+        ...(rest.stateRate !== undefined && { state_rate: rest.stateRate }),
+        ...(rest.bnoRate !== undefined && { bno_rate: rest.bnoRate }),
+        ...(rest.filingStatus !== undefined && { filing_status: rest.filingStatus }),
+        ...(rest.lastYearTax !== undefined && { last_year_tax: rest.lastYearTax }),
+        ...(rest.standardDeductionOverride !== undefined && { standard_deduction_override: rest.standardDeductionOverride }),
+        ...(rest.ssWageCap !== undefined && { ss_wage_cap: rest.ssWageCap }),
+      }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
