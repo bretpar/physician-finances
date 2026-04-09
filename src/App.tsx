@@ -13,6 +13,7 @@ import Accounts from "@/pages/Accounts";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
+import Income from "@/pages/Income";
 import Team from "@/pages/Team";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
