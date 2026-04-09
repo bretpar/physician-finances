@@ -16,7 +16,7 @@ export default function Dashboard() {
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
-  if (txLoading || ratesLoading) {
+  if (txLoading || ratesLoading || incLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground">Loading dashboard…</p>
