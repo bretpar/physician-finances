@@ -5,12 +5,10 @@ import {
   ArrowLeftRight,
   PiggyBank,
   FileDown,
-  Landmark,
   Settings,
   Menu,
   X,
   Car,
-  Users,
   LogOut,
   Wallet,
   Calculator,
@@ -27,9 +25,7 @@ const navItems = [
   { to: "/mileage", icon: Car, label: "Mileage" },
   { to: "/projected-income", icon: TrendingUp, label: "Projected Income" },
   { to: "/estimated-tax", icon: Calculator, label: "Tax Estimate" },
-  { to: "/accounts", icon: Landmark, label: "Accounts" },
   { to: "/reports", icon: FileDown, label: "Reports" },
-  { to: "/team", icon: Users, label: "Team" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
