@@ -5,11 +5,13 @@ import TaxWidget from "@/components/TaxWidget";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
+import { useIncomeEntries } from "@/hooks/useIncome";
 
 export default function Dashboard() {
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const summary = useDashboardSummary(transactions, rates);
+  const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
+  const summary = useDashboardSummary(transactions, rates, incomeEntries);
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
