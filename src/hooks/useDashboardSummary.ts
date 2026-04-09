@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import type { TaxRates } from "@/hooks/useTaxSettings";
+import type { IncomeEntry } from "@/hooks/useIncome";
 
 export interface DashboardSummary {
   totalIncome: number;
@@ -16,11 +17,14 @@ export interface DashboardSummary {
   totalTaxLiability: number;
   remainingLiability: number;
   quarterlyEstimate: number;
+  totalPreTaxDeductions: number;
+  total401k: number;
 }
 
 export function useDashboardSummary(
   transactions: DbTransaction[] | undefined,
-  rates: TaxRates | undefined
+  rates: TaxRates | undefined,
+  incomeEntries?: IncomeEntry[]
 ): DashboardSummary {
   return useMemo(() => {
     const empty: DashboardSummary = {
@@ -28,43 +32,35 @@ export function useDashboardSummary(
       w2Income: 0, w2Withheld: 0, selfEmploymentIncome: 0, selfEmploymentProfit: 0,
       estimatedTax: 0, seTax: 0, bnoTax: 0,
       totalTaxLiability: 0, remainingLiability: 0, quarterlyEstimate: 0,
+      totalPreTaxDeductions: 0, total401k: 0,
     };
-    if (!transactions || !rates) return empty;
+    if (!rates) return empty;
 
-    const now = new Date();
-    const thisMonth = now.getMonth();
-    const thisYear = now.getFullYear();
+    // --- Income from income_entries ---
+    const entries = incomeEntries || [];
+    const w2Entries = entries.filter((e) => e.income_type === "W2");
+    const nonW2Entries = entries.filter((e) => e.income_type !== "W2");
 
-    const monthly = transactions.filter((t) => {
-      const d = new Date(t.transaction_date);
-      return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
-    });
+    const totalIncome = entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const w2Income = w2Entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const w2Withheld = entries.reduce((s, e) => s + Number(e.taxes_withheld), 0);
+    const selfEmploymentIncome = nonW2Entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const totalPreTaxDeductions = entries.reduce((s, e) => s + Number(e.pre_tax_deductions), 0);
+    const total401k = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
 
-    const incomeRows = monthly.filter((t) => t.amount > 0);
-    const expenseRows = monthly.filter((t) => t.amount < 0);
-
-    const totalIncome = incomeRows.reduce((s, t) => s + t.amount, 0);
+    // --- Expenses from transactions ---
+    const expenseRows = (transactions || []).filter((t) => t.amount < 0);
     const totalExpenses = Math.abs(expenseRows.reduce((s, t) => s + t.amount, 0));
 
-    // W-2 specifics — category contains "W-2" or "W2"
-    const isW2 = (t: DbTransaction) =>
-      t.category.toLowerCase().includes("w-2") || t.category.toLowerCase().includes("w2") ||
-      t.company_type.toUpperCase() === "W2";
-    const w2Income = incomeRows.filter(isW2).reduce((s, t) => s + t.amount, 0);
-    // W-2 withholding stored in the notes field as "withheld:XXXX" or via expected_withholding
-    // For simplicity, use a convention: W-2 withholding = federal_rate% of W-2 income as default
-    // TODO: pull from income_forecasts expected_withholding
-    const w2Withheld = w2Income * (rates.federalRate / 100);
-
-    const selfEmploymentIncome = incomeRows.filter((t) => !isW2(t)).reduce((s, t) => s + t.amount, 0);
     const netProfit = totalIncome - totalExpenses;
     const selfEmploymentProfit = selfEmploymentIncome - totalExpenses;
 
+    const taxableIncome = totalIncome - totalPreTaxDeductions - total401k;
     const federalRate = rates.federalRate / 100;
     const seRate = 0.153;
     const bnoRate = rates.bnoRate / 100;
 
-    const estimatedTax = netProfit * federalRate;
+    const estimatedTax = Math.max(0, taxableIncome) * federalRate;
     const seTax = Math.max(0, selfEmploymentProfit) * seRate * 0.9235;
     const bnoTax = selfEmploymentIncome * bnoRate;
 
@@ -77,6 +73,7 @@ export function useDashboardSummary(
       w2Income, w2Withheld, selfEmploymentIncome, selfEmploymentProfit,
       estimatedTax, seTax, bnoTax,
       totalTaxLiability, remainingLiability, quarterlyEstimate,
+      totalPreTaxDeductions, total401k,
     };
-  }, [transactions, rates]);
+  }, [transactions, rates, incomeEntries]);
 }
