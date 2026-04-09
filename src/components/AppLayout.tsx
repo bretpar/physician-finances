@@ -14,6 +14,7 @@ import {
   LogOut,
   Wallet,
   Calculator,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/tax-planning", icon: PiggyBank, label: "Tax Planning" },
   { to: "/income", icon: Wallet, label: "Income" },
   { to: "/mileage", icon: Car, label: "Mileage" },
+  { to: "/projected-income", icon: TrendingUp, label: "Projected Income" },
   { to: "/estimated-tax", icon: Calculator, label: "Tax Estimate" },
   { to: "/accounts", icon: Landmark, label: "Accounts" },
   { to: "/reports", icon: FileDown, label: "Reports" },

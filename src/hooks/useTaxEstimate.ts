@@ -3,6 +3,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals } from "@/hooks/useProjectedIncome";
 import { calculateFullEstimate, type TaxEstimate } from "@/lib/taxEngine";
 
 export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boolean } {
@@ -11,19 +12,34 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const currentYear = new Date().getFullYear();
   const { data: mileageEntries, isLoading: milLoading } = useMileageYTD(currentYear);
+  const { data: streams, isLoading: strLoading } = useProjectedStreams();
+  const { data: bonuses, isLoading: bonLoading } = useProjectedBonuses();
 
-  const isLoading = incLoading || txLoading || ratesLoading || milLoading;
+  const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading;
 
   const estimate = useMemo(() => {
     if (!rates || !incomeEntries) return null;
 
     const entries = incomeEntries;
-    const totalIncome = entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const w2Income = entries.filter((e) => e.income_type === "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const seIncome = entries.filter((e) => e.income_type !== "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const totalActualIncome = entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const w2ActualIncome = entries.filter((e) => e.income_type === "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const seActualIncome = entries.filter((e) => e.income_type !== "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
     const preTaxDeductions = entries.reduce((s, e) => s + Number(e.pre_tax_deductions), 0);
     const retirement401k = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
     const taxesWithheld = entries.reduce((s, e) => s + Number(e.taxes_withheld), 0);
+
+    // Projected income (remaining year)
+    const existingDates = new Set(entries.map((e) => e.income_date));
+    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], existingDates);
+    const projTotals = getProjectedTotals(projectedPaychecks);
+
+    // Combine actual + projected
+    const totalIncome = totalActualIncome + projTotals.grossIncome;
+    const w2Income = w2ActualIncome + projTotals.grossIncome; // projected streams are W2
+    const seIncome = seActualIncome; // projected is W2 only
+    const combinedPreTax = preTaxDeductions + projTotals.preTaxDeductions;
+    const combined401k = retirement401k + projTotals.retirement401k;
+    const combinedWithheld = taxesWithheld + projTotals.taxesWithheld;
 
     // Business deductions from expense transactions
     const businessExpenses = (transactions || [])
@@ -34,7 +50,7 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
     const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
     const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
 
-    // Remaining pay periods estimate (based on how many income entries we expect)
+    // Remaining pay periods estimate
     const now = new Date();
     const monthsRemaining = 12 - now.getMonth();
     const avgEntriesPerMonth = entries.length > 0
@@ -43,8 +59,11 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
     const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
 
     return calculateFullEstimate({
-      totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
-      businessDeductions: businessExpenses, mileageDeduction, taxesWithheld,
+      totalIncome, w2Income, seIncome,
+      preTaxDeductions: combinedPreTax,
+      retirement401k: combined401k,
+      businessDeductions: businessExpenses, mileageDeduction,
+      taxesWithheld: combinedWithheld,
       filingStatus: rates.filingStatus,
       lastYearTax: rates.lastYearTax,
       standardDeductionOverride: rates.standardDeductionOverride,
@@ -52,7 +71,7 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
       bnoRate: rates.bnoRate / 100,
       remainingPayPeriods,
     });
-  }, [incomeEntries, transactions, rates, mileageEntries]);
+  }, [incomeEntries, transactions, rates, mileageEntries, streams, bonuses]);
 
   return { estimate, isLoading };
 }

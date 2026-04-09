@@ -355,6 +355,131 @@ export type Database = {
           },
         ]
       }
+      projected_bonus_events: {
+        Row: {
+          amount: number
+          created_at: string
+          frequency: string
+          id: string
+          name: string
+          organization_id: string | null
+          scheduled_date: string
+          stream_id: string
+          taxes_withheld: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          frequency?: string
+          id?: string
+          name?: string
+          organization_id?: string | null
+          scheduled_date?: string
+          stream_id: string
+          taxes_withheld?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          frequency?: string
+          id?: string
+          name?: string
+          organization_id?: string | null
+          scheduled_date?: string
+          stream_id?: string
+          taxes_withheld?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projected_bonus_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projected_bonus_events_stream_id_fkey"
+            columns: ["stream_id"]
+            isOneToOne: false
+            referencedRelation: "projected_income_streams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projected_income_streams: {
+        Row: {
+          company: string
+          company_type: string
+          created_at: string
+          custom_interval_days: number | null
+          end_date: string | null
+          id: string
+          include_in_tax: boolean
+          is_active: boolean
+          organization_id: string | null
+          pay_frequency: string
+          paycheck_amount: number
+          pre_tax_deductions: number
+          retirement_401k: number
+          start_date: string
+          taxes_withheld: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string
+          company_type?: string
+          created_at?: string
+          custom_interval_days?: number | null
+          end_date?: string | null
+          id?: string
+          include_in_tax?: boolean
+          is_active?: boolean
+          organization_id?: string | null
+          pay_frequency?: string
+          paycheck_amount?: number
+          pre_tax_deductions?: number
+          retirement_401k?: number
+          start_date?: string
+          taxes_withheld?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string
+          company_type?: string
+          created_at?: string
+          custom_interval_days?: number | null
+          end_date?: string | null
+          id?: string
+          include_in_tax?: boolean
+          is_active?: boolean
+          organization_id?: string | null
+          pay_frequency?: string
+          paycheck_amount?: number
+          pre_tax_deductions?: number
+          retirement_401k?: number
+          start_date?: string
+          taxes_withheld?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projected_income_streams_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tax_settings: {
         Row: {
           bno_rate: number
