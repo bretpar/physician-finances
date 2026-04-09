@@ -152,7 +152,7 @@ export default function ProjectedIncome() {
     const company = companies.find((c) => c.name === streamForm.company);
     const payload: Partial<ProjectedIncomeStream> = {
       company: streamForm.company,
-      company_type: company?.company_type || "W2",
+      company_type: company?.companyType || "W2",
       pay_frequency: streamForm.pay_frequency,
       custom_interval_days: streamForm.pay_frequency === "custom" ? num(streamForm.custom_interval_days) : null,
       start_date: streamForm.start_date,
