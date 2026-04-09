@@ -44,6 +44,7 @@ function ProtectedRoutes() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/tax-planning" element={<TaxPlanning />} />
           <Route path="/mileage" element={<Mileage />} />
+          <Route path="/income" element={<Income />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/team" element={<Team />} />

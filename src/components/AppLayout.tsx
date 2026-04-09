@@ -21,6 +21,7 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transactions" },
   { to: "/tax-planning", icon: PiggyBank, label: "Tax Planning" },
+  { to: "/income", icon: Wallet, label: "Income" },
   { to: "/mileage", icon: Car, label: "Mileage" },
   { to: "/accounts", icon: Landmark, label: "Accounts" },
   { to: "/reports", icon: FileDown, label: "Reports" },
