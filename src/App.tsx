@@ -13,6 +13,7 @@ import Accounts from "@/pages/Accounts";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
+import Income from "@/pages/Income";
 import Team from "@/pages/Team";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -43,6 +44,7 @@ function ProtectedRoutes() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/tax-planning" element={<TaxPlanning />} />
           <Route path="/mileage" element={<Mileage />} />
+          <Route path="/income" element={<Income />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/team" element={<Team />} />
