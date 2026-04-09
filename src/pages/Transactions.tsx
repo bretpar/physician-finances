@@ -1,18 +1,52 @@
 import { useState, useMemo } from "react";
 import { categories, accounts, PERSONAL_CATEGORY } from "@/lib/mockData";
 import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction } from "@/hooks/useTransactions";
+import { useAddIncome, type IncomeEntry } from "@/hooks/useIncome";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useIncomeEntries } from "@/hooks/useIncome";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Search, SlidersHorizontal, Plus, Trash2, Download } from "lucide-react";
+import { Search, SlidersHorizontal, Plus, Trash2, Download, DollarSign, AlertTriangle } from "lucide-react";
 import ExpenseSummaryWidgets from "@/components/ExpenseSummaryWidgets";
 import { useExpenseSummary } from "@/hooks/useExpenseSummary";
 import { useCompanies } from "@/contexts/CompanyContext";
+
+const INCOME_TYPES = ["W2", "1099", "K1"];
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+interface IncomeFormState {
+  name: string;
+  company: string;
+  income_type: string;
+  income_date: string;
+  paycheck_amount: string;
+  deposited_amount: string;
+  taxes_withheld: string;
+  pre_tax_deductions: string;
+  retirement_401k: string;
+  notes: string;
+}
+
+const emptyIncomeForm: IncomeFormState = {
+  name: "",
+  company: "",
+  income_type: "1099",
+  income_date: new Date().toISOString().split("T")[0],
+  paycheck_amount: "",
+  deposited_amount: "",
+  taxes_withheld: "",
+  pre_tax_deductions: "",
+  retirement_401k: "",
+  notes: "",
+};
 
 export default function Transactions() {
   const { companies } = useCompanies();
@@ -20,6 +54,9 @@ export default function Transactions() {
   const deleteMutation = useDeleteTransaction();
   const addMutation = useAddTransaction();
   const updateMutation = useUpdateTransaction();
+  const addIncomeMutation = useAddIncome();
+  const { data: incomeEntries } = useIncomeEntries();
+  const { data: taxSettings } = useTaxSettings();
 
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -43,7 +80,7 @@ export default function Transactions() {
   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
 
-  // Add dialog
+  // Add expense dialog
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addDate, setAddDate] = useState("");
   const [addVendor, setAddVendor] = useState("");
@@ -53,19 +90,33 @@ export default function Transactions() {
   const [addEntity, setAddEntity] = useState("Unassigned");
   const [addMemo, setAddMemo] = useState("");
 
-  // W-2 dialog
-  const [showW2Dialog, setShowW2Dialog] = useState(false);
-  const [w2Date, setW2Date] = useState("");
-  const [w2Employer, setW2Employer] = useState("");
-  const [w2Company, setW2Company] = useState("Unassigned");
-  const [w2GrossPay, setW2GrossPay] = useState("");
-  const [w2FedWithheld, setW2FedWithheld] = useState("");
-  const [w2StateWithheld, setW2StateWithheld] = useState("");
-  const [w2Memo, setW2Memo] = useState("");
+  // Add income dialog
+  const [showIncomeDialog, setShowIncomeDialog] = useState(false);
+  const [incomeForm, setIncomeForm] = useState<IncomeFormState>(emptyIncomeForm);
+  const [taxSuggestion, setTaxSuggestion] = useState<{ amount: number; paycheck: number } | null>(null);
+
+  const num = (v: string) => parseFloat(v) || 0;
 
   const companyOptions = useMemo(() => {
     return companies.map((c) => ({ label: `${c.name} (${c.companyType})`, value: c.name, type: c.companyType }));
   }, [companies]);
+
+  const allCompanyNames = useMemo(() => {
+    const set = new Set<string>();
+    companies.forEach((c) => set.add(c.name));
+    return [...set].sort();
+  }, [companies]);
+
+  // Income form computed values
+  const computedPaycheck = num(incomeForm.deposited_amount) + num(incomeForm.taxes_withheld) + num(incomeForm.pre_tax_deductions) + num(incomeForm.retirement_401k);
+  const enteredPaycheck = num(incomeForm.paycheck_amount);
+  const hasMismatch = incomeForm.paycheck_amount !== "" && incomeForm.deposited_amount !== "" && Math.abs(enteredPaycheck - computedPaycheck) > 0.01;
+
+  // Auto-fill income type from company settings
+  const getCompanyType = (companyName: string) => {
+    const c = companies.find((co) => co.name === companyName);
+    return c?.companyType || "1099";
+  };
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -84,8 +135,6 @@ export default function Transactions() {
   }, [transactions, search, filterCategory, filterAccount, filterCompany, filterCompanyType, filterQuick, filterDateFrom, filterDateTo]);
 
   const summary = useExpenseSummary(transactions, companies);
-
-  const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
   function getCompanyTypeForEntity(entityName: string) {
     return companies.find((c) => c.name === entityName)?.companyType || "";
@@ -145,24 +194,66 @@ export default function Transactions() {
     setAddDate(""); setAddVendor(""); setAddAmount(""); setAddCategory("Uncategorized"); setAddEntity("Unassigned"); setAddMemo("");
   }
 
-  function addW2Income() {
-    const grossPay = parseFloat(w2GrossPay) || 0;
-    const fedWithheld = parseFloat(w2FedWithheld) || 0;
-    const stateWithheld = parseFloat(w2StateWithheld) || 0;
-    if (grossPay <= 0 || !w2Date || !w2Employer) return;
-    const companyType = getCompanyTypeForEntity(w2Company) || "W2";
-    addMutation.mutate({
-      transaction_date: w2Date,
-      vendor: w2Employer,
-      amount: grossPay,
-      category: "W-2 Income",
-      account_source: "Chase Business Checking",
-      entity: w2Company,
-      company_type: companyType,
-      notes: w2Memo ? `${w2Memo} | Tax withheld: $${(fedWithheld + stateWithheld).toFixed(2)}` : `Tax withheld: $${(fedWithheld + stateWithheld).toFixed(2)}`,
+  // Income form helpers
+  const setIncomeField = (key: keyof IncomeFormState, value: string) => {
+    setIncomeForm((p) => {
+      const updated = { ...p, [key]: value };
+      // Auto-set income type when company changes
+      if (key === "company" && value) {
+        updated.income_type = getCompanyType(value);
+      }
+      return updated;
     });
-    setShowW2Dialog(false);
-    setW2Date(""); setW2Employer(""); setW2Company("Unassigned"); setW2GrossPay(""); setW2FedWithheld(""); setW2StateWithheld(""); setW2Memo("");
+  };
+
+  const calculateTaxSuggestion = (paycheckAmount: number) => {
+    if (!taxSettings) return 0;
+    const existingIncome = (incomeEntries || []).reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const existingWithheld = (incomeEntries || []).reduce((s, e) => s + Number(e.taxes_withheld), 0);
+    const existingDeductions = (incomeEntries || []).reduce((s, e) => s + Number(e.pre_tax_deductions) + Number(e.retirement_401k), 0);
+
+    const totalAnnualIncome = existingIncome + paycheckAmount;
+    const taxableIncome = totalAnnualIncome - existingDeductions;
+    const federalTax = taxableIncome * (taxSettings.federalRate / 100);
+    const remaining = Math.max(0, federalTax - existingWithheld);
+    const proportion = paycheckAmount / totalAnnualIncome;
+    return remaining * proportion;
+  };
+
+  function submitIncome() {
+    if (!incomeForm.name.trim() || !incomeForm.company.trim()) return;
+    if (num(incomeForm.paycheck_amount) <= 0 && num(incomeForm.deposited_amount) <= 0) return;
+
+    const paycheckAmt = num(incomeForm.paycheck_amount) || computedPaycheck;
+
+    const payload: Partial<IncomeEntry> = {
+      name: incomeForm.name,
+      company: incomeForm.company,
+      income_type: incomeForm.income_type,
+      income_date: incomeForm.income_date,
+      paycheck_amount: paycheckAmt,
+      deposited_amount: num(incomeForm.deposited_amount),
+      taxes_withheld: num(incomeForm.taxes_withheld),
+      pre_tax_deductions: num(incomeForm.pre_tax_deductions),
+      retirement_401k: num(incomeForm.retirement_401k),
+      notes: incomeForm.notes,
+    };
+
+    addIncomeMutation.mutate(payload, {
+      onSuccess: () => {
+        // Show tax suggestion for 1099/K1 with no withholding
+        const withheld = num(incomeForm.taxes_withheld);
+        const type = incomeForm.income_type;
+        if ((type === "1099" || type === "K1") && withheld === 0) {
+          const suggestion = calculateTaxSuggestion(paycheckAmt);
+          if (suggestion > 0) {
+            setTaxSuggestion({ amount: suggestion, paycheck: paycheckAmt });
+          }
+        }
+        setShowIncomeDialog(false);
+        setIncomeForm(emptyIncomeForm);
+      },
+    });
   }
 
   function exportCSV() {
@@ -208,10 +299,10 @@ export default function Transactions() {
           <Download className="h-4 w-4" /> CSV
         </Button>
         <Button variant="outline" onClick={() => setShowAddDialog(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Transaction
+          <Plus className="h-4 w-4" /> Add Expense
         </Button>
-        <Button onClick={() => setShowW2Dialog(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Add W-2
+        <Button onClick={() => { setIncomeForm(emptyIncomeForm); setShowIncomeDialog(true); }} className="gap-2">
+          <Plus className="h-4 w-4" /> Add Income
         </Button>
       </div>
 
@@ -406,24 +497,24 @@ export default function Transactions() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add Transaction */}
+      {/* Add Expense dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Transaction</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Add Expense</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Date *</Label>
                 <Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Vendor</Label>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Vendor *</Label>
                 <Input value={addVendor} onChange={(e) => setAddVendor(e.target.value)} placeholder="Vendor name" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Amount (negative for expense)</Label>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Amount (negative for expense) *</Label>
                 <Input type="number" step="0.01" value={addAmount} onChange={(e) => setAddAmount(e.target.value)} placeholder="-50.00" />
               </div>
               <div>
@@ -453,54 +544,121 @@ export default function Transactions() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-              <Button onClick={addTransaction}>Add Transaction</Button>
+              <Button onClick={addTransaction}>Add Expense</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Add W-2 */}
-      <Dialog open={showW2Dialog} onOpenChange={setShowW2Dialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add W-2 Income</DialogTitle></DialogHeader>
+      {/* Add Income dialog */}
+      <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Add Income</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
-                <Input type="date" value={w2Date} onChange={(e) => setW2Date(e.target.value)} />
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Name *</Label>
+                <Input placeholder="e.g. ED Shift, K1 Distribution" value={incomeForm.name} onChange={(e) => setIncomeField("name", e.target.value)} />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Employer Name</Label>
-                <Input value={w2Employer} onChange={(e) => setW2Employer(e.target.value)} placeholder="Hospital System" />
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
+                <Select value={incomeForm.company} onValueChange={(v) => setIncomeField("company", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                  <SelectContent>
+                    {allCompanyNames.map((c) => (
+                      <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
+                <Select value={incomeForm.income_type} onValueChange={(v) => setIncomeField("income_type", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INCOME_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Date *</Label>
+                <Input type="date" value={incomeForm.income_date} onChange={(e) => setIncomeField("income_date", e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Total Paycheck *</Label>
+                <Input type="number" min="0" step="0.01" placeholder="Gross amount" value={incomeForm.paycheck_amount} onChange={(e) => setIncomeField("paycheck_amount", e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Deposited Amount</Label>
+                <Input type="number" min="0" step="0.01" placeholder="Net deposit" value={incomeForm.deposited_amount} onChange={(e) => setIncomeField("deposited_amount", e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  Taxes Withheld {incomeForm.income_type === "W2" && <span className="text-primary">(expected)</span>}
+                </Label>
+                <Input type="number" min="0" step="0.01" placeholder="0" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeField("taxes_withheld", e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
+                <Input type="number" min="0" step="0.01" placeholder="Healthcare, insurance…" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeField("pre_tax_deductions", e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">401k Contribution</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0" value={incomeForm.retirement_401k} onChange={(e) => setIncomeField("retirement_401k", e.target.value)} />
+              </div>
+            </div>
+
+            {hasMismatch && (
+              <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  Total Paycheck ({fmt(enteredPaycheck)}) ≠ Deposited + Withheld + Deductions + 401k ({fmt(computedPaycheck)})
+                </span>
+              </div>
+            )}
+
             <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Company / Entity</Label>
-              <CompanyDropdown value={w2Company} onChange={setW2Company} />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Pay</Label>
-              <Input type="number" value={w2GrossPay} onChange={(e) => setW2GrossPay(e.target.value)} placeholder="0.00" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Tax Withheld</Label>
-                <Input type="number" value={w2FedWithheld} onChange={(e) => setW2FedWithheld(e.target.value)} placeholder="0.00" />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">State Tax Withheld</Label>
-                <Input type="number" value={w2StateWithheld} onChange={(e) => setW2StateWithheld(e.target.value)} placeholder="0.00" />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Memo</Label>
-              <Textarea value={w2Memo} onChange={(e) => setW2Memo(e.target.value)} rows={2} placeholder="Bi-weekly paycheck…" />
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+              <Input placeholder="Optional notes" value={incomeForm.notes} onChange={(e) => setIncomeField("notes", e.target.value)} />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowW2Dialog(false)}>Cancel</Button>
-              <Button onClick={addW2Income}>Add Income</Button>
+              <Button variant="outline" onClick={() => setShowIncomeDialog(false)}>Cancel</Button>
+              <Button onClick={submitIncome} disabled={!incomeForm.name.trim() || !incomeForm.company.trim()}>
+                Save Income
+              </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tax suggestion popup */}
+      <Dialog open={!!taxSuggestion} onOpenChange={() => setTaxSuggestion(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-primary" /> Tax Set-Aside Suggestion
+            </DialogTitle>
+          </DialogHeader>
+          {taxSuggestion && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Based on your current projected income and deductions, you should set aside:
+              </p>
+              <p className="text-3xl font-bold text-primary text-center py-2">
+                {fmt(taxSuggestion.amount)}
+              </p>
+              <p className="text-sm text-muted-foreground text-center">
+                from this {fmt(taxSuggestion.paycheck)} income for taxes.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setTaxSuggestion(null)}>Got it</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
