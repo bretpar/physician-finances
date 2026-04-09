@@ -16,6 +16,7 @@ import Mileage from "@/pages/Mileage";
 import Income from "@/pages/Income";
 import Team from "@/pages/Team";
 import EstimatedTax from "@/pages/EstimatedTax";
+import ProjectedIncome from "@/pages/ProjectedIncome";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import NotFound from "@/pages/NotFound";
