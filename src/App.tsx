@@ -9,7 +9,6 @@ import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Transactions from "@/pages/Transactions";
 import TaxPlanning from "@/pages/TaxPlanning";
-import Accounts from "@/pages/Accounts";
 import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
