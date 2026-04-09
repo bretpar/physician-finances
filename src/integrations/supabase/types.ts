@@ -55,6 +55,68 @@ export type Database = {
           },
         ]
       }
+      income_entries: {
+        Row: {
+          company: string
+          created_at: string
+          deposited_amount: number
+          id: string
+          income_date: string
+          income_type: string
+          name: string
+          notes: string | null
+          organization_id: string | null
+          paycheck_amount: number
+          pre_tax_deductions: number
+          retirement_401k: number
+          taxes_withheld: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string
+          created_at?: string
+          deposited_amount?: number
+          id?: string
+          income_date?: string
+          income_type?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string | null
+          paycheck_amount?: number
+          pre_tax_deductions?: number
+          retirement_401k?: number
+          taxes_withheld?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          deposited_amount?: number
+          id?: string
+          income_date?: string
+          income_type?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string | null
+          paycheck_amount?: number
+          pre_tax_deductions?: number
+          retirement_401k?: number
+          taxes_withheld?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "income_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       income_forecasts: {
         Row: {
           company_name: string
