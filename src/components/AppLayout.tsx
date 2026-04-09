@@ -13,6 +13,7 @@ import {
   Users,
   LogOut,
   Wallet,
+  Calculator,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
