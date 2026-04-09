@@ -360,8 +360,12 @@ export type Database = {
           bno_rate: number
           created_at: string
           federal_rate: number
+          filing_status: string
           id: string
+          last_year_tax: number
           organization_id: string | null
+          ss_wage_cap: number
+          standard_deduction_override: number | null
           state_rate: number
           updated_at: string
           user_id: string
@@ -370,8 +374,12 @@ export type Database = {
           bno_rate?: number
           created_at?: string
           federal_rate?: number
+          filing_status?: string
           id?: string
+          last_year_tax?: number
           organization_id?: string | null
+          ss_wage_cap?: number
+          standard_deduction_override?: number | null
           state_rate?: number
           updated_at?: string
           user_id: string
@@ -380,8 +388,12 @@ export type Database = {
           bno_rate?: number
           created_at?: string
           federal_rate?: number
+          filing_status?: string
           id?: string
+          last_year_tax?: number
           organization_id?: string | null
+          ss_wage_cap?: number
+          standard_deduction_override?: number | null
           state_rate?: number
           updated_at?: string
           user_id?: string
