@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import type { TaxRates } from "@/hooks/useTaxSettings";
 import type { IncomeEntry } from "@/hooks/useIncome";
+import { calculateFullEstimate, type TaxEstimate } from "@/lib/taxEngine";
 
 export interface DashboardSummary {
   totalIncome: number;
@@ -36,44 +37,38 @@ export function useDashboardSummary(
     };
     if (!rates) return empty;
 
-    // --- Income from income_entries ---
     const entries = incomeEntries || [];
-    const w2Entries = entries.filter((e) => e.income_type === "W2");
-    const nonW2Entries = entries.filter((e) => e.income_type !== "W2");
-
     const totalIncome = entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const w2Income = w2Entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const w2Income = entries.filter((e) => e.income_type === "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
+    const seIncome = entries.filter((e) => e.income_type !== "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
     const w2Withheld = entries.reduce((s, e) => s + Number(e.taxes_withheld), 0);
-    const selfEmploymentIncome = nonW2Entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const totalPreTaxDeductions = entries.reduce((s, e) => s + Number(e.pre_tax_deductions), 0);
-    const total401k = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
+    const preTaxDeductions = entries.reduce((s, e) => s + Number(e.pre_tax_deductions), 0);
+    const retirement401k = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
 
-    // --- Expenses from transactions ---
     const expenseRows = (transactions || []).filter((t) => t.amount < 0);
     const totalExpenses = Math.abs(expenseRows.reduce((s, t) => s + t.amount, 0));
 
-    const netProfit = totalIncome - totalExpenses;
-    const selfEmploymentProfit = selfEmploymentIncome - totalExpenses;
-
-    const taxableIncome = totalIncome - totalPreTaxDeductions - total401k;
-    const federalRate = rates.federalRate / 100;
-    const seRate = 0.153;
-    const bnoRate = rates.bnoRate / 100;
-
-    const estimatedTax = Math.max(0, taxableIncome) * federalRate;
-    const seTax = Math.max(0, selfEmploymentProfit) * seRate * 0.9235;
-    const bnoTax = selfEmploymentIncome * bnoRate;
-
-    const totalTaxLiability = estimatedTax + seTax + bnoTax;
-    const remainingLiability = Math.max(0, totalTaxLiability - w2Withheld);
-    const quarterlyEstimate = remainingLiability / 4;
+    const est = calculateFullEstimate({
+      totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
+      businessDeductions: totalExpenses, mileageDeduction: 0,
+      taxesWithheld: w2Withheld, filingStatus: rates.filingStatus,
+      lastYearTax: rates.lastYearTax, bnoRate: rates.bnoRate / 100,
+    });
 
     return {
-      totalIncome, totalExpenses, netProfit,
-      w2Income, w2Withheld, selfEmploymentIncome, selfEmploymentProfit,
-      estimatedTax, seTax, bnoTax,
-      totalTaxLiability, remainingLiability, quarterlyEstimate,
-      totalPreTaxDeductions, total401k,
+      totalIncome, totalExpenses,
+      netProfit: totalIncome - totalExpenses,
+      w2Income, w2Withheld,
+      selfEmploymentIncome: seIncome,
+      selfEmploymentProfit: seIncome - totalExpenses,
+      estimatedTax: est.federalTax,
+      seTax: est.seTax.total,
+      bnoTax: est.bnoTax,
+      totalTaxLiability: est.totalTaxLiability,
+      remainingLiability: est.remainingLiability,
+      quarterlyEstimate: est.quarterlyEstimate,
+      totalPreTaxDeductions: preTaxDeductions,
+      total401k: retirement401k,
     };
   }, [transactions, rates, incomeEntries]);
 }
