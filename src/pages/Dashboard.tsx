@@ -1,4 +1,4 @@
-import { DollarSign, TrendingUp, TrendingDown, PiggyBank, Receipt, Building2, Briefcase, ShieldCheck, CheckCircle2, AlertTriangle } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, PiggyBank, Receipt, Building2, Briefcase, ShieldCheck, CheckCircle2, AlertTriangle, Clock, CalendarCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import StatCard from "@/components/StatCard";
 import RecentTransactions from "@/components/RecentTransactions";
@@ -9,6 +9,7 @@ import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: savings = [] } = useTaxSavings();
   const { estimate } = useTaxEstimate();
+  const { data: taxPayments = [] } = useTaxPayments();
   const summary = useDashboardSummary(transactions, rates, incomeEntries);
 
   const fmt = (n: number) =>
