@@ -16,6 +16,7 @@ import EstimatedTax from "@/pages/EstimatedTax";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import Stocks from "@/pages/Stocks";
 import TaxReserve from "@/pages/TaxReserve";
+import QuarterlyTaxPlanner from "@/pages/QuarterlyTaxPlanner";
 import Reports from "@/pages/Reports";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -51,6 +52,7 @@ function ProtectedRoutes() {
           <Route path="/projected-income" element={<ProjectedIncome />} />
           <Route path="/stocks" element={<Stocks />} />
           <Route path="/tax-reserve" element={<TaxReserve />} />
+          <Route path="/quarterly-taxes" element={<QuarterlyTaxPlanner />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />

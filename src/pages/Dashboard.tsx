@@ -1,4 +1,4 @@
-import { DollarSign, TrendingUp, TrendingDown, PiggyBank, Receipt, Building2, Briefcase, ShieldCheck, CheckCircle2, AlertTriangle } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, PiggyBank, Receipt, Building2, Briefcase, ShieldCheck, CheckCircle2, AlertTriangle, Clock, CalendarCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import StatCard from "@/components/StatCard";
 import RecentTransactions from "@/components/RecentTransactions";
@@ -9,6 +9,7 @@ import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: savings = [] } = useTaxSavings();
   const { estimate } = useTaxEstimate();
+  const { data: taxPayments = [] } = useTaxPayments();
   const summary = useDashboardSummary(transactions, rates, incomeEntries);
 
   const fmt = (n: number) =>
@@ -82,6 +84,53 @@ export default function Dashboard() {
                 {ok ? "On track — enough saved for taxes" : `Under-saving by ${fmt(Math.abs(gap))}`}
               </p>
               <Button variant="outline" size="sm" onClick={() => navigate("/tax-reserve")}>View Tax Reserve →</Button>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Quarterly Tax Payment Card */}
+      {(() => {
+        const currentYear = new Date().getFullYear();
+        const QUARTERS = [
+          { key: "Q1", due: new Date(currentYear, 3, 15), dueLabel: `Apr 15` },
+          { key: "Q2", due: new Date(currentYear, 5, 15), dueLabel: `Jun 15` },
+          { key: "Q3", due: new Date(currentYear, 8, 15), dueLabel: `Sep 15` },
+          { key: "Q4", due: new Date(currentYear + 1, 0, 15), dueLabel: `Jan 15` },
+        ];
+        const totalPaid = taxPayments.reduce((s, p) => s + Number(p.amount), 0);
+        const estTax = estimate?.totalTaxLiability ?? 0;
+        const withheld = estimate?.taxesAlreadyWithheld ?? 0;
+        const remaining = Math.max(0, estTax - withheld - totalPaid);
+        const nowDate = new Date();
+        const nextQ = QUARTERS.find((q) => q.due >= nowDate);
+        const remainingQs = QUARTERS.filter((q) => q.due >= nowDate).length || 1;
+        const nextPayment = remaining / remainingQs;
+
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <CalendarCheck className="h-5 w-5 text-primary" />
+                Quarterly Tax Payments
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Paid So Far</p>
+                  <p className="font-semibold">{fmt(totalPaid)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Remaining</p>
+                  <p className="font-semibold text-destructive">{fmt(remaining)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Next Due</p>
+                  <p className="font-semibold">{nextQ ? `${fmt(nextPayment)} ${nextQ.dueLabel}` : "—"}</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => navigate("/quarterly-taxes")}>View Planner →</Button>
             </CardContent>
           </Card>
         );
