@@ -480,6 +480,59 @@ export type Database = {
           },
         ]
       }
+      stock_transactions: {
+        Row: {
+          cost_basis: number
+          created_at: string
+          estimated_tax: number
+          gain_loss: number
+          id: string
+          notes: string | null
+          organization_id: string | null
+          sale_date: string
+          sale_type: string
+          total_sale_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cost_basis?: number
+          created_at?: string
+          estimated_tax?: number
+          gain_loss?: number
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          sale_date?: string
+          sale_type?: string
+          total_sale_amount?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cost_basis?: number
+          created_at?: string
+          estimated_tax?: number
+          gain_loss?: number
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          sale_date?: string
+          sale_type?: string
+          total_sale_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tax_settings: {
         Row: {
           bno_rate: number
