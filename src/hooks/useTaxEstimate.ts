@@ -4,6 +4,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals } from "@/hooks/useProjectedIncome";
+import { useStockTransactions } from "@/hooks/useStocks";
 import { calculateFullEstimate, type TaxEstimate } from "@/lib/taxEngine";
 
 export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boolean } {
@@ -14,8 +15,9 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
   const { data: mileageEntries, isLoading: milLoading } = useMileageYTD(currentYear);
   const { data: streams, isLoading: strLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonLoading } = useProjectedBonuses();
+  const { data: stockTxs, isLoading: stkLoading } = useStockTransactions();
 
-  const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading;
+  const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading;
 
   const estimate = useMemo(() => {
     if (!rates || !incomeEntries) return null;
@@ -33,8 +35,17 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
     const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], existingDates);
     const projTotals = getProjectedTotals(projectedPaychecks);
 
-    // Combine actual + projected
-    const totalIncome = totalActualIncome + projTotals.grossIncome;
+    // Stock gains as additional income
+    const stockGains = (stockTxs || [])
+      .filter((s) => Number(s.gain_loss) > 0)
+      .reduce((sum, s) => sum + Number(s.gain_loss), 0);
+    const stockLosses = (stockTxs || [])
+      .filter((s) => Number(s.gain_loss) < 0)
+      .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
+    const netStockGain = Math.max(0, stockGains - stockLosses);
+
+    // Combine actual + projected + stock gains
+    const totalIncome = totalActualIncome + projTotals.grossIncome + netStockGain;
     const w2Income = w2ActualIncome + projTotals.grossIncome; // projected streams are W2
     const seIncome = seActualIncome; // projected is W2 only
     const combinedPreTax = preTaxDeductions + projTotals.preTaxDeductions;
@@ -71,7 +82,7 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
       bnoRate: rates.bnoRate / 100,
       remainingPayPeriods,
     });
-  }, [incomeEntries, transactions, rates, mileageEntries, streams, bonuses]);
+  }, [incomeEntries, transactions, rates, mileageEntries, streams, bonuses, stockTxs]);
 
   return { estimate, isLoading };
 }
