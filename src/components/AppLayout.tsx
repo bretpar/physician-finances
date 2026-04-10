@@ -14,6 +14,7 @@ import {
   Calculator,
   TrendingUp,
   BarChart3,
+  Landmark,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ const navItems = [
   { to: "/mileage", icon: Car, label: "Mileage" },
   { to: "/projected-income", icon: TrendingUp, label: "Projected Income" },
   { to: "/stocks", icon: BarChart3, label: "Stocks" },
+  { to: "/tax-reserve", icon: Landmark, label: "Tax Reserve" },
   { to: "/estimated-tax", icon: Calculator, label: "Tax Estimate" },
   { to: "/reports", icon: FileDown, label: "Reports" },
   { to: "/settings", icon: Settings, label: "Settings" },
