@@ -45,8 +45,8 @@ export default function TaxReserve() {
   const [notes, setNotes] = useState("");
 
   const totalSetAside = useMemo(() => savings.reduce((s, e) => s + Number(e.amount), 0), [savings]);
-  const estimatedOwed = estimate?.totalTax ?? 0;
-  const taxesWithheld = estimate?.taxesAlreadyPaid ?? 0;
+  const estimatedOwed = estimate?.totalTaxLiability ?? 0;
+  const taxesWithheld = estimate?.taxesAlreadyWithheld ?? 0;
   const remainingOwed = Math.max(0, estimatedOwed - taxesWithheld);
   const taxGap = totalSetAside - remainingOwed;
   const onTrack = taxGap >= 0;
