@@ -14,6 +14,7 @@ import Mileage from "@/pages/Mileage";
 import Income from "@/pages/Income";
 import EstimatedTax from "@/pages/EstimatedTax";
 import ProjectedIncome from "@/pages/ProjectedIncome";
+import Stocks from "@/pages/Stocks";
 import Reports from "@/pages/Reports";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -47,6 +48,7 @@ function ProtectedRoutes() {
           <Route path="/income" element={<Income />} />
           <Route path="/estimated-tax" element={<EstimatedTax />} />
           <Route path="/projected-income" element={<ProjectedIncome />} />
+          <Route path="/stocks" element={<Stocks />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
