@@ -102,8 +102,9 @@ export default function Dashboard() {
         const estTax = estimate?.totalTaxLiability ?? 0;
         const withheld = estimate?.taxesAlreadyWithheld ?? 0;
         const remaining = Math.max(0, estTax - withheld - totalPaid);
-        const nextQ = QUARTERS.find((q) => q.due >= now);
-        const remainingQs = QUARTERS.filter((q) => q.due >= now).length || 1;
+        const nowDate = new Date();
+        const nextQ = QUARTERS.find((q) => q.due >= nowDate);
+        const remainingQs = QUARTERS.filter((q) => q.due >= nowDate).length || 1;
         const nextPayment = remaining / remainingQs;
 
         return (
