@@ -6,6 +6,8 @@ import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
 import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
+import { useTaxPayments } from "@/hooks/useTaxPayments";
+import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { calculateFullEstimate, type TaxEstimate } from "@/lib/taxEngine";
 
 export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boolean } {
@@ -18,12 +20,14 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
   const { data: bonuses, isLoading: bonLoading } = useProjectedBonuses();
   const { data: stockTxs, isLoading: stkLoading } = useStockTransactions();
   const { data: retirementContribs, isLoading: retLoading } = useRetirementContributions();
+  const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
+  const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
 
   // Use confidence-weighted income totals
   const weighted = useWeightedIncome(incomeEntries);
   const annualizedRetirement = useAnnualizedContributions(retirementContribs);
 
-  const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading;
+  const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
 
   const estimate = useMemo(() => {
     if (!rates || !incomeEntries) return null;
@@ -78,6 +82,11 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
       : 1;
     const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
 
+    // Additional tax paid (quarterly payments + tax savings)
+    const quarterlyPaid = taxPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const savingsTotal = taxSavings.reduce((s, e) => s + Number(e.amount), 0);
+    const additionalTaxPaid = quarterlyPaid + savingsTotal;
+
     return calculateFullEstimate({
       totalIncome, w2Income, seIncome,
       preTaxDeductions: combinedPreTax,
@@ -90,8 +99,9 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
       ssWageCap: rates.ssWageCap,
       bnoRate: rates.bnoRate / 100,
       remainingPayPeriods,
+      additionalTaxPaid,
     });
-  }, [incomeEntries, weighted, transactions, rates, mileageEntries, streams, bonuses, stockTxs, annualizedRetirement]);
+  }, [incomeEntries, weighted, transactions, rates, mileageEntries, streams, bonuses, stockTxs, annualizedRetirement, taxPayments, taxSavings]);
 
   return { estimate, isLoading };
 }
