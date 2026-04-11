@@ -401,6 +401,31 @@ export default function Transactions() {
       <div className="space-y-4 max-w-7xl mx-auto">
         <ExpenseSummaryWidgets {...summary} />
 
+        {/* Type filter tabs */}
+        <div className="flex gap-2 flex-wrap">
+          {([
+            { value: "all" as const, label: "All" },
+            { value: "income" as const, label: "Income" },
+            { value: "expense" as const, label: "Expenses" },
+            { value: "deduction" as const, label: "Deductions" },
+            { value: "stock" as const, label: "Stocks" },
+          ] as const).map((tab) => (
+            <Button
+              key={tab.value}
+              variant={filterType === tab.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterType(tab.value)}
+            >
+              {tab.label}
+              {tab.value !== "all" && (
+                <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">
+                  {transactions.filter((t) => tab.value === "all" || (t.transaction_type || "expense") === tab.value).length}
+                </Badge>
+              )}
+            </Button>
+          ))}
+        </div>
+
         {/* Search & actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
