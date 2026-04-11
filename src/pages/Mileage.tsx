@@ -75,6 +75,15 @@ export default function Mileage() {
   const deleteContrib = useDeleteRetirementContribution();
   const annualized = useAnnualizedContributions(contributions);
 
+  // ─── Income-linked retirement data ────────────
+  const { data: incomeEntries } = useIncomeEntries();
+  const paycheckLinked = useMemo(() => {
+    if (!incomeEntries) return { entries: [], total: 0 };
+    const entries = incomeEntries.filter((e) => Number(e.retirement_401k) > 0);
+    const total = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
+    return { entries, total };
+  }, [incomeEntries]);
+
   const [contribForm, setContribForm] = useState<ContribForm>(emptyContribForm);
   const [contribEditId, setContribEditId] = useState<string | null>(null);
   const [showContribForm, setShowContribForm] = useState(false);
