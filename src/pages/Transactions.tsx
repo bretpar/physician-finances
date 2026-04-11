@@ -738,23 +738,27 @@ export default function Transactions() {
                   )}
                 </div>
 
-                {/* Withholding saved checkbox - income transactions only */}
+                {/* Withholding tracking - income transactions only */}
                 {editTx.transaction_type === "income" && (editTx as any).recommended_withholding > 0 && (
-                  <div className="rounded-md border border-border p-3 space-y-2">
+                  <div className="rounded-md border border-border p-3 space-y-3">
                     <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <DollarSign className="h-4 w-4 text-red-500" />
                       <span className="text-muted-foreground">Recommended Tax Hold:</span>
-                      <span className="font-semibold text-primary">{fmt((editTx as any).recommended_withholding)}</span>
+                      <span className="font-semibold text-red-600 dark:text-red-400">{fmt((editTx as any).recommended_withholding)}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="withholding-saved"
-                        checked={editWithholdingSaved}
-                        onCheckedChange={(checked) => setEditWithholdingSaved(checked === true)}
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual Amount Withheld</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={`e.g. ${fmt((editTx as any).recommended_withholding)}`}
+                        value={editActualWithholding === "0" ? "" : editActualWithholding}
+                        onChange={(e) => setEditActualWithholding(e.target.value)}
                       />
-                      <label htmlFor="withholding-saved" className="text-sm cursor-pointer">
-                        I saved the recommended tax withholding for this transaction
-                      </label>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Enter the actual amount you set aside for taxes. This can differ from the recommendation.
+                      </p>
                     </div>
                   </div>
                 )}
