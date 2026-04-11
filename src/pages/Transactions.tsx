@@ -771,9 +771,183 @@ export default function Transactions() {
 
         {/* Edit dialog */}
         <Dialog open={!!editTx} onOpenChange={(open) => !open && setEditTx(null)}>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Edit Transaction</DialogTitle></DialogHeader>
-            {editTx && (
+          <DialogContent className={isEditingIncome ? "max-w-2xl" : undefined}>
+            <DialogHeader>
+              <DialogTitle>{isEditingIncome ? "Edit Income" : "Edit Transaction"}</DialogTitle>
+            </DialogHeader>
+            {editTx && isEditingIncome ? (
+              /* ===== Income-specific edit form (matches Add Income) ===== */
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Name *</Label>
+                    <Input placeholder="e.g. ED Shift, K1 Distribution" value={editIncomeForm.name} onChange={(e) => setEditIncomeField("name", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
+                    <Select value={editIncomeForm.company} onValueChange={(v) => setEditIncomeField("company", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                      <SelectContent>
+                        {allCompanyNames.map((c) => (
+                          <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
+                    <Select value={editIncomeForm.income_type} onValueChange={(v) => setEditIncomeField("income_type", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {INCOME_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Date *</Label>
+                    <Input type="date" value={editIncomeForm.income_date} onChange={(e) => setEditIncomeField("income_date", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Total Paycheck (Gross) *</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="Gross amount" value={editIncomeForm.paycheck_amount} onChange={(e) => setEditIncomeField("paycheck_amount", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Deposited Amount (Net)</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="Net deposit" value={editIncomeForm.deposited_amount} onChange={(e) => setEditIncomeField("deposited_amount", e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">
+                      Taxes Withheld {editIncomeForm.income_type === "W2" && <span className="text-primary">(expected)</span>}
+                    </Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0" value={editIncomeForm.taxes_withheld} onChange={(e) => setEditIncomeField("taxes_withheld", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="Healthcare, insurance…" value={editIncomeForm.pre_tax_deductions} onChange={(e) => setEditIncomeField("pre_tax_deductions", e.target.value)} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Label className="text-xs text-muted-foreground">Retirement Contribution (Pre-Tax)</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">Pre-tax retirement contributions (401k, 403b, etc.) reduce your taxable income and withholding estimates.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Input type="number" min="0" step="0.01" placeholder="0" value={editIncomeForm.retirement_401k} onChange={(e) => setEditIncomeField("retirement_401k", e.target.value)} />
+                  </div>
+                </div>
+
+                {num(editIncomeForm.retirement_401k) > 0 && (
+                  <div className="flex items-center gap-3 rounded-md bg-blue-50 dark:bg-blue-950/30 px-3 py-2">
+                    <PiggyBank className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
+                        Pre-tax retirement contribution of {fmt(editRetirementContrib)} will reduce taxable income
+                      </p>
+                    </div>
+                    <Select value={editIncomeForm.retirement_account_type} onValueChange={(v) => setEditIncomeField("retirement_account_type", v)}>
+                      <SelectTrigger className="w-[140px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACCOUNT_TYPES.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {editHasMismatch && (
+                  <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>
+                      Total Paycheck ({fmt(editEnteredPaycheck)}) ≠ Deposited + Withheld + Deductions + 401k ({fmt(editComputedPaycheck)})
+                    </span>
+                  </div>
+                )}
+
+                {editGrossIncome > 0 && (
+                  <div className="rounded-md border border-border px-3 py-2 space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground">Income Breakdown</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                      <span className="text-muted-foreground">Gross Income</span>
+                      <span className="text-right font-medium">{fmt(editGrossIncome)}</span>
+                      {editRetirementContrib > 0 && (
+                        <>
+                          <span className="text-blue-600 dark:text-blue-400">− Pre-Tax Retirement</span>
+                          <span className="text-right text-blue-600 dark:text-blue-400">−{fmt(editRetirementContrib)}</span>
+                        </>
+                      )}
+                      {editPreTaxDed > 0 && (
+                        <>
+                          <span className="text-muted-foreground">− Other Pre-Tax</span>
+                          <span className="text-right">−{fmt(editPreTaxDed)}</span>
+                        </>
+                      )}
+                      <span className="text-muted-foreground font-semibold border-t border-border pt-0.5 mt-0.5">Taxable Income</span>
+                      <span className="text-right font-bold border-t border-border pt-0.5 mt-0.5">{fmt(editTaxableIncome)}</span>
+                      {editNetIncome > 0 && (
+                        <>
+                          <span className="text-muted-foreground">Net Deposit</span>
+                          <span className="text-right">{fmt(editNetIncome)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Withholding tracking */}
+                {(editTx as any).recommended_withholding > 0 && (
+                  <div className="rounded-md border border-border p-3 space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <DollarSign className="h-4 w-4 text-red-500" />
+                      <span className="text-muted-foreground">Recommended Tax Hold:</span>
+                      <span className="font-semibold text-red-600 dark:text-red-400">{fmt((editTx as any).recommended_withholding)}</span>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual Amount Withheld</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={`e.g. ${fmt((editTx as any).recommended_withholding)}`}
+                        value={editActualWithholding === "0" ? "" : editActualWithholding}
+                        onChange={(e) => setEditActualWithholding(e.target.value)}
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Enter the actual amount you set aside for taxes. This can differ from the recommendation.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                  <Input placeholder="Optional notes" value={editIncomeForm.notes} onChange={(e) => setEditIncomeField("notes", e.target.value)} />
+                </div>
+
+                <div className="flex justify-between">
+                  <Button variant="destructive" onClick={() => confirmDelete(editTx.id)} className="gap-2">
+                    <Trash2 className="h-4 w-4" /> Delete
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setEditTx(null)}>Cancel</Button>
+                    <Button onClick={saveEdit} disabled={!editIncomeForm.name.trim() || !editIncomeForm.company.trim()}>
+                      Save Income
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : editTx ? (
+              /* ===== Non-income (expense/other) edit form ===== */
               <div className="space-y-4">
                 {(() => {
                   const retBadge = getRetirementBadge(editTx);
@@ -839,30 +1013,6 @@ export default function Transactions() {
                   )}
                 </div>
 
-                {/* Withholding tracking - income transactions only */}
-                {editTx.transaction_type === "income" && (editTx as any).recommended_withholding > 0 && (
-                  <div className="rounded-md border border-border p-3 space-y-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-red-500" />
-                      <span className="text-muted-foreground">Recommended Tax Hold:</span>
-                      <span className="font-semibold text-red-600 dark:text-red-400">{fmt((editTx as any).recommended_withholding)}</span>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual Amount Withheld</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={`e.g. ${fmt((editTx as any).recommended_withholding)}`}
-                        value={editActualWithholding === "0" ? "" : editActualWithholding}
-                        onChange={(e) => setEditActualWithholding(e.target.value)}
-                      />
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        Enter the actual amount you set aside for taxes. This can differ from the recommendation.
-                      </p>
-                    </div>
-                  </div>
-                )}
                 <div className="flex justify-between">
                   <Button variant="destructive" onClick={() => confirmDelete(editTx.id)} className="gap-2">
                     <Trash2 className="h-4 w-4" /> Delete
@@ -873,7 +1023,7 @@ export default function Transactions() {
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
           </DialogContent>
         </Dialog>
 
