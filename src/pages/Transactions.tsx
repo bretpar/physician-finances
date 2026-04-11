@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { categories, accounts, PERSONAL_CATEGORY } from "@/lib/mockData";
 import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction, type TransactionType } from "@/hooks/useTransactions";
-import { useAddIncome, type IncomeEntry } from "@/hooks/useIncome";
+import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { Badge } from "@/components/ui/badge";
