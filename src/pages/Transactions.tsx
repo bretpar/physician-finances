@@ -111,6 +111,11 @@ export default function Transactions() {
   const [editWithholdingSaved, setEditWithholdingSaved] = useState(false);
   const [editActualWithholding, setEditActualWithholding] = useState("");
 
+  // Income-specific edit state
+  const [editIncomeForm, setEditIncomeForm] = useState<IncomeFormState>(emptyIncomeForm);
+  const [editIncomeId, setEditIncomeId] = useState<string | null>(null);
+  const isEditingIncome = editTx?.transaction_type === "income";
+
   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
 
