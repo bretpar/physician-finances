@@ -739,6 +739,7 @@ export type Database = {
       transactions: {
         Row: {
           account_source: string
+          actual_withholding: number
           amount: number
           category: string
           company_type: string
@@ -762,6 +763,7 @@ export type Database = {
         }
         Insert: {
           account_source?: string
+          actual_withholding?: number
           amount?: number
           category?: string
           company_type?: string
@@ -785,6 +787,7 @@ export type Database = {
         }
         Update: {
           account_source?: string
+          actual_withholding?: number
           amount?: number
           category?: string
           company_type?: string
