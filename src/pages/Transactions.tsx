@@ -109,6 +109,7 @@ export default function Transactions() {
   const [editIsRecurring, setEditIsRecurring] = useState(false);
   const [editRecurringFreq, setEditRecurringFreq] = useState("monthly");
   const [editWithholdingSaved, setEditWithholdingSaved] = useState(false);
+  const [editActualWithholding, setEditActualWithholding] = useState("");
 
   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
