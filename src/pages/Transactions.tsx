@@ -211,6 +211,17 @@ export default function Transactions() {
     if (!editTx) return;
     const newAmount = parseFloat(editAmount) || editTx.amount;
     const companyType = getCompanyTypeForEntity(editEntity);
+    
+    // Recalculate recommended_withholding if amount changed for income transactions
+    let recommendedWithholding = (editTx as any).recommended_withholding || 0;
+    if (editTx.transaction_type === "income" && newAmount !== editTx.amount) {
+      const isSelfEmployed = editTx.company_type === "1099" || editTx.company_type === "K1";
+      const estimatedRate = isSelfEmployed ? 0.35 : 0.25;
+      const linked = incomeByLinkedTx.get(editTx.id);
+      const taxWithheld = linked ? Number(linked.taxes_withheld) : 0;
+      recommendedWithholding = Math.max(0, Math.round((newAmount * estimatedRate - taxWithheld) * 100) / 100);
+    }
+
     updateMutation.mutate({
       id: editTx.id,
       transaction_date: editDate || editTx.transaction_date,
@@ -222,6 +233,8 @@ export default function Transactions() {
       notes: editMemo,
       is_recurring: editIsRecurring,
       recurring_frequency: editIsRecurring ? editRecurringFreq : null,
+      withholding_saved: editWithholdingSaved,
+      recommended_withholding: recommendedWithholding,
     } as any);
     setEditTx(null);
   }
