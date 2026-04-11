@@ -545,6 +545,9 @@ export default function Transactions() {
                 >
                   <span className="text-xs text-muted-foreground">{tx.transaction_date}</span>
                   <div className="flex items-center gap-2 min-w-0">
+                    <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
+                      {(tx.transaction_type || "expense")}
+                    </Badge>
                     <span className="text-sm font-medium text-card-foreground truncate">{tx.vendor}</span>
                     {isRecurring && (
                       <Tooltip>
