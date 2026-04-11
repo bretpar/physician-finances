@@ -753,6 +753,26 @@ export default function Transactions() {
                   )}
                 </div>
 
+                {/* Withholding saved checkbox - income transactions only */}
+                {editTx.transaction_type === "income" && (editTx as any).recommended_withholding > 0 && (
+                  <div className="rounded-md border border-border p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Recommended Tax Hold:</span>
+                      <span className="font-semibold text-primary">{fmt((editTx as any).recommended_withholding)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="withholding-saved"
+                        checked={editWithholdingSaved}
+                        onCheckedChange={(checked) => setEditWithholdingSaved(checked === true)}
+                      />
+                      <label htmlFor="withholding-saved" className="text-sm cursor-pointer">
+                        I saved the recommended tax withholding for this transaction
+                      </label>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <Button variant="destructive" onClick={() => confirmDelete(editTx.id)} className="gap-2">
                     <Trash2 className="h-4 w-4" /> Delete
