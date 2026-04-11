@@ -352,13 +352,14 @@ export default function Taxes() {
             </Card>
           </div>
 
-          {/* Actual income entries */}
+          {/* Income entries with status */}
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Actual Income Entries (YTD)</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Income Entries</CardTitle></CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Company</TableHead>
                     <TableHead>Type</TableHead>
@@ -369,18 +370,29 @@ export default function Taxes() {
                 </TableHeader>
                 <TableBody>
                   {incomeEntries.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No income entries — add them in the Income page</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No income entries — add them in the Income page</TableCell></TableRow>
                   ) : (
-                    incomeEntries.slice(0, 20).map((ie) => (
-                      <TableRow key={ie.id}>
-                        <TableCell>{format(new Date(ie.income_date + "T00:00:00"), "MMM d")}</TableCell>
-                        <TableCell>{ie.company}</TableCell>
-                        <TableCell><Badge variant="outline">{ie.income_type}</Badge></TableCell>
-                        <TableCell className="text-right font-medium">{fmt(Number(ie.paycheck_amount))}</TableCell>
-                        <TableCell className="text-right">{fmt(Number(ie.taxes_withheld))}</TableCell>
-                        <TableCell className="text-right">{fmt(Number(ie.retirement_401k))}</TableCell>
-                      </TableRow>
-                    ))
+                    incomeEntries.slice(0, 20).map((ie: any) => {
+                      const status = ie.status || "received";
+                      const statusColors: Record<string, string> = {
+                        received: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                        expected: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                        projected: "bg-muted text-muted-foreground",
+                      };
+                      return (
+                        <TableRow key={ie.id}>
+                          <TableCell>
+                            <Badge variant="outline" className={cn("capitalize", statusColors[status] || "")}>{status}</Badge>
+                          </TableCell>
+                          <TableCell>{format(new Date(ie.income_date + "T00:00:00"), "MMM d")}</TableCell>
+                          <TableCell>{ie.company}</TableCell>
+                          <TableCell><Badge variant="outline">{ie.income_type}</Badge></TableCell>
+                          <TableCell className="text-right font-medium">{fmt(Number(ie.paycheck_amount))}</TableCell>
+                          <TableCell className="text-right">{fmt(Number(ie.taxes_withheld))}</TableCell>
+                          <TableCell className="text-right">{fmt(Number(ie.retirement_401k))}</TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
