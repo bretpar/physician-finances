@@ -212,22 +212,122 @@ export default function Transactions() {
     setEditRecurringFreq((tx as any).recurring_frequency || "monthly");
     setEditWithholdingSaved((tx as any).withholding_saved || false);
     setEditActualWithholding(String((tx as any).actual_withholding || 0));
+
+    // If income transaction, populate income form from linked income_entry
+    if (tx.transaction_type === "income") {
+      const linked = incomeByLinkedTx.get(tx.id);
+      if (linked) {
+        setEditIncomeId(linked.id);
+        setEditIncomeForm({
+          name: linked.name || tx.vendor,
+          company: linked.company || tx.entity,
+          income_type: linked.income_type || tx.company_type || "1099",
+          income_date: linked.income_date || tx.transaction_date,
+          paycheck_amount: String(linked.paycheck_amount || ""),
+          deposited_amount: String(linked.deposited_amount || ""),
+          taxes_withheld: String(linked.taxes_withheld || ""),
+          pre_tax_deductions: String(linked.pre_tax_deductions || ""),
+          retirement_401k: String(linked.retirement_401k || ""),
+          retirement_account_type: "401k",
+          notes: linked.notes || tx.notes || "",
+        });
+      } else {
+        // No linked income entry — populate from transaction data
+        setEditIncomeId(null);
+        setEditIncomeForm({
+          name: tx.vendor,
+          company: tx.entity,
+          income_type: tx.company_type || "1099",
+          income_date: tx.transaction_date,
+          paycheck_amount: String(tx.amount),
+          deposited_amount: String(tx.amount),
+          taxes_withheld: "",
+          pre_tax_deductions: "",
+          retirement_401k: "",
+          retirement_account_type: "401k",
+          notes: tx.notes || "",
+        });
+      }
+    }
   }
+
+  const setEditIncomeField = (key: keyof IncomeFormState, value: string) => {
+    setEditIncomeForm((p) => {
+      const updated = { ...p, [key]: value };
+      if (key === "company" && value) {
+        updated.income_type = getCompanyType(value);
+      }
+      return updated;
+    });
+  };
+
+  // Computed values for edit income form
+  const editComputedPaycheck = num(editIncomeForm.deposited_amount) + num(editIncomeForm.taxes_withheld) + num(editIncomeForm.pre_tax_deductions) + num(editIncomeForm.retirement_401k);
+  const editEnteredPaycheck = num(editIncomeForm.paycheck_amount);
+  const editHasMismatch = editIncomeForm.paycheck_amount !== "" && editIncomeForm.deposited_amount !== "" && Math.abs(editEnteredPaycheck - editComputedPaycheck) > 0.01;
+  const editGrossIncome = num(editIncomeForm.paycheck_amount) || editComputedPaycheck;
+  const editRetirementContrib = num(editIncomeForm.retirement_401k);
+  const editPreTaxDed = num(editIncomeForm.pre_tax_deductions);
+  const editTaxableIncome = Math.max(0, editGrossIncome - editRetirementContrib - editPreTaxDed);
+  const editNetIncome = num(editIncomeForm.deposited_amount);
 
   function saveEdit() {
     if (!editTx) return;
+
+    if (editTx.transaction_type === "income") {
+      // Save income transaction: update BOTH transaction + income_entries
+      const paycheckAmt = num(editIncomeForm.paycheck_amount) || editComputedPaycheck;
+      const depositedAmt = num(editIncomeForm.deposited_amount);
+      const taxWithheld = num(editIncomeForm.taxes_withheld);
+      const preTaxDed = num(editIncomeForm.pre_tax_deductions);
+      const retirement = num(editIncomeForm.retirement_401k);
+      const companyType = editIncomeForm.income_type || getCompanyTypeForEntity(editIncomeForm.company);
+
+      // Recalculate recommended withholding
+      const taxableForThis = Math.max(0, paycheckAmt - preTaxDed - retirement);
+      const isSelfEmployed = companyType === "1099" || companyType === "K1";
+      const estimatedRate = isSelfEmployed ? 0.35 : 0.25;
+      const recommendedWithholding = Math.max(0, Math.round((taxableForThis * estimatedRate - taxWithheld) * 100) / 100);
+
+      // Update transaction record
+      updateMutation.mutate({
+        id: editTx.id,
+        transaction_date: editIncomeForm.income_date,
+        vendor: editIncomeForm.name || editIncomeForm.company,
+        amount: depositedAmt || paycheckAmt,
+        category: "Income",
+        entity: editIncomeForm.company || "Unassigned",
+        company_type: companyType,
+        notes: editIncomeForm.notes,
+        actual_withholding: parseFloat(editActualWithholding) || 0,
+        withholding_saved: (parseFloat(editActualWithholding) || 0) > 0 || editWithholdingSaved,
+        recommended_withholding: recommendedWithholding,
+      } as any);
+
+      // Update linked income_entry
+      if (editIncomeId) {
+        updateIncomeMutation.mutate({
+          id: editIncomeId,
+          name: editIncomeForm.name,
+          company: editIncomeForm.company,
+          income_type: companyType,
+          income_date: editIncomeForm.income_date,
+          paycheck_amount: paycheckAmt,
+          deposited_amount: depositedAmt,
+          taxes_withheld: taxWithheld,
+          pre_tax_deductions: preTaxDed,
+          retirement_401k: retirement,
+          notes: editIncomeForm.notes,
+        });
+      }
+
+      setEditTx(null);
+      return;
+    }
+
+    // Non-income transaction: original logic
     const newAmount = parseFloat(editAmount) || editTx.amount;
     const companyType = getCompanyTypeForEntity(editEntity);
-    
-    // Recalculate recommended_withholding if amount changed for income transactions
-    let recommendedWithholding = (editTx as any).recommended_withholding || 0;
-    if (editTx.transaction_type === "income" && newAmount !== editTx.amount) {
-      const isSelfEmployed = editTx.company_type === "1099" || editTx.company_type === "K1";
-      const estimatedRate = isSelfEmployed ? 0.35 : 0.25;
-      const linked = incomeByLinkedTx.get(editTx.id);
-      const taxWithheld = linked ? Number(linked.taxes_withheld) : 0;
-      recommendedWithholding = Math.max(0, Math.round((newAmount * estimatedRate - taxWithheld) * 100) / 100);
-    }
 
     updateMutation.mutate({
       id: editTx.id,
@@ -240,9 +340,6 @@ export default function Transactions() {
       notes: editMemo,
       is_recurring: editIsRecurring,
       recurring_frequency: editIsRecurring ? editRecurringFreq : null,
-      actual_withholding: parseFloat(editActualWithholding) || 0,
-      withholding_saved: (parseFloat(editActualWithholding) || 0) > 0 || editWithholdingSaved,
-      recommended_withholding: recommendedWithholding,
     } as any);
     setEditTx(null);
   }
