@@ -4,89 +4,123 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Download, Pencil, Car } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank } from "lucide-react";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import {
+  useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
+  useDeleteRetirementContribution, useAnnualizedContributions,
+  ACCOUNT_TYPES, FREQUENCIES,
+  type RetirementContribution,
+} from "@/hooks/useRetirementContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+// ─── Retirement Contribution Form ───────────────────────────
+interface ContribForm {
+  account_type: string;
+  contribution_amount: string;
+  frequency: string;
+  start_date: string;
+  end_date: string;
+  employer_match: string;
+  apply_to_withholding: boolean;
+  notes: string;
+}
+
+const emptyContribForm: ContribForm = {
+  account_type: "401k",
+  contribution_amount: "",
+  frequency: "per_paycheck",
+  start_date: new Date().toISOString().split("T")[0],
+  end_date: "",
+  employer_match: "",
+  apply_to_withholding: true,
+  notes: "",
+};
 
 export default function Mileage() {
   const now = new Date();
+
+  // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-
   const { companies } = useCompanies();
   const { data: monthEntries = [], isLoading } = useMileageEntries(selectedMonth, selectedYear);
   const { data: ytdEntries = [] } = useMileageYTD(selectedYear);
-  const addMutation = useAddMileageEntry();
-  const updateMutation = useUpdateMileageEntry();
-  const deleteMutation = useDeleteMileageEntry();
+  const addMileage = useAddMileageEntry();
+  const updateMileage = useUpdateMileageEntry();
+  const deleteMileage = useDeleteMileageEntry();
 
-  // Add dialog
   const [showAdd, setShowAdd] = useState(false);
   const [addCompany, setAddCompany] = useState("");
   const [addMiles, setAddMiles] = useState("");
-
-  // Edit dialog
   const [editId, setEditId] = useState<string | null>(null);
   const [editCompany, setEditCompany] = useState("");
   const [editMiles, setEditMiles] = useState("");
-
-  // Delete
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+  // ─── Retirement state ─────────────────────────
+  const { data: contributions, isLoading: contribLoading } = useRetirementContributions();
+  const addContrib = useAddRetirementContribution();
+  const updateContrib = useUpdateRetirementContribution();
+  const deleteContrib = useDeleteRetirementContribution();
+  const annualized = useAnnualizedContributions(contributions);
 
-  // Summaries
+  const [contribForm, setContribForm] = useState<ContribForm>(emptyContribForm);
+  const [contribEditId, setContribEditId] = useState<string | null>(null);
+  const [showContribForm, setShowContribForm] = useState(false);
+  const [contribDeleteId, setContribDeleteId] = useState<string | null>(null);
+
+  // ─── Mileage helpers ──────────────────────────
   const monthTotalMiles = useMemo(() => monthEntries.reduce((s, e) => s + Number(e.miles), 0), [monthEntries]);
   const monthDeduction = monthTotalMiles * IRS_MILEAGE_RATE;
-
   const ytdTotalMiles = useMemo(() => ytdEntries.reduce((s, e) => s + Number(e.miles), 0), [ytdEntries]);
   const ytdDeduction = ytdTotalMiles * IRS_MILEAGE_RATE;
 
   const byCompany = useMemo(() => {
     const map: Record<string, number> = {};
-    monthEntries.forEach((e) => {
-      map[e.company_name] = (map[e.company_name] || 0) + Number(e.miles);
-    });
+    monthEntries.forEach((e) => { map[e.company_name] = (map[e.company_name] || 0) + Number(e.miles); });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [monthEntries]);
 
-  // Unique company names from past entries for autocomplete
   const pastCompanies = useMemo(() => {
     const set = new Set(ytdEntries.map((e) => e.company_name));
     companies.forEach((c) => set.add(c.name));
     return Array.from(set).filter(Boolean).sort();
   }, [ytdEntries, companies]);
 
-  function handleAdd() {
+  const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
+
+  function handleAddMileage() {
     const miles = parseFloat(addMiles);
     if (!addCompany.trim() || isNaN(miles) || miles < 0) return;
-    addMutation.mutate({ month: selectedMonth, year: selectedYear, company_name: addCompany.trim(), miles });
-    setShowAdd(false);
-    setAddCompany("");
-    setAddMiles("");
+    addMileage.mutate({ month: selectedMonth, year: selectedYear, company_name: addCompany.trim(), miles });
+    setShowAdd(false); setAddCompany(""); setAddMiles("");
   }
 
-  function openEdit(entry: typeof monthEntries[0]) {
-    setEditId(entry.id);
-    setEditCompany(entry.company_name);
-    setEditMiles(String(entry.miles));
+  function openEditMileage(entry: typeof monthEntries[0]) {
+    setEditId(entry.id); setEditCompany(entry.company_name); setEditMiles(String(entry.miles));
   }
 
-  function handleEdit() {
+  function handleEditMileage() {
     if (!editId) return;
     const miles = parseFloat(editMiles);
     if (!editCompany.trim() || isNaN(miles) || miles < 0) return;
-    updateMutation.mutate({ id: editId, company_name: editCompany.trim(), miles });
+    updateMileage.mutate({ id: editId, company_name: editCompany.trim(), miles });
     setEditId(null);
   }
 
-  function handleDelete() {
+  function handleDeleteMileage() {
     if (!deleteId) return;
-    deleteMutation.mutate(deleteId);
+    deleteMileage.mutate(deleteId);
     setDeleteId(null);
   }
 
@@ -96,153 +130,317 @@ export default function Mileage() {
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `mileage_${selectedYear}.csv`;
-    a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `mileage_${selectedYear}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
-  const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
+  // ─── Retirement helpers ───────────────────────
+  const num = (v: string) => parseFloat(v) || 0;
+
+  const setContribField = (key: keyof ContribForm, value: string | boolean) =>
+    setContribForm((p) => ({ ...p, [key]: value }));
+
+  function resetContribForm() {
+    setContribForm(emptyContribForm);
+    setContribEditId(null);
+    setShowContribForm(false);
+  }
+
+  function handleContribSubmit() {
+    if (num(contribForm.contribution_amount) <= 0) return;
+
+    const payload: Partial<RetirementContribution> = {
+      account_type: contribForm.account_type,
+      contribution_amount: num(contribForm.contribution_amount),
+      frequency: contribForm.frequency,
+      start_date: contribForm.start_date,
+      end_date: contribForm.end_date || null,
+      employer_match: num(contribForm.employer_match),
+      apply_to_withholding: contribForm.apply_to_withholding,
+      notes: contribForm.notes || null,
+    };
+
+    if (contribEditId) {
+      updateContrib.mutate({ id: contribEditId, ...payload }, { onSuccess: resetContribForm });
+    } else {
+      addContrib.mutate(payload, { onSuccess: resetContribForm });
+    }
+  }
+
+  function startEditContrib(c: RetirementContribution) {
+    setContribForm({
+      account_type: c.account_type,
+      contribution_amount: String(c.contribution_amount),
+      frequency: c.frequency,
+      start_date: c.start_date,
+      end_date: c.end_date || "",
+      employer_match: String(c.employer_match),
+      apply_to_withholding: c.apply_to_withholding,
+      notes: c.notes || "",
+    });
+    setContribEditId(c.id);
+    setShowContribForm(true);
+  }
+
+  function handleDeleteContrib() {
+    if (!contribDeleteId) return;
+    deleteContrib.mutate(contribDeleteId);
+    setContribDeleteId(null);
+  }
+
+  const getAccountLabel = (v: string) => ACCOUNT_TYPES.find((a) => a.value === v)?.label || v;
+  const getFreqLabel = (v: string) => FREQUENCIES.find((f) => f.value === v)?.label || v;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Monthly Miles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-card-foreground">{monthTotalMiles.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">{MONTHS[selectedMonth - 1]} {selectedYear}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Monthly Deduction</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-success">{fmt(monthDeduction)}</p>
-            <p className="text-xs text-muted-foreground">@ ${IRS_MILEAGE_RATE}/mile</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">YTD Miles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-card-foreground">{ytdTotalMiles.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">{selectedYear}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-muted-foreground">YTD Deduction</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-success">{fmt(ytdDeduction)}</p>
-            <p className="text-xs text-muted-foreground">Business mileage deduction</p>
-          </CardContent>
-        </Card>
-      </div>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <Tabs defaultValue="mileage" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>
+          <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>
+        </TabsList>
 
-      {/* Month/Year Selector + Actions */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-        <div className="flex gap-3">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Month</Label>
-            <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        {/* ─── MILEAGE TAB ──────────────────────────── */}
+        <TabsContent value="mileage" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Monthly Miles</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-card-foreground">{monthTotalMiles.toLocaleString()}</p><p className="text-xs text-muted-foreground">{MONTHS[selectedMonth - 1]} {selectedYear}</p></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Monthly Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(monthDeduction)}</p><p className="text-xs text-muted-foreground">@ ${IRS_MILEAGE_RATE}/mile</p></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">YTD Miles</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-card-foreground">{ytdTotalMiles.toLocaleString()}</p><p className="text-xs text-muted-foreground">{selectedYear}</p></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">YTD Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(ytdDeduction)}</p><p className="text-xs text-muted-foreground">Business mileage deduction</p></CardContent></Card>
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Year</Label>
-            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-              <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {yearOptions.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="flex gap-2 sm:ml-auto">
-          <Button variant="outline" onClick={exportCSV} className="gap-2">
-            <Download className="h-4 w-4" /> Export CSV
-          </Button>
-          <Button onClick={() => setShowAdd(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> Add Entry
-          </Button>
-        </div>
-      </div>
 
-      {/* By Company Breakdown */}
-      {byCompany.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Miles by Company — {MONTHS[selectedMonth - 1]}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {byCompany.map(([name, miles]) => (
-                <div key={name} className="flex justify-between items-center text-sm">
-                  <span className="text-card-foreground">{name}</span>
-                  <div className="text-right">
-                    <span className="font-semibold tabular-nums">{miles.toLocaleString()} mi</span>
-                    <span className="text-muted-foreground ml-3 text-xs">{fmt(miles * IRS_MILEAGE_RATE)}</span>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            <div className="flex gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Month</Label>
+                <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>{MONTHS.map((m, i) => <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Year</Label>
+                <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                  <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>{yearOptions.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2 sm:ml-auto">
+              <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" /> Export CSV</Button>
+              <Button onClick={() => setShowAdd(true)} className="gap-2"><Plus className="h-4 w-4" /> Add Entry</Button>
+            </div>
+          </div>
+
+          {byCompany.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Miles by Company — {MONTHS[selectedMonth - 1]}</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {byCompany.map(([name, miles]) => (
+                    <div key={name} className="flex justify-between items-center text-sm">
+                      <span className="text-card-foreground">{name}</span>
+                      <div className="text-right">
+                        <span className="font-semibold tabular-nums">{miles.toLocaleString()} mi</span>
+                        <span className="text-muted-foreground ml-3 text-xs">{fmt(miles * IRS_MILEAGE_RATE)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="glass-card rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+              <Car className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-card-foreground">
+                {monthEntries.length} entr{monthEntries.length !== 1 ? "ies" : "y"} — {MONTHS[selectedMonth - 1]} {selectedYear}
+              </h3>
+            </div>
+            <div className="hidden sm:grid sm:grid-cols-[1fr_120px_120px_80px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
+              <span>Company</span><span className="text-right">Miles</span><span className="text-right">Deduction</span><span></span>
+            </div>
+            <div className="divide-y divide-border">
+              {isLoading ? (
+                <div className="px-5 py-12 text-center text-muted-foreground text-sm">Loading…</div>
+              ) : monthEntries.length === 0 ? (
+                <div className="px-5 py-12 text-center text-muted-foreground text-sm">No mileage entries for this month.</div>
+              ) : (
+                monthEntries.map((entry) => (
+                  <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[1fr_120px_120px_80px] gap-1 sm:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center">
+                    <span className="text-sm font-medium text-card-foreground">{entry.company_name}</span>
+                    <span className="text-sm tabular-nums text-right">{Number(entry.miles).toLocaleString()}</span>
+                    <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * IRS_MILEAGE_RATE)}</span>
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditMileage(entry)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(entry.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ─── RETIREMENT TAB ─────────────────────── */}
+        <TabsContent value="retirement" className="space-y-6 mt-6">
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Annual Contributions</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total)}</p><p className="text-xs text-muted-foreground">Annualized pre-tax total</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Per Paycheck</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Affects Withholding</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.withholding)}</p><p className="text-xs text-muted-foreground">Applied to paycheck calculations</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Projection Only</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold text-muted-foreground">{fmt(annualized.projectionOnly)}</p><p className="text-xs text-muted-foreground">Annual tax projection only</p></CardContent>
+            </Card>
+          </div>
+
+          {/* Add button */}
+          <div className="flex justify-end">
+            <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> Add Contribution
+            </Button>
+          </div>
+
+          {/* Form */}
+          {showContribForm && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{contribEditId ? "Edit Contribution" : "New Retirement Contribution"}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Account Type *</Label>
+                    <Select value={contribForm.account_type} onValueChange={(v) => setContribField("account_type", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{ACCOUNT_TYPES.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Contribution Amount *</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={contribForm.contribution_amount} onChange={(e) => setContribField("contribution_amount", e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Frequency</Label>
+                    <Select value={contribForm.frequency} onValueChange={(v) => setContribField("frequency", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{FREQUENCIES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Start Date</Label>
+                    <Input type="date" value={contribForm.start_date} onChange={(e) => setContribField("start_date", e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>End Date (optional)</Label>
+                    <Input type="date" value={contribForm.end_date} onChange={(e) => setContribField("end_date", e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Employer Match (optional)</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={contribForm.employer_match} onChange={(e) => setContribField("employer_match", e.target.value)} />
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Entries Table */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-          <Car className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-card-foreground">
-            {monthEntries.length} entr{monthEntries.length !== 1 ? "ies" : "y"} — {MONTHS[selectedMonth - 1]} {selectedYear}
-          </h3>
-        </div>
-
-        <div className="hidden sm:grid sm:grid-cols-[1fr_120px_120px_80px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
-          <span>Company</span>
-          <span className="text-right">Miles</span>
-          <span className="text-right">Deduction</span>
-          <span></span>
-        </div>
-
-        <div className="divide-y divide-border">
-          {isLoading ? (
-            <div className="px-5 py-12 text-center text-muted-foreground text-sm">Loading…</div>
-          ) : monthEntries.length === 0 ? (
-            <div className="px-5 py-12 text-center text-muted-foreground text-sm">No mileage entries for this month.</div>
-          ) : (
-            monthEntries.map((entry) => (
-              <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[1fr_120px_120px_80px] gap-1 sm:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center">
-                <span className="text-sm font-medium text-card-foreground">{entry.company_name}</span>
-                <span className="text-sm tabular-nums text-right">{Number(entry.miles).toLocaleString()}</span>
-                <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * IRS_MILEAGE_RATE)}</span>
-                <div className="flex gap-1 justify-end">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(entry)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(entry.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                <div className="mt-4 flex items-center gap-3">
+                  <Switch checked={contribForm.apply_to_withholding} onCheckedChange={(v) => setContribField("apply_to_withholding", v)} />
+                  <div>
+                    <Label className="text-sm">Apply to withholding simulation</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {contribForm.apply_to_withholding
+                        ? "Affects paycheck withholding calculations immediately"
+                        : "Only affects annual tax projection"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
 
-      {/* Add Dialog */}
+                <div className="mt-3 space-y-1.5">
+                  <Label>Notes</Label>
+                  <Input placeholder="Optional notes" value={contribForm.notes} onChange={(e) => setContribField("notes", e.target.value)} />
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <Button onClick={handleContribSubmit} disabled={num(contribForm.contribution_amount) <= 0}>
+                    {contribEditId ? "Save Changes" : "Add Contribution"}
+                  </Button>
+                  <Button variant="outline" onClick={resetContribForm}>Cancel</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Contributions table */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <PiggyBank className="h-4 w-4" /> Retirement Contributions ({contributions?.length || 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account Type</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Frequency</TableHead>
+                      <TableHead className="text-right">Annual</TableHead>
+                      <TableHead className="text-right">Employer Match</TableHead>
+                      <TableHead>Withholding</TableHead>
+                      <TableHead className="w-24"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(!contributions || contributions.length === 0) ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          No retirement contributions yet. Click "Add Contribution" to get started.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      contributions.map((c) => {
+                        const amt = Number(c.contribution_amount);
+                        const annual = c.frequency === "per_paycheck" ? amt * 26 : c.frequency === "monthly" ? amt * 12 : amt;
+                        return (
+                          <TableRow key={c.id}>
+                            <TableCell className="font-medium">{getAccountLabel(c.account_type)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmt(amt)}</TableCell>
+                            <TableCell><Badge variant="outline">{getFreqLabel(c.frequency)}</Badge></TableCell>
+                            <TableCell className="text-right tabular-nums font-medium">{fmt(annual)}</TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">{Number(c.employer_match) > 0 ? fmt(Number(c.employer_match)) : "—"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={c.apply_to_withholding ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}>
+                                {c.apply_to_withholding ? "Active" : "Projection Only"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button size="icon" variant="ghost" onClick={() => startEditContrib(c)}><Pencil className="h-4 w-4" /></Button>
+                                <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setContribDeleteId(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* ─── MILEAGE DIALOGS ──────────────────────── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Mileage Entry</DialogTitle></DialogHeader>
@@ -252,16 +450,12 @@ export default function Mileage() {
               {pastCompanies.length > 0 ? (
                 <Select value={addCompany} onValueChange={setAddCompany}>
                   <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
-                  <SelectContent>
-                    {pastCompanies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent>{pastCompanies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               ) : (
                 <Input value={addCompany} onChange={(e) => setAddCompany(e.target.value)} placeholder="Company name" />
               )}
-              {pastCompanies.length > 0 && (
-                <Input className="mt-2" value={addCompany} onChange={(e) => setAddCompany(e.target.value)} placeholder="Or type a new company name" />
-              )}
+              {pastCompanies.length > 0 && <Input className="mt-2" value={addCompany} onChange={(e) => setAddCompany(e.target.value)} placeholder="Or type a new company name" />}
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label>
@@ -272,44 +466,38 @@ export default function Mileage() {
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button onClick={handleAdd} disabled={!addCompany.trim() || !(parseFloat(addMiles) >= 0)}>Add Entry</Button>
+              <Button onClick={handleAddMileage} disabled={!addCompany.trim() || !(parseFloat(addMiles) >= 0)}>Add Entry</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editId} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Mileage Entry</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-              <Input value={editCompany} onChange={(e) => setEditCompany(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label>
-              <Input type="number" min="0" step="0.1" value={editMiles} onChange={(e) => setEditMiles(e.target.value)} />
-            </div>
+            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label><Input value={editCompany} onChange={(e) => setEditCompany(e.target.value)} /></div>
+            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label><Input type="number" min="0" step="0.1" value={editMiles} onChange={(e) => setEditMiles(e.target.value)} /></div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditId(null)}>Cancel</Button>
-              <Button onClick={handleEdit}>Save</Button>
+              <Button onClick={handleEditMileage}>Save</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Mileage Entry</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove this mileage entry.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>Delete Mileage Entry</AlertDialogTitle><AlertDialogDescription>This will permanently remove this mileage entry.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteMileage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ─── RETIREMENT DELETE ────────────────────── */}
+      <AlertDialog open={!!contribDeleteId} onOpenChange={(open) => !open && setContribDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete Contribution</AlertDialogTitle><AlertDialogDescription>This will permanently remove this retirement contribution.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteContrib} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
