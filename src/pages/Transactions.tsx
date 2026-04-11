@@ -12,10 +12,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Search, SlidersHorizontal, Plus, Trash2, Download, DollarSign, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, SlidersHorizontal, Plus, Trash2, Download, DollarSign, AlertTriangle, PiggyBank, Info } from "lucide-react";
 import ExpenseSummaryWidgets from "@/components/ExpenseSummaryWidgets";
 import { useExpenseSummary } from "@/hooks/useExpenseSummary";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { ACCOUNT_TYPES } from "@/hooks/useRetirementContributions";
 
 const INCOME_TYPES = ["W2", "1099", "K1"];
 
@@ -32,6 +34,7 @@ interface IncomeFormState {
   taxes_withheld: string;
   pre_tax_deductions: string;
   retirement_401k: string;
+  retirement_account_type: string;
   notes: string;
 }
 
@@ -45,6 +48,7 @@ const emptyIncomeForm: IncomeFormState = {
   taxes_withheld: "",
   pre_tax_deductions: "",
   retirement_401k: "",
+  retirement_account_type: "401k",
   notes: "",
 };
 
@@ -107,10 +111,29 @@ export default function Transactions() {
     return [...set].sort();
   }, [companies]);
 
+  // Build a lookup for income entries linked to transactions
+  const incomeByLinkedTx = useMemo(() => {
+    const map = new Map<string, IncomeEntry>();
+    if (!incomeEntries) return map;
+    for (const ie of incomeEntries) {
+      if (ie.linked_transaction_id) {
+        map.set(ie.linked_transaction_id, ie);
+      }
+    }
+    return map;
+  }, [incomeEntries]);
+
   // Income form computed values
   const computedPaycheck = num(incomeForm.deposited_amount) + num(incomeForm.taxes_withheld) + num(incomeForm.pre_tax_deductions) + num(incomeForm.retirement_401k);
   const enteredPaycheck = num(incomeForm.paycheck_amount);
   const hasMismatch = incomeForm.paycheck_amount !== "" && incomeForm.deposited_amount !== "" && Math.abs(enteredPaycheck - computedPaycheck) > 0.01;
+
+  // Derived fields for income form display
+  const grossIncome = num(incomeForm.paycheck_amount) || computedPaycheck;
+  const retirementContrib = num(incomeForm.retirement_401k);
+  const preTaxDed = num(incomeForm.pre_tax_deductions);
+  const taxableIncome = Math.max(0, grossIncome - retirementContrib - preTaxDed);
+  const netIncome = num(incomeForm.deposited_amount);
 
   // Auto-fill income type from company settings
   const getCompanyType = (companyName: string) => {
@@ -198,7 +221,6 @@ export default function Transactions() {
   const setIncomeField = (key: keyof IncomeFormState, value: string) => {
     setIncomeForm((p) => {
       const updated = { ...p, [key]: value };
-      // Auto-set income type when company changes
       if (key === "company" && value) {
         updated.income_type = getCompanyType(value);
       }
@@ -213,8 +235,8 @@ export default function Transactions() {
     const existingDeductions = (incomeEntries || []).reduce((s, e) => s + Number(e.pre_tax_deductions) + Number(e.retirement_401k), 0);
 
     const totalAnnualIncome = existingIncome + paycheckAmount;
-    const taxableIncome = totalAnnualIncome - existingDeductions;
-    const federalTax = taxableIncome * (taxSettings.federalRate / 100);
+    const taxableIncomeCalc = totalAnnualIncome - existingDeductions;
+    const federalTax = taxableIncomeCalc * (taxSettings.federalRate / 100);
     const remaining = Math.max(0, federalTax - existingWithheld);
     const proportion = paycheckAmount / totalAnnualIncome;
     return remaining * proportion;
@@ -278,389 +300,505 @@ export default function Transactions() {
     );
   }
 
+  // Check if a transaction has a linked income entry with retirement contributions
+  function getRetirementBadge(tx: DbTransaction) {
+    const linked = incomeByLinkedTx.get(tx.id);
+    if (linked && Number(linked.retirement_401k) > 0) {
+      return { amount: Number(linked.retirement_401k), type: "401k" };
+    }
+    // Also check income entries that match the transaction by date/amount (approximate)
+    if (!incomeEntries || tx.amount <= 0) return null;
+    const match = incomeEntries.find(
+      (ie) =>
+        ie.income_date === tx.transaction_date &&
+        Math.abs(Number(ie.deposited_amount) - tx.amount) < 1 &&
+        Number(ie.retirement_401k) > 0
+    );
+    if (match) return { amount: Number(match.retirement_401k), type: "401k" };
+    return null;
+  }
+
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading transactions…</div>;
   }
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto">
-      <ExpenseSummaryWidgets {...summary} />
+    <TooltipProvider>
+      <div className="space-y-4 max-w-7xl mx-auto">
+        <ExpenseSummaryWidgets {...summary} />
 
-      {/* Search & actions */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
-          <SlidersHorizontal className="h-4 w-4" /> Filters
-        </Button>
-        <Button variant="outline" onClick={exportCSV} className="gap-2">
-          <Download className="h-4 w-4" /> CSV
-        </Button>
-        <Button variant="outline" onClick={() => setShowAddDialog(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Expense
-        </Button>
-        <Button onClick={() => { setIncomeForm(emptyIncomeForm); setShowIncomeDialog(true); }} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Income
-        </Button>
-      </div>
-
-      {showFilters && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 glass-card rounded-xl p-4">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        {/* Search & actions */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-            <Select value={filterCompany} onValueChange={setFilterCompany}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                <SelectItem value="Unassigned">Unassigned</SelectItem>
-                {companies.map((c) => <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Company Type</Label>
-            <Select value={filterCompanyType} onValueChange={setFilterCompanyType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="1099">1099</SelectItem>
-                <SelectItem value="W2">W2</SelectItem>
-                <SelectItem value="K1">K1</SelectItem>
-                <SelectItem value="Unassigned">Unassigned</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Account</Label>
-            <Select value={filterAccount} onValueChange={setFilterAccount}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Accounts</SelectItem>
-                {accounts.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Quick Filter</Label>
-            <Select value={filterQuick} onValueChange={setFilterQuick}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="uncategorized">Uncategorized Only</SelectItem>
-                <SelectItem value="personal">Personal Only</SelectItem>
-                <SelectItem value="unassigned">Unassigned Only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">From Date</Label>
-            <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">To Date</Label>
-            <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
-          </div>
-        </div>
-      )}
-
-      {/* Spreadsheet-style table */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold text-card-foreground">
-            {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}
-          </h3>
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="gap-2">
+            <SlidersHorizontal className="h-4 w-4" /> Filters
+          </Button>
+          <Button variant="outline" onClick={exportCSV} className="gap-2">
+            <Download className="h-4 w-4" /> CSV
+          </Button>
+          <Button variant="outline" onClick={() => setShowAddDialog(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> Add Expense
+          </Button>
+          <Button onClick={() => { setIncomeForm(emptyIncomeForm); setShowIncomeDialog(true); }} className="gap-2">
+            <Plus className="h-4 w-4" /> Add Income
+          </Button>
         </div>
 
-        {/* Header row - desktop */}
-        <div className="hidden lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_40px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
-          <span>Date</span>
-          <span>Vendor</span>
-          <span className="text-right">Amount</span>
-          <span>Category</span>
-          <span>Company</span>
-          <span>Notes</span>
-          <span></span>
-        </div>
-
-        <div className="divide-y divide-border">
-          {filtered.map((tx) => (
-            <div
-              key={tx.id}
-              className="flex flex-col lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_40px] gap-1 lg:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors cursor-pointer items-center"
-              onClick={() => openEdit(tx)}
-            >
-              <span className="text-xs text-muted-foreground">{tx.transaction_date}</span>
-              <span className="text-sm font-medium text-card-foreground truncate">{tx.vendor}</span>
-              <span className={`text-sm font-semibold tabular-nums text-right ${tx.amount >= 0 ? "text-success" : "text-destructive"}`}>
-                {fmt(tx.amount)}
-              </span>
-              <Badge
-                variant={tx.category === PERSONAL_CATEGORY ? "destructive" : tx.category === "Uncategorized" ? "outline" : "default"}
-                className="text-xs w-fit"
-              >
-                {tx.category}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                {tx.entity}{tx.company_type ? ` (${tx.company_type})` : ""}
-              </span>
-              <span className="text-xs text-muted-foreground italic truncate">{tx.notes}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                onClick={(e) => { e.stopPropagation(); confirmDelete(tx.id); }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+        {showFilters && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 glass-card rounded-xl p-4">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-          {filtered.length === 0 && (
-            <div className="px-5 py-12 text-center text-muted-foreground text-sm">No transactions found.</div>
-          )}
-        </div>
-      </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
+              <Select value={filterCompany} onValueChange={setFilterCompany}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Companies</SelectItem>
+                  <SelectItem value="Unassigned">Unassigned</SelectItem>
+                  {companies.map((c) => <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Company Type</Label>
+              <Select value={filterCompanyType} onValueChange={setFilterCompanyType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="1099">1099</SelectItem>
+                  <SelectItem value="W2">W2</SelectItem>
+                  <SelectItem value="K1">K1</SelectItem>
+                  <SelectItem value="Unassigned">Unassigned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Account</Label>
+              <Select value={filterAccount} onValueChange={setFilterAccount}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Accounts</SelectItem>
+                  {accounts.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Quick Filter</Label>
+              <Select value={filterQuick} onValueChange={setFilterQuick}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="uncategorized">Uncategorized Only</SelectItem>
+                  <SelectItem value="personal">Personal Only</SelectItem>
+                  <SelectItem value="unassigned">Unassigned Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">From Date</Label>
+              <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">To Date</Label>
+              <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
+            </div>
+          </div>
+        )}
 
-      {/* Edit dialog */}
-      <Dialog open={!!editTx} onOpenChange={(open) => !open && setEditTx(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Transaction</DialogTitle></DialogHeader>
-          {editTx && (
+        {/* Spreadsheet-style table */}
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-border">
+            <h3 className="text-sm font-semibold text-card-foreground">
+              {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}
+            </h3>
+          </div>
+
+          {/* Header row - desktop */}
+          <div className="hidden lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_40px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
+            <span>Date</span>
+            <span>Vendor</span>
+            <span className="text-right">Amount</span>
+            <span>Category</span>
+            <span>Company</span>
+            <span>Notes</span>
+            <span></span>
+          </div>
+
+          <div className="divide-y divide-border">
+            {filtered.map((tx) => {
+              const retBadge = getRetirementBadge(tx);
+              return (
+                <div
+                  key={tx.id}
+                  className="flex flex-col lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_40px] gap-1 lg:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors cursor-pointer items-center"
+                  onClick={() => openEdit(tx)}
+                >
+                  <span className="text-xs text-muted-foreground">{tx.transaction_date}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-card-foreground truncate">{tx.vendor}</span>
+                    {retBadge && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="gap-1 shrink-0 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 text-[10px]">
+                            <PiggyBank className="h-3 w-3" />
+                            401(k) {fmt(retBadge.amount)}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Includes pre-tax retirement contribution of {fmt(retBadge.amount)}.</p>
+                          <p className="text-xs text-muted-foreground">This reduces taxable income and withholding estimates.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <span className={`text-sm font-semibold tabular-nums text-right ${tx.amount >= 0 ? "text-success" : "text-destructive"}`}>
+                    {fmt(tx.amount)}
+                  </span>
+                  <Badge
+                    variant={tx.category === PERSONAL_CATEGORY ? "destructive" : tx.category === "Uncategorized" ? "outline" : "default"}
+                    className="text-xs w-fit"
+                  >
+                    {tx.category}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {tx.entity}{tx.company_type ? ` (${tx.company_type})` : ""}
+                  </span>
+                  <span className="text-xs text-muted-foreground italic truncate">{tx.notes}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => { e.stopPropagation(); confirmDelete(tx.id); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="px-5 py-12 text-center text-muted-foreground text-sm">No transactions found.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Edit dialog */}
+        <Dialog open={!!editTx} onOpenChange={(open) => !open && setEditTx(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit Transaction</DialogTitle></DialogHeader>
+            {editTx && (
+              <div className="space-y-4">
+                {/* Show retirement badge if linked */}
+                {(() => {
+                  const retBadge = getRetirementBadge(editTx);
+                  if (!retBadge) return null;
+                  return (
+                    <div className="flex items-center gap-2 rounded-md bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-sm text-blue-700 dark:text-blue-400">
+                      <PiggyBank className="h-4 w-4 shrink-0" />
+                      <span>Includes pre-tax retirement contribution of {fmt(retBadge.amount)} — this reduces taxable income and withholding estimates.</span>
+                    </div>
+                  );
+                })()}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
+                    <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Vendor</Label>
+                    <Input value={editVendor} onChange={(e) => setEditVendor(e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
+                    <Input type="number" step="0.01" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                    <Select value={editCategory} onValueChange={setEditCategory}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company / Entity</Label>
+                  <CompanyDropdown value={editEntity} onChange={setEditEntity} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                  <Textarea value={editMemo} onChange={(e) => setEditMemo(e.target.value)} rows={3} />
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="destructive" onClick={() => confirmDelete(editTx.id)} className="gap-2">
+                    <Trash2 className="h-4 w-4" /> Delete
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setEditTx(null)}>Cancel</Button>
+                    <Button onClick={saveEdit}>Save</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete confirmation */}
+        <AlertDialog open={!!deleteTxId} onOpenChange={(open) => !open && setDeleteTxId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+              <AlertDialogDescription>This will permanently remove this transaction from all calculations and reports.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Add Expense dialog */}
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Add Expense</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
-                  <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Date *</Label>
+                  <Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Vendor</Label>
-                  <Input value={editVendor} onChange={(e) => setEditVendor(e.target.value)} />
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Vendor *</Label>
+                  <Input value={addVendor} onChange={(e) => setAddVendor(e.target.value)} placeholder="Vendor name" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
-                  <Input type="number" step="0.01" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Amount (negative for expense) *</Label>
+                  <Input type="number" step="0.01" value={addAmount} onChange={(e) => setAddAmount(e.target.value)} placeholder="-50.00" />
                 </div>
                 <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Account</Label>
+                  <Select value={addAccount} onValueChange={setAddAccount}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{accounts.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                  <Select value={editCategory} onValueChange={setEditCategory}>
+                  <Select value={addCategory} onValueChange={setAddCategory}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Company / Entity</Label>
-                <CompanyDropdown value={editEntity} onChange={setEditEntity} />
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company / Entity</Label>
+                  <CompanyDropdown value={addEntity} onChange={setAddEntity} />
+                </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-                <Textarea value={editMemo} onChange={(e) => setEditMemo(e.target.value)} rows={3} />
+                <Textarea value={addMemo} onChange={(e) => setAddMemo(e.target.value)} rows={2} placeholder="Optional notes…" />
               </div>
-              <div className="flex justify-between">
-                <Button variant="destructive" onClick={() => confirmDelete(editTx.id)} className="gap-2">
-                  <Trash2 className="h-4 w-4" /> Delete
-                </Button>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setEditTx(null)}>Cancel</Button>
-                  <Button onClick={saveEdit}>Save</Button>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+                <Button onClick={addTransaction}>Add Expense</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Income dialog — enhanced with retirement contribution section */}
+        <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader><DialogTitle>Add Income</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Name *</Label>
+                  <Input placeholder="e.g. ED Shift, K1 Distribution" value={incomeForm.name} onChange={(e) => setIncomeField("name", e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
+                  <Select value={incomeForm.company} onValueChange={(v) => setIncomeField("company", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                    <SelectContent>
+                      {allCompanyNames.map((c) => (
+                        <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
+                  <Select value={incomeForm.income_type} onValueChange={(v) => setIncomeField("income_type", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {INCOME_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Date *</Label>
+                  <Input type="date" value={incomeForm.income_date} onChange={(e) => setIncomeField("income_date", e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Total Paycheck (Gross) *</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="Gross amount" value={incomeForm.paycheck_amount} onChange={(e) => setIncomeField("paycheck_amount", e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Deposited Amount (Net)</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="Net deposit" value={incomeForm.deposited_amount} onChange={(e) => setIncomeField("deposited_amount", e.target.value)} />
+                </div>
+              </div>
 
-      {/* Delete confirmation */}
-      <AlertDialog open={!!deleteTxId} onOpenChange={(open) => !open && setDeleteTxId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove this transaction from all calculations and reports.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              {/* Pre-tax deductions section */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Taxes Withheld {incomeForm.income_type === "W2" && <span className="text-primary">(expected)</span>}
+                  </Label>
+                  <Input type="number" min="0" step="0.01" placeholder="0" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeField("taxes_withheld", e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="Healthcare, insurance…" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeField("pre_tax_deductions", e.target.value)} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Label className="text-xs text-muted-foreground">Retirement Contribution (Pre-Tax)</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs">Pre-tax retirement contributions (401k, 403b, etc.) reduce your taxable income and withholding estimates. This amount syncs to the Deductions tab automatically.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Input type="number" min="0" step="0.01" placeholder="0" value={incomeForm.retirement_401k} onChange={(e) => setIncomeField("retirement_401k", e.target.value)} />
+                </div>
+              </div>
 
-      {/* Add Expense dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Expense</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Date *</Label>
-                <Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Vendor *</Label>
-                <Input value={addVendor} onChange={(e) => setAddVendor(e.target.value)} placeholder="Vendor name" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Amount (negative for expense) *</Label>
-                <Input type="number" step="0.01" value={addAmount} onChange={(e) => setAddAmount(e.target.value)} placeholder="-50.00" />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Account</Label>
-                <Select value={addAccount} onValueChange={setAddAccount}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{accounts.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                <Select value={addCategory} onValueChange={setAddCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Company / Entity</Label>
-                <CompanyDropdown value={addEntity} onChange={setAddEntity} />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-              <Textarea value={addMemo} onChange={(e) => setAddMemo(e.target.value)} rows={2} placeholder="Optional notes…" />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-              <Button onClick={addTransaction}>Add Expense</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+              {/* Retirement account type selector — only show if contribution amount entered */}
+              {num(incomeForm.retirement_401k) > 0 && (
+                <div className="flex items-center gap-3 rounded-md bg-blue-50 dark:bg-blue-950/30 px-3 py-2">
+                  <PiggyBank className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
+                      Pre-tax retirement contribution of {fmt(retirementContrib)} will reduce taxable income
+                    </p>
+                    <p className="text-[10px] text-blue-600/70 dark:text-blue-500/70">
+                      Automatically synced to Deductions → Retirement Contributions
+                    </p>
+                  </div>
+                  <Select value={incomeForm.retirement_account_type} onValueChange={(v) => setIncomeField("retirement_account_type", v)}>
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACCOUNT_TYPES.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-      {/* Add Income dialog */}
-      <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Add Income</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Name *</Label>
-                <Input placeholder="e.g. ED Shift, K1 Distribution" value={incomeForm.name} onChange={(e) => setIncomeField("name", e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
-                <Select value={incomeForm.company} onValueChange={(v) => setIncomeField("company", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
-                  <SelectContent>
-                    {allCompanyNames.map((c) => (
-                      <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
-                <Select value={incomeForm.income_type} onValueChange={(v) => setIncomeField("income_type", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {INCOME_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Date *</Label>
-                <Input type="date" value={incomeForm.income_date} onChange={(e) => setIncomeField("income_date", e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Total Paycheck *</Label>
-                <Input type="number" min="0" step="0.01" placeholder="Gross amount" value={incomeForm.paycheck_amount} onChange={(e) => setIncomeField("paycheck_amount", e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Deposited Amount</Label>
-                <Input type="number" min="0" step="0.01" placeholder="Net deposit" value={incomeForm.deposited_amount} onChange={(e) => setIncomeField("deposited_amount", e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  Taxes Withheld {incomeForm.income_type === "W2" && <span className="text-primary">(expected)</span>}
-                </Label>
-                <Input type="number" min="0" step="0.01" placeholder="0" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeField("taxes_withheld", e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
-                <Input type="number" min="0" step="0.01" placeholder="Healthcare, insurance…" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeField("pre_tax_deductions", e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">401k Contribution</Label>
-                <Input type="number" min="0" step="0.01" placeholder="0" value={incomeForm.retirement_401k} onChange={(e) => setIncomeField("retirement_401k", e.target.value)} />
-              </div>
-            </div>
+              {hasMismatch && (
+                <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>
+                    Total Paycheck ({fmt(enteredPaycheck)}) ≠ Deposited + Withheld + Deductions + 401k ({fmt(computedPaycheck)})
+                  </span>
+                </div>
+              )}
 
-            {hasMismatch && (
-              <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>
-                  Total Paycheck ({fmt(enteredPaycheck)}) ≠ Deposited + Withheld + Deductions + 401k ({fmt(computedPaycheck)})
-                </span>
+              {/* Income breakdown summary */}
+              {(grossIncome > 0) && (
+                <div className="rounded-md border border-border px-3 py-2 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground">Income Breakdown</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                    <span className="text-muted-foreground">Gross Income</span>
+                    <span className="text-right font-medium">{fmt(grossIncome)}</span>
+                    {retirementContrib > 0 && (
+                      <>
+                        <span className="text-blue-600 dark:text-blue-400">− Pre-Tax Retirement</span>
+                        <span className="text-right text-blue-600 dark:text-blue-400">−{fmt(retirementContrib)}</span>
+                      </>
+                    )}
+                    {preTaxDed > 0 && (
+                      <>
+                        <span className="text-muted-foreground">− Other Pre-Tax</span>
+                        <span className="text-right">−{fmt(preTaxDed)}</span>
+                      </>
+                    )}
+                    <span className="text-muted-foreground font-semibold border-t border-border pt-0.5 mt-0.5">Taxable Income</span>
+                    <span className="text-right font-bold border-t border-border pt-0.5 mt-0.5">{fmt(taxableIncome)}</span>
+                    {netIncome > 0 && (
+                      <>
+                        <span className="text-muted-foreground">Net Deposit</span>
+                        <span className="text-right">{fmt(netIncome)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                <Input placeholder="Optional notes" value={incomeForm.notes} onChange={(e) => setIncomeField("notes", e.target.value)} />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowIncomeDialog(false)}>Cancel</Button>
+                <Button onClick={submitIncome} disabled={!incomeForm.name.trim() || !incomeForm.company.trim()}>
+                  Save Income
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Tax suggestion popup */}
+        <Dialog open={!!taxSuggestion} onOpenChange={() => setTaxSuggestion(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" /> Tax Set-Aside Suggestion
+              </DialogTitle>
+            </DialogHeader>
+            {taxSuggestion && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Based on your current projected income and deductions, you should set aside:
+                </p>
+                <p className="text-3xl font-bold text-primary text-center py-2">
+                  {fmt(taxSuggestion.amount)}
+                </p>
+                <p className="text-sm text-muted-foreground text-center">
+                  from this {fmt(taxSuggestion.paycheck)} income for taxes.
+                </p>
               </div>
             )}
-
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-              <Input placeholder="Optional notes" value={incomeForm.notes} onChange={(e) => setIncomeField("notes", e.target.value)} />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowIncomeDialog(false)}>Cancel</Button>
-              <Button onClick={submitIncome} disabled={!incomeForm.name.trim() || !incomeForm.company.trim()}>
-                Save Income
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Tax suggestion popup */}
-      <Dialog open={!!taxSuggestion} onOpenChange={() => setTaxSuggestion(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-primary" /> Tax Set-Aside Suggestion
-            </DialogTitle>
-          </DialogHeader>
-          {taxSuggestion && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Based on your current projected income and deductions, you should set aside:
-              </p>
-              <p className="text-3xl font-bold text-primary text-center py-2">
-                {fmt(taxSuggestion.amount)}
-              </p>
-              <p className="text-sm text-muted-foreground text-center">
-                from this {fmt(taxSuggestion.paycheck)} income for taxes.
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setTaxSuggestion(null)}>Got it</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+            <DialogFooter>
+              <Button onClick={() => setTaxSuggestion(null)}>Got it</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
   );
 }

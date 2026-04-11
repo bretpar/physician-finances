@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Download, Pencil, Car, PiggyBank } from "lucide-react";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet } from "lucide-react";
+import { useIncomeEntries } from "@/hooks/useIncome";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
@@ -73,6 +74,15 @@ export default function Mileage() {
   const updateContrib = useUpdateRetirementContribution();
   const deleteContrib = useDeleteRetirementContribution();
   const annualized = useAnnualizedContributions(contributions);
+
+  // ─── Income-linked retirement data ────────────
+  const { data: incomeEntries } = useIncomeEntries();
+  const paycheckLinked = useMemo(() => {
+    if (!incomeEntries) return { entries: [], total: 0 };
+    const entries = incomeEntries.filter((e) => Number(e.retirement_401k) > 0);
+    const total = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
+    return { entries, total };
+  }, [incomeEntries]);
 
   const [contribForm, setContribForm] = useState<ContribForm>(emptyContribForm);
   const [contribEditId, setContribEditId] = useState<string | null>(null);
@@ -284,23 +294,27 @@ export default function Mileage() {
 
         {/* ─── RETIREMENT TAB ─────────────────────── */}
         <TabsContent value="retirement" className="space-y-6 mt-6">
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Summary cards — include both standalone + paycheck-linked */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Annual Contributions</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total)}</p><p className="text-xs text-muted-foreground">Annualized pre-tax total</p></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + paycheck-linked</p></CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Per Paycheck</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total)}</p><p className="text-xs text-muted-foreground">{contributions?.length || 0} configured</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">From Paychecks (YTD)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">{paycheckLinked.entries.length} income entries</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Affects Withholding</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.withholding)}</p><p className="text-xs text-muted-foreground">Applied to paycheck calculations</p></CardContent>
+              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.withholding)}</p><p className="text-xs text-muted-foreground">From standalone contributions</p></CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Projection Only</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-muted-foreground">{fmt(annualized.projectionOnly)}</p><p className="text-xs text-muted-foreground">Annual tax projection only</p></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Per Paycheck (Est.)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
             </Card>
           </div>
 
@@ -436,7 +450,49 @@ export default function Mileage() {
                 </Table>
               </div>
             </CardContent>
-          </Card>
+           </Card>
+
+          {/* Paycheck-linked retirement contributions from income entries */}
+          {paycheckLinked.entries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wallet className="h-4 w-4" /> Paycheck-Linked Contributions ({paycheckLinked.entries.length})
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  These retirement contributions were recorded with income entries and automatically reduce taxable income.
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Income Entry</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">401k Amount</TableHead>
+                        <TableHead className="text-right">Paycheck</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paycheckLinked.entries.slice(0, 20).map((ie) => (
+                        <TableRow key={ie.id}>
+                          <TableCell className="whitespace-nowrap">{ie.income_date}</TableCell>
+                          <TableCell className="font-medium">{ie.name}</TableCell>
+                          <TableCell>{ie.company}</TableCell>
+                          <TableCell><Badge variant="outline">{ie.income_type}</Badge></TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{fmt(Number(ie.retirement_401k))}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(Number(ie.paycheck_amount))}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
