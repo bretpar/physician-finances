@@ -552,7 +552,6 @@ export default function Transactions() {
             <span>Notes</span>
             <span></span>
           </div>
-          </div>
 
           <div className="divide-y divide-border">
             {filtered.map((tx) => {
