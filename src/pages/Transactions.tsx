@@ -235,7 +235,8 @@ export default function Transactions() {
       notes: editMemo,
       is_recurring: editIsRecurring,
       recurring_frequency: editIsRecurring ? editRecurringFreq : null,
-      withholding_saved: editWithholdingSaved,
+      actual_withholding: parseFloat(editActualWithholding) || 0,
+      withholding_saved: (parseFloat(editActualWithholding) || 0) > 0 || editWithholdingSaved,
       recommended_withholding: recommendedWithholding,
     } as any);
     setEditTx(null);
