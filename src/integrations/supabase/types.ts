@@ -63,12 +63,14 @@ export type Database = {
           id: string
           income_date: string
           income_type: string
+          linked_transaction_id: string | null
           name: string
           notes: string | null
           organization_id: string | null
           paycheck_amount: number
           pre_tax_deductions: number
           retirement_401k: number
+          status: string
           taxes_withheld: number
           updated_at: string
           user_id: string
@@ -80,12 +82,14 @@ export type Database = {
           id?: string
           income_date?: string
           income_type?: string
+          linked_transaction_id?: string | null
           name?: string
           notes?: string | null
           organization_id?: string | null
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
+          status?: string
           taxes_withheld?: number
           updated_at?: string
           user_id: string
@@ -97,12 +101,14 @@ export type Database = {
           id?: string
           income_date?: string
           income_type?: string
+          linked_transaction_id?: string | null
           name?: string
           notes?: string | null
           organization_id?: string | null
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
+          status?: string
           taxes_withheld?: number
           updated_at?: string
           user_id?: string
