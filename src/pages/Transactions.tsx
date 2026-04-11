@@ -204,6 +204,7 @@ export default function Transactions() {
     setEditMemo(tx.notes || "");
     setEditIsRecurring((tx as any).is_recurring || false);
     setEditRecurringFreq((tx as any).recurring_frequency || "monthly");
+    setEditWithholdingSaved((tx as any).withholding_saved || false);
   }
 
   function saveEdit() {
