@@ -83,7 +83,7 @@ export default function Dashboard() {
               <p className={cn("text-sm font-medium", ok ? "text-green-600" : "text-destructive")}>
                 {ok ? "On track — enough saved for taxes" : `Under-saving by ${fmt(Math.abs(gap))}`}
               </p>
-              <Button variant="outline" size="sm" onClick={() => navigate("/tax-reserve")}>View Tax Reserve →</Button>
+              <Button variant="outline" size="sm" onClick={() => navigate("/taxes")}>View Taxes →</Button>
             </CardContent>
           </Card>
         );
@@ -130,7 +130,7 @@ export default function Dashboard() {
                   <p className="font-semibold">{nextQ ? `${fmt(nextPayment)} ${nextQ.dueLabel}` : "—"}</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => navigate("/quarterly-taxes")}>View Planner →</Button>
+              <Button variant="outline" size="sm" onClick={() => navigate("/taxes")}>View Planner →</Button>
             </CardContent>
           </Card>
         );

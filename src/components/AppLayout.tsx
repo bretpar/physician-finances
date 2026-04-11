@@ -11,38 +11,57 @@ import {
   Car,
   LogOut,
   Wallet,
-  Calculator,
   TrendingUp,
   BarChart3,
-  Landmark,
-  CalendarCheck,
+  Calculator,
+  Lock,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 
-const navItems = [
+const freeItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transactions" },
-  { to: "/tax-planning", icon: PiggyBank, label: "Tax Planning" },
   { to: "/income", icon: Wallet, label: "Income" },
-  { to: "/mileage", icon: Car, label: "Mileage" },
+  { to: "/mileage", icon: Car, label: "Deductions" },
+];
+
+const paidItems = [
+  { to: "/taxes", icon: Calculator, label: "Taxes", isPaid: true },
   { to: "/projected-income", icon: TrendingUp, label: "Projected Income" },
   { to: "/stocks", icon: BarChart3, label: "Stocks" },
-  { to: "/tax-reserve", icon: Landmark, label: "Tax Reserve" },
-  { to: "/quarterly-taxes", icon: CalendarCheck, label: "Quarterly Taxes" },
-  { to: "/estimated-tax", icon: Calculator, label: "Tax Estimate" },
+];
+
+const utilityItems = [
   { to: "/reports", icon: FileDown, label: "Reports" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
+
+const allItems = [...freeItems, ...paidItems, ...utilityItems];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { organizationName, signOut, user } = useAuth();
 
+  const renderNavItem = (item: typeof freeItems[0] & { isPaid?: boolean }) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      onClick={() => setMobileOpen(false)}
+      className={`sidebar-link ${
+        location.pathname === item.to ? "sidebar-link-active" : "sidebar-link-inactive"
+      }`}
+    >
+      <item.icon className="h-5 w-5 shrink-0" />
+      {item.label}
+    </NavLink>
+  );
+
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-foreground/40 lg:hidden"
@@ -50,7 +69,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -72,22 +90,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={() => setMobileOpen(false)}
-              className={`sidebar-link ${
-                location.pathname === item.to
-                  ? "sidebar-link-active"
-                  : "sidebar-link-inactive"
-              }`}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              {item.label}
-            </NavLink>
-          ))}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {/* Free section */}
+          <p className="px-3 pt-1 pb-2 text-[10px] uppercase tracking-wider text-sidebar-foreground/60 font-semibold">Free</p>
+          {freeItems.map(renderNavItem)}
+
+          <Separator className="my-3 bg-sidebar-border" />
+
+          {/* Paid section */}
+          <p className="px-3 pt-1 pb-2 text-[10px] uppercase tracking-wider text-sidebar-foreground/60 font-semibold">Pro</p>
+          {paidItems.map(renderNavItem)}
+
+          <Separator className="my-3 bg-sidebar-border" />
+
+          {utilityItems.map(renderNavItem)}
         </nav>
 
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
@@ -103,7 +119,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="flex items-center gap-4 px-4 py-3 border-b border-border bg-card lg:px-6">
           <button
@@ -113,7 +128,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <h2 className="text-lg font-semibold text-foreground">
-            {navItems.find((i) => i.to === location.pathname)?.label ?? "Page"}
+            {allItems.find((i) => i.to === location.pathname)?.label ?? "Page"}
           </h2>
         </header>
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</div>
