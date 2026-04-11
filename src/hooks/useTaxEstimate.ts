@@ -91,7 +91,7 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
       bnoRate: rates.bnoRate / 100,
       remainingPayPeriods,
     });
-  }, [incomeEntries, weighted, transactions, rates, mileageEntries, streams, bonuses, stockTxs]);
+  }, [incomeEntries, weighted, transactions, rates, mileageEntries, streams, bonuses, stockTxs, annualizedRetirement]);
 
   return { estimate, isLoading };
 }
