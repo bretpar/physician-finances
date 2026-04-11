@@ -555,10 +555,20 @@ export default function Transactions() {
             {filtered.map((tx) => {
               const retBadge = getRetirementBadge(tx);
               const isRecurring = (tx as any).is_recurring;
+              const isIncome = tx.transaction_type === "income";
+              const recWithholding = (tx as any).recommended_withholding || 0;
+              const withholdingSaved = (tx as any).withholding_saved || false;
+              const rowBg = isIncome
+                ? withholdingSaved
+                  ? "bg-green-50/50 dark:bg-green-950/10"
+                  : recWithholding > 0
+                    ? "bg-red-50/50 dark:bg-red-950/10"
+                    : ""
+                : "";
               return (
                 <div
                   key={tx.id}
-                  className="flex flex-col lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_50px] gap-1 lg:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center"
+                  className={`flex flex-col lg:grid lg:grid-cols-[100px_1fr_100px_110px_140px_100px_1fr_50px] gap-1 lg:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center ${rowBg}`}
                 >
                   <span className="text-xs text-muted-foreground">{tx.transaction_date}</span>
                   <div className="flex items-center gap-2 min-w-0">
@@ -597,15 +607,47 @@ export default function Transactions() {
                   <span className={`text-sm font-semibold tabular-nums text-right ${tx.amount >= 0 ? "text-success" : "text-destructive"}`}>
                     {fmt(tx.amount)}
                   </span>
+                  {/* Recommended Tax Hold */}
+                  <span className="text-sm tabular-nums text-right text-muted-foreground">
+                    {isIncome && recWithholding > 0 ? fmt(recWithholding) : "—"}
+                  </span>
                   <Badge
                     variant={tx.category === PERSONAL_CATEGORY ? "destructive" : tx.category === "Uncategorized" ? "outline" : "default"}
                     className="text-xs w-fit"
                   >
                     {tx.category}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {tx.entity}{tx.company_type ? ` (${tx.company_type})` : ""}
-                  </span>
+                  {/* Withholding Status */}
+                  <div>
+                    {isIncome && recWithholding > 0 ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] gap-1 ${
+                              withholdingSaved
+                                ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800"
+                                : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800"
+                            }`}
+                          >
+                            {withholdingSaved ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                            {withholdingSaved ? "Saved" : "Not Saved"}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">
+                            {withholdingSaved
+                              ? "Tax withholding has been set aside for this transaction."
+                              : "Mark as saved once you have set aside the recommended tax amount"}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {tx.entity}{tx.company_type ? ` (${tx.company_type})` : ""}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-muted-foreground italic truncate">{tx.notes}</span>
 
                   {/* Three-dot menu */}
