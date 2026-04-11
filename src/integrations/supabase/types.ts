@@ -486,6 +486,62 @@ export type Database = {
           },
         ]
       }
+      retirement_contributions: {
+        Row: {
+          account_type: string
+          apply_to_withholding: boolean
+          contribution_amount: number
+          created_at: string
+          employer_match: number
+          end_date: string | null
+          frequency: string
+          id: string
+          notes: string | null
+          organization_id: string | null
+          start_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type?: string
+          apply_to_withholding?: boolean
+          contribution_amount?: number
+          created_at?: string
+          employer_match?: number
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          start_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string
+          apply_to_withholding?: boolean
+          contribution_amount?: number
+          created_at?: string
+          employer_match?: number
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          start_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retirement_contributions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_transactions: {
         Row: {
           cost_basis: number
