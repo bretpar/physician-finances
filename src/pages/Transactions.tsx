@@ -540,12 +540,13 @@ export default function Transactions() {
           </div>
 
           {/* Header row - desktop */}
-          <div className="hidden lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_50px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
+          <div className="hidden lg:grid lg:grid-cols-[100px_1fr_100px_110px_140px_100px_1fr_50px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
             <span>Date</span>
             <span>Vendor</span>
             <span className="text-right">Amount</span>
+            <span className="text-right">Tax Hold</span>
             <span>Category</span>
-            <span>Company</span>
+            <span>Status</span>
             <span>Notes</span>
             <span></span>
           </div>
