@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
-import { Search, SlidersHorizontal, Plus, Trash2, Download, DollarSign, AlertTriangle, PiggyBank, Info, MoreHorizontal, Copy, Pencil, RefreshCw, Repeat } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, SlidersHorizontal, Plus, Trash2, Download, DollarSign, AlertTriangle, PiggyBank, Info, MoreHorizontal, Copy, Pencil, RefreshCw, Repeat, ShieldCheck, ShieldAlert } from "lucide-react";
 import ExpenseSummaryWidgets from "@/components/ExpenseSummaryWidgets";
 import { useExpenseSummary } from "@/hooks/useExpenseSummary";
 import { useCompanies } from "@/contexts/CompanyContext";
@@ -107,6 +108,7 @@ export default function Transactions() {
   const [editMemo, setEditMemo] = useState("");
   const [editIsRecurring, setEditIsRecurring] = useState(false);
   const [editRecurringFreq, setEditRecurringFreq] = useState("monthly");
+  const [editWithholdingSaved, setEditWithholdingSaved] = useState(false);
 
   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
@@ -202,12 +204,24 @@ export default function Transactions() {
     setEditMemo(tx.notes || "");
     setEditIsRecurring((tx as any).is_recurring || false);
     setEditRecurringFreq((tx as any).recurring_frequency || "monthly");
+    setEditWithholdingSaved((tx as any).withholding_saved || false);
   }
 
   function saveEdit() {
     if (!editTx) return;
     const newAmount = parseFloat(editAmount) || editTx.amount;
     const companyType = getCompanyTypeForEntity(editEntity);
+    
+    // Recalculate recommended_withholding if amount changed for income transactions
+    let recommendedWithholding = (editTx as any).recommended_withholding || 0;
+    if (editTx.transaction_type === "income" && newAmount !== editTx.amount) {
+      const isSelfEmployed = editTx.company_type === "1099" || editTx.company_type === "K1";
+      const estimatedRate = isSelfEmployed ? 0.35 : 0.25;
+      const linked = incomeByLinkedTx.get(editTx.id);
+      const taxWithheld = linked ? Number(linked.taxes_withheld) : 0;
+      recommendedWithholding = Math.max(0, Math.round((newAmount * estimatedRate - taxWithheld) * 100) / 100);
+    }
+
     updateMutation.mutate({
       id: editTx.id,
       transaction_date: editDate || editTx.transaction_date,
@@ -219,6 +233,8 @@ export default function Transactions() {
       notes: editMemo,
       is_recurring: editIsRecurring,
       recurring_frequency: editIsRecurring ? editRecurringFreq : null,
+      withholding_saved: editWithholdingSaved,
+      recommended_withholding: recommendedWithholding,
     } as any);
     setEditTx(null);
   }
@@ -524,12 +540,13 @@ export default function Transactions() {
           </div>
 
           {/* Header row - desktop */}
-          <div className="hidden lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_50px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
+          <div className="hidden lg:grid lg:grid-cols-[100px_1fr_100px_110px_140px_100px_1fr_50px] gap-2 px-5 py-2 border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground">
             <span>Date</span>
             <span>Vendor</span>
             <span className="text-right">Amount</span>
+            <span className="text-right">Tax Hold</span>
             <span>Category</span>
-            <span>Company</span>
+            <span>Status</span>
             <span>Notes</span>
             <span></span>
           </div>
@@ -538,10 +555,20 @@ export default function Transactions() {
             {filtered.map((tx) => {
               const retBadge = getRetirementBadge(tx);
               const isRecurring = (tx as any).is_recurring;
+              const isIncome = tx.transaction_type === "income";
+              const recWithholding = (tx as any).recommended_withholding || 0;
+              const withholdingSaved = (tx as any).withholding_saved || false;
+              const rowBg = isIncome
+                ? withholdingSaved
+                  ? "bg-green-50/50 dark:bg-green-950/10"
+                  : recWithholding > 0
+                    ? "bg-red-50/50 dark:bg-red-950/10"
+                    : ""
+                : "";
               return (
                 <div
                   key={tx.id}
-                  className="flex flex-col lg:grid lg:grid-cols-[100px_1fr_100px_140px_160px_1fr_50px] gap-1 lg:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center"
+                  className={`flex flex-col lg:grid lg:grid-cols-[100px_1fr_100px_110px_140px_100px_1fr_50px] gap-1 lg:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center ${rowBg}`}
                 >
                   <span className="text-xs text-muted-foreground">{tx.transaction_date}</span>
                   <div className="flex items-center gap-2 min-w-0">
@@ -580,15 +607,47 @@ export default function Transactions() {
                   <span className={`text-sm font-semibold tabular-nums text-right ${tx.amount >= 0 ? "text-success" : "text-destructive"}`}>
                     {fmt(tx.amount)}
                   </span>
+                  {/* Recommended Tax Hold */}
+                  <span className="text-sm tabular-nums text-right text-muted-foreground">
+                    {isIncome && recWithholding > 0 ? fmt(recWithholding) : "—"}
+                  </span>
                   <Badge
                     variant={tx.category === PERSONAL_CATEGORY ? "destructive" : tx.category === "Uncategorized" ? "outline" : "default"}
                     className="text-xs w-fit"
                   >
                     {tx.category}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {tx.entity}{tx.company_type ? ` (${tx.company_type})` : ""}
-                  </span>
+                  {/* Withholding Status */}
+                  <div>
+                    {isIncome && recWithholding > 0 ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] gap-1 ${
+                              withholdingSaved
+                                ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800"
+                                : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800"
+                            }`}
+                          >
+                            {withholdingSaved ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                            {withholdingSaved ? "Saved" : "Not Saved"}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">
+                            {withholdingSaved
+                              ? "Tax withholding has been set aside for this transaction."
+                              : "Mark as saved once you have set aside the recommended tax amount"}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {tx.entity}{tx.company_type ? ` (${tx.company_type})` : ""}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-muted-foreground italic truncate">{tx.notes}</span>
 
                   {/* Three-dot menu */}
@@ -694,6 +753,26 @@ export default function Transactions() {
                   )}
                 </div>
 
+                {/* Withholding saved checkbox - income transactions only */}
+                {editTx.transaction_type === "income" && (editTx as any).recommended_withholding > 0 && (
+                  <div className="rounded-md border border-border p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Recommended Tax Hold:</span>
+                      <span className="font-semibold text-primary">{fmt((editTx as any).recommended_withholding)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="withholding-saved"
+                        checked={editWithholdingSaved}
+                        onCheckedChange={(checked) => setEditWithholdingSaved(checked === true)}
+                      />
+                      <label htmlFor="withholding-saved" className="text-sm cursor-pointer">
+                        I saved the recommended tax withholding for this transaction
+                      </label>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <Button variant="destructive" onClick={() => confirmDelete(editTx.id)} className="gap-2">
                     <Trash2 className="h-4 w-4" /> Delete
