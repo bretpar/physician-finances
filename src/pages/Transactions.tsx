@@ -419,7 +419,7 @@ export default function Transactions() {
               {tab.label}
               {tab.value !== "all" && (
                 <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">
-                  {transactions.filter((t) => tab.value === "all" || (t.transaction_type || "expense") === tab.value).length}
+                  {transactions.filter((t) => (t.transaction_type || "expense") === tab.value).length}
                 </Badge>
               )}
             </Button>
