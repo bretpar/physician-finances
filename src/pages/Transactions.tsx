@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { categories, accounts, PERSONAL_CATEGORY } from "@/lib/mockData";
-import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction } from "@/hooks/useTransactions";
+import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction, type TransactionType } from "@/hooks/useTransactions";
 import { useAddIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
@@ -92,6 +92,7 @@ export default function Transactions() {
   const [filterCompany, setFilterCompany] = useState("all");
   const [filterCompanyType, setFilterCompanyType] = useState("all");
   const [filterQuick, setFilterQuick] = useState("all");
+  const [filterType, setFilterType] = useState<"all" | TransactionType>("all");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -171,6 +172,7 @@ export default function Transactions() {
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
       if (filterAccount !== "all" && t.account_source !== filterAccount) return false;
       if (filterCompany !== "all" && t.entity !== filterCompany) return false;
@@ -182,7 +184,7 @@ export default function Transactions() {
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterCategory, filterAccount, filterCompany, filterCompanyType, filterQuick, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCategory, filterAccount, filterCompany, filterCompanyType, filterQuick, filterDateFrom, filterDateTo]);
 
   const summary = useExpenseSummary(transactions, companies);
 
