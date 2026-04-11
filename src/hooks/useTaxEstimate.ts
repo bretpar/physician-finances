@@ -5,6 +5,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
+import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
 import { calculateFullEstimate, type TaxEstimate } from "@/lib/taxEngine";
 
 export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boolean } {
@@ -16,11 +17,13 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
   const { data: streams, isLoading: strLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonLoading } = useProjectedBonuses();
   const { data: stockTxs, isLoading: stkLoading } = useStockTransactions();
+  const { data: retirementContribs, isLoading: retLoading } = useRetirementContributions();
 
   // Use confidence-weighted income totals
   const weighted = useWeightedIncome(incomeEntries);
+  const annualizedRetirement = useAnnualizedContributions(retirementContribs);
 
-  const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading;
+  const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading;
 
   const estimate = useMemo(() => {
     if (!rates || !incomeEntries) return null;
