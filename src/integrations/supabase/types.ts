@@ -751,12 +751,14 @@ export type Database = {
           organization_id: string | null
           parent_transaction_id: string | null
           receipt_url: string | null
+          recommended_withholding: number
           recurring_frequency: string | null
           transaction_date: string
           transaction_type: string
           updated_at: string
           user_id: string
           vendor: string
+          withholding_saved: boolean
         }
         Insert: {
           account_source?: string
@@ -772,12 +774,14 @@ export type Database = {
           organization_id?: string | null
           parent_transaction_id?: string | null
           receipt_url?: string | null
+          recommended_withholding?: number
           recurring_frequency?: string | null
           transaction_date?: string
           transaction_type?: string
           updated_at?: string
           user_id: string
           vendor?: string
+          withholding_saved?: boolean
         }
         Update: {
           account_source?: string
@@ -793,12 +797,14 @@ export type Database = {
           organization_id?: string | null
           parent_transaction_id?: string | null
           receipt_url?: string | null
+          recommended_withholding?: number
           recurring_frequency?: string | null
           transaction_date?: string
           transaction_type?: string
           updated_at?: string
           user_id?: string
           vendor?: string
+          withholding_saved?: boolean
         }
         Relationships: [
           {
