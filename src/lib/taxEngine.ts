@@ -1,4 +1,4 @@
-// US Federal Tax Engine — 2024 brackets, SE tax, safe harbor
+// US Federal Tax Engine — 2024 brackets, SE tax, safe harbor, time-based tracking
 // All rates/brackets stored here for easy annual updates
 
 export interface TaxBracket {
@@ -97,6 +97,97 @@ export function calculateSETax(
   return { ssTax, medicareTax, additionalMedicare, total, deductibleHalf };
 }
 
+// --- Time-based tracking types ---
+export type TrackingStatus = "on_track" | "ahead" | "slightly_behind" | "behind";
+
+export interface TimeBasedTracking {
+  daysElapsed: number;
+  daysInYear: number;
+  yearProgress: number; // 0-1
+  expectedTaxToDate: number;
+  totalPaid: number; // withheld + quarterly payments + savings
+  difference: number; // positive = ahead, negative = behind
+  percentDeviation: number; // how far off from expected (%)
+  status: TrackingStatus;
+  statusLabel: string;
+  remainingTax: number;
+  monthsRemaining: number;
+  suggestedMonthlyPayment: number;
+  // Safe harbor
+  safeHarborTarget: number;
+  safeHarborProgress: number; // 0-100
+  safeHarborMet: boolean;
+  safeHarborLabel: string;
+  // Progress bar
+  paidVsExpectedPercent: number; // % of expected taxes paid (can exceed 100)
+}
+
+export function calculateTimeBasedTracking(params: {
+  annualTax: number;
+  totalPaid: number; // all taxes paid/withheld/saved
+  lastYearTax: number;
+  agi: number;
+}): TimeBasedTracking {
+  const { annualTax, totalPaid, lastYearTax, agi } = params;
+
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const endOfYear = new Date(now.getFullYear(), 11, 31);
+  const daysInYear = Math.ceil((endOfYear.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const daysElapsed = Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
+  const yearProgress = daysElapsed / daysInYear;
+
+  const expectedTaxToDate = annualTax * yearProgress;
+  const difference = totalPaid - expectedTaxToDate;
+  const percentDeviation = expectedTaxToDate > 0 ? (difference / expectedTaxToDate) * 100 : 0;
+
+  // Status: only warning if >10% behind
+  let status: TrackingStatus;
+  let statusLabel: string;
+  if (difference >= 0) {
+    status = "ahead";
+    statusLabel = `Ahead by ${formatCurrency(difference)}`;
+  } else if (percentDeviation >= -10) {
+    status = "on_track";
+    statusLabel = "On Track";
+  } else if (percentDeviation >= -25) {
+    status = "slightly_behind";
+    statusLabel = `Slightly behind by ${formatCurrency(Math.abs(difference))}`;
+  } else {
+    status = "behind";
+    statusLabel = `Behind by ${formatCurrency(Math.abs(difference))}`;
+  }
+
+  // Forward-looking recommendation
+  const remainingTax = Math.max(0, annualTax - totalPaid);
+  const monthsRemaining = Math.max(1, 12 - now.getMonth());
+  const suggestedMonthlyPayment = remainingTax / monthsRemaining;
+
+  // Safe harbor: min of 90% current year or 100%/110% of last year
+  const safeHarbor90 = annualTax * 0.9;
+  const safeHarborLastYear = agi > 150000 ? lastYearTax * 1.1 : lastYearTax;
+  const safeHarborTarget = lastYearTax > 0 ? Math.min(safeHarbor90, safeHarborLastYear) : safeHarbor90;
+  const safeHarborProgress = safeHarborTarget > 0 ? Math.min(100, (totalPaid / safeHarborTarget) * 100) : 100;
+  const safeHarborMet = totalPaid >= safeHarborTarget;
+  const safeHarborLabel = safeHarborMet ? "Safe from penalties" : "May owe at filing";
+
+  // Progress bar: % of expected taxes paid
+  const paidVsExpectedPercent = expectedTaxToDate > 0 ? Math.min(200, (totalPaid / expectedTaxToDate) * 100) : 100;
+
+  return {
+    daysElapsed, daysInYear, yearProgress,
+    expectedTaxToDate, totalPaid, difference, percentDeviation,
+    status, statusLabel,
+    remainingTax, monthsRemaining, suggestedMonthlyPayment,
+    safeHarborTarget, safeHarborProgress, safeHarborMet, safeHarborLabel,
+    paidVsExpectedPercent,
+  };
+}
+
+function formatCurrency(n: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+}
+
 export interface TaxEstimate {
   totalIncome: number;
   w2Income: number;
@@ -117,11 +208,13 @@ export interface TaxEstimate {
   quarterlyEstimate: number;
   effectiveRate: number;
   marginalRate: number;
-  // Safe harbor
+  // Safe harbor (legacy)
   safeHarborTarget: number;
   safeHarborStatus: "on_track" | "behind" | "ahead";
   // Per-paycheck
   recommendedSetAside: number;
+  // Time-based tracking
+  tracking: TimeBasedTracking;
 }
 
 export function calculateFullEstimate(params: {
@@ -139,12 +232,13 @@ export function calculateFullEstimate(params: {
   ssWageCap?: number;
   bnoRate?: number;
   remainingPayPeriods?: number;
+  additionalTaxPaid?: number; // quarterly payments + tax savings
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
     lastYearTax, standardDeductionOverride, ssWageCap = SS_WAGE_CAP_DEFAULT,
-    bnoRate = 0.015, remainingPayPeriods = 12,
+    bnoRate = 0.015, remainingPayPeriods = 12, additionalTaxPaid = 0,
   } = params;
 
   // SE tax (calculate first — half is deductible)
@@ -167,7 +261,8 @@ export function calculateFullEstimate(params: {
 
   // Total
   const totalTaxLiability = federalTax + seTax.total + bnoTax;
-  const remainingLiability = Math.max(0, totalTaxLiability - taxesWithheld);
+  const totalPaid = taxesWithheld + additionalTaxPaid;
+  const remainingLiability = Math.max(0, totalTaxLiability - totalPaid);
 
   // Quarterly
   const now = new Date();
@@ -179,25 +274,27 @@ export function calculateFullEstimate(params: {
   const effectiveRate = calculateEffectiveRate(totalTaxLiability, totalIncome);
   const marginalRate = getMarginalRate(taxableIncome, brackets);
 
-  // Safe harbor
+  // Safe harbor (legacy compat)
   const safeHarbor90 = totalTaxLiability * 0.9;
-  const safeHarbor100 = lastYearTax; // 100% of last year (110% if AGI > 150k handled below)
   const safeHarborHighIncome = agi > 150000 ? lastYearTax * 1.1 : lastYearTax;
-  const safeHarborTarget = Math.min(safeHarbor90, safeHarborHighIncome);
-  const safeHarborStatus: TaxEstimate["safeHarborStatus"] =
-    taxesWithheld >= safeHarborTarget ? "on_track"
-    : taxesWithheld >= safeHarborTarget * 0.8 ? "behind"
-    : "ahead"; // actually behind but let's fix logic
-  // Corrected: if withheld > target → ahead, if close → on_track, if far → behind
+  const safeHarborTarget = lastYearTax > 0 ? Math.min(safeHarbor90, safeHarborHighIncome) : safeHarbor90;
   const correctedStatus: TaxEstimate["safeHarborStatus"] =
     safeHarborTarget <= 0 ? "on_track"
-    : taxesWithheld >= safeHarborTarget ? "ahead"
-    : taxesWithheld >= safeHarborTarget * 0.75 ? "on_track"
+    : totalPaid >= safeHarborTarget ? "ahead"
+    : totalPaid >= safeHarborTarget * 0.75 ? "on_track"
     : "behind";
 
   // Per-paycheck recommendation
   const effectivePayPeriods = Math.max(1, remainingPayPeriods);
   const recommendedSetAside = remainingLiability / effectivePayPeriods;
+
+  // Time-based tracking
+  const tracking = calculateTimeBasedTracking({
+    annualTax: totalTaxLiability,
+    totalPaid,
+    lastYearTax,
+    agi,
+  });
 
   return {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
@@ -205,5 +302,6 @@ export function calculateFullEstimate(params: {
     federalTax, seTax, bnoTax, totalTaxLiability, taxesAlreadyWithheld: taxesWithheld,
     remainingLiability, quarterlyEstimate, effectiveRate, marginalRate,
     safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside,
+    tracking,
   };
 }
