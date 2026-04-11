@@ -57,7 +57,7 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
     const w2Income = w2ActualIncome + projTotals.grossIncome;
     const seIncome = seActualIncome;
     const combinedPreTax = preTaxDeductions + projTotals.preTaxDeductions;
-    const combined401k = retirement401k + projTotals.retirement401k;
+    const combined401k = retirement401k + projTotals.retirement401k + annualizedRetirement.total;
     const combinedWithheld = taxesWithheld + projTotals.taxesWithheld;
 
     // Business deductions from expense transactions
