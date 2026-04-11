@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { format, isPast, isAfter } from "date-fns";
 import {
   Plus, Pencil, Trash2, DollarSign, CalendarIcon, CheckCircle2,
-  AlertTriangle, Clock, ExternalLink,
+  AlertTriangle, Clock, ExternalLink, ShieldCheck, ArrowRight, Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,17 +54,11 @@ export default function QuarterlyTaxPlanner() {
   const [notes, setNotes] = useState("");
 
   const totalEstTax = estimate?.totalTaxLiability ?? 0;
-  const taxesWithheld = estimate?.taxesAlreadyWithheld ?? 0;
-  const remainingLiability = estimate?.remainingLiability ?? 0;
-  const safeHarborTarget = estimate?.safeHarborTarget ?? 0;
+  const t = estimate?.tracking;
 
   const totalPaid = useMemo(() => payments.reduce((s, p) => s + Number(p.amount), 0), [payments]);
-  const totalCovered = taxesWithheld + totalPaid;
+  const totalCovered = (estimate?.taxesAlreadyWithheld ?? 0) + totalPaid;
   const stillOwed = Math.max(0, totalEstTax - totalCovered);
-
-  // Safe harbor
-  const safeHarborMet = totalCovered >= safeHarborTarget;
-  const safeHarborProgress = safeHarborTarget > 0 ? Math.min(100, (totalCovered / safeHarborTarget) * 100) : 100;
 
   // Per-quarter calculations
   const now = new Date();
@@ -127,33 +121,61 @@ export default function QuarterlyTaxPlanner() {
   };
 
   const statusIcon = (s: QuarterStatus) => {
-    if (s === "paid") return <CheckCircle2 className="h-5 w-5 text-green-600" />;
-    if (s === "overdue") return <AlertTriangle className="h-5 w-5 text-destructive" />;
+    if (s === "paid") return <CheckCircle2 className="h-5 w-5 text-emerald-600" />;
+    if (s === "overdue") return <AlertTriangle className="h-5 w-5 text-amber-500" />;
     return <Clock className="h-5 w-5 text-muted-foreground" />;
   };
 
   const statusLabel = (s: QuarterStatus) => {
     if (s === "paid") return "Paid";
-    if (s === "overdue") return "Overdue";
+    if (s === "overdue") return "Due";
     return "Upcoming";
   };
 
   return (
     <div className="space-y-6">
-      {/* Alert banner */}
-      {nextDue && nextDue.status === "overdue" && (
-        <Card className="border-2 border-destructive/30 bg-red-50/50 dark:bg-red-950/20">
-          <CardContent className="flex items-center gap-4 py-4">
-            <AlertTriangle className="h-7 w-7 text-destructive shrink-0" />
-            <div>
-              <p className="font-semibold text-destructive">
-                Overdue: You need to pay {fmt(nextDue.remainingDue)} for {nextDue.label} (was due {nextDue.dueLabel})
-              </p>
+      {/* Time-based tracking banner */}
+      {t && (
+        <Card className={cn("border-2",
+          t.status === "ahead" || t.status === "on_track" ? "border-emerald-400/40 bg-emerald-50/50 dark:bg-emerald-950/20" :
+          t.status === "slightly_behind" ? "border-amber-400/40 bg-amber-50/50 dark:bg-amber-950/20" :
+          "border-red-400/40 bg-red-50/50 dark:bg-red-950/20"
+        )}>
+          <CardContent className="py-4 space-y-3">
+            <div className="flex items-center gap-3">
+              {t.status === "ahead" || t.status === "on_track" ? (
+                <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+              ) : t.status === "slightly_behind" ? (
+                <Target className="h-6 w-6 text-amber-500 shrink-0" />
+              ) : (
+                <AlertTriangle className="h-6 w-6 text-red-500 shrink-0" />
+              )}
+              <div>
+                <p className={cn("font-semibold",
+                  t.status === "ahead" || t.status === "on_track" ? "text-emerald-700 dark:text-emerald-400" :
+                  t.status === "slightly_behind" ? "text-amber-700 dark:text-amber-400" :
+                  "text-red-700 dark:text-red-400"
+                )}>
+                  {t.statusLabel}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Expected {fmt(t.expectedTaxToDate)} paid by now · Actually paid {fmt(t.totalPaid)}
+                </p>
+              </div>
             </div>
+            <Progress value={Math.min(100, t.paidVsExpectedPercent)} className="h-2" />
+            {t.suggestedMonthlyPayment > 0 && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <ArrowRight className="h-4 w-4 text-primary" />
+                To stay on track, consider paying <strong className="text-foreground">{fmt(t.suggestedMonthlyPayment)}/month</strong> going forward
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
-      {nextDue && nextDue.status === "upcoming" && nextDue.remainingDue > 0 && (
+
+      {/* Next payment notice */}
+      {nextDue && nextDue.remainingDue > 0 && (
         <Card className="border-2 border-primary/30">
           <CardContent className="flex items-center gap-4 py-4">
             <Clock className="h-7 w-7 text-primary shrink-0" />
@@ -178,33 +200,33 @@ export default function QuarterlyTaxPlanner() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Paid / Withheld</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{fmt(totalCovered)}</p>
-            <p className="text-xs text-muted-foreground">W-2 withheld: {fmt(taxesWithheld)} · Payments: {fmt(totalPaid)}</p>
+            <p className="text-xs text-muted-foreground">W-2 withheld: {fmt(estimate?.taxesAlreadyWithheld ?? 0)} · Payments: {fmt(totalPaid)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Remaining Owed</CardTitle>
-            {stillOwed > 0 ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-green-600" />}
+            <CardTitle className="text-sm font-medium text-muted-foreground">Remaining</CardTitle>
+            {stillOwed > 0 ? <Target className="h-4 w-4 text-amber-500" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
           </CardHeader>
           <CardContent>
-            <p className={cn("text-2xl font-bold", stillOwed > 0 ? "text-destructive" : "text-green-600")}>{fmt(stillOwed)}</p>
+            <p className={cn("text-2xl font-bold", stillOwed > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(stillOwed)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Safe Harbor</CardTitle>
-            {safeHarborMet ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4 text-destructive" />}
+            {t?.safeHarborMet ? <ShieldCheck className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
           </CardHeader>
           <CardContent>
-            <p className={cn("text-sm font-semibold mb-1", safeHarborMet ? "text-green-600" : "text-destructive")}>
-              {safeHarborMet ? "Safe Harbor Met" : "At Risk for Penalty"}
+            <p className={cn("text-sm font-semibold mb-1", t?.safeHarborMet ? "text-emerald-600" : "text-amber-600")}>
+              {t?.safeHarborLabel ?? "Loading…"}
             </p>
-            <Progress value={safeHarborProgress} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-1">{fmt(totalCovered)} of {fmt(safeHarborTarget)} target</p>
+            <Progress value={t?.safeHarborProgress ?? 0} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-1">{fmt(totalCovered)} of {fmt(t?.safeHarborTarget ?? 0)} target</p>
           </CardContent>
         </Card>
       </div>
@@ -214,8 +236,8 @@ export default function QuarterlyTaxPlanner() {
         {quarterData.map((q) => (
           <Card key={q.key} className={cn(
             "border-2",
-            q.status === "paid" && "border-green-500/30",
-            q.status === "overdue" && "border-destructive/30",
+            q.status === "paid" && "border-emerald-500/30",
+            q.status === "overdue" && "border-amber-400/30",
             q.status === "upcoming" && "border-border",
           )}>
             <CardHeader className="pb-2">
@@ -233,18 +255,18 @@ export default function QuarterlyTaxPlanner() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Paid</span>
-                  <span className="font-medium text-green-600">{fmt(q.paidAmount)}</span>
+                  <span className="font-medium text-emerald-600">{fmt(q.paidAmount)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Remaining</span>
-                  <span className={cn("font-medium", q.remainingDue > 0 ? "text-destructive" : "text-green-600")}>{fmt(q.remainingDue)}</span>
+                  <span className={cn("font-medium", q.remainingDue > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(q.remainingDue)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className={cn(
                   "text-xs font-medium px-2 py-0.5 rounded-full",
-                  q.status === "paid" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-                  q.status === "overdue" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                  q.status === "paid" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                  q.status === "overdue" && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
                   q.status === "upcoming" && "bg-muted text-muted-foreground",
                 )}>
                   {statusLabel(q.status)}
@@ -337,7 +359,7 @@ export default function QuarterlyTaxPlanner() {
             </div>
             <div>
               <Label>Amount *</Label>
-              <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+              <Input type="number" min="0" step="0.01" value={amount} onChange={(ev) => setAmount(ev.target.value)} placeholder="0.00" />
             </div>
             <div>
               <Label>Quarter *</Label>
@@ -352,7 +374,7 @@ export default function QuarterlyTaxPlanner() {
             </div>
             <div>
               <Label>Notes (optional)</Label>
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. IRS Direct Pay confirmation" />
+              <Input value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="e.g. IRS Direct Pay confirmation" />
             </div>
             <Button className="w-full" onClick={handleSubmit} disabled={addMutation.isPending || updateMutation.isPending}>
               {editId ? "Update" : "Save"} Payment

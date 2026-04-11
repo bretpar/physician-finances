@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   DollarSign, TrendingUp, TrendingDown, ShieldCheck, AlertTriangle,
-  CheckCircle2, PiggyBank, Calculator, Receipt,
+  CheckCircle2, PiggyBank, Calculator, Receipt, Target, ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,46 @@ function BracketTable({ brackets, taxableIncome }: { brackets: TaxBracket[]; tax
   );
 }
 
+function getTrackingColor(status: string) {
+  switch (status) {
+    case "ahead": return "text-emerald-600 dark:text-emerald-400";
+    case "on_track": return "text-emerald-600 dark:text-emerald-400";
+    case "slightly_behind": return "text-amber-600 dark:text-amber-400";
+    case "behind": return "text-red-600 dark:text-red-400";
+    default: return "text-muted-foreground";
+  }
+}
+
+function getTrackingIcon(status: string) {
+  switch (status) {
+    case "ahead": return CheckCircle2;
+    case "on_track": return CheckCircle2;
+    case "slightly_behind": return Target;
+    case "behind": return AlertTriangle;
+    default: return Target;
+  }
+}
+
+function getTrackingBorderColor(status: string) {
+  switch (status) {
+    case "ahead": return "border-emerald-400/40";
+    case "on_track": return "border-emerald-400/40";
+    case "slightly_behind": return "border-amber-400/40";
+    case "behind": return "border-red-400/40";
+    default: return "border-border";
+  }
+}
+
+function getTrackingBg(status: string) {
+  switch (status) {
+    case "ahead": return "bg-emerald-50/50 dark:bg-emerald-950/20";
+    case "on_track": return "bg-emerald-50/50 dark:bg-emerald-950/20";
+    case "slightly_behind": return "bg-amber-50/50 dark:bg-amber-950/20";
+    case "behind": return "bg-red-50/50 dark:bg-red-950/20";
+    default: return "";
+  }
+}
+
 export default function EstimatedTax() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const updateSettings = useUpdateTaxSettings();
@@ -67,22 +107,10 @@ export default function EstimatedTax() {
   }
 
   const e = estimate;
+  const t = e.tracking;
   const brackets = rates.filingStatus === "married_filing_jointly" ? BRACKETS_MFJ : BRACKETS_SINGLE;
-
-  const safeHarborPct = e.safeHarborTarget > 0 ? Math.min(100, (e.taxesAlreadyWithheld / e.safeHarborTarget) * 100) : 100;
-  const safeHarborColor = e.safeHarborStatus === "ahead" ? "text-emerald-600" : e.safeHarborStatus === "on_track" ? "text-amber-500" : "text-destructive";
-  const safeHarborIcon = e.safeHarborStatus === "ahead" ? CheckCircle2 : e.safeHarborStatus === "on_track" ? ShieldCheck : AlertTriangle;
-  const SafeHarborIcon = safeHarborIcon;
-
-  // Quarterly breakdown
-  const now = new Date();
-  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
-  const quarters = [
-    { label: "Q1 (Apr 15)", due: currentQuarter <= 1 },
-    { label: "Q2 (Jun 15)", due: currentQuarter <= 2 },
-    { label: "Q3 (Sep 15)", due: currentQuarter <= 3 },
-    { label: "Q4 (Jan 15)", due: true },
-  ];
+  const TrackingIcon = getTrackingIcon(t.status);
+  const SafeHarborStatusIcon = t.safeHarborMet ? ShieldCheck : AlertTriangle;
 
   const handleFilingChange = (value: string) => {
     if (!rates.id) return;
@@ -94,8 +122,69 @@ export default function EstimatedTax() {
     updateSettings.mutate({ id: rates.id, lastYearTax: parseFloat(value) || 0 });
   };
 
+  // Quarterly breakdown
+  const now = new Date();
+  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+  const quarters = [
+    { label: "Q1 (Apr 15)", due: currentQuarter <= 1 },
+    { label: "Q2 (Jun 15)", due: currentQuarter <= 2 },
+    { label: "Q3 (Sep 15)", due: currentQuarter <= 3 },
+    { label: "Q4 (Jan 15)", due: true },
+  ];
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Time-Based Tracking Hero */}
+      <Card className={`border-2 ${getTrackingBorderColor(t.status)} ${getTrackingBg(t.status)}`}>
+        <CardContent className="pt-6 pb-6">
+          <div className="flex flex-col sm:flex-row items-center gap-5">
+            <div className="h-14 w-14 rounded-full bg-background flex items-center justify-center shrink-0 border border-border">
+              <TrackingIcon className={`h-7 w-7 ${getTrackingColor(t.status)}`} />
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <p className={`text-2xl font-bold ${getTrackingColor(t.status)}`}>
+                {t.statusLabel}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Day {t.daysElapsed} of {t.daysInYear} — {pct(t.yearProgress * 100)} through the year
+              </p>
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Expected taxes to date</span>
+                  <span className="font-medium">{fmt(t.expectedTaxToDate)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Total paid / withheld</span>
+                  <span className="font-medium">{fmt(t.totalPaid)}</span>
+                </div>
+                <Progress value={Math.min(100, t.paidVsExpectedPercent)} className="h-2.5 mt-2" />
+                <p className="text-xs text-muted-foreground text-right">
+                  {pct(t.paidVsExpectedPercent)} of expected taxes paid
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Forward-looking recommendation */}
+      {t.suggestedMonthlyPayment > 0 && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-5 pb-5 flex flex-col sm:flex-row items-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <ArrowRight className="h-6 w-6 text-primary" />
+            </div>
+            <div className="text-center sm:text-left">
+              <p className="text-sm text-muted-foreground">To stay on track, consider paying</p>
+              <p className="text-3xl font-bold text-primary">{fmt(t.suggestedMonthlyPayment)}<span className="text-lg font-normal text-muted-foreground">/month</span></p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {fmt(t.remainingTax)} remaining across {t.monthsRemaining} month{t.monthsRemaining !== 1 ? "s" : ""}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Top summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
@@ -118,45 +207,27 @@ export default function EstimatedTax() {
             <p className="text-xs text-muted-foreground mt-0.5">AGI: {fmt(e.agi)} − {fmt(e.standardDeduction)} std ded</p>
           </CardContent>
         </Card>
-        <Card className="border-destructive/30">
+        <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="h-4 w-4 text-destructive" />
-              <p className="text-sm text-muted-foreground">Estimated Tax</p>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Estimated Annual Tax</p>
             </div>
-            <p className="text-2xl font-bold text-destructive">{fmt(e.totalTaxLiability)}</p>
+            <p className="text-2xl font-bold">{fmt(e.totalTaxLiability)}</p>
             <p className="text-xs text-muted-foreground mt-0.5">Effective rate: {pct(e.effectiveRate)}</p>
           </CardContent>
         </Card>
-        <Card className={e.remainingLiability > 0 ? "border-amber-400/40" : "border-emerald-400/40"}>
+        <Card className={getTrackingBorderColor(t.status)}>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-1">
-              {e.remainingLiability > 0 ? <TrendingDown className="h-4 w-4 text-amber-500" /> : <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-              <p className="text-sm text-muted-foreground">Still Owe</p>
+              <TrackingIcon className={`h-4 w-4 ${getTrackingColor(t.status)}`} />
+              <p className="text-sm text-muted-foreground">Remaining</p>
             </div>
-            <p className="text-2xl font-bold">{fmt(e.remainingLiability)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Paid: {fmt(e.taxesAlreadyWithheld)}</p>
+            <p className="text-2xl font-bold">{fmt(t.remainingTax)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Paid: {fmt(t.totalPaid)}</p>
           </CardContent>
         </Card>
       </div>
-
-      {/* Per-paycheck recommendation */}
-      {e.recommendedSetAside > 0 && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="pt-5 pb-5 flex flex-col sm:flex-row items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <PiggyBank className="h-6 w-6 text-primary" />
-            </div>
-            <div className="text-center sm:text-left">
-              <p className="text-sm text-muted-foreground">Recommended per paycheck set-aside</p>
-              <p className="text-3xl font-bold text-primary">{fmt(e.recommendedSetAside)}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Based on {fmt(e.remainingLiability)} remaining liability across future pay periods
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Tax breakdown */}
@@ -190,13 +261,13 @@ export default function EstimatedTax() {
               <span>{fmt(e.totalTaxLiability)}</span>
             </div>
             <div className="flex justify-between text-sm text-emerald-600">
-              <span>Taxes Already Withheld</span>
-              <span>−{fmt(e.taxesAlreadyWithheld)}</span>
+              <span>Total Paid / Withheld</span>
+              <span>−{fmt(t.totalPaid)}</span>
             </div>
             <div className="border-t border-border pt-2 flex justify-between font-semibold text-lg">
-              <span>Remaining Liability</span>
-              <span className={e.remainingLiability > 0 ? "text-amber-600" : "text-emerald-600"}>
-                {fmt(e.remainingLiability)}
+              <span>Remaining</span>
+              <span className={t.remainingTax > 0 ? "text-amber-600" : "text-emerald-600"}>
+                {fmt(t.remainingTax)}
               </span>
             </div>
           </CardContent>
@@ -259,7 +330,7 @@ export default function EstimatedTax() {
           </CardContent>
         </Card>
 
-        {/* Safe harbor */}
+        {/* Safe Harbor */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -273,21 +344,24 @@ export default function EstimatedTax() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Safe Harbor Target</span>
-                <span className="font-medium">{fmt(e.safeHarborTarget)}</span>
+                <span className="font-medium">{fmt(t.safeHarborTarget)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Taxes Paid</span>
-                <span className="font-medium">{fmt(e.taxesAlreadyWithheld)}</span>
+                <span className="text-muted-foreground">Total Paid</span>
+                <span className="font-medium">{fmt(t.totalPaid)}</span>
               </div>
-              <Progress value={safeHarborPct} className="h-2" />
+              <Progress value={t.safeHarborProgress} className="h-2" />
               <div className="flex items-center gap-2">
-                <SafeHarborIcon className={`h-4 w-4 ${safeHarborColor}`} />
-                <span className={`text-sm font-medium ${safeHarborColor}`}>
-                  {e.safeHarborStatus === "ahead" && "You're ahead of safe harbor!"}
-                  {e.safeHarborStatus === "on_track" && "On track — keep it up"}
-                  {e.safeHarborStatus === "behind" && "Behind — increase withholdings"}
+                <SafeHarborStatusIcon className={`h-4 w-4 ${t.safeHarborMet ? "text-emerald-600" : "text-amber-500"}`} />
+                <span className={`text-sm font-semibold ${t.safeHarborMet ? "text-emerald-600" : "text-amber-500"}`}>
+                  {t.safeHarborLabel}
                 </span>
               </div>
+              {!t.safeHarborMet && t.safeHarborTarget > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {fmt(Math.max(0, t.safeHarborTarget - t.totalPaid))} more needed to reach safe harbor
+                </p>
+              )}
             </div>
             <div className="border-t border-border pt-3 space-y-2">
               <Label className="text-xs text-muted-foreground">Last Year's Total Tax</Label>
@@ -296,7 +370,7 @@ export default function EstimatedTax() {
                 min="0"
                 step="100"
                 defaultValue={rates?.lastYearTax || 0}
-                onBlur={(e) => handleLastYearTax(e.target.value)}
+                onBlur={(ev) => handleLastYearTax(ev.target.value)}
                 className="max-w-[200px]"
               />
             </div>
@@ -323,7 +397,7 @@ export default function EstimatedTax() {
             ))}
             <div className="border-t border-border pt-2 flex justify-between font-semibold">
               <span>Total Remaining</span>
-              <span>{fmt(e.remainingLiability)}</span>
+              <span>{fmt(t.remainingTax)}</span>
             </div>
           </CardContent>
         </Card>
@@ -370,7 +444,7 @@ export default function EstimatedTax() {
                 <Input
                   type="number" step="0.1" min="0"
                   defaultValue={rates.bnoRate}
-                  onBlur={(e) => updateSettings.mutate({ id: rates.id!, bnoRate: parseFloat(e.target.value) || 0 })}
+                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, bnoRate: parseFloat(ev.target.value) || 0 })}
                 />
               </div>
               <div className="space-y-1.5">
@@ -378,7 +452,7 @@ export default function EstimatedTax() {
                 <Input
                   type="number" step="100" min="0"
                   defaultValue={rates.ssWageCap}
-                  onBlur={(e) => updateSettings.mutate({ id: rates.id!, ssWageCap: parseFloat(e.target.value) || 168600 })}
+                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, ssWageCap: parseFloat(ev.target.value) || 168600 })}
                 />
               </div>
               <div className="space-y-1.5">
@@ -387,8 +461,8 @@ export default function EstimatedTax() {
                   type="number" step="100" min="0"
                   placeholder={String(STANDARD_DEDUCTION[rates.filingStatus])}
                   defaultValue={rates.standardDeductionOverride ?? ""}
-                  onBlur={(e) => {
-                    const val = e.target.value ? parseFloat(e.target.value) : null;
+                  onBlur={(ev) => {
+                    const val = ev.target.value ? parseFloat(ev.target.value) : null;
                     updateSettings.mutate({ id: rates.id!, standardDeductionOverride: val as number });
                   }}
                 />
@@ -398,7 +472,7 @@ export default function EstimatedTax() {
                 <Input
                   type="number" step="100" min="0"
                   defaultValue={rates.lastYearTax}
-                  onBlur={(e) => updateSettings.mutate({ id: rates.id!, lastYearTax: parseFloat(e.target.value) || 0 })}
+                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, lastYearTax: parseFloat(ev.target.value) || 0 })}
                 />
               </div>
             </div>

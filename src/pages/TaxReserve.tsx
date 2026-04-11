@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import {
   Plus, Pencil, Trash2, DollarSign, ShieldCheck, AlertTriangle,
-  CheckCircle2, CalendarIcon,
+  CheckCircle2, CalendarIcon, ArrowRight, Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -45,18 +46,12 @@ export default function TaxReserve() {
   const [notes, setNotes] = useState("");
 
   const totalSetAside = useMemo(() => savings.reduce((s, e) => s + Number(e.amount), 0), [savings]);
+  const t = estimate?.tracking;
   const estimatedOwed = estimate?.totalTaxLiability ?? 0;
   const taxesWithheld = estimate?.taxesAlreadyWithheld ?? 0;
   const remainingOwed = Math.max(0, estimatedOwed - taxesWithheld);
   const taxGap = totalSetAside - remainingOwed;
   const onTrack = taxGap >= 0;
-
-  // Monthly target
-  const now = new Date();
-  const monthsLeft = Math.max(1, 12 - now.getMonth());
-  const monthlyTarget = remainingOwed > totalSetAside
-    ? (remainingOwed - totalSetAside) / monthsLeft
-    : 0;
 
   const resetForm = () => {
     setSavingsDate(new Date());
@@ -99,28 +94,47 @@ export default function TaxReserve() {
 
   return (
     <div className="space-y-6">
-      {/* Status banner */}
-      <Card className={cn("border-2", onTrack ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/20" : "border-destructive/30 bg-red-50/50 dark:bg-red-950/20")}>
-        <CardContent className="flex items-center gap-4 py-5">
-          {onTrack ? (
-            <CheckCircle2 className="h-8 w-8 text-green-600 shrink-0" />
-          ) : (
-            <AlertTriangle className="h-8 w-8 text-destructive shrink-0" />
-          )}
-          <div>
-            <p className={cn("text-lg font-semibold", onTrack ? "text-green-700 dark:text-green-400" : "text-destructive")}>
-              {onTrack
-                ? "You are on track. You have enough saved for taxes."
-                : `You are under-saving. You need ${fmt(Math.abs(taxGap))} more for taxes.`}
-            </p>
-            {!onTrack && monthlyTarget > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                To stay on track, save approximately {fmt(monthlyTarget)}/month for the rest of the year.
+      {/* Time-based status banner */}
+      {t && (
+        <Card className={cn("border-2",
+          t.status === "ahead" || t.status === "on_track"
+            ? "border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20"
+            : t.status === "slightly_behind"
+            ? "border-amber-400/30 bg-amber-50/50 dark:bg-amber-950/20"
+            : "border-red-400/30 bg-red-50/50 dark:bg-red-950/20"
+        )}>
+          <CardContent className="py-5 space-y-3">
+            <div className="flex items-center gap-4">
+              {t.status === "ahead" || t.status === "on_track" ? (
+                <CheckCircle2 className="h-8 w-8 text-emerald-600 shrink-0" />
+              ) : t.status === "slightly_behind" ? (
+                <Target className="h-8 w-8 text-amber-500 shrink-0" />
+              ) : (
+                <AlertTriangle className="h-8 w-8 text-red-500 shrink-0" />
+              )}
+              <div>
+                <p className={cn("text-lg font-semibold",
+                  t.status === "ahead" || t.status === "on_track" ? "text-emerald-700 dark:text-emerald-400" :
+                  t.status === "slightly_behind" ? "text-amber-700 dark:text-amber-400" :
+                  "text-red-700 dark:text-red-400"
+                )}>
+                  {t.statusLabel}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Expected {fmt(t.expectedTaxToDate)} paid by day {t.daysElapsed} · You've paid {fmt(t.totalPaid)}
+                </p>
+              </div>
+            </div>
+            <Progress value={Math.min(100, t.paidVsExpectedPercent)} className="h-2.5" />
+            {t.suggestedMonthlyPayment > 0 && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <ArrowRight className="h-4 w-4 text-primary" />
+                To stay on track, consider saving <strong className="text-foreground">{fmt(t.suggestedMonthlyPayment)}/month</strong> going forward
               </p>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -156,15 +170,16 @@ export default function TaxReserve() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Tax Gap</CardTitle>
-            {onTrack ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4 text-destructive" />}
+            <CardTitle className="text-sm font-medium text-muted-foreground">Safe Harbor</CardTitle>
+            {t?.safeHarborMet ? <ShieldCheck className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
           </CardHeader>
           <CardContent>
-            <p className={cn("text-2xl font-bold", onTrack ? "text-green-600" : "text-destructive")}>
-              {fmt(taxGap)}
+            <p className={cn("text-sm font-semibold mb-1", t?.safeHarborMet ? "text-emerald-600" : "text-amber-600")}>
+              {t?.safeHarborLabel ?? "Loading…"}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {onTrack ? "Surplus" : "Shortfall"} vs remaining owed
+            <Progress value={t?.safeHarborProgress ?? 0} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-1">
+              {fmt(t?.totalPaid ?? 0)} of {fmt(t?.safeHarborTarget ?? 0)} target
             </p>
           </CardContent>
         </Card>
@@ -239,7 +254,7 @@ export default function TaxReserve() {
             </div>
             <div>
               <Label>Amount *</Label>
-              <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+              <Input type="number" min="0" step="0.01" value={amount} onChange={(ev) => setAmount(ev.target.value)} placeholder="0.00" />
             </div>
             <div>
               <Label>Source</Label>
@@ -254,7 +269,7 @@ export default function TaxReserve() {
             </div>
             <div>
               <Label>Notes (optional)</Label>
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Q2 estimated payment" />
+              <Input value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="e.g. Q2 estimated payment" />
             </div>
             <Button className="w-full" onClick={handleSubmit} disabled={addMutation.isPending || updateMutation.isPending}>
               {editId ? "Update" : "Save"} Entry
