@@ -753,6 +753,7 @@ export type Database = {
           receipt_url: string | null
           recurring_frequency: string | null
           transaction_date: string
+          transaction_type: string
           updated_at: string
           user_id: string
           vendor: string
@@ -773,6 +774,7 @@ export type Database = {
           receipt_url?: string | null
           recurring_frequency?: string | null
           transaction_date?: string
+          transaction_type?: string
           updated_at?: string
           user_id: string
           vendor?: string
@@ -793,6 +795,7 @@ export type Database = {
           receipt_url?: string | null
           recurring_frequency?: string | null
           transaction_date?: string
+          transaction_type?: string
           updated_at?: string
           user_id?: string
           vendor?: string

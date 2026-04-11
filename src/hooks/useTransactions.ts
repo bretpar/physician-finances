@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 
+export type TransactionType = "income" | "expense" | "deduction" | "stock" | "capital_gain" | "other";
+
 export interface DbTransaction {
   id: string;
   user_id: string;
@@ -19,6 +21,7 @@ export interface DbTransaction {
   parent_transaction_id: string | null;
   recurring_frequency: string | null;
   is_recurring: boolean;
+  transaction_type: TransactionType;
   created_at: string;
   updated_at: string;
 }
@@ -45,7 +48,7 @@ export function useAddTransaction() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
-      const { error } = await supabase.from("transactions").insert({
+      const { data, error } = await supabase.from("transactions").insert({
         user_id: user.id,
         organization_id: orgId,
         transaction_date: tx.transaction_date || new Date().toISOString().split("T")[0],
@@ -56,8 +59,10 @@ export function useAddTransaction() {
         notes: tx.notes || "",
         entity: tx.entity || "Unassigned",
         company_type: tx.company_type || "",
-      });
+        transaction_type: (tx.transaction_type as string) || "expense",
+      }).select("id").single();
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });

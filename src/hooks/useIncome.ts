@@ -54,26 +54,47 @@ export function useAddIncome() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
+      const incomeDate = entry.income_date || new Date().toISOString().split("T")[0];
+      const paycheckAmount = entry.paycheck_amount || 0;
+
+      // 1. Create the transaction record (source of truth for ledger)
+      const { data: txData, error: txError } = await supabase.from("transactions").insert({
+        user_id: user.id,
+        organization_id: orgId,
+        transaction_date: incomeDate,
+        vendor: entry.name || entry.company || "",
+        amount: entry.deposited_amount || paycheckAmount,
+        account_source: "",
+        category: "Income",
+        notes: entry.notes || "",
+        entity: entry.company || "Unassigned",
+        company_type: entry.income_type || "1099",
+        transaction_type: "income",
+      } as any).select("id").single();
+      if (txError) throw txError;
+
+      // 2. Create the income_entries record (detailed breakdown for tax engine)
       const { error } = await supabase.from("income_entries").insert({
         user_id: user.id,
         organization_id: orgId,
         name: entry.name || "",
         company: entry.company || "",
         income_type: entry.income_type || "1099",
-        income_date: entry.income_date || new Date().toISOString().split("T")[0],
-        paycheck_amount: entry.paycheck_amount || 0,
+        income_date: incomeDate,
+        paycheck_amount: paycheckAmount,
         deposited_amount: entry.deposited_amount || 0,
         taxes_withheld: entry.taxes_withheld || 0,
         pre_tax_deductions: entry.pre_tax_deductions || 0,
         retirement_401k: entry.retirement_401k || 0,
         notes: entry.notes || "",
         status: (entry.status as string) || "received",
-        linked_transaction_id: entry.linked_transaction_id || null,
+        linked_transaction_id: txData?.id || null,
       } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Income entry added");
     },
     onError: (e) => toast.error(e.message),

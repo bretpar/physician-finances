@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { categories, accounts, PERSONAL_CATEGORY } from "@/lib/mockData";
-import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction } from "@/hooks/useTransactions";
+import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction, type TransactionType } from "@/hooks/useTransactions";
 import { useAddIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
@@ -92,6 +92,7 @@ export default function Transactions() {
   const [filterCompany, setFilterCompany] = useState("all");
   const [filterCompanyType, setFilterCompanyType] = useState("all");
   const [filterQuick, setFilterQuick] = useState("all");
+  const [filterType, setFilterType] = useState<"all" | TransactionType>("all");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -171,6 +172,7 @@ export default function Transactions() {
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
       if (filterAccount !== "all" && t.account_source !== filterAccount) return false;
       if (filterCompany !== "all" && t.entity !== filterCompany) return false;
@@ -182,7 +184,7 @@ export default function Transactions() {
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterCategory, filterAccount, filterCompany, filterCompanyType, filterQuick, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCategory, filterAccount, filterCompany, filterCompanyType, filterQuick, filterDateFrom, filterDateTo]);
 
   const summary = useExpenseSummary(transactions, companies);
 
@@ -399,6 +401,31 @@ export default function Transactions() {
       <div className="space-y-4 max-w-7xl mx-auto">
         <ExpenseSummaryWidgets {...summary} />
 
+        {/* Type filter tabs */}
+        <div className="flex gap-2 flex-wrap">
+          {([
+            { value: "all" as const, label: "All" },
+            { value: "income" as const, label: "Income" },
+            { value: "expense" as const, label: "Expenses" },
+            { value: "deduction" as const, label: "Deductions" },
+            { value: "stock" as const, label: "Stocks" },
+          ] as const).map((tab) => (
+            <Button
+              key={tab.value}
+              variant={filterType === tab.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterType(tab.value)}
+            >
+              {tab.label}
+              {tab.value !== "all" && (
+                <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">
+                  {transactions.filter((t) => (t.transaction_type || "expense") === tab.value).length}
+                </Badge>
+              )}
+            </Button>
+          ))}
+        </div>
+
         {/* Search & actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -518,6 +545,9 @@ export default function Transactions() {
                 >
                   <span className="text-xs text-muted-foreground">{tx.transaction_date}</span>
                   <div className="flex items-center gap-2 min-w-0">
+                    <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
+                      {(tx.transaction_type || "expense")}
+                    </Badge>
                     <span className="text-sm font-medium text-card-foreground truncate">{tx.vendor}</span>
                     {isRecurring && (
                       <Tooltip>
