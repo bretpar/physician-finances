@@ -294,23 +294,27 @@ export default function Mileage() {
 
         {/* ─── RETIREMENT TAB ─────────────────────── */}
         <TabsContent value="retirement" className="space-y-6 mt-6">
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Summary cards — include both standalone + paycheck-linked */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Annual Contributions</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total)}</p><p className="text-xs text-muted-foreground">Annualized pre-tax total</p></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + paycheck-linked</p></CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Per Paycheck</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total)}</p><p className="text-xs text-muted-foreground">{contributions?.length || 0} configured</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">From Paychecks (YTD)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">{paycheckLinked.entries.length} income entries</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Affects Withholding</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.withholding)}</p><p className="text-xs text-muted-foreground">Applied to paycheck calculations</p></CardContent>
+              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.withholding)}</p><p className="text-xs text-muted-foreground">From standalone contributions</p></CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Projection Only</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-muted-foreground">{fmt(annualized.projectionOnly)}</p><p className="text-xs text-muted-foreground">Annual tax projection only</p></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Per Paycheck (Est.)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
             </Card>
           </div>
 
