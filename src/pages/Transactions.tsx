@@ -206,6 +206,7 @@ export default function Transactions() {
     setEditIsRecurring((tx as any).is_recurring || false);
     setEditRecurringFreq((tx as any).recurring_frequency || "monthly");
     setEditWithholdingSaved((tx as any).withholding_saved || false);
+    setEditActualWithholding(String((tx as any).actual_withholding || 0));
   }
 
   function saveEdit() {
