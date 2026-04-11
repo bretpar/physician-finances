@@ -22,6 +22,8 @@ export interface DbTransaction {
   recurring_frequency: string | null;
   is_recurring: boolean;
   transaction_type: TransactionType;
+  recommended_withholding: number;
+  withholding_saved: boolean;
   created_at: string;
   updated_at: string;
 }

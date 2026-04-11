@@ -58,6 +58,15 @@ export function useAddIncome() {
       const paycheckAmount = entry.paycheck_amount || 0;
 
       // 1. Create the transaction record (source of truth for ledger)
+      // Calculate recommended withholding for this income
+      const taxWithheld = entry.taxes_withheld || 0;
+      const preTaxDed = (entry.pre_tax_deductions || 0) + (entry.retirement_401k || 0);
+      const taxableForThis = Math.max(0, paycheckAmount - preTaxDed);
+      // Use a simple combined rate estimate (federal + SE if 1099)
+      const isSelfEmployed = entry.income_type === "1099" || entry.income_type === "K1";
+      const estimatedRate = isSelfEmployed ? 0.35 : 0.25; // rough combined rate
+      const recommendedWithholding = Math.max(0, (taxableForThis * estimatedRate) - taxWithheld);
+
       const { data: txData, error: txError } = await supabase.from("transactions").insert({
         user_id: user.id,
         organization_id: orgId,
@@ -70,6 +79,8 @@ export function useAddIncome() {
         entity: entry.company || "Unassigned",
         company_type: entry.income_type || "1099",
         transaction_type: "income",
+        recommended_withholding: Math.round(recommendedWithholding * 100) / 100,
+        withholding_saved: false,
       } as any).select("id").single();
       if (txError) throw txError;
 
