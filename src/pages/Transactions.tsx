@@ -83,6 +83,7 @@ export default function Transactions() {
   const addMutation = useAddTransaction();
   const updateMutation = useUpdateTransaction();
   const addIncomeMutation = useAddIncome();
+  const updateIncomeMutation = useUpdateIncome();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: taxSettings } = useTaxSettings();
 
