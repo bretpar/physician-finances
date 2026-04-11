@@ -24,6 +24,7 @@ export interface DbTransaction {
   transaction_type: TransactionType;
   recommended_withholding: number;
   withholding_saved: boolean;
+  actual_withholding: number;
   created_at: string;
   updated_at: string;
 }
