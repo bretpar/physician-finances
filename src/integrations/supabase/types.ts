@@ -746,9 +746,12 @@ export type Database = {
           entity: string
           id: string
           is_deleted: boolean
+          is_recurring: boolean
           notes: string | null
           organization_id: string | null
+          parent_transaction_id: string | null
           receipt_url: string | null
+          recurring_frequency: string | null
           transaction_date: string
           updated_at: string
           user_id: string
@@ -763,9 +766,12 @@ export type Database = {
           entity?: string
           id?: string
           is_deleted?: boolean
+          is_recurring?: boolean
           notes?: string | null
           organization_id?: string | null
+          parent_transaction_id?: string | null
           receipt_url?: string | null
+          recurring_frequency?: string | null
           transaction_date?: string
           updated_at?: string
           user_id: string
@@ -780,9 +786,12 @@ export type Database = {
           entity?: string
           id?: string
           is_deleted?: boolean
+          is_recurring?: boolean
           notes?: string | null
           organization_id?: string | null
+          parent_transaction_id?: string | null
           receipt_url?: string | null
+          recurring_frequency?: string | null
           transaction_date?: string
           updated_at?: string
           user_id?: string

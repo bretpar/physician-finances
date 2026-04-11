@@ -16,6 +16,9 @@ export interface DbTransaction {
   is_deleted: boolean;
   entity: string;
   company_type: string;
+  parent_transaction_id: string | null;
+  recurring_frequency: string | null;
+  is_recurring: boolean;
   created_at: string;
   updated_at: string;
 }
