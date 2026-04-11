@@ -450,7 +450,49 @@ export default function Mileage() {
                 </Table>
               </div>
             </CardContent>
-          </Card>
+           </Card>
+
+          {/* Paycheck-linked retirement contributions from income entries */}
+          {paycheckLinked.entries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wallet className="h-4 w-4" /> Paycheck-Linked Contributions ({paycheckLinked.entries.length})
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  These retirement contributions were recorded with income entries and automatically reduce taxable income.
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Income Entry</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">401k Amount</TableHead>
+                        <TableHead className="text-right">Paycheck</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paycheckLinked.entries.slice(0, 20).map((ie) => (
+                        <TableRow key={ie.id}>
+                          <TableCell className="whitespace-nowrap">{ie.income_date}</TableCell>
+                          <TableCell className="font-medium">{ie.name}</TableCell>
+                          <TableCell>{ie.company}</TableCell>
+                          <TableCell><Badge variant="outline">{ie.income_type}</Badge></TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{fmt(Number(ie.retirement_401k))}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(Number(ie.paycheck_amount))}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
