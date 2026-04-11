@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { useMemo, useCallback } from "react";
+
+export type IncomeStatus = "projected" | "expected" | "received";
 
 export interface IncomeEntry {
   id: string;
@@ -17,9 +20,18 @@ export interface IncomeEntry {
   pre_tax_deductions: number;
   retirement_401k: number;
   notes: string | null;
+  status: IncomeStatus;
+  linked_transaction_id: string | null;
   created_at: string;
   updated_at: string;
 }
+
+// Confidence weights for tax estimation
+export const CONFIDENCE_WEIGHTS: Record<IncomeStatus, number> = {
+  received: 1.0,
+  expected: 0.9,
+  projected: 0.75,
+};
 
 export function useIncomeEntries() {
   return useQuery({
@@ -55,7 +67,9 @@ export function useAddIncome() {
         pre_tax_deductions: entry.pre_tax_deductions || 0,
         retirement_401k: entry.retirement_401k || 0,
         notes: entry.notes || "",
-      });
+        status: (entry.status as string) || "received",
+        linked_transaction_id: entry.linked_transaction_id || null,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -72,7 +86,7 @@ export function useUpdateIncome() {
     mutationFn: async ({ id, ...updates }: Partial<IncomeEntry> & { id: string }) => {
       const { error } = await supabase
         .from("income_entries")
-        .update(updates)
+        .update(updates as any)
         .eq("id", id);
       if (error) throw error;
     },
@@ -100,4 +114,173 @@ export function useDeleteIncome() {
     },
     onError: (e) => toast.error(e.message),
   });
+}
+
+// Mark a projected/expected entry as received
+export function useMarkReceived() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("income_entries")
+        .update({ status: "received" } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      toast.success("Marked as received");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
+// Auto-transition past-date projected entries to expected
+export function useAutoTransitionEntries() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const today = new Date().toISOString().split("T")[0];
+      // Move projected → expected for past dates
+      const { error } = await supabase
+        .from("income_entries")
+        .update({ status: "expected" } as any)
+        .eq("status", "projected")
+        .lt("income_date", today);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+    },
+  });
+}
+
+// Transaction matching: find projected/expected entries that match a transaction
+export function useMatchTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      incomeId,
+      transactionId,
+      actualAmount,
+    }: {
+      incomeId: string;
+      transactionId: string;
+      actualAmount?: number;
+    }) => {
+      const updates: any = {
+        status: "received",
+        linked_transaction_id: transactionId,
+      };
+      if (actualAmount !== undefined) {
+        updates.paycheck_amount = actualAmount;
+      }
+      const { error } = await supabase
+        .from("income_entries")
+        .update(updates)
+        .eq("id", incomeId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      toast.success("Transaction matched to income entry");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
+// Drift detection: compare projected vs received
+export function useIncomeDrift(entries: IncomeEntry[] | undefined) {
+  return useMemo(() => {
+    if (!entries || entries.length === 0) return null;
+
+    const now = new Date();
+    const threeMonthsAgo = new Date(now);
+    threeMonthsAgo.setMonth(now.getMonth() - 3);
+    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split("T")[0];
+
+    // Received entries in the last 3 months
+    const recentReceived = entries.filter(
+      (e) => e.status === "received" && e.income_date >= threeMonthsAgoStr
+    );
+    const totalReceived = recentReceived.reduce(
+      (s, e) => s + Number(e.paycheck_amount),
+      0
+    );
+
+    // All projected entries that were for this period
+    const projected = entries.filter(
+      (e) =>
+        (e.status === "projected" || e.status === "expected") &&
+        e.income_date >= threeMonthsAgoStr
+    );
+    const totalProjected = projected.reduce(
+      (s, e) => s + Number(e.paycheck_amount),
+      0
+    );
+
+    if (totalProjected === 0) return null;
+
+    const driftPct = ((totalReceived - totalProjected) / totalProjected) * 100;
+
+    if (Math.abs(driftPct) < 15) return null; // within acceptable range
+
+    return {
+      driftPct,
+      totalReceived,
+      totalProjected,
+      isUnder: driftPct < 0,
+      message:
+        driftPct < 0
+          ? `You are earning ${Math.abs(driftPct).toFixed(0)}% less than projected. Consider adjusting future income.`
+          : `You are earning ${driftPct.toFixed(0)}% more than projected. Your tax liability may be higher.`,
+    };
+  }, [entries]);
+}
+
+// Entries that need attention (past-date projected/expected)
+export function useStaleEntries(entries: IncomeEntry[] | undefined) {
+  return useMemo(() => {
+    if (!entries) return [];
+    const today = new Date().toISOString().split("T")[0];
+    return entries.filter(
+      (e) =>
+        (e.status === "projected" || e.status === "expected") &&
+        e.income_date < today
+    );
+  }, [entries]);
+}
+
+// Weighted income for tax calculations
+export function useWeightedIncome(entries: IncomeEntry[] | undefined) {
+  return useMemo(() => {
+    if (!entries) return { total: 0, w2: 0, se: 0, withheld: 0, preTax: 0, retirement: 0 };
+
+    const today = new Date().toISOString().split("T")[0];
+
+    return entries.reduce(
+      (acc, e) => {
+        // Skip past-date projected/expected (stale) — they shouldn't count
+        if (
+          (e.status === "projected" || e.status === "expected") &&
+          e.income_date < today
+        ) {
+          return acc;
+        }
+
+        const weight = CONFIDENCE_WEIGHTS[e.status] ?? 1;
+        const amt = Number(e.paycheck_amount) * weight;
+
+        return {
+          total: acc.total + amt,
+          w2: acc.w2 + (e.income_type === "W2" ? amt : 0),
+          se: acc.se + (e.income_type !== "W2" ? amt : 0),
+          withheld: acc.withheld + Number(e.taxes_withheld) * weight,
+          preTax: acc.preTax + Number(e.pre_tax_deductions) * weight,
+          retirement: acc.retirement + Number(e.retirement_401k) * weight,
+        };
+      },
+      { total: 0, w2: 0, se: 0, withheld: 0, preTax: 0, retirement: 0 }
+    );
+  }, [entries]);
 }

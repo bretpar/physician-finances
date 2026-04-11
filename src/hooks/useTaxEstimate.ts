@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useIncomeEntries } from "@/hooks/useIncome";
+import { useIncomeEntries, useWeightedIncome } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
@@ -17,20 +17,25 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
   const { data: bonuses, isLoading: bonLoading } = useProjectedBonuses();
   const { data: stockTxs, isLoading: stkLoading } = useStockTransactions();
 
+  // Use confidence-weighted income totals
+  const weighted = useWeightedIncome(incomeEntries);
+
   const isLoading = incLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading;
 
   const estimate = useMemo(() => {
     if (!rates || !incomeEntries) return null;
 
     const entries = incomeEntries;
-    const totalActualIncome = entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const w2ActualIncome = entries.filter((e) => e.income_type === "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const seActualIncome = entries.filter((e) => e.income_type !== "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const preTaxDeductions = entries.reduce((s, e) => s + Number(e.pre_tax_deductions), 0);
-    const retirement401k = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
-    const taxesWithheld = entries.reduce((s, e) => s + Number(e.taxes_withheld), 0);
 
-    // Projected income (remaining year)
+    // Use weighted income (handles projected/expected/received confidence)
+    const totalActualIncome = weighted.total;
+    const w2ActualIncome = weighted.w2;
+    const seActualIncome = weighted.se;
+    const preTaxDeductions = weighted.preTax;
+    const retirement401k = weighted.retirement;
+    const taxesWithheld = weighted.withheld;
+
+    // Projected income streams (remaining year — separate from status-based entries)
     const existingDates = new Set(entries.map((e) => e.income_date));
     const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], existingDates);
     const projTotals = getProjectedTotals(projectedPaychecks);
@@ -44,10 +49,10 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
       .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
     const netStockGain = Math.max(0, stockGains - stockLosses);
 
-    // Combine actual + projected + stock gains
+    // Combine actual + projected streams + stock gains
     const totalIncome = totalActualIncome + projTotals.grossIncome + netStockGain;
-    const w2Income = w2ActualIncome + projTotals.grossIncome; // projected streams are W2
-    const seIncome = seActualIncome; // projected is W2 only
+    const w2Income = w2ActualIncome + projTotals.grossIncome;
+    const seIncome = seActualIncome;
     const combinedPreTax = preTaxDeductions + projTotals.preTaxDeductions;
     const combined401k = retirement401k + projTotals.retirement401k;
     const combinedWithheld = taxesWithheld + projTotals.taxesWithheld;
@@ -64,8 +69,9 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
     // Remaining pay periods estimate
     const now = new Date();
     const monthsRemaining = 12 - now.getMonth();
-    const avgEntriesPerMonth = entries.length > 0
-      ? entries.length / (now.getMonth() + 1)
+    const receivedEntries = entries.filter((e) => e.status === "received");
+    const avgEntriesPerMonth = receivedEntries.length > 0
+      ? receivedEntries.length / (now.getMonth() + 1)
       : 1;
     const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
 
@@ -82,7 +88,7 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
       bnoRate: rates.bnoRate / 100,
       remainingPayPeriods,
     });
-  }, [incomeEntries, transactions, rates, mileageEntries, streams, bonuses, stockTxs]);
+  }, [incomeEntries, weighted, transactions, rates, mileageEntries, streams, bonuses, stockTxs]);
 
   return { estimate, isLoading };
 }
