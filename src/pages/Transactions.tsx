@@ -4,6 +4,7 @@ import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTran
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -117,12 +118,14 @@ export default function Transactions() {
     });
   };
 
-  // --- Computed tax recommendation (form only) ---
+  // --- Smart withholding recommendation engine ---
+  const { getRecommendation } = useWithholdingRecommendation();
   const grossIncome = num(form.gross_amount);
-  const taxableForRec = Math.max(0, grossIncome - num(form.pre_tax_deductions) - num(form.retirement_401k));
-  const isSelfEmployed = form.income_type === "1099" || form.income_type === "K1";
-  const estimatedRate = isSelfEmployed ? 0.35 : 0.25;
-  const recommendedWithholding = Math.max(0, Math.round((taxableForRec * estimatedRate - num(form.taxes_withheld)) * 100) / 100);
+  const recommendation = useMemo(() => {
+    if (!isIncome || grossIncome <= 0) return null;
+    return getRecommendation(grossIncome, isEditing);
+  }, [isIncome, grossIncome, getRecommendation, isEditing]);
+  const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   // --- Open form for Add ---
   function openAdd() {
