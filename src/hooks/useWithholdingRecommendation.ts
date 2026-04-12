@@ -106,17 +106,12 @@ export function useWithholdingRecommendation() {
       }
 
       // PROJECTED BRACKET MODE (default)
-      // Use the effective rate from the annual estimate
-      const effectiveRate = estimate.effectiveRate; // percentage
+      // W2: use federal-only rate (SE + B&O don't apply to W2 income)
+      // 1099/K1: use blended rate (already includes federal + SE + B&O)
+      const rateToUse = isW2 ? estimate.federalEffectiveRate : estimate.effectiveRate;
 
       // Tax owed on this entry's net taxable portion
-      let taxOnEntry = netTaxableForEntry * (effectiveRate / 100);
-
-      // For 1099/K1, add SE tax
-      if (!isW2) {
-        const seTaxPortion = netTaxableForEntry * SE_INCOME_FACTOR * SE_TAX_RATE;
-        taxOnEntry += seTaxPortion;
-      }
+      const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
 
       // Subtract what's already withheld for this specific paycheck
       const recommendedWithholding = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
@@ -134,7 +129,7 @@ export function useWithholdingRecommendation() {
         estimatedAnnualTax: estimate.totalTaxLiability,
         taxesAlreadyCovered: estimate.taxesAlreadyWithheld,
         estimatedRemainingTax: estimate.remainingLiability,
-        effectiveRate,
+        effectiveRate: rateToUse,
         isManualMode: false,
         isOverWithheld: finalRecommendation < 0,
       };
