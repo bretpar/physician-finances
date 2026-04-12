@@ -11,6 +11,8 @@ export interface TaxRates {
   lastYearTax: number;
   standardDeductionOverride: number | null;
   ssWageCap: number;
+  taxMode: "projected_brackets" | "manual_effective_rate";
+  manualEffectiveTaxRate: number | null;
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -21,6 +23,8 @@ const DEFAULT_RATES: TaxRates = {
   lastYearTax: 0,
   standardDeductionOverride: null,
   ssWageCap: 168600,
+  taxMode: "projected_brackets",
+  manualEffectiveTaxRate: null,
 };
 
 export function useTaxSettings() {
@@ -29,7 +33,7 @@ export function useTaxSettings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tax_settings")
-        .select("id, federal_rate, state_rate, bno_rate, filing_status, last_year_tax, standard_deduction_override, ss_wage_cap")
+        .select("id, federal_rate, state_rate, bno_rate, filing_status, last_year_tax, standard_deduction_override, ss_wage_cap, tax_mode, manual_effective_tax_rate")
         .limit(1)
         .maybeSingle();
       if (error) throw error;
@@ -43,6 +47,8 @@ export function useTaxSettings() {
         lastYearTax: Number(data.last_year_tax) || 0,
         standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,
         ssWageCap: Number(data.ss_wage_cap) || 168600,
+        taxMode: ((data as any).tax_mode as TaxRates["taxMode"]) || "projected_brackets",
+        manualEffectiveTaxRate: (data as any).manual_effective_tax_rate != null ? Number((data as any).manual_effective_tax_rate) : null,
       } as TaxRates;
     },
   });
