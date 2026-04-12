@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { format, isPast, isAfter } from "date-fns";
 import {
   DollarSign, CheckCircle2, AlertTriangle,
-  PiggyBank, Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock,
+  Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
@@ -68,6 +67,7 @@ export default function Taxes() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentDeleteId, setPaymentDeleteId] = useState<string | null>(null);
 
+  const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const isLoading = ratesLoading || estLoading;
@@ -77,23 +77,19 @@ export default function Taxes() {
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
   const estimatedOwed = e?.totalTaxLiability ?? 0;
   const taxesWithheld = e?.taxesAlreadyWithheld ?? 0;
-  const remainingOwed = Math.max(0, estimatedOwed - taxesWithheld);
   const totalCovered = taxesWithheld + totalPaid;
-  const taxGap = totalSetAside - remainingOwed;
-  const onTrack = taxGap >= 0;
+  const remainingTax = Math.max(0, estimatedOwed - totalCovered);
 
   const now = new Date();
   const monthsLeft = Math.max(1, 12 - now.getMonth());
-  const monthlyTarget = remainingOwed > totalSetAside ? (remainingOwed - totalSetAside) / monthsLeft : 0;
-
-  const progressPct = remainingOwed > 0 ? Math.min(100, (totalSetAside / remainingOwed) * 100) : 100;
+  const monthlyGuidance = remainingTax > 0 ? remainingTax / monthsLeft : 0;
+  const progressPct = estimatedOwed > 0 ? Math.min(100, (totalCovered / estimatedOwed) * 100) : 100;
 
   // Quarterly data
-  const stillOwed = Math.max(0, estimatedOwed - totalCovered);
   const quarterData = useMemo(() => {
     const remainingQs = QUARTERS.filter((q) => isAfter(q.due, now) || q.due.toDateString() === now.toDateString());
     const remainingCount = Math.max(1, remainingQs.length);
-    const suggestedPerQ = stillOwed / remainingCount;
+    const suggestedPerQ = remainingTax / remainingCount;
 
     return QUARTERS.map((q) => {
       const qPayments = payments.filter((p) => p.quarter === q.key);
@@ -105,7 +101,7 @@ export default function Taxes() {
       else if (isPast(q.due) && paidAmount < recommended) status = "overdue";
       return { ...q, paidAmount, recommended, remainingDue, status };
     });
-  }, [payments, stillOwed, now]);
+  }, [payments, remainingTax, now]);
 
   const nextDue = quarterData.find((q) => q.status === "upcoming" || q.status === "overdue");
 
@@ -139,69 +135,92 @@ export default function Taxes() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Hero: What should I set aside? */}
-      <Card className={cn("border-2", onTrack ? "border-green-500/30 bg-green-50/30 dark:bg-green-950/10" : "border-amber-400/30 bg-amber-50/30 dark:bg-amber-950/10")}>
-        <CardContent className="flex items-center gap-4 py-5">
-          {onTrack ? <CheckCircle2 className="h-8 w-8 text-green-600 shrink-0" /> : <AlertTriangle className="h-8 w-8 text-amber-600 shrink-0" />}
-          <div className="flex-1">
-            <p className={cn("text-lg font-semibold", onTrack ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400")}>
-              {onTrack ? "You're on track" : `Save ${fmt(Math.abs(taxGap))} more to be on track`}
-            </p>
-            {monthlyTarget > 0 && (
-              <p className="text-sm text-muted-foreground">Consider saving ~{fmt(monthlyTarget)}/month</p>
-            )}
-          </div>
-          {nextDue && nextDue.remainingDue > 0 && (
-            <div className="text-right hidden sm:block">
-              <p className="text-xs text-muted-foreground">Next quarterly payment</p>
-              <p className="font-semibold">{fmt(nextDue.remainingDue)} by {nextDue.dueLabel}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <h1 className="text-xl font-semibold text-foreground">Tax Summary</h1>
 
-      {/* 4 key numbers */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── 5 Key Numbers ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Income YTD</p>
-            <p className="text-xl font-bold">{fmt(e?.totalIncome ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">Projected Annual Income</p>
+            <p className="text-xl font-bold tabular-nums">{fmt(e?.totalIncome ?? 0)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Estimated Tax</p>
-            <p className="text-xl font-bold text-destructive">{fmt(estimatedOwed)}</p>
+            <p className="text-xs text-muted-foreground">Estimated Taxable Income</p>
+            <p className="text-xl font-bold tabular-nums">{fmt(e?.taxableIncome ?? 0)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Saved So Far</p>
-            <p className="text-xl font-bold text-green-600">{fmt(totalSetAside)}</p>
+            <p className="text-xs text-muted-foreground">Estimated Annual Tax</p>
+            <p className="text-xl font-bold tabular-nums text-destructive">{fmt(estimatedOwed)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Gap</p>
-            <p className={cn("text-xl font-bold", onTrack ? "text-green-600" : "text-amber-600")}>{fmt(taxGap)}</p>
+            <p className="text-xs text-muted-foreground">Taxes Withheld / Paid</p>
+            <p className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmt(totalCovered)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Estimated Tax Remaining</p>
+            <p className={cn("text-xl font-bold tabular-nums", remainingTax > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(remainingTax)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Recommended Monthly Set-Aside</p>
+            <p className="text-xl font-bold tabular-nums text-primary">{fmt(monthlyGuidance)}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Progress bar */}
+      {/* ── Progress ── */}
       <Card>
         <CardContent className="pt-4 pb-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tax savings progress</span>
+            <span className="text-muted-foreground">Taxes covered so far</span>
             <span className="font-medium">{Math.round(progressPct)}%</span>
           </div>
           <Progress value={progressPct} className="h-3" />
-          <p className="text-xs text-muted-foreground">{fmt(totalSetAside)} of {fmt(remainingOwed)} needed</p>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{fmt(totalCovered)} covered</span>
+            <span>{fmt(estimatedOwed)} estimated total</span>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Actions */}
+      {/* ── Quarterly Overview ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {quarterData.map((q) => (
+          <Card key={q.key} className={cn("border",
+            q.status === "paid" && "border-emerald-500/30",
+            q.status === "overdue" && "border-amber-400/30",
+          )}>
+            <CardContent className="pt-3 pb-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold">{q.label}</span>
+                {q.status === "paid" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> :
+                 q.status === "overdue" ? <AlertTriangle className="h-4 w-4 text-amber-600" /> :
+                 <Clock className="h-4 w-4 text-muted-foreground" />}
+              </div>
+              <p className="text-xs text-muted-foreground">Due {q.dueLabel}</p>
+              <div className="text-sm">
+                <span className="text-muted-foreground">Paid: </span>
+                <span className="font-medium">{fmt(q.paidAmount)}</span>
+              </div>
+              {q.remainingDue > 0 && (
+                <p className="text-xs text-amber-600">Remaining: {fmt(q.remainingDue)}</p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Actions ── */}
       <div className="flex gap-3 flex-wrap">
         <Button onClick={() => { resetSavingsForm(); setSavingsOpen(true); }} className="gap-2">
           <Plus className="h-4 w-4" /> Log Tax Savings
@@ -216,34 +235,70 @@ export default function Taxes() {
         </Button>
       </div>
 
-      {/* Quarterly overview — compact */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {quarterData.map((q) => (
-          <Card key={q.key} className={cn("border",
-            q.status === "paid" && "border-green-500/30",
-            q.status === "overdue" && "border-amber-400/30",
-          )}>
-            <CardContent className="pt-3 pb-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="font-bold">{q.label}</span>
-                {q.status === "paid" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
-                 q.status === "overdue" ? <AlertTriangle className="h-4 w-4 text-amber-600" /> :
-                 <Clock className="h-4 w-4 text-muted-foreground" />}
-              </div>
-              <p className="text-xs text-muted-foreground">Due {q.dueLabel}</p>
-              <div className="text-sm">
-                <span className="text-muted-foreground">Paid: </span>
-                <span className="font-medium">{fmt(q.paidAmount)}</span>
-              </div>
-              {q.remainingDue > 0 && (
-                <p className="text-xs text-amber-600">Due: {fmt(q.remainingDue)}</p>
-              )}
+      {/* ── How This Estimate Works ── */}
+      <Collapsible open={showHow} onOpenChange={setShowHow}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showHow && "rotate-180")} />
+            How this estimate works
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Card className="mt-2">
+            <CardContent className="pt-4 pb-4 space-y-2 text-sm text-muted-foreground">
+              <p>Your tax estimate is calculated automatically using the following approach:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>We combine your <strong>actual income received</strong> with any <strong>projected future income</strong> to estimate your annual total.</li>
+                <li>We subtract deductions — pre-tax contributions, retirement, business expenses, and your standard deduction.</li>
+                <li>We apply <strong>federal tax brackets</strong> to your estimated taxable income, plus self-employment tax and WA B&O tax where applicable.</li>
+                <li>We subtract taxes already withheld from paychecks and any quarterly payments you've made.</li>
+                <li>The remaining amount is spread across remaining months to give you a <strong>recommended monthly set-aside</strong>.</li>
+              </ul>
+              <p>When you add income, we recommend how much to withhold based on this projected annual model — not a simple flat rate.</p>
             </CardContent>
           </Card>
-        ))}
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* Savings log */}
+      {/* ── Advanced Breakdown ── */}
+      <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvanced && "rotate-180")} />
+            Advanced tax breakdown
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 mt-2">
+          {e && (
+            <Card>
+              <CardContent className="pt-4 pb-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Federal Income Tax</span><span className="font-medium">{fmt(e.federalTax)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(e.seTax.total)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">WA B&O Tax</span><span className="font-medium">{fmt(e.bnoTax)}</span></div>
+                <div className="border-t border-border pt-2 flex justify-between font-semibold">
+                  <span>Total Estimated Tax</span><span>{fmt(e.totalTaxLiability)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>Taxes Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600">
+                  <span>Quarterly Payments</span><span>−{fmt(totalPaid)}</span>
+                </div>
+                <div className="border-t border-border pt-2 flex justify-between font-semibold">
+                  <span>Remaining</span>
+                  <span className={remainingTax > 0 ? "text-amber-600" : "text-emerald-600"}>{fmt(remainingTax)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground pt-1">
+                  <span>Effective Rate: {(e.effectiveRate ?? 0).toFixed(1)}%</span>
+                  <span>Marginal Rate: {(e.marginalRate ?? 0).toFixed(1)}%</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* ── Savings Log ── */}
       {savings.length > 0 && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Tax Savings Log</CardTitle></CardHeader>
@@ -284,7 +339,7 @@ export default function Taxes() {
         </Card>
       )}
 
-      {/* Payment history */}
+      {/* ── Payment History ── */}
       {payments.length > 0 && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Payment History</CardTitle></CardHeader>
@@ -327,43 +382,7 @@ export default function Taxes() {
         </Card>
       )}
 
-      {/* Advanced section — hidden by default */}
-      <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="text-muted-foreground">
-            {showAdvanced ? "Hide" : "Show"} Advanced Details
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 mt-4">
-          {e && (
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">Tax Breakdown</CardTitle></CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Federal Income Tax</span><span className="font-medium">{fmt(e.federalTax)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(e.seTax.total)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">WA B&O Tax</span><span className="font-medium">{fmt(e.bnoTax)}</span></div>
-                <div className="border-t border-border pt-2 flex justify-between font-semibold">
-                  <span>Total Estimated Tax</span><span>{fmt(e.totalTaxLiability)}</span>
-                </div>
-                <div className="flex justify-between text-green-600">
-                  <span>Taxes Already Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
-                </div>
-                <div className="border-t border-border pt-2 flex justify-between font-semibold">
-                  <span>Remaining</span>
-                  <span className={e.remainingLiability > 0 ? "text-amber-600" : "text-green-600"}>{fmt(e.remainingLiability)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground pt-1">
-                  <span>Effective Rate: {((e.effectiveRate ?? 0)).toFixed(1)}%</span>
-                  <span>Marginal: {((e.marginalRate ?? 0)).toFixed(1)}%</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-
       {/* ═══════ Dialogs ═══════ */}
-
       <Dialog open={savingsOpen} onOpenChange={(v) => { if (!v) resetSavingsForm(); setSavingsOpen(v); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>{savingsEditId ? "Edit" : "Add"} Tax Savings</DialogTitle></DialogHeader>

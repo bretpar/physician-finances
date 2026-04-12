@@ -691,10 +691,12 @@ export type Database = {
           filing_status: string
           id: string
           last_year_tax: number
+          manual_effective_tax_rate: number | null
           organization_id: string | null
           ss_wage_cap: number
           standard_deduction_override: number | null
           state_rate: number
+          tax_mode: string
           updated_at: string
           user_id: string
         }
@@ -705,10 +707,12 @@ export type Database = {
           filing_status?: string
           id?: string
           last_year_tax?: number
+          manual_effective_tax_rate?: number | null
           organization_id?: string | null
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_rate?: number
+          tax_mode?: string
           updated_at?: string
           user_id: string
         }
@@ -719,10 +723,12 @@ export type Database = {
           filing_status?: string
           id?: string
           last_year_tax?: number
+          manual_effective_tax_rate?: number | null
           organization_id?: string | null
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_rate?: number
+          tax_mode?: string
           updated_at?: string
           user_id?: string
         }
