@@ -1,14 +1,13 @@
 import { useState, useMemo } from "react";
 import {
-  Plus, Trash2, Pencil, CalendarDays, DollarSign, TrendingUp,
-  Pause, Play, Gift, ChevronDown, ChevronUp,
+  Plus, Trash2, Pencil, ChevronDown, ChevronRight,
+  DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -16,33 +15,39 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
   useProjectedStreams, useProjectedBonuses,
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus,
   generateProjectedPaychecks, getProjectedTotals,
-  type ProjectedIncomeStream,
+  type ProjectedIncomeStream, type ProjectedPaycheck,
 } from "@/hooks/useProjectedIncome";
 
 const fmt = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+
+const fmtFull = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 const PAY_FREQUENCIES = [
-  { value: "single", label: "Single Transaction" },
+  { value: "single", label: "One-time" },
   { value: "weekly", label: "Weekly" },
   { value: "biweekly", label: "Biweekly" },
   { value: "monthly", label: "Monthly" },
-  { value: "custom", label: "Custom Interval" },
-];
-
-const BONUS_FREQUENCIES = [
-  { value: "one-time", label: "One-time" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "annual", label: "Annual" },
+  { value: "custom", label: "Custom" },
 ];
 
 interface StreamForm {
@@ -59,34 +64,24 @@ interface StreamForm {
   include_in_tax: boolean;
 }
 
-const emptyStreamForm: StreamForm = {
-  company: "",
-  pay_frequency: "biweekly",
-  custom_interval_days: "14",
-  start_date: new Date().toISOString().split("T")[0],
-  end_date: "",
-  paycheck_amount: "",
-  taxes_withheld: "",
-  retirement_401k: "",
-  pre_tax_deductions: "",
-  is_active: true,
-  include_in_tax: true,
-};
-
-interface BonusForm {
-  name: string;
-  amount: string;
-  taxes_withheld: string;
-  frequency: string;
-  scheduled_date: string;
-}
-
-const emptyBonusForm: BonusForm = {
-  name: "",
-  amount: "",
-  taxes_withheld: "",
-  frequency: "one-time",
-  scheduled_date: new Date().toISOString().split("T")[0],
+const emptyForm = (monthIdx?: number): StreamForm => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = monthIdx !== undefined ? monthIdx : now.getMonth();
+  const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-15`;
+  return {
+    company: "",
+    pay_frequency: "biweekly",
+    custom_interval_days: "14",
+    start_date: dateStr,
+    end_date: "",
+    paycheck_amount: "",
+    taxes_withheld: "",
+    retirement_401k: "",
+    pre_tax_deductions: "",
+    is_active: true,
+    include_in_tax: true,
+  };
 };
 
 export default function ProjectedIncome() {
@@ -94,22 +89,23 @@ export default function ProjectedIncome() {
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
   const { data: incomeEntries } = useIncomeEntries();
+  const { estimate } = useTaxEstimate();
 
   const addStream = useAddStream();
   const updateStream = useUpdateStream();
   const deleteStream = useDeleteStream();
-  const addBonus = useAddBonus();
-  const deleteBonus = useDeleteBonus();
 
-  const [showStreamForm, setShowStreamForm] = useState(false);
-  const [editingStreamId, setEditingStreamId] = useState<string | null>(null);
-  const [streamForm, setStreamForm] = useState<StreamForm>(emptyStreamForm);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<StreamForm>(emptyForm());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [expandedStream, setExpandedStream] = useState<string | null>(null);
-  const [showBonusForm, setShowBonusForm] = useState<string | null>(null);
-  const [bonusForm, setBonusForm] = useState<BonusForm>(emptyBonusForm);
+  const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => {
+    const current = new Date().getMonth();
+    return new Set([current]);
+  });
 
   const num = (v: string) => parseFloat(v) || 0;
+  const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
 
   const existingDates = useMemo(() => {
     if (!incomeEntries) return new Set<string>();
@@ -124,57 +120,57 @@ export default function ProjectedIncome() {
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks), [projectedPaychecks]);
 
   const actualYTD = useMemo(() => {
-    if (!incomeEntries) return { income: 0, withheld: 0 };
+    if (!incomeEntries) return { income: 0, withheld: 0, retirement: 0, deductions: 0 };
     const year = new Date().getFullYear();
     const ytd = incomeEntries.filter((e) => e.income_date.startsWith(String(year)));
     return {
       income: ytd.reduce((s, e) => s + Number(e.paycheck_amount), 0),
       withheld: ytd.reduce((s, e) => s + Number(e.taxes_withheld), 0),
+      retirement: ytd.reduce((s, e) => s + Number(e.retirement_401k), 0),
+      deductions: ytd.reduce((s, e) => s + Number(e.pre_tax_deductions), 0),
     };
   }, [incomeEntries]);
 
-  const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
+  const byMonth = useMemo(() => {
+    const map = new Map<number, ProjectedPaycheck[]>();
+    for (let i = 0; i < 12; i++) map.set(i, []);
+    projectedPaychecks.forEach((p) => {
+      const month = parseInt(p.date.split("-")[1], 10) - 1;
+      map.get(month)?.push(p);
+    });
+    return map;
+  }, [projectedPaychecks]);
 
-  const deposited = num(streamForm.paycheck_amount) - num(streamForm.taxes_withheld) - num(streamForm.retirement_401k) - num(streamForm.pre_tax_deductions);
+  const expectedAnnual = actualYTD.income + projectedTotals.grossIncome;
+  const projectedWithholding = actualYTD.withheld + projectedTotals.taxesWithheld;
+  const projected401k = actualYTD.retirement + projectedTotals.retirement401k;
 
-  const setStreamField = (key: keyof StreamForm, value: string | boolean) =>
-    setStreamForm((p) => ({ ...p, [key]: value }));
-
-  const resetStreamForm = () => {
-    setStreamForm(emptyStreamForm);
-    setEditingStreamId(null);
-    setShowStreamForm(false);
+  const toggleMonth = (m: number) => {
+    setExpandedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(m)) next.delete(m);
+      else next.add(m);
+      return next;
+    });
   };
 
-  const handleStreamSubmit = () => {
-    if (!streamForm.company) return;
-    if (num(streamForm.paycheck_amount) <= 0) return;
+  const setField = (key: keyof StreamForm, value: string | boolean) =>
+    setForm((p) => ({ ...p, [key]: value }));
 
-    const company = companies.find((c) => c.name === streamForm.company);
-    const payload: Partial<ProjectedIncomeStream> = {
-      company: streamForm.company,
-      company_type: company?.companyType || "W2",
-      pay_frequency: streamForm.pay_frequency,
-      custom_interval_days: streamForm.pay_frequency === "custom" ? num(streamForm.custom_interval_days) : null,
-      start_date: streamForm.start_date,
-      end_date: streamForm.end_date || null,
-      paycheck_amount: num(streamForm.paycheck_amount),
-      taxes_withheld: num(streamForm.taxes_withheld),
-      retirement_401k: num(streamForm.retirement_401k),
-      pre_tax_deductions: num(streamForm.pre_tax_deductions),
-      is_active: streamForm.is_active,
-      include_in_tax: streamForm.include_in_tax,
-    };
-
-    if (editingStreamId) {
-      updateStream.mutate({ id: editingStreamId, ...payload }, { onSuccess: resetStreamForm });
-    } else {
-      addStream.mutate(payload, { onSuccess: resetStreamForm });
-    }
+  const resetForm = () => {
+    setForm(emptyForm());
+    setEditingId(null);
+    setShowForm(false);
   };
 
-  const startEditStream = (s: ProjectedIncomeStream) => {
-    setStreamForm({
+  const openAddForMonth = (monthIdx: number) => {
+    setForm(emptyForm(monthIdx));
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  const startEdit = (s: ProjectedIncomeStream) => {
+    setForm({
       company: s.company,
       pay_frequency: s.pay_frequency,
       custom_interval_days: String(s.custom_interval_days || 14),
@@ -187,317 +183,433 @@ export default function ProjectedIncome() {
       is_active: s.is_active,
       include_in_tax: s.include_in_tax,
     });
-    setEditingStreamId(s.id);
-    setShowStreamForm(true);
+    setEditingId(s.id);
+    setShowForm(true);
   };
 
-  const handleBonusSubmit = (streamId: string) => {
-    if (!bonusForm.name || num(bonusForm.amount) <= 0) return;
-    addBonus.mutate({
-      stream_id: streamId,
-      name: bonusForm.name,
-      amount: num(bonusForm.amount),
-      taxes_withheld: num(bonusForm.taxes_withheld),
-      frequency: bonusForm.frequency,
-      scheduled_date: bonusForm.scheduled_date,
-    }, {
-      onSuccess: () => {
-        setBonusForm(emptyBonusForm);
-        setShowBonusForm(null);
-      },
-    });
+  const handleSubmit = () => {
+    if (!form.company || num(form.paycheck_amount) <= 0) return;
+    const company = companies.find((c) => c.name === form.company);
+    const payload: Partial<ProjectedIncomeStream> = {
+      company: form.company,
+      company_type: company?.company_type || company?.companyType || "W2",
+      pay_frequency: form.pay_frequency,
+      custom_interval_days: form.pay_frequency === "custom" ? num(form.custom_interval_days) : null,
+      start_date: form.start_date,
+      end_date: form.end_date || null,
+      paycheck_amount: num(form.paycheck_amount),
+      taxes_withheld: num(form.taxes_withheld),
+      retirement_401k: num(form.retirement_401k),
+      pre_tax_deductions: num(form.pre_tax_deductions),
+      is_active: form.is_active,
+      include_in_tax: form.include_in_tax,
+    };
+    if (editingId) {
+      updateStream.mutate({ id: editingId, ...payload }, { onSuccess: resetForm });
+    } else {
+      addStream.mutate(payload, { onSuccess: resetForm });
+    }
   };
 
-  const isLoading = streamsLoading || bonusesLoading;
+  const currentMonth = new Date().getMonth();
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center py-20"><p className="text-muted-foreground">Loading…</p></div>;
+  if (streamsLoading || bonusesLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-muted-foreground">Loading…</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-sm text-muted-foreground">Actual Income YTD</p>
-            <p className="text-2xl font-bold text-foreground">{fmt(actualYTD.income)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-sm text-muted-foreground">Projected Remaining</p>
-            <p className="text-2xl font-bold text-foreground">{fmt(projectedTotals.grossIncome)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-sm text-muted-foreground">Total Expected Annual</p>
-            <p className="text-2xl font-bold text-primary">{fmt(actualYTD.income + projectedTotals.grossIncome)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-sm text-muted-foreground">Projected Paychecks</p>
-            <p className="text-2xl font-bold text-foreground">{projectedTotals.count}</p>
-          </CardContent>
-        </Card>
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Income Planner</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Plan your expected income for the year and see how it affects your tax estimate.
+        </p>
       </div>
 
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-foreground">Income Streams</h3>
-        <Button onClick={() => { resetStreamForm(); setShowStreamForm(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Add Income Stream
-        </Button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <SummaryCard
+          icon={<DollarSign className="h-4 w-4" />}
+          label="Expected Annual Income"
+          value={fmt(expectedAnnual)}
+          sublabel={`${fmt(actualYTD.income)} actual + ${fmt(projectedTotals.grossIncome)} projected`}
+          highlight
+        />
+        <SummaryCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="Projected Remaining"
+          value={fmt(projectedTotals.grossIncome)}
+          sublabel={`${projectedTotals.count} upcoming payments`}
+        />
+        <SummaryCard
+          icon={<Shield className="h-4 w-4" />}
+          label="Estimated Annual Tax"
+          value={fmt(estimate?.estimatedAnnualTax || 0)}
+          sublabel="Based on projected income"
+        />
+        <SummaryCard
+          icon={<PiggyBank className="h-4 w-4" />}
+          label="Projected Withholding"
+          value={fmt(projectedWithholding)}
+          sublabel={projected401k > 0 ? `+ ${fmt(projected401k)} in 401(k)` : undefined}
+        />
       </div>
 
-      {showStreamForm && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              {editingStreamId ? "Edit Income Stream" : "New Projected Income Stream"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label>Company *</Label>
-                <Select value={streamForm.company} onValueChange={(v) => setStreamField("company", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
-                  <SelectContent>
-                    {companyNames.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Pay Frequency *</Label>
-                <Select value={streamForm.pay_frequency} onValueChange={(v) => setStreamField("pay_frequency", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PAY_FREQUENCIES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              {streamForm.pay_frequency === "custom" && (
-                <div className="space-y-1.5">
-                  <Label>Interval (days)</Label>
-                  <Input type="number" min="1" value={streamForm.custom_interval_days} onChange={(e) => setStreamField("custom_interval_days", e.target.value)} />
-                </div>
-              )}
-              <div className="space-y-1.5">
-                <Label>Start Date *</Label>
-                <Input type="date" value={streamForm.start_date} onChange={(e) => setStreamField("start_date", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>End Date (blank = ongoing)</Label>
-                <Input type="date" value={streamForm.end_date} onChange={(e) => setStreamField("end_date", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Total Paycheck (Gross) *</Label>
-                <Input type="number" min="0" step="0.01" value={streamForm.paycheck_amount} onChange={(e) => setStreamField("paycheck_amount", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Taxes Withheld</Label>
-                <Input type="number" min="0" step="0.01" value={streamForm.taxes_withheld} onChange={(e) => setStreamField("taxes_withheld", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>401k Contribution</Label>
-                <Input type="number" min="0" step="0.01" value={streamForm.retirement_401k} onChange={(e) => setStreamField("retirement_401k", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Pre-Tax Deductions</Label>
-                <Input type="number" min="0" step="0.01" value={streamForm.pre_tax_deductions} onChange={(e) => setStreamField("pre_tax_deductions", e.target.value)} />
-              </div>
-            </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
+          <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Add Income Stream
+          </Button>
+        </div>
 
-            <div className="mt-3 p-3 rounded-md bg-muted/50 text-sm">
-              <span className="text-muted-foreground">Estimated Deposited Amount: </span>
-              <span className="font-semibold text-foreground">{fmt(Math.max(0, deposited))}</span>
-            </div>
+        <div className="space-y-1.5">
+          {MONTHS.map((monthName, idx) => {
+            const entries = byMonth.get(idx) || [];
+            const monthTotal = entries.reduce((s, e) => s + e.grossAmount, 0);
+            const monthWithheld = entries.reduce((s, e) => s + e.taxesWithheld, 0);
+            const isExpanded = expandedMonths.has(idx);
+            const isPast = idx < currentMonth;
+            const isCurrent = idx === currentMonth;
 
-            <div className="mt-4 flex flex-wrap gap-6">
-              <div className="flex items-center gap-2">
-                <Switch checked={streamForm.is_active} onCheckedChange={(v) => setStreamField("is_active", v)} />
-                <Label>Active</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={streamForm.include_in_tax} onCheckedChange={(v) => setStreamField("include_in_tax", v)} />
-                <Label>Include in Tax Projections</Label>
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-4">
-              <Button onClick={handleStreamSubmit} disabled={!streamForm.company || num(streamForm.paycheck_amount) <= 0}>
-                {editingStreamId ? "Save Changes" : "Create Stream"}
-              </Button>
-              <Button variant="outline" onClick={resetStreamForm}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {(!streams || streams.length === 0) && !showStreamForm && (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No projected income streams yet. Click "Add Income Stream" to get started.
-          </CardContent>
-        </Card>
-      )}
-
-      {streams?.map((stream) => {
-        const streamBonuses = (bonuses || []).filter((b) => b.stream_id === stream.id);
-        const isExpanded = expandedStream === stream.id;
-        const streamPaychecks = projectedPaychecks.filter((p) => p.streamId === stream.id);
-
-        return (
-          <Card key={stream.id} className={!stream.is_active ? "opacity-60" : ""}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-base">{stream.company}</CardTitle>
-                  <Badge variant="outline">{stream.company_type}</Badge>
-                  <Badge variant={stream.is_active ? "default" : "secondary"}>
-                    {stream.is_active ? "Active" : "Paused"}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => updateStream.mutate({ id: stream.id, is_active: !stream.is_active })}>
-                    {stream.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={() => startEditStream(stream)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteConfirm(stream.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={() => setExpandedStream(isExpanded ? null : stream.id)}>
-                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-1">
-                <span>{PAY_FREQUENCIES.find((f) => f.value === stream.pay_frequency)?.label || stream.pay_frequency}</span>
-                <span>{fmt(stream.paycheck_amount)} gross</span>
-                <span>{fmt(stream.taxes_withheld)} withheld</span>
-                <span>{streamPaychecks.length} upcoming</span>
-              </div>
-            </CardHeader>
-
-            {isExpanded && (
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium text-foreground">Bonus / Extra Pay Events</h4>
-                  <Button size="sm" variant="outline" onClick={() => { setBonusForm(emptyBonusForm); setShowBonusForm(stream.id); }}>
-                    <Gift className="h-3 w-3 mr-1" /> Add Bonus
-                  </Button>
-                </div>
-
-                {showBonusForm === stream.id && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 rounded-md border border-border bg-muted/30">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Bonus Name *</Label>
-                      <Input placeholder="e.g. Quarterly Bonus" value={bonusForm.name} onChange={(e) => setBonusForm((p) => ({ ...p, name: e.target.value }))} />
+            return (
+              <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors text-left ${
+                      isCurrent
+                        ? "border-primary/30 bg-primary/5"
+                        : isPast
+                        ? "border-border/50 bg-muted/30 opacity-60"
+                        : "border-border bg-card hover:bg-accent/5"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="font-medium text-foreground">{monthName}</span>
+                      {entries.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {entries.length} {entries.length === 1 ? "entry" : "entries"}
+                        </Badge>
+                      )}
+                      {isCurrent && (
+                        <Badge variant="default" className="text-xs">Current</Badge>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Amount *</Label>
-                      <Input type="number" min="0" step="0.01" value={bonusForm.amount} onChange={(e) => setBonusForm((p) => ({ ...p, amount: e.target.value }))} />
+                    <div className="flex items-center gap-4 text-sm">
+                      {monthTotal > 0 && (
+                        <span className="font-semibold text-emerald-600">{fmt(monthTotal)}</span>
+                      )}
+                      {monthWithheld > 0 && (
+                        <span className="text-muted-foreground">{fmt(monthWithheld)} tax</span>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Taxes Withheld</Label>
-                      <Input type="number" min="0" step="0.01" value={bonusForm.taxes_withheld} onChange={(e) => setBonusForm((p) => ({ ...p, taxes_withheld: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Frequency</Label>
-                      <Select value={bonusForm.frequency} onValueChange={(v) => setBonusForm((p) => ({ ...p, frequency: v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {BONUS_FREQUENCIES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Date</Label>
-                      <Input type="date" value={bonusForm.scheduled_date} onChange={(e) => setBonusForm((p) => ({ ...p, scheduled_date: e.target.value }))} />
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <Button size="sm" onClick={() => handleBonusSubmit(stream.id)}>Add</Button>
-                      <Button size="sm" variant="outline" onClick={() => setShowBonusForm(null)}>Cancel</Button>
-                    </div>
+                  </button>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <div className="ml-4 mr-1 mt-1 mb-2 space-y-2">
+                    {entries.length > 0 && (
+                      <div className="flex flex-wrap gap-4 px-3 py-2 rounded-md bg-muted/40 text-xs text-muted-foreground">
+                        <span>Total: <strong className="text-foreground">{fmt(monthTotal)}</strong></span>
+                        {monthWithheld > 0 && (
+                          <span>Withholding: <strong className="text-foreground">{fmt(monthWithheld)}</strong></span>
+                        )}
+                        {entries.reduce((s, e) => s + e.retirement401k, 0) > 0 && (
+                          <span>401(k): <strong className="text-foreground">
+                            {fmt(entries.reduce((s, e) => s + e.retirement401k, 0))}
+                          </strong></span>
+                        )}
+                      </div>
+                    )}
+
+                    {entries.map((entry, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between px-3 py-2.5 rounded-md border border-border/50 bg-card"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground w-12">{entry.date.slice(5)}</span>
+                          <span className="text-sm font-medium text-foreground">{entry.label}</span>
+                          {entry.type === "bonus" && (
+                            <Badge variant="secondary" className="text-xs">Bonus</Badge>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold text-emerald-600">{fmtFull(entry.grossAmount)}</span>
+                      </div>
+                    ))}
+
+                    {entries.length === 0 && (
+                      <p className="text-xs text-muted-foreground px-3 py-2">
+                        No projected income for this month.
+                      </p>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => openAddForMonth(idx)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add income for {monthName}
+                    </Button>
                   </div>
-                )}
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
+        </div>
+      </div>
 
-                {streamBonuses.length > 0 && (
-                  <div className="space-y-1">
-                    {streamBonuses.map((b) => (
-                      <div key={b.id} className="flex items-center justify-between px-3 py-2 rounded-md bg-muted/30 text-sm">
-                        <span>{b.name} — {fmt(b.amount)} ({b.frequency})</span>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteBonus.mutate(b.id)}>
+      {streams && streams.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">Income Streams</h2>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Frequency</TableHead>
+                  <TableHead className="text-right">Gross / Pay</TableHead>
+                  <TableHead className="text-right">Withholding</TableHead>
+                  <TableHead className="text-right">401(k)</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-20"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {streams.map((s) => (
+                  <TableRow key={s.id} className={!s.is_active ? "opacity-50" : ""}>
+                    <TableCell className="font-medium">{s.company}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-emerald-600">
+                      {fmtFull(s.paycheck_amount)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm">{fmtFull(s.taxes_withheld)}</TableCell>
+                    <TableCell className="text-right text-sm">{fmtFull(s.retirement_401k)}</TableCell>
+                    <TableCell>
+                      <Badge variant={s.is_active ? "default" : "secondary"}>
+                        {s.is_active ? "Active" : "Paused"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(s)}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeleteConfirm(s.id)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
-                <div>
-                  <h4 className="text-sm font-medium text-foreground mb-2">Upcoming Projected Paychecks</h4>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead className="text-right">Gross</TableHead>
-                          <TableHead className="text-right">Withheld</TableHead>
-                          <TableHead className="text-right">Net</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {streamPaychecks.slice(0, 12).map((p, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="whitespace-nowrap">{p.date}</TableCell>
-                            <TableCell>
-                              <Badge variant={p.type === "bonus" ? "secondary" : "outline"}>
-                                {p.type === "bonus" ? "Bonus" : "Projected"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right font-medium">{fmt(p.grossAmount)}</TableCell>
-                            <TableCell className="text-right">{fmt(p.taxesWithheld)}</TableCell>
-                            <TableCell className="text-right">{fmt(p.netAmount)}</TableCell>
-                          </TableRow>
-                        ))}
-                        {streamPaychecks.length > 12 && (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center text-muted-foreground text-sm">
-                              + {streamPaychecks.length - 12} more paychecks
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              </CardContent>
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingId ? "Edit Income Stream" : "Add Income Stream"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Company *</Label>
+              <Select value={form.company} onValueChange={(v) => setField("company", v)}>
+                <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                <SelectContent>
+                  {companyNames.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Expected Income *</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={form.paycheck_amount}
+                  onChange={(e) => setField("paycheck_amount", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Pay Frequency</Label>
+                <Select value={form.pay_frequency} onValueChange={(v) => setField("pay_frequency", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PAY_FREQUENCIES.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {form.pay_frequency === "custom" && (
+              <div className="space-y-1.5">
+                <Label>Custom Interval (days)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={form.custom_interval_days}
+                  onChange={(e) => setField("custom_interval_days", e.target.value)}
+                />
+              </div>
             )}
-          </Card>
-        );
-      })}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={form.start_date}
+                  onChange={(e) => setField("start_date", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>End Date <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  type="date"
+                  value={form.end_date}
+                  onChange={(e) => setField("end_date", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-border pt-3 space-y-3">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Optional Details</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tax Withholding</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={form.taxes_withheld}
+                    onChange={(e) => setField("taxes_withheld", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">401(k)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={form.retirement_401k}
+                    onChange={(e) => setField("retirement_401k", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Deductions</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={form.pre_tax_deductions}
+                    onChange={(e) => setField("pre_tax_deductions", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {num(form.paycheck_amount) > 0 && (
+              <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Est. take-home: </span>
+                <span className="font-semibold text-foreground">
+                  {fmtFull(Math.max(0, num(form.paycheck_amount) - num(form.taxes_withheld) - num(form.retirement_401k) - num(form.pre_tax_deductions)))}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={resetForm}>Cancel</Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!form.company || num(form.paycheck_amount) <= 0}
+            >
+              {editingId ? "Save Changes" : "Add Stream"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Income Stream</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will delete the income stream and all associated bonus events. This cannot be undone.
+            This will remove the income stream and all projected paychecks. This cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { deleteConfirm && deleteStream.mutate(deleteConfirm); setDeleteConfirm(null); }}>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteConfirm) deleteStream.mutate(deleteConfirm);
+                setDeleteConfirm(null);
+              }}
+            >
               Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function SummaryCard({
+  icon,
+  label,
+  value,
+  sublabel,
+  highlight,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sublabel?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <Card className={highlight ? "border-primary/20 bg-primary/5" : ""}>
+      <CardContent className="pt-4 pb-4 space-y-1">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          {icon}
+          <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
+        </div>
+        <p className={`text-2xl font-bold ${highlight ? "text-primary" : "text-foreground"}`}>
+          {value}
+        </p>
+        {sublabel && (
+          <p className="text-xs text-muted-foreground">{sublabel}</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
