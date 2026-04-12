@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
-import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format } from "date-fns";
+import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
 
 /* ─── Types ─── */
 export interface ProjectedIncomeStream {
@@ -49,6 +49,28 @@ export interface ProjectedPaycheck {
   type: "paycheck" | "bonus";
   label: string;
   streamId: string;
+}
+
+/* ─── Helpers ─── */
+
+/**
+ * Determine if a stream is "expired" — its end_date has passed
+ * OR it's a one-time ("single") entry whose start_date has passed.
+ * Expired streams should not contribute to future income projections.
+ */
+export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
+  const today = startOfDay(new Date());
+  // One-time entries expire after their date
+  if (stream.pay_frequency === "single") {
+    const d = parseISO(stream.start_date);
+    return isBefore(d, today) && !isSameDay(d, today);
+  }
+  // Recurring streams expire when end_date has passed
+  if (stream.end_date) {
+    const end = parseISO(stream.end_date);
+    return isBefore(end, today) && !isSameDay(end, today);
+  }
+  return false;
 }
 
 /* ─── Queries ─── */
@@ -217,6 +239,8 @@ export function generateProjectedPaychecks(
 
   for (const stream of streams) {
     if (!stream.is_active || !stream.include_in_tax) continue;
+    // Skip expired streams — they should not contribute to future projections
+    if (isStreamExpired(stream)) continue;
 
     const start = parseISO(stream.start_date);
     const end = stream.end_date ? parseISO(stream.end_date) : yearEnd;
