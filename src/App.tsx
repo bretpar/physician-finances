@@ -13,6 +13,7 @@ import Mileage from "@/pages/Mileage";
 import Taxes from "@/pages/Taxes";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
+import ProjectedIncome from "@/pages/ProjectedIncome";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,13 +39,14 @@ function ProtectedRoutes() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/projected-income" element={<ProjectedIncome />} />
           <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />
           <Route path="/settings" element={<Settings />} />
           {/* Legacy redirects */}
           <Route path="/income" element={<Navigate to="/transactions" replace />} />
           <Route path="/mileage" element={<Navigate to="/deductions" replace />} />
-          <Route path="/projected-income" element={<Navigate to="/" replace />} />
+          
           <Route path="/stocks" element={<Navigate to="/" replace />} />
           <Route path="/reports" element={<Navigate to="/" replace />} />
           <Route path="/tax-planning" element={<Navigate to="/taxes" replace />} />

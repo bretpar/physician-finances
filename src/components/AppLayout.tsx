@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   ArrowLeftRight,
+  TrendingUp,
   Car,
   Calculator,
   Settings,
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transactions" },
+  { to: "/projected-income", icon: TrendingUp, label: "Income Planner" },
   { to: "/deductions", icon: Car, label: "Deductions" },
   { to: "/taxes", icon: Calculator, label: "Taxes" },
   { to: "/settings", icon: Settings, label: "Settings" },
