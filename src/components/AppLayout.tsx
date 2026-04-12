@@ -3,62 +3,29 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   ArrowLeftRight,
-  PiggyBank,
-  FileDown,
+  Car,
+  Calculator,
   Settings,
   Menu,
   X,
-  Car,
   LogOut,
-  Wallet,
-  TrendingUp,
-  BarChart3,
-  Calculator,
-  Lock,
+  PiggyBank,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 
-const freeItems = [
+const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/transactions", icon: ArrowLeftRight, label: "Transactions" },
-  { to: "/income", icon: Wallet, label: "Income" },
-  { to: "/mileage", icon: Car, label: "Deductions" },
-];
-
-const paidItems = [
-  { to: "/taxes", icon: Calculator, label: "Taxes", isPaid: true },
-  { to: "/projected-income", icon: TrendingUp, label: "Projected Income" },
-  { to: "/stocks", icon: BarChart3, label: "Stocks" },
-];
-
-const utilityItems = [
-  { to: "/reports", icon: FileDown, label: "Reports" },
+  { to: "/deductions", icon: Car, label: "Deductions" },
+  { to: "/taxes", icon: Calculator, label: "Taxes" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
-
-const allItems = [...freeItems, ...paidItems, ...utilityItems];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { organizationName, signOut, user } = useAuth();
-
-  const renderNavItem = (item: typeof freeItems[0] & { isPaid?: boolean }) => (
-    <NavLink
-      key={item.to}
-      to={item.to}
-      onClick={() => setMobileOpen(false)}
-      className={`sidebar-link ${
-        location.pathname === item.to ? "sidebar-link-active" : "sidebar-link-inactive"
-      }`}
-    >
-      <item.icon className="h-5 w-5 shrink-0" />
-      {item.label}
-    </NavLink>
-  );
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -70,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-60 bg-sidebar flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -91,19 +58,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {/* Free section */}
-          <p className="px-3 pt-1 pb-2 text-[10px] uppercase tracking-wider text-sidebar-foreground/60 font-semibold">Free</p>
-          {freeItems.map(renderNavItem)}
-
-          <Separator className="my-3 bg-sidebar-border" />
-
-          {/* Paid section */}
-          <p className="px-3 pt-1 pb-2 text-[10px] uppercase tracking-wider text-sidebar-foreground/60 font-semibold">Pro</p>
-          {paidItems.map(renderNavItem)}
-
-          <Separator className="my-3 bg-sidebar-border" />
-
-          {utilityItems.map(renderNavItem)}
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setMobileOpen(false)}
+              className={`sidebar-link ${
+                location.pathname === item.to ? "sidebar-link-active" : "sidebar-link-inactive"
+              }`}
+            >
+              <item.icon className="h-5 w-5 shrink-0" />
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
 
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
@@ -128,7 +95,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <h2 className="text-lg font-semibold text-foreground">
-            {allItems.find((i) => i.to === location.pathname)?.label ?? "Page"}
+            {navItems.find((i) => i.to === location.pathname)?.label ?? "Page"}
           </h2>
         </header>
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</div>

@@ -10,10 +10,6 @@ import Dashboard from "@/pages/Dashboard";
 import Transactions from "@/pages/Transactions";
 import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
-import Income from "@/pages/Income";
-import ProjectedIncome from "@/pages/ProjectedIncome";
-import Stocks from "@/pages/Stocks";
-import Reports from "@/pages/Reports";
 import Taxes from "@/pages/Taxes";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -42,14 +38,15 @@ function ProtectedRoutes() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/transactions" element={<Transactions />} />
-          <Route path="/income" element={<Income />} />
-          <Route path="/mileage" element={<Mileage />} />
-          <Route path="/projected-income" element={<ProjectedIncome />} />
-          <Route path="/stocks" element={<Stocks />} />
+          <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />
-          <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
-          {/* Redirects for old routes */}
+          {/* Legacy redirects */}
+          <Route path="/income" element={<Navigate to="/transactions" replace />} />
+          <Route path="/mileage" element={<Navigate to="/deductions" replace />} />
+          <Route path="/projected-income" element={<Navigate to="/" replace />} />
+          <Route path="/stocks" element={<Navigate to="/" replace />} />
+          <Route path="/reports" element={<Navigate to="/" replace />} />
           <Route path="/tax-planning" element={<Navigate to="/taxes" replace />} />
           <Route path="/tax-reserve" element={<Navigate to="/taxes" replace />} />
           <Route path="/quarterly-taxes" element={<Navigate to="/taxes" replace />} />
