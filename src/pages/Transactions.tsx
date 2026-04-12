@@ -188,7 +188,9 @@ export default function Transactions() {
           recommended_withholding: recommendedWithholding,
         } as any);
 
-        // Update linked income entry
+        // Update linked income entry — sync actual_withholding to taxes_withheld
+        // so the tax engine picks it up via the weighted income pipeline
+        const effectiveWithheld = Math.max(taxWithheld, num(form.actual_withholding));
         if (editingIncomeId) {
           updateIncomeMutation.mutate({
             id: editingIncomeId,
@@ -198,7 +200,7 @@ export default function Transactions() {
             income_date: form.date,
             paycheck_amount: paycheckAmt,
             deposited_amount: depositedAmt,
-            taxes_withheld: taxWithheld,
+            taxes_withheld: effectiveWithheld,
             pre_tax_deductions: preTaxDed,
             retirement_401k: retirement,
             notes: form.notes,

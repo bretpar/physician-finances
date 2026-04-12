@@ -62,7 +62,13 @@ export function useTaxEstimate(): { estimate: TaxEstimate | null; isLoading: boo
     const seIncome = seActualIncome;
     const combinedPreTax = preTaxDeductions + projTotals.preTaxDeductions;
     const combined401k = retirement401k + projTotals.retirement401k + annualizedRetirement.total;
-    const combinedWithheld = taxesWithheld + projTotals.taxesWithheld;
+
+    // Safety net: also sum actual_withholding from income transactions
+    // in case it exceeds what's recorded in income_entries.taxes_withheld
+    const txActualWithholding = (transactions || [])
+      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
+    const combinedWithheld = Math.max(taxesWithheld, txActualWithholding) + projTotals.taxesWithheld;
 
     // Business deductions from expense transactions
     const businessExpenses = (transactions || [])
