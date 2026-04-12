@@ -418,6 +418,69 @@ export type Database = {
           },
         ]
       }
+      projected_income_overrides: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          notes: string | null
+          organization_id: string | null
+          override_date: string
+          paycheck_amount: number
+          pre_tax_deductions: number
+          retirement_401k: number
+          stream_id: string
+          taxes_withheld: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          override_date: string
+          paycheck_amount?: number
+          pre_tax_deductions?: number
+          retirement_401k?: number
+          stream_id: string
+          taxes_withheld?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          override_date?: string
+          paycheck_amount?: number
+          pre_tax_deductions?: number
+          retirement_401k?: number
+          stream_id?: string
+          taxes_withheld?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projected_income_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projected_income_overrides_stream_id_fkey"
+            columns: ["stream_id"]
+            isOneToOne: false
+            referencedRelation: "projected_income_streams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projected_income_streams: {
         Row: {
           company: string
