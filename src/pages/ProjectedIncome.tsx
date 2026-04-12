@@ -305,7 +305,7 @@ export default function ProjectedIncome() {
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       {monthTotal > 0 && (
-                        <span className="font-semibold text-emerald-600">{fmt(monthTotal)}</span>
+                        <span className="font-semibold text-success">{fmt(monthTotal)}</span>
                       )}
                       {monthWithheld > 0 && (
                         <span className="text-muted-foreground">{fmt(monthWithheld)} tax</span>
@@ -342,7 +342,7 @@ export default function ProjectedIncome() {
                             <Badge variant="secondary" className="text-xs">Bonus</Badge>
                           )}
                         </div>
-                        <span className="text-sm font-semibold text-emerald-600">{fmtFull(entry.grossAmount)}</span>
+                        <span className="text-sm font-semibold text-success">{fmtFull(entry.grossAmount)}</span>
                       </div>
                     ))}
 
@@ -391,7 +391,7 @@ export default function ProjectedIncome() {
                     <TableCell className="text-muted-foreground text-sm">
                       {PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}
                     </TableCell>
-                    <TableCell className="text-right font-medium text-emerald-600">
+                    <TableCell className="text-right font-medium text-success">
                       {fmtFull(s.paycheck_amount)}
                     </TableCell>
                     <TableCell className="text-right text-sm">{fmtFull(s.taxes_withheld)}</TableCell>
