@@ -502,19 +502,26 @@ export default function Transactions() {
                 </div>
 
                 {/* Tax recommendation (read-only) + actual input */}
-                {grossIncome > 0 && recommendedWithholding > 0 && (
+                {grossIncome > 0 && (
                   <div className="rounded-md border border-border p-3 space-y-2 bg-background">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Suggested tax set-aside</span>
-                      <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(recommendedWithholding)}</span>
-                    </div>
+                    {recommendedWithholding > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Recommended tax to withhold</span>
+                        <span className="font-semibold text-primary">{fmt(recommendedWithholding)}</span>
+                      </div>
+                    )}
+                    {recommendation && !recommendation.isManualMode && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Based on projected annual income and tax bracket analysis.
+                      </p>
+                    )}
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Actual amount withheld</Label>
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder={fmt(recommendedWithholding)}
+                        placeholder={recommendedWithholding > 0 ? fmt(recommendedWithholding) : "0.00"}
                         value={form.actual_withholding === "0" ? "" : form.actual_withholding}
                         onChange={(e) => setField("actual_withholding", e.target.value)}
                       />
