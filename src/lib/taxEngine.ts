@@ -207,6 +207,8 @@ export interface TaxEstimate {
   remainingLiability: number;
   quarterlyEstimate: number;
   effectiveRate: number;
+  /** Federal income tax only as % of total income (excludes SE + B&O) */
+  federalEffectiveRate: number;
   marginalRate: number;
   // Safe harbor (legacy)
   safeHarborTarget: number;
@@ -272,6 +274,7 @@ export function calculateFullEstimate(params: {
 
   // Rates
   const effectiveRate = calculateEffectiveRate(totalTaxLiability, totalIncome);
+  const federalEffectiveRate = calculateEffectiveRate(federalTax, totalIncome);
   const marginalRate = getMarginalRate(taxableIncome, brackets);
 
   // Safe harbor (legacy compat)
@@ -300,7 +303,7 @@ export function calculateFullEstimate(params: {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     federalTax, seTax, bnoTax, totalTaxLiability, taxesAlreadyWithheld: taxesWithheld,
-    remainingLiability, quarterlyEstimate, effectiveRate, marginalRate,
+    remainingLiability, quarterlyEstimate, effectiveRate, federalEffectiveRate, marginalRate,
     safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside,
     tracking,
   };
