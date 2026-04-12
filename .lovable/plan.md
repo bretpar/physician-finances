@@ -1,57 +1,84 @@
 
 
-## Per-Date Overrides for Recurring Income Streams
+## Fix: Withholding Recommendation Should Account for Per-Entry Deductions and Income Type
 
-**Problem**: Recurring streams generate identical paychecks on every date. Users need to skip, increase, or decrease the amount for specific dates (e.g., one paycheck in July is different or shouldn't exist).
+**Problem**
 
-**Approach**: Create a `projected_income_overrides` table that stores per-date exceptions. The projection engine checks this table when generating paychecks — if an override exists for a given stream+date, it either skips that date or uses the custom amount.
+`getRecommendation(grossIncome)` passes the full gross amount. The engine then proportionally allocates the remaining annual tax to that gross amount — but ignores the fact that this specific entry may have 401k, pre-tax deductions, and (for W2) taxes already withheld by the employer. Result: the recommendation equals roughly the gross amount itself.
 
-### 1. New database table: `projected_income_overrides`
+**Root cause in `useWithholdingRecommendation.ts`**
 
-```sql
-CREATE TABLE public.projected_income_overrides (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  stream_id UUID NOT NULL,
-  user_id UUID NOT NULL,
-  organization_id UUID,
-  override_date DATE NOT NULL,
-  action TEXT NOT NULL DEFAULT 'modify',  -- 'skip' or 'modify'
-  paycheck_amount NUMERIC NOT NULL DEFAULT 0,
-  taxes_withheld NUMERIC NOT NULL DEFAULT 0,
-  retirement_401k NUMERIC NOT NULL DEFAULT 0,
-  pre_tax_deductions NUMERIC NOT NULL DEFAULT 0,
-  notes TEXT DEFAULT '',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (stream_id, override_date)
-);
+The function only takes `incomeAmount` (gross). It needs additional context about the entry: income type, taxes already withheld, 401k, and pre-tax deductions.
+
+**Fix**
+
+### 1. Update `useWithholdingRecommendation.ts`
+
+Change `getRecommendation` signature to accept an object:
+
+```typescript
+getRecommendation({
+  grossIncome: number,
+  incomeType: 'W2' | '1099' | 'K1',
+  taxesAlreadyWithheld: number,  // W2 employer withholding
+  retirement401k: number,
+  preTaxDeductions: number,
+  alreadyIncludedInEstimate: boolean
+})
 ```
 
-RLS policies matching the org-based pattern used by all other tables. Enable `updated_at` trigger.
+Calculation logic:
+- Compute **net taxable income** for this entry: `gross - retirement401k - preTaxDeductions`
+- For SE income (1099/K1): also factor in SE tax portion
+- Use the effective rate from the annual estimate to compute the tax owed on **this entry's net taxable portion**
+- Subtract `taxesAlreadyWithheld` (the W2 employer withholding for this specific paycheck)
+- Result = additional amount to withhold/set aside
+- **Allow negative values for W2**: if the employer already withheld enough (or too much), show a negative number with a message like "Your employer withheld more than needed for this paycheck"
 
-### 2. Hook changes (`src/hooks/useProjectedIncome.ts`)
+### 2. Update `src/pages/Transactions.tsx`
 
-- Add `useStreamOverrides(streamId?)` query hook
-- Add `useAddOverride`, `useUpdateOverride`, `useDeleteOverride` mutation hooks
-- Update `generateProjectedPaychecks` to accept overrides array; for each generated date, check if an override exists:
-  - `action = 'skip'` → omit that paycheck entirely
-  - `action = 'modify'` → use the override's amounts instead of the stream defaults
+Pass the additional form fields to `getRecommendation`:
 
-### 3. UI changes (`src/pages/ProjectedIncome.tsx`)
+```typescript
+const recommendation = useMemo(() => {
+  if (!isIncome || grossIncome <= 0) return null;
+  return getRecommendation({
+    grossIncome,
+    incomeType: form.income_type,
+    taxesAlreadyWithheld: num(form.taxes_withheld),
+    retirement401k: num(form.retirement_401k),
+    preTaxDeductions: num(form.pre_tax_deductions),
+    alreadyIncludedInEstimate: isEditing,
+  });
+}, [isIncome, grossIncome, form.income_type, form.taxes_withheld, form.retirement_401k, form.pre_tax_deductions, getRecommendation, isEditing]);
+```
 
-In the monthly expandable sections where individual projected paychecks are listed:
+Update the UI display:
+- If recommendation is negative (W2 over-withheld): show green text "Your employer withheld $X more than estimated — consider adjusting your W-4"
+- If recommendation is positive for W2: show "Additional withholding recommended: $X" with a note that their W2 employer isn't withholding enough
+- If recommendation is positive for 1099/K1: show "Recommended to set aside: $X"
 
-- Add an **Edit** (pencil) icon and a **Skip/Delete** (X) icon on each paycheck row
-- **Skip**: Creates an override with `action = 'skip'` — the date disappears from projections and totals
-- **Edit**: Opens a small dialog pre-filled with the stream's default amounts for that date. User can change amount, withholding, 401k, deductions. Saves as `action = 'modify'`
-- Skipped dates shown with strikethrough styling and a "Restore" button
-- Modified dates shown with a small badge indicating they differ from the stream default
+### 3. Calculation detail (inside the hook)
+
+```
+netTaxableForEntry = grossIncome - retirement401k - preTaxDeductions
+taxOnThisEntry = netTaxableForEntry × (estimate.effectiveRate / 100)
+
+// For 1099/K1, add SE tax portion
+if (incomeType !== 'W2') {
+  seTaxPortion = netTaxableForEntry × SE_INCOME_FACTOR × SE_TAX_RATE
+  taxOnThisEntry += seTaxPortion
+}
+
+recommendedWithholding = taxOnThisEntry - taxesAlreadyWithheld
+// Allow negative for W2 (means employer over-withheld)
+// For 1099/K1, floor at 0
+```
 
 ### Files to change
 
 | File | Change |
 |------|--------|
-| Migration | Create `projected_income_overrides` table with RLS |
-| `src/hooks/useProjectedIncome.ts` | Add override query/mutations; update projection engine |
-| `src/pages/ProjectedIncome.tsx` | Add per-date edit/skip UI in monthly sections |
+| `src/hooks/useWithholdingRecommendation.ts` | Accept entry-level details; compute recommendation on net taxable amount minus already-withheld |
+| `src/pages/Transactions.tsx` | Pass form fields to `getRecommendation`; handle negative recommendation display for W2 |
 
