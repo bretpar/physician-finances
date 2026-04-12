@@ -395,7 +395,7 @@ export default function Transactions() {
 
       {/* ═══════ UNIFIED ADD / EDIT FORM ═══════ */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingTxId(null); } }}>
-        <DialogContent className={isIncome ? "max-w-lg" : undefined}>
+        <DialogContent className={`max-h-[85vh] overflow-y-auto ${isIncome ? "max-w-lg" : ""}`}>
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Transaction" : "Add Transaction"}</DialogTitle>
           </DialogHeader>
