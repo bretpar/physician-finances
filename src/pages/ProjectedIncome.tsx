@@ -192,7 +192,7 @@ export default function ProjectedIncome() {
     const company = companies.find((c) => c.name === form.company);
     const payload: Partial<ProjectedIncomeStream> = {
       company: form.company,
-      company_type: company?.company_type || company?.companyType || "W2",
+      company_type: company?.companyType || "W2",
       pay_frequency: form.pay_frequency,
       custom_interval_days: form.pay_frequency === "custom" ? num(form.custom_interval_days) : null,
       start_date: form.start_date,
@@ -247,7 +247,7 @@ export default function ProjectedIncome() {
         <SummaryCard
           icon={<Shield className="h-4 w-4" />}
           label="Estimated Annual Tax"
-          value={fmt(estimate?.estimatedAnnualTax || 0)}
+          value={fmt(estimate?.annualTax || 0)}
           sublabel="Based on projected income"
         />
         <SummaryCard
