@@ -511,17 +511,37 @@ export default function Transactions() {
                 </div>
 
                 {/* Tax recommendation (read-only) + actual input */}
-                {grossIncome > 0 && (
+                {grossIncome > 0 && recommendation && (
                   <div className="rounded-md border border-border p-3 space-y-2 bg-background">
-                    {recommendedWithholding > 0 && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Recommended tax to withhold</span>
-                        <span className="font-semibold text-primary">{fmt(recommendedWithholding)}</span>
-                      </div>
-                    )}
-                    {recommendation && !recommendation.isManualMode && (
+                    {recommendation.isOverWithheld ? (
+                      <>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Employer over-withheld by</span>
+                          <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(Math.abs(recommendedWithholding))}</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                          Your W-2 employer withheld more than estimated for this paycheck — consider adjusting your W-4.
+                        </p>
+                      </>
+                    ) : recommendedWithholding > 0 ? (
+                      <>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            {form.income_type === "W2" ? "Additional withholding recommended" : "Recommended to set aside"}
+                          </span>
+                          <span className="font-semibold text-primary">{fmt(recommendedWithholding)}</span>
+                        </div>
+                        {form.income_type === "W2" && (
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                            Your W-2 employer may not be withholding enough — consider adjusting your W-4.
+                          </p>
+                        )}
+                      </>
+                    ) : null}
+                    {!recommendation.isManualMode && recommendedWithholding !== 0 && (
                       <p className="text-[11px] text-muted-foreground">
-                        Based on projected annual income and tax bracket analysis.
+                        Based on {fmt(grossIncome - num(form.retirement_401k) - num(form.pre_tax_deductions))} net taxable at {recommendation.effectiveRate.toFixed(1)}% effective rate
+                        {form.income_type !== "W2" ? " + SE tax" : ""}.
                       </p>
                     )}
                     <div>
