@@ -123,8 +123,15 @@ export default function Transactions() {
   const grossIncome = num(form.gross_amount);
   const recommendation = useMemo(() => {
     if (!isIncome || grossIncome <= 0) return null;
-    return getRecommendation(grossIncome, isEditing);
-  }, [isIncome, grossIncome, getRecommendation, isEditing]);
+    return getRecommendation({
+      grossIncome,
+      incomeType: form.income_type,
+      taxesAlreadyWithheld: num(form.taxes_withheld),
+      retirement401k: num(form.retirement_401k),
+      preTaxDeductions: num(form.pre_tax_deductions),
+      alreadyIncludedInEstimate: isEditing,
+    });
+  }, [isIncome, grossIncome, form.income_type, form.taxes_withheld, form.retirement_401k, form.pre_tax_deductions, getRecommendation, isEditing]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   // --- Open form for Add ---
