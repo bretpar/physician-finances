@@ -1,84 +1,40 @@
 
 
-## Fix: Withholding Recommendation Should Account for Per-Entry Deductions and Income Type
+## Fix: W2 Withholding Recommendation Should Exclude SE Tax
 
 **Problem**
 
-`getRecommendation(grossIncome)` passes the full gross amount. The engine then proportionally allocates the remaining annual tax to that gross amount — but ignores the fact that this specific entry may have 401k, pre-tax deductions, and (for W2) taxes already withheld by the employer. Result: the recommendation equals roughly the gross amount itself.
+The withholding recommendation uses the annual `effectiveRate` which is calculated as `(federalTax + seTax + bnoTax) / totalIncome`. When applied to a W2 entry, the recommendation inflates the number because SE tax and B&O tax are baked into the rate — but those taxes don't apply to W2 income.
 
-**Root cause in `useWithholdingRecommendation.ts`**
+**Root Cause**
 
-The function only takes `incomeAmount` (gross). It needs additional context about the entry: income type, taxes already withheld, 401k, and pre-tax deductions.
+The `effectiveRate` from the tax engine is a blended rate across all income types. The per-entry recommendation hook applies this same rate to W2 and 1099 entries alike.
 
 **Fix**
 
-### 1. Update `useWithholdingRecommendation.ts`
+### 1. Expose a federal-only effective rate from the tax engine
 
-Change `getRecommendation` signature to accept an object:
-
-```typescript
-getRecommendation({
-  grossIncome: number,
-  incomeType: 'W2' | '1099' | 'K1',
-  taxesAlreadyWithheld: number,  // W2 employer withholding
-  retirement401k: number,
-  preTaxDeductions: number,
-  alreadyIncludedInEstimate: boolean
-})
-```
-
-Calculation logic:
-- Compute **net taxable income** for this entry: `gross - retirement401k - preTaxDeductions`
-- For SE income (1099/K1): also factor in SE tax portion
-- Use the effective rate from the annual estimate to compute the tax owed on **this entry's net taxable portion**
-- Subtract `taxesAlreadyWithheld` (the W2 employer withholding for this specific paycheck)
-- Result = additional amount to withhold/set aside
-- **Allow negative values for W2**: if the employer already withheld enough (or too much), show a negative number with a message like "Your employer withheld more than needed for this paycheck"
-
-### 2. Update `src/pages/Transactions.tsx`
-
-Pass the additional form fields to `getRecommendation`:
-
-```typescript
-const recommendation = useMemo(() => {
-  if (!isIncome || grossIncome <= 0) return null;
-  return getRecommendation({
-    grossIncome,
-    incomeType: form.income_type,
-    taxesAlreadyWithheld: num(form.taxes_withheld),
-    retirement401k: num(form.retirement_401k),
-    preTaxDeductions: num(form.pre_tax_deductions),
-    alreadyIncludedInEstimate: isEditing,
-  });
-}, [isIncome, grossIncome, form.income_type, form.taxes_withheld, form.retirement_401k, form.pre_tax_deductions, getRecommendation, isEditing]);
-```
-
-Update the UI display:
-- If recommendation is negative (W2 over-withheld): show green text "Your employer withheld $X more than estimated — consider adjusting your W-4"
-- If recommendation is positive for W2: show "Additional withholding recommended: $X" with a note that their W2 employer isn't withholding enough
-- If recommendation is positive for 1099/K1: show "Recommended to set aside: $X"
-
-### 3. Calculation detail (inside the hook)
+In `src/lib/taxEngine.ts`, add a new field to `TaxEstimate`:
 
 ```
-netTaxableForEntry = grossIncome - retirement401k - preTaxDeductions
-taxOnThisEntry = netTaxableForEntry × (estimate.effectiveRate / 100)
-
-// For 1099/K1, add SE tax portion
-if (incomeType !== 'W2') {
-  seTaxPortion = netTaxableForEntry × SE_INCOME_FACTOR × SE_TAX_RATE
-  taxOnThisEntry += seTaxPortion
-}
-
-recommendedWithholding = taxOnThisEntry - taxesAlreadyWithheld
-// Allow negative for W2 (means employer over-withheld)
-// For 1099/K1, floor at 0
+federalEffectiveRate = (federalTax / totalIncome) * 100
 ```
+
+Return it alongside the existing `effectiveRate`.
+
+### 2. Use the correct rate per income type in the recommendation hook
+
+In `src/hooks/useWithholdingRecommendation.ts`:
+
+- **W2 entries**: Use `federalEffectiveRate` (no SE tax, no B&O)
+- **1099/K1 entries**: Use `effectiveRate` (which already includes SE + B&O), no need to add SE tax again on top
+
+This also means removing the current explicit SE tax addition on lines 117-118, since for 1099/K1 the blended `effectiveRate` already accounts for it.
 
 ### Files to change
 
 | File | Change |
 |------|--------|
-| `src/hooks/useWithholdingRecommendation.ts` | Accept entry-level details; compute recommendation on net taxable amount minus already-withheld |
-| `src/pages/Transactions.tsx` | Pass form fields to `getRecommendation`; handle negative recommendation display for W2 |
+| `src/lib/taxEngine.ts` | Add `federalEffectiveRate` to `TaxEstimate` interface and return value |
+| `src/hooks/useWithholdingRecommendation.ts` | Use `federalEffectiveRate` for W2, `effectiveRate` for 1099/K1; remove redundant SE tax addition |
 
