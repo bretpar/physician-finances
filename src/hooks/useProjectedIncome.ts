@@ -39,6 +39,22 @@ export interface ProjectedBonusEvent {
   updated_at: string;
 }
 
+export interface ProjectedIncomeOverride {
+  id: string;
+  stream_id: string;
+  user_id: string;
+  organization_id: string | null;
+  override_date: string;
+  action: "skip" | "modify";
+  paycheck_amount: number;
+  taxes_withheld: number;
+  retirement_401k: number;
+  pre_tax_deductions: number;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProjectedPaycheck {
   date: string;
   grossAmount: number;
@@ -49,23 +65,18 @@ export interface ProjectedPaycheck {
   type: "paycheck" | "bonus";
   label: string;
   streamId: string;
+  isSkipped?: boolean;
+  isModified?: boolean;
 }
 
 /* ─── Helpers ─── */
 
-/**
- * Determine if a stream is "expired" — its end_date has passed
- * OR it's a one-time ("single") entry whose start_date has passed.
- * Expired streams should not contribute to future income projections.
- */
 export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
   const today = startOfDay(new Date());
-  // One-time entries expire after their date
   if (stream.pay_frequency === "single") {
     const d = parseISO(stream.start_date);
     return isBefore(d, today) && !isSameDay(d, today);
   }
-  // Recurring streams expire when end_date has passed
   if (stream.end_date) {
     const end = parseISO(stream.end_date);
     return isBefore(end, today) && !isSameDay(end, today);
@@ -97,6 +108,20 @@ export function useProjectedBonuses(streamId?: string) {
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as ProjectedBonusEvent[];
+    },
+  });
+}
+
+export function useStreamOverrides() {
+  return useQuery({
+    queryKey: ["projected_income_overrides"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projected_income_overrides")
+        .select("*")
+        .order("override_date");
+      if (error) throw error;
+      return (data || []) as ProjectedIncomeOverride[];
     },
   });
 }
@@ -166,6 +191,7 @@ export function useDeleteStream() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projected_income_streams"] });
       qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
+      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
       toast.success("Income stream deleted");
     },
     onError: (e) => toast.error(e.message),
@@ -217,6 +243,81 @@ export function useDeleteBonus() {
   });
 }
 
+/* ─── Override Mutations ─── */
+export function useAddOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (override: {
+      stream_id: string;
+      override_date: string;
+      action: "skip" | "modify";
+      paycheck_amount?: number;
+      taxes_withheld?: number;
+      retirement_401k?: number;
+      pre_tax_deductions?: number;
+      notes?: string;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = await getUserOrgId();
+      const { error } = await supabase.from("projected_income_overrides").insert({
+        stream_id: override.stream_id,
+        user_id: user.id,
+        organization_id: orgId,
+        override_date: override.override_date,
+        action: override.action,
+        paycheck_amount: override.paycheck_amount ?? 0,
+        taxes_withheld: override.taxes_withheld ?? 0,
+        retirement_401k: override.retirement_401k ?? 0,
+        pre_tax_deductions: override.pre_tax_deductions ?? 0,
+        notes: override.notes || "",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
+      toast.success("Override saved");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
+export function useUpdateOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<ProjectedIncomeOverride> & { id: string }) => {
+      const { error } = await supabase
+        .from("projected_income_overrides")
+        .update(updates)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
+      toast.success("Override updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
+export function useDeleteOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("projected_income_overrides")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
+      toast.success("Override removed");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
 /* ─── Projection engine ─── */
 function getNextDate(current: Date, frequency: string, customDays?: number | null): Date {
   switch (frequency) {
@@ -231,42 +332,72 @@ function getNextDate(current: Date, frequency: string, customDays?: number | nul
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
-  existingIncomeDates?: Set<string>
+  existingIncomeDates?: Set<string>,
+  overrides?: ProjectedIncomeOverride[]
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearEnd = endOfYear(now);
   const paychecks: ProjectedPaycheck[] = [];
 
+  // Index overrides by stream_id + date for O(1) lookup
+  const overrideMap = new Map<string, ProjectedIncomeOverride>();
+  if (overrides) {
+    for (const o of overrides) {
+      overrideMap.set(`${o.stream_id}:${o.override_date}`, o);
+    }
+  }
+
   for (const stream of streams) {
     if (!stream.is_active || !stream.include_in_tax) continue;
-    // Skip expired streams — they should not contribute to future projections
     if (isStreamExpired(stream)) continue;
 
     const start = parseISO(stream.start_date);
     const end = stream.end_date ? parseISO(stream.end_date) : yearEnd;
 
     let current = start;
-    // Advance to next future date if start is in the past
     while (isBefore(current, now)) {
       current = getNextDate(current, stream.pay_frequency, stream.custom_interval_days);
     }
 
     while (!isAfter(current, end) && !isAfter(current, yearEnd)) {
       const dateStr = format(current, "yyyy-MM-dd");
-      // Skip if an actual income entry exists on this date (avoid duplication)
+
       if (!existingIncomeDates?.has(dateStr)) {
-        const net = stream.paycheck_amount - stream.taxes_withheld - stream.retirement_401k - stream.pre_tax_deductions;
-        paychecks.push({
-          date: dateStr,
-          grossAmount: stream.paycheck_amount,
-          taxesWithheld: stream.taxes_withheld,
-          retirement401k: stream.retirement_401k,
-          preTaxDeductions: stream.pre_tax_deductions,
-          netAmount: Math.max(0, net),
-          type: "paycheck",
-          label: stream.company,
-          streamId: stream.id,
-        });
+        const override = overrideMap.get(`${stream.id}:${dateStr}`);
+
+        if (override?.action === "skip") {
+          // Include skipped entries so UI can show them with strikethrough
+          paychecks.push({
+            date: dateStr,
+            grossAmount: stream.paycheck_amount,
+            taxesWithheld: stream.taxes_withheld,
+            retirement401k: stream.retirement_401k,
+            preTaxDeductions: stream.pre_tax_deductions,
+            netAmount: 0,
+            type: "paycheck",
+            label: stream.company,
+            streamId: stream.id,
+            isSkipped: true,
+          });
+        } else {
+          const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
+          const tax = override?.action === "modify" ? override.taxes_withheld : stream.taxes_withheld;
+          const ret = override?.action === "modify" ? override.retirement_401k : stream.retirement_401k;
+          const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
+          const net = amt - tax - ret - ded;
+          paychecks.push({
+            date: dateStr,
+            grossAmount: amt,
+            taxesWithheld: tax,
+            retirement401k: ret,
+            preTaxDeductions: ded,
+            netAmount: Math.max(0, net),
+            type: "paycheck",
+            label: stream.company,
+            streamId: stream.id,
+            isModified: override?.action === "modify",
+          });
+        }
       }
       current = getNextDate(current, stream.pay_frequency, stream.custom_interval_days);
     }
@@ -316,15 +447,17 @@ export function generateProjectedPaychecks(
 
 /* ─── Aggregate projected totals ─── */
 export function getProjectedTotals(paychecks: ProjectedPaycheck[]) {
-  return paychecks.reduce(
-    (acc, p) => ({
-      grossIncome: acc.grossIncome + p.grossAmount,
-      taxesWithheld: acc.taxesWithheld + p.taxesWithheld,
-      retirement401k: acc.retirement401k + p.retirement401k,
-      preTaxDeductions: acc.preTaxDeductions + p.preTaxDeductions,
-      netIncome: acc.netIncome + p.netAmount,
-      count: acc.count + 1,
-    }),
-    { grossIncome: 0, taxesWithheld: 0, retirement401k: 0, preTaxDeductions: 0, netIncome: 0, count: 0 }
-  );
+  return paychecks
+    .filter((p) => !p.isSkipped) // Skipped entries don't count
+    .reduce(
+      (acc, p) => ({
+        grossIncome: acc.grossIncome + p.grossAmount,
+        taxesWithheld: acc.taxesWithheld + p.taxesWithheld,
+        retirement401k: acc.retirement401k + p.retirement401k,
+        preTaxDeductions: acc.preTaxDeductions + p.preTaxDeductions,
+        netIncome: acc.netIncome + p.netAmount,
+        count: acc.count + 1,
+      }),
+      { grossIncome: 0, taxesWithheld: 0, retirement401k: 0, preTaxDeductions: 0, netIncome: 0, count: 0 }
+    );
 }
