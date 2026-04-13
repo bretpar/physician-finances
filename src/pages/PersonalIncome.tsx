@@ -147,7 +147,7 @@ export default function PersonalIncome() {
       title: entry.name,
       income_type: entry.income_type,
       gross_amount: String(entry.gross_amount),
-      net_received: Number(entry.deposited_amount) > 0 ? String(entry.deposited_amount) : "",
+      net_received: "",
       cost_basis: entry.cost_basis != null ? String(entry.cost_basis) : "",
       realized_gain_loss: entry.realized_gain_loss != null ? String(entry.realized_gain_loss) : "",
       federal_withholding: String(entry.federal_withholding),
