@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { categories } from "@/lib/mockData";
+import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
 import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction } from "@/hooks/useTransactions";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -7,6 +7,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -43,7 +44,7 @@ const emptyForm: TxFormState = {
   name: "",
   amount: "",
   type: "expense",
-  category: "Uncategorized",
+  category: "",
   notes: "",
   company: "",
   income_type: "1099",
@@ -381,7 +382,7 @@ export default function Transactions() {
                   </span>
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {tx.category}
+                  {mapLegacyCategory(tx.category)}
                 </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -462,13 +463,7 @@ export default function Transactions() {
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                  <Select value={form.category} onValueChange={(v) => setField("category", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      <SelectItem value="Income">Income</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <ExpenseCategoryCombobox value={form.category} onValueChange={(v) => setField("category", v)} />
                 </div>
               </div>
             )}
