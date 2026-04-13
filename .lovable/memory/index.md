@@ -3,11 +3,9 @@
 ## Core
 Physician finance app — income/expense tracking, tax planning, WA B&O tax.
 Fintech design: light theme, Inter font, blue primary (#0066CC), teal accent.
-MVP mode: 4 pages only (Dashboard, Transactions, Deductions, Taxes). Keep simple.
-Advanced features (Stocks, Projected Income, Reports, Income Analytics) hidden, not deleted.
-Route /deductions maps to Mileage.tsx (mileage + retirement).
-Tax engine uses projected annual income + marginal brackets for withholding recommendations.
+Three-section income architecture: Business Activity, Personal Income, Income Planner.
 
 ## Memories
-- [Tax rates](mem://features/tax-rates) — Federal 32%, SE 15.3% (×0.9235), WA B&O 1.5% of gross income
-- [Withholding engine](mem://features/withholding-engine) — Smart recommendation using projected annual model, proportional allocation per transaction
+- [Tax rates](mem://features/tax-rates) — Federal, SE, WA B&O rates used in calculations
+- [Withholding engine](mem://features/withholding-engine) — Smart tax withholding using projected annual income + marginal brackets
+- [Income architecture](mem://features/income-architecture) — Business Activity, Personal Income, Income Planner separation
