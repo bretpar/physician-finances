@@ -496,14 +496,27 @@ export default function Transactions() {
             </div>
 
             {!isIncome && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
+                  <Select value={form.company} onValueChange={(v) => setField("company", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                    <SelectContent>
+                      {companies.map((c) => (
+                        <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                  <ExpenseCategoryCombobox value={form.category} onValueChange={(v) => setField("category", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                    <ExpenseCategoryCombobox value={form.category} onValueChange={(v) => setField("category", v)} />
+                  </div>
                 </div>
               </div>
             )}
