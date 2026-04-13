@@ -17,13 +17,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity" },
-  { to: "/personal-income", icon: Wallet, label: "Personal Income" },
-  { to: "/projected-income", icon: TrendingUp, label: "Income Planner" },
-  { to: "/deductions", icon: Car, label: "Deductions" },
-  { to: "/taxes", icon: Calculator, label: "Taxes" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "" },
+  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses" },
+  { to: "/personal-income", icon: Wallet, label: "Personal Income", subtitle: "Actual income affecting taxes" },
+  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income" },
+  { to: "/deductions", icon: Car, label: "Deductions", subtitle: "" },
+  { to: "/taxes", icon: Calculator, label: "Taxes", subtitle: "Current vs forecasted tax estimates" },
+  { to: "/settings", icon: Settings, label: "Settings", subtitle: "" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

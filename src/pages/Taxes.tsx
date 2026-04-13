@@ -38,7 +38,7 @@ const QUARTERS = [
 
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const { estimate, isLoading: estLoading } = useTaxEstimate();
+  const { estimate, isLoading: estLoading, taxMode, setTaxMode } = useTaxEstimate();
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
 
@@ -136,7 +136,36 @@ export default function Taxes() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <h1 className="text-xl font-semibold text-foreground">Tax Summary</h1>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Tax Overview</h1>
+          <p className="text-sm text-muted-foreground">Current vs forecasted tax estimates</p>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
+          <button
+            onClick={() => setTaxMode("actual")}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              taxMode === "actual"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Actual Only
+          </button>
+          <button
+            onClick={() => setTaxMode("forecast")}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              taxMode === "forecast"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Include Planned Income
+          </button>
+        </div>
+      </div>
 
       {/* ── 5 Key Numbers ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
