@@ -56,6 +56,7 @@ interface FormState {
   title: string;
   income_type: string;
   gross_amount: string;
+  net_received: string;
   cost_basis: string;
   realized_gain_loss: string;
   federal_withholding: string;
@@ -71,6 +72,7 @@ const emptyForm: FormState = {
   title: "",
   income_type: "w2_user",
   gross_amount: "",
+  net_received: "",
   cost_basis: "",
   realized_gain_loss: "",
   federal_withholding: "",
@@ -145,6 +147,7 @@ export default function PersonalIncome() {
       title: entry.name,
       income_type: entry.income_type,
       gross_amount: String(entry.gross_amount),
+      net_received: "",
       cost_basis: entry.cost_basis != null ? String(entry.cost_basis) : "",
       realized_gain_loss: entry.realized_gain_loss != null ? String(entry.realized_gain_loss) : "",
       federal_withholding: String(entry.federal_withholding),
@@ -159,7 +162,10 @@ export default function PersonalIncome() {
   }
 
   function saveForm() {
-    if (!form.title.trim() || !form.date) return;
+    if (!form.title.trim() || !form.date || num(form.gross_amount) <= 0) return;
+    const grossAmt = num(form.gross_amount);
+    const computedNet = grossAmt - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax);
+    const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
     const payload = {
       name: form.title,
       income_date: form.date,
@@ -167,8 +173,9 @@ export default function PersonalIncome() {
       company: form.source_name,
       source_bucket: "personal" as const,
       tax_category: TAX_CATEGORY_MAP[form.income_type] || "ordinary",
-      gross_amount: num(form.gross_amount),
-      paycheck_amount: num(form.gross_amount),
+      gross_amount: grossAmt,
+      paycheck_amount: grossAmt,
+      deposited_amount: netReceived,
       cost_basis: isStockType(form.income_type) ? num(form.cost_basis) : null,
       realized_gain_loss: isStockType(form.income_type) ? num(form.realized_gain_loss) : null,
       federal_withholding: num(form.federal_withholding),
@@ -336,9 +343,24 @@ export default function PersonalIncome() {
             </div>
 
             <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Amount</Label>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Income *</Label>
               <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.gross_amount} onChange={(e) => setField("gross_amount", e.target.value)} />
+              <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
             </div>
+
+            {/* Net Received + Estimated Net */}
+            {grossAmount > 0 && (
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
+                  <Input type="number" min="0" step="0.01" placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax)))} value={form.net_received} onChange={(e) => setField("net_received", e.target.value)} />
+                  <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account after taxes and deductions</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax)))}</strong> based on your inputs
+                </p>
+              </div>
+            )}
 
             {/* Stock-specific fields */}
             {isStockType(form.income_type) && (

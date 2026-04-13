@@ -173,6 +173,7 @@ export default function Transactions() {
   // --- Save (unified for add + edit) ---
   function saveForm() {
     if (!form.name.trim() || !form.date) return;
+    if (isIncome && num(form.gross_amount) <= 0) return;
 
     if (isIncome) {
       const paycheckAmt = num(form.gross_amount);
@@ -453,31 +454,25 @@ export default function Transactions() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.amount}
-                  onChange={(e) => setField("amount", e.target.value)}
-                />
+            {!isIncome && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                  <Select value={form.category} onValueChange={(v) => setField("category", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      <SelectItem value="Income">Income</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                <Select value={form.category} onValueChange={(v) => setField("category", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    <SelectItem value="Income">Income</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            )}
 
-            {/* Income-only fields */}
             {isIncome && (
               <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
                 <p className="text-xs font-semibold text-muted-foreground">Income Details</p>
@@ -494,10 +489,25 @@ export default function Transactions() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Amount</Label>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Income *</Label>
                     <Input type="number" min="0" step="0.01" value={form.gross_amount} onChange={(e) => setField("gross_amount", e.target.value)} placeholder="0.00" />
+                    <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
                   </div>
                 </div>
+
+                {/* Net Received + Estimated Net */}
+                {grossIncome > 0 && (
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
+                      <Input type="number" min="0" step="0.01" placeholder={fmt(Math.max(0, grossIncome - num(form.taxes_withheld) - num(form.pre_tax_deductions) - num(form.retirement_401k)))} value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                      <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account after taxes and deductions</p>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                      Estimated Net: <strong>{fmt(Math.max(0, grossIncome - num(form.taxes_withheld) - num(form.pre_tax_deductions) - num(form.retirement_401k)))}</strong> based on your inputs
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label>
