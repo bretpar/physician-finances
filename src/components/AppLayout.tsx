@@ -11,13 +11,15 @@ import {
   X,
   LogOut,
   PiggyBank,
+  Wallet,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/transactions", icon: ArrowLeftRight, label: "Transactions" },
+  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity" },
+  { to: "/personal-income", icon: Wallet, label: "Personal Income" },
   { to: "/projected-income", icon: TrendingUp, label: "Income Planner" },
   { to: "/deductions", icon: Car, label: "Deductions" },
   { to: "/taxes", icon: Calculator, label: "Taxes" },
