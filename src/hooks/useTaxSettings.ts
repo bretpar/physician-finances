@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export type WithholdingMethod = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
+
 export interface TaxRates {
   id?: string;
   federalRate: number;
@@ -13,6 +15,7 @@ export interface TaxRates {
   ssWageCap: number;
   taxMode: "projected_brackets" | "manual_effective_rate";
   manualEffectiveTaxRate: number | null;
+  withholdingMethod: WithholdingMethod;
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -25,6 +28,7 @@ const DEFAULT_RATES: TaxRates = {
   ssWageCap: 168600,
   taxMode: "projected_brackets",
   manualEffectiveTaxRate: null,
+  withholdingMethod: "dynamic_actual",
 };
 
 export function useTaxSettings() {
@@ -33,7 +37,7 @@ export function useTaxSettings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tax_settings")
-        .select("id, federal_rate, state_rate, bno_rate, filing_status, last_year_tax, standard_deduction_override, ss_wage_cap, tax_mode, manual_effective_tax_rate")
+        .select("id, federal_rate, state_rate, bno_rate, filing_status, last_year_tax, standard_deduction_override, ss_wage_cap, tax_mode, manual_effective_tax_rate, withholding_method")
         .limit(1)
         .maybeSingle();
       if (error) throw error;
@@ -49,6 +53,7 @@ export function useTaxSettings() {
         ssWageCap: Number(data.ss_wage_cap) || 168600,
         taxMode: ((data as any).tax_mode as TaxRates["taxMode"]) || "projected_brackets",
         manualEffectiveTaxRate: (data as any).manual_effective_tax_rate != null ? Number((data as any).manual_effective_tax_rate) : null,
+        withholdingMethod: ((data as any).withholding_method as WithholdingMethod) || "dynamic_actual",
       } as TaxRates;
     },
   });
@@ -67,6 +72,8 @@ export function useUpdateTaxSettings() {
         ...(rest.lastYearTax !== undefined && { last_year_tax: rest.lastYearTax }),
         ...(rest.standardDeductionOverride !== undefined && { standard_deduction_override: rest.standardDeductionOverride }),
         ...(rest.ssWageCap !== undefined && { ss_wage_cap: rest.ssWageCap }),
+        ...(rest.withholdingMethod !== undefined && { withholding_method: rest.withholdingMethod }),
+        ...(rest.manualEffectiveTaxRate !== undefined && { manual_effective_tax_rate: rest.manualEffectiveTaxRate }),
       }).eq("id", id);
       if (error) throw error;
     },

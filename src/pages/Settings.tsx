@@ -7,16 +7,18 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Plus, Trash2, Building2, Check, Landmark, RefreshCw, Loader2,
-  Shield, User, Crown,
+  Shield, User, Crown, Calculator,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useTaxSettings, useUpdateTaxSettings, type WithholdingMethod } from "@/hooks/useTaxSettings";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -51,6 +53,8 @@ export default function Settings() {
   const { companies, addCompany, updateCompany, removeCompany } = useCompanies();
   const { organizationId, userRole, user } = useAuth();
   const isAdminOrOwner = userRole === "owner" || userRole === "admin";
+  const { data: taxSettingsData } = useTaxSettings();
+  const updateTaxSettingsMutation = useUpdateTaxSettings();
 
   /* Profile */
   const [profile, setProfile] = useState<Profile>({ firstName: "", lastName: "", email: "" });
@@ -194,6 +198,76 @@ export default function Settings() {
           {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
           <p className="text-xs text-muted-foreground mt-1">This will be your login identifier</p>
         </div>
+      </section>
+
+      {/* ─── Tax Withholding Method ─── */}
+      <section className="glass-card rounded-xl p-6 space-y-5">
+        <div className="flex items-center gap-2">
+          <Calculator className="h-4 w-4 text-primary" />
+          <h3 className="text-base font-semibold text-card-foreground">Tax Withholding Method</h3>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-3">
+          Choose how withholding recommendations are calculated across the app. This applies to both Business Activity and Personal Income.
+        </p>
+
+        <RadioGroup
+          value={taxSettingsData?.withholdingMethod || "dynamic_actual"}
+          onValueChange={(v: string) => {
+            if (!taxSettingsData?.id) return;
+            updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, withholdingMethod: v as WithholdingMethod });
+          }}
+          className="space-y-3"
+        >
+          {/* Flat Estimate */}
+          <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+            <RadioGroupItem value="flat_estimate" className="mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-card-foreground">Flat Estimate</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Use a fixed percentage for all withholding recommendations. Simple and predictable.
+              </p>
+              {(taxSettingsData?.withholdingMethod === "flat_estimate") && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">Rate (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    className="w-24 h-8"
+                    value={taxSettingsData?.manualEffectiveTaxRate ?? 20}
+                    onChange={(e) => {
+                      if (!taxSettingsData?.id) return;
+                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, manualEffectiveTaxRate: parseFloat(e.target.value) || 0 });
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </label>
+
+          {/* Dynamic — Actual */}
+          <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+            <RadioGroupItem value="dynamic_actual" className="mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Current Income</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Calculates recommendations using all actual income entered across business, personal, and capital gains. Uses your real tax brackets for the most accurate estimate based on what you've earned so far.
+              </p>
+            </div>
+          </label>
+
+          {/* Dynamic — Planner */}
+          <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+            <RadioGroupItem value="dynamic_planner" className="mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Income Planner</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Includes projected future income from your Income Planner in addition to actual income. Provides the most forward-looking bracket estimation for proactive tax planning.
+              </p>
+            </div>
+          </label>
+        </RadioGroup>
       </section>
 
       {/* ─── Tax Settings ─── */}
