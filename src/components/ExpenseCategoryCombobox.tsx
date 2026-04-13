@@ -76,9 +76,15 @@ export function ExpenseCategoryCombobox({ value, onValueChange }: Props) {
     [search]
   );
 
+  const isSearching = search.length > 0;
+
   const filteredCommon = filterCats(COMMON_CATEGORIES);
-  const filteredOther = filterCats(OTHER_CATEGORIES);
-  const allFiltered = [...filteredCommon, ...filteredOther];
+  // When not searching: show "All categories" excluding common ones to avoid dupes
+  // When searching: show flat filtered results from all categories
+  const filteredAll = isSearching
+    ? filterCats(ALL_CATEGORIES)
+    : filterCats(ALL_CATEGORIES.filter((c) => !COMMON_CATEGORIES.includes(c)));
+  const allFiltered = isSearching ? filteredAll : [...filteredCommon, ...filteredAll];
 
   useEffect(() => {
     setHighlightIdx(0);
