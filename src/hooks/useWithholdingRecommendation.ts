@@ -1,15 +1,14 @@
 /**
  * Smart Withholding Recommendation Engine
  *
- * Calculates recommended tax withholding for a given income transaction using
- * projected annual tax model with marginal bracket logic.
+ * Uses the user's global withholding method (from Settings) and combined
+ * total income across all sections (business + personal + stocks + projected)
+ * to produce a single consistent recommendation.
  *
- * Per-entry calculation:
- * 1. Compute net taxable = gross - retirement401k - preTaxDeductions
- * 2. Apply effective annual rate to net taxable
- * 3. Add SE tax for non-W2 income
- * 4. Subtract taxes already withheld (W2 employer withholding)
- * 5. Result = additional amount to set aside
+ * Methods:
+ * - flat_estimate: user-defined flat % on net taxable
+ * - dynamic_actual: bracket-based using actual income only
+ * - dynamic_planner: bracket-based using actual + projected income
  */
 
 import { useMemo } from "react";
@@ -41,21 +40,23 @@ export interface WithholdingRecommendation {
   estimatedRemainingTax: number;
   /** Effective tax rate on total income */
   effectiveRate: number;
-  /** Whether using manual override mode */
+  /** Whether using flat rate mode */
   isManualMode: boolean;
   /** Whether the W2 employer over-withheld */
   isOverWithheld: boolean;
+  /** Label describing which method is used */
+  methodLabel: string;
 }
 
 /**
  * Hook: returns a function to compute recommendation for a given income entry.
  *
- * Uses the full tax estimate (which already includes actual + projected income,
- * deductions, brackets, SE tax, B&O) and the effective rate to compute the
- * per-entry tax on net taxable income.
+ * The recommendation uses the user's global withholding method from Settings
+ * and the full combined tax picture (all income sources) to compute accurate
+ * per-entry withholding.
  */
 export function useWithholdingRecommendation() {
-  const { estimate, isLoading: estLoading } = useTaxEstimate();
+  const { actualEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
 
   const isLoading = estLoading || settingsLoading;
@@ -71,19 +72,18 @@ export function useWithholdingRecommendation() {
         alreadyIncludedInEstimate = false,
       } = input;
 
-      if (!estimate || !settings || grossIncome <= 0) return null;
+      if (!settings || grossIncome <= 0) return null;
 
       const isW2 = incomeType === "W2";
+      const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
 
       // Net taxable income for this entry
       const netTaxableForEntry = Math.max(0, grossIncome - retirement401k - preTaxDeductions);
 
-      // MANUAL MODE: flat rate on net taxable
-      const taxMode = (settings as any).taxMode || "projected_brackets";
-      const manualRate = (settings as any).manualEffectiveTaxRate;
-
-      if (taxMode === "manual_effective_rate" && manualRate != null && manualRate > 0) {
-        let taxOnEntry = netTaxableForEntry * (manualRate / 100);
+      // FLAT ESTIMATE MODE
+      if (withholdingMethod === "flat_estimate") {
+        const flatRate = settings.manualEffectiveTaxRate ?? 20;
+        let taxOnEntry = netTaxableForEntry * (flatRate / 100);
 
         // Add SE tax for non-W2
         if (!isW2) {
@@ -94,18 +94,26 @@ export function useWithholdingRecommendation() {
 
         return {
           recommendedWithholding: rec,
-          annualIncomeEstimate: estimate.totalIncome,
-          estimatedTaxableIncome: estimate.taxableIncome,
-          estimatedAnnualTax: estimate.totalTaxLiability,
-          taxesAlreadyCovered: estimate.taxesAlreadyWithheld,
-          estimatedRemainingTax: estimate.remainingLiability,
-          effectiveRate: estimate.effectiveRate,
+          annualIncomeEstimate: 0,
+          estimatedTaxableIncome: 0,
+          estimatedAnnualTax: 0,
+          taxesAlreadyCovered: 0,
+          estimatedRemainingTax: 0,
+          effectiveRate: flatRate,
           isManualMode: true,
           isOverWithheld: rec < 0,
+          methodLabel: `Flat ${flatRate}% estimate`,
         };
       }
 
-      // PROJECTED BRACKET MODE (default)
+      // DYNAMIC MODES: pick the right estimate
+      const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : actualEstimate;
+      if (!estimate) return null;
+
+      const methodLabel = withholdingMethod === "dynamic_planner"
+        ? "Based on actual + planned income"
+        : "Based on combined actual income";
+
       // W2: use federal-only rate (SE + B&O don't apply to W2 income)
       // 1099/K1: use blended rate (already includes federal + SE + B&O)
       const rateToUse = isW2 ? estimate.federalEffectiveRate : estimate.effectiveRate;
@@ -132,9 +140,10 @@ export function useWithholdingRecommendation() {
         effectiveRate: rateToUse,
         isManualMode: false,
         isOverWithheld: finalRecommendation < 0,
+        methodLabel,
       };
     };
-  }, [estimate, settings]);
+  }, [actualEstimate, forecastEstimate, settings]);
 
   return { getRecommendation, isLoading };
 }
