@@ -12,6 +12,7 @@ import {
   LogOut,
   PiggyBank,
   Wallet,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ const navItems = [
   { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income" },
   { to: "/deductions", icon: Car, label: "Deductions", subtitle: "" },
   { to: "/taxes", icon: Calculator, label: "Taxes", subtitle: "Current vs forecasted tax estimates" },
+  { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries" },
   { to: "/settings", icon: Settings, label: "Settings", subtitle: "" },
 ];
 

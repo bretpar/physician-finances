@@ -12,6 +12,7 @@ import PersonalIncome from "@/pages/PersonalIncome";
 import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
 import Taxes from "@/pages/Taxes";
+import Reports from "@/pages/Reports";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import ProjectedIncome from "@/pages/ProjectedIncome";
@@ -44,6 +45,7 @@ function ProtectedRoutes() {
           <Route path="/projected-income" element={<ProjectedIncome />} />
           <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
