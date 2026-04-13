@@ -186,6 +186,7 @@ export default function Transactions() {
   // --- Save (unified for add + edit) ---
   function saveForm() {
     if (!form.name.trim() || !form.date) return;
+    if (!isIncome && !form.company) { toast.error("Please select a company"); return; }
     if (isIncome && num(form.gross_amount) <= 0) return;
 
     if (isIncome) {
