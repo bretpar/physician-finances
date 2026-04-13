@@ -331,25 +331,51 @@ export default function Transactions() {
       </div>
 
       {/* Search + filter tabs */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          </div>
+          <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30">
+            {(["all", "income", "expense"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setFilterType(tab)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
+                  filterType === tab
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "all" ? "All" : tab === "income" ? "Income" : "Expenses"}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30">
-          {(["all", "income", "expense"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilterType(tab)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
-                filterType === tab
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab === "all" ? "All" : tab === "income" ? "Income" : "Expenses"}
-            </button>
-          ))}
+        {/* Company + date range filters */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Select value={filterCompany} onValueChange={setFilterCompany}>
+            <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
+              <SelectValue placeholder="All Companies" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Companies</SelectItem>
+              {companyFilterOptions.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2 items-center">
+            <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="From" />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="To" />
+            {(filterDateFrom || filterDateTo || filterCompany !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
