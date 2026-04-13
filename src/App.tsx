@@ -52,7 +52,7 @@ function ProtectedRoutes() {
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />
           <Route path="/mileage" element={<Navigate to="/deductions" replace />} />
           <Route path="/stocks" element={<Navigate to="/" replace />} />
-          <Route path="/reports" element={<Navigate to="/" replace />} />
+          <Route path="/stocks" element={<Navigate to="/" replace />} />
           <Route path="/tax-planning" element={<Navigate to="/taxes" replace />} />
           <Route path="/tax-reserve" element={<Navigate to="/taxes" replace />} />
           <Route path="/quarterly-taxes" element={<Navigate to="/taxes" replace />} />
