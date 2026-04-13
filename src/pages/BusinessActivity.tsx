@@ -44,7 +44,7 @@ const emptyForm: TxFormState = {
   name: "",
   amount: "",
   type: "expense",
-  category: "Uncategorized",
+  category: "",
   notes: "",
   company: "",
   income_type: "1099",
@@ -382,7 +382,7 @@ export default function Transactions() {
                   </span>
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {tx.category}
+                  {mapLegacyCategory(tx.category)}
                 </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
