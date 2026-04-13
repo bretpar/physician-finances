@@ -792,6 +792,7 @@ export type Database = {
           tax_mode: string
           updated_at: string
           user_id: string
+          withholding_method: string
         }
         Insert: {
           bno_rate?: number
@@ -808,6 +809,7 @@ export type Database = {
           tax_mode?: string
           updated_at?: string
           user_id: string
+          withholding_method?: string
         }
         Update: {
           bno_rate?: number
@@ -824,6 +826,7 @@ export type Database = {
           tax_mode?: string
           updated_at?: string
           user_id?: string
+          withholding_method?: string
         }
         Relationships: [
           {
