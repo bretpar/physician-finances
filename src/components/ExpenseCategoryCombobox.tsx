@@ -18,24 +18,33 @@ const COMMON_CATEGORIES = [
   "Utilities",
 ];
 
-const OTHER_CATEGORIES = [
+const ALL_CATEGORIES = [
+  "Advertising",
   "Car and truck expenses",
   "Commissions and fees",
   "Contract labor",
   "Depletion",
   "Depreciation / Section 179",
   "Employee benefit programs",
+  "Insurance",
   "Interest - mortgage",
   "Interest - other",
-  "Pension and profit-sharing plans",
-  "Rent or lease - vehicles, machinery, equipment",
-  "Rent or lease - other business property",
-  "Repairs and maintenance",
-  "Wages",
+  "Legal and professional services",
+  "Meals",
+  "Office expense",
   "Other expenses",
+  "Pension and profit-sharing plans",
+  "Rent or lease - other business property",
+  "Rent or lease - vehicles, machinery, equipment",
+  "Repairs and maintenance",
+  "Supplies",
+  "Taxes and licenses",
+  "Travel",
+  "Utilities",
+  "Wages",
 ];
 
-export const EXPENSE_CATEGORIES = [...COMMON_CATEGORIES, ...OTHER_CATEGORIES];
+export const EXPENSE_CATEGORIES = ALL_CATEGORIES;
 
 /** Map legacy saved categories to current Schedule C labels */
 export function mapLegacyCategory(cat: string): string {
