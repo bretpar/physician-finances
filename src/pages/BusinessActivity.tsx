@@ -463,13 +463,7 @@ export default function Transactions() {
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                  <Select value={form.category} onValueChange={(v) => setField("category", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      <SelectItem value="Income">Income</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <ExpenseCategoryCombobox value={form.category} onValueChange={(v) => setField("category", v)} />
                 </div>
               </div>
             )}
