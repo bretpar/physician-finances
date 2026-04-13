@@ -392,7 +392,10 @@ export default function PersonalIncome() {
                       </p>
                     ) : null}
                     <p className="text-[11px] text-muted-foreground">
-                      Based on {fmt(grossAmount - num(form.retirement_pretax) - num(form.deductions_pre_tax))} net taxable at {recommendation.effectiveRate.toFixed(1)}% rate
+                      {recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate
+                    </p>
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Withholding method controlled in Settings
                     </p>
                   </div>
                 )}

@@ -543,10 +543,12 @@ export default function Transactions() {
                     ) : null}
                     {!recommendation.isManualMode && recommendedWithholding !== 0 && (
                       <p className="text-[11px] text-muted-foreground">
-                        Based on {fmt(grossIncome - num(form.retirement_401k) - num(form.pre_tax_deductions))} net taxable at {recommendation.effectiveRate.toFixed(1)}% effective rate
-                        {form.income_type !== "W2" ? " + SE tax" : ""}.
+                        {recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate
                       </p>
                     )}
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Withholding method controlled in Settings
+                    </p>
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Actual amount withheld</Label>
                       <Input
