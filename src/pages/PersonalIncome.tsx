@@ -348,6 +348,20 @@ export default function PersonalIncome() {
               <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
             </div>
 
+            {/* Net Received + Estimated Net */}
+            {grossAmount > 0 && (
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
+                  <Input type="number" min="0" step="0.01" placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax)))} value={form.net_received} onChange={(e) => setField("net_received", e.target.value)} />
+                  <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account after taxes and deductions</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax)))}</strong> based on your inputs
+                </p>
+              </div>
+            )}
+
             {/* Stock-specific fields */}
             {isStockType(form.income_type) && (
               <div className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3 bg-muted/20">
