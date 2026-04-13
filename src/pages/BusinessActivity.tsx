@@ -265,6 +265,7 @@ export default function Transactions() {
           amount,
           category: form.category,
           notes: form.notes,
+          entity: form.company || "Unassigned",
         } as any);
       } else {
         addMutation.mutate({
@@ -274,6 +275,7 @@ export default function Transactions() {
           category: form.category,
           notes: form.notes,
           transaction_type: "expense",
+          entity: form.company || "Unassigned",
         });
       }
     }
