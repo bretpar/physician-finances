@@ -2,73 +2,86 @@ import { useMemo } from "react";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import type { TaxRates } from "@/hooks/useTaxSettings";
 import type { IncomeEntry } from "@/hooks/useIncome";
-import { calculateFullEstimate, type TaxEstimate } from "@/lib/taxEngine";
+import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 
 export interface DashboardSummary {
+  businessIncome: number;
+  businessExpenses: number;
+  businessNetIncome: number;
+  personalIncome: number;
+  projectedIncome: number;
   totalIncome: number;
   totalExpenses: number;
   netProfit: number;
   w2Income: number;
   w2Withheld: number;
-  selfEmploymentIncome: number;
-  selfEmploymentProfit: number;
-  estimatedTax: number;
-  seTax: number;
-  bnoTax: number;
-  totalTaxLiability: number;
-  remainingLiability: number;
-  quarterlyEstimate: number;
-  totalPreTaxDeductions: number;
-  total401k: number;
+  totalWithheld: number;
 }
 
 export function useDashboardSummary(
   transactions: DbTransaction[] | undefined,
   rates: TaxRates | undefined,
-  incomeEntries?: IncomeEntry[]
+  incomeEntries?: IncomeEntry[],
+  personalEntries?: PersonalIncomeEntry[]
 ): DashboardSummary {
   return useMemo(() => {
     const empty: DashboardSummary = {
+      businessIncome: 0, businessExpenses: 0, businessNetIncome: 0,
+      personalIncome: 0, projectedIncome: 0,
       totalIncome: 0, totalExpenses: 0, netProfit: 0,
-      w2Income: 0, w2Withheld: 0, selfEmploymentIncome: 0, selfEmploymentProfit: 0,
-      estimatedTax: 0, seTax: 0, bnoTax: 0,
-      totalTaxLiability: 0, remainingLiability: 0, quarterlyEstimate: 0,
-      totalPreTaxDeductions: 0, total401k: 0,
+      w2Income: 0, w2Withheld: 0, totalWithheld: 0,
     };
     if (!rates) return empty;
 
-    const entries = incomeEntries || [];
-    const totalIncome = entries.reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const w2Income = entries.filter((e) => e.income_type === "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const seIncome = entries.filter((e) => e.income_type !== "W2").reduce((s, e) => s + Number(e.paycheck_amount), 0);
-    const w2Withheld = entries.reduce((s, e) => s + Number(e.taxes_withheld), 0);
-    const preTaxDeductions = entries.reduce((s, e) => s + Number(e.pre_tax_deductions), 0);
-    const retirement401k = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
+    // Business income and expenses from transactions
+    const txs = transactions || [];
+    const businessIncome = txs
+      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    const businessExpenses = txs
+      .filter((t) => (t.transaction_type === "expense" || !t.transaction_type) && !t.is_deleted && t.amount > 0)
+      .reduce((s, t) => s + t.amount, 0);
+    const businessNetIncome = businessIncome - businessExpenses;
 
-    const expenseRows = (transactions || []).filter((t) => t.amount < 0);
-    const totalExpenses = Math.abs(expenseRows.reduce((s, t) => s + t.amount, 0));
+    // Personal income from personal income entries
+    const personal = personalEntries || [];
+    const personalIncome = personal.reduce((s, e) => {
+      const amt = Number(e.gross_amount);
+      return s + (e.income_type === "loss" ? -Math.abs(amt) : amt);
+    }, 0);
+    const w2Income = personal
+      .filter((e) => e.income_type === "w2_user" || e.income_type === "w2_partner")
+      .reduce((s, e) => s + Number(e.gross_amount), 0);
+    const w2Withheld = personal
+      .reduce((s, e) => s + Number(e.federal_withholding || 0), 0);
 
-    const est = calculateFullEstimate({
-      totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
-      businessDeductions: totalExpenses, mileageDeduction: 0,
-      taxesWithheld: w2Withheld, filingStatus: rates.filingStatus,
-      lastYearTax: rates.lastYearTax, bnoRate: rates.bnoRate / 100,
-    });
+    // Business withholding from transactions
+    const txWithheld = txs
+      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
+
+    // Legacy business income entries withholding
+    const legacyWithheld = (incomeEntries || [])
+      .reduce((s, e) => s + Number(e.taxes_withheld), 0);
+
+    const totalWithheld = Math.max(txWithheld, legacyWithheld) + w2Withheld;
+
+    const totalIncome = businessIncome + personalIncome;
+    const totalExpenses = businessExpenses;
+    const netProfit = totalIncome - totalExpenses;
 
     return {
-      totalIncome, totalExpenses,
-      netProfit: totalIncome - totalExpenses,
-      w2Income, w2Withheld,
-      selfEmploymentIncome: seIncome,
-      selfEmploymentProfit: seIncome - totalExpenses,
-      estimatedTax: est.federalTax,
-      seTax: est.seTax.total,
-      bnoTax: est.bnoTax,
-      totalTaxLiability: est.totalTaxLiability,
-      remainingLiability: est.remainingLiability,
-      quarterlyEstimate: est.quarterlyEstimate,
-      totalPreTaxDeductions: preTaxDeductions,
-      total401k: retirement401k,
+      businessIncome,
+      businessExpenses,
+      businessNetIncome,
+      personalIncome,
+      projectedIncome: 0, // filled by tax estimate
+      totalIncome,
+      totalExpenses,
+      netProfit,
+      w2Income,
+      w2Withheld,
+      totalWithheld,
     };
-  }, [transactions, rates, incomeEntries]);
+  }, [transactions, rates, incomeEntries, personalEntries]);
 }

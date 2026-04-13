@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, DollarSign, PiggyBank, CheckCircle2, AlertTriangle } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, PiggyBank, CheckCircle2, AlertTriangle, Wallet, Briefcase } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import StatCard from "@/components/StatCard";
 import RecentTransactions from "@/components/RecentTransactions";
@@ -6,6 +6,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,14 +19,15 @@ export default function Dashboard() {
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
+  const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: savings = [] } = useTaxSavings();
   const { estimate } = useTaxEstimate();
-  const summary = useDashboardSummary(transactions, rates, incomeEntries);
+  const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
-  if (txLoading || ratesLoading || incLoading) {
+  if (txLoading || ratesLoading || incLoading || piLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground">Loading…</p>
@@ -43,15 +45,43 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      {/* 4 key stats */}
+      {/* Key income breakdown */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Income" value={fmt(summary.totalIncome)} icon={TrendingUp} variant="success" />
-        <StatCard label="Total Expenses" value={fmt(summary.totalExpenses)} icon={TrendingDown} variant="destructive" />
-        <StatCard label="Net Profit" value={fmt(summary.netProfit)} icon={DollarSign} variant="default" />
-        <StatCard label="Set Aside for Tax" value={fmt(remaining)} icon={PiggyBank} variant="warning" />
+        <StatCard label="Business Net Income" value={fmt(summary.businessNetIncome)} icon={Briefcase} variant="default" />
+        <StatCard label="Personal Income" value={fmt(summary.personalIncome)} icon={Wallet} variant="success" />
+        <StatCard label="Business Expenses" value={fmt(summary.businessExpenses)} icon={TrendingDown} variant="destructive" />
+        <StatCard label="Tax Already Withheld" value={fmt(summary.totalWithheld)} icon={PiggyBank} variant="warning" />
       </div>
 
-      {/* Tax status — the one question: "Where do I stand?" */}
+      {/* Tax overview cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="pt-3 pb-2">
+            <p className="text-xs text-muted-foreground">AGI Estimate</p>
+            <p className="text-lg font-bold tabular-nums">{fmt(estimate?.agi ?? 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-3 pb-2">
+            <p className="text-xs text-muted-foreground">Estimated Tax Owed</p>
+            <p className="text-lg font-bold tabular-nums text-destructive">{fmt(estOwed)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-3 pb-2">
+            <p className="text-xs text-muted-foreground">Tax Already Withheld</p>
+            <p className="text-lg font-bold tabular-nums text-emerald-600">{fmt(withheld)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-3 pb-2">
+            <p className="text-xs text-muted-foreground">Estimated Tax Gap</p>
+            <p className={cn("text-lg font-bold tabular-nums", remaining > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(remaining)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tax status */}
       <Card className={cn("border-2", ok ? "border-green-500/30 bg-green-50/30 dark:bg-green-950/10" : "border-amber-400/30 bg-amber-50/30 dark:bg-amber-950/10")}>
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -62,7 +92,7 @@ export default function Dashboard() {
         <CardContent className="space-y-3">
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground">Estimated Owed</p>
+              <p className="text-muted-foreground">Remaining Tax</p>
               <p className="font-semibold">{fmt(remaining)}</p>
             </div>
             <div>
