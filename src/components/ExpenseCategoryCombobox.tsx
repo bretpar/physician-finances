@@ -159,66 +159,73 @@ export function ExpenseCategoryCombobox({ value, onValueChange }: Props) {
                 No matching categories
               </p>
             )}
-            {filteredCommon.length > 0 && (
-              <>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1">
-                  Common
-                </p>
-                {filteredCommon.map((cat, i) => (
-                  <button
-                    key={cat}
-                    data-idx={i}
-                    onClick={() => select(cat)}
-                    className={cn(
-                      "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer",
-                      highlightIdx === i
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-muted/60"
-                    )}
-                  >
-                    <Check
-                      className={cn(
-                        "h-3.5 w-3.5 shrink-0",
-                        value === cat ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {cat}
-                  </button>
-                ))}
-              </>
-            )}
-            {filteredOther.length > 0 && (
+            {isSearching ? (
+              /* Flat filtered list when searching */
+              filteredAll.map((cat, i) => (
+                <button
+                  key={cat}
+                  data-idx={i}
+                  onClick={() => select(cat)}
+                  className={cn(
+                    "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer",
+                    highlightIdx === i ? "bg-accent text-accent-foreground" : "hover:bg-muted/60"
+                  )}
+                >
+                  <Check className={cn("h-3.5 w-3.5 shrink-0", value === cat ? "opacity-100" : "opacity-0")} />
+                  {cat}
+                </button>
+              ))
+            ) : (
+              /* Sectioned view: Common + All categories */
               <>
                 {filteredCommon.length > 0 && (
-                  <div className="my-1 border-t border-border" />
-                )}
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1">
-                  Other
-                </p>
-                {filteredOther.map((cat, j) => {
-                  const idx = filteredCommon.length + j;
-                  return (
-                    <button
-                      key={cat}
-                      data-idx={idx}
-                      onClick={() => select(cat)}
-                      className={cn(
-                        "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer",
-                        highlightIdx === idx
-                          ? "bg-accent text-accent-foreground"
-                          : "hover:bg-muted/60"
-                      )}
-                    >
-                      <Check
+                  <>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1">
+                      Common categories
+                    </p>
+                    {filteredCommon.map((cat, i) => (
+                      <button
+                        key={cat}
+                        data-idx={i}
+                        onClick={() => select(cat)}
                         className={cn(
-                          "h-3.5 w-3.5 shrink-0",
-                          value === cat ? "opacity-100" : "opacity-0"
+                          "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer",
+                          highlightIdx === i ? "bg-accent text-accent-foreground" : "hover:bg-muted/60"
                         )}
-                      />
-                      {cat}
-                    </button>
-                  );
-                })}
+                      >
+                        <Check className={cn("h-3.5 w-3.5 shrink-0", value === cat ? "opacity-100" : "opacity-0")} />
+                        {cat}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {filteredAll.length > 0 && (
+                  <>
+                    {filteredCommon.length > 0 && (
+                      <div className="my-1 border-t border-border" />
+                    )}
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1">
+                      All categories
+                    </p>
+                    {filteredAll.map((cat, j) => {
+                      const idx = filteredCommon.length + j;
+                      return (
+                        <button
+                          key={cat}
+                          data-idx={idx}
+                          onClick={() => select(cat)}
+                          className={cn(
+                            "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer",
+                            highlightIdx === idx ? "bg-accent text-accent-foreground" : "hover:bg-muted/60"
+                          )}
+                        >
+                          <Check className={cn("h-3.5 w-3.5 shrink-0", value === cat ? "opacity-100" : "opacity-0")} />
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
               </>
             )}
           </div>
