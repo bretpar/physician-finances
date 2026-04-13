@@ -152,7 +152,7 @@ export function ExpenseCategoryCombobox({ value, onValueChange }: Props) {
             className="h-8 text-sm"
           />
         </div>
-        <ScrollArea className="max-h-[220px]">
+        <div className="max-h-[220px] overflow-y-auto overscroll-contain">
           <div ref={listRef} className="p-1">
             {allFiltered.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
