@@ -142,7 +142,11 @@ export function ExpenseCategoryCombobox({ value, onValueChange }: Props) {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+        onWheel={(e) => e.stopPropagation()}
+      >
         <div className="p-2 border-b border-border" onKeyDown={handleKeyDown}>
           <Input
             ref={inputRef}
@@ -152,7 +156,10 @@ export function ExpenseCategoryCombobox({ value, onValueChange }: Props) {
             className="h-8 text-sm"
           />
         </div>
-        <div className="max-h-[220px] overflow-y-auto overscroll-contain">
+        <div
+          className="max-h-[240px] overflow-y-auto overscroll-contain"
+          style={{ pointerEvents: "auto" }}
+        >
           <div ref={listRef} className="p-1">
             {allFiltered.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
