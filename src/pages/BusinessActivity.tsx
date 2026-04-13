@@ -68,6 +68,9 @@ export default function Transactions() {
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
+  const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
+  const [filterDateTo, setFilterDateTo] = useState<string>("");
 
   // Unified form
   const [showForm, setShowForm] = useState(false);
@@ -108,9 +111,18 @@ export default function Transactions() {
     return transactions.filter((t) => {
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
+      if (filterCompany !== "all" && t.entity !== filterCompany) return false;
+      if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
+      if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterType]);
+  }, [transactions, search, filterType, filterCompany, filterDateFrom, filterDateTo]);
+
+  // Unique company names from transactions for filter
+  const companyFilterOptions = useMemo(() => {
+    const names = new Set(transactions.map((t) => t.entity).filter(Boolean));
+    return [...names].sort();
+  }, [transactions]);
 
   const setField = (key: keyof TxFormState, value: string) => {
     setForm((prev) => {
@@ -174,6 +186,7 @@ export default function Transactions() {
   // --- Save (unified for add + edit) ---
   function saveForm() {
     if (!form.name.trim() || !form.date) return;
+    if (!isIncome && !form.company) { toast.error("Please select a company"); return; }
     if (isIncome && num(form.gross_amount) <= 0) return;
 
     if (isIncome) {
@@ -253,6 +266,7 @@ export default function Transactions() {
           amount,
           category: form.category,
           notes: form.notes,
+          entity: form.company || "Unassigned",
         } as any);
       } else {
         addMutation.mutate({
@@ -262,6 +276,7 @@ export default function Transactions() {
           category: form.category,
           notes: form.notes,
           transaction_type: "expense",
+          entity: form.company || "Unassigned",
         });
       }
     }
@@ -317,34 +332,61 @@ export default function Transactions() {
       </div>
 
       {/* Search + filter tabs */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          </div>
+          <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30">
+            {(["all", "income", "expense"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setFilterType(tab)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
+                  filterType === tab
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "all" ? "All" : tab === "income" ? "Income" : "Expenses"}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30">
-          {(["all", "income", "expense"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilterType(tab)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
-                filterType === tab
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab === "all" ? "All" : tab === "income" ? "Income" : "Expenses"}
-            </button>
-          ))}
+        {/* Company + date range filters */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Select value={filterCompany} onValueChange={setFilterCompany}>
+            <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
+              <SelectValue placeholder="All Companies" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Companies</SelectItem>
+              {companyFilterOptions.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2 items-center">
+            <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="From" />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="To" />
+            {(filterDateFrom || filterDateTo || filterCompany !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Table header */}
-        <div className="hidden sm:grid sm:grid-cols-[100px_1fr_120px_80px_120px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-[100px_1fr_100px_120px_80px_110px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>Date</span>
           <span>Transaction</span>
+          <span>Company</span>
           <span className="text-right">Amount</span>
           <span className="text-center">Type</span>
           <span>Category</span>
@@ -361,13 +403,16 @@ export default function Transactions() {
             return (
               <div
                 key={tx.id}
-                className="flex flex-col sm:grid sm:grid-cols-[100px_1fr_120px_80px_120px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
+                className="flex flex-col sm:grid sm:grid-cols-[100px_1fr_100px_120px_80px_110px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
               >
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
                 <span className="text-sm font-medium text-foreground truncate">
                   {tx.vendor}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {tx.entity || "Unassigned"}
                 </span>
                 <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
                   {isIncomeTx ? "+" : ""}{fmt(displayAmount)}
@@ -456,14 +501,27 @@ export default function Transactions() {
             </div>
 
             {!isIncome && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
+                  <Select value={form.company} onValueChange={(v) => setField("company", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                    <SelectContent>
+                      {companies.map((c) => (
+                        <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                  <ExpenseCategoryCombobox value={form.category} onValueChange={(v) => setField("category", v)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                    <ExpenseCategoryCombobox value={form.category} onValueChange={(v) => setField("category", v)} />
+                  </div>
                 </div>
               </div>
             )}
