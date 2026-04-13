@@ -68,6 +68,9 @@ export default function Transactions() {
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
+  const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
+  const [filterDateTo, setFilterDateTo] = useState<string>("");
 
   // Unified form
   const [showForm, setShowForm] = useState(false);
