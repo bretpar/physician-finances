@@ -229,7 +229,7 @@ export function ExpenseCategoryCombobox({ value, onValueChange }: Props) {
               </>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );
