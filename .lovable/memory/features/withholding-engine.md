@@ -1,28 +1,38 @@
 ---
 name: Withholding Recommendation Engine
-description: Smart tax withholding using projected annual income + marginal brackets, with per-income-type rate selection
+description: Global withholding method in Settings controls recommendations across all income sections using combined total income
 type: feature
 ---
 
+## Global Withholding Method (tax_settings.withholding_method)
+Three options set in Settings → Tax Withholding Method:
+- `flat_estimate` — user-defined flat %. Uses `manual_effective_tax_rate` field. Adds SE tax for non-W2.
+- `dynamic_actual` (default) — bracket-based using actualEstimate (all real income)
+- `dynamic_planner` — bracket-based using forecastEstimate (actual + projected). Premium-ready.
+
 ## Engine Location
-- `src/hooks/useWithholdingRecommendation.ts` — main hook
-- `src/lib/taxEngine.ts` — bracket definitions, progressive tax calculation, federalEffectiveRate
-- `src/hooks/useTaxEstimate.ts` — full annual estimate combining actual + projected income
+- `src/hooks/useWithholdingRecommendation.ts` — main hook, reads global method from settings
+- `src/lib/taxEngine.ts` — bracket definitions, progressive tax calculation
+- `src/hooks/useTaxEstimate.ts` — produces actualEstimate and forecastEstimate
 
-## Calculation Flow
-1. Accept per-entry details: grossIncome, incomeType, taxesAlreadyWithheld, retirement401k, preTaxDeductions
-2. Compute net taxable = gross - retirement401k - preTaxDeductions
-3. Select rate by income type:
-   - W2: `federalEffectiveRate` (federal income tax only, no SE/B&O)
+## Combined Income Sources
+Recommendations always use the FULL income picture:
+- Business Activity transactions
+- Personal & External Income entries
+- Stock/capital gains
+- Deductions, retirement contributions
+- Taxes already withheld/set aside
+
+## Per-Entry Calculation
+1. Net taxable = gross - retirement401k - preTaxDeductions
+2. Select rate by income type:
+   - W2: `federalEffectiveRate` (no SE/B&O)
    - 1099/K1: `effectiveRate` (blended: federal + SE + B&O)
-4. Tax on entry = netTaxable × rate
-5. Subtract taxesAlreadyWithheld → recommended withholding
-6. W2 allows negative (over-withheld); 1099/K1 floors at 0
+3. Tax on entry = netTaxable × rate
+4. Subtract taxesAlreadyWithheld → recommended withholding
+5. W2 allows negative (over-withheld); 1099/K1 floors at 0
 
-## Tax Modes (tax_settings table)
-- `projected_brackets` (default) — full bracket model with type-specific rates
-- `manual_effective_rate` — flat rate override; adds SE tax for non-W2
-
-## Key Fields in TaxEstimate
-- `effectiveRate` = (federalTax + seTax + bnoTax) / totalIncome × 100
-- `federalEffectiveRate` = federalTax / totalIncome × 100
+## UI
+- Settings page has Tax Withholding Method section with radio buttons
+- Income forms show: "Withholding method controlled in Settings"
+- No per-form method selection
