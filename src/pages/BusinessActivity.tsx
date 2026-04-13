@@ -383,9 +383,10 @@ export default function Transactions() {
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Table header */}
-        <div className="hidden sm:grid sm:grid-cols-[100px_1fr_120px_80px_120px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-[100px_1fr_100px_120px_80px_110px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>Date</span>
           <span>Transaction</span>
+          <span>Company</span>
           <span className="text-right">Amount</span>
           <span className="text-center">Type</span>
           <span>Category</span>
@@ -402,13 +403,16 @@ export default function Transactions() {
             return (
               <div
                 key={tx.id}
-                className="flex flex-col sm:grid sm:grid-cols-[100px_1fr_120px_80px_120px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
+                className="flex flex-col sm:grid sm:grid-cols-[100px_1fr_100px_120px_80px_110px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
               >
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
                 <span className="text-sm font-medium text-foreground truncate">
                   {tx.vendor}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {tx.entity || "Unassigned"}
                 </span>
                 <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
                   {isIncomeTx ? "+" : ""}{fmt(displayAmount)}
