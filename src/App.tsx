@@ -7,7 +7,8 @@ import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
-import Transactions from "@/pages/Transactions";
+import BusinessActivity from "@/pages/BusinessActivity";
+import PersonalIncome from "@/pages/PersonalIncome";
 import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
 import Taxes from "@/pages/Taxes";
@@ -38,15 +39,16 @@ function ProtectedRoutes() {
       <AppLayout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/transactions" element={<Transactions />} />
+          <Route path="/business-activity" element={<BusinessActivity />} />
+          <Route path="/personal-income" element={<PersonalIncome />} />
           <Route path="/projected-income" element={<ProjectedIncome />} />
           <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />
           <Route path="/settings" element={<Settings />} />
           {/* Legacy redirects */}
-          <Route path="/income" element={<Navigate to="/transactions" replace />} />
+          <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
+          <Route path="/income" element={<Navigate to="/personal-income" replace />} />
           <Route path="/mileage" element={<Navigate to="/deductions" replace />} />
-          
           <Route path="/stocks" element={<Navigate to="/" replace />} />
           <Route path="/reports" element={<Navigate to="/" replace />} />
           <Route path="/tax-planning" element={<Navigate to="/taxes" replace />} />

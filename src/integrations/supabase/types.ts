@@ -58,57 +58,87 @@ export type Database = {
       income_entries: {
         Row: {
           company: string
+          cost_basis: number | null
           created_at: string
           deposited_amount: number
+          federal_withholding: number
+          gross_amount: number
           id: string
+          include_in_cash_flow: boolean
+          include_in_tax_estimate: boolean
           income_date: string
           income_type: string
+          is_actual: boolean
           linked_transaction_id: string | null
           name: string
           notes: string | null
           organization_id: string | null
           paycheck_amount: number
           pre_tax_deductions: number
+          realized_gain_loss: number | null
           retirement_401k: number
+          source_bucket: string
+          state_withholding: number
           status: string
+          tax_category: string
           taxes_withheld: number
           updated_at: string
           user_id: string
         }
         Insert: {
           company?: string
+          cost_basis?: number | null
           created_at?: string
           deposited_amount?: number
+          federal_withholding?: number
+          gross_amount?: number
           id?: string
+          include_in_cash_flow?: boolean
+          include_in_tax_estimate?: boolean
           income_date?: string
           income_type?: string
+          is_actual?: boolean
           linked_transaction_id?: string | null
           name?: string
           notes?: string | null
           organization_id?: string | null
           paycheck_amount?: number
           pre_tax_deductions?: number
+          realized_gain_loss?: number | null
           retirement_401k?: number
+          source_bucket?: string
+          state_withholding?: number
           status?: string
+          tax_category?: string
           taxes_withheld?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           company?: string
+          cost_basis?: number | null
           created_at?: string
           deposited_amount?: number
+          federal_withholding?: number
+          gross_amount?: number
           id?: string
+          include_in_cash_flow?: boolean
+          include_in_tax_estimate?: boolean
           income_date?: string
           income_type?: string
+          is_actual?: boolean
           linked_transaction_id?: string | null
           name?: string
           notes?: string | null
           organization_id?: string | null
           paycheck_amount?: number
           pre_tax_deductions?: number
+          realized_gain_loss?: number | null
           retirement_401k?: number
+          source_bucket?: string
+          state_withholding?: number
           status?: string
+          tax_category?: string
           taxes_withheld?: number
           updated_at?: string
           user_id?: string

@@ -83,8 +83,11 @@ export default function Transactions() {
   const isEditing = !!editingTxId;
   const isIncome = form.type === "income";
 
+  // Business Activity: only show non-W2 companies (1099, K1)
   const allCompanyNames = useMemo(() => {
-    return [...new Set(companies.map((c) => c.name))].sort();
+    return [...new Set(
+      companies.filter((c) => c.companyType !== "W2").map((c) => c.name)
+    )].sort();
   }, [companies]);
 
   const getCompanyType = (name: string) =>
@@ -300,7 +303,7 @@ export default function Transactions() {
     <div className="space-y-4 max-w-4xl mx-auto">
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Transactions</h1>
+        <h1 className="text-xl font-semibold text-foreground">Business Activity</h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
             <Download className="h-3.5 w-3.5" /> Export
@@ -409,7 +412,7 @@ export default function Transactions() {
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingTxId(null); } }}>
         <DialogContent className={`max-h-[85vh] overflow-y-auto ${isIncome ? "max-w-lg" : ""}`}>
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Transaction" : "Add Transaction"}</DialogTitle>
+            <DialogTitle>{isEditing ? "Edit Entry" : "Add Business Entry"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Type toggle */}
