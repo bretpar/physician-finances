@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
-import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, type DbTransaction } from "@/hooks/useTransactions";
+import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 
