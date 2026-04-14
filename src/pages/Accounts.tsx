@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Landmark, Plus, RefreshCw, Loader2, Unplug, CreditCard, Building2 } from "lucide-react";
+import { Landmark, Plus, RefreshCw, Loader2, Unplug, CreditCard, Building2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,10 @@ import {
   usePlaidAccounts,
   useSyncTransactions,
   useDisconnectPlaidItem,
+  useUpdatePlaidAccount,
+  useBulkApplyAccountBusiness,
 } from "@/hooks/usePlaid";
+import { useCompanies } from "@/contexts/CompanyContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,15 +23,36 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function Accounts() {
   const { data: plaidItems = [], isLoading } = usePlaidItems();
   const { data: plaidAccounts = [] } = usePlaidAccounts();
+  const { companies } = useCompanies();
   const syncMutation = useSyncTransactions();
   const disconnectMutation = useDisconnectPlaidItem();
+  const updateAccountMutation = useUpdatePlaidAccount();
+  const bulkApplyMutation = useBulkApplyAccountBusiness();
 
   const [linkLoading, setLinkLoading] = useState(false);
   const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
+  const [editingAccount, setEditingAccount] = useState<any | null>(null);
+  const [editMode, setEditMode] = useState<string>("unassigned");
+  const [editCompanyId, setEditCompanyId] = useState<string>("");
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
@@ -85,6 +109,50 @@ export default function Accounts() {
   const formatDate = (d: string | null) => {
     if (!d) return "Never";
     return new Date(d).toLocaleString();
+  };
+
+  const getCompanyName = (companyId: string | null) => {
+    if (!companyId) return null;
+    return companies.find((c) => c.id === companyId)?.name || null;
+  };
+
+  const getModeLabel = (mode: string, companyId: string | null) => {
+    if (mode === "single_business") {
+      const name = getCompanyName(companyId);
+      return name || "Business (deleted)";
+    }
+    if (mode === "shared") return "Shared / Multiple";
+    return "Unassigned";
+  };
+
+  const getModeColor = (mode: string): "secondary" | "default" | "outline" => {
+    if (mode === "single_business") return "default";
+    if (mode === "shared") return "secondary";
+    return "outline";
+  };
+
+  const openEditDialog = (acct: any) => {
+    setEditingAccount(acct);
+    setEditMode((acct as any).account_business_mode || "unassigned");
+    setEditCompanyId((acct as any).default_company_id || "");
+  };
+
+  const handleSaveAffiliation = () => {
+    if (!editingAccount) return;
+    updateAccountMutation.mutate({
+      id: editingAccount.id,
+      account_business_mode: editMode,
+      default_company_id: editMode === "single_business" && editCompanyId ? editCompanyId : null,
+    }, {
+      onSuccess: () => setEditingAccount(null),
+    });
+  };
+
+  const handleBulkApply = () => {
+    if (!editingAccount || editMode !== "single_business" || !editCompanyId) return;
+    const name = getCompanyName(editCompanyId);
+    if (!name) return;
+    bulkApplyMutation.mutate({ accountId: editingAccount.id, companyName: name });
   };
 
   return (
@@ -147,31 +215,46 @@ export default function Accounts() {
                 </div>
 
                 {accounts.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {accounts.map((acct) => (
-                      <div
-                        key={acct.id}
-                        className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3"
-                      >
-                        <div className="text-muted-foreground">
-                          {accountTypeIcon(acct.account_type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-card-foreground truncate">
-                            {acct.account_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
-                            {acct.account_mask ? ` ···${acct.account_mask}` : ""}
-                          </p>
-                        </div>
-                        {acct.current_balance != null && (
-                          <Badge variant="secondary" className="text-xs font-mono">
-                            ${Number(acct.current_balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  <div className="grid grid-cols-1 gap-3">
+                    {accounts.map((acct) => {
+                      const mode = (acct as any).account_business_mode || "unassigned";
+                      const companyId = (acct as any).default_company_id || null;
+                      return (
+                        <div
+                          key={acct.id}
+                          className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3"
+                        >
+                          <div className="text-muted-foreground">
+                            {accountTypeIcon(acct.account_type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-card-foreground truncate">
+                              {acct.account_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
+                              {acct.account_mask ? ` ···${acct.account_mask}` : ""}
+                            </p>
+                          </div>
+                          <Badge variant={getModeColor(mode)} className="text-xs shrink-0">
+                            {getModeLabel(mode, companyId)}
                           </Badge>
-                        )}
-                      </div>
-                    ))}
+                          {acct.current_balance != null && (
+                            <Badge variant="secondary" className="text-xs font-mono shrink-0">
+                              ${Number(acct.current_balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                            </Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 shrink-0"
+                            onClick={() => openEditDialog(acct)}
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -191,6 +274,7 @@ export default function Accounts() {
         </div>
       )}
 
+      {/* Disconnect dialog */}
       <AlertDialog open={!!disconnectItemId} onOpenChange={() => setDisconnectItemId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -213,6 +297,84 @@ export default function Accounts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit business affiliation dialog */}
+      <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Default Business Affiliation</DialogTitle>
+            <DialogDescription>
+              Choose a default business for this account if it is used primarily for one business. Leave unassigned or mark as shared if transactions may belong to multiple businesses.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Account Mode</label>
+              <Select value={editMode} onValueChange={setEditMode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">None / Unassigned</SelectItem>
+                  <SelectItem value="single_business">One Specific Business</SelectItem>
+                  <SelectItem value="shared">Shared / Multiple Businesses</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {editMode === "single_business" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Default Business</label>
+                <Select value={editCompanyId} onValueChange={setEditCompanyId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a business..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {editMode === "single_business" && editCompanyId && (
+              <div className="rounded-lg border border-border bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Optionally apply this business to existing unassigned imported transactions from this account.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkApply}
+                  disabled={bulkApplyMutation.isPending}
+                >
+                  {bulkApplyMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  ) : null}
+                  Apply to Existing Transactions
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingAccount(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveAffiliation}
+              disabled={updateAccountMutation.isPending || (editMode === "single_business" && !editCompanyId)}
+            >
+              {updateAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
