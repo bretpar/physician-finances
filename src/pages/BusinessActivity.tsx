@@ -131,11 +131,18 @@ export default function Transactions() {
       if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
       if (filterCompany !== "all" && t.entity !== filterCompany) return false;
       if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
+      if (filterReview === "needs_review" && !t.needs_review) return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
+      // Hide linked source duplicates (plaid side of a linked pair)
+      if (hideLinkedDupes && t.match_status === "linked" && t.is_deleted) return false;
       return true;
     });
-  }, [transactions, search, filterType, filterCompany, filterSource, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo, hideLinkedDupes]);
+
+  const needsReviewCount = useMemo(() =>
+    transactions.filter((t) => t.needs_review && !t.is_deleted).length
+  , [transactions]);
 
   // Unique company names from transactions for filter
   const companyFilterOptions = useMemo(() => {
