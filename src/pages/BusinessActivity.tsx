@@ -5,15 +5,18 @@ import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useInco
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
+import { useSuggestedMatches } from "@/hooks/useTransactionMatching";
+import SuggestedMatches from "@/components/SuggestedMatches";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 
@@ -69,8 +72,12 @@ export default function Transactions() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterSource, setFilterSource] = useState<"all" | "manual" | "plaid" | "merged">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
+
+  // Suggested matches
+  const suggestions = useSuggestedMatches(transactions);
 
   // Unified form
   const [showForm, setShowForm] = useState(false);
@@ -112,11 +119,12 @@ export default function Transactions() {
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
       if (filterCompany !== "all" && t.entity !== filterCompany) return false;
+      if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterType, filterCompany, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCompany, filterSource, filterDateFrom, filterDateTo]);
 
   // Unique company names from transactions for filter
   const companyFilterOptions = useMemo(() => {
@@ -355,7 +363,7 @@ export default function Transactions() {
           </div>
         </div>
         {/* Company + date range filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
           <Select value={filterCompany} onValueChange={setFilterCompany}>
             <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
               <SelectValue placeholder="All Companies" />
@@ -367,12 +375,23 @@ export default function Transactions() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterSource} onValueChange={(v) => setFilterSource(v as any)}>
+            <SelectTrigger className="w-full sm:w-[150px] h-8 text-xs">
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="plaid">Imported</SelectItem>
+              <SelectItem value="merged">Linked</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex gap-2 items-center">
             <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="From" />
             <span className="text-xs text-muted-foreground">to</span>
             <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="To" />
-            {(filterDateFrom || filterDateTo || filterCompany !== "all") && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
+            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
                 Clear
               </Button>
             )}
@@ -380,15 +399,19 @@ export default function Transactions() {
         </div>
       </div>
 
+      {/* Suggested Matches */}
+      <SuggestedMatches suggestions={suggestions} />
+
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Table header */}
-        <div className="hidden sm:grid sm:grid-cols-[100px_1fr_100px_120px_80px_110px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-[90px_1fr_90px_110px_70px_70px_100px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>Date</span>
           <span>Transaction</span>
           <span>Company</span>
           <span className="text-right">Amount</span>
           <span className="text-center">Type</span>
+          <span className="text-center">Source</span>
           <span>Category</span>
           <span></span>
         </div>
@@ -399,11 +422,12 @@ export default function Transactions() {
             const type = (tx.transaction_type || "expense") as string;
             const isIncomeTx = type === "income";
             const displayAmount = isIncomeTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
+            const source = (tx as any).source_type || "manual";
 
             return (
               <div
                 key={tx.id}
-                className="flex flex-col sm:grid sm:grid-cols-[100px_1fr_100px_120px_80px_110px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
+                className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_90px_110px_70px_70px_100px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
               >
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -425,6 +449,19 @@ export default function Transactions() {
                   }`}>
                     {isIncomeTx ? "Income" : "Expense"}
                   </span>
+                </span>
+                <span className="text-center">
+                  {source === "plaid" && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">Imported</Badge>
+                  )}
+                  {source === "merged" && (
+                    <Badge variant="default" className="text-[10px] px-1.5 py-0 gap-0.5">
+                      <Link2 className="h-2.5 w-2.5" />Linked
+                    </Badge>
+                  )}
+                  {source === "manual" && (
+                    <span className="text-[10px] text-muted-foreground">Manual</span>
+                  )}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
                   {mapLegacyCategory(tx.category)}

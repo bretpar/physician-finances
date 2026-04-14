@@ -25,6 +25,10 @@ export interface DbTransaction {
   recommended_withholding: number;
   withholding_saved: boolean;
   actual_withholding: number;
+  source_type: string;
+  plaid_transaction_ref: string | null;
+  linked_group_id: string | null;
+  match_status: string;
   created_at: string;
   updated_at: string;
 }
