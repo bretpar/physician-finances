@@ -158,6 +158,7 @@ Deno.serve(async (req) => {
             match_status: "unmatched",
             entity: "Unassigned",
             notes: "",
+            needs_review: true,
           });
 
           if (appTxError) {

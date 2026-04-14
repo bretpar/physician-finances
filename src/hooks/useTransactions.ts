@@ -29,8 +29,29 @@ export interface DbTransaction {
   plaid_transaction_ref: string | null;
   linked_group_id: string | null;
   match_status: string;
+  needs_review: boolean;
+  excluded_from_reports: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Bulk update multiple transactions at once
+export function useBulkUpdateTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Record<string, unknown> }) => {
+      const { error } = await supabase
+        .from("transactions")
+        .update(updates)
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Transactions updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 }
 
 export function useTransactions() {
