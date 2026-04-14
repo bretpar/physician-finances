@@ -216,7 +216,7 @@ export default function Transactions() {
   // --- Save (unified for add + edit) ---
   function saveForm() {
     if (!form.name.trim() || !form.date) return;
-    if (!isIncome && !form.company) { toast.error("Please select a company"); return; }
+    if (!isIncome && !isTransfer && !form.company) { toast.error("Please select a company"); return; }
     if (isIncome && num(form.gross_amount) <= 0) return;
 
     if (isIncome) {
@@ -282,6 +282,37 @@ export default function Transactions() {
             }
           },
         });
+      }
+    } else if (isTransfer) {
+      // Transfer
+      const amount = num(form.amount);
+      if (amount === 0) return;
+
+      if (isEditing) {
+        updateMutation.mutate({
+          id: editingTxId!,
+          transaction_date: form.date,
+          vendor: form.name,
+          amount,
+          category: "Transfer",
+          notes: form.notes,
+          transaction_type: "transfer",
+          transfer_subtype: form.transfer_subtype || null,
+          entity: form.company || "Unassigned",
+          excluded_from_reports: true,
+        } as any);
+      } else {
+        addMutation.mutate({
+          transaction_date: form.date,
+          vendor: form.name,
+          amount,
+          category: "Transfer",
+          notes: form.notes,
+          transaction_type: "transfer",
+          transfer_subtype: form.transfer_subtype || null,
+          entity: form.company || "Unassigned",
+          excluded_from_reports: true,
+        } as any);
       }
     } else {
       // Expense
@@ -369,7 +400,7 @@ export default function Transactions() {
             <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30">
-            {(["all", "income", "expense"] as const).map((tab) => (
+            {(["all", "income", "expense", "transfer"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterType(tab)}
@@ -379,7 +410,7 @@ export default function Transactions() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "all" ? "All" : tab === "income" ? "Income" : "Expenses"}
+                {tab === "all" ? "All" : tab === "income" ? "Income" : tab === "expense" ? "Expenses" : "Transfers"}
               </button>
             ))}
           </div>
