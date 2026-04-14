@@ -378,6 +378,17 @@ export default function Transactions() {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
   }
 
+  // Summary cards derived from the same filtered dataset
+  const summaryStats = useMemo(() => {
+    const revenue = filtered
+      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    const expenses = filtered
+      .filter((t) => t.transaction_type === "expense" && !t.is_deleted)
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    return { revenue, expenses, profit: revenue - expenses };
+  }, [filtered]);
+
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
       {/* Header row */}
@@ -390,6 +401,24 @@ export default function Transactions() {
           <Button size="sm" onClick={openAdd} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" /> Add
           </Button>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Total Business Revenue</p>
+          <p className="text-xl font-bold text-card-foreground">{fmt(summaryStats.revenue)}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Total Business Expenses</p>
+          <p className="text-xl font-bold text-card-foreground">{fmt(summaryStats.expenses)}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Business Profit</p>
+          <p className={`text-xl font-bold ${summaryStats.profit >= 0 ? "text-success" : "text-destructive"}`}>
+            {fmt(summaryStats.profit)}
+          </p>
         </div>
       </div>
 
