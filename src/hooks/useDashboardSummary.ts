@@ -36,10 +36,10 @@ export function useDashboardSummary(
     // Business income and expenses from transactions
     const txs = transactions || [];
     const businessIncome = txs
-      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "income" && t.transaction_type !== "transfer" && !t.is_deleted)
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const businessExpenses = txs
-      .filter((t) => (t.transaction_type === "expense" || !t.transaction_type) && !t.is_deleted && t.amount > 0)
+      .filter((t) => (t.transaction_type === "expense" || !t.transaction_type) && t.transaction_type !== "transfer" && !t.is_deleted && t.amount > 0)
       .reduce((s, t) => s + t.amount, 0);
     const businessNetIncome = businessIncome - businessExpenses;
 
