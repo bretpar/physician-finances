@@ -119,11 +119,12 @@ export default function Transactions() {
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
       if (filterCompany !== "all" && t.entity !== filterCompany) return false;
+      if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterType, filterCompany, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCompany, filterSource, filterDateFrom, filterDateTo]);
 
   // Unique company names from transactions for filter
   const companyFilterOptions = useMemo(() => {
