@@ -71,6 +71,72 @@ export function useSyncTransactions() {
   });
 }
 
+// ---- Update Account Business Affiliation ----
+export function useUpdatePlaidAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      default_company_id,
+      account_business_mode,
+    }: {
+      id: string;
+      default_company_id: string | null;
+      account_business_mode: string;
+    }) => {
+      const { error } = await supabase
+        .from("plaid_accounts")
+        .update({ default_company_id, account_business_mode } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
+      toast.success("Account affiliation updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ---- Bulk Apply Default Business ----
+export function useBulkApplyAccountBusiness() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ accountId, companyName }: { accountId: string; companyName: string }) => {
+      // Get the plaid_account's plaid_account_id to find matching transactions
+      const { data: acct, error: acctErr } = await supabase
+        .from("plaid_accounts")
+        .select("plaid_account_id, account_name")
+        .eq("id", accountId)
+        .single();
+      if (acctErr || !acct) throw acctErr || new Error("Account not found");
+
+      // Find plaid_transactions for this account
+      const { data: plaidTxns } = await supabase
+        .from("plaid_transactions")
+        .select("id")
+        .eq("plaid_account_id", acct.plaid_account_id);
+
+      if (!plaidTxns?.length) return { updated: 0 };
+
+      const plaidIds = plaidTxns.map((t) => t.id);
+      // Update transactions that are unassigned
+      const { error, count } = await supabase
+        .from("transactions")
+        .update({ entity: companyName, assignment_source: "account_default" } as any)
+        .in("plaid_transaction_ref", plaidIds)
+        .eq("entity", "Unassigned");
+      if (error) throw error;
+      return { updated: count || 0 };
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success(`Applied default business to ${data.updated} transactions`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 // ---- Disconnect Plaid Item ----
 export function useDisconnectPlaidItem() {
   const qc = useQueryClient();
