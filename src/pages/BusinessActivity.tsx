@@ -827,6 +827,36 @@ export default function Transactions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Category Assignment Dialog */}
+      <Dialog open={showBulkCategory} onOpenChange={setShowBulkCategory}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Assign Category to {selectedIds.size} transactions</DialogTitle>
+          </DialogHeader>
+          <ExpenseCategoryCombobox
+            value={bulkCategory}
+            onValueChange={setBulkCategory}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkCategory(false)}>Cancel</Button>
+            <Button
+              disabled={!bulkCategory}
+              onClick={() => {
+                bulkUpdateMutation.mutate({
+                  ids: [...selectedIds],
+                  updates: { category: bulkCategory, needs_review: false } as any,
+                });
+                setSelectedIds(new Set());
+                setBulkCategory("");
+                setShowBulkCategory(false);
+              }}
+            >
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
