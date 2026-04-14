@@ -75,7 +75,7 @@ export default function Transactions() {
   const { data: taxSettings } = useTaxSettings();
 
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
+  const [filterType, setFilterType] = useState<"all" | "income" | "expense" | "transfer">("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "plaid" | "merged">("all");
   const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
