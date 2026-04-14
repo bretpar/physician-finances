@@ -519,11 +519,25 @@ export default function Transactions() {
                   tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
                 } ${isSelected ? "bg-primary/5" : ""}`}
               >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(checked) => {
+                    const next = new Set(selectedIds);
+                    if (checked) next.add(tx.id); else next.delete(tx.id);
+                    setSelectedIds(next);
+                  }}
+                />
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
-                <span className="text-sm font-medium text-foreground truncate">
+                <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
                   {tx.vendor}
+                  {tx.needs_review && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Review</Badge>
+                  )}
+                  {tx.excluded_from_reports && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted text-muted-foreground">Excluded</Badge>
+                  )}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
                   {tx.entity || "Unassigned"}
