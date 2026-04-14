@@ -502,6 +502,11 @@ export default function Transactions() {
               <EyeOff className="h-3 w-3" /> Exclude from Reports
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { transaction_type: "transfer", transfer_subtype: "account_transfer", category: "Transfer", excluded_from_reports: true, needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <ArrowLeftRight className="h-3 w-3" /> Mark as Transfer
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
               bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { needs_review: false } as any });
               setSelectedIds(new Set());
             }}>
