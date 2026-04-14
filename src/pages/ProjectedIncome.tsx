@@ -601,7 +601,10 @@ export default function ProjectedIncome() {
               </div>
               <div className="space-y-1.5">
                 <Label>Pay Frequency</Label>
-                <Select value={form.pay_frequency} onValueChange={(v) => setField("pay_frequency", v)}>
+                <Select value={form.pay_frequency} onValueChange={(v) => {
+                  setField("pay_frequency", v);
+                  if (v === "single") setField("end_date", "");
+                }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PAY_FREQUENCIES.map((f) => (
