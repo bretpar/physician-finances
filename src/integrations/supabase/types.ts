@@ -1132,6 +1132,7 @@ export type Database = {
           source_type: string
           transaction_date: string
           transaction_type: string
+          transfer_subtype: string | null
           updated_at: string
           user_id: string
           vendor: string
@@ -1162,6 +1163,7 @@ export type Database = {
           source_type?: string
           transaction_date?: string
           transaction_type?: string
+          transfer_subtype?: string | null
           updated_at?: string
           user_id: string
           vendor?: string
@@ -1192,6 +1194,7 @@ export type Database = {
           source_type?: string
           transaction_date?: string
           transaction_type?: string
+          transfer_subtype?: string | null
           updated_at?: string
           user_id?: string
           vendor?: string

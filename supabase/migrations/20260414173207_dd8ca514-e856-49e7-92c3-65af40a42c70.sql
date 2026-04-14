@@ -1,0 +1,1 @@
+ALTER TABLE public.transactions ADD COLUMN transfer_subtype text DEFAULT NULL;
