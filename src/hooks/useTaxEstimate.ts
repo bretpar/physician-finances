@@ -97,8 +97,10 @@ export function useTaxEstimate(): {
     const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses);
 
     // ── BUSINESS DEDUCTIONS ──
+    // Use transaction_type field (not amount sign) to reliably find expenses
+    // This works for both manual entries (may have negative amounts) and Plaid imports (always positive)
     const businessExpenses = (transactions || [])
-      .filter((t) => t.amount < 0 && t.category !== "Personal" && t.entity !== "Unassigned" && t.transaction_type !== "transfer")
+      .filter((t) => t.transaction_type === "expense" && !t.is_deleted && t.category !== "Personal" && t.entity !== "Unassigned")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
 
     const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
@@ -137,7 +139,8 @@ export function useTaxEstimate(): {
     if (!rates || !baseData) return null;
 
     const totalIncome = baseData.businessIncome + baseData.businessW2 + baseData.totalPersonalIncome + baseData.netStockGain;
-    const w2Income = baseData.businessW2 + baseData.personalW2 + baseData.personalOrdinary;
+    // W-2 wages only — used for SS wage cap offset in SE tax. Do NOT include ordinary non-wage income.
+    const w2Income = baseData.businessW2 + baseData.personalW2;
     const seIncome = baseData.businessIncome;
 
     const combinedPreTax = baseData.businessPreTax + baseData.personalPreTax;
@@ -171,7 +174,8 @@ export function useTaxEstimate(): {
     const projTotals = getProjectedTotals(projectedPaychecks);
 
     const totalIncome = baseData.businessIncome + baseData.businessW2 + baseData.totalPersonalIncome + projTotals.grossIncome + baseData.netStockGain;
-    const w2Income = baseData.businessW2 + baseData.personalW2 + baseData.personalOrdinary;
+    // W-2 wages only — do NOT include ordinary non-wage income
+    const w2Income = baseData.businessW2 + baseData.personalW2;
     const seIncome = baseData.businessIncome;
 
     const combinedPreTax = baseData.businessPreTax + baseData.personalPreTax + projTotals.preTaxDeductions;

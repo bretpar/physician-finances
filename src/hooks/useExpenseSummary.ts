@@ -16,7 +16,7 @@ export interface ExpenseSummary {
   byCompanyType: Record<string, number>;
 }
 
-function isExpense(tx: DbTransaction): boolean { return tx.amount < 0 && tx.transaction_type !== "transfer"; }
+function isExpense(tx: DbTransaction): boolean { return tx.transaction_type === "expense" && !tx.is_deleted; }
 
 export function useExpenseSummary(transactions: DbTransaction[], companies?: Company[]): ExpenseSummary {
   return useMemo(() => {
@@ -25,14 +25,14 @@ export function useExpenseSummary(transactions: DbTransaction[], companies?: Com
     const thisYear = now.getFullYear();
     const expenses = transactions.filter(isExpense);
 
-    const totalBusinessExpenses = Math.abs(expenses.filter((t) => t.category !== PERSONAL_CATEGORY).reduce((s, t) => s + t.amount, 0));
-    const totalPersonalExpenses = Math.abs(expenses.filter((t) => t.category === PERSONAL_CATEGORY).reduce((s, t) => s + t.amount, 0));
-    const uncategorizedTotal = Math.abs(expenses.filter((t) => t.category === "Uncategorized").reduce((s, t) => s + t.amount, 0));
-    const deductibleTotal = Math.abs(expenses.filter((t) => t.category !== PERSONAL_CATEGORY && t.category !== "Uncategorized").reduce((s, t) => s + t.amount, 0));
-    const unassignedTotal = Math.abs(expenses.filter((t) => t.entity === "Unassigned").reduce((s, t) => s + t.amount, 0));
+    const totalBusinessExpenses = expenses.filter((t) => t.category !== PERSONAL_CATEGORY).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const totalPersonalExpenses = expenses.filter((t) => t.category === PERSONAL_CATEGORY).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const uncategorizedTotal = expenses.filter((t) => t.category === "Uncategorized").reduce((s, t) => s + Math.abs(t.amount), 0);
+    const deductibleTotal = expenses.filter((t) => t.category !== PERSONAL_CATEGORY && t.category !== "Uncategorized").reduce((s, t) => s + Math.abs(t.amount), 0);
+    const unassignedTotal = expenses.filter((t) => t.entity === "Unassigned").reduce((s, t) => s + Math.abs(t.amount), 0);
 
-    const mtdExpenses = Math.abs(expenses.filter((t) => { const d = new Date(t.transaction_date); return d.getMonth() === thisMonth && d.getFullYear() === thisYear; }).reduce((s, t) => s + t.amount, 0));
-    const ytdExpenses = Math.abs(expenses.filter((t) => new Date(t.transaction_date).getFullYear() === thisYear).reduce((s, t) => s + t.amount, 0));
+    const mtdExpenses = expenses.filter((t) => { const d = new Date(t.transaction_date); return d.getMonth() === thisMonth && d.getFullYear() === thisYear; }).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const ytdExpenses = expenses.filter((t) => new Date(t.transaction_date).getFullYear() === thisYear).reduce((s, t) => s + Math.abs(t.amount), 0);
 
     const byCompany: Record<string, number> = {};
     expenses.forEach((t) => {
