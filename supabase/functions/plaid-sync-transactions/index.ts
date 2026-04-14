@@ -32,6 +32,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Optional: sync a specific item
+    let body: any = {};
+    try { body = await req.json(); } catch { /* no body */ }
+    const targetItemId = body?.item_id;
+
     const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID");
     const PLAID_SECRET = Deno.env.get("PLAID_SECRET");
     const PLAID_ENV = Deno.env.get("PLAID_ENV") || "sandbox";
@@ -42,16 +47,32 @@ Deno.serve(async (req) => {
         ? "https://development.plaid.com"
         : "https://sandbox.plaid.com";
 
-    // Get all plaid items for the user using service role
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: plaidItems, error: itemsError } = await adminClient
+    // Get user's org
+    const { data: orgMember } = await adminClient
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .single();
+    const orgId = orgMember?.organization_id;
+
+    // Get plaid items
+    let itemsQuery = adminClient
       .from("plaid_items")
       .select("*")
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .eq("status", "active");
+    
+    if (targetItemId) {
+      itemsQuery = itemsQuery.eq("id", targetItemId);
+    }
+
+    const { data: plaidItems, error: itemsError } = await itemsQuery;
 
     if (itemsError || !plaidItems?.length) {
       return new Response(JSON.stringify({ error: "No connected accounts found" }), {
@@ -61,6 +82,7 @@ Deno.serve(async (req) => {
     }
 
     let totalAdded = 0;
+    let totalModified = 0;
 
     for (const item of plaidItems) {
       let hasMore = true;
@@ -82,36 +104,101 @@ Deno.serve(async (req) => {
         });
 
         const syncData = await syncRes.json();
-
         if (!syncRes.ok) {
           console.error("Plaid sync error:", syncData);
           break;
         }
 
+        // Process ADDED transactions
         const added = syncData.added || [];
-        if (added.length > 0) {
-          const rows = added.map((txn: Record<string, unknown>) => ({
+        for (const txn of added) {
+          // Store raw plaid transaction
+          const { data: plaidTxRow, error: plaidTxError } = await adminClient
+            .from("plaid_transactions")
+            .upsert({
+              user_id: user.id,
+              organization_id: orgId,
+              plaid_transaction_id: txn.transaction_id,
+              plaid_account_id: txn.account_id,
+              date: txn.date,
+              authorized_date: txn.authorized_date || null,
+              name: txn.name || "",
+              merchant_name: txn.merchant_name || null,
+              amount: Math.abs(txn.amount),
+              iso_currency_code: txn.iso_currency_code || "USD",
+              unofficial_currency_code: txn.unofficial_currency_code || null,
+              category_raw: txn.personal_finance_category?.primary || 
+                (Array.isArray(txn.category) ? txn.category[0] : null),
+              pending: txn.pending || false,
+              payment_channel: txn.payment_channel || null,
+              raw_json: txn,
+            }, { onConflict: "plaid_transaction_id" })
+            .select("id")
+            .single();
+
+          if (plaidTxError) {
+            console.error("Insert plaid_transaction error:", plaidTxError);
+            continue;
+          }
+
+          // Create app transaction linked to plaid record
+          // Plaid: negative = income, positive = expense
+          const isExpense = txn.amount > 0;
+          const { error: appTxError } = await adminClient.from("transactions").insert({
             user_id: user.id,
-            transaction_date: txn.date as string,
-            vendor: (txn.merchant_name || txn.name || "") as string,
-            amount: Math.abs(txn.amount as number),
-            category: Array.isArray(txn.personal_finance_category)
-              ? (txn.personal_finance_category as string[])[0]
-              : typeof txn.personal_finance_category === "object" && txn.personal_finance_category !== null
-                ? ((txn.personal_finance_category as Record<string, string>).primary || "Uncategorized")
-                : "Uncategorized",
+            organization_id: orgId,
+            transaction_date: txn.date,
+            vendor: txn.merchant_name || txn.name || "",
+            amount: Math.abs(txn.amount),
+            category: "Uncategorized",
             account_source: item.institution_name,
-            notes: `Plaid: ${txn.transaction_id}`,
-          }));
+            transaction_type: isExpense ? "expense" : "income",
+            source_type: "plaid",
+            plaid_transaction_ref: plaidTxRow?.id || null,
+            match_status: "unmatched",
+            entity: "Unassigned",
+            notes: "",
+          });
 
-          const { error: insertError } = await adminClient
-            .from("transactions")
-            .insert(rows);
-
-          if (insertError) {
-            console.error("Insert transactions error:", insertError);
+          if (appTxError) {
+            console.error("Insert app transaction error:", appTxError);
           } else {
-            totalAdded += rows.length;
+            totalAdded++;
+          }
+        }
+
+        // Process MODIFIED transactions (update existing)
+        const modified = syncData.modified || [];
+        for (const txn of modified) {
+          await adminClient
+            .from("plaid_transactions")
+            .update({
+              date: txn.date,
+              authorized_date: txn.authorized_date || null,
+              name: txn.name || "",
+              merchant_name: txn.merchant_name || null,
+              amount: Math.abs(txn.amount),
+              pending: txn.pending || false,
+              raw_json: txn,
+            })
+            .eq("plaid_transaction_id", txn.transaction_id);
+          totalModified++;
+        }
+
+        // Process REMOVED transactions (soft-delete app transactions)
+        const removed = syncData.removed || [];
+        for (const txn of removed) {
+          const { data: plaidTx } = await adminClient
+            .from("plaid_transactions")
+            .select("id")
+            .eq("plaid_transaction_id", txn.transaction_id)
+            .single();
+          
+          if (plaidTx) {
+            await adminClient
+              .from("transactions")
+              .update({ is_deleted: true })
+              .eq("plaid_transaction_ref", plaidTx.id);
           }
         }
 
@@ -119,16 +206,21 @@ Deno.serve(async (req) => {
         hasMore = syncData.has_more;
       }
 
-      // Save cursor for incremental sync
-      if (cursor) {
-        await adminClient
-          .from("plaid_items")
-          .update({ cursor })
-          .eq("id", item.id);
-      }
+      // Save cursor and update last_synced_at
+      await adminClient
+        .from("plaid_items")
+        .update({
+          cursor: cursor || item.cursor,
+          last_synced_at: new Date().toISOString(),
+        })
+        .eq("id", item.id);
     }
 
-    return new Response(JSON.stringify({ success: true, transactions_added: totalAdded }), {
+    return new Response(JSON.stringify({
+      success: true,
+      transactions_added: totalAdded,
+      transactions_modified: totalModified,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
