@@ -308,6 +308,7 @@ export type Database = {
       }
       plaid_accounts: {
         Row: {
+          account_business_mode: string
           account_mask: string | null
           account_name: string
           account_subtype: string | null
@@ -315,6 +316,7 @@ export type Database = {
           available_balance: number | null
           created_at: string
           current_balance: number | null
+          default_company_id: string | null
           id: string
           is_active: boolean
           organization_id: string | null
@@ -324,6 +326,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_business_mode?: string
           account_mask?: string | null
           account_name?: string
           account_subtype?: string | null
@@ -331,6 +334,7 @@ export type Database = {
           available_balance?: number | null
           created_at?: string
           current_balance?: number | null
+          default_company_id?: string | null
           id?: string
           is_active?: boolean
           organization_id?: string | null
@@ -340,6 +344,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_business_mode?: string
           account_mask?: string | null
           account_name?: string
           account_subtype?: string | null
@@ -347,6 +352,7 @@ export type Database = {
           available_balance?: number | null
           created_at?: string
           current_balance?: number | null
+          default_company_id?: string | null
           id?: string
           is_active?: boolean
           organization_id?: string | null
@@ -1111,6 +1117,7 @@ export type Database = {
           account_source: string
           actual_withholding: number
           amount: number
+          assignment_source: string
           category: string
           company_type: string
           created_at: string
@@ -1142,6 +1149,7 @@ export type Database = {
           account_source?: string
           actual_withholding?: number
           amount?: number
+          assignment_source?: string
           category?: string
           company_type?: string
           created_at?: string
@@ -1173,6 +1181,7 @@ export type Database = {
           account_source?: string
           actual_withholding?: number
           amount?: number
+          assignment_source?: string
           category?: string
           company_type?: string
           created_at?: string
