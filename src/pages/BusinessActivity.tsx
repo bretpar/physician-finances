@@ -374,10 +374,6 @@ export default function Transactions() {
     URL.revokeObjectURL(url);
   }
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
-  }
-
   // Summary cards derived from the same filtered dataset
   const summaryStats = useMemo(() => {
     const revenue = filtered
@@ -388,6 +384,10 @@ export default function Transactions() {
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     return { revenue, expenses, profit: revenue - expenses };
   }, [filtered]);
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
+  }
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
