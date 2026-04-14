@@ -39,10 +39,10 @@ export interface DbTransaction {
 export function useBulkUpdateTransactions() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Record<string, unknown> }) => {
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Partial<DbTransaction> }) => {
       const { error } = await supabase
         .from("transactions")
-        .update(updates)
+        .update(updates as any)
         .in("id", ids);
       if (error) throw error;
     },
