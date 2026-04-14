@@ -1115,11 +1115,13 @@ export type Database = {
           company_type: string
           created_at: string
           entity: string
+          excluded_from_reports: boolean
           id: string
           is_deleted: boolean
           is_recurring: boolean
           linked_group_id: string | null
           match_status: string
+          needs_review: boolean
           notes: string | null
           organization_id: string | null
           parent_transaction_id: string | null
@@ -1143,11 +1145,13 @@ export type Database = {
           company_type?: string
           created_at?: string
           entity?: string
+          excluded_from_reports?: boolean
           id?: string
           is_deleted?: boolean
           is_recurring?: boolean
           linked_group_id?: string | null
           match_status?: string
+          needs_review?: boolean
           notes?: string | null
           organization_id?: string | null
           parent_transaction_id?: string | null
@@ -1171,11 +1175,13 @@ export type Database = {
           company_type?: string
           created_at?: string
           entity?: string
+          excluded_from_reports?: boolean
           id?: string
           is_deleted?: boolean
           is_recurring?: boolean
           linked_group_id?: string | null
           match_status?: string
+          needs_review?: boolean
           notes?: string | null
           organization_id?: string | null
           parent_transaction_id?: string | null

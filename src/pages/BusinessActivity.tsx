@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
-import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, type DbTransaction } from "@/hooks/useTransactions";
+import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, type DbTransaction } from "@/hooks/useTransactions";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
@@ -10,13 +10,15 @@ import SuggestedMatches from "@/components/SuggestedMatches";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2 } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 
@@ -64,6 +66,7 @@ export default function Transactions() {
   const deleteMutation = useDeleteTransaction();
   const addMutation = useAddTransaction();
   const updateMutation = useUpdateTransaction();
+  const bulkUpdateMutation = useBulkUpdateTransactions();
   const addIncomeMutation = useAddIncome();
   const updateIncomeMutation = useUpdateIncome();
   const { data: incomeEntries } = useIncomeEntries();
@@ -73,8 +76,16 @@ export default function Transactions() {
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "plaid" | "merged">("all");
+  const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
+  const [hideLinkedDupes, setHideLinkedDupes] = useState(true);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCompany, setBulkCompany] = useState("");
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [showBulkCategory, setShowBulkCategory] = useState(false);
 
   // Suggested matches
   const suggestions = useSuggestedMatches(transactions);
@@ -120,11 +131,18 @@ export default function Transactions() {
       if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
       if (filterCompany !== "all" && t.entity !== filterCompany) return false;
       if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
+      if (filterReview === "needs_review" && !t.needs_review) return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
+      // Hide linked source duplicates (plaid side of a linked pair)
+      if (hideLinkedDupes && t.match_status === "linked" && t.is_deleted) return false;
       return true;
     });
-  }, [transactions, search, filterType, filterCompany, filterSource, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo, hideLinkedDupes]);
+
+  const needsReviewCount = useMemo(() =>
+    transactions.filter((t) => t.needs_review && !t.is_deleted).length
+  , [transactions]);
 
   // Unique company names from transactions for filter
   const companyFilterOptions = useMemo(() => {
@@ -363,7 +381,7 @@ export default function Transactions() {
           </div>
         </div>
         {/* Company + date range filters */}
-        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap items-center">
           <Select value={filterCompany} onValueChange={setFilterCompany}>
             <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
               <SelectValue placeholder="All Companies" />
@@ -386,18 +404,80 @@ export default function Transactions() {
               <SelectItem value="merged">Linked</SelectItem>
             </SelectContent>
           </Select>
+          {needsReviewCount > 0 && (
+            <Button
+              variant={filterReview === "needs_review" ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => setFilterReview(filterReview === "needs_review" ? "all" : "needs_review")}
+            >
+              <AlertCircle className="h-3.5 w-3.5" />
+              Needs Review ({needsReviewCount})
+            </Button>
+          )}
           <div className="flex gap-2 items-center">
             <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="From" />
             <span className="text-xs text-muted-foreground">to</span>
             <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="To" />
-            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all") && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
+            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all" || filterReview !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterReview("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
                 Clear
               </Button>
             )}
           </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Switch checked={hideLinkedDupes} onCheckedChange={setHideLinkedDupes} id="hide-dupes" />
+            <Label htmlFor="hide-dupes" className="text-xs text-muted-foreground cursor-pointer">Hide linked duplicates</Label>
+          </div>
         </div>
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+          <div className="flex gap-2 flex-wrap flex-1">
+            <Select value={bulkCompany} onValueChange={(v) => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { entity: v, needs_review: false } as any });
+              setBulkCompany("");
+              setSelectedIds(new Set());
+            }}>
+              <SelectTrigger className="w-[160px] h-7 text-xs">
+                <SelectValue placeholder="Assign Company" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setShowBulkCategory(true)}>
+              <Tag className="h-3 w-3" /> Assign Category
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { excluded_from_reports: true, needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <EyeOff className="h-3 w-3" /> Mark Personal
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { excluded_from_reports: true, needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <EyeOff className="h-3 w-3" /> Exclude from Reports
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <CheckCircle2 className="h-3 w-3" /> Mark Reviewed
+            </Button>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
 
       {/* Suggested Matches */}
       <SuggestedMatches suggestions={suggestions} />
@@ -405,7 +485,14 @@ export default function Transactions() {
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Table header */}
-        <div className="hidden sm:grid sm:grid-cols-[90px_1fr_90px_110px_70px_70px_100px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide items-center">
+          <Checkbox
+            checked={filtered.length > 0 && selectedIds.size === filtered.length}
+            onCheckedChange={(checked) => {
+              if (checked) setSelectedIds(new Set(filtered.map((t) => t.id)));
+              else setSelectedIds(new Set());
+            }}
+          />
           <span>Date</span>
           <span>Transaction</span>
           <span>Company</span>
@@ -422,18 +509,35 @@ export default function Transactions() {
             const type = (tx.transaction_type || "expense") as string;
             const isIncomeTx = type === "income";
             const displayAmount = isIncomeTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
-            const source = (tx as any).source_type || "manual";
+            const source = tx.source_type || "manual";
+            const isSelected = selectedIds.has(tx.id);
 
             return (
               <div
                 key={tx.id}
-                className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_90px_110px_70px_70px_100px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
+                className={`flex flex-col sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
+                  tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
+                } ${isSelected ? "bg-primary/5" : ""}`}
               >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(checked) => {
+                    const next = new Set(selectedIds);
+                    if (checked) next.add(tx.id); else next.delete(tx.id);
+                    setSelectedIds(next);
+                  }}
+                />
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
-                <span className="text-sm font-medium text-foreground truncate">
+                <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
                   {tx.vendor}
+                  {tx.needs_review && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Review</Badge>
+                  )}
+                  {tx.excluded_from_reports && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted text-muted-foreground">Excluded</Badge>
+                  )}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
                   {tx.entity || "Unassigned"}
@@ -720,6 +824,36 @@ export default function Transactions() {
           )}
           <DialogFooter>
             <Button onClick={() => setTaxSuggestion(null)}>Got it</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Category Assignment Dialog */}
+      <Dialog open={showBulkCategory} onOpenChange={setShowBulkCategory}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Assign Category to {selectedIds.size} transactions</DialogTitle>
+          </DialogHeader>
+          <ExpenseCategoryCombobox
+            value={bulkCategory}
+            onValueChange={setBulkCategory}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkCategory(false)}>Cancel</Button>
+            <Button
+              disabled={!bulkCategory}
+              onClick={() => {
+                bulkUpdateMutation.mutate({
+                  ids: [...selectedIds],
+                  updates: { category: bulkCategory, needs_review: false } as any,
+                });
+                setSelectedIds(new Set());
+                setBulkCategory("");
+                setShowBulkCategory(false);
+              }}
+            >
+              Apply
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
