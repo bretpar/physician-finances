@@ -352,6 +352,40 @@ export function generateProjectedPaychecks(
     if (isStreamExpired(stream)) continue;
 
     const start = parseISO(stream.start_date);
+
+    // One-time / single: emit exactly one paycheck on start_date
+    if (stream.pay_frequency === "single") {
+      if (!isBefore(start, now) || isSameDay(start, now)) {
+        if (!isAfter(start, yearEnd)) {
+          const dateStr = format(start, "yyyy-MM-dd");
+          if (!existingIncomeDates?.has(dateStr)) {
+            const override = overrideMap.get(`${stream.id}:${dateStr}`);
+            if (override?.action === "skip") {
+              paychecks.push({
+                date: dateStr, grossAmount: stream.paycheck_amount,
+                taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
+                preTaxDeductions: stream.pre_tax_deductions, netAmount: 0,
+                type: "paycheck", label: stream.company, streamId: stream.id, isSkipped: true,
+              });
+            } else {
+              const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
+              const tax = override?.action === "modify" ? override.taxes_withheld : stream.taxes_withheld;
+              const ret = override?.action === "modify" ? override.retirement_401k : stream.retirement_401k;
+              const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
+              paychecks.push({
+                date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret,
+                preTaxDeductions: ded, netAmount: Math.max(0, amt - tax - ret - ded),
+                type: "paycheck", label: stream.company, streamId: stream.id,
+                isModified: override?.action === "modify",
+              });
+            }
+          }
+        }
+      }
+      continue;
+    }
+
+    // Recurring streams
     const end = stream.end_date ? parseISO(stream.end_date) : yearEnd;
 
     let current = start;
@@ -366,18 +400,11 @@ export function generateProjectedPaychecks(
         const override = overrideMap.get(`${stream.id}:${dateStr}`);
 
         if (override?.action === "skip") {
-          // Include skipped entries so UI can show them with strikethrough
           paychecks.push({
-            date: dateStr,
-            grossAmount: stream.paycheck_amount,
-            taxesWithheld: stream.taxes_withheld,
-            retirement401k: stream.retirement_401k,
-            preTaxDeductions: stream.pre_tax_deductions,
-            netAmount: 0,
-            type: "paycheck",
-            label: stream.company,
-            streamId: stream.id,
-            isSkipped: true,
+            date: dateStr, grossAmount: stream.paycheck_amount,
+            taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
+            preTaxDeductions: stream.pre_tax_deductions, netAmount: 0,
+            type: "paycheck", label: stream.company, streamId: stream.id, isSkipped: true,
           });
         } else {
           const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
@@ -386,15 +413,9 @@ export function generateProjectedPaychecks(
           const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
           const net = amt - tax - ret - ded;
           paychecks.push({
-            date: dateStr,
-            grossAmount: amt,
-            taxesWithheld: tax,
-            retirement401k: ret,
-            preTaxDeductions: ded,
-            netAmount: Math.max(0, net),
-            type: "paycheck",
-            label: stream.company,
-            streamId: stream.id,
+            date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret,
+            preTaxDeductions: ded, netAmount: Math.max(0, net),
+            type: "paycheck", label: stream.company, streamId: stream.id,
             isModified: override?.action === "modify",
           });
         }
