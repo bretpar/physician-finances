@@ -86,13 +86,36 @@ Deno.serve(async (req) => {
       .single();
     const orgId = orgMember?.organization_id;
 
-    // Get user's plaid accounts for transfer detection
+    // Get user's plaid accounts for transfer detection and business affiliation
     const { data: userAccounts } = await adminClient
       .from("plaid_accounts")
-      .select("plaid_account_id, account_type, account_subtype")
+      .select("plaid_account_id, account_type, account_subtype, default_company_id, account_business_mode")
       .eq("user_id", user.id)
       .eq("is_active", true);
-    const accounts: PlaidAccount[] = userAccounts || [];
+    const accounts: PlaidAccount[] = (userAccounts || []) as any;
+
+    // Build a map of plaid_account_id → default company name
+    const companyIds = accounts.filter((a: any) => a.default_company_id).map((a: any) => a.default_company_id);
+    let companyMap: Record<string, string> = {};
+    if (companyIds.length > 0) {
+      const { data: companies } = await adminClient
+        .from("companies")
+        .select("id, name")
+        .in("id", companyIds);
+      for (const c of (companies || [])) {
+        companyMap[c.id] = c.name;
+      }
+    }
+    // Map plaid_account_id → { companyName, mode }
+    const accountBizMap: Record<string, { companyName: string; mode: string }> = {};
+    for (const a of (userAccounts || []) as any[]) {
+      if (a.account_business_mode === "single_business" && a.default_company_id && companyMap[a.default_company_id]) {
+        accountBizMap[a.plaid_account_id] = {
+          companyName: companyMap[a.default_company_id],
+          mode: "single_business",
+        };
+      }
+    }
     const ownedAccountIds = new Set(accounts.map((a) => a.plaid_account_id));
 
     // Get plaid items
@@ -217,6 +240,11 @@ Deno.serve(async (req) => {
             transferSubtype = isLiability ? "credit_card_payment" : "account_transfer";
           }
 
+          // Determine business assignment from account affiliation
+          const bizInfo = accountBizMap[txn.account_id];
+          const assignedEntity = bizInfo ? bizInfo.companyName : "Unassigned";
+          const assignmentSource = bizInfo ? "account_default" : "none";
+
           const { error: appTxError } = await adminClient.from("transactions").insert({
             user_id: user.id,
             organization_id: orgId,
@@ -230,7 +258,8 @@ Deno.serve(async (req) => {
             source_type: "plaid",
             plaid_transaction_ref: plaidTxRow?.id || null,
             match_status: "unmatched",
-            entity: "Unassigned",
+            entity: assignedEntity,
+            assignment_source: assignmentSource,
             notes: "",
             needs_review: true,
             excluded_from_reports: txType === "transfer",
