@@ -543,7 +543,11 @@ export default function Transactions() {
           {filtered.map((tx) => {
             const type = (tx.transaction_type || "expense") as string;
             const isIncomeTx = type === "income";
-            const displayAmount = isIncomeTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
+            const isTransferTx = type === "transfer";
+            const transferLabel = isTransferTx && tx.transfer_subtype
+              ? TRANSFER_SUBTYPES.find((s) => s.value === tx.transfer_subtype)?.label || "Transfer"
+              : "Transfer";
+            const displayAmount = isIncomeTx ? Math.abs(tx.amount) : isTransferTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
 
