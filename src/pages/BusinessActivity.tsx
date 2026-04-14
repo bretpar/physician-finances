@@ -31,9 +31,10 @@ interface TxFormState {
   date: string;
   name: string;
   amount: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "transfer";
   category: string;
   notes: string;
+  transfer_subtype: string;
   // Income-only fields (hidden from table, shown in form)
   company: string;
   income_type: string;
@@ -51,6 +52,7 @@ const emptyForm: TxFormState = {
   type: "expense",
   category: "",
   notes: "",
+  transfer_subtype: "",
   company: "",
   income_type: "1099",
   gross_amount: "",
