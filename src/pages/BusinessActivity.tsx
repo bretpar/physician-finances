@@ -581,16 +581,18 @@ export default function Transactions() {
                 <span className="text-xs text-muted-foreground truncate">
                   {tx.entity || "Unassigned"}
                 </span>
-                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
-                  {isIncomeTx ? "+" : ""}{fmt(displayAmount)}
+                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>
+                  {isIncomeTx ? "+" : isTransferTx ? "" : ""}{fmt(displayAmount)}
                 </span>
                 <span className="text-center">
                   <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${
                     isIncomeTx
                       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                      : "bg-muted text-muted-foreground"
+                      : isTransferTx
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        : "bg-muted text-muted-foreground"
                   }`}>
-                    {isIncomeTx ? "Income" : "Expense"}
+                    {isIncomeTx ? "Income" : isTransferTx ? transferLabel : "Expense"}
                   </span>
                 </span>
                 <span className="text-center">
