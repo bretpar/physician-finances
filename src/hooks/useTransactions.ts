@@ -3,7 +3,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 
-export type TransactionType = "income" | "expense" | "deduction" | "stock" | "capital_gain" | "other";
+export type TransactionType = "income" | "expense" | "transfer" | "deduction" | "stock" | "capital_gain" | "other";
+
+export type TransferSubtype =
+  | "credit_card_payment"
+  | "account_transfer"
+  | "owner_draw"
+  | "owner_contribution"
+  | null;
+
+export const TRANSFER_SUBTYPES = [
+  { value: "credit_card_payment", label: "Credit Card Payment" },
+  { value: "account_transfer", label: "Account Transfer" },
+  { value: "owner_draw", label: "Owner Draw" },
+  { value: "owner_contribution", label: "Owner Contribution" },
+  { value: "other", label: "Other Transfer" },
+] as const;
 
 export interface DbTransaction {
   id: string;
@@ -31,6 +46,7 @@ export interface DbTransaction {
   match_status: string;
   needs_review: boolean;
   excluded_from_reports: boolean;
+  transfer_subtype: string | null;
   created_at: string;
   updated_at: string;
 }
