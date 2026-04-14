@@ -506,6 +506,7 @@ export default function Transactions() {
               setSelectedIds(new Set());
             }}>
               <ArrowLeftRight className="h-3 w-3" /> Mark as Transfer
+            </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
               bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { needs_review: false } as any });
               setSelectedIds(new Set());
