@@ -87,11 +87,11 @@ Deno.serve(async (req) => {
 
     const orgId = orgMember?.organization_id;
 
-    // Save plaid_item
+    // Save plaid_item with placeholder token (will be moved to vault)
     const { data: itemRow, error: insertError } = await adminClient.from("plaid_items").insert({
       user_id: user.id,
       organization_id: orgId,
-      access_token: exchangeData.access_token,
+      access_token: "**pending_vault**",
       item_id: exchangeData.item_id,
       institution_name: institution_name || "Unknown Bank",
       institution_id: institution_id || "",
@@ -104,6 +104,17 @@ Deno.serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Store the access token securely in Vault
+    const { error: vaultError } = await adminClient.rpc("store_plaid_token_in_vault", {
+      _item_id: itemRow.id,
+      _token: exchangeData.access_token,
+    });
+    if (vaultError) {
+      console.error("Vault store error:", vaultError);
+      // Fallback: keep token in the row (not ideal but don't break flow)
+      await adminClient.from("plaid_items").update({ access_token: exchangeData.access_token }).eq("id", itemRow.id);
     }
 
     // Fetch accounts from Plaid
