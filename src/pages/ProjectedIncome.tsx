@@ -218,6 +218,8 @@ export default function ProjectedIncome() {
     setShowForm(true);
   };
 
+  const isOneTime = form.pay_frequency === "single";
+
   const handleSubmit = () => {
     if (!form.company || num(form.paycheck_amount) <= 0) return;
     const company = companies.find((c) => c.name === form.company);
@@ -227,7 +229,7 @@ export default function ProjectedIncome() {
       pay_frequency: form.pay_frequency,
       custom_interval_days: form.pay_frequency === "custom" ? num(form.custom_interval_days) : null,
       start_date: form.start_date,
-      end_date: form.end_date || null,
+      end_date: isOneTime ? null : (form.end_date || null),
       paycheck_amount: num(form.paycheck_amount),
       taxes_withheld: num(form.taxes_withheld),
       retirement_401k: num(form.retirement_401k),
@@ -566,7 +568,9 @@ export default function ProjectedIncome() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingId ? "Edit Income Stream" : "Add Income Stream"}
+              {editingId
+                ? (isOneTime ? "Edit One-Time Income" : "Edit Income Stream")
+                : (isOneTime ? "Add One-Time Income" : "Add Income Stream")}
             </DialogTitle>
           </DialogHeader>
 
@@ -597,7 +601,10 @@ export default function ProjectedIncome() {
               </div>
               <div className="space-y-1.5">
                 <Label>Pay Frequency</Label>
-                <Select value={form.pay_frequency} onValueChange={(v) => setField("pay_frequency", v)}>
+                <Select value={form.pay_frequency} onValueChange={(v) => {
+                  setField("pay_frequency", v);
+                  if (v === "single") setField("end_date", "");
+                }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PAY_FREQUENCIES.map((f) => (
@@ -620,23 +627,25 @@ export default function ProjectedIncome() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid ${isOneTime ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
               <div className="space-y-1.5">
-                <Label>Start Date</Label>
+                <Label>{isOneTime ? "Date" : "Start Date"}</Label>
                 <Input
                   type="date"
                   value={form.start_date}
                   onChange={(e) => setField("start_date", e.target.value)}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>End Date <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <Input
-                  type="date"
-                  value={form.end_date}
-                  onChange={(e) => setField("end_date", e.target.value)}
-                />
-              </div>
+              {!isOneTime && (
+                <div className="space-y-1.5">
+                  <Label>End Date <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <Input
+                    type="date"
+                    value={form.end_date}
+                    onChange={(e) => setField("end_date", e.target.value)}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="border-t border-border pt-3 space-y-3">
@@ -694,7 +703,7 @@ export default function ProjectedIncome() {
               onClick={handleSubmit}
               disabled={!form.company || num(form.paycheck_amount) <= 0}
             >
-              {editingId ? "Save Changes" : "Add Stream"}
+              {editingId ? "Save Changes" : (isOneTime ? "Add One-Time Income" : "Add Stream")}
             </Button>
           </DialogFooter>
         </DialogContent>
