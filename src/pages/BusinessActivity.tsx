@@ -106,6 +106,7 @@ export default function Transactions() {
 
   const isEditing = !!editingTxId;
   const isIncome = form.type === "income";
+  const isTransfer = form.type === "transfer";
 
   // Business Activity: only show non-W2 companies (1099, K1)
   const allCompanyNames = useMemo(() => {
