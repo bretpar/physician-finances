@@ -39,8 +39,8 @@ export function useDashboardSummary(
       .filter((t) => t.transaction_type === "income" && !t.is_deleted)
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const businessExpenses = txs
-      .filter((t) => (t.transaction_type === "expense" || !t.transaction_type) && !t.is_deleted && t.amount > 0)
-      .reduce((s, t) => s + t.amount, 0);
+      .filter((t) => t.transaction_type === "expense" && !t.is_deleted)
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
     const businessNetIncome = businessIncome - businessExpenses;
 
     // Personal income from personal income entries
