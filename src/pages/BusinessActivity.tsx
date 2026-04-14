@@ -363,7 +363,7 @@ export default function Transactions() {
           </div>
         </div>
         {/* Company + date range filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
           <Select value={filterCompany} onValueChange={setFilterCompany}>
             <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
               <SelectValue placeholder="All Companies" />
@@ -375,18 +375,32 @@ export default function Transactions() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterSource} onValueChange={(v) => setFilterSource(v as any)}>
+            <SelectTrigger className="w-full sm:w-[150px] h-8 text-xs">
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="plaid">Imported</SelectItem>
+              <SelectItem value="merged">Linked</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex gap-2 items-center">
             <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="From" />
             <span className="text-xs text-muted-foreground">to</span>
             <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="To" />
-            {(filterDateFrom || filterDateTo || filterCompany !== "all") && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
+            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
                 Clear
               </Button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Suggested Matches */}
+      <SuggestedMatches suggestions={suggestions} />
 
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
