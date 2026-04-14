@@ -648,7 +648,7 @@ export default function Transactions() {
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Type</Label>
               <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30 w-fit">
-                {(["income", "expense"] as const).map((t) => (
+                {(["income", "expense", "transfer"] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setField("type", t)}
@@ -658,10 +658,15 @@ export default function Transactions() {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {t === "income" ? "Income" : "Expense"}
+                    {t === "income" ? "Income" : t === "expense" ? "Expense" : "Transfer"}
                   </button>
                 ))}
               </div>
+              {isTransfer && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Transfers move money between accounts and do not count as income or deductible expenses.
+                </p>
+              )}
             </div>
 
             {/* Common fields */}
@@ -672,7 +677,7 @@ export default function Transactions() {
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  {isIncome ? "Description" : "Merchant / Name"}
+                  {isIncome ? "Description" : isTransfer ? "Description" : "Merchant / Name"}
                 </Label>
                 <Input
                   placeholder={isIncome ? "e.g. ED Shift Pay" : "e.g. Amazon"}
@@ -682,7 +687,44 @@ export default function Transactions() {
               </div>
             </div>
 
-            {!isIncome && (
+            {isTransfer && (
+              <div className="space-y-3 rounded-lg border border-border p-3 bg-blue-50/30 dark:bg-blue-950/10">
+                <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <ArrowLeftRight className="h-3.5 w-3.5" /> Transfer Details
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Transfer Type</Label>
+                    <Select value={form.transfer_subtype} onValueChange={(v) => setField("transfer_subtype", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        {TRANSFER_SUBTYPES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company (optional)</Label>
+                  <Select value={form.company} onValueChange={(v) => setField("company", v)}>
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Unassigned">None</SelectItem>
+                      {companies.map((c) => (
+                        <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {!isIncome && !isTransfer && (
               <div className="space-y-3">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
