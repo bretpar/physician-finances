@@ -485,7 +485,14 @@ export default function Transactions() {
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Table header */}
-        <div className="hidden sm:grid sm:grid-cols-[90px_1fr_90px_110px_70px_70px_100px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide items-center">
+          <Checkbox
+            checked={filtered.length > 0 && selectedIds.size === filtered.length}
+            onCheckedChange={(checked) => {
+              if (checked) setSelectedIds(new Set(filtered.map((t) => t.id)));
+              else setSelectedIds(new Set());
+            }}
+          />
           <span>Date</span>
           <span>Transaction</span>
           <span>Company</span>
@@ -502,12 +509,15 @@ export default function Transactions() {
             const type = (tx.transaction_type || "expense") as string;
             const isIncomeTx = type === "income";
             const displayAmount = isIncomeTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
-            const source = (tx as any).source_type || "manual";
+            const source = tx.source_type || "manual";
+            const isSelected = selectedIds.has(tx.id);
 
             return (
               <div
                 key={tx.id}
-                className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_90px_110px_70px_70px_100px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center"
+                className={`flex flex-col sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
+                  tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
+                } ${isSelected ? "bg-primary/5" : ""}`}
               >
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
