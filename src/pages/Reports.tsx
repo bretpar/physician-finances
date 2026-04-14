@@ -65,6 +65,7 @@ export default function Reports() {
   const plData = useMemo(() => {
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
+      if ((t as any).excluded_from_reports) return false;
       if (plCompany !== "all" && t.entity !== plCompany) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
@@ -73,6 +74,7 @@ export default function Reports() {
 
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
+      if ((t as any).excluded_from_reports) return false;
       if (plCompany !== "all" && t.entity !== plCompany) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
@@ -99,12 +101,14 @@ export default function Reports() {
 
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
+      if ((t as any).excluded_from_reports) return false;
       if (taxCompany !== "all" && t.entity !== taxCompany) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });
 
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
+      if ((t as any).excluded_from_reports) return false;
       if (taxCompany !== "all" && t.entity !== taxCompany) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });
