@@ -306,15 +306,84 @@ export type Database = {
         }
         Relationships: []
       }
+      plaid_accounts: {
+        Row: {
+          account_mask: string | null
+          account_name: string
+          account_subtype: string | null
+          account_type: string
+          available_balance: number | null
+          created_at: string
+          current_balance: number | null
+          id: string
+          is_active: boolean
+          organization_id: string | null
+          plaid_account_id: string
+          plaid_item_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_mask?: string | null
+          account_name?: string
+          account_subtype?: string | null
+          account_type?: string
+          available_balance?: number | null
+          created_at?: string
+          current_balance?: number | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string | null
+          plaid_account_id: string
+          plaid_item_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_mask?: string | null
+          account_name?: string
+          account_subtype?: string | null
+          account_type?: string
+          available_balance?: number | null
+          created_at?: string
+          current_balance?: number | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string | null
+          plaid_account_id?: string
+          plaid_item_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plaid_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plaid_accounts_plaid_item_id_fkey"
+            columns: ["plaid_item_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plaid_items: {
         Row: {
           access_token: string
           created_at: string
           cursor: string | null
           id: string
+          institution_id: string
           institution_name: string
           item_id: string
+          last_synced_at: string | null
           organization_id: string | null
+          status: string
           updated_at: string
           user_id: string
         }
@@ -323,9 +392,12 @@ export type Database = {
           created_at?: string
           cursor?: string | null
           id?: string
+          institution_id?: string
           institution_name?: string
           item_id: string
+          last_synced_at?: string | null
           organization_id?: string | null
+          status?: string
           updated_at?: string
           user_id: string
         }
@@ -334,15 +406,92 @@ export type Database = {
           created_at?: string
           cursor?: string | null
           id?: string
+          institution_id?: string
           institution_name?: string
           item_id?: string
+          last_synced_at?: string | null
           organization_id?: string | null
+          status?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "plaid_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plaid_transactions: {
+        Row: {
+          amount: number
+          authorized_date: string | null
+          category_raw: string | null
+          created_at: string
+          date: string
+          id: string
+          imported_at: string
+          iso_currency_code: string | null
+          merchant_name: string | null
+          name: string
+          organization_id: string | null
+          payment_channel: string | null
+          pending: boolean
+          plaid_account_id: string
+          plaid_transaction_id: string
+          raw_json: Json | null
+          unofficial_currency_code: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          authorized_date?: string | null
+          category_raw?: string | null
+          created_at?: string
+          date: string
+          id?: string
+          imported_at?: string
+          iso_currency_code?: string | null
+          merchant_name?: string | null
+          name?: string
+          organization_id?: string | null
+          payment_channel?: string | null
+          pending?: boolean
+          plaid_account_id: string
+          plaid_transaction_id: string
+          raw_json?: Json | null
+          unofficial_currency_code?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          authorized_date?: string | null
+          category_raw?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          imported_at?: string
+          iso_currency_code?: string | null
+          merchant_name?: string | null
+          name?: string
+          organization_id?: string | null
+          payment_channel?: string | null
+          pending?: boolean
+          plaid_account_id?: string
+          plaid_transaction_id?: string
+          raw_json?: Json | null
+          unofficial_currency_code?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plaid_transactions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -838,6 +987,125 @@ export type Database = {
           },
         ]
       }
+      transaction_links: {
+        Row: {
+          confidence_score: number | null
+          created_at: string
+          created_by_user: boolean
+          id: string
+          linked_at: string
+          linked_group_id: string
+          manual_transaction_id: string | null
+          organization_id: string | null
+          plaid_transaction_record_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string
+          created_by_user?: boolean
+          id?: string
+          linked_at?: string
+          linked_group_id: string
+          manual_transaction_id?: string | null
+          organization_id?: string | null
+          plaid_transaction_record_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string
+          created_by_user?: boolean
+          id?: string
+          linked_at?: string
+          linked_group_id?: string
+          manual_transaction_id?: string | null
+          organization_id?: string | null
+          plaid_transaction_record_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_links_manual_transaction_id_fkey"
+            columns: ["manual_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_links_plaid_transaction_record_id_fkey"
+            columns: ["plaid_transaction_record_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transaction_match_ignores: {
+        Row: {
+          created_at: string
+          id: string
+          manual_transaction_id: string | null
+          organization_id: string | null
+          plaid_transaction_record_id: string | null
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          manual_transaction_id?: string | null
+          organization_id?: string | null
+          plaid_transaction_record_id?: string | null
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          manual_transaction_id?: string | null
+          organization_id?: string | null
+          plaid_transaction_record_id?: string | null
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_match_ignores_manual_transaction_id_fkey"
+            columns: ["manual_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_match_ignores_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_match_ignores_plaid_transaction_record_id_fkey"
+            columns: ["plaid_transaction_record_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           account_source: string
@@ -850,12 +1118,16 @@ export type Database = {
           id: string
           is_deleted: boolean
           is_recurring: boolean
+          linked_group_id: string | null
+          match_status: string
           notes: string | null
           organization_id: string | null
           parent_transaction_id: string | null
+          plaid_transaction_ref: string | null
           receipt_url: string | null
           recommended_withholding: number
           recurring_frequency: string | null
+          source_type: string
           transaction_date: string
           transaction_type: string
           updated_at: string
@@ -874,12 +1146,16 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           is_recurring?: boolean
+          linked_group_id?: string | null
+          match_status?: string
           notes?: string | null
           organization_id?: string | null
           parent_transaction_id?: string | null
+          plaid_transaction_ref?: string | null
           receipt_url?: string | null
           recommended_withholding?: number
           recurring_frequency?: string | null
+          source_type?: string
           transaction_date?: string
           transaction_type?: string
           updated_at?: string
@@ -898,12 +1174,16 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           is_recurring?: boolean
+          linked_group_id?: string | null
+          match_status?: string
           notes?: string | null
           organization_id?: string | null
           parent_transaction_id?: string | null
+          plaid_transaction_ref?: string | null
           receipt_url?: string | null
           recommended_withholding?: number
           recurring_frequency?: string | null
+          source_type?: string
           transaction_date?: string
           transaction_type?: string
           updated_at?: string
