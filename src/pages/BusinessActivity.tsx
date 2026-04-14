@@ -72,8 +72,12 @@ export default function Transactions() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterSource, setFilterSource] = useState<"all" | "manual" | "plaid" | "merged">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
+
+  // Suggested matches
+  const suggestions = useSuggestedMatches(transactions);
 
   // Unified form
   const [showForm, setShowForm] = useState(false);
