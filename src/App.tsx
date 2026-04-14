@@ -43,7 +43,7 @@ function ProtectedRoutes() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/business-activity" element={<BusinessActivity />} />
           <Route path="/personal-income" element={<PersonalIncome />} />
-          <Route path="/accounts" element={<Accounts />} />
+          <Route path="/accounts" element={<Navigate to="/settings" replace />} />
           <Route path="/projected-income" element={<ProjectedIncome />} />
           <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />

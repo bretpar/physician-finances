@@ -23,7 +23,6 @@ const navItems = [
   { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses" },
   { to: "/personal-income", icon: Wallet, label: "Personal Income", subtitle: "Actual income affecting taxes" },
   { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income" },
-  { to: "/accounts", icon: Landmark, label: "Accounts", subtitle: "Bank connections" },
   { to: "/deductions", icon: Car, label: "Deductions", subtitle: "" },
   { to: "/taxes", icon: Calculator, label: "Taxes", subtitle: "Current vs forecasted tax estimates" },
   { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries" },
