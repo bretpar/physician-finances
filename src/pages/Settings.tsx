@@ -9,21 +9,28 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Plus, Trash2, Building2, Check, Landmark, RefreshCw, Loader2,
-  Shield, User, Crown, Calculator,
+  Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTaxSettings, useUpdateTaxSettings, type WithholdingMethod } from "@/hooks/useTaxSettings";
+import {
+  usePlaidItems,
+  usePlaidAccounts,
+  useSyncTransactions,
+  useDisconnectPlaidItem,
+  useUpdatePlaidAccount,
+  useBulkApplyAccountBusiness,
+} from "@/hooks/usePlaid";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
 interface TaxSettings { federalRate: number; stateRate: number; bnoRate: number; }
-interface PlaidItem { id: string; institution_name: string; created_at: string; }
 interface OrgMember { id: string; user_id: string; role: string; email?: string; first_name?: string; last_name?: string; }
 
 const COMPANY_TYPES = [
@@ -74,18 +81,19 @@ export default function Settings() {
   function handleAddCompany() { addCompany({ name: "", companyType: "1099", includeInTax: true }); }
   function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
 
-  /* ─── Accounts (Plaid) ─── */
-  const [plaidItems, setPlaidItems] = useState<PlaidItem[]>([]);
+  /* ─── Connected Accounts (Plaid) ─── */
+  const { data: plaidItems = [], isLoading: plaidItemsLoading } = usePlaidItems();
+  const { data: plaidAccounts = [] } = usePlaidAccounts();
+  const syncMutation = useSyncTransactions();
+  const disconnectMutation = useDisconnectPlaidItem();
+  const updateAccountMutation = useUpdatePlaidAccount();
+  const bulkApplyMutation = useBulkApplyAccountBusiness();
+
   const [linkLoading, setLinkLoading] = useState(false);
-  const [plaidLoading, setPlaidLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-
-  const fetchPlaidItems = useCallback(async () => {
-    const { data } = await supabase.from("plaid_items").select("id, institution_name, created_at").order("created_at", { ascending: false });
-    if (data) setPlaidItems(data);
-  }, []);
-
-  useEffect(() => { fetchPlaidItems(); }, [fetchPlaidItems]);
+  const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
+  const [editingAccount, setEditingAccount] = useState<any | null>(null);
+  const [editMode, setEditMode] = useState<string>("unassigned");
+  const [editCompanyId, setEditCompanyId] = useState<string>("");
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
@@ -104,13 +112,11 @@ export default function Settings() {
       const handler = (window as any).Plaid.create({
         token: data.link_token,
         onSuccess: async (publicToken: string, metadata: any) => {
-          setPlaidLoading(true);
           const { error: exchangeError } = await supabase.functions.invoke("plaid-exchange-token", {
-            body: { public_token: publicToken, institution_name: metadata?.institution?.name || "Bank Account" },
+            body: { public_token: publicToken, institution_name: metadata?.institution?.name || "Bank Account", institution_id: metadata?.institution?.institution_id || "" },
           });
           if (exchangeError) { toast.error("Failed to connect account"); }
-          else { toast.success("Bank account connected!"); await fetchPlaidItems(); handleSyncTransactions(); }
-          setPlaidLoading(false);
+          else { toast.success("Bank account connected!"); syncMutation.mutate(undefined); }
         },
         onExit: () => {},
       });
@@ -119,14 +125,56 @@ export default function Settings() {
     finally { setLinkLoading(false); }
   };
 
-  const handleSyncTransactions = async () => {
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("plaid-sync-transactions");
-      if (error) toast.error("Failed to sync transactions");
-      else toast.success(`Synced ${data?.transactions_added || 0} new transactions`);
-    } catch { toast.error("Sync failed"); }
-    finally { setSyncing(false); }
+  const accountTypeIcon = (type: string) => {
+    if (type === "credit") return <CreditCard className="h-4 w-4" />;
+    return <Building2 className="h-4 w-4" />;
+  };
+
+  const formatDate = (d: string | null) => {
+    if (!d) return "Never";
+    return new Date(d).toLocaleString();
+  };
+
+  const getCompanyName = (companyId: string | null) => {
+    if (!companyId) return null;
+    return companies.find((c) => c.id === companyId)?.name || null;
+  };
+
+  const getModeLabel = (mode: string, companyId: string | null) => {
+    if (mode === "single_business") {
+      const name = getCompanyName(companyId);
+      return name || "Business (deleted)";
+    }
+    if (mode === "shared") return "Shared / Multiple";
+    return "Unassigned";
+  };
+
+  const getModeColor = (mode: string): "secondary" | "default" | "outline" => {
+    if (mode === "single_business") return "default";
+    if (mode === "shared") return "secondary";
+    return "outline";
+  };
+
+  const openEditDialog = (acct: any) => {
+    setEditingAccount(acct);
+    setEditMode(acct.account_business_mode || "unassigned");
+    setEditCompanyId(acct.default_company_id || "");
+  };
+
+  const handleSaveAffiliation = () => {
+    if (!editingAccount) return;
+    updateAccountMutation.mutate({
+      id: editingAccount.id,
+      account_business_mode: editMode,
+      default_company_id: editMode === "single_business" && editCompanyId ? editCompanyId : null,
+    }, { onSuccess: () => setEditingAccount(null) });
+  };
+
+  const handleBulkApply = () => {
+    if (!editingAccount || editMode !== "single_business" || !editCompanyId) return;
+    const name = getCompanyName(editCompanyId);
+    if (!name) return;
+    bulkApplyMutation.mutate({ accountId: editingAccount.id, companyName: name });
   };
 
   /* ─── Team ─── */
@@ -134,7 +182,6 @@ export default function Settings() {
   const [membersLoading, setMembersLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [invitePassword, setInvitePassword] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
@@ -156,14 +203,14 @@ export default function Settings() {
   useEffect(() => { loadMembers(); }, [loadMembers]);
 
   async function handleInvite() {
-    if (!inviteEmail || !invitePassword || !organizationId) return;
+    if (!inviteEmail || !organizationId) return;
     setInviting(true);
     const { error } = await supabase.functions.invoke("invite-user", {
-      body: { email: inviteEmail, password: invitePassword, firstName: inviteFirstName, lastName: inviteLastName, organizationId, role: inviteRole },
+      body: { email: inviteEmail, firstName: inviteFirstName, lastName: inviteLastName, organizationId, role: inviteRole },
     });
     setInviting(false);
     if (error) { toast.error("Failed to invite user: " + error.message); }
-    else { toast.success(`Invited ${inviteEmail}`); setShowInvite(false); setInviteEmail(""); setInvitePassword(""); setInviteFirstName(""); setInviteLastName(""); setInviteRole("member"); loadMembers(); }
+    else { toast.success(`Invite sent to ${inviteEmail}`); setShowInvite(false); setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteRole("member"); loadMembers(); }
   }
 
   async function handleRemoveMember() {
@@ -218,53 +265,31 @@ export default function Settings() {
           }}
           className="space-y-3"
         >
-          {/* Flat Estimate */}
           <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
             <RadioGroupItem value="flat_estimate" className="mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-medium text-card-foreground">Flat Estimate</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Use a fixed percentage for all withholding recommendations. Simple and predictable.
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Use a fixed percentage for all withholding recommendations.</p>
               {(taxSettingsData?.withholdingMethod === "flat_estimate") && (
                 <div className="mt-3 flex items-center gap-2">
                   <Label className="text-xs text-muted-foreground">Rate (%)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    className="w-24 h-8"
-                    value={taxSettingsData?.manualEffectiveTaxRate ?? 20}
-                    onChange={(e) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, manualEffectiveTaxRate: parseFloat(e.target.value) || 0 });
-                    }}
-                  />
+                  <Input type="number" step="0.1" min="0" max="100" className="w-24 h-8" value={taxSettingsData?.manualEffectiveTaxRate ?? 20} onChange={(e) => { if (!taxSettingsData?.id) return; updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, manualEffectiveTaxRate: parseFloat(e.target.value) || 0 }); }} />
                 </div>
               )}
             </div>
           </label>
-
-          {/* Dynamic — Actual */}
           <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
             <RadioGroupItem value="dynamic_actual" className="mt-0.5" />
             <div>
               <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Current Income</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Calculates recommendations using all actual income entered across business, personal, and capital gains. Uses your real tax brackets for the most accurate estimate based on what you've earned so far.
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Uses all actual income entered across business, personal, and capital gains with real tax brackets.</p>
             </div>
           </label>
-
-          {/* Dynamic — Planner */}
           <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
             <RadioGroupItem value="dynamic_planner" className="mt-0.5" />
             <div>
               <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Income Planner</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Includes projected future income from your Income Planner in addition to actual income. Provides the most forward-looking bracket estimation for proactive tax planning.
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Includes projected future income for forward-looking bracket estimation.</p>
             </div>
           </label>
         </RadioGroup>
@@ -321,37 +346,93 @@ export default function Settings() {
 
       <Separator />
 
-      {/* ─── Accounts (Plaid) ─── */}
+      {/* ─── Connected Accounts (Plaid) — Full-featured ─── */}
       <section className="glass-card rounded-xl p-6 space-y-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-card-foreground">Linked Accounts</h3>
-          <div className="flex gap-2">
-            {plaidItems.length > 0 && (
-              <Button variant="outline" size="sm" onClick={handleSyncTransactions} disabled={syncing} className="gap-1.5">
-                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sync
-              </Button>
-            )}
-            <Button size="sm" onClick={handleConnectBank} disabled={linkLoading || plaidLoading} className="gap-1.5">
-              {linkLoading || plaidLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Connect Bank
-            </Button>
+          <div>
+            <h3 className="text-base font-semibold text-card-foreground">Connected Accounts</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage linked bank and credit card accounts. Assign each to a business for auto-categorization.</p>
           </div>
+          <Button size="sm" onClick={handleConnectBank} disabled={linkLoading} className="gap-1.5">
+            {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Connect Account
+          </Button>
         </div>
-        {plaidItems.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {plaidItems.map((item) => (
-              <div key={item.id} className="border border-border rounded-lg p-4 flex items-start gap-3">
-                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary shrink-0"><Landmark className="h-5 w-5" /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-card-foreground">{item.institution_name}</p>
-                  <p className="text-xs text-muted-foreground">Connected {new Date(item.created_at).toLocaleDateString()}</p>
+
+        {plaidItemsLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : plaidItems.length > 0 ? (
+          <div className="space-y-4">
+            {plaidItems.map((item) => {
+              const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
+              return (
+                <div key={item.id} className="rounded-lg border border-border bg-card p-5 space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary">
+                        <Landmark className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-card-foreground">{item.institution_name}</p>
+                        <p className="text-xs text-muted-foreground">Last synced: {formatDate(item.last_synced_at)}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => syncMutation.mutate(item.id)} disabled={syncMutation.isPending} className="gap-1.5">
+                        {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        Refresh
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setDisconnectItemId(item.id)} className="gap-1.5 text-destructive hover:text-destructive">
+                        <Unplug className="h-3.5 w-3.5" /> Disconnect
+                      </Button>
+                    </div>
+                  </div>
+
+                  {accounts.length > 0 && (
+                    <div className="grid grid-cols-1 gap-3">
+                      {accounts.map((acct) => {
+                        const mode = (acct as any).account_business_mode || "unassigned";
+                        const companyId = (acct as any).default_company_id || null;
+                        return (
+                          <div key={acct.id} className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
+                            <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-card-foreground truncate">{acct.account_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
+                                {acct.account_mask ? ` ···${acct.account_mask}` : ""}
+                              </p>
+                            </div>
+                            <Badge variant={getModeColor(mode)} className="text-xs shrink-0">
+                              {getModeLabel(mode, companyId)}
+                            </Badge>
+                            {acct.current_balance != null && (
+                              <Badge variant="secondary" className="text-xs font-mono shrink-0">
+                                ${Number(acct.current_balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              </Badge>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={() => openEditDialog(acct)}>
+                              <Settings2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
-          <div className="text-center py-6">
-            <Landmark className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">No bank accounts connected yet.</p>
+          <div className="text-center py-8">
+            <Landmark className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">Connect your bank accounts to automatically import transactions.</p>
+            <Button onClick={handleConnectBank} disabled={linkLoading} className="mt-4 gap-2">
+              {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Connect Your First Account
+            </Button>
           </div>
         )}
       </section>
@@ -381,12 +462,11 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {isAdminOrOwner && member.user_id !== user?.id ? (
+                    {isAdminOrOwner && member.user_id !== user?.id && member.role !== "owner" ? (
                       <Select value={member.role} onValueChange={(v) => handleRoleChange(member.id, v)}>
                         <SelectTrigger className="w-[100px] h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="owner">Owner</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
+                          {userRole === "owner" && <SelectItem value="admin">Admin</SelectItem>}
                           <SelectItem value="member">Member</SelectItem>
                         </SelectContent>
                       </Select>
@@ -412,6 +492,69 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Disconnect account dialog */}
+      <AlertDialog open={!!disconnectItemId} onOpenChange={() => setDisconnectItemId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect Bank Account?</AlertDialogTitle>
+            <AlertDialogDescription>This will deactivate the connection. Your previously imported transactions will be kept.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (disconnectItemId) disconnectMutation.mutate(disconnectItemId); setDisconnectItemId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Disconnect</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit business affiliation dialog */}
+      <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Default Business Affiliation</DialogTitle>
+            <DialogDescription>Choose a default business for this account if it is used primarily for one business. Leave unassigned or mark as shared if transactions may belong to multiple businesses.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Account Mode</label>
+              <Select value={editMode} onValueChange={setEditMode}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">None / Unassigned</SelectItem>
+                  <SelectItem value="single_business">One Specific Business</SelectItem>
+                  <SelectItem value="shared">Shared / Multiple Businesses</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editMode === "single_business" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Default Business</label>
+                <Select value={editCompanyId} onValueChange={setEditCompanyId}>
+                  <SelectTrigger><SelectValue placeholder="Select a business..." /></SelectTrigger>
+                  <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            )}
+            {editMode === "single_business" && editCompanyId && (
+              <div className="rounded-lg border border-border bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground mb-2">Optionally apply this business to existing unassigned imported transactions from this account.</p>
+                <Button variant="outline" size="sm" onClick={handleBulkApply} disabled={bulkApplyMutation.isPending}>
+                  {bulkApplyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                  Apply to Existing Transactions
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingAccount(null)}>Cancel</Button>
+            <Button onClick={handleSaveAffiliation} disabled={updateAccountMutation.isPending || (editMode === "single_business" && !editCompanyId)}>
+              {updateAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite team member dialog */}
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
         <DialogContent>
           <DialogHeader><DialogTitle>Invite Team Member</DialogTitle></DialogHeader>
@@ -420,8 +563,11 @@ export default function Settings() {
               <div><Label>First Name</Label><Input value={inviteFirstName} onChange={(e) => setInviteFirstName(e.target.value)} /></div>
               <div><Label>Last Name</Label><Input value={inviteLastName} onChange={(e) => setInviteLastName(e.target.value)} /></div>
             </div>
-            <div><Label>Email *</Label><Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} /></div>
-            <div><Label>Temporary Password *</Label><Input type="password" value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} placeholder="Min 8 chars" /></div>
+            <div>
+              <Label>Email *</Label>
+              <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">An invite link will be sent to this email address.</p>
+            </div>
             <div>
               <Label>Role</Label>
               <Select value={inviteRole} onValueChange={setInviteRole}>
@@ -431,7 +577,7 @@ export default function Settings() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
-              <Button onClick={handleInvite} disabled={inviting || !inviteEmail || !invitePassword}>{inviting ? "Inviting…" : "Send Invite"}</Button>
+              <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>{inviting ? "Sending…" : "Send Invite Link"}</Button>
             </div>
           </div>
         </DialogContent>
