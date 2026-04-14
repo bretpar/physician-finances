@@ -66,6 +66,7 @@ export default function Transactions() {
   const deleteMutation = useDeleteTransaction();
   const addMutation = useAddTransaction();
   const updateMutation = useUpdateTransaction();
+  const bulkUpdateMutation = useBulkUpdateTransactions();
   const addIncomeMutation = useAddIncome();
   const updateIncomeMutation = useUpdateIncome();
   const { data: incomeEntries } = useIncomeEntries();
@@ -75,8 +76,16 @@ export default function Transactions() {
   const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "plaid" | "merged">("all");
+  const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
+  const [hideLinkedDupes, setHideLinkedDupes] = useState(true);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCompany, setBulkCompany] = useState("");
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [showBulkCategory, setShowBulkCategory] = useState(false);
 
   // Suggested matches
   const suggestions = useSuggestedMatches(transactions);
