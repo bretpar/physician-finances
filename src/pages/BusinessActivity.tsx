@@ -364,7 +364,8 @@ export default function Transactions() {
     const rows = filtered.map((t) => {
       const type = (t.transaction_type || "expense");
       const displayAmt = type === "expense" ? -Math.abs(t.amount) : Math.abs(t.amount);
-      return [t.transaction_date, t.vendor, displayAmt, type === "income" ? "Income" : "Expense", t.category];
+      const typeLabel = type === "income" ? "Income" : type === "transfer" ? "Transfer" : "Expense";
+      return [t.transaction_date, t.vendor, displayAmt, typeLabel, t.category];
     });
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
