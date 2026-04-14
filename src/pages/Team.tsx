@@ -33,7 +33,6 @@ export default function Team() {
   // Invite dialog
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [invitePassword, setInvitePassword] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
@@ -76,15 +75,12 @@ export default function Team() {
   useEffect(() => { loadMembers(); }, [organizationId]);
 
   async function handleInvite() {
-    if (!inviteEmail || !invitePassword || !organizationId) return;
+    if (!inviteEmail || !organizationId) return;
     setInviting(true);
 
-    // Create user via edge function would be ideal, but for now use admin invite pattern
-    // We'll create the user via signup and then add to org
     const { data, error } = await supabase.functions.invoke("invite-user", {
       body: {
         email: inviteEmail,
-        password: invitePassword,
         firstName: inviteFirstName,
         lastName: inviteLastName,
         organizationId,
@@ -96,9 +92,9 @@ export default function Team() {
     if (error) {
       toast.error("Failed to invite user: " + error.message);
     } else {
-      toast.success(`Invited ${inviteEmail}`);
+      toast.success(`Invite sent to ${inviteEmail}`);
       setShowInvite(false);
-      setInviteEmail(""); setInvitePassword(""); setInviteFirstName(""); setInviteLastName(""); setInviteRole("member");
+      setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteRole("member");
       loadMembers();
     }
   }
@@ -161,12 +157,11 @@ export default function Team() {
                   <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {isAdminOrOwner && member.user_id !== user?.id ? (
+                  {isAdminOrOwner && member.user_id !== user?.id && member.role !== "owner" ? (
                     <Select value={member.role} onValueChange={(v: string) => handleRoleChange(member.id, v)}>
                       <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="owner">Owner</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {userRole === "owner" && <SelectItem value="admin">Admin</SelectItem>}
                         <SelectItem value="member">Member</SelectItem>
                       </SelectContent>
                     </Select>
@@ -205,10 +200,7 @@ export default function Team() {
             <div>
               <Label>Email *</Label>
               <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required />
-            </div>
-            <div>
-              <Label>Temporary Password *</Label>
-              <Input type="password" value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} required placeholder="Min 8 chars" />
+              <p className="text-xs text-muted-foreground mt-1">An invite link will be sent to this email address.</p>
             </div>
             <div>
               <Label>Role</Label>
@@ -222,8 +214,8 @@ export default function Team() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
-              <Button onClick={handleInvite} disabled={inviting || !inviteEmail || !invitePassword}>
-                {inviting ? "Inviting…" : "Send Invite"}
+              <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>
+                {inviting ? "Sending…" : "Send Invite Link"}
               </Button>
             </div>
           </div>
