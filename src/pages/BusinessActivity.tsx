@@ -381,7 +381,7 @@ export default function Transactions() {
           </div>
         </div>
         {/* Company + date range filters */}
-        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap items-center">
           <Select value={filterCompany} onValueChange={setFilterCompany}>
             <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
               <SelectValue placeholder="All Companies" />
@@ -404,18 +404,80 @@ export default function Transactions() {
               <SelectItem value="merged">Linked</SelectItem>
             </SelectContent>
           </Select>
+          {needsReviewCount > 0 && (
+            <Button
+              variant={filterReview === "needs_review" ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => setFilterReview(filterReview === "needs_review" ? "all" : "needs_review")}
+            >
+              <AlertCircle className="h-3.5 w-3.5" />
+              Needs Review ({needsReviewCount})
+            </Button>
+          )}
           <div className="flex gap-2 items-center">
             <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="From" />
             <span className="text-xs text-muted-foreground">to</span>
             <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="To" />
-            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all") && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
+            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all" || filterReview !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterReview("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
                 Clear
               </Button>
             )}
           </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <Switch checked={hideLinkedDupes} onCheckedChange={setHideLinkedDupes} id="hide-dupes" />
+            <Label htmlFor="hide-dupes" className="text-xs text-muted-foreground cursor-pointer">Hide linked duplicates</Label>
+          </div>
         </div>
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+          <div className="flex gap-2 flex-wrap flex-1">
+            <Select value={bulkCompany} onValueChange={(v) => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { entity: v, needs_review: false } as any });
+              setBulkCompany("");
+              setSelectedIds(new Set());
+            }}>
+              <SelectTrigger className="w-[160px] h-7 text-xs">
+                <SelectValue placeholder="Assign Company" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setShowBulkCategory(true)}>
+              <Tag className="h-3 w-3" /> Assign Category
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { excluded_from_reports: true, needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <EyeOff className="h-3 w-3" /> Mark Personal
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { excluded_from_reports: true, needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <EyeOff className="h-3 w-3" /> Exclude from Reports
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <CheckCircle2 className="h-3 w-3" /> Mark Reviewed
+            </Button>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
 
       {/* Suggested Matches */}
       <SuggestedMatches suggestions={suggestions} />
