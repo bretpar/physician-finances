@@ -188,7 +188,7 @@ export default function Transactions() {
 
   // --- Open form for Edit ---
   function openEdit(tx: DbTransaction) {
-    const txType = (tx.transaction_type || "expense") as "income" | "expense";
+    const txType = (tx.transaction_type || "expense") as "income" | "expense" | "transfer";
     const linked = txType === "income" ? incomeByLinkedTx.get(tx.id) : null;
 
     setForm({
@@ -198,6 +198,7 @@ export default function Transactions() {
       type: txType,
       category: tx.category,
       notes: tx.notes || "",
+      transfer_subtype: tx.transfer_subtype || "",
       company: linked?.company || tx.entity || "",
       income_type: linked?.income_type || tx.company_type || "1099",
       gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
