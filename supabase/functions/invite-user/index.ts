@@ -28,10 +28,16 @@ serve(async (req) => {
     const { data: { user: callingUser } } = await supabaseUser.auth.getUser();
     if (!callingUser) throw new Error("Not authenticated");
 
-    const { email, password, firstName, lastName, organizationId, role } = await req.json();
+    const { email, firstName, lastName, organizationId, role } = await req.json();
 
-    if (!email || !password || !organizationId) {
-      throw new Error("Missing required fields");
+    if (!email || !organizationId) {
+      throw new Error("Missing required fields: email and organizationId");
+    }
+
+    // Validate role - never allow inviting as owner
+    const inviteRole = role || "member";
+    if (inviteRole === "owner") {
+      throw new Error("Cannot invite users with owner role");
     }
 
     // Verify caller is admin/owner of the org
@@ -46,29 +52,27 @@ serve(async (req) => {
       throw new Error("Insufficient permissions");
     }
 
-    // Create the new user
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
+    // Invite user via magic link (no plaintext password)
+    const { data: newUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: {
         first_name: firstName || "",
         last_name: lastName || "",
         full_name: `${firstName || ""} ${lastName || ""}`.trim(),
+        invited_to_org: organizationId,
+        invited_role: inviteRole,
       },
     });
 
-    if (createError) throw createError;
-    if (!newUser.user) throw new Error("Failed to create user");
+    if (inviteError) throw inviteError;
+    if (!newUser.user) throw new Error("Failed to invite user");
 
     // The trigger will auto-create an org for this user, but we want to add them to the inviter's org
-    // First add to the target org
     const { error: memberError } = await supabaseAdmin
       .from("organization_members")
       .insert({
         organization_id: organizationId,
         user_id: newUser.user.id,
-        role: role || "member",
+        role: inviteRole,
       });
 
     if (memberError) throw memberError;

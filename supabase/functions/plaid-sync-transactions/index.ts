@@ -154,11 +154,24 @@ Deno.serve(async (req) => {
       let hasMore = true;
       let cursor = item.cursor || undefined;
 
+      // Retrieve access token from Vault if available
+      let accessToken = item.access_token;
+      if (item.vault_secret_id) {
+        const { data: vaultToken, error: vaultErr } = await adminClient.rpc("get_plaid_access_token", {
+          _item_id: item.id,
+        });
+        if (!vaultErr && vaultToken) {
+          accessToken = vaultToken;
+        } else {
+          console.error("Failed to retrieve token from vault for item:", item.id, vaultErr);
+        }
+      }
+
       while (hasMore) {
         const syncBody: Record<string, unknown> = {
           client_id: PLAID_CLIENT_ID,
           secret: PLAID_SECRET,
-          access_token: item.access_token,
+          access_token: accessToken,
           count: 100,
         };
         if (cursor) syncBody.cursor = cursor;
