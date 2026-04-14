@@ -63,7 +63,7 @@ export default function Accounts() {
             toast.error("Failed to connect account");
           } else {
             toast.success("Bank account connected!");
-            syncMutation.mutate();
+            syncMutation.mutate(undefined);
           }
         },
         onExit: () => {},
