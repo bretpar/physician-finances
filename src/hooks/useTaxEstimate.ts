@@ -98,7 +98,7 @@ export function useTaxEstimate(): {
 
     // ── BUSINESS DEDUCTIONS ──
     const businessExpenses = (transactions || [])
-      .filter((t) => t.amount < 0 && t.category !== "Personal" && t.entity !== "Unassigned")
+      .filter((t) => t.amount < 0 && t.category !== "Personal" && t.entity !== "Unassigned" && t.transaction_type !== "transfer")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
 
     const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
-import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, type DbTransaction } from "@/hooks/useTransactions";
+import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 
@@ -31,9 +31,10 @@ interface TxFormState {
   date: string;
   name: string;
   amount: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "transfer";
   category: string;
   notes: string;
+  transfer_subtype: string;
   // Income-only fields (hidden from table, shown in form)
   company: string;
   income_type: string;
@@ -51,6 +52,7 @@ const emptyForm: TxFormState = {
   type: "expense",
   category: "",
   notes: "",
+  transfer_subtype: "",
   company: "",
   income_type: "1099",
   gross_amount: "",
@@ -73,7 +75,7 @@ export default function Transactions() {
   const { data: taxSettings } = useTaxSettings();
 
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "income" | "expense">("all");
+  const [filterType, setFilterType] = useState<"all" | "income" | "expense" | "transfer">("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "plaid" | "merged">("all");
   const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
@@ -104,6 +106,7 @@ export default function Transactions() {
 
   const isEditing = !!editingTxId;
   const isIncome = form.type === "income";
+  const isTransfer = form.type === "transfer";
 
   // Business Activity: only show non-W2 companies (1099, K1)
   const allCompanyNames = useMemo(() => {
@@ -186,7 +189,7 @@ export default function Transactions() {
 
   // --- Open form for Edit ---
   function openEdit(tx: DbTransaction) {
-    const txType = (tx.transaction_type || "expense") as "income" | "expense";
+    const txType = (tx.transaction_type || "expense") as "income" | "expense" | "transfer";
     const linked = txType === "income" ? incomeByLinkedTx.get(tx.id) : null;
 
     setForm({
@@ -196,6 +199,7 @@ export default function Transactions() {
       type: txType,
       category: tx.category,
       notes: tx.notes || "",
+      transfer_subtype: tx.transfer_subtype || "",
       company: linked?.company || tx.entity || "",
       income_type: linked?.income_type || tx.company_type || "1099",
       gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
@@ -212,7 +216,7 @@ export default function Transactions() {
   // --- Save (unified for add + edit) ---
   function saveForm() {
     if (!form.name.trim() || !form.date) return;
-    if (!isIncome && !form.company) { toast.error("Please select a company"); return; }
+    if (!isIncome && !isTransfer && !form.company) { toast.error("Please select a company"); return; }
     if (isIncome && num(form.gross_amount) <= 0) return;
 
     if (isIncome) {
@@ -279,6 +283,37 @@ export default function Transactions() {
           },
         });
       }
+    } else if (isTransfer) {
+      // Transfer
+      const amount = num(form.amount);
+      if (amount === 0) return;
+
+      if (isEditing) {
+        updateMutation.mutate({
+          id: editingTxId!,
+          transaction_date: form.date,
+          vendor: form.name,
+          amount,
+          category: "Transfer",
+          notes: form.notes,
+          transaction_type: "transfer",
+          transfer_subtype: form.transfer_subtype || null,
+          entity: form.company || "Unassigned",
+          excluded_from_reports: true,
+        } as any);
+      } else {
+        addMutation.mutate({
+          transaction_date: form.date,
+          vendor: form.name,
+          amount,
+          category: "Transfer",
+          notes: form.notes,
+          transaction_type: "transfer",
+          transfer_subtype: form.transfer_subtype || null,
+          entity: form.company || "Unassigned",
+          excluded_from_reports: true,
+        } as any);
+      }
     } else {
       // Expense
       const amount = num(form.amount);
@@ -329,7 +364,8 @@ export default function Transactions() {
     const rows = filtered.map((t) => {
       const type = (t.transaction_type || "expense");
       const displayAmt = type === "expense" ? -Math.abs(t.amount) : Math.abs(t.amount);
-      return [t.transaction_date, t.vendor, displayAmt, type === "income" ? "Income" : "Expense", t.category];
+      const typeLabel = type === "income" ? "Income" : type === "transfer" ? "Transfer" : "Expense";
+      return [t.transaction_date, t.vendor, displayAmt, typeLabel, t.category];
     });
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -365,7 +401,7 @@ export default function Transactions() {
             <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30">
-            {(["all", "income", "expense"] as const).map((tab) => (
+            {(["all", "income", "expense", "transfer"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterType(tab)}
@@ -375,7 +411,7 @@ export default function Transactions() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "all" ? "All" : tab === "income" ? "Income" : "Expenses"}
+                {tab === "all" ? "All" : tab === "income" ? "Income" : tab === "expense" ? "Expenses" : "Transfers"}
               </button>
             ))}
           </div>
@@ -467,6 +503,12 @@ export default function Transactions() {
               <EyeOff className="h-3 w-3" /> Exclude from Reports
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { transaction_type: "transfer", transfer_subtype: "account_transfer", category: "Transfer", excluded_from_reports: true, needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <ArrowLeftRight className="h-3 w-3" /> Mark as Transfer
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
               bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { needs_review: false } as any });
               setSelectedIds(new Set());
             }}>
@@ -508,7 +550,11 @@ export default function Transactions() {
           {filtered.map((tx) => {
             const type = (tx.transaction_type || "expense") as string;
             const isIncomeTx = type === "income";
-            const displayAmount = isIncomeTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
+            const isTransferTx = type === "transfer";
+            const transferLabel = isTransferTx && tx.transfer_subtype
+              ? TRANSFER_SUBTYPES.find((s) => s.value === tx.transfer_subtype)?.label || "Transfer"
+              : "Transfer";
+            const displayAmount = isIncomeTx ? Math.abs(tx.amount) : isTransferTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
 
@@ -542,16 +588,18 @@ export default function Transactions() {
                 <span className="text-xs text-muted-foreground truncate">
                   {tx.entity || "Unassigned"}
                 </span>
-                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
-                  {isIncomeTx ? "+" : ""}{fmt(displayAmount)}
+                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>
+                  {isIncomeTx ? "+" : isTransferTx ? "" : ""}{fmt(displayAmount)}
                 </span>
                 <span className="text-center">
                   <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${
                     isIncomeTx
                       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                      : "bg-muted text-muted-foreground"
+                      : isTransferTx
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        : "bg-muted text-muted-foreground"
                   }`}>
-                    {isIncomeTx ? "Income" : "Expense"}
+                    {isIncomeTx ? "Income" : isTransferTx ? transferLabel : "Expense"}
                   </span>
                 </span>
                 <span className="text-center">
@@ -607,7 +655,7 @@ export default function Transactions() {
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Type</Label>
               <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30 w-fit">
-                {(["income", "expense"] as const).map((t) => (
+                {(["income", "expense", "transfer"] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setField("type", t)}
@@ -617,10 +665,15 @@ export default function Transactions() {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {t === "income" ? "Income" : "Expense"}
+                    {t === "income" ? "Income" : t === "expense" ? "Expense" : "Transfer"}
                   </button>
                 ))}
               </div>
+              {isTransfer && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Transfers move money between accounts and do not count as income or deductible expenses.
+                </p>
+              )}
             </div>
 
             {/* Common fields */}
@@ -631,7 +684,7 @@ export default function Transactions() {
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  {isIncome ? "Description" : "Merchant / Name"}
+                  {isIncome ? "Description" : isTransfer ? "Description" : "Merchant / Name"}
                 </Label>
                 <Input
                   placeholder={isIncome ? "e.g. ED Shift Pay" : "e.g. Amazon"}
@@ -641,7 +694,44 @@ export default function Transactions() {
               </div>
             </div>
 
-            {!isIncome && (
+            {isTransfer && (
+              <div className="space-y-3 rounded-lg border border-border p-3 bg-blue-50/30 dark:bg-blue-950/10">
+                <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <ArrowLeftRight className="h-3.5 w-3.5" /> Transfer Details
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Transfer Type</Label>
+                    <Select value={form.transfer_subtype} onValueChange={(v) => setField("transfer_subtype", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        {TRANSFER_SUBTYPES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company (optional)</Label>
+                  <Select value={form.company} onValueChange={(v) => setField("company", v)}>
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Unassigned">None</SelectItem>
+                      {companies.map((c) => (
+                        <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {!isIncome && !isTransfer && (
               <div className="space-y-3">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
