@@ -9,7 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -18,9 +18,12 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
+import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+import { RecommendationModal } from "@/components/RecommendationModal";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -65,6 +68,7 @@ interface FormState {
   deductions_pre_tax: string;
   source_name: string;
   notes: string;
+  additional_tax_reserve: string;
 }
 
 const emptyForm: FormState = {
@@ -81,22 +85,33 @@ const emptyForm: FormState = {
   deductions_pre_tax: "",
   source_name: "",
   notes: "",
+  additional_tax_reserve: "",
 };
 
 const isW2Type = (t: string) => t === "w2_user" || t === "w2_partner";
 const isStockType = (t: string) => t === "short_term_gain" || t === "long_term_gain";
+
+const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown };
+const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
   const { data: entries = [], isLoading } = usePersonalIncomeEntries();
   const addMutation = useAddPersonalIncome();
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
-  const { getRecommendation } = useWithholdingRecommendation();
+  const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
+  const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Modal 2 state
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const [savedEntryId, setSavedEntryId] = useState<string | null>(null);
+  const [savedEntryTitle, setSavedEntryTitle] = useState("");
+  const [currentRecommendation, setCurrentRecommendation] = useState<IncomeRecommendation | null>(null);
 
   const isEditing = !!editingId;
   const setField = (key: keyof FormState, value: string) =>
@@ -120,12 +135,12 @@ export default function PersonalIncome() {
     );
   }, [entries]);
 
-  // Withholding recommendation for W2
+  // Base withholding recommendation for Modal 1
   const grossAmount = num(form.gross_amount);
-  const recommendation = useMemo(() => {
+  const baseRecommendation = useMemo(() => {
     if (grossAmount <= 0) return null;
     const incType = isW2Type(form.income_type) ? "W2" : "1099";
-    return getRecommendation({
+    return getWithholdingRec({
       grossIncome: grossAmount,
       incomeType: incType,
       taxesAlreadyWithheld: num(form.federal_withholding),
@@ -133,7 +148,7 @@ export default function PersonalIncome() {
       preTaxDeductions: num(form.deductions_pre_tax),
       alreadyIncludedInEstimate: isEditing,
     });
-  }, [grossAmount, form.income_type, form.federal_withholding, form.retirement_pretax, form.deductions_pre_tax, getRecommendation, isEditing]);
+  }, [grossAmount, form.income_type, form.federal_withholding, form.retirement_pretax, form.deductions_pre_tax, getWithholdingRec, isEditing]);
 
   function openAdd() {
     setForm(emptyForm);
@@ -156,49 +171,98 @@ export default function PersonalIncome() {
       deductions_pre_tax: String(entry.pre_tax_deductions),
       source_name: entry.company,
       notes: entry.notes || "",
+      additional_tax_reserve: String((entry as any).additional_tax_reserve || 0),
     });
     setEditingId(entry.id);
     setShowForm(true);
   }
 
-  function saveForm() {
-    if (!form.title.trim() || !form.date || num(form.gross_amount) <= 0) return;
+  function buildPayload() {
     const grossAmt = num(form.gross_amount);
     const computedNet = grossAmt - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
-    const payload = {
-      name: form.title,
-      income_date: form.date,
-      income_type: form.income_type,
-      company: form.source_name,
-      source_bucket: "personal" as const,
-      tax_category: TAX_CATEGORY_MAP[form.income_type] || "ordinary",
-      gross_amount: grossAmt,
-      paycheck_amount: grossAmt,
-      deposited_amount: netReceived,
-      cost_basis: isStockType(form.income_type) ? num(form.cost_basis) : null,
-      realized_gain_loss: isStockType(form.income_type) ? num(form.realized_gain_loss) : null,
-      federal_withholding: num(form.federal_withholding),
-      taxes_withheld: num(form.federal_withholding),
-      state_withholding: num(form.state_withholding),
-      retirement_401k: num(form.retirement_pretax),
-      pre_tax_deductions: num(form.deductions_pre_tax),
-      is_actual: true,
-      include_in_tax_estimate: true,
-      include_in_cash_flow: false,
-      notes: form.notes,
-      status: "received",
+
+    // Compute the base tax estimate for the record
+    const rec = getIncomeRec({
+      grossIncome: grossAmt,
+      incomeType: form.income_type,
+      federalWithheld: num(form.federal_withholding),
+      stateWithheld: num(form.state_withholding),
+      retirement401k: num(form.retirement_pretax),
+      preTaxDeductions: num(form.deductions_pre_tax),
+    });
+
+    return {
+      payload: {
+        name: form.title,
+        income_date: form.date,
+        income_type: form.income_type,
+        company: form.source_name,
+        source_bucket: "personal" as const,
+        tax_category: TAX_CATEGORY_MAP[form.income_type] || "ordinary",
+        gross_amount: grossAmt,
+        paycheck_amount: grossAmt,
+        deposited_amount: netReceived,
+        cost_basis: isStockType(form.income_type) ? num(form.cost_basis) : null,
+        realized_gain_loss: isStockType(form.income_type) ? num(form.realized_gain_loss) : null,
+        federal_withholding: num(form.federal_withholding),
+        taxes_withheld: num(form.federal_withholding),
+        state_withholding: num(form.state_withholding),
+        retirement_401k: num(form.retirement_pretax),
+        pre_tax_deductions: num(form.deductions_pre_tax),
+        is_actual: true,
+        include_in_tax_estimate: true,
+        include_in_cash_flow: false,
+        notes: form.notes,
+        status: "received",
+        base_tax_estimate: rec?.baseTaxEstimate || 0,
+        dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+        quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+        additional_tax_reserve: num(form.additional_tax_reserve),
+        recommendation_status: rec?.recommendationStatus || "on_track",
+      },
+      recommendation: rec,
     };
+  }
+
+  function saveForm() {
+    if (!form.title.trim() || !form.date || num(form.gross_amount) <= 0) return;
+    const { payload, recommendation } = buildPayload();
+    const showModal2 = isFeatureEnabled("recommendation_modal") && !isEditing;
 
     if (isEditing) {
-      updateMutation.mutate({ id: editingId!, ...payload }, {
+      updateMutation.mutate({ id: editingId!, ...payload } as any, {
         onSuccess: () => { setShowForm(false); setEditingId(null); },
       });
     } else {
-      addMutation.mutate(payload, {
-        onSuccess: () => { setShowForm(false); },
+      addMutation.mutate(payload as any, {
+        onSuccess: (_, __, context) => {
+          setShowForm(false);
+          if (showModal2 && recommendation) {
+            setSavedEntryTitle(form.title);
+            setCurrentRecommendation(recommendation);
+            setShowRecommendation(true);
+          }
+        },
       });
     }
+  }
+
+  function applyRecommendation() {
+    // The recommendation is already saved in base_tax_estimate fields.
+    // Apply the recommended additional_tax_reserve to the most recently saved entry.
+    if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0) {
+      // Find the most recent entry and update it
+      const latestEntry = entries[0]; // entries are sorted desc by date
+      if (latestEntry) {
+        updateMutation.mutate({
+          id: latestEntry.id,
+          additional_tax_reserve: currentRecommendation.recommendedAdditionalReserve,
+        } as any);
+      }
+    }
+    setShowRecommendation(false);
+    setCurrentRecommendation(null);
   }
 
   function confirmDelete() {
@@ -252,20 +316,24 @@ export default function PersonalIncome() {
 
       {/* Entries table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="hidden sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>Date</span>
           <span>Description</span>
           <span>Type</span>
           <span className="text-right">Amount</span>
           <span className="text-right">Withheld</span>
+          <span className="text-right">Reserve</span>
           <span></span>
         </div>
         <div className="divide-y divide-border">
           {entries.map((entry) => {
             const typeLabel = INCOME_TYPES.find((t) => t.value === entry.income_type)?.label || entry.income_type;
             const isLoss = entry.income_type === "loss";
+            const reserve = Number((entry as any).additional_tax_reserve || 0);
+            const status = ((entry as any).recommendation_status || "on_track") as keyof typeof STATUS_ICON;
+            const StIcon = STATUS_ICON[status] || Minus;
             return (
-              <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
+              <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
@@ -279,6 +347,14 @@ export default function PersonalIncome() {
                 </span>
                 <span className="text-sm tabular-nums text-right text-muted-foreground">
                   {Number(entry.federal_withholding) > 0 ? fmt(Number(entry.federal_withholding)) : "—"}
+                </span>
+                <span className="text-sm tabular-nums text-right text-muted-foreground flex items-center justify-end gap-1">
+                  {reserve > 0 ? (
+                    <>
+                      <StIcon className="h-3 w-3" />
+                      {fmt(reserve)}
+                    </>
+                  ) : "—"}
                 </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -306,7 +382,7 @@ export default function PersonalIncome() {
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
+      {/* Modal 1: Add/Edit Income Entry */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -376,7 +452,7 @@ export default function PersonalIncome() {
               </div>
             )}
 
-            {/* W2-specific fields */}
+            {/* W2-specific withholding & deductions */}
             {isW2Type(form.income_type) && (
               <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
                 <p className="text-xs font-semibold text-muted-foreground">Withholding & Deductions</p>
@@ -400,31 +476,10 @@ export default function PersonalIncome() {
                     <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
                   </div>
                 </div>
-
-                {/* Withholding recommendation */}
-                {grossAmount > 0 && recommendation && (
-                  <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                    {recommendation.isOverWithheld ? (
-                      <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                        Employer over-withheld by <strong>{fmt(Math.abs(recommendation.recommendedWithholding))}</strong>
-                      </p>
-                    ) : recommendation.recommendedWithholding > 0 ? (
-                      <p className="text-sm text-amber-600 dark:text-amber-400">
-                        Additional withholding recommended: <strong>{fmt(recommendation.recommendedWithholding)}</strong>
-                      </p>
-                    ) : null}
-                    <p className="text-[11px] text-muted-foreground">
-                      {recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate
-                    </p>
-                    <p className="text-[10px] text-muted-foreground italic">
-                      Withholding method controlled in Settings
-                    </p>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* Non-W2 withholding fields (simplified) */}
+            {/* Non-W2 withholding fields */}
             {!isW2Type(form.income_type) && !isStockType(form.income_type) && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -438,10 +493,45 @@ export default function PersonalIncome() {
               </div>
             )}
 
+            {/* Additional tax reserve field on edit */}
+            {isEditing && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
+                <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
+              </div>
+            )}
+
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
               <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
             </div>
+
+            {/* Base estimate preview at bottom of Modal 1 */}
+            {grossAmount > 0 && baseRecommendation && (
+              <div className="rounded-md border border-border p-3 space-y-1 bg-background">
+                <p className="text-xs font-semibold text-muted-foreground">Estimated Tax Reserve</p>
+                {baseRecommendation.isOverWithheld ? (
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                    Employer over-withheld by <strong>{fmt(Math.abs(baseRecommendation.recommendedWithholding))}</strong>
+                  </p>
+                ) : baseRecommendation.recommendedWithholding > 0 ? (
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    Estimated additional tax reserve: <strong>{fmt(baseRecommendation.recommendedWithholding)}</strong>
+                  </p>
+                ) : (
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                    Your withholding covers the estimated tax for this paycheck.
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  {baseRecommendation.methodLabel} · {baseRecommendation.effectiveRate.toFixed(1)}% effective rate
+                </p>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Withholding method controlled in Settings
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-between">
               {isEditing ? (
@@ -452,13 +542,22 @@ export default function PersonalIncome() {
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
                 <Button onClick={saveForm} disabled={!form.title.trim() || !form.date}>
-                  {isEditing ? "Save" : "Add"}
+                  {isEditing ? "Save" : "Save Income"}
                 </Button>
               </div>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal 2: Post-Save Smart Recommendation */}
+      <RecommendationModal
+        open={showRecommendation}
+        onClose={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
+        onApplyRecommendation={applyRecommendation}
+        recommendation={currentRecommendation}
+        entryTitle={savedEntryTitle}
+      />
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
