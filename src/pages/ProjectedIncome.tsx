@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/table";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { useAddIncome } from "@/hooks/useIncome";
+import { useAddPersonalIncome } from "@/hooks/usePersonalIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
