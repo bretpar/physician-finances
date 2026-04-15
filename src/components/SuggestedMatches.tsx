@@ -63,9 +63,18 @@ export default function SuggestedMatches({ suggestions }: Props) {
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {s.confidence}% match
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge
+                    variant="outline"
+                    className={`text-xs ${
+                      s.confidenceLabel === "Strong match"
+                        ? "border-emerald-400 text-emerald-700 dark:text-emerald-400"
+                        : s.confidenceLabel === "Possible match"
+                          ? "border-amber-400 text-amber-700 dark:text-amber-400"
+                          : "border-muted text-muted-foreground"
+                    }`}
+                  >
+                    {s.confidenceLabel}
                   </Badge>
                   {s.reasons.map((r, j) => (
                     <span key={j} className="text-xs text-muted-foreground">{r}</span>
