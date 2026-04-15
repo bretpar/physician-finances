@@ -93,8 +93,7 @@ export function useIncomeRecommendation() {
   // Count projected income events between now and next deadline
   const projectedEventCount = useMemo(() => {
     if (!streams.length && !bonuses.length) return 0;
-    const existingDates = new Set(personalEntries.map((e) => e.income_date));
-    const allPaychecks = generateProjectedPaychecks(streams, bonuses, existingDates);
+    const allPaychecks = generateProjectedPaychecks(streams, bonuses, personalEntries);
     const deadlineStr = quarterInfo.deadline.toISOString().split("T")[0];
     return allPaychecks.filter(
       (p) => !p.isSkipped && p.date <= deadlineStr

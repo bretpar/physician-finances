@@ -127,9 +127,9 @@ export default function ProjectedIncome() {
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
 
-  const existingDates = useMemo(() => {
-    if (!incomeEntries) return new Set<string>();
-    return new Set(incomeEntries.map((e) => e.income_date));
+  // Income entries for matching (replaces the old date-only filtering)
+  const incomeEntriesForMatching = useMemo(() => {
+    return incomeEntries || [];
   }, [incomeEntries]);
 
   // Build an override lookup for finding existing override IDs
