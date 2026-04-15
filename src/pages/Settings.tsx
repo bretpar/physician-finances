@@ -588,47 +588,69 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit business affiliation dialog */}
+      {/* Edit account routing dialog */}
       <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Default Business Affiliation</DialogTitle>
-            <DialogDescription>Choose a default business for this account if it is used primarily for one business. Leave unassigned or mark as shared if transactions may belong to multiple businesses.</DialogDescription>
+            <DialogTitle>Account Routing</DialogTitle>
+            <DialogDescription>Choose where transactions from this account should go.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Account Mode</label>
-              <Select value={editMode} onValueChange={setEditMode}>
+              <label className="text-sm font-medium">Transaction Destination</label>
+              <Select value={editRouting} onValueChange={(v) => { setEditRouting(v); if (v !== "business") { setEditMode("unassigned"); setEditCompanyId(""); } }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unassigned">None / Unassigned</SelectItem>
-                  <SelectItem value="single_business">One Specific Business</SelectItem>
-                  <SelectItem value="shared">Shared / Multiple Businesses</SelectItem>
+                  <SelectItem value="business">Business Activity</SelectItem>
+                  <SelectItem value="personal">Personal Income / Activity</SelectItem>
+                  <SelectItem value="ignore">Ignore / Do Not Sync</SelectItem>
+                  <SelectItem value="needs_review">Needs Review</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {editRouting === "business" && "Transactions appear in Business Activity for profit/loss tracking."}
+                {editRouting === "personal" && "Transactions appear in Personal Income. Not included in business P&L."}
+                {editRouting === "ignore" && "No transactions will be imported from this account."}
+                {editRouting === "needs_review" && "Transactions are paused until you choose a destination."}
+              </p>
             </div>
-            {editMode === "single_business" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Default Business</label>
-                <Select value={editCompanyId} onValueChange={setEditCompanyId}>
-                  <SelectTrigger><SelectValue placeholder="Select a business..." /></SelectTrigger>
-                  <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            )}
-            {editMode === "single_business" && editCompanyId && (
-              <div className="rounded-lg border border-border bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground mb-2">Optionally apply this business to existing unassigned imported transactions from this account.</p>
-                <Button variant="outline" size="sm" onClick={handleBulkApply} disabled={bulkApplyMutation.isPending}>
-                  {bulkApplyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-                  Apply to Existing Transactions
-                </Button>
-              </div>
+            {editRouting === "business" && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Business Assignment</label>
+                  <Select value={editMode} onValueChange={setEditMode}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      <SelectItem value="single_business">One Specific Business</SelectItem>
+                      <SelectItem value="shared">Shared / Multiple Businesses</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editMode === "single_business" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Default Business</label>
+                    <Select value={editCompanyId} onValueChange={setEditCompanyId}>
+                      <SelectTrigger><SelectValue placeholder="Select a business..." /></SelectTrigger>
+                      <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {editMode === "single_business" && editCompanyId && (
+                  <div className="rounded-lg border border-border bg-muted/50 p-3">
+                    <p className="text-xs text-muted-foreground mb-2">Optionally apply this business to existing unassigned imported transactions from this account.</p>
+                    <Button variant="outline" size="sm" onClick={handleBulkApply} disabled={bulkApplyMutation.isPending}>
+                      {bulkApplyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                      Apply to Existing Transactions
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingAccount(null)}>Cancel</Button>
-            <Button onClick={handleSaveAffiliation} disabled={updateAccountMutation.isPending || (editMode === "single_business" && !editCompanyId)}>
+            <Button onClick={handleSaveAffiliation} disabled={updateAccountMutation.isPending || (editRouting === "business" && editMode === "single_business" && !editCompanyId)}>
               {updateAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
               Save
             </Button>
