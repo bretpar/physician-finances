@@ -97,6 +97,7 @@ export default function Settings() {
   const [linkLoading, setLinkLoading] = useState(false);
   const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
+  const [editRouting, setEditRouting] = useState<string>("needs_review");
   const [editMode, setEditMode] = useState<string>("unassigned");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
 
@@ -104,7 +105,7 @@ export default function Settings() {
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
   const [reviewInstitution, setReviewInstitution] = useState<string>("");
   const [reviewPrefs, setReviewPrefs] = useState<
-    Record<string, { sync_enabled: boolean; mode: string; companyId: string }>
+    Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }>
   >({});
 
   const handleConnectBank = async () => {
@@ -142,9 +143,9 @@ export default function Settings() {
                   .eq("plaid_item_id", exchangeData.item_db_id)
                   .eq("is_active", true);
                 if (newAccts) {
-                  const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string }> = {};
+                  const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }> = {};
                   for (const a of newAccts) {
-                    prefs[a.id] = { sync_enabled: true, mode: "unassigned", companyId: "" };
+                    prefs[a.id] = { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
                   }
                   setReviewPrefs(prefs);
                 }
@@ -174,23 +175,31 @@ export default function Settings() {
     return companies.find((c) => c.id === companyId)?.name || null;
   };
 
-  const getModeLabel = (mode: string, companyId: string | null) => {
-    if (mode === "single_business") {
-      const name = getCompanyName(companyId);
-      return name || "Business (deleted)";
+  const getModeLabel = (routing: string, mode: string, companyId: string | null) => {
+    if (routing === "personal") return "Personal";
+    if (routing === "ignore") return "Ignored";
+    if (routing === "needs_review") return "Needs Review";
+    if (routing === "business") {
+      if (mode === "single_business") {
+        const name = getCompanyName(companyId);
+        return name ? `Business · ${name}` : "Business (no company)";
+      }
+      if (mode === "shared") return "Business · Shared";
+      return "Business";
     }
-    if (mode === "shared") return "Shared / Multiple";
-    return "Unassigned";
+    return "Needs Review";
   };
 
-  const getModeColor = (mode: string): "secondary" | "default" | "outline" => {
-    if (mode === "single_business") return "default";
-    if (mode === "shared") return "secondary";
-    return "outline";
+  const getModeColor = (routing: string): "secondary" | "default" | "outline" | "destructive" => {
+    if (routing === "business") return "default";
+    if (routing === "personal") return "secondary";
+    if (routing === "ignore") return "outline";
+    return "destructive";
   };
 
   const openEditDialog = (acct: any) => {
     setEditingAccount(acct);
+    setEditRouting(acct.account_routing || "needs_review");
     setEditMode(acct.account_business_mode || "unassigned");
     setEditCompanyId(acct.default_company_id || "");
   };
@@ -199,8 +208,9 @@ export default function Settings() {
     if (!editingAccount) return;
     updateAccountMutation.mutate({
       id: editingAccount.id,
-      account_business_mode: editMode,
-      default_company_id: editMode === "single_business" && editCompanyId ? editCompanyId : null,
+      account_business_mode: editRouting === "business" ? editMode : "unassigned",
+      default_company_id: editRouting === "business" && editMode === "single_business" && editCompanyId ? editCompanyId : null,
+      account_routing: editRouting,
     }, { onSuccess: () => setEditingAccount(null) });
   };
 
@@ -222,12 +232,14 @@ export default function Settings() {
     if (!accts) return;
 
     const updates = accts.map((a) => {
-      const pref = reviewPrefs[a.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+      const pref = reviewPrefs[a.id] || { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
+      const routing = pref.routing;
       return {
         id: a.id,
-        sync_enabled: pref.sync_enabled,
-        account_business_mode: pref.mode,
-        default_company_id: pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
+        sync_enabled: routing === "business" || routing === "personal",
+        account_business_mode: routing === "business" ? pref.mode : "unassigned",
+        default_company_id: routing === "business" && pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
+        account_routing: routing,
       };
     });
 
@@ -461,11 +473,12 @@ export default function Settings() {
                   {accounts.length > 0 && (
                     <div className="grid grid-cols-1 gap-3">
                       {accounts.map((acct) => {
+                        const routing = (acct as any).account_routing || "needs_review";
                         const mode = (acct as any).account_business_mode || "unassigned";
                         const companyId = (acct as any).default_company_id || null;
-                        const syncEnabled = (acct as any).sync_enabled !== false;
+                        const isActive = routing === "business" || routing === "personal";
                         return (
-                          <div key={acct.id} className={`flex items-center gap-3 rounded-lg border border-border p-3 ${syncEnabled ? "bg-muted/30" : "bg-muted/10 opacity-60"}`}>
+                          <div key={acct.id} className={`flex items-center gap-3 rounded-lg border border-border p-3 ${isActive ? "bg-muted/30" : "bg-muted/10 opacity-60"}`}>
                             <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-card-foreground truncate">{acct.account_name}</p>
@@ -474,16 +487,8 @@ export default function Settings() {
                                 {acct.account_mask ? ` ···${acct.account_mask}` : ""}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0" title={syncEnabled ? "Syncing transactions" : "Sync disabled"}>
-                              <Switch
-                                checked={syncEnabled}
-                                onCheckedChange={(checked) => handleToggleSync(acct.id, checked)}
-                                className="scale-90"
-                              />
-                              <span className="text-[10px] text-muted-foreground w-8">{syncEnabled ? "Sync" : "Off"}</span>
-                            </div>
-                            <Badge variant={getModeColor(mode)} className="text-xs shrink-0">
-                              {getModeLabel(mode, companyId)}
+                            <Badge variant={getModeColor(routing)} className="text-xs shrink-0">
+                              {getModeLabel(routing, mode, companyId)}
                             </Badge>
                             {acct.current_balance != null && (
                               <Badge variant="secondary" className="text-xs font-mono shrink-0">
@@ -583,47 +588,69 @@ export default function Settings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit business affiliation dialog */}
+      {/* Edit account routing dialog */}
       <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Default Business Affiliation</DialogTitle>
-            <DialogDescription>Choose a default business for this account if it is used primarily for one business. Leave unassigned or mark as shared if transactions may belong to multiple businesses.</DialogDescription>
+            <DialogTitle>Account Routing</DialogTitle>
+            <DialogDescription>Choose where transactions from this account should go.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Account Mode</label>
-              <Select value={editMode} onValueChange={setEditMode}>
+              <label className="text-sm font-medium">Transaction Destination</label>
+              <Select value={editRouting} onValueChange={(v) => { setEditRouting(v); if (v !== "business") { setEditMode("unassigned"); setEditCompanyId(""); } }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unassigned">None / Unassigned</SelectItem>
-                  <SelectItem value="single_business">One Specific Business</SelectItem>
-                  <SelectItem value="shared">Shared / Multiple Businesses</SelectItem>
+                  <SelectItem value="business">Business Activity</SelectItem>
+                  <SelectItem value="personal">Personal Income / Activity</SelectItem>
+                  <SelectItem value="ignore">Ignore / Do Not Sync</SelectItem>
+                  <SelectItem value="needs_review">Needs Review</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {editRouting === "business" && "Transactions appear in Business Activity for profit/loss tracking."}
+                {editRouting === "personal" && "Transactions appear in Personal Income. Not included in business P&L."}
+                {editRouting === "ignore" && "No transactions will be imported from this account."}
+                {editRouting === "needs_review" && "Transactions are paused until you choose a destination."}
+              </p>
             </div>
-            {editMode === "single_business" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Default Business</label>
-                <Select value={editCompanyId} onValueChange={setEditCompanyId}>
-                  <SelectTrigger><SelectValue placeholder="Select a business..." /></SelectTrigger>
-                  <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            )}
-            {editMode === "single_business" && editCompanyId && (
-              <div className="rounded-lg border border-border bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground mb-2">Optionally apply this business to existing unassigned imported transactions from this account.</p>
-                <Button variant="outline" size="sm" onClick={handleBulkApply} disabled={bulkApplyMutation.isPending}>
-                  {bulkApplyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-                  Apply to Existing Transactions
-                </Button>
-              </div>
+            {editRouting === "business" && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Business Assignment</label>
+                  <Select value={editMode} onValueChange={setEditMode}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      <SelectItem value="single_business">One Specific Business</SelectItem>
+                      <SelectItem value="shared">Shared / Multiple Businesses</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editMode === "single_business" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Default Business</label>
+                    <Select value={editCompanyId} onValueChange={setEditCompanyId}>
+                      <SelectTrigger><SelectValue placeholder="Select a business..." /></SelectTrigger>
+                      <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {editMode === "single_business" && editCompanyId && (
+                  <div className="rounded-lg border border-border bg-muted/50 p-3">
+                    <p className="text-xs text-muted-foreground mb-2">Optionally apply this business to existing unassigned imported transactions from this account.</p>
+                    <Button variant="outline" size="sm" onClick={handleBulkApply} disabled={bulkApplyMutation.isPending}>
+                      {bulkApplyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                      Apply to Existing Transactions
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingAccount(null)}>Cancel</Button>
-            <Button onClick={handleSaveAffiliation} disabled={updateAccountMutation.isPending || (editMode === "single_business" && !editCompanyId)}>
+            <Button onClick={handleSaveAffiliation} disabled={updateAccountMutation.isPending || (editRouting === "business" && editMode === "single_business" && !editCompanyId)}>
               {updateAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
               Save
             </Button>
@@ -673,7 +700,7 @@ export default function Settings() {
           <DialogHeader>
             <DialogTitle>Review Imported Accounts</DialogTitle>
             <DialogDescription>
-              {reviewInstitution} returned the accounts below. Choose which ones to sync and optionally assign them to a business.
+              {reviewInstitution} returned the accounts below. Choose where each account's transactions should go before syncing.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -681,19 +708,14 @@ export default function Settings() {
               <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : (
               (() => {
-                // We need the actual account data — get from plaidAccounts or refetch
                 const reviewAccounts = plaidAccounts.filter((a) => a.plaid_item_id === reviewItemId);
-                // If accounts haven't loaded yet, show from reviewPrefs keys
-                const acctIds = reviewAccounts.length > 0 ? reviewAccounts : Object.keys(reviewPrefs).map((id) => ({ id, account_name: "Account", account_type: "", account_subtype: null, account_mask: null }));
                 return (reviewAccounts.length > 0 ? reviewAccounts : []).map((acct: any) => {
-                  const pref = reviewPrefs[acct.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+                  const pref = reviewPrefs[acct.id] || { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
+                  const routing = pref.routing;
                   return (
-                    <div key={acct.id} className={`rounded-lg border border-border p-4 space-y-3 ${pref.sync_enabled ? "bg-card" : "bg-muted/30 opacity-60"}`}>
+                    <div key={acct.id} className="rounded-lg border border-border p-4 space-y-3 bg-card">
                       <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={pref.sync_enabled}
-                          onCheckedChange={(checked: boolean) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, sync_enabled: !!checked } }))}
-                        />
+                        <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-card-foreground">{acct.account_name}</p>
                           <p className="text-xs text-muted-foreground">
@@ -702,24 +724,36 @@ export default function Settings() {
                           </p>
                         </div>
                       </div>
-                      {pref.sync_enabled && (
-                        <div className="pl-7 space-y-2">
-                          <Select value={pref.mode} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, mode: v, companyId: v !== "single_business" ? "" : pref.companyId } }))}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="unassigned">Personal / Unassigned</SelectItem>
-                              <SelectItem value="single_business">Business</SelectItem>
-                              <SelectItem value="shared">Ignore</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {pref.mode === "single_business" && (
-                            <Select value={pref.companyId} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, companyId: v } }))}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select business..." /></SelectTrigger>
-                              <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Route to:</label>
+                        <Select value={routing} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, routing: v, mode: v !== "business" ? "unassigned" : pref.mode, companyId: v !== "business" ? "" : pref.companyId, sync_enabled: v === "business" || v === "personal" } }))}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="business">Business Activity</SelectItem>
+                            <SelectItem value="personal">Personal Income / Activity</SelectItem>
+                            <SelectItem value="ignore">Ignore / Do Not Sync</SelectItem>
+                            <SelectItem value="needs_review">Decide Later</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {routing === "business" && (
+                          <div className="space-y-2 pl-2">
+                            <Select value={pref.mode} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, mode: v, companyId: v !== "single_business" ? "" : pref.companyId } }))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">No default business</SelectItem>
+                                <SelectItem value="single_business">Assign to a business</SelectItem>
+                                <SelectItem value="shared">Shared / Multiple</SelectItem>
+                              </SelectContent>
                             </Select>
-                          )}
-                        </div>
-                      )}
+                            {pref.mode === "single_business" && (
+                              <Select value={pref.companyId} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, companyId: v } }))}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select business..." /></SelectTrigger>
+                                <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 });

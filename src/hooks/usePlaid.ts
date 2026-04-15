@@ -62,6 +62,7 @@ export function useReviewAccounts() {
         sync_enabled: boolean;
         account_business_mode: string;
         default_company_id: string | null;
+        account_routing: string;
       }>
     ) => {
       for (const acct of accounts) {
@@ -71,6 +72,7 @@ export function useReviewAccounts() {
             sync_enabled: acct.sync_enabled,
             account_business_mode: acct.account_business_mode,
             default_company_id: acct.default_company_id,
+            account_routing: acct.account_routing,
           } as any)
           .eq("id", acct.id);
         if (error) throw error;
@@ -130,20 +132,28 @@ export function useUpdatePlaidAccount() {
       id,
       default_company_id,
       account_business_mode,
+      account_routing,
     }: {
       id: string;
       default_company_id: string | null;
       account_business_mode: string;
+      account_routing?: string;
     }) => {
+      const update: any = { default_company_id, account_business_mode };
+      if (account_routing) {
+        update.account_routing = account_routing;
+        // Sync the sync_enabled flag based on routing
+        update.sync_enabled = account_routing !== "ignore" && account_routing !== "needs_review";
+      }
       const { error } = await supabase
         .from("plaid_accounts")
-        .update({ default_company_id, account_business_mode } as any)
+        .update(update)
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
-      toast.success("Account affiliation updated");
+      toast.success("Account settings updated");
     },
     onError: (e: any) => toast.error(e.message),
   });

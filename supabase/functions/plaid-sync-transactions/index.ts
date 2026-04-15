@@ -86,16 +86,24 @@ Deno.serve(async (req) => {
       .single();
     const orgId = orgMember?.organization_id;
 
-    // Get user's plaid accounts — only sync_enabled ones
+    // Get user's plaid accounts with routing info
     const { data: userAccounts } = await adminClient
       .from("plaid_accounts")
-      .select("plaid_account_id, account_type, account_subtype, default_company_id, account_business_mode, sync_enabled")
+      .select("plaid_account_id, account_type, account_subtype, default_company_id, account_business_mode, sync_enabled, account_routing")
       .eq("user_id", user.id)
       .eq("is_active", true);
 
-    // Build set of sync-enabled account IDs
+    // Build routing map: plaid_account_id → routing
+    const routingMap: Record<string, string> = {};
+    for (const a of (userAccounts || []) as any[]) {
+      routingMap[a.plaid_account_id] = a.account_routing || "needs_review";
+    }
+
+    // Build set of sync-enabled account IDs (only business + personal routing, not ignore/needs_review)
     const syncEnabledIds = new Set(
-      (userAccounts || []).filter((a: any) => a.sync_enabled !== false).map((a: any) => a.plaid_account_id)
+      (userAccounts || [])
+        .filter((a: any) => a.sync_enabled !== false && (a.account_routing === "business" || a.account_routing === "personal"))
+        .map((a: any) => a.plaid_account_id)
     );
 
     const accounts: PlaidAccount[] = (userAccounts || []) as any;
@@ -197,7 +205,9 @@ Deno.serve(async (req) => {
         // Process ADDED transactions
         const added = syncData.added || [];
         for (const txn of added) {
-          // Skip transactions from accounts where sync is disabled
+          const routing = routingMap[txn.account_id] || "needs_review";
+
+          // Skip transactions from accounts that are ignored, needs_review, or sync disabled
           if (!syncEnabledIds.has(txn.account_id)) {
             totalSkipped++;
             continue;
@@ -232,6 +242,40 @@ Deno.serve(async (req) => {
             continue;
           }
 
+          // ── Route based on account_routing ──
+          if (routing === "personal") {
+            // Personal routing → insert into income_entries as personal income
+            const isIncome = txn.amount < 0; // Plaid: negative = money in
+            const txnName = txn.merchant_name || txn.name || "";
+            
+            const { error: personalError } = await adminClient.from("income_entries").insert({
+              user_id: user.id,
+              organization_id: orgId,
+              name: txnName,
+              company: item.institution_name,
+              income_type: "W2",
+              source_bucket: "personal",
+              tax_category: "ordinary",
+              income_date: txn.date,
+              gross_amount: Math.abs(txn.amount),
+              paycheck_amount: isIncome ? Math.abs(txn.amount) : 0,
+              deposited_amount: isIncome ? Math.abs(txn.amount) : 0,
+              is_actual: true,
+              include_in_tax_estimate: isIncome,
+              include_in_cash_flow: true,
+              linked_transaction_id: plaidTxRow?.id || null,
+              notes: `Imported from ${item.institution_name} (personal account)`,
+            });
+
+            if (personalError) {
+              console.error("Insert personal income_entry error:", personalError);
+            } else {
+              totalAdded++;
+            }
+            continue;
+          }
+
+          // ── Business routing → insert into transactions table ──
           const isExpense = txn.amount > 0;
           const txnName = txn.name || txn.merchant_name || "";
           const isLiability = isLiabilityAccount(accounts, txn.account_id);
