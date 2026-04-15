@@ -113,7 +113,6 @@ Deno.serve(async (req) => {
     });
     if (vaultError) {
       console.error("Vault store error:", vaultError);
-      // Fallback: keep token in the row (not ideal but don't break flow)
       await adminClient.from("plaid_items").update({ access_token: exchangeData.access_token }).eq("id", itemRow.id);
     }
 
@@ -129,7 +128,10 @@ Deno.serve(async (req) => {
     });
 
     const accountsData = await accountsRes.json();
+    let returnedAccounts: any[] = [];
+
     if (accountsRes.ok && accountsData.accounts) {
+      // Insert all accounts with sync_enabled = false initially (user will review)
       const accountRows = accountsData.accounts.map((acct: any) => ({
         user_id: user.id,
         organization_id: orgId,
@@ -142,13 +144,29 @@ Deno.serve(async (req) => {
         current_balance: acct.balances?.current ?? null,
         available_balance: acct.balances?.available ?? null,
         is_active: true,
+        sync_enabled: false, // User must review and enable
       }));
 
       const { error: acctError } = await adminClient.from("plaid_accounts").insert(accountRows);
       if (acctError) console.error("Insert accounts error:", acctError);
+
+      returnedAccounts = accountRows.map((r: any) => ({
+        plaid_account_id: r.plaid_account_id,
+        account_name: r.account_name,
+        account_mask: r.account_mask,
+        account_type: r.account_type,
+        account_subtype: r.account_subtype,
+      }));
     }
 
-    return new Response(JSON.stringify({ success: true, item_id: exchangeData.item_id }), {
+    return new Response(JSON.stringify({
+      success: true,
+      item_id: exchangeData.item_id,
+      item_db_id: itemRow.id,
+      institution_name: institution_name || "Unknown Bank",
+      accounts: returnedAccounts,
+      needs_review: true,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
