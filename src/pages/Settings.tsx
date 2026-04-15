@@ -211,6 +211,40 @@ export default function Settings() {
     bulkApplyMutation.mutate({ accountId: editingAccount.id, companyName: name });
   };
 
+  const handleSaveReview = async () => {
+    if (!reviewItemId) return;
+    // Get the actual account rows for this item
+    const { data: accts } = await supabase
+      .from("plaid_accounts")
+      .select("id")
+      .eq("plaid_item_id", reviewItemId)
+      .eq("is_active", true);
+    if (!accts) return;
+
+    const updates = accts.map((a) => {
+      const pref = reviewPrefs[a.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+      return {
+        id: a.id,
+        sync_enabled: pref.sync_enabled,
+        account_business_mode: pref.mode,
+        default_company_id: pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
+      };
+    });
+
+    reviewAccountsMutation.mutate(updates, {
+      onSuccess: () => {
+        setReviewItemId(null);
+        setReviewPrefs({});
+        // Auto-sync after review
+        syncMutation.mutate(reviewItemId!);
+      },
+    });
+  };
+
+  const handleToggleSync = (accountId: string, enabled: boolean) => {
+    toggleSyncMutation.mutate({ id: accountId, sync_enabled: enabled });
+  };
+
   /* ─── Team ─── */
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
