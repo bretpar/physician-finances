@@ -110,11 +110,15 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const addIncome = useAddIncome();
+  const addPersonalIncome = useAddPersonalIncome();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<StreamForm>(emptyForm());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [convertTarget, setConvertTarget] = useState<ProjectedPaycheck | null>(null);
+  const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => {
     const current = new Date().getMonth();
     return new Set([current]);
