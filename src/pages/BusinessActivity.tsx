@@ -74,6 +74,7 @@ export default function Transactions() {
   const addMutation = useAddTransaction();
   const updateMutation = useUpdateTransaction();
   const bulkUpdateMutation = useBulkUpdateTransactions();
+  const bulkDeleteMutation = useBulkDeleteTransactions();
   const addIncomeMutation = useAddIncome();
   const updateIncomeMutation = useUpdateIncome();
   const { data: incomeEntries } = useIncomeEntries();
