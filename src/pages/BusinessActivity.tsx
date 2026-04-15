@@ -2,6 +2,9 @@ import { useState, useMemo } from "react";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
 import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, useBulkDeleteTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
+import { supabase } from "@/integrations/supabase/client";
+import { getUserOrgId } from "@/hooks/useOrgId";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
@@ -88,6 +91,7 @@ const emptyExpenseForm: ExpenseFormState = {
 
 export default function Transactions() {
   const { companies } = useCompanies();
+  const queryClient = useQueryClient();
   const { data: transactions = [], isLoading } = useTransactions();
   const deleteMutation = useDeleteTransaction();
   const addMutation = useAddTransaction();
@@ -310,15 +314,15 @@ export default function Transactions() {
           console.log("[saveIncome] Update succeeded", data);
           // Now update the linked income entry if present
           const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding));
+          const rec = getIncomeRec({
+            grossIncome: paycheckAmt,
+            incomeType: companyType,
+            federalWithheld: effectiveWithheld,
+            stateWithheld: 0,
+            retirement401k: retirement,
+            preTaxDeductions: preTaxDed,
+          });
           if (editingIncomeEntryId) {
-            const rec = getIncomeRec({
-              grossIncome: paycheckAmt,
-              incomeType: companyType,
-              federalWithheld: effectiveWithheld,
-              stateWithheld: 0,
-              retirement401k: retirement,
-              preTaxDeductions: preTaxDed,
-            });
             updateIncomeMutation.mutate({
               id: editingIncomeEntryId,
               name: incomeForm.name,
@@ -337,6 +341,45 @@ export default function Transactions() {
               quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
               recommendation_status: rec?.recommendationStatus || "on_track",
             } as any);
+          } else {
+            // No income_entry exists yet (e.g. imported Plaid tx) — create one
+            (async () => {
+              try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const orgId = await getUserOrgId();
+                const { error } = await supabase.from("income_entries").insert({
+                  user_id: user.id,
+                  organization_id: orgId,
+                  name: incomeForm.name,
+                  company: incomeForm.company,
+                  income_type: companyType,
+                  income_date: incomeForm.date,
+                  paycheck_amount: paycheckAmt,
+                  deposited_amount: depositedAmt,
+                  taxes_withheld: effectiveWithheld,
+                  pre_tax_deductions: preTaxDed,
+                  retirement_401k: retirement,
+                  notes: incomeForm.notes,
+                  status: "received",
+                  linked_transaction_id: editingIncomeTxId,
+                  additional_tax_reserve: num(incomeForm.additional_tax_reserve),
+                  base_tax_estimate: rec?.baseTaxEstimate || 0,
+                  dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+                  quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+                  recommendation_status: rec?.recommendationStatus || "on_track",
+                } as any);
+                if (error) {
+                  console.error("[saveIncome] Failed to create income_entry", error);
+                  toast.error("Saved transaction but failed to save detailed fields");
+                } else {
+                  console.log("[saveIncome] Created new income_entry for tx", editingIncomeTxId);
+                  queryClient.invalidateQueries({ queryKey: ["income_entries"] });
+                }
+              } catch (e) {
+                console.error("[saveIncome] Error creating income_entry", e);
+              }
+            })();
           }
           setShowIncomeForm(false);
           setIncomeForm(emptyIncomeForm);
