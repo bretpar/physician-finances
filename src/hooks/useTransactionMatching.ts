@@ -127,6 +127,31 @@ export function useLinkTransactions() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
+
+      // Validate both records exist before linking
+      const { data: manualRow } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("id", manualTxId)
+        .maybeSingle();
+      const { data: plaidRow } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("id", plaidTxId)
+        .maybeSingle();
+
+      console.log("[LinkTx] manual:", manualTxId, "exists:", !!manualRow, "| plaid:", plaidTxId, "exists:", !!plaidRow);
+
+      if (!manualRow || !plaidRow) {
+        throw new Error(
+          !manualRow && !plaidRow
+            ? "Both transactions no longer exist. Please refresh."
+            : !manualRow
+              ? "Manual transaction no longer exists. Please refresh."
+              : "Imported transaction no longer exists. Please refresh."
+        );
+      }
+
       const groupId = crypto.randomUUID();
 
       // Create link record
