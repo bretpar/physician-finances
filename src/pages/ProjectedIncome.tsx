@@ -594,15 +594,26 @@ export default function ProjectedIncome() {
                             )}
                             {/* Actions for past-due entries */}
                             {isPastDue && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 text-destructive"
-                                title="Skip — income not received"
-                                onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs px-2"
+                                  title="Convert to actual income"
+                                  onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
+                                >
+                                  <Plus className="h-3 w-3 mr-0.5" /> Convert
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-destructive"
+                                  title="Skip — income not received"
+                                  onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
                             )}
                             {/* Restore for skipped entries */}
                             {isSkipped && (
