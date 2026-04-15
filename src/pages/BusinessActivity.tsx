@@ -915,6 +915,46 @@ export default function Transactions() {
                     </div>
                   </div>
                 )}
+
+                {/* Base tax estimate preview */}
+                {grossIncome > 0 && isFeatureEnabled("static_tax_estimate") && (() => {
+                  const rec = getIncomeRec({
+                    grossIncome,
+                    incomeType: form.income_type || getCompanyType(form.company),
+                    federalWithheld: num(form.taxes_withheld),
+                    stateWithheld: 0,
+                    retirement401k: num(form.retirement_401k),
+                    preTaxDeductions: num(form.pre_tax_deductions),
+                  });
+                  if (!rec) return null;
+                  return (
+                    <div className="rounded-md border-2 border-primary/20 p-3 bg-primary/5 space-y-1">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Base tax estimate for this income</span>
+                        <span className="font-semibold text-primary">{fmt(rec.baseTaxEstimate)}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {rec.methodLabel} · {rec.effectiveRate.toFixed(1)}% effective rate
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* Additional tax reserve (editable) */}
+                {isEditing && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={form.additional_tax_reserve === "0" ? "" : form.additional_tax_reserve}
+                      onChange={(e) => setField("additional_tax_reserve", e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Extra amount to set aside beyond actual withholding</p>
+                  </div>
+                )}
               </div>
             )}
 
