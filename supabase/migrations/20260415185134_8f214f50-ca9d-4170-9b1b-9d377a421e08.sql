@@ -1,0 +1,1 @@
+ALTER TABLE public.transactions ADD COLUMN user_edited boolean NOT NULL DEFAULT false;
