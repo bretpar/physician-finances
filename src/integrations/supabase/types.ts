@@ -1162,6 +1162,7 @@ export type Database = {
           transaction_type: string
           transfer_subtype: string | null
           updated_at: string
+          user_edited: boolean
           user_id: string
           vendor: string
           withholding_saved: boolean
@@ -1194,6 +1195,7 @@ export type Database = {
           transaction_type?: string
           transfer_subtype?: string | null
           updated_at?: string
+          user_edited?: boolean
           user_id: string
           vendor?: string
           withholding_saved?: boolean
@@ -1226,6 +1228,7 @@ export type Database = {
           transaction_type?: string
           transfer_subtype?: string | null
           updated_at?: string
+          user_edited?: boolean
           user_id?: string
           vendor?: string
           withholding_saved?: boolean
