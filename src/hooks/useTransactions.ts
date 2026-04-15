@@ -150,3 +150,31 @@ export function useDeleteTransaction() {
     onError: (e) => toast.error(e.message),
   });
 }
+
+export function useBulkDeleteTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      // Unlink any income entries that reference these transactions
+      const { error: unlinkError } = await supabase
+        .from("income_entries")
+        .update({ linked_transaction_id: null } as any)
+        .in("linked_transaction_id", ids);
+      if (unlinkError) console.error("Unlink income entries error:", unlinkError);
+
+      // Delete the transactions
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .in("id", ids);
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["income-entries"] });
+      toast.success(`Deleted ${count} transaction${count !== 1 ? "s" : ""}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
