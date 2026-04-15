@@ -700,7 +700,7 @@ export default function Settings() {
           <DialogHeader>
             <DialogTitle>Review Imported Accounts</DialogTitle>
             <DialogDescription>
-              {reviewInstitution} returned the accounts below. Choose which ones to sync and optionally assign them to a business.
+              {reviewInstitution} returned the accounts below. Choose where each account's transactions should go before syncing.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -708,19 +708,14 @@ export default function Settings() {
               <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : (
               (() => {
-                // We need the actual account data — get from plaidAccounts or refetch
                 const reviewAccounts = plaidAccounts.filter((a) => a.plaid_item_id === reviewItemId);
-                // If accounts haven't loaded yet, show from reviewPrefs keys
-                const acctIds = reviewAccounts.length > 0 ? reviewAccounts : Object.keys(reviewPrefs).map((id) => ({ id, account_name: "Account", account_type: "", account_subtype: null, account_mask: null }));
                 return (reviewAccounts.length > 0 ? reviewAccounts : []).map((acct: any) => {
-                  const pref = reviewPrefs[acct.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+                  const pref = reviewPrefs[acct.id] || { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
+                  const routing = pref.routing;
                   return (
-                    <div key={acct.id} className={`rounded-lg border border-border p-4 space-y-3 ${pref.sync_enabled ? "bg-card" : "bg-muted/30 opacity-60"}`}>
+                    <div key={acct.id} className="rounded-lg border border-border p-4 space-y-3 bg-card">
                       <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={pref.sync_enabled}
-                          onCheckedChange={(checked: boolean) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, sync_enabled: !!checked } }))}
-                        />
+                        <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-card-foreground">{acct.account_name}</p>
                           <p className="text-xs text-muted-foreground">
@@ -729,24 +724,36 @@ export default function Settings() {
                           </p>
                         </div>
                       </div>
-                      {pref.sync_enabled && (
-                        <div className="pl-7 space-y-2">
-                          <Select value={pref.mode} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, mode: v, companyId: v !== "single_business" ? "" : pref.companyId } }))}>
-                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="unassigned">Personal / Unassigned</SelectItem>
-                              <SelectItem value="single_business">Business</SelectItem>
-                              <SelectItem value="shared">Ignore</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {pref.mode === "single_business" && (
-                            <Select value={pref.companyId} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, companyId: v } }))}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select business..." /></SelectTrigger>
-                              <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Route to:</label>
+                        <Select value={routing} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, routing: v, mode: v !== "business" ? "unassigned" : pref.mode, companyId: v !== "business" ? "" : pref.companyId, sync_enabled: v === "business" || v === "personal" } }))}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="business">Business Activity</SelectItem>
+                            <SelectItem value="personal">Personal Income / Activity</SelectItem>
+                            <SelectItem value="ignore">Ignore / Do Not Sync</SelectItem>
+                            <SelectItem value="needs_review">Decide Later</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {routing === "business" && (
+                          <div className="space-y-2 pl-2">
+                            <Select value={pref.mode} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, mode: v, companyId: v !== "single_business" ? "" : pref.companyId } }))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">No default business</SelectItem>
+                                <SelectItem value="single_business">Assign to a business</SelectItem>
+                                <SelectItem value="shared">Shared / Multiple</SelectItem>
+                              </SelectContent>
                             </Select>
-                          )}
-                        </div>
-                      )}
+                            {pref.mode === "single_business" && (
+                              <Select value={pref.companyId} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, companyId: v } }))}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select business..." /></SelectTrigger>
+                                <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 });
