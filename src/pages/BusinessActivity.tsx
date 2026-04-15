@@ -217,6 +217,7 @@ export default function Transactions() {
       pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
       retirement_401k: linked ? String(linked.retirement_401k) : "",
       actual_withholding: String((tx as any).actual_withholding || ""),
+      additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
     });
     setEditingTxId(tx.id);
     setEditingIncomeId(linked?.id || null);
