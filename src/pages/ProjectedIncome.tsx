@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/table";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { useAddIncome } from "@/hooks/useIncome";
+import { useAddPersonalIncome } from "@/hooks/usePersonalIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
@@ -108,11 +110,15 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const addIncome = useAddIncome();
+  const addPersonalIncome = useAddPersonalIncome();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<StreamForm>(emptyForm());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [convertTarget, setConvertTarget] = useState<ProjectedPaycheck | null>(null);
+  const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => {
     const current = new Date().getMonth();
     return new Set([current]);
@@ -305,6 +311,59 @@ export default function ProjectedIncome() {
       });
     }
     setOverrideTarget(null);
+  };
+
+  const openConvert = (entry: ProjectedPaycheck) => {
+    const isBusiness = entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1";
+    setConvertDestination(isBusiness ? "business" : "personal");
+    setConvertTarget(entry);
+  };
+
+  const handleConvert = () => {
+    if (!convertTarget) return;
+    const entry = convertTarget;
+    const dest = convertDestination;
+    const notes = "Converted from planned income";
+
+    const onSuccess = () => {
+      // Mark as "skip" override so it's excluded from projections
+      addOverride.mutate({
+        stream_id: entry.streamId,
+        override_date: entry.date,
+        action: "skip",
+        notes: "Converted to actual income",
+      });
+      setConvertTarget(null);
+    };
+
+    if (dest === "personal") {
+      addPersonalIncome.mutate({
+        name: entry.label,
+        company: entry.label,
+        income_type: entry.streamCompanyType || "W2",
+        income_date: entry.date,
+        gross_amount: entry.grossAmount,
+        paycheck_amount: entry.grossAmount,
+        taxes_withheld: entry.taxesWithheld,
+        pre_tax_deductions: entry.preTaxDeductions,
+        retirement_401k: entry.retirement401k,
+        notes,
+      } as any, { onSuccess });
+    } else {
+      addIncome.mutate({
+        name: entry.label,
+        company: entry.label,
+        income_type: entry.streamCompanyType || "1099",
+        income_date: entry.date,
+        paycheck_amount: entry.grossAmount,
+        deposited_amount: entry.netAmount,
+        taxes_withheld: entry.taxesWithheld,
+        pre_tax_deductions: entry.preTaxDeductions,
+        retirement_401k: entry.retirement401k,
+        notes,
+        status: "received" as any,
+      }, { onSuccess });
+    }
   };
 
   const currentMonth = new Date().getMonth();
@@ -504,6 +563,16 @@ export default function ProjectedIncome() {
                             {isActive && entry.type === "paycheck" && (
                               <>
                                 <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs px-2"
+                                  title={entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1" ? "Add to Business Activity" : "Add to Personal Income"}
+                                  onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
+                                >
+                                  <Plus className="h-3 w-3 mr-0.5" />
+                                  {entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1" ? "To Ledger" : "To Personal"}
+                                </Button>
+                                <Button
                                   size="icon"
                                   variant="ghost"
                                   className="h-6 w-6"
@@ -525,15 +594,26 @@ export default function ProjectedIncome() {
                             )}
                             {/* Actions for past-due entries */}
                             {isPastDue && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 text-destructive"
-                                title="Skip — income not received"
-                                onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs px-2"
+                                  title="Convert to actual income"
+                                  onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
+                                >
+                                  <Plus className="h-3 w-3 mr-0.5" /> Convert
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-destructive"
+                                  title="Skip — income not received"
+                                  onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
                             )}
                             {/* Restore for skipped entries */}
                             {isSkipped && (
@@ -864,6 +944,70 @@ export default function ProjectedIncome() {
             <Button variant="outline" onClick={() => setOverrideTarget(null)}>Cancel</Button>
             <Button onClick={handleOverrideSubmit} disabled={num(overrideForm.paycheck_amount) <= 0}>
               Save Override
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Convert to Actual Income Confirmation */}
+      <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Convert to Actual Income</DialogTitle>
+          </DialogHeader>
+          {convertTarget && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                This will create an actual income entry and remove this planned income from active projections. Continue?
+              </p>
+              <div className="rounded-md bg-muted/50 px-4 py-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="font-medium">{convertTarget.date}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Company</span>
+                  <span className="font-medium">{convertTarget.label}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Gross Amount</span>
+                  <span className="font-medium">{fmtFull(convertTarget.grossAmount)}</span>
+                </div>
+                {convertTarget.taxesWithheld > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Taxes Withheld</span>
+                    <span>{fmtFull(convertTarget.taxesWithheld)}</span>
+                  </div>
+                )}
+                {convertTarget.retirement401k > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">401(k)</span>
+                    <span>{fmtFull(convertTarget.retirement401k)}</span>
+                  </div>
+                )}
+                {convertTarget.preTaxDeductions > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Pre-Tax Deductions</span>
+                    <span>{fmtFull(convertTarget.preTaxDeductions)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Destination</Label>
+                <Select value={convertDestination} onValueChange={(v) => setConvertDestination(v as "business" | "personal")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="business">Business Activity</SelectItem>
+                    <SelectItem value="personal">Personal Income</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConvertTarget(null)}>Cancel</Button>
+            <Button onClick={handleConvert}>
+              Create Actual Income
             </Button>
           </DialogFooter>
         </DialogContent>

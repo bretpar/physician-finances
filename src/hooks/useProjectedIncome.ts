@@ -85,6 +85,8 @@ export interface ProjectedPaycheck {
   matchedIncomeId?: string;
   /** If matched, the actual amount received */
   matchedAmount?: number;
+  /** Company type from the stream (W2, 1099, K1, etc.) */
+  streamCompanyType?: string;
 }
 
 /* ─── Helpers ─── */
