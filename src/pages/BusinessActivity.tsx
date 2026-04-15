@@ -544,9 +544,21 @@ export default function Transactions() {
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
-          <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+        <div className="sticky top-0 z-30 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 shadow-sm">
+          <span className="text-sm font-medium text-foreground whitespace-nowrap">{selectedIds.size} selected</span>
           <div className="flex gap-2 flex-wrap flex-1">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { needs_review: false } as any });
+              setSelectedIds(new Set());
+            }}>
+              <CheckCircle2 className="h-3 w-3" /> Mark Reviewed
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setShowBulkCategory(true)}>
+              <Tag className="h-3 w-3" /> Categorize
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive border-destructive/30" onClick={() => setShowBulkDeleteConfirm(true)}>
+              <Trash2 className="h-3 w-3" /> Delete
+            </Button>
             <Select value={bulkCompany} onValueChange={(v) => {
               bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { entity: v, needs_review: false } as any });
               setBulkCompany("");
@@ -561,39 +573,21 @@ export default function Transactions() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setShowBulkCategory(true)}>
-              <Tag className="h-3 w-3" /> Assign Category
-            </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
               bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { excluded_from_reports: true, needs_review: false } as any });
               setSelectedIds(new Set());
             }}>
-              <EyeOff className="h-3 w-3" /> Mark Personal
-            </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
-              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { excluded_from_reports: true, needs_review: false } as any });
-              setSelectedIds(new Set());
-            }}>
-              <EyeOff className="h-3 w-3" /> Exclude from Reports
+              <EyeOff className="h-3 w-3" /> Exclude
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
               bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { transaction_type: "transfer", transfer_subtype: "account_transfer", category: "Transfer", excluded_from_reports: true, needs_review: false } as any });
               setSelectedIds(new Set());
             }}>
-              <ArrowLeftRight className="h-3 w-3" /> Mark as Transfer
-            </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
-              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { needs_review: false } as any });
-              setSelectedIds(new Set());
-            }}>
-              <CheckCircle2 className="h-3 w-3" /> Mark Reviewed
-            </Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive border-destructive/30" onClick={() => setShowBulkDeleteConfirm(true)}>
-              <Trash2 className="h-3 w-3" /> Delete Selected
+              <ArrowLeftRight className="h-3 w-3" /> Transfer
             </Button>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
-            Clear
+          <Button variant="ghost" size="sm" className="h-7 text-xs whitespace-nowrap" onClick={() => setSelectedIds(new Set())}>
+            Clear Selection
           </Button>
         </div>
       )}
@@ -603,13 +597,35 @@ export default function Transactions() {
 
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {/* Mobile Select All */}
+        <div className="flex sm:hidden items-center gap-2 px-4 py-2 border-b border-border bg-muted/40">
+          <Checkbox
+            checked={filtered.length > 0 && selectedIds.size === filtered.length}
+            ref={(el) => {
+              if (el) {
+                const input = el.querySelector('button') || el;
+                (input as any).indeterminate = selectedIds.size > 0 && selectedIds.size < filtered.length;
+              }
+            }}
+            data-state={selectedIds.size > 0 && selectedIds.size < filtered.length ? "indeterminate" : filtered.length > 0 && selectedIds.size === filtered.length ? "checked" : "unchecked"}
+            onCheckedChange={(checked) => {
+              if (checked) setSelectedIds(new Set(filtered.map((t) => t.id)));
+              else setSelectedIds(new Set());
+            }}
+          />
+          <span className="text-xs font-medium text-muted-foreground">Select All ({filtered.length})</span>
+        </div>
         {/* Table header */}
         <div className="hidden sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide items-center">
           <Checkbox
             checked={filtered.length > 0 && selectedIds.size === filtered.length}
+            data-state={selectedIds.size > 0 && selectedIds.size < filtered.length ? "indeterminate" : filtered.length > 0 && selectedIds.size === filtered.length ? "checked" : "unchecked"}
             onCheckedChange={(checked) => {
-              if (checked) setSelectedIds(new Set(filtered.map((t) => t.id)));
-              else setSelectedIds(new Set());
+              if (checked || (selectedIds.size > 0 && selectedIds.size < filtered.length)) {
+                setSelectedIds(new Set(filtered.map((t) => t.id)));
+              } else {
+                setSelectedIds(new Set());
+              }
             }}
           />
           <span>Date</span>
