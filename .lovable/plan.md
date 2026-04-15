@@ -1,40 +1,45 @@
 
 
-## Fix: W2 Withholding Recommendation Should Exclude SE Tax
+# Fix: Imported Transaction Edits Not Persisting (Fields Blank on Re-edit)
 
-**Problem**
+## Root Cause
 
-The withholding recommendation uses the annual `effectiveRate` which is calculated as `(federalTax + seTax + bnoTax) / totalIncome`. When applied to a W2 entry, the recommendation inflates the number because SE tax and B&O tax are baked into the rate — but those taxes don't apply to W2 income.
+When editing an imported Plaid income transaction, the `openEdit` function looks up the transaction's linked `income_entry` via `incomeByLinkedTx.get(tx.id)`. For imported transactions that were **never manually created through the Add Income flow**, no `income_entry` exists — so `linked` is `null`.
 
-**Root Cause**
+This means:
+- `gross_amount` falls back to `tx.amount` (works)
+- `taxes_withheld`, `pre_tax_deductions`, `retirement_401k`, `net_received` all fall back to `""` (blank)
 
-The `effectiveRate` from the tax engine is a blended rate across all income types. The per-entry recommendation hook applies this same rate to W2 and 1099 entries alike.
+When the user saves, the `saveIncome` function updates only the `transactions` table (amount, vendor, etc.). Since `editingIncomeEntryId` is null, **no income_entry is created**. The detailed fields (gross, taxes withheld, deductions, retirement) are lost.
 
-**Fix**
+On re-edit, the same lookup happens — still no income_entry — fields are blank again.
 
-### 1. Expose a federal-only effective rate from the tax engine
+## Fix
 
-In `src/lib/taxEngine.ts`, add a new field to `TaxEstimate`:
+**In `saveIncome()` inside `BusinessActivity.tsx`**: When editing an income transaction that has **no linked income_entry** (`editingIncomeEntryId` is null), **create** a new `income_entry` linked to the transaction instead of silently skipping. This ensures all detailed fields persist.
 
-```
-federalEffectiveRate = (federalTax / totalIncome) * 100
-```
+### Changes
 
-Return it alongside the existing `effectiveRate`.
+**`src/pages/BusinessActivity.tsx` — `saveIncome()` function (~lines 309-344)**
 
-### 2. Use the correct rate per income type in the recommendation hook
+In the `onSuccess` callback of the `updateMutation.mutate` call for editing income:
 
-In `src/hooks/useWithholdingRecommendation.ts`:
+- Current code: only calls `updateIncomeMutation.mutate(...)` if `editingIncomeEntryId` exists; otherwise does nothing with the detailed fields
+- New code: if `editingIncomeEntryId` is null, call `addIncomeMutation.mutate(...)` to create a new income_entry with `linked_transaction_id` set to the transaction ID, using all the form fields (gross, taxes withheld, deductions, retirement, etc.)
 
-- **W2 entries**: Use `federalEffectiveRate` (no SE tax, no B&O)
-- **1099/K1 entries**: Use `effectiveRate` (which already includes SE + B&O), no need to add SE tax again on top
+This requires a slight modification to `useAddIncome` (or a new hook) since the current `useAddIncome` also creates a new transaction row. We need to either:
+1. **Add a `skipTransaction` flag** to `useAddIncome` so it can create just the income_entry when a transaction already exists, OR
+2. **Use a direct Supabase insert** in the `saveIncome` function for this case
 
-This also means removing the current explicit SE tax addition on lines 117-118, since for 1099/K1 the blended `effectiveRate` already accounts for it.
+Option 2 is simpler — insert directly into `income_entries` in the `onSuccess` callback when no entry exists, then invalidate queries.
 
-### Files to change
+### Summary of code changes
 
-| File | Change |
-|------|--------|
-| `src/lib/taxEngine.ts` | Add `federalEffectiveRate` to `TaxEstimate` interface and return value |
-| `src/hooks/useWithholdingRecommendation.ts` | Use `federalEffectiveRate` for W2, `effectiveRate` for 1099/K1; remove redundant SE tax addition |
+1. **`src/pages/BusinessActivity.tsx`** — In `saveIncome()`, inside the `isEditingIncome` branch's `onSuccess`:
+   - If `editingIncomeEntryId` exists → update income_entry (current behavior, keep as-is)
+   - If `editingIncomeEntryId` is null → insert a new income_entry row with `linked_transaction_id = editingIncomeTxId`, populating all fields from the form. Then set `editingIncomeEntryId` equivalent so future edits update instead of re-creating.
+
+2. **`src/pages/BusinessActivity.tsx`** — In `openEdit()` for income transactions without a linked income_entry: also read from `tx` fields for `actual_withholding` and `notes` (already done, no change needed).
+
+No database migration needed — all tables and columns already exist.
 
