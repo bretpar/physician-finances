@@ -666,6 +666,75 @@ export default function Settings() {
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleRemoveMember} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Post-link account review dialog */}
+      <Dialog open={!!reviewItemId} onOpenChange={(open) => { if (!open) { setReviewItemId(null); setReviewPrefs({}); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review Imported Accounts</DialogTitle>
+            <DialogDescription>
+              {reviewInstitution} returned the accounts below. Choose which ones to sync and optionally assign them to a business.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {Object.entries(reviewPrefs).length === 0 ? (
+              <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : (
+              (() => {
+                // We need the actual account data — get from plaidAccounts or refetch
+                const reviewAccounts = plaidAccounts.filter((a) => a.plaid_item_id === reviewItemId);
+                // If accounts haven't loaded yet, show from reviewPrefs keys
+                const acctIds = reviewAccounts.length > 0 ? reviewAccounts : Object.keys(reviewPrefs).map((id) => ({ id, account_name: "Account", account_type: "", account_subtype: null, account_mask: null }));
+                return (reviewAccounts.length > 0 ? reviewAccounts : []).map((acct: any) => {
+                  const pref = reviewPrefs[acct.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+                  return (
+                    <div key={acct.id} className={`rounded-lg border border-border p-4 space-y-3 ${pref.sync_enabled ? "bg-card" : "bg-muted/30 opacity-60"}`}>
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={pref.sync_enabled}
+                          onCheckedChange={(checked: boolean) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, sync_enabled: !!checked } }))}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-card-foreground">{acct.account_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
+                            {acct.account_mask ? ` ···${acct.account_mask}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      {pref.sync_enabled && (
+                        <div className="pl-7 space-y-2">
+                          <Select value={pref.mode} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, mode: v, companyId: v !== "single_business" ? "" : pref.companyId } }))}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">Personal / Unassigned</SelectItem>
+                              <SelectItem value="single_business">Business</SelectItem>
+                              <SelectItem value="shared">Ignore</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {pref.mode === "single_business" && (
+                            <Select value={pref.companyId} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, companyId: v } }))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select business..." /></SelectTrigger>
+                              <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setReviewItemId(null); setReviewPrefs({}); }}>Skip</Button>
+            <Button onClick={handleSaveReview} disabled={reviewAccountsMutation.isPending}>
+              {reviewAccountsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Save & Sync
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
