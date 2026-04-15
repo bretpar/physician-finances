@@ -169,8 +169,7 @@ export function useTaxEstimate(): {
   const forecastEstimate = useMemo(() => {
     if (!rates || !baseData || !incomeEntries) return null;
 
-    const existingDates = new Set(baseData.entries.map((e) => e.income_date));
-    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], existingDates);
+    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries || []);
     const projTotals = getProjectedTotals(projectedPaychecks);
 
     const totalIncome = baseData.businessIncome + baseData.businessW2 + baseData.totalPersonalIncome + projTotals.grossIncome + baseData.netStockGain;

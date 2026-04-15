@@ -4,6 +4,16 @@ import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
 
+/** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
+export interface MatchableIncomeEntry {
+  id: string;
+  income_date: string;
+  company: string;
+  paycheck_amount: number;
+  income_type: string;
+  status: string;
+}
+
 /* ─── Types ─── */
 export interface ProjectedIncomeStream {
   id: string;
@@ -55,6 +65,8 @@ export interface ProjectedIncomeOverride {
   updated_at: string;
 }
 
+export type ProjectedMatchStatus = "active" | "matched" | "past_due" | "skipped";
+
 export interface ProjectedPaycheck {
   date: string;
   grossAmount: number;
@@ -67,6 +79,12 @@ export interface ProjectedPaycheck {
   streamId: string;
   isSkipped?: boolean;
   isModified?: boolean;
+  /** New: tracks whether this projected paycheck has been matched to actual income */
+  matchStatus: ProjectedMatchStatus;
+  /** If matched, the ID of the actual income entry */
+  matchedIncomeId?: string;
+  /** If matched, the actual amount received */
+  matchedAmount?: number;
 }
 
 /* ─── Helpers ─── */
@@ -82,6 +100,65 @@ export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
     return isBefore(end, today) && !isSameDay(end, today);
   }
   return false;
+}
+
+/**
+ * Match a projected paycheck against actual income entries.
+ * Returns the best matching income entry or null.
+ *
+ * Matching criteria (all contribute to score):
+ * - Date within ±3 days
+ * - Same company name
+ * - Similar gross amount (within 10%)
+ * - Same income type/company_type
+ */
+function findMatchingIncome(
+  paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string },
+  incomeEntries: MatchableIncomeEntry[],
+  usedEntryIds: Set<string>,
+): { entry: MatchableIncomeEntry; score: number } | null {
+  const pDate = parseISO(paycheck.date).getTime();
+  let bestMatch: { entry: MatchableIncomeEntry; score: number } | null = null;
+
+  for (const entry of incomeEntries) {
+    if (usedEntryIds.has(entry.id)) continue;
+    if (entry.status === "projected") continue; // Don't match against other projected items
+
+    let score = 0;
+
+    // Date proximity (±3 days)
+    const eDate = parseISO(entry.income_date).getTime();
+    const daysDiff = Math.abs(pDate - eDate) / (1000 * 60 * 60 * 24);
+    if (daysDiff === 0) score += 40;
+    else if (daysDiff <= 1) score += 30;
+    else if (daysDiff <= 3) score += 15;
+    else continue; // Skip if more than 3 days apart
+
+    // Company match
+    const pCompany = (paycheck.label || "").toLowerCase();
+    const eCompany = (entry.company || "").toLowerCase();
+    if (pCompany && eCompany && (pCompany.includes(eCompany) || eCompany.includes(pCompany))) {
+      score += 30;
+    }
+
+    // Amount similarity (within 10% of gross)
+    const gross = Number(entry.paycheck_amount);
+    if (gross > 0 && paycheck.grossAmount > 0) {
+      const diff = Math.abs(gross - paycheck.grossAmount);
+      const pct = diff / paycheck.grossAmount;
+      if (pct === 0) score += 30;
+      else if (pct <= 0.02) score += 25;
+      else if (pct <= 0.05) score += 15;
+      else if (pct <= 0.10) score += 5;
+    }
+
+    // Threshold: need at least date + one other signal
+    if (score >= 45 && (!bestMatch || score > bestMatch.score)) {
+      bestMatch = { entry, score };
+    }
+  }
+
+  return bestMatch;
 }
 
 /* ─── Queries ─── */
@@ -329,13 +406,26 @@ function getNextDate(current: Date, frequency: string, customDays?: number | nul
   }
 }
 
+/**
+ * Generate projected paychecks with smart matching against actual income.
+ *
+ * Instead of simple date filtering, this now:
+ * 1. Generates ALL projected paychecks (past and future within the year)
+ * 2. Matches each against actual income entries using company+date+amount
+ * 3. Tags each paycheck with a matchStatus:
+ *    - "matched" — actual income exists for this paycheck
+ *    - "past_due" — date has passed with no matching actual income
+ *    - "skipped" — user explicitly skipped via override
+ *    - "active" — future paycheck, not yet matched
+ */
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
-  existingIncomeDates?: Set<string>,
-  overrides?: ProjectedIncomeOverride[]
+  incomeEntries?: MatchableIncomeEntry[],
+  overrides?: ProjectedIncomeOverride[],
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
+  const yearStart = parseISO(`${now.getFullYear()}-01-01`);
   const yearEnd = endOfYear(now);
   const paychecks: ProjectedPaycheck[] = [];
 
@@ -347,78 +437,90 @@ export function generateProjectedPaychecks(
     }
   }
 
+  // Track which income entries have been used for matching
+  const usedEntryIds = new Set<string>();
+
+  // Collect all raw paychecks first (without matching)
+  const rawPaychecks: Array<{
+    date: string;
+    grossAmount: number;
+    taxesWithheld: number;
+    retirement401k: number;
+    preTaxDeductions: number;
+    type: "paycheck" | "bonus";
+    label: string;
+    streamId: string;
+    isSkipped: boolean;
+    isModified: boolean;
+    streamCompanyType?: string;
+  }> = [];
+
   for (const stream of streams) {
     if (!stream.is_active || !stream.include_in_tax) continue;
     if (isStreamExpired(stream)) continue;
 
     const start = parseISO(stream.start_date);
 
-    // One-time / single: emit exactly one paycheck on start_date
+    // One-time / single
     if (stream.pay_frequency === "single") {
-      if (!isBefore(start, now) || isSameDay(start, now)) {
-        if (!isAfter(start, yearEnd)) {
-          const dateStr = format(start, "yyyy-MM-dd");
-          if (!existingIncomeDates?.has(dateStr)) {
-            const override = overrideMap.get(`${stream.id}:${dateStr}`);
-            if (override?.action === "skip") {
-              paychecks.push({
-                date: dateStr, grossAmount: stream.paycheck_amount,
-                taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
-                preTaxDeductions: stream.pre_tax_deductions, netAmount: 0,
-                type: "paycheck", label: stream.company, streamId: stream.id, isSkipped: true,
-              });
-            } else {
-              const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
-              const tax = override?.action === "modify" ? override.taxes_withheld : stream.taxes_withheld;
-              const ret = override?.action === "modify" ? override.retirement_401k : stream.retirement_401k;
-              const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
-              paychecks.push({
-                date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret,
-                preTaxDeductions: ded, netAmount: Math.max(0, amt - tax - ret - ded),
-                type: "paycheck", label: stream.company, streamId: stream.id,
-                isModified: override?.action === "modify",
-              });
-            }
-          }
-        }
-      }
-      continue;
-    }
-
-    // Recurring streams
-    const end = stream.end_date ? parseISO(stream.end_date) : yearEnd;
-
-    let current = start;
-    while (isBefore(current, now)) {
-      current = getNextDate(current, stream.pay_frequency, stream.custom_interval_days);
-    }
-
-    while (!isAfter(current, end) && !isAfter(current, yearEnd)) {
-      const dateStr = format(current, "yyyy-MM-dd");
-
-      if (!existingIncomeDates?.has(dateStr)) {
+      if (!isAfter(start, yearEnd)) {
+        const dateStr = format(start, "yyyy-MM-dd");
         const override = overrideMap.get(`${stream.id}:${dateStr}`);
-
         if (override?.action === "skip") {
-          paychecks.push({
+          rawPaychecks.push({
             date: dateStr, grossAmount: stream.paycheck_amount,
             taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
-            preTaxDeductions: stream.pre_tax_deductions, netAmount: 0,
-            type: "paycheck", label: stream.company, streamId: stream.id, isSkipped: true,
+            preTaxDeductions: stream.pre_tax_deductions,
+            type: "paycheck", label: stream.company, streamId: stream.id,
+            isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
           });
         } else {
           const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
           const tax = override?.action === "modify" ? override.taxes_withheld : stream.taxes_withheld;
           const ret = override?.action === "modify" ? override.retirement_401k : stream.retirement_401k;
           const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
-          const net = amt - tax - ret - ded;
-          paychecks.push({
-            date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret,
-            preTaxDeductions: ded, netAmount: Math.max(0, net),
+          rawPaychecks.push({
+            date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
             type: "paycheck", label: stream.company, streamId: stream.id,
-            isModified: override?.action === "modify",
+            isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
           });
         }
+      }
+      continue;
+    }
+
+    // Recurring streams — generate from start of year (or stream start) through year end
+    const end = stream.end_date ? parseISO(stream.end_date) : yearEnd;
+    const effectiveStart = isBefore(start, yearStart) ? yearStart : start;
+
+    // Find first pay date on or after effectiveStart
+    let current = start;
+    while (isBefore(current, effectiveStart)) {
+      current = getNextDate(current, stream.pay_frequency, stream.custom_interval_days);
+    }
+
+    while (!isAfter(current, end) && !isAfter(current, yearEnd)) {
+      const dateStr = format(current, "yyyy-MM-dd");
+      const override = overrideMap.get(`${stream.id}:${dateStr}`);
+
+      if (override?.action === "skip") {
+        rawPaychecks.push({
+          date: dateStr, grossAmount: stream.paycheck_amount,
+          taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
+          preTaxDeductions: stream.pre_tax_deductions,
+          type: "paycheck", label: stream.company, streamId: stream.id,
+          isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
+        });
+      } else {
+        const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
+        const tax = override?.action === "modify" ? override.taxes_withheld : stream.taxes_withheld;
+        const ret = override?.action === "modify" ? override.retirement_401k : stream.retirement_401k;
+        const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
+        rawPaychecks.push({
+          date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
+          type: "paycheck", label: stream.company, streamId: stream.id,
+          isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
+        });
       }
       current = getNextDate(current, stream.pay_frequency, stream.custom_interval_days);
     }
@@ -433,32 +535,75 @@ export function generateProjectedPaychecks(
     const baseDate = parseISO(bonus.scheduled_date);
 
     if (bonus.frequency === "one-time") {
-      if (!isBefore(baseDate, now) && !isAfter(baseDate, yearEnd)) {
-        dates.push(baseDate);
-      }
+      if (!isAfter(baseDate, yearEnd)) dates.push(baseDate);
     } else if (bonus.frequency === "quarterly") {
       let d = baseDate;
       while (!isAfter(d, yearEnd)) {
-        if (!isBefore(d, now)) dates.push(d);
+        dates.push(d);
         d = addMonths(d, 3);
       }
     } else if (bonus.frequency === "annual") {
-      if (!isBefore(baseDate, now) && !isAfter(baseDate, yearEnd)) {
-        dates.push(baseDate);
-      }
+      if (!isAfter(baseDate, yearEnd)) dates.push(baseDate);
     }
 
     for (const d of dates) {
-      paychecks.push({
+      rawPaychecks.push({
         date: format(d, "yyyy-MM-dd"),
         grossAmount: bonus.amount,
         taxesWithheld: bonus.taxes_withheld,
         retirement401k: 0,
         preTaxDeductions: 0,
-        netAmount: Math.max(0, bonus.amount - bonus.taxes_withheld),
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
+        isSkipped: false, isModified: false, streamCompanyType: stream?.company_type,
+      });
+    }
+  }
+
+  // Sort by date for matching priority
+  rawPaychecks.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Now match each paycheck against actual income entries
+  const entries = incomeEntries || [];
+
+  for (const raw of rawPaychecks) {
+    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions;
+
+    if (raw.isSkipped) {
+      paychecks.push({
+        ...raw,
+        netAmount: 0,
+        matchStatus: "skipped",
+      });
+      continue;
+    }
+
+    // Try to find a matching actual income entry
+    const match = findMatchingIncome(
+      { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType },
+      entries,
+      usedEntryIds,
+    );
+
+    if (match) {
+      usedEntryIds.add(match.entry.id);
+      paychecks.push({
+        ...raw,
+        netAmount: Math.max(0, net),
+        matchStatus: "matched",
+        matchedIncomeId: match.entry.id,
+        matchedAmount: Number(match.entry.paycheck_amount),
+      });
+    } else {
+      // Check if past due
+      const pDate = parseISO(raw.date);
+      const isPastDue = isBefore(pDate, now) && !isSameDay(pDate, now);
+
+      paychecks.push({
+        ...raw,
+        netAmount: Math.max(0, net),
+        matchStatus: isPastDue ? "past_due" : "active",
       });
     }
   }
@@ -467,9 +612,10 @@ export function generateProjectedPaychecks(
 }
 
 /* ─── Aggregate projected totals ─── */
+/** Only counts "active" (future, unmatched) paychecks — never matched, skipped, or past_due */
 export function getProjectedTotals(paychecks: ProjectedPaycheck[]) {
   return paychecks
-    .filter((p) => !p.isSkipped) // Skipped entries don't count
+    .filter((p) => p.matchStatus === "active")
     .reduce(
       (acc, p) => ({
         grossIncome: acc.grossIncome + p.grossAmount,

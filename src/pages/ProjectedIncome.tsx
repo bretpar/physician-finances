@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   Plus, Trash2, Pencil, ChevronDown, ChevronRight,
   DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
-  X, RotateCcw,
+  X, RotateCcw, CheckCircle2, AlertCircle, Link2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -127,9 +127,9 @@ export default function ProjectedIncome() {
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
 
-  const existingDates = useMemo(() => {
-    if (!incomeEntries) return new Set<string>();
-    return new Set(incomeEntries.map((e) => e.income_date));
+  // Income entries for matching (replaces the old date-only filtering)
+  const incomeEntriesForMatching = useMemo(() => {
+    return incomeEntries || [];
   }, [incomeEntries]);
 
   // Build an override lookup for finding existing override IDs
@@ -145,8 +145,8 @@ export default function ProjectedIncome() {
 
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
-    return generateProjectedPaychecks(streams, bonuses, existingDates, overrides || []);
-  }, [streams, bonuses, existingDates, overrides]);
+    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || []);
+  }, [streams, bonuses, incomeEntriesForMatching, overrides]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks), [projectedPaychecks]);
 
@@ -365,7 +365,10 @@ export default function ProjectedIncome() {
         <div className="space-y-1.5">
           {MONTHS.map((monthName, idx) => {
             const entries = byMonth.get(idx) || [];
-            const activeEntries = entries.filter((e) => !e.isSkipped);
+            const activeEntries = entries.filter((e) => e.matchStatus === "active");
+            const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
+            const pastDueEntries = entries.filter((e) => e.matchStatus === "past_due");
+            const skippedEntries = entries.filter((e) => e.matchStatus === "skipped");
             const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
             const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
             const isExpanded = expandedMonths.has(idx);
@@ -391,10 +394,24 @@ export default function ProjectedIncome() {
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       )}
                       <span className="font-medium text-foreground">{monthName}</span>
-                      {entries.length > 0 && (
+                      {activeEntries.length > 0 && (
                         <Badge variant="secondary" className="text-xs">
-                          {activeEntries.length} {activeEntries.length === 1 ? "entry" : "entries"}
-                          {entries.length !== activeEntries.length && ` (${entries.length - activeEntries.length} skipped)`}
+                          {activeEntries.length} upcoming
+                        </Badge>
+                      )}
+                      {matchedEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
+                          {matchedEntries.length} matched
+                        </Badge>
+                      )}
+                      {pastDueEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-amber-400 text-amber-600 dark:text-amber-400">
+                          {pastDueEntries.length} needs review
+                        </Badge>
+                      )}
+                      {skippedEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-muted text-muted-foreground">
+                          {skippedEntries.length} skipped
                         </Badge>
                       )}
                       {isCurrent && (
@@ -428,83 +445,124 @@ export default function ProjectedIncome() {
                       </div>
                     )}
 
-                    {entries.map((entry, i) => (
-                      <div
-                        key={i}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-md border bg-card ${
-                          entry.isSkipped
-                            ? "border-destructive/20 bg-destructive/5 opacity-50"
-                            : entry.isModified
-                            ? "border-primary/30 bg-primary/5"
-                            : "border-border/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground w-12">{entry.date.slice(5)}</span>
-                          <span className={`text-sm font-medium ${entry.isSkipped ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                            {entry.label}
-                          </span>
-                          {entry.type === "bonus" && (
-                            <Badge variant="secondary" className="text-xs">Bonus</Badge>
-                          )}
-                          {entry.isModified && (
-                            <Badge variant="outline" className="text-xs border-primary/40 text-primary">Modified</Badge>
-                          )}
-                          {entry.isSkipped && (
-                            <Badge variant="outline" className="text-xs border-destructive/40 text-destructive">Skipped</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-semibold ${entry.isSkipped ? "line-through text-muted-foreground" : "text-success"}`}>
-                            {fmtFull(entry.grossAmount)}
-                          </span>
-                          {entry.type === "paycheck" && !entry.isSkipped && (
-                            <>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6"
-                                title="Edit this date"
-                                onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
+                    {entries.map((entry, i) => {
+                      const isMatched = entry.matchStatus === "matched";
+                      const isPastDue = entry.matchStatus === "past_due";
+                      const isSkipped = entry.matchStatus === "skipped";
+                      const isActive = entry.matchStatus === "active";
+
+                      return (
+                        <div
+                          key={i}
+                          className={`flex items-center justify-between px-3 py-2.5 rounded-md border bg-card ${
+                            isSkipped
+                              ? "border-destructive/20 bg-destructive/5 opacity-50"
+                              : isMatched
+                              ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+                              : isPastDue
+                              ? "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
+                              : entry.isModified
+                              ? "border-primary/30 bg-primary/5"
+                              : "border-border/50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-xs text-muted-foreground w-12 shrink-0">{entry.date.slice(5)}</span>
+                            <span className={`text-sm font-medium truncate ${isSkipped || isMatched ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                              {entry.label}
+                            </span>
+                            {entry.type === "bonus" && (
+                              <Badge variant="secondary" className="text-xs shrink-0">Bonus</Badge>
+                            )}
+                            {isMatched && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
+                                <CheckCircle2 className="h-2.5 w-2.5" /> Matched
+                              </Badge>
+                            )}
+                            {isPastDue && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-600 dark:text-amber-400 gap-0.5">
+                                <AlertCircle className="h-2.5 w-2.5" /> Past due
+                              </Badge>
+                            )}
+                            {isSkipped && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-destructive/40 text-destructive">Skipped</Badge>
+                            )}
+                            {entry.isModified && isActive && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-primary/40 text-primary">Modified</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isMatched && entry.matchedAmount != null && (
+                              <span className="text-xs text-muted-foreground">
+                                Actual: {fmtFull(entry.matchedAmount)}
+                              </span>
+                            )}
+                            <span className={`text-sm font-semibold ${isSkipped || isMatched ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {fmtFull(entry.grossAmount)}
+                            </span>
+                            {/* Actions for active entries */}
+                            {isActive && entry.type === "paycheck" && (
+                              <>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  title="Edit this date"
+                                  onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-destructive"
+                                  title="Skip this date"
+                                  onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
+                            {/* Actions for past-due entries */}
+                            {isPastDue && (
                               <Button
                                 size="icon"
                                 variant="ghost"
                                 className="h-6 w-6 text-destructive"
-                                title="Skip this date"
+                                title="Skip — income not received"
                                 onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
                               >
                                 <X className="h-3 w-3" />
                               </Button>
-                            </>
-                          )}
-                          {entry.isSkipped && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-primary"
-                              title="Restore this date"
-                              onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {entry.isModified && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-muted-foreground"
-                              title="Remove override (restore default)"
-                              onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                            </Button>
-                          )}
+                            )}
+                            {/* Restore for skipped entries */}
+                            {isSkipped && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-primary"
+                                title="Restore this date"
+                                onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {/* Restore modified */}
+                            {entry.isModified && isActive && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-muted-foreground"
+                                title="Remove override (restore default)"
+                                onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {entries.length === 0 && (
                       <p className="text-xs text-muted-foreground px-3 py-2">
