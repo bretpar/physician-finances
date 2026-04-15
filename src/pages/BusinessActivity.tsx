@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
-import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
+import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, useBulkDeleteTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
