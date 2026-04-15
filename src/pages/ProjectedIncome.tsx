@@ -445,83 +445,124 @@ export default function ProjectedIncome() {
                       </div>
                     )}
 
-                    {entries.map((entry, i) => (
-                      <div
-                        key={i}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-md border bg-card ${
-                          entry.isSkipped
-                            ? "border-destructive/20 bg-destructive/5 opacity-50"
-                            : entry.isModified
-                            ? "border-primary/30 bg-primary/5"
-                            : "border-border/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground w-12">{entry.date.slice(5)}</span>
-                          <span className={`text-sm font-medium ${entry.isSkipped ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                            {entry.label}
-                          </span>
-                          {entry.type === "bonus" && (
-                            <Badge variant="secondary" className="text-xs">Bonus</Badge>
-                          )}
-                          {entry.isModified && (
-                            <Badge variant="outline" className="text-xs border-primary/40 text-primary">Modified</Badge>
-                          )}
-                          {entry.isSkipped && (
-                            <Badge variant="outline" className="text-xs border-destructive/40 text-destructive">Skipped</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-semibold ${entry.isSkipped ? "line-through text-muted-foreground" : "text-success"}`}>
-                            {fmtFull(entry.grossAmount)}
-                          </span>
-                          {entry.type === "paycheck" && !entry.isSkipped && (
-                            <>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6"
-                                title="Edit this date"
-                                onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
+                    {entries.map((entry, i) => {
+                      const isMatched = entry.matchStatus === "matched";
+                      const isPastDue = entry.matchStatus === "past_due";
+                      const isSkipped = entry.matchStatus === "skipped";
+                      const isActive = entry.matchStatus === "active";
+
+                      return (
+                        <div
+                          key={i}
+                          className={`flex items-center justify-between px-3 py-2.5 rounded-md border bg-card ${
+                            isSkipped
+                              ? "border-destructive/20 bg-destructive/5 opacity-50"
+                              : isMatched
+                              ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+                              : isPastDue
+                              ? "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
+                              : entry.isModified
+                              ? "border-primary/30 bg-primary/5"
+                              : "border-border/50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-xs text-muted-foreground w-12 shrink-0">{entry.date.slice(5)}</span>
+                            <span className={`text-sm font-medium truncate ${isSkipped || isMatched ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                              {entry.label}
+                            </span>
+                            {entry.type === "bonus" && (
+                              <Badge variant="secondary" className="text-xs shrink-0">Bonus</Badge>
+                            )}
+                            {isMatched && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
+                                <CheckCircle2 className="h-2.5 w-2.5" /> Matched
+                              </Badge>
+                            )}
+                            {isPastDue && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-600 dark:text-amber-400 gap-0.5">
+                                <AlertCircle className="h-2.5 w-2.5" /> Past due
+                              </Badge>
+                            )}
+                            {isSkipped && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-destructive/40 text-destructive">Skipped</Badge>
+                            )}
+                            {entry.isModified && isActive && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-primary/40 text-primary">Modified</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isMatched && entry.matchedAmount != null && (
+                              <span className="text-xs text-muted-foreground">
+                                Actual: {fmtFull(entry.matchedAmount)}
+                              </span>
+                            )}
+                            <span className={`text-sm font-semibold ${isSkipped || isMatched ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {fmtFull(entry.grossAmount)}
+                            </span>
+                            {/* Actions for active entries */}
+                            {isActive && entry.type === "paycheck" && (
+                              <>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  title="Edit this date"
+                                  onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-destructive"
+                                  title="Skip this date"
+                                  onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
+                            {/* Actions for past-due entries */}
+                            {isPastDue && (
                               <Button
                                 size="icon"
                                 variant="ghost"
                                 className="h-6 w-6 text-destructive"
-                                title="Skip this date"
+                                title="Skip — income not received"
                                 onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
                               >
                                 <X className="h-3 w-3" />
                               </Button>
-                            </>
-                          )}
-                          {entry.isSkipped && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-primary"
-                              title="Restore this date"
-                              onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {entry.isModified && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-muted-foreground"
-                              title="Remove override (restore default)"
-                              onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
-                            >
-                              <RotateCcw className="h-3 w-3" />
-                            </Button>
-                          )}
+                            )}
+                            {/* Restore for skipped entries */}
+                            {isSkipped && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-primary"
+                                title="Restore this date"
+                                onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {/* Restore modified */}
+                            {entry.isModified && isActive && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-muted-foreground"
+                                title="Remove override (restore default)"
+                                onClick={(e) => { e.stopPropagation(); handleRestore(entry); }}
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {entries.length === 0 && (
                       <p className="text-xs text-muted-foreground px-3 py-2">
