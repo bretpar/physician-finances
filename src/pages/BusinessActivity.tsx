@@ -1014,6 +1014,34 @@ export default function Transactions() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Transaction{selectedIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected transactions. Any linked income entries will be unlinked but not deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                bulkDeleteMutation.mutate([...selectedIds], {
+                  onSuccess: () => {
+                    setSelectedIds(new Set());
+                    setShowBulkDeleteConfirm(false);
+                  },
+                });
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Confirm Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Smart Recommendation Modal (Modal 2) */}
       <RecommendationModal
         open={showRecommendation}
