@@ -174,19 +174,26 @@ export default function Settings() {
     return companies.find((c) => c.id === companyId)?.name || null;
   };
 
-  const getModeLabel = (mode: string, companyId: string | null) => {
-    if (mode === "single_business") {
-      const name = getCompanyName(companyId);
-      return name || "Business (deleted)";
+  const getModeLabel = (routing: string, mode: string, companyId: string | null) => {
+    if (routing === "personal") return "Personal";
+    if (routing === "ignore") return "Ignored";
+    if (routing === "needs_review") return "Needs Review";
+    if (routing === "business") {
+      if (mode === "single_business") {
+        const name = getCompanyName(companyId);
+        return name ? `Business · ${name}` : "Business (no company)";
+      }
+      if (mode === "shared") return "Business · Shared";
+      return "Business";
     }
-    if (mode === "shared") return "Shared / Multiple";
-    return "Unassigned";
+    return "Needs Review";
   };
 
-  const getModeColor = (mode: string): "secondary" | "default" | "outline" => {
-    if (mode === "single_business") return "default";
-    if (mode === "shared") return "secondary";
-    return "outline";
+  const getModeColor = (routing: string): "secondary" | "default" | "outline" | "destructive" => {
+    if (routing === "business") return "default";
+    if (routing === "personal") return "secondary";
+    if (routing === "ignore") return "outline";
+    return "destructive";
   };
 
   const openEditDialog = (acct: any) => {
