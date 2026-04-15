@@ -103,11 +103,16 @@ export default function Transactions() {
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
 
-  // Delete
+   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
 
-  // Tax suggestion popup
-  const [taxSuggestion, setTaxSuggestion] = useState<{ amount: number; paycheck: number } | null>(null);
+  // Recommendation modal (Modal 2) state
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const [savedEntryTitle, setSavedEntryTitle] = useState("");
+  const [currentRecommendation, setCurrentRecommendation] = useState<IncomeRecommendation | null>(null);
+  const [savedIncomeEntryId, setSavedIncomeEntryId] = useState<string | null>(null);
+
+  const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
 
   const isEditing = !!editingTxId;
   const isIncome = form.type === "income";
