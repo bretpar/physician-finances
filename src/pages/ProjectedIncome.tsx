@@ -313,6 +313,59 @@ export default function ProjectedIncome() {
     setOverrideTarget(null);
   };
 
+  const openConvert = (entry: ProjectedPaycheck) => {
+    const isBusiness = entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1";
+    setConvertDestination(isBusiness ? "business" : "personal");
+    setConvertTarget(entry);
+  };
+
+  const handleConvert = () => {
+    if (!convertTarget) return;
+    const entry = convertTarget;
+    const dest = convertDestination;
+    const notes = "Converted from planned income";
+
+    const onSuccess = () => {
+      // Mark as "skip" override so it's excluded from projections
+      addOverride.mutate({
+        stream_id: entry.streamId,
+        override_date: entry.date,
+        action: "skip",
+        notes: "Converted to actual income",
+      });
+      setConvertTarget(null);
+    };
+
+    if (dest === "personal") {
+      addPersonalIncome.mutate({
+        name: entry.label,
+        company: entry.label,
+        income_type: entry.streamCompanyType || "W2",
+        income_date: entry.date,
+        gross_amount: entry.grossAmount,
+        paycheck_amount: entry.grossAmount,
+        taxes_withheld: entry.taxesWithheld,
+        pre_tax_deductions: entry.preTaxDeductions,
+        retirement_401k: entry.retirement401k,
+        notes,
+      } as any, { onSuccess });
+    } else {
+      addIncome.mutate({
+        name: entry.label,
+        company: entry.label,
+        income_type: entry.streamCompanyType || "1099",
+        income_date: entry.date,
+        paycheck_amount: entry.grossAmount,
+        deposited_amount: entry.netAmount,
+        taxes_withheld: entry.taxesWithheld,
+        pre_tax_deductions: entry.preTaxDeductions,
+        retirement_401k: entry.retirement401k,
+        notes,
+        status: "received" as any,
+      }, { onSuccess });
+    }
+  };
+
   const currentMonth = new Date().getMonth();
 
   if (streamsLoading || bonusesLoading) {
