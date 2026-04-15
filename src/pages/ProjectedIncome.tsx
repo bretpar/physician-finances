@@ -948,6 +948,70 @@ export default function ProjectedIncome() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Convert to Actual Income Confirmation */}
+      <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Convert to Actual Income</DialogTitle>
+          </DialogHeader>
+          {convertTarget && (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                This will create an actual income entry and remove this planned income from active projections. Continue?
+              </p>
+              <div className="rounded-md bg-muted/50 px-4 py-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="font-medium">{convertTarget.date}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Company</span>
+                  <span className="font-medium">{convertTarget.label}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Gross Amount</span>
+                  <span className="font-medium">{fmtFull(convertTarget.grossAmount)}</span>
+                </div>
+                {convertTarget.taxesWithheld > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Taxes Withheld</span>
+                    <span>{fmtFull(convertTarget.taxesWithheld)}</span>
+                  </div>
+                )}
+                {convertTarget.retirement401k > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">401(k)</span>
+                    <span>{fmtFull(convertTarget.retirement401k)}</span>
+                  </div>
+                )}
+                {convertTarget.preTaxDeductions > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Pre-Tax Deductions</span>
+                    <span>{fmtFull(convertTarget.preTaxDeductions)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Destination</Label>
+                <Select value={convertDestination} onValueChange={(v) => setConvertDestination(v as "business" | "personal")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="business">Business Activity</SelectItem>
+                    <SelectItem value="personal">Personal Income</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConvertTarget(null)}>Cancel</Button>
+            <Button onClick={handleConvert}>
+              Create Actual Income
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
