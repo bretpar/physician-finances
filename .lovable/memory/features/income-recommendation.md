@@ -16,9 +16,17 @@ type: feature
 - additional_tax_reserve — user-chosen extra reserve amount
 - recommendation_status — ahead / on_track / behind
 
+## Shortfall Spread Logic (useIncomeRecommendation.ts)
+Three tiers of confidence:
+1. **High** — projected income streams exist in Income Planner. Count exact events before next deadline, spread shortfall evenly.
+2. **Estimated** — no projections but ≥2 recent income entries in last 6 months. Use average cadence to estimate events. Show disclaimer.
+3. **Low** — no projections, no reliable history. Show total shortfall as-is. Recommend adding Income Planner entries.
+
+Always shows: total shortfall by deadline (exact) AND per-event adjustment (spread).
+
 ## Key Files
-- src/hooks/useIncomeRecommendation.ts — smart recommendation engine
-- src/components/RecommendationModal.tsx — Modal 2 UI
+- src/hooks/useIncomeRecommendation.ts — smart recommendation engine with projected income integration
+- src/components/RecommendationModal.tsx — Modal 2 UI with confidence messaging
 - src/lib/featureFlags.ts — premium feature flags (all unlocked)
 
 ## Feature Flags Added
