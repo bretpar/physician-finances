@@ -57,10 +57,13 @@ export type Database = {
       }
       income_entries: {
         Row: {
+          additional_tax_reserve: number
+          base_tax_estimate: number
           company: string
           cost_basis: number | null
           created_at: string
           deposited_amount: number
+          dynamic_tax_recommendation: number
           federal_withholding: number
           gross_amount: number
           id: string
@@ -75,7 +78,9 @@ export type Database = {
           organization_id: string | null
           paycheck_amount: number
           pre_tax_deductions: number
+          quarterly_adjustment_amount: number
           realized_gain_loss: number | null
+          recommendation_status: string
           retirement_401k: number
           source_bucket: string
           state_withholding: number
@@ -86,10 +91,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          additional_tax_reserve?: number
+          base_tax_estimate?: number
           company?: string
           cost_basis?: number | null
           created_at?: string
           deposited_amount?: number
+          dynamic_tax_recommendation?: number
           federal_withholding?: number
           gross_amount?: number
           id?: string
@@ -104,7 +112,9 @@ export type Database = {
           organization_id?: string | null
           paycheck_amount?: number
           pre_tax_deductions?: number
+          quarterly_adjustment_amount?: number
           realized_gain_loss?: number | null
+          recommendation_status?: string
           retirement_401k?: number
           source_bucket?: string
           state_withholding?: number
@@ -115,10 +125,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          additional_tax_reserve?: number
+          base_tax_estimate?: number
           company?: string
           cost_basis?: number | null
           created_at?: string
           deposited_amount?: number
+          dynamic_tax_recommendation?: number
           federal_withholding?: number
           gross_amount?: number
           id?: string
@@ -133,7 +146,9 @@ export type Database = {
           organization_id?: string | null
           paycheck_amount?: number
           pre_tax_deductions?: number
+          quarterly_adjustment_amount?: number
           realized_gain_loss?: number | null
+          recommendation_status?: string
           retirement_401k?: number
           source_bucket?: string
           state_withholding?: number
