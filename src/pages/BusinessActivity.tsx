@@ -5,6 +5,9 @@ import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useInco
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
+import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+import { RecommendationModal } from "@/components/RecommendationModal";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import { useSuggestedMatches } from "@/hooks/useTransactionMatching";
 import SuggestedMatches from "@/components/SuggestedMatches";
 import { Input } from "@/components/ui/input";
@@ -43,6 +46,7 @@ interface TxFormState {
   pre_tax_deductions: string;
   retirement_401k: string;
   actual_withholding: string;
+  additional_tax_reserve: string;
 }
 
 const emptyForm: TxFormState = {
@@ -60,6 +64,7 @@ const emptyForm: TxFormState = {
   pre_tax_deductions: "",
   retirement_401k: "",
   actual_withholding: "",
+  additional_tax_reserve: "",
 };
 
 export default function Transactions() {
@@ -98,11 +103,16 @@ export default function Transactions() {
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
 
-  // Delete
+   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
 
-  // Tax suggestion popup
-  const [taxSuggestion, setTaxSuggestion] = useState<{ amount: number; paycheck: number } | null>(null);
+  // Recommendation modal (Modal 2) state
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const [savedEntryTitle, setSavedEntryTitle] = useState("");
+  const [currentRecommendation, setCurrentRecommendation] = useState<IncomeRecommendation | null>(null);
+  const [savedIncomeEntryId, setSavedIncomeEntryId] = useState<string | null>(null);
+
+  const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
 
   const isEditing = !!editingTxId;
   const isIncome = form.type === "income";
@@ -207,6 +217,7 @@ export default function Transactions() {
       pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
       retirement_401k: linked ? String(linked.retirement_401k) : "",
       actual_withholding: String((tx as any).actual_withholding || ""),
+      additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
     });
     setEditingTxId(tx.id);
     setEditingIncomeId(linked?.id || null);
@@ -247,6 +258,14 @@ export default function Transactions() {
         // so the tax engine picks it up via the weighted income pipeline
         const effectiveWithheld = Math.max(taxWithheld, num(form.actual_withholding));
         if (editingIncomeId) {
+          const rec = getIncomeRec({
+            grossIncome: paycheckAmt,
+            incomeType: companyType,
+            federalWithheld: effectiveWithheld,
+            stateWithheld: 0,
+            retirement401k: retirement,
+            preTaxDeductions: preTaxDed,
+          });
           updateIncomeMutation.mutate({
             id: editingIncomeId,
             name: form.name,
@@ -259,10 +278,24 @@ export default function Transactions() {
             pre_tax_deductions: preTaxDed,
             retirement_401k: retirement,
             notes: form.notes,
-          });
+            additional_tax_reserve: num(form.additional_tax_reserve),
+            base_tax_estimate: rec?.baseTaxEstimate || 0,
+            dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+            quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+            recommendation_status: rec?.recommendationStatus || "on_track",
+          } as any);
         }
       } else {
-        // Add new income
+        // Add new income — compute recommendation for saving
+        const rec = getIncomeRec({
+          grossIncome: paycheckAmt,
+          incomeType: companyType,
+          federalWithheld: taxWithheld,
+          stateWithheld: 0,
+          retirement401k: retirement,
+          preTaxDeductions: preTaxDed,
+        });
+
         const payload: Partial<IncomeEntry> = {
           name: form.name,
           company: form.company,
@@ -274,11 +307,21 @@ export default function Transactions() {
           pre_tax_deductions: preTaxDed,
           retirement_401k: retirement,
           notes: form.notes,
-        };
+          base_tax_estimate: rec?.baseTaxEstimate || 0,
+          dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+          quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+          additional_tax_reserve: num(form.additional_tax_reserve),
+          recommendation_status: rec?.recommendationStatus || "on_track",
+        } as any;
+
+        const showModal2 = isFeatureEnabled("recommendation_modal");
+
         addIncomeMutation.mutate(payload, {
           onSuccess: () => {
-            if ((companyType === "1099" || companyType === "K1") && taxWithheld === 0 && paycheckAmt > 0) {
-              setTaxSuggestion({ amount: recommendedWithholding, paycheck: paycheckAmt });
+            if (showModal2 && rec) {
+              setSavedEntryTitle(form.name);
+              setCurrentRecommendation(rec);
+              setShowRecommendation(true);
             }
           },
         });
@@ -885,6 +928,46 @@ export default function Transactions() {
                     </div>
                   </div>
                 )}
+
+                {/* Base tax estimate preview */}
+                {grossIncome > 0 && isFeatureEnabled("static_tax_estimate") && (() => {
+                  const rec = getIncomeRec({
+                    grossIncome,
+                    incomeType: form.income_type || getCompanyType(form.company),
+                    federalWithheld: num(form.taxes_withheld),
+                    stateWithheld: 0,
+                    retirement401k: num(form.retirement_401k),
+                    preTaxDeductions: num(form.pre_tax_deductions),
+                  });
+                  if (!rec) return null;
+                  return (
+                    <div className="rounded-md border-2 border-primary/20 p-3 bg-primary/5 space-y-1">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Base tax estimate for this income</span>
+                        <span className="font-semibold text-primary">{fmt(rec.baseTaxEstimate)}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {rec.methodLabel} · {rec.effectiveRate.toFixed(1)}% effective rate
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* Additional tax reserve (editable) */}
+                {isEditing && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={form.additional_tax_reserve === "0" ? "" : form.additional_tax_reserve}
+                      onChange={(e) => setField("additional_tax_reserve", e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Extra amount to set aside beyond actual withholding</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -926,26 +1009,26 @@ export default function Transactions() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Tax suggestion popup */}
-      <Dialog open={!!taxSuggestion} onOpenChange={() => setTaxSuggestion(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-primary" /> Tax Set-Aside Suggestion
-            </DialogTitle>
-          </DialogHeader>
-          {taxSuggestion && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Consider setting aside this amount for taxes:</p>
-              <p className="text-3xl font-bold text-primary text-center py-2">{fmt(taxSuggestion.amount)}</p>
-              <p className="text-sm text-muted-foreground text-center">from this {fmt(taxSuggestion.paycheck)} income</p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setTaxSuggestion(null)}>Got it</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Smart Recommendation Modal (Modal 2) */}
+      <RecommendationModal
+        open={showRecommendation}
+        onClose={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
+        onApplyRecommendation={() => {
+          if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0 && incomeEntries?.length) {
+            const latestEntry = incomeEntries[0];
+            if (latestEntry) {
+              updateIncomeMutation.mutate({
+                id: latestEntry.id,
+                additional_tax_reserve: currentRecommendation.recommendedAdditionalReserve,
+              } as any);
+            }
+          }
+          setShowRecommendation(false);
+          setCurrentRecommendation(null);
+        }}
+        recommendation={currentRecommendation}
+        entryTitle={savedEntryTitle}
+      />
 
       {/* Bulk Category Assignment Dialog */}
       <Dialog open={showBulkCategory} onOpenChange={setShowBulkCategory}>
