@@ -473,11 +473,12 @@ export default function Settings() {
                   {accounts.length > 0 && (
                     <div className="grid grid-cols-1 gap-3">
                       {accounts.map((acct) => {
+                        const routing = (acct as any).account_routing || "needs_review";
                         const mode = (acct as any).account_business_mode || "unassigned";
                         const companyId = (acct as any).default_company_id || null;
-                        const syncEnabled = (acct as any).sync_enabled !== false;
+                        const isActive = routing === "business" || routing === "personal";
                         return (
-                          <div key={acct.id} className={`flex items-center gap-3 rounded-lg border border-border p-3 ${syncEnabled ? "bg-muted/30" : "bg-muted/10 opacity-60"}`}>
+                          <div key={acct.id} className={`flex items-center gap-3 rounded-lg border border-border p-3 ${isActive ? "bg-muted/30" : "bg-muted/10 opacity-60"}`}>
                             <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-card-foreground truncate">{acct.account_name}</p>
@@ -486,16 +487,8 @@ export default function Settings() {
                                 {acct.account_mask ? ` ···${acct.account_mask}` : ""}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0" title={syncEnabled ? "Syncing transactions" : "Sync disabled"}>
-                              <Switch
-                                checked={syncEnabled}
-                                onCheckedChange={(checked) => handleToggleSync(acct.id, checked)}
-                                className="scale-90"
-                              />
-                              <span className="text-[10px] text-muted-foreground w-8">{syncEnabled ? "Sync" : "Off"}</span>
-                            </div>
-                            <Badge variant={getModeColor(mode)} className="text-xs shrink-0">
-                              {getModeLabel(mode, companyId)}
+                            <Badge variant={getModeColor(routing)} className="text-xs shrink-0">
+                              {getModeLabel(routing, mode, companyId)}
                             </Badge>
                             {acct.current_balance != null && (
                               <Badge variant="secondary" className="text-xs font-mono shrink-0">
