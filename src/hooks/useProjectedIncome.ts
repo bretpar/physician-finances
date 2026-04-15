@@ -114,11 +114,11 @@ export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
  */
 function findMatchingIncome(
   paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string },
-  incomeEntries: IncomeEntry[],
+  incomeEntries: MatchableIncomeEntry[],
   usedEntryIds: Set<string>,
-): { entry: IncomeEntry; score: number } | null {
+): { entry: MatchableIncomeEntry; score: number } | null {
   const pDate = parseISO(paycheck.date).getTime();
-  let bestMatch: { entry: IncomeEntry; score: number } | null = null;
+  let bestMatch: { entry: MatchableIncomeEntry; score: number } | null = null;
 
   for (const entry of incomeEntries) {
     if (usedEntryIds.has(entry.id)) continue;
@@ -421,7 +421,7 @@ function getNextDate(current: Date, frequency: string, customDays?: number | nul
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
-  incomeEntries?: IncomeEntry[],
+  incomeEntries?: MatchableIncomeEntry[],
   overrides?: ProjectedIncomeOverride[],
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
