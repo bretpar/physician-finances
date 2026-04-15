@@ -115,8 +115,8 @@ export default function Transactions() {
   const [bulkCategory, setBulkCategory] = useState("");
   const [showBulkCategory, setShowBulkCategory] = useState(false);
 
-  // Suggested matches
-  const suggestions = useSuggestedMatches(transactions);
+  // Suggested matches (pass income entries for net-amount matching)
+  const suggestions = useSuggestedMatches(transactions, incomeEntries);
 
   // ─── Income modal state ───
   const [showIncomeForm, setShowIncomeForm] = useState(false);
