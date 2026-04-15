@@ -342,6 +342,7 @@ Deno.serve(async (req) => {
         const modified = syncData.modified || [];
         for (const txn of modified) {
           if (!syncEnabledIds.has(txn.account_id)) continue;
+          // Always update raw plaid_transactions for audit
           await adminClient
             .from("plaid_transactions")
             .update({
@@ -354,6 +355,32 @@ Deno.serve(async (req) => {
               raw_json: txn,
             })
             .eq("plaid_transaction_id", txn.transaction_id);
+
+          // Only update app transactions row if NOT user-edited
+          const { data: plaidRow } = await adminClient
+            .from("plaid_transactions")
+            .select("id")
+            .eq("plaid_transaction_id", txn.transaction_id)
+            .maybeSingle();
+
+          if (plaidRow) {
+            const { data: appTx } = await adminClient
+              .from("transactions")
+              .select("id, user_edited")
+              .eq("plaid_transaction_ref", plaidRow.id)
+              .maybeSingle();
+
+            if (appTx && !appTx.user_edited) {
+              await adminClient
+                .from("transactions")
+                .update({
+                  transaction_date: txn.date,
+                  vendor: txn.name || "",
+                  amount: Math.abs(txn.amount),
+                })
+                .eq("id", appTx.id);
+            }
+          }
           totalModified++;
         }
 

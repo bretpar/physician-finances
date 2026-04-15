@@ -120,14 +120,20 @@ export function useUpdateTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<DbTransaction> & { id: string }) => {
-      const { error } = await supabase
+      // Mark as user-edited if this is an imported transaction being changed
+      const { data, error } = await supabase
         .from("transactions")
-        .update(updates)
-        .eq("id", id);
+        .update({ ...updates, user_edited: true } as any)
+        .eq("id", id)
+        .select()
+        .single();
       if (error) throw error;
+      if (!data) throw new Error("No rows updated — transaction may have been deleted.");
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Transaction updated");
     },
     onError: (e) => toast.error(e.message),
   });
