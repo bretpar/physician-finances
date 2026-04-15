@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   Plus, Trash2, Pencil, ChevronDown, ChevronRight,
   DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
-  X, RotateCcw,
+  X, RotateCcw, CheckCircle2, AlertCircle, Link2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -365,7 +365,10 @@ export default function ProjectedIncome() {
         <div className="space-y-1.5">
           {MONTHS.map((monthName, idx) => {
             const entries = byMonth.get(idx) || [];
-            const activeEntries = entries.filter((e) => !e.isSkipped);
+            const activeEntries = entries.filter((e) => e.matchStatus === "active");
+            const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
+            const pastDueEntries = entries.filter((e) => e.matchStatus === "past_due");
+            const skippedEntries = entries.filter((e) => e.matchStatus === "skipped");
             const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
             const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
             const isExpanded = expandedMonths.has(idx);
@@ -391,10 +394,24 @@ export default function ProjectedIncome() {
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       )}
                       <span className="font-medium text-foreground">{monthName}</span>
-                      {entries.length > 0 && (
+                      {activeEntries.length > 0 && (
                         <Badge variant="secondary" className="text-xs">
-                          {activeEntries.length} {activeEntries.length === 1 ? "entry" : "entries"}
-                          {entries.length !== activeEntries.length && ` (${entries.length - activeEntries.length} skipped)`}
+                          {activeEntries.length} upcoming
+                        </Badge>
+                      )}
+                      {matchedEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
+                          {matchedEntries.length} matched
+                        </Badge>
+                      )}
+                      {pastDueEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-amber-400 text-amber-600 dark:text-amber-400">
+                          {pastDueEntries.length} needs review
+                        </Badge>
+                      )}
+                      {skippedEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-muted text-muted-foreground">
+                          {skippedEntries.length} skipped
                         </Badge>
                       )}
                       {isCurrent && (
