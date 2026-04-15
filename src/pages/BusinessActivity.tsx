@@ -956,26 +956,26 @@ export default function Transactions() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Tax suggestion popup */}
-      <Dialog open={!!taxSuggestion} onOpenChange={() => setTaxSuggestion(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-primary" /> Tax Set-Aside Suggestion
-            </DialogTitle>
-          </DialogHeader>
-          {taxSuggestion && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Consider setting aside this amount for taxes:</p>
-              <p className="text-3xl font-bold text-primary text-center py-2">{fmt(taxSuggestion.amount)}</p>
-              <p className="text-sm text-muted-foreground text-center">from this {fmt(taxSuggestion.paycheck)} income</p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setTaxSuggestion(null)}>Got it</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Smart Recommendation Modal (Modal 2) */}
+      <RecommendationModal
+        open={showRecommendation}
+        onClose={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
+        onApplyRecommendation={() => {
+          if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0 && incomeEntries?.length) {
+            const latestEntry = incomeEntries[0];
+            if (latestEntry) {
+              updateIncomeMutation.mutate({
+                id: latestEntry.id,
+                additional_tax_reserve: currentRecommendation.recommendedAdditionalReserve,
+              });
+            }
+          }
+          setShowRecommendation(false);
+          setCurrentRecommendation(null);
+        }}
+        recommendation={currentRecommendation}
+        entryTitle={savedEntryTitle}
+      />
 
       {/* Bulk Category Assignment Dialog */}
       <Dialog open={showBulkCategory} onOpenChange={setShowBulkCategory}>
