@@ -42,8 +42,14 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     tier: 'core',
     description: 'Mileage and business deductions',
   },
+  static_tax_estimate: {
+    id: 'static_tax_estimate',
+    label: 'Static Tax Estimate',
+    tier: 'core',
+    description: 'Basic withholding recommendation from anticipated annual income',
+  },
 
-  // Advanced features
+  // Advanced / Premium features
   income_planner: {
     id: 'income_planner',
     label: 'Income Planner',
@@ -60,7 +66,25 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     id: 'dynamic_tax_recalc',
     label: 'Dynamic Tax Recalculation',
     tier: 'advanced',
-    description: 'Recalculate taxes using projected income',
+    description: 'Recalculate taxes with each paycheck using full-year picture',
+  },
+  dynamic_paycheck_recommendation: {
+    id: 'dynamic_paycheck_recommendation',
+    label: 'Dynamic Paycheck Recommendation',
+    tier: 'advanced',
+    description: 'Smart per-paycheck tax reserve recommendation after saving income',
+  },
+  quarterly_payment_tracking: {
+    id: 'quarterly_payment_tracking',
+    label: 'Quarterly Payment Tracking',
+    tier: 'advanced',
+    description: 'Track ahead/behind status for estimated tax payments',
+  },
+  recommendation_modal: {
+    id: 'recommendation_modal',
+    label: 'Post-Save Recommendation Modal',
+    tier: 'advanced',
+    description: 'Second modal showing smart tax reserve guidance after income entry',
   },
   effective_rate_forward: {
     id: 'effective_rate_forward',
@@ -74,6 +98,12 @@ export const FEATURES: Record<string, FeatureDefinition> = {
     tier: 'advanced',
     description: 'What-if tax scenarios',
   },
+  premium_visibility: {
+    id: 'premium_visibility',
+    label: 'Premium Feature Visibility',
+    tier: 'advanced',
+    description: 'Show premium feature indicators and upgrade prompts',
+  },
 };
 
 /**
@@ -82,10 +112,18 @@ export const FEATURES: Record<string, FeatureDefinition> = {
  * a future subscription system can gate advanced features by returning false.
  */
 export function isFeatureEnabled(_featureId: string): boolean {
-  // All features unlocked for now
+  // All features unlocked for now — flip to false for advanced tier gating
   return true;
 }
 
 export function getFeatureTier(featureId: string): FeatureTier | undefined {
   return FEATURES[featureId]?.tier;
+}
+
+/**
+ * Check if a feature is a premium/advanced feature.
+ * Useful for conditionally showing premium badges or upgrade prompts in the future.
+ */
+export function isPremiumFeature(featureId: string): boolean {
+  return FEATURES[featureId]?.tier === 'advanced';
 }
