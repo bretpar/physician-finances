@@ -99,6 +99,7 @@ const emptyForm = (monthIdx?: number): StreamForm => {
 };
 
 export default function ProjectedIncome() {
+  const navigate = useNavigate();
   const { companies } = useCompanies();
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
