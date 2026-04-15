@@ -124,11 +124,33 @@ export default function Settings() {
       const handler = (window as any).Plaid.create({
         token: data.link_token,
         onSuccess: async (publicToken: string, metadata: any) => {
-          const { error: exchangeError } = await supabase.functions.invoke("plaid-exchange-token", {
+          const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke("plaid-exchange-token", {
             body: { public_token: publicToken, institution_name: metadata?.institution?.name || "Bank Account", institution_id: metadata?.institution?.institution_id || "" },
           });
           if (exchangeError) { toast.error("Failed to connect account"); }
-          else { toast.success("Bank account connected!"); syncMutation.mutate(undefined); }
+          else {
+            toast.success("Bank account connected! Please review imported accounts.");
+            // Open review modal — refetch accounts first
+            if (exchangeData?.item_db_id) {
+              setReviewItemId(exchangeData.item_db_id);
+              setReviewInstitution(exchangeData.institution_name || "Bank Account");
+              // Initialize review prefs after accounts load
+              setTimeout(async () => {
+                const { data: newAccts } = await supabase
+                  .from("plaid_accounts")
+                  .select("*")
+                  .eq("plaid_item_id", exchangeData.item_db_id)
+                  .eq("is_active", true);
+                if (newAccts) {
+                  const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string }> = {};
+                  for (const a of newAccts) {
+                    prefs[a.id] = { sync_enabled: true, mode: "unassigned", companyId: "" };
+                  }
+                  setReviewPrefs(prefs);
+                }
+              }, 500);
+            }
+          }
         },
         onExit: () => {},
       });
