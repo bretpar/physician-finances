@@ -100,6 +100,11 @@ export function useAddIncome() {
         notes: entry.notes || "",
         status: (entry.status as string) || "received",
         linked_transaction_id: txData?.id || null,
+        base_tax_estimate: (entry as any).base_tax_estimate || 0,
+        dynamic_tax_recommendation: (entry as any).dynamic_tax_recommendation || 0,
+        quarterly_adjustment_amount: (entry as any).quarterly_adjustment_amount || 0,
+        additional_tax_reserve: (entry as any).additional_tax_reserve || 0,
+        recommendation_status: (entry as any).recommendation_status || "on_track",
       } as any);
       if (error) throw error;
     },
