@@ -273,7 +273,16 @@ export default function Transactions() {
           });
         }
       } else {
-        // Add new income
+        // Add new income — compute recommendation for saving
+        const rec = getIncomeRec({
+          grossIncome: paycheckAmt,
+          incomeType: companyType,
+          federalWithheld: taxWithheld,
+          stateWithheld: 0,
+          retirement401k: retirement,
+          preTaxDeductions: preTaxDed,
+        });
+
         const payload: Partial<IncomeEntry> = {
           name: form.name,
           company: form.company,
@@ -285,11 +294,21 @@ export default function Transactions() {
           pre_tax_deductions: preTaxDed,
           retirement_401k: retirement,
           notes: form.notes,
-        };
+          base_tax_estimate: rec?.baseTaxEstimate || 0,
+          dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+          quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+          additional_tax_reserve: num(form.additional_tax_reserve),
+          recommendation_status: rec?.recommendationStatus || "on_track",
+        } as any;
+
+        const showModal2 = isFeatureEnabled("recommendation_modal");
+
         addIncomeMutation.mutate(payload, {
           onSuccess: () => {
-            if ((companyType === "1099" || companyType === "K1") && taxWithheld === 0 && paycheckAmt > 0) {
-              setTaxSuggestion({ amount: recommendedWithholding, paycheck: paycheckAmt });
+            if (showModal2 && rec) {
+              setSavedEntryTitle(form.name);
+              setCurrentRecommendation(rec);
+              setShowRecommendation(true);
             }
           },
         });
