@@ -3,7 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
-import type { IncomeEntry } from "@/hooks/useIncome";
+
+/** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
+export interface MatchableIncomeEntry {
+  id: string;
+  income_date: string;
+  company: string;
+  paycheck_amount: number;
+  income_type: string;
+  status: string;
+}
 
 /* ─── Types ─── */
 export interface ProjectedIncomeStream {
