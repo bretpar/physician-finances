@@ -258,6 +258,14 @@ export default function Transactions() {
         // so the tax engine picks it up via the weighted income pipeline
         const effectiveWithheld = Math.max(taxWithheld, num(form.actual_withholding));
         if (editingIncomeId) {
+          const rec = getIncomeRec({
+            grossIncome: paycheckAmt,
+            incomeType: companyType,
+            federalWithheld: effectiveWithheld,
+            stateWithheld: 0,
+            retirement401k: retirement,
+            preTaxDeductions: preTaxDed,
+          });
           updateIncomeMutation.mutate({
             id: editingIncomeId,
             name: form.name,
@@ -270,7 +278,12 @@ export default function Transactions() {
             pre_tax_deductions: preTaxDed,
             retirement_401k: retirement,
             notes: form.notes,
-          });
+            additional_tax_reserve: num(form.additional_tax_reserve),
+            base_tax_estimate: rec?.baseTaxEstimate || 0,
+            dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+            quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+            recommendation_status: rec?.recommendationStatus || "on_track",
+          } as any);
         }
       } else {
         // Add new income — compute recommendation for saving
