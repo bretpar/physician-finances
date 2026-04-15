@@ -588,6 +588,9 @@ export default function Transactions() {
             }}>
               <CheckCircle2 className="h-3 w-3" /> Mark Reviewed
             </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive border-destructive/30" onClick={() => setShowBulkDeleteConfirm(true)}>
+              <Trash2 className="h-3 w-3" /> Delete Selected
+            </Button>
           </div>
           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
             Clear
