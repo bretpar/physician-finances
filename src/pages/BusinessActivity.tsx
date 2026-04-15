@@ -600,17 +600,10 @@ export default function Transactions() {
         {/* Mobile Select All */}
         <div className="flex sm:hidden items-center gap-2 px-4 py-2 border-b border-border bg-muted/40">
           <Checkbox
-            checked={filtered.length > 0 && selectedIds.size === filtered.length}
-            ref={(el) => {
-              if (el) {
-                const input = el.querySelector('button') || el;
-                (input as any).indeterminate = selectedIds.size > 0 && selectedIds.size < filtered.length;
-              }
-            }}
-            data-state={selectedIds.size > 0 && selectedIds.size < filtered.length ? "indeterminate" : filtered.length > 0 && selectedIds.size === filtered.length ? "checked" : "unchecked"}
-            onCheckedChange={(checked) => {
-              if (checked) setSelectedIds(new Set(filtered.map((t) => t.id)));
-              else setSelectedIds(new Set());
+            checked={selectedIds.size === filtered.length && filtered.length > 0 ? true : selectedIds.size > 0 ? "indeterminate" : false}
+            onCheckedChange={() => {
+              if (selectedIds.size === filtered.length) setSelectedIds(new Set());
+              else setSelectedIds(new Set(filtered.map((t) => t.id)));
             }}
           />
           <span className="text-xs font-medium text-muted-foreground">Select All ({filtered.length})</span>
@@ -618,14 +611,10 @@ export default function Transactions() {
         {/* Table header */}
         <div className="hidden sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide items-center">
           <Checkbox
-            checked={filtered.length > 0 && selectedIds.size === filtered.length}
-            data-state={selectedIds.size > 0 && selectedIds.size < filtered.length ? "indeterminate" : filtered.length > 0 && selectedIds.size === filtered.length ? "checked" : "unchecked"}
-            onCheckedChange={(checked) => {
-              if (checked || (selectedIds.size > 0 && selectedIds.size < filtered.length)) {
-                setSelectedIds(new Set(filtered.map((t) => t.id)));
-              } else {
-                setSelectedIds(new Set());
-              }
+            checked={selectedIds.size === filtered.length && filtered.length > 0 ? true : selectedIds.size > 0 ? "indeterminate" : false}
+            onCheckedChange={() => {
+              if (selectedIds.size === filtered.length) setSelectedIds(new Set());
+              else setSelectedIds(new Set(filtered.map((t) => t.id)));
             }}
           />
           <span>Date</span>
