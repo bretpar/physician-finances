@@ -1,8 +1,8 @@
-import { CheckCircle2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { CheckCircle2, TrendingUp, TrendingDown, Minus, AlertTriangle, Info } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { IncomeRecommendation, RecommendationStatus } from "@/hooks/useIncomeRecommendation";
+import type { IncomeRecommendation, RecommendationStatus, RecommendationConfidence } from "@/hooks/useIncomeRecommendation";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 
 const fmt = (n: number) =>
@@ -12,6 +12,12 @@ const STATUS_CONFIG: Record<RecommendationStatus, { label: string; color: string
   ahead: { label: "Ahead", color: "text-emerald-600 dark:text-emerald-400", icon: TrendingUp },
   on_track: { label: "On Track", color: "text-blue-600 dark:text-blue-400", icon: Minus },
   behind: { label: "Behind", color: "text-amber-600 dark:text-amber-400", icon: TrendingDown },
+};
+
+const CONFIDENCE_CONFIG: Record<RecommendationConfidence, { label: string; color: string; icon: typeof Info }> = {
+  high: { label: "Based on projected income", color: "text-emerald-600 dark:text-emerald-400", icon: CheckCircle2 },
+  estimated: { label: "Estimated from recent income patterns", color: "text-amber-600 dark:text-amber-400", icon: Info },
+  low: { label: "No projected income available", color: "text-orange-600 dark:text-orange-400", icon: AlertTriangle },
 };
 
 interface Props {
@@ -30,6 +36,8 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
 
   const statusCfg = STATUS_CONFIG[recommendation.recommendationStatus];
   const StatusIcon = statusCfg.icon;
+  const confidenceCfg = CONFIDENCE_CONFIG[recommendation.confidence];
+  const ConfidenceIcon = confidenceCfg.icon;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -58,22 +66,57 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           </div>
 
           {/* Dynamic recommendation — premium feature */}
-          {showDynamic && recommendation.isDynamicEnabled && (
+          {showDynamic && recommendation.isDynamicEnabled && recommendation.recommendationStatus === "behind" && (
             <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
-              {recommendation.quarterlyAdjustmentAmount > 0 ? (
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Quarterly adjustment recommendation</span>
-                  <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
-                    +{fmt(recommendation.quarterlyAdjustmentAmount)}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Quarterly adjustment recommendation</span>
-                  <span className="text-sm font-semibold">{fmt(0)}</span>
-                </div>
+              {/* Exact shortfall */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Shortfall by {recommendation.nextDeadlineLabel}</span>
+                <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                  {fmt(recommendation.totalShortfallByDeadline)}
+                </span>
+              </div>
+
+              {/* Per-event adjustment */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Quarterly adjustment for this paycheck</span>
+                <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                  +{fmt(recommendation.quarterlyAdjustmentAmount)}
+                </span>
+              </div>
+
+              {/* Spread explanation with confidence */}
+              <div className="flex items-start gap-1.5 pt-1">
+                <ConfidenceIcon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${confidenceCfg.color}`} />
+                <p className={`text-[11px] ${confidenceCfg.color}`}>
+                  {recommendation.spreadExplanation}
+                </p>
+              </div>
+
+              {recommendation.confidence === "low" && (
+                <p className="text-[10px] text-muted-foreground italic border-t border-border pt-2 mt-1">
+                  Tip: Add your expected income streams in the Income Planner for more precise per-paycheck recommendations.
+                </p>
+              )}
+              {recommendation.confidence === "estimated" && (
+                <p className="text-[10px] text-muted-foreground italic border-t border-border pt-2 mt-1">
+                  This estimate is based on your recent income frequency. For exact guidance, add projected income in the Income Planner.
+                </p>
               )}
 
+              <div className="flex justify-between items-center border-t border-border pt-2">
+                <span className="text-sm font-medium">Total suggested tax reserve</span>
+                <span className="text-sm font-bold">{fmt(recommendation.totalSuggestedReserve)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* When ahead or on track, simpler display */}
+          {showDynamic && recommendation.isDynamicEnabled && recommendation.recommendationStatus !== "behind" && (
+            <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Quarterly adjustment recommendation</span>
+                <span className="text-sm font-semibold">{fmt(0)}</span>
+              </div>
               <div className="flex justify-between items-center border-t border-border pt-2">
                 <span className="text-sm font-medium">Total suggested tax reserve</span>
                 <span className="text-sm font-bold">{fmt(recommendation.totalSuggestedReserve)}</span>
@@ -92,11 +135,6 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
                 </Badge>
               </div>
 
-              {recommendation.recommendationStatus === "behind" && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Shortfall for next estimated payment: {fmt(Math.abs(recommendation.shortfallOrSurplus))}
-                </p>
-              )}
               {recommendation.recommendationStatus === "ahead" && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400">
                   You are currently ahead for the next estimated payment. No additional tax reserve is needed at this time.
