@@ -278,12 +278,26 @@ export default function Transactions() {
     const retirement = num(incomeForm.retirement_401k);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
+    // Determine the correct amount for the transactions table:
+    // If user entered Net Received, use that; otherwise use Gross Income.
+    const txAmount = depositedAmt > 0 ? depositedAmt : paycheckAmt;
+
     if (isEditingIncome) {
+      const oldTx = transactions.find(t => t.id === editingIncomeTxId);
+      console.log("[saveIncome] Editing transaction", {
+        id: editingIncomeTxId,
+        oldAmount: oldTx?.amount,
+        newAmount: txAmount,
+        grossIncome: paycheckAmt,
+        netReceived: depositedAmt,
+        source_type: oldTx?.source_type,
+      });
+
       updateMutation.mutate({
         id: editingIncomeTxId!,
         transaction_date: incomeForm.date,
         vendor: incomeForm.name,
-        amount: depositedAmt || paycheckAmt,
+        amount: txAmount,
         category: "Income",
         entity: incomeForm.company || "Unassigned",
         company_type: companyType,
@@ -291,37 +305,50 @@ export default function Transactions() {
         actual_withholding: num(incomeForm.actual_withholding),
         withholding_saved: num(incomeForm.actual_withholding) > 0,
         recommended_withholding: recommendedWithholding,
-      } as any);
-
-      const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding));
-      if (editingIncomeEntryId) {
-        const rec = getIncomeRec({
-          grossIncome: paycheckAmt,
-          incomeType: companyType,
-          federalWithheld: effectiveWithheld,
-          stateWithheld: 0,
-          retirement401k: retirement,
-          preTaxDeductions: preTaxDed,
-        });
-        updateIncomeMutation.mutate({
-          id: editingIncomeEntryId,
-          name: incomeForm.name,
-          company: incomeForm.company,
-          income_type: companyType,
-          income_date: incomeForm.date,
-          paycheck_amount: paycheckAmt,
-          deposited_amount: depositedAmt,
-          taxes_withheld: effectiveWithheld,
-          pre_tax_deductions: preTaxDed,
-          retirement_401k: retirement,
-          notes: incomeForm.notes,
-          additional_tax_reserve: num(incomeForm.additional_tax_reserve),
-          base_tax_estimate: rec?.baseTaxEstimate || 0,
-          dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
-          quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
-          recommendation_status: rec?.recommendationStatus || "on_track",
-        } as any);
-      }
+      } as any, {
+        onSuccess: (data) => {
+          console.log("[saveIncome] Update succeeded", data);
+          // Now update the linked income entry if present
+          const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding));
+          if (editingIncomeEntryId) {
+            const rec = getIncomeRec({
+              grossIncome: paycheckAmt,
+              incomeType: companyType,
+              federalWithheld: effectiveWithheld,
+              stateWithheld: 0,
+              retirement401k: retirement,
+              preTaxDeductions: preTaxDed,
+            });
+            updateIncomeMutation.mutate({
+              id: editingIncomeEntryId,
+              name: incomeForm.name,
+              company: incomeForm.company,
+              income_type: companyType,
+              income_date: incomeForm.date,
+              paycheck_amount: paycheckAmt,
+              deposited_amount: depositedAmt,
+              taxes_withheld: effectiveWithheld,
+              pre_tax_deductions: preTaxDed,
+              retirement_401k: retirement,
+              notes: incomeForm.notes,
+              additional_tax_reserve: num(incomeForm.additional_tax_reserve),
+              base_tax_estimate: rec?.baseTaxEstimate || 0,
+              dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+              quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+              recommendation_status: rec?.recommendationStatus || "on_track",
+            } as any);
+          }
+          setShowIncomeForm(false);
+          setIncomeForm(emptyIncomeForm);
+          setEditingIncomeTxId(null);
+          setEditingIncomeEntryId(null);
+        },
+        onError: (err) => {
+          console.error("[saveIncome] Update failed", err);
+          toast.error("Failed to save: " + err.message);
+        },
+      });
+      return; // Don't close modal yet — onSuccess handles it
     } else {
       const rec = getIncomeRec({
         grossIncome: paycheckAmt,
