@@ -91,12 +91,21 @@ export default function Settings() {
   const disconnectMutation = useDisconnectPlaidItem();
   const updateAccountMutation = useUpdatePlaidAccount();
   const bulkApplyMutation = useBulkApplyAccountBusiness();
+  const toggleSyncMutation = useToggleAccountSync();
+  const reviewAccountsMutation = useReviewAccounts();
 
   const [linkLoading, setLinkLoading] = useState(false);
   const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
   const [editMode, setEditMode] = useState<string>("unassigned");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
+
+  // Post-link review modal state
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
+  const [reviewInstitution, setReviewInstitution] = useState<string>("");
+  const [reviewPrefs, setReviewPrefs] = useState<
+    Record<string, { sync_enabled: boolean; mode: string; companyId: string }>
+  >({});
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
