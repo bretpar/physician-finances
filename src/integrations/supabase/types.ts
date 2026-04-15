@@ -326,6 +326,7 @@ export type Database = {
           account_business_mode: string
           account_mask: string | null
           account_name: string
+          account_routing: string
           account_subtype: string | null
           account_type: string
           available_balance: number | null
@@ -345,6 +346,7 @@ export type Database = {
           account_business_mode?: string
           account_mask?: string | null
           account_name?: string
+          account_routing?: string
           account_subtype?: string | null
           account_type?: string
           available_balance?: number | null
@@ -364,6 +366,7 @@ export type Database = {
           account_business_mode?: string
           account_mask?: string | null
           account_name?: string
+          account_routing?: string
           account_subtype?: string | null
           account_type?: string
           available_balance?: number | null
