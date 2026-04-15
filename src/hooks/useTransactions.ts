@@ -47,6 +47,7 @@ export interface DbTransaction {
   needs_review: boolean;
   excluded_from_reports: boolean;
   transfer_subtype: string | null;
+  user_edited: boolean;
   created_at: string;
   updated_at: string;
 }
