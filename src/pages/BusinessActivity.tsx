@@ -46,6 +46,7 @@ interface TxFormState {
   pre_tax_deductions: string;
   retirement_401k: string;
   actual_withholding: string;
+  additional_tax_reserve: string;
 }
 
 const emptyForm: TxFormState = {
@@ -63,6 +64,7 @@ const emptyForm: TxFormState = {
   pre_tax_deductions: "",
   retirement_401k: "",
   actual_withholding: "",
+  additional_tax_reserve: "",
 };
 
 export default function Transactions() {
