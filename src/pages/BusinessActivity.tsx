@@ -967,7 +967,7 @@ export default function Transactions() {
               updateIncomeMutation.mutate({
                 id: latestEntry.id,
                 additional_tax_reserve: currentRecommendation.recommendedAdditionalReserve,
-              });
+              } as any);
             }
           }
           setShowRecommendation(false);
