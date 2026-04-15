@@ -106,6 +106,7 @@ export default function Transactions() {
 
    // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Recommendation modal (Modal 2) state
   const [showRecommendation, setShowRecommendation] = useState(false);
