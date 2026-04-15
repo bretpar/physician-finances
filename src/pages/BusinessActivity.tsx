@@ -15,13 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 
@@ -30,41 +31,59 @@ const fmt = (n: number) =>
 
 const num = (v: string) => parseFloat(v) || 0;
 
-interface TxFormState {
+/* ───── Income Form State ───── */
+interface IncomeFormState {
   date: string;
   name: string;
-  amount: string;
-  type: "income" | "expense" | "transfer";
-  category: string;
-  notes: string;
-  transfer_subtype: string;
-  // Income-only fields (hidden from table, shown in form)
   company: string;
   income_type: string;
   gross_amount: string;
+  // Advanced
+  net_received: string;
   taxes_withheld: string;
   pre_tax_deductions: string;
   retirement_401k: string;
   actual_withholding: string;
   additional_tax_reserve: string;
+  notes: string;
 }
 
-const emptyForm: TxFormState = {
+const emptyIncomeForm: IncomeFormState = {
   date: new Date().toISOString().split("T")[0],
   name: "",
-  amount: "",
-  type: "expense",
-  category: "",
-  notes: "",
-  transfer_subtype: "",
   company: "",
   income_type: "1099",
   gross_amount: "",
+  net_received: "",
   taxes_withheld: "",
   pre_tax_deductions: "",
   retirement_401k: "",
   actual_withholding: "",
   additional_tax_reserve: "",
+  notes: "",
+};
+
+/* ───── Expense Form State ───── */
+interface ExpenseFormState {
+  date: string;
+  name: string;
+  company: string;
+  amount: string;
+  category: string;
+  notes: string;
+  is_transfer: boolean;
+  transfer_subtype: string;
+}
+
+const emptyExpenseForm: ExpenseFormState = {
+  date: new Date().toISOString().split("T")[0],
+  name: "",
+  company: "",
+  amount: "",
+  category: "",
+  notes: "",
+  is_transfer: false,
+  transfer_subtype: "",
 };
 
 export default function Transactions() {
@@ -99,13 +118,19 @@ export default function Transactions() {
   // Suggested matches
   const suggestions = useSuggestedMatches(transactions);
 
-  // Unified form
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<TxFormState>(emptyForm);
-  const [editingTxId, setEditingTxId] = useState<string | null>(null);
-  const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
+  // ─── Income modal state ───
+  const [showIncomeForm, setShowIncomeForm] = useState(false);
+  const [incomeForm, setIncomeForm] = useState<IncomeFormState>(emptyIncomeForm);
+  const [editingIncomeTxId, setEditingIncomeTxId] = useState<string | null>(null);
+  const [editingIncomeEntryId, setEditingIncomeEntryId] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-   // Delete
+  // ─── Expense modal state ───
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseForm, setExpenseForm] = useState<ExpenseFormState>(emptyExpenseForm);
+  const [editingExpenseTxId, setEditingExpenseTxId] = useState<string | null>(null);
+
+  // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
@@ -113,13 +138,11 @@ export default function Transactions() {
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [savedEntryTitle, setSavedEntryTitle] = useState("");
   const [currentRecommendation, setCurrentRecommendation] = useState<IncomeRecommendation | null>(null);
-  const [savedIncomeEntryId, setSavedIncomeEntryId] = useState<string | null>(null);
 
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
 
-  const isEditing = !!editingTxId;
-  const isIncome = form.type === "income";
-  const isTransfer = form.type === "transfer";
+  const isEditingIncome = !!editingIncomeTxId;
+  const isEditingExpense = !!editingExpenseTxId;
 
   // Business Activity: only show non-W2 companies (1099, K1)
   const allCompanyNames = useMemo(() => {
@@ -150,7 +173,6 @@ export default function Transactions() {
       if (filterReview === "needs_review" && !t.needs_review) return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
-      // Hide linked source duplicates (plaid side of a linked pair)
       if (hideLinkedDupes && t.match_status === "linked" && t.is_deleted) return false;
       return true;
     });
@@ -160,238 +182,254 @@ export default function Transactions() {
     transactions.filter((t) => t.needs_review && !t.is_deleted).length
   , [transactions]);
 
-  // Unique company names from transactions for filter
   const companyFilterOptions = useMemo(() => {
     const names = new Set(transactions.map((t) => t.entity).filter(Boolean));
     return [...names].sort();
   }, [transactions]);
 
-  const setField = (key: keyof TxFormState, value: string) => {
-    setForm((prev) => {
-      const updated = { ...prev, [key]: value };
-      if (key === "company" && value) {
-        updated.income_type = getCompanyType(value);
-      }
-      return updated;
-    });
-  };
-
   // --- Smart withholding recommendation engine ---
   const { getRecommendation } = useWithholdingRecommendation();
-  const grossIncome = num(form.gross_amount);
+  const grossIncome = num(incomeForm.gross_amount);
   const recommendation = useMemo(() => {
-    if (!isIncome || grossIncome <= 0) return null;
+    if (grossIncome <= 0) return null;
     return getRecommendation({
       grossIncome,
-      incomeType: form.income_type,
-      taxesAlreadyWithheld: num(form.taxes_withheld),
-      retirement401k: num(form.retirement_401k),
-      preTaxDeductions: num(form.pre_tax_deductions),
-      alreadyIncludedInEstimate: isEditing,
+      incomeType: incomeForm.income_type,
+      taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
+      retirement401k: num(incomeForm.retirement_401k),
+      preTaxDeductions: num(incomeForm.pre_tax_deductions),
+      alreadyIncludedInEstimate: isEditingIncome,
     });
-  }, [isIncome, grossIncome, form.income_type, form.taxes_withheld, form.retirement_401k, form.pre_tax_deductions, getRecommendation, isEditing]);
+  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, getRecommendation, isEditingIncome]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
-  // --- Open form for Add ---
-  function openAdd() {
-    setForm(emptyForm);
-    setEditingTxId(null);
-    setEditingIncomeId(null);
-    setShowForm(true);
+  const calculatedNet = useMemo(() => {
+    if (grossIncome <= 0) return 0;
+    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k));
+  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k]);
+
+  // ─── Open Income Add ───
+  function openAddIncome() {
+    setIncomeForm(emptyIncomeForm);
+    setEditingIncomeTxId(null);
+    setEditingIncomeEntryId(null);
+    setAdvancedOpen(false);
+    setShowIncomeForm(true);
   }
 
-  // --- Open form for Edit ---
+  // ─── Open Expense Add ───
+  function openAddExpense() {
+    setExpenseForm(emptyExpenseForm);
+    setEditingExpenseTxId(null);
+    setShowExpenseForm(true);
+  }
+
+  // ─── Open Edit (routes to correct modal) ───
   function openEdit(tx: DbTransaction) {
-    const txType = (tx.transaction_type || "expense") as "income" | "expense" | "transfer";
+    const txType = (tx.transaction_type || "expense") as string;
     const linked = txType === "income" ? incomeByLinkedTx.get(tx.id) : null;
 
-    setForm({
-      date: tx.transaction_date,
-      name: tx.vendor,
-      amount: String(Math.abs(tx.amount)),
-      type: txType,
-      category: tx.category,
-      notes: tx.notes || "",
-      transfer_subtype: tx.transfer_subtype || "",
-      company: linked?.company || tx.entity || "",
-      income_type: linked?.income_type || tx.company_type || "1099",
-      gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
-      taxes_withheld: linked ? String(linked.taxes_withheld) : "",
-      pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
-      retirement_401k: linked ? String(linked.retirement_401k) : "",
-      actual_withholding: String((tx as any).actual_withholding || ""),
-      additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
-    });
-    setEditingTxId(tx.id);
-    setEditingIncomeId(linked?.id || null);
-    setShowForm(true);
+    if (txType === "income") {
+      setIncomeForm({
+        date: tx.transaction_date,
+        name: tx.vendor,
+        company: linked?.company || tx.entity || "",
+        income_type: linked?.income_type || tx.company_type || "1099",
+        gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
+        net_received: linked && linked.deposited_amount ? String(linked.deposited_amount) : "",
+        taxes_withheld: linked ? String(linked.taxes_withheld) : "",
+        pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
+        retirement_401k: linked ? String(linked.retirement_401k) : "",
+        actual_withholding: String((tx as any).actual_withholding || ""),
+        additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
+        notes: tx.notes || "",
+      });
+      setEditingIncomeTxId(tx.id);
+      setEditingIncomeEntryId(linked?.id || null);
+      // Open advanced if any advanced fields have values
+      const hasAdvanced = linked && (linked.taxes_withheld > 0 || linked.pre_tax_deductions > 0 || linked.retirement_401k > 0 || linked.deposited_amount > 0);
+      setAdvancedOpen(!!hasAdvanced);
+      setShowIncomeForm(true);
+    } else {
+      setExpenseForm({
+        date: tx.transaction_date,
+        name: tx.vendor,
+        company: tx.entity || "",
+        amount: String(Math.abs(tx.amount)),
+        category: tx.category,
+        notes: tx.notes || "",
+        is_transfer: txType === "transfer",
+        transfer_subtype: tx.transfer_subtype || "",
+      });
+      setEditingExpenseTxId(tx.id);
+      setShowExpenseForm(true);
+    }
   }
 
-  // --- Save (unified for add + edit) ---
-  function saveForm() {
-    if (!form.name.trim() || !form.date) return;
-    if (!isIncome && !isTransfer && !form.company) { toast.error("Please select a company"); return; }
-    if (isIncome && num(form.gross_amount) <= 0) return;
+  // ─── Save Income ───
+  function saveIncome() {
+    if (!incomeForm.name.trim() || !incomeForm.date) return;
+    if (grossIncome <= 0) { toast.error("Gross amount is required"); return; }
 
-    if (isIncome) {
-      const paycheckAmt = num(form.gross_amount);
-      const depositedAmt = num(form.amount);
-      const taxWithheld = num(form.taxes_withheld);
-      const preTaxDed = num(form.pre_tax_deductions);
-      const retirement = num(form.retirement_401k);
-      const companyType = form.income_type || getCompanyType(form.company);
+    const paycheckAmt = grossIncome;
+    const depositedAmt = num(incomeForm.net_received);
+    const taxWithheld = num(incomeForm.taxes_withheld);
+    const preTaxDed = num(incomeForm.pre_tax_deductions);
+    const retirement = num(incomeForm.retirement_401k);
+    const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
-      if (isEditing) {
-        // Update transaction record
-        updateMutation.mutate({
-          id: editingTxId!,
-          transaction_date: form.date,
-          vendor: form.name,
-          amount: depositedAmt || paycheckAmt,
-          category: "Income",
-          entity: form.company || "Unassigned",
-          company_type: companyType,
-          notes: form.notes,
-          actual_withholding: num(form.actual_withholding),
-          withholding_saved: num(form.actual_withholding) > 0,
-          recommended_withholding: recommendedWithholding,
-        } as any);
+    if (isEditingIncome) {
+      updateMutation.mutate({
+        id: editingIncomeTxId!,
+        transaction_date: incomeForm.date,
+        vendor: incomeForm.name,
+        amount: depositedAmt || paycheckAmt,
+        category: "Income",
+        entity: incomeForm.company || "Unassigned",
+        company_type: companyType,
+        notes: incomeForm.notes,
+        actual_withholding: num(incomeForm.actual_withholding),
+        withholding_saved: num(incomeForm.actual_withholding) > 0,
+        recommended_withholding: recommendedWithholding,
+      } as any);
 
-        // Update linked income entry — sync actual_withholding to taxes_withheld
-        // so the tax engine picks it up via the weighted income pipeline
-        const effectiveWithheld = Math.max(taxWithheld, num(form.actual_withholding));
-        if (editingIncomeId) {
-          const rec = getIncomeRec({
-            grossIncome: paycheckAmt,
-            incomeType: companyType,
-            federalWithheld: effectiveWithheld,
-            stateWithheld: 0,
-            retirement401k: retirement,
-            preTaxDeductions: preTaxDed,
-          });
-          updateIncomeMutation.mutate({
-            id: editingIncomeId,
-            name: form.name,
-            company: form.company,
-            income_type: companyType,
-            income_date: form.date,
-            paycheck_amount: paycheckAmt,
-            deposited_amount: depositedAmt,
-            taxes_withheld: effectiveWithheld,
-            pre_tax_deductions: preTaxDed,
-            retirement_401k: retirement,
-            notes: form.notes,
-            additional_tax_reserve: num(form.additional_tax_reserve),
-            base_tax_estimate: rec?.baseTaxEstimate || 0,
-            dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
-            quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
-            recommendation_status: rec?.recommendationStatus || "on_track",
-          } as any);
-        }
-      } else {
-        // Add new income — compute recommendation for saving
+      const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding));
+      if (editingIncomeEntryId) {
         const rec = getIncomeRec({
           grossIncome: paycheckAmt,
           incomeType: companyType,
-          federalWithheld: taxWithheld,
+          federalWithheld: effectiveWithheld,
           stateWithheld: 0,
           retirement401k: retirement,
           preTaxDeductions: preTaxDed,
         });
-
-        const payload: Partial<IncomeEntry> = {
-          name: form.name,
-          company: form.company,
+        updateIncomeMutation.mutate({
+          id: editingIncomeEntryId,
+          name: incomeForm.name,
+          company: incomeForm.company,
           income_type: companyType,
-          income_date: form.date,
+          income_date: incomeForm.date,
           paycheck_amount: paycheckAmt,
           deposited_amount: depositedAmt,
-          taxes_withheld: taxWithheld,
+          taxes_withheld: effectiveWithheld,
           pre_tax_deductions: preTaxDed,
           retirement_401k: retirement,
-          notes: form.notes,
+          notes: incomeForm.notes,
+          additional_tax_reserve: num(incomeForm.additional_tax_reserve),
           base_tax_estimate: rec?.baseTaxEstimate || 0,
           dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
           quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
-          additional_tax_reserve: num(form.additional_tax_reserve),
           recommendation_status: rec?.recommendationStatus || "on_track",
-        } as any;
-
-        const showModal2 = isFeatureEnabled("recommendation_modal");
-
-        addIncomeMutation.mutate(payload, {
-          onSuccess: () => {
-            if (showModal2 && rec) {
-              setSavedEntryTitle(form.name);
-              setCurrentRecommendation(rec);
-              setShowRecommendation(true);
-            }
-          },
-        });
+        } as any);
       }
-    } else if (isTransfer) {
-      // Transfer
-      const amount = num(form.amount);
-      if (amount === 0) return;
+    } else {
+      const rec = getIncomeRec({
+        grossIncome: paycheckAmt,
+        incomeType: companyType,
+        federalWithheld: taxWithheld,
+        stateWithheld: 0,
+        retirement401k: retirement,
+        preTaxDeductions: preTaxDed,
+      });
 
-      if (isEditing) {
+      const payload: Partial<IncomeEntry> = {
+        name: incomeForm.name,
+        company: incomeForm.company,
+        income_type: companyType,
+        income_date: incomeForm.date,
+        paycheck_amount: paycheckAmt,
+        deposited_amount: depositedAmt,
+        taxes_withheld: taxWithheld,
+        pre_tax_deductions: preTaxDed,
+        retirement_401k: retirement,
+        notes: incomeForm.notes,
+        base_tax_estimate: rec?.baseTaxEstimate || 0,
+        dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
+        quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
+        additional_tax_reserve: num(incomeForm.additional_tax_reserve),
+        recommendation_status: rec?.recommendationStatus || "on_track",
+      } as any;
+
+      const showModal2 = isFeatureEnabled("recommendation_modal");
+
+      addIncomeMutation.mutate(payload, {
+        onSuccess: () => {
+          if (showModal2 && rec) {
+            setSavedEntryTitle(incomeForm.name);
+            setCurrentRecommendation(rec);
+            setShowRecommendation(true);
+          }
+        },
+      });
+    }
+
+    setShowIncomeForm(false);
+    setIncomeForm(emptyIncomeForm);
+    setEditingIncomeTxId(null);
+    setEditingIncomeEntryId(null);
+  }
+
+  // ─── Save Expense / Transfer ───
+  function saveExpense() {
+    if (!expenseForm.name.trim() || !expenseForm.date) return;
+    const amount = num(expenseForm.amount);
+    if (amount === 0) return;
+    if (!expenseForm.is_transfer && !expenseForm.company) { toast.error("Please select a company"); return; }
+
+    if (expenseForm.is_transfer) {
+      if (isEditingExpense) {
         updateMutation.mutate({
-          id: editingTxId!,
-          transaction_date: form.date,
-          vendor: form.name,
+          id: editingExpenseTxId!,
+          transaction_date: expenseForm.date,
+          vendor: expenseForm.name,
           amount,
           category: "Transfer",
-          notes: form.notes,
+          notes: expenseForm.notes,
           transaction_type: "transfer",
-          transfer_subtype: form.transfer_subtype || null,
-          entity: form.company || "Unassigned",
+          transfer_subtype: expenseForm.transfer_subtype || null,
+          entity: expenseForm.company || "Unassigned",
           excluded_from_reports: true,
         } as any);
       } else {
         addMutation.mutate({
-          transaction_date: form.date,
-          vendor: form.name,
+          transaction_date: expenseForm.date,
+          vendor: expenseForm.name,
           amount,
           category: "Transfer",
-          notes: form.notes,
+          notes: expenseForm.notes,
           transaction_type: "transfer",
-          transfer_subtype: form.transfer_subtype || null,
-          entity: form.company || "Unassigned",
+          transfer_subtype: expenseForm.transfer_subtype || null,
+          entity: expenseForm.company || "Unassigned",
           excluded_from_reports: true,
         } as any);
       }
     } else {
-      // Expense
-      const amount = num(form.amount);
-      if (amount === 0) return;
-
-      if (isEditing) {
+      if (isEditingExpense) {
         updateMutation.mutate({
-          id: editingTxId!,
-          transaction_date: form.date,
-          vendor: form.name,
+          id: editingExpenseTxId!,
+          transaction_date: expenseForm.date,
+          vendor: expenseForm.name,
           amount,
-          category: form.category,
-          notes: form.notes,
-          entity: form.company || "Unassigned",
+          category: expenseForm.category,
+          notes: expenseForm.notes,
+          entity: expenseForm.company || "Unassigned",
         } as any);
       } else {
         addMutation.mutate({
-          transaction_date: form.date,
-          vendor: form.name,
+          transaction_date: expenseForm.date,
+          vendor: expenseForm.name,
           amount,
-          category: form.category,
-          notes: form.notes,
+          category: expenseForm.category,
+          notes: expenseForm.notes,
           transaction_type: "expense",
-          entity: form.company || "Unassigned",
+          entity: expenseForm.company || "Unassigned",
         });
       }
     }
 
-    setShowForm(false);
-    setForm(emptyForm);
-    setEditingTxId(null);
-    setEditingIncomeId(null);
+    setShowExpenseForm(false);
+    setExpenseForm(emptyExpenseForm);
+    setEditingExpenseTxId(null);
   }
 
   function confirmDelete(id: string) { setDeleteTxId(id); }
@@ -399,10 +437,8 @@ export default function Transactions() {
     if (!deleteTxId) return;
     deleteMutation.mutate(deleteTxId);
     setDeleteTxId(null);
-    if (editingTxId === deleteTxId) {
-      setShowForm(false);
-      setEditingTxId(null);
-    }
+    if (editingIncomeTxId === deleteTxId) { setShowIncomeForm(false); setEditingIncomeTxId(null); }
+    if (editingExpenseTxId === deleteTxId) { setShowExpenseForm(false); setEditingExpenseTxId(null); }
   }
 
   function exportCSV() {
@@ -420,7 +456,6 @@ export default function Transactions() {
     URL.revokeObjectURL(url);
   }
 
-  // Summary cards derived from the same filtered dataset
   const summaryStats = useMemo(() => {
     const revenue = filtered
       .filter((t) => t.transaction_type === "income" && !t.is_deleted)
@@ -444,8 +479,11 @@ export default function Transactions() {
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
-          <Button size="sm" onClick={openAdd} className="gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> Add
+          <Button variant="outline" size="sm" onClick={openAddExpense} className="gap-1.5">
+            <Receipt className="h-3.5 w-3.5" /> Add Expense
+          </Button>
+          <Button size="sm" onClick={openAddIncome} className="gap-1.5">
+            <DollarSign className="h-3.5 w-3.5" /> Add Income
           </Button>
         </div>
       </div>
@@ -462,7 +500,7 @@ export default function Transactions() {
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs font-medium text-muted-foreground mb-1">Business Profit</p>
-          <p className={`text-xl font-bold ${summaryStats.profit >= 0 ? "text-success" : "text-destructive"}`}>
+          <p className={`text-xl font-bold ${summaryStats.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
             {fmt(summaryStats.profit)}
           </p>
         </div>
@@ -666,6 +704,9 @@ export default function Transactions() {
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
 
+            // Show recommended set-aside for income rows
+            const linkedIncome = isIncomeTx ? incomeByLinkedTx.get(tx.id) : null;
+
             return (
               <div
                 key={tx.id}
@@ -684,15 +725,20 @@ export default function Transactions() {
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
-                <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
-                  {tx.vendor}
-                  {tx.needs_review && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Review</Badge>
+                <div className="truncate">
+                  <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
+                    {tx.vendor}
+                    {tx.needs_review && (
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Review</Badge>
+                    )}
+                    {tx.excluded_from_reports && (
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted text-muted-foreground">Excluded</Badge>
+                    )}
+                  </span>
+                  {isIncomeTx && tx.recommended_withholding > 0 && (
+                    <span className="text-[10px] text-muted-foreground">Set aside: {fmt(tx.recommended_withholding)}</span>
                   )}
-                  {tx.excluded_from_reports && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted text-muted-foreground">Excluded</Badge>
-                  )}
-                </span>
+                </div>
                 <span className="text-xs text-muted-foreground truncate">
                   {tx.entity || "Unassigned"}
                 </span>
@@ -746,284 +792,285 @@ export default function Transactions() {
           })}
           {filtered.length === 0 && (
             <div className="px-4 py-16 text-center text-muted-foreground text-sm">
-              No transactions yet. Click "Add" to get started.
+              No transactions yet. Click "+ Add Income" or "+ Add Expense" to get started.
             </div>
           )}
         </div>
       </div>
 
-      {/* ═══════ UNIFIED ADD / EDIT FORM ═══════ */}
-      <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingTxId(null); } }}>
-        <DialogContent className={`max-h-[85vh] overflow-y-auto ${isIncome ? "max-w-lg" : ""}`}>
+      {/* ═══════ ADD INCOME MODAL ═══════ */}
+      <Dialog open={showIncomeForm} onOpenChange={(open) => { if (!open) { setShowIncomeForm(false); setEditingIncomeTxId(null); } }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto max-w-lg">
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Entry" : "Add Business Entry"}</DialogTitle>
+            <DialogTitle>{isEditingIncome ? "Edit Income" : "Add Income"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Type toggle */}
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Type</Label>
-              <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30 w-fit">
-                {(["income", "expense", "transfer"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setField("type", t)}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors capitalize ${
-                      form.type === t
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t === "income" ? "Income" : t === "expense" ? "Expense" : "Transfer"}
-                  </button>
-                ))}
-              </div>
-              {isTransfer && (
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Transfers move money between accounts and do not count as income or deductible expenses.
-                </p>
-              )}
-            </div>
-
-            {/* Common fields */}
+            {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
-                <Input type="date" value={form.date} onChange={(e) => setField("date", e.target.value)} />
+                <Input type="date" value={incomeForm.date} onChange={(e) => setIncomeForm((f) => ({ ...f, date: e.target.value }))} />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  {isIncome ? "Description" : isTransfer ? "Description" : "Merchant / Name"}
-                </Label>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Merchant / Payer</Label>
                 <Input
-                  placeholder={isIncome ? "e.g. ED Shift Pay" : "e.g. Amazon"}
-                  value={form.name}
-                  onChange={(e) => setField("name", e.target.value)}
+                  placeholder="e.g. ED Shift Pay"
+                  value={incomeForm.name}
+                  onChange={(e) => setIncomeForm((f) => ({ ...f, name: e.target.value }))}
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
+                <Select value={incomeForm.company} onValueChange={(v) => setIncomeForm((f) => ({ ...f, company: v, income_type: getCompanyType(v) }))}>
+                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                  <SelectContent>
+                    {allCompanyNames.map((c) => (
+                      <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Amount *</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={incomeForm.gross_amount}
+                  onChange={(e) => setIncomeForm((f) => ({ ...f, gross_amount: e.target.value }))}
+                  placeholder="0.00"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
+              </div>
+            </div>
 
-            {isTransfer && (
-              <div className="space-y-3 rounded-lg border border-border p-3 bg-blue-50/30 dark:bg-blue-950/10">
-                <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <ArrowLeftRight className="h-3.5 w-3.5" /> Transfer Details
+            {/* Recommended to Set Aside */}
+            {grossIncome > 0 && recommendation && !recommendation.isOverWithheld && recommendedWithholding > 0 && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
+                  <p className="text-[11px] text-muted-foreground">{recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate</p>
+                </div>
+                <span className="text-lg font-bold text-primary">{fmt(recommendedWithholding)}</span>
+              </div>
+            )}
+            {grossIncome > 0 && recommendation && recommendation.isOverWithheld && (
+              <div className="rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20 p-3">
+                <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                  Employer over-withheld by <strong>{fmt(Math.abs(recommendedWithholding))}</strong> — consider adjusting your W-4.
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Transfer Type</Label>
-                    <Select value={form.transfer_subtype} onValueChange={(v) => setField("transfer_subtype", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                      <SelectContent>
-                        {TRANSFER_SUBTYPES.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company (optional)</Label>
-                  <Select value={form.company} onValueChange={(v) => setField("company", v)}>
-                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Unassigned">None</SelectItem>
-                      {companies.map((c) => (
-                        <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             )}
 
-            {!isIncome && !isTransfer && (
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Company *</Label>
-                  <Select value={form.company} onValueChange={(v) => setField("company", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
-                    <SelectContent>
-                      {companies.map((c) => (
-                        <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+            {/* Advanced details (collapsible) */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+                  {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  Advanced details
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
+                  {/* Net Received */}
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                    <ExpenseCategoryCombobox value={form.category} onValueChange={(v) => setField("category", v)} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isIncome && (
-              <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground">Income Details</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-                    <Select value={form.company} onValueChange={(v) => setField("company", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {allCompanyNames.map((c) => (
-                          <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Income *</Label>
-                    <Input type="number" min="0" step="0.01" value={form.gross_amount} onChange={(e) => setField("gross_amount", e.target.value)} placeholder="0.00" />
-                    <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
-                  </div>
-                </div>
-
-                {/* Net Received + Estimated Net */}
-                {grossIncome > 0 && (
-                  <div className="space-y-2">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
-                      <Input type="number" min="0" step="0.01" placeholder={fmt(Math.max(0, grossIncome - num(form.taxes_withheld) - num(form.pre_tax_deductions) - num(form.retirement_401k)))} value={form.amount} onChange={(e) => setField("amount", e.target.value)} />
-                      <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account after taxes and deductions</p>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                      Estimated Net: <strong>{fmt(Math.max(0, grossIncome - num(form.taxes_withheld) - num(form.pre_tax_deductions) - num(form.retirement_401k)))}</strong> based on your inputs
-                    </p>
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label>
-                    <Input type="number" min="0" step="0.01" value={form.taxes_withheld} onChange={(e) => setField("taxes_withheld", e.target.value)} placeholder="0.00" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Ded.</Label>
-                    <Input type="number" min="0" step="0.01" value={form.pre_tax_deductions} onChange={(e) => setField("pre_tax_deductions", e.target.value)} placeholder="0.00" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement</Label>
-                    <Input type="number" min="0" step="0.01" value={form.retirement_401k} onChange={(e) => setField("retirement_401k", e.target.value)} placeholder="0.00" />
-                  </div>
-                </div>
-
-                {/* Tax recommendation (read-only) + actual input */}
-                {grossIncome > 0 && recommendation && (
-                  <div className="rounded-md border border-border p-3 space-y-2 bg-background">
-                    {recommendation.isOverWithheld ? (
-                      <>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Employer over-withheld by</span>
-                          <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(Math.abs(recommendedWithholding))}</span>
-                        </div>
-                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                          Your W-2 employer withheld more than estimated for this paycheck — consider adjusting your W-4.
-                        </p>
-                      </>
-                    ) : recommendedWithholding > 0 ? (
-                      <>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">
-                            {form.income_type === "W2" ? "Additional withholding recommended" : "Recommended to set aside"}
-                          </span>
-                          <span className="font-semibold text-primary">{fmt(recommendedWithholding)}</span>
-                        </div>
-                        {form.income_type === "W2" && (
-                          <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                            Your W-2 employer may not be withholding enough — consider adjusting your W-4.
-                          </p>
-                        )}
-                      </>
-                    ) : null}
-                    {!recommendation.isManualMode && recommendedWithholding !== 0 && (
-                      <p className="text-[11px] text-muted-foreground">
-                        {recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate
-                      </p>
-                    )}
-                    <p className="text-[10px] text-muted-foreground italic">
-                      Withholding method controlled in Settings
-                    </p>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual amount withheld</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={recommendedWithholding > 0 ? fmt(recommendedWithholding) : "0.00"}
-                        value={form.actual_withholding === "0" ? "" : form.actual_withholding}
-                        onChange={(e) => setField("actual_withholding", e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Base tax estimate preview */}
-                {grossIncome > 0 && isFeatureEnabled("static_tax_estimate") && (() => {
-                  const rec = getIncomeRec({
-                    grossIncome,
-                    incomeType: form.income_type || getCompanyType(form.company),
-                    federalWithheld: num(form.taxes_withheld),
-                    stateWithheld: 0,
-                    retirement401k: num(form.retirement_401k),
-                    preTaxDeductions: num(form.pre_tax_deductions),
-                  });
-                  if (!rec) return null;
-                  return (
-                    <div className="rounded-md border-2 border-primary/20 p-3 bg-primary/5 space-y-1">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground">Base tax estimate for this income</span>
-                        <span className="font-semibold text-primary">{fmt(rec.baseTaxEstimate)}</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        {rec.methodLabel} · {rec.effectiveRate.toFixed(1)}% effective rate
-                      </p>
-                    </div>
-                  );
-                })()}
-
-                {/* Additional tax reserve (editable) */}
-                {isEditing && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
                     <Input
                       type="number"
                       min="0"
                       step="0.01"
-                      placeholder="0.00"
-                      value={form.additional_tax_reserve === "0" ? "" : form.additional_tax_reserve}
-                      onChange={(e) => setField("additional_tax_reserve", e.target.value)}
+                      placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"}
+                      value={incomeForm.net_received}
+                      onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))}
                     />
-                    <p className="text-[10px] text-muted-foreground mt-1">Extra amount to set aside beyond actual withholding</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
                   </div>
-                )}
+                  {grossIncome > 0 && (
+                    <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                      Estimated Net: <strong>{fmt(calculatedNet)}</strong> based on your inputs
+                    </p>
+                  )}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label>
+                      <Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Ded.</Label>
+                      <Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement</Label>
+                      <Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" />
+                    </div>
+                  </div>
+
+                  {/* Actual withholding input */}
+                  {grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual amount withheld / set aside</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={fmt(recommendedWithholding)}
+                        value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding}
+                        onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  {/* Additional tax reserve (editing only) */}
+                  {isEditingIncome && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve}
+                        onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                    <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Notes outside advanced when collapsed */}
+            {!advancedOpen && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
             )}
 
-            {/* Notes */}
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-              <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
-            </div>
+            <p className="text-[10px] text-muted-foreground italic">
+              Withholding method controlled in Settings
+            </p>
 
             {/* Actions */}
             <div className="flex justify-between">
-              {isEditing ? (
-                <Button variant="destructive" size="sm" onClick={() => confirmDelete(editingTxId!)}>
+              {isEditingIncome ? (
+                <Button variant="destructive" size="sm" onClick={() => confirmDelete(editingIncomeTxId!)}>
                   <Trash2 className="h-4 w-4 mr-1" /> Delete
                 </Button>
               ) : <div />}
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button onClick={saveForm} disabled={!form.name.trim() || !form.date}>
-                  {isEditing ? "Save" : "Add"}
+                <Button variant="outline" onClick={() => setShowIncomeForm(false)}>Cancel</Button>
+                <Button onClick={saveIncome} disabled={!incomeForm.name.trim() || !incomeForm.date || grossIncome <= 0}>
+                  {isEditingIncome ? "Save" : "Add Income"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══════ ADD EXPENSE MODAL ═══════ */}
+      <Dialog open={showExpenseForm} onOpenChange={(open) => { if (!open) { setShowExpenseForm(false); setEditingExpenseTxId(null); } }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{isEditingExpense ? "Edit Expense" : "Add Expense"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Transfer toggle */}
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={expenseForm.is_transfer}
+                onCheckedChange={(v) => setExpenseForm((f) => ({ ...f, is_transfer: v, category: v ? "Transfer" : f.category }))}
+                id="transfer-toggle"
+              />
+              <Label htmlFor="transfer-toggle" className="text-sm cursor-pointer">
+                This is a transfer
+              </Label>
+            </div>
+            {expenseForm.is_transfer && (
+              <p className="text-[11px] text-muted-foreground -mt-2">
+                Transfers move money between accounts and are excluded from income/expense reports and tax calculations.
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
+                <Input type="date" value={expenseForm.date} onChange={(e) => setExpenseForm((f) => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Merchant / Name</Label>
+                <Input
+                  placeholder="e.g. Amazon"
+                  value={expenseForm.name}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">{expenseForm.is_transfer ? "Company (optional)" : "Company *"}</Label>
+                <Select value={expenseForm.company} onValueChange={(v) => setExpenseForm((f) => ({ ...f, company: v }))}>
+                  <SelectTrigger><SelectValue placeholder={expenseForm.is_transfer ? "None" : "Select company"} /></SelectTrigger>
+                  <SelectContent>
+                    {expenseForm.is_transfer && <SelectItem value="Unassigned">None</SelectItem>}
+                    {companies.map((c) => (
+                      <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Amount</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={expenseForm.amount} onChange={(e) => setExpenseForm((f) => ({ ...f, amount: e.target.value }))} />
+              </div>
+            </div>
+
+            {!expenseForm.is_transfer && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                <ExpenseCategoryCombobox value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v }))} />
+              </div>
+            )}
+
+            {expenseForm.is_transfer && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Transfer Type</Label>
+                <Select value={expenseForm.transfer_subtype} onValueChange={(v) => setExpenseForm((f) => ({ ...f, transfer_subtype: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    {TRANSFER_SUBTYPES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+              <Input placeholder="Optional" value={expenseForm.notes} onChange={(e) => setExpenseForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-between">
+              {isEditingExpense ? (
+                <Button variant="destructive" size="sm" onClick={() => confirmDelete(editingExpenseTxId!)}>
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete
+                </Button>
+              ) : <div />}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowExpenseForm(false)}>Cancel</Button>
+                <Button onClick={saveExpense} disabled={!expenseForm.name.trim() || !expenseForm.date || num(expenseForm.amount) === 0}>
+                  {isEditingExpense ? "Save" : expenseForm.is_transfer ? "Add Transfer" : "Add Expense"}
                 </Button>
               </div>
             </div>
