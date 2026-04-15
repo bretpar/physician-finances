@@ -91,6 +91,7 @@ const emptyExpenseForm: ExpenseFormState = {
 
 export default function Transactions() {
   const { companies } = useCompanies();
+  const queryClient = useQueryClient();
   const { data: transactions = [], isLoading } = useTransactions();
   const deleteMutation = useDeleteTransaction();
   const addMutation = useAddTransaction();
