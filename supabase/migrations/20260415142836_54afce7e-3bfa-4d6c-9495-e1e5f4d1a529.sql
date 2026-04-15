@@ -1,0 +1,1 @@
+ALTER TABLE public.plaid_accounts ADD COLUMN sync_enabled boolean NOT NULL DEFAULT true;

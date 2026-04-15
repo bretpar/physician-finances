@@ -34,6 +34,57 @@ export function usePlaidAccounts() {
   });
 }
 
+// ---- Toggle Account Sync ----
+export function useToggleAccountSync() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, sync_enabled }: { id: string; sync_enabled: boolean }) => {
+      const { error } = await supabase
+        .from("plaid_accounts")
+        .update({ sync_enabled } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ---- Bulk update account preferences after review ----
+export function useReviewAccounts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      accounts: Array<{
+        id: string;
+        sync_enabled: boolean;
+        account_business_mode: string;
+        default_company_id: string | null;
+      }>
+    ) => {
+      for (const acct of accounts) {
+        const { error } = await supabase
+          .from("plaid_accounts")
+          .update({
+            sync_enabled: acct.sync_enabled,
+            account_business_mode: acct.account_business_mode,
+            default_company_id: acct.default_company_id,
+          } as any)
+          .eq("id", acct.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
+      qc.invalidateQueries({ queryKey: ["plaid-items"] });
+      toast.success("Account preferences saved");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 // ---- Plaid Transactions (raw) ----
 export function usePlaidTransactions() {
   return useQuery({

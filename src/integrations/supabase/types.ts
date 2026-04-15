@@ -337,6 +337,7 @@ export type Database = {
           organization_id: string | null
           plaid_account_id: string
           plaid_item_id: string
+          sync_enabled: boolean
           updated_at: string
           user_id: string
         }
@@ -355,6 +356,7 @@ export type Database = {
           organization_id?: string | null
           plaid_account_id: string
           plaid_item_id: string
+          sync_enabled?: boolean
           updated_at?: string
           user_id: string
         }
@@ -373,6 +375,7 @@ export type Database = {
           organization_id?: string | null
           plaid_account_id?: string
           plaid_item_id?: string
+          sync_enabled?: boolean
           updated_at?: string
           user_id?: string
         }

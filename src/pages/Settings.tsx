@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -26,6 +27,8 @@ import {
   useDisconnectPlaidItem,
   useUpdatePlaidAccount,
   useBulkApplyAccountBusiness,
+  useToggleAccountSync,
+  useReviewAccounts,
 } from "@/hooks/usePlaid";
 
 /* ─── Types ─── */
@@ -88,12 +91,21 @@ export default function Settings() {
   const disconnectMutation = useDisconnectPlaidItem();
   const updateAccountMutation = useUpdatePlaidAccount();
   const bulkApplyMutation = useBulkApplyAccountBusiness();
+  const toggleSyncMutation = useToggleAccountSync();
+  const reviewAccountsMutation = useReviewAccounts();
 
   const [linkLoading, setLinkLoading] = useState(false);
   const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
   const [editMode, setEditMode] = useState<string>("unassigned");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
+
+  // Post-link review modal state
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
+  const [reviewInstitution, setReviewInstitution] = useState<string>("");
+  const [reviewPrefs, setReviewPrefs] = useState<
+    Record<string, { sync_enabled: boolean; mode: string; companyId: string }>
+  >({});
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
@@ -112,11 +124,33 @@ export default function Settings() {
       const handler = (window as any).Plaid.create({
         token: data.link_token,
         onSuccess: async (publicToken: string, metadata: any) => {
-          const { error: exchangeError } = await supabase.functions.invoke("plaid-exchange-token", {
+          const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke("plaid-exchange-token", {
             body: { public_token: publicToken, institution_name: metadata?.institution?.name || "Bank Account", institution_id: metadata?.institution?.institution_id || "" },
           });
           if (exchangeError) { toast.error("Failed to connect account"); }
-          else { toast.success("Bank account connected!"); syncMutation.mutate(undefined); }
+          else {
+            toast.success("Bank account connected! Please review imported accounts.");
+            // Open review modal — refetch accounts first
+            if (exchangeData?.item_db_id) {
+              setReviewItemId(exchangeData.item_db_id);
+              setReviewInstitution(exchangeData.institution_name || "Bank Account");
+              // Initialize review prefs after accounts load
+              setTimeout(async () => {
+                const { data: newAccts } = await supabase
+                  .from("plaid_accounts")
+                  .select("*")
+                  .eq("plaid_item_id", exchangeData.item_db_id)
+                  .eq("is_active", true);
+                if (newAccts) {
+                  const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string }> = {};
+                  for (const a of newAccts) {
+                    prefs[a.id] = { sync_enabled: true, mode: "unassigned", companyId: "" };
+                  }
+                  setReviewPrefs(prefs);
+                }
+              }, 500);
+            }
+          }
         },
         onExit: () => {},
       });
@@ -175,6 +209,40 @@ export default function Settings() {
     const name = getCompanyName(editCompanyId);
     if (!name) return;
     bulkApplyMutation.mutate({ accountId: editingAccount.id, companyName: name });
+  };
+
+  const handleSaveReview = async () => {
+    if (!reviewItemId) return;
+    // Get the actual account rows for this item
+    const { data: accts } = await supabase
+      .from("plaid_accounts")
+      .select("id")
+      .eq("plaid_item_id", reviewItemId)
+      .eq("is_active", true);
+    if (!accts) return;
+
+    const updates = accts.map((a) => {
+      const pref = reviewPrefs[a.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+      return {
+        id: a.id,
+        sync_enabled: pref.sync_enabled,
+        account_business_mode: pref.mode,
+        default_company_id: pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
+      };
+    });
+
+    reviewAccountsMutation.mutate(updates, {
+      onSuccess: () => {
+        setReviewItemId(null);
+        setReviewPrefs({});
+        // Auto-sync after review
+        syncMutation.mutate(reviewItemId!);
+      },
+    });
+  };
+
+  const handleToggleSync = (accountId: string, enabled: boolean) => {
+    toggleSyncMutation.mutate({ id: accountId, sync_enabled: enabled });
   };
 
   /* ─── Team ─── */
@@ -395,8 +463,9 @@ export default function Settings() {
                       {accounts.map((acct) => {
                         const mode = (acct as any).account_business_mode || "unassigned";
                         const companyId = (acct as any).default_company_id || null;
+                        const syncEnabled = (acct as any).sync_enabled !== false;
                         return (
-                          <div key={acct.id} className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
+                          <div key={acct.id} className={`flex items-center gap-3 rounded-lg border border-border p-3 ${syncEnabled ? "bg-muted/30" : "bg-muted/10 opacity-60"}`}>
                             <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-card-foreground truncate">{acct.account_name}</p>
@@ -404,6 +473,14 @@ export default function Settings() {
                                 {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
                                 {acct.account_mask ? ` ···${acct.account_mask}` : ""}
                               </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0" title={syncEnabled ? "Syncing transactions" : "Sync disabled"}>
+                              <Switch
+                                checked={syncEnabled}
+                                onCheckedChange={(checked) => handleToggleSync(acct.id, checked)}
+                                className="scale-90"
+                              />
+                              <span className="text-[10px] text-muted-foreground w-8">{syncEnabled ? "Sync" : "Off"}</span>
                             </div>
                             <Badge variant={getModeColor(mode)} className="text-xs shrink-0">
                               {getModeLabel(mode, companyId)}
@@ -589,6 +666,75 @@ export default function Settings() {
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleRemoveMember} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Post-link account review dialog */}
+      <Dialog open={!!reviewItemId} onOpenChange={(open) => { if (!open) { setReviewItemId(null); setReviewPrefs({}); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review Imported Accounts</DialogTitle>
+            <DialogDescription>
+              {reviewInstitution} returned the accounts below. Choose which ones to sync and optionally assign them to a business.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {Object.entries(reviewPrefs).length === 0 ? (
+              <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : (
+              (() => {
+                // We need the actual account data — get from plaidAccounts or refetch
+                const reviewAccounts = plaidAccounts.filter((a) => a.plaid_item_id === reviewItemId);
+                // If accounts haven't loaded yet, show from reviewPrefs keys
+                const acctIds = reviewAccounts.length > 0 ? reviewAccounts : Object.keys(reviewPrefs).map((id) => ({ id, account_name: "Account", account_type: "", account_subtype: null, account_mask: null }));
+                return (reviewAccounts.length > 0 ? reviewAccounts : []).map((acct: any) => {
+                  const pref = reviewPrefs[acct.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+                  return (
+                    <div key={acct.id} className={`rounded-lg border border-border p-4 space-y-3 ${pref.sync_enabled ? "bg-card" : "bg-muted/30 opacity-60"}`}>
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={pref.sync_enabled}
+                          onCheckedChange={(checked: boolean) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, sync_enabled: !!checked } }))}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-card-foreground">{acct.account_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
+                            {acct.account_mask ? ` ···${acct.account_mask}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      {pref.sync_enabled && (
+                        <div className="pl-7 space-y-2">
+                          <Select value={pref.mode} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, mode: v, companyId: v !== "single_business" ? "" : pref.companyId } }))}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">Personal / Unassigned</SelectItem>
+                              <SelectItem value="single_business">Business</SelectItem>
+                              <SelectItem value="shared">Ignore</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {pref.mode === "single_business" && (
+                            <Select value={pref.companyId} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, companyId: v } }))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select business..." /></SelectTrigger>
+                              <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setReviewItemId(null); setReviewPrefs({}); }}>Skip</Button>
+            <Button onClick={handleSaveReview} disabled={reviewAccountsMutation.isPending}>
+              {reviewAccountsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Save & Sync
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

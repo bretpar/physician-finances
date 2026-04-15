@@ -86,16 +86,22 @@ Deno.serve(async (req) => {
       .single();
     const orgId = orgMember?.organization_id;
 
-    // Get user's plaid accounts for transfer detection and business affiliation
+    // Get user's plaid accounts — only sync_enabled ones
     const { data: userAccounts } = await adminClient
       .from("plaid_accounts")
-      .select("plaid_account_id, account_type, account_subtype, default_company_id, account_business_mode")
+      .select("plaid_account_id, account_type, account_subtype, default_company_id, account_business_mode, sync_enabled")
       .eq("user_id", user.id)
       .eq("is_active", true);
+
+    // Build set of sync-enabled account IDs
+    const syncEnabledIds = new Set(
+      (userAccounts || []).filter((a: any) => a.sync_enabled !== false).map((a: any) => a.plaid_account_id)
+    );
+
     const accounts: PlaidAccount[] = (userAccounts || []) as any;
 
     // Build a map of plaid_account_id → default company name
-    const companyIds = accounts.filter((a: any) => a.default_company_id).map((a: any) => a.default_company_id);
+    const companyIds = (userAccounts || []).filter((a: any) => a.default_company_id).map((a: any) => a.default_company_id);
     let companyMap: Record<string, string> = {};
     if (companyIds.length > 0) {
       const { data: companies } = await adminClient
@@ -140,14 +146,14 @@ Deno.serve(async (req) => {
 
     let totalAdded = 0;
     let totalModified = 0;
-    // Collect newly added transactions for cross-account transfer matching
+    let totalSkipped = 0;
     const newlyAdded: Array<{
       id: string;
       plaid_account_id: string;
       amount: number;
       date: string;
       name: string;
-      raw_amount: number; // original Plaid sign
+      raw_amount: number;
     }> = [];
 
     for (const item of plaidItems) {
@@ -191,6 +197,12 @@ Deno.serve(async (req) => {
         // Process ADDED transactions
         const added = syncData.added || [];
         for (const txn of added) {
+          // Skip transactions from accounts where sync is disabled
+          if (!syncEnabledIds.has(txn.account_id)) {
+            totalSkipped++;
+            continue;
+          }
+
           // Store raw plaid transaction
           const { data: plaidTxRow, error: plaidTxError } = await adminClient
             .from("plaid_transactions")
@@ -220,14 +232,11 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Classify transaction type
-          // Plaid: positive amount = money leaving (expense), negative = money coming in (income)
           const isExpense = txn.amount > 0;
           const txnName = txn.name || txn.merchant_name || "";
           const isLiability = isLiabilityAccount(accounts, txn.account_id);
           const nameHint = looksLikeTransfer(txnName);
 
-          // Plaid personal_finance_category can hint at transfers
           const plaidCategory = (txn.personal_finance_category?.primary || "").toUpperCase();
           const plaidIsTransfer = plaidCategory === "TRANSFER_IN" || plaidCategory === "TRANSFER_OUT"
             || plaidCategory === "LOAN_PAYMENTS" || plaidCategory === "BANK_FEES";
@@ -235,25 +244,17 @@ Deno.serve(async (req) => {
           let txType = isExpense ? "expense" : "income";
           let transferSubtype: string | null = null;
 
-          // Rule 1: Positive inflow to a liability/credit account → likely CC payment
           if (!isExpense && isLiability) {
             txType = "transfer";
             transferSubtype = "credit_card_payment";
-          }
-          // Rule 2: Plaid categorizes it as a transfer
-          else if (plaidIsTransfer && plaidCategory !== "BANK_FEES") {
+          } else if (plaidIsTransfer && plaidCategory !== "BANK_FEES") {
             txType = "transfer";
             transferSubtype = "account_transfer";
-          }
-          // Rule 3: Name strongly suggests a transfer
-          else if (nameHint) {
-            // If it's a credit to a liability account it's definitely a payment
-            // Otherwise mark as possible transfer with needs_review
+          } else if (nameHint) {
             txType = "transfer";
             transferSubtype = isLiability ? "credit_card_payment" : "account_transfer";
           }
 
-          // Determine business assignment from account affiliation
           const bizInfo = accountBizMap[txn.account_id];
           const assignedEntity = bizInfo ? bizInfo.companyName : "Unassigned";
           const assignmentSource = bizInfo ? "account_default" : "none";
@@ -285,7 +286,7 @@ Deno.serve(async (req) => {
             newlyAdded.push({
               id: plaidTxRow?.id || "",
               plaid_account_id: txn.account_id,
-              amount: txn.amount, // keep original sign
+              amount: txn.amount,
               date: txn.date,
               name: txnName,
               raw_amount: txn.amount,
@@ -296,6 +297,7 @@ Deno.serve(async (req) => {
         // Process MODIFIED transactions (update existing)
         const modified = syncData.modified || [];
         for (const txn of modified) {
+          if (!syncEnabledIds.has(txn.account_id)) continue;
           await adminClient
             .from("plaid_transactions")
             .update({
@@ -343,11 +345,9 @@ Deno.serve(async (req) => {
     }
 
     // ── CROSS-ACCOUNT TRANSFER MATCHING ──
-    // Look for pairs: debit from one owned account + credit to another owned account
-    // with same amount and dates within 3 days
     if (newlyAdded.length > 1) {
-      const debits = newlyAdded.filter((t) => t.raw_amount > 0); // money out
-      const credits = newlyAdded.filter((t) => t.raw_amount < 0); // money in
+      const debits = newlyAdded.filter((t) => t.raw_amount > 0);
+      const credits = newlyAdded.filter((t) => t.raw_amount < 0);
 
       for (const deb of debits) {
         for (const cred of credits) {
@@ -359,7 +359,6 @@ Deno.serve(async (req) => {
             (new Date(deb.date).getTime() - new Date(cred.date).getTime()) / 86400000
           );
           if (amountMatch && daysDiff <= 3) {
-            // Mark both as transfers
             await adminClient
               .from("transactions")
               .update({
@@ -387,6 +386,7 @@ Deno.serve(async (req) => {
       success: true,
       transactions_added: totalAdded,
       transactions_modified: totalModified,
+      transactions_skipped: totalSkipped,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
