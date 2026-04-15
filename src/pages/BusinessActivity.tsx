@@ -5,6 +5,9 @@ import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useInco
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
+import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+import { RecommendationModal } from "@/components/RecommendationModal";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import { useSuggestedMatches } from "@/hooks/useTransactionMatching";
 import SuggestedMatches from "@/components/SuggestedMatches";
 import { Input } from "@/components/ui/input";
