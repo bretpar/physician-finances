@@ -145,8 +145,8 @@ export default function ProjectedIncome() {
 
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
-    return generateProjectedPaychecks(streams, bonuses, existingDates, overrides || []);
-  }, [streams, bonuses, existingDates, overrides]);
+    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || []);
+  }, [streams, bonuses, incomeEntriesForMatching, overrides]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks), [projectedPaychecks]);
 
