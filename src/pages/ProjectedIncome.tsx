@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus, Trash2, Pencil, ChevronDown, ChevronRight,
   DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
-  X, RotateCcw, CheckCircle2, AlertCircle, Link2,
+  X, RotateCcw, CheckCircle2, AlertCircle, Link2, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,7 @@ const emptyForm = (monthIdx?: number): StreamForm => {
 };
 
 export default function ProjectedIncome() {
+  const navigate = useNavigate();
   const { companies } = useCompanies();
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
@@ -510,11 +512,22 @@ export default function ProjectedIncome() {
                       const isSkipped = entry.matchStatus === "skipped";
                       const isActive = entry.matchStatus === "active";
 
+                      // Check if this skipped entry was converted (has "Converted to actual income" in override notes)
+                      const override = overrideLookup.get(`${entry.streamId}:${entry.date}`);
+                      const isConverted = isSkipped && override?.notes?.includes("Converted to actual income");
+
+                      // Determine link destination for matched/converted entries
+                      const isBizType = entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1";
+                      const viewDestination = isBizType ? "/business-activity" : "/personal-income";
+                      const viewLabel = isBizType ? "Business Activity" : "Personal Income";
+
                       return (
                         <div
                           key={i}
                           className={`flex items-center justify-between px-3 py-2.5 rounded-md border bg-card ${
-                            isSkipped
+                            isConverted
+                              ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20 opacity-70"
+                              : isSkipped
                               ? "border-destructive/20 bg-destructive/5 opacity-50"
                               : isMatched
                               ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
@@ -543,7 +556,12 @@ export default function ProjectedIncome() {
                                 <AlertCircle className="h-2.5 w-2.5" /> Past due
                               </Badge>
                             )}
-                            {isSkipped && (
+                            {isConverted && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
+                                <CheckCircle2 className="h-2.5 w-2.5" /> Converted
+                              </Badge>
+                            )}
+                            {isSkipped && !isConverted && (
                               <Badge variant="outline" className="text-xs shrink-0 border-destructive/40 text-destructive">Skipped</Badge>
                             )}
                             {entry.isModified && isActive && (
@@ -551,10 +569,34 @@ export default function ProjectedIncome() {
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
+                            {/* Matched entry: show actual amount + link to view */}
                             {isMatched && entry.matchedAmount != null && (
-                              <span className="text-xs text-muted-foreground">
-                                Actual: {fmtFull(entry.matchedAmount)}
-                              </span>
+                              <>
+                                <span className="text-xs text-muted-foreground">
+                                  Actual: {fmtFull(entry.matchedAmount)}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-xs px-1.5 text-primary gap-0.5"
+                                  title={`View in ${viewLabel}`}
+                                  onClick={(e) => { e.stopPropagation(); navigate(viewDestination); }}
+                                >
+                                  <ExternalLink className="h-3 w-3" /> View
+                                </Button>
+                              </>
+                            )}
+                            {/* Converted entry: show link to destination ledger */}
+                            {isConverted && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-xs px-1.5 text-emerald-600 dark:text-emerald-400 gap-0.5"
+                                title={`View in ${viewLabel}`}
+                                onClick={(e) => { e.stopPropagation(); navigate(viewDestination); }}
+                              >
+                                <ExternalLink className="h-3 w-3" /> View in {viewLabel}
+                              </Button>
                             )}
                             <span className={`text-sm font-semibold ${isSkipped || isMatched ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
@@ -615,8 +657,8 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {/* Restore for skipped entries */}
-                            {isSkipped && (
+                            {/* Restore for skipped (non-converted) entries */}
+                            {isSkipped && !isConverted && (
                               <Button
                                 size="icon"
                                 variant="ghost"

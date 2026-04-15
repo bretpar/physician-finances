@@ -340,6 +340,9 @@ export default function PersonalIncome() {
                 <div className="min-w-0">
                   <span className="text-sm font-medium text-foreground truncate block">{entry.name}</span>
                   {entry.company && <span className="text-xs text-muted-foreground">{entry.company}</span>}
+                  {entry.notes?.includes("Converted from planned income") && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">From Income Planner</span>
+                  )}
                 </div>
                 <Badge variant="secondary" className="text-[10px] w-fit">{typeLabel}</Badge>
                 <span className={`text-sm font-semibold tabular-nums text-right ${isLoss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
