@@ -104,7 +104,7 @@ export default function Settings() {
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
   const [reviewInstitution, setReviewInstitution] = useState<string>("");
   const [reviewPrefs, setReviewPrefs] = useState<
-    Record<string, { sync_enabled: boolean; mode: string; companyId: string }>
+    Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }>
   >({});
 
   const handleConnectBank = async () => {
@@ -142,9 +142,9 @@ export default function Settings() {
                   .eq("plaid_item_id", exchangeData.item_db_id)
                   .eq("is_active", true);
                 if (newAccts) {
-                  const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string }> = {};
+                  const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }> = {};
                   for (const a of newAccts) {
-                    prefs[a.id] = { sync_enabled: true, mode: "unassigned", companyId: "" };
+                    prefs[a.id] = { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
                   }
                   setReviewPrefs(prefs);
                 }
@@ -222,12 +222,14 @@ export default function Settings() {
     if (!accts) return;
 
     const updates = accts.map((a) => {
-      const pref = reviewPrefs[a.id] || { sync_enabled: true, mode: "unassigned", companyId: "" };
+      const pref = reviewPrefs[a.id] || { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
+      const routing = pref.routing;
       return {
         id: a.id,
-        sync_enabled: pref.sync_enabled,
-        account_business_mode: pref.mode,
-        default_company_id: pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
+        sync_enabled: routing === "business" || routing === "personal",
+        account_business_mode: routing === "business" ? pref.mode : "unassigned",
+        default_company_id: routing === "business" && pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
+        account_routing: routing,
       };
     });
 
