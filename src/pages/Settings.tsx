@@ -97,6 +97,7 @@ export default function Settings() {
   const [linkLoading, setLinkLoading] = useState(false);
   const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
+  const [editRouting, setEditRouting] = useState<string>("needs_review");
   const [editMode, setEditMode] = useState<string>("unassigned");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
 
@@ -198,6 +199,7 @@ export default function Settings() {
 
   const openEditDialog = (acct: any) => {
     setEditingAccount(acct);
+    setEditRouting(acct.account_routing || "needs_review");
     setEditMode(acct.account_business_mode || "unassigned");
     setEditCompanyId(acct.default_company_id || "");
   };
@@ -206,8 +208,9 @@ export default function Settings() {
     if (!editingAccount) return;
     updateAccountMutation.mutate({
       id: editingAccount.id,
-      account_business_mode: editMode,
-      default_company_id: editMode === "single_business" && editCompanyId ? editCompanyId : null,
+      account_business_mode: editRouting === "business" ? editMode : "unassigned",
+      default_company_id: editRouting === "business" && editMode === "single_business" && editCompanyId ? editCompanyId : null,
+      account_routing: editRouting,
     }, { onSuccess: () => setEditingAccount(null) });
   };
 
