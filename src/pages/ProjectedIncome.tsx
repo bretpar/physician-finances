@@ -5,6 +5,7 @@ import {
   DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
   X, RotateCcw, CheckCircle2, AlertCircle, Link2, ExternalLink,
 } from "lucide-react";
+import TaxDebugPanel from "@/components/TaxDebugPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,7 +106,7 @@ export default function ProjectedIncome() {
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
   const { data: overrides } = useStreamOverrides();
   const { data: incomeEntries } = useIncomeEntries();
-  const { estimate } = useTaxEstimate();
+  const { forecastEstimate, forecastDebug } = useTaxEstimate();
 
   const addStream = useAddStream();
   const updateStream = useUpdateStream();
@@ -404,8 +405,8 @@ export default function ProjectedIncome() {
         <SummaryCard
           icon={<Shield className="h-4 w-4" />}
           label="Estimated Annual Tax"
-          value={fmt(estimate?.totalTaxLiability || 0)}
-          sublabel="Based on projected income"
+          value={fmt(forecastEstimate?.totalTaxLiability || 0)}
+          sublabel="Based on actual + projected income"
         />
         <SummaryCard
           icon={<PiggyBank className="h-4 w-4" />}
@@ -415,8 +416,11 @@ export default function ProjectedIncome() {
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
+      {forecastDebug && (
+        <TaxDebugPanel debug={forecastDebug} label="Income Planner — Tax Calculation Debug" />
+      )}
+
+        <div className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
           <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Add Income Stream

@@ -22,6 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import TaxDebugPanel from "@/components/TaxDebugPanel";
 import { useTaxSavings, useAddTaxSaving, useUpdateTaxSaving, useDeleteTaxSaving } from "@/hooks/useTaxSavings";
 import { useTaxPayments, useAddTaxPayment, useUpdateTaxPayment, useDeleteTaxPayment } from "@/hooks/useTaxPayments";
 
@@ -38,7 +39,7 @@ const QUARTERS = [
 
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const { estimate, isLoading: estLoading, taxMode, setTaxMode } = useTaxEstimate();
+  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualDebug, forecastDebug } = useTaxEstimate();
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
 
@@ -171,7 +172,7 @@ export default function Taxes() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Projected Annual Income</p>
+            <p className="text-xs text-muted-foreground">Estimated Annual Income</p>
             <p className="text-xl font-bold tabular-nums">{fmt(e?.totalIncome ?? 0)}</p>
           </CardContent>
         </Card>
@@ -189,19 +190,19 @@ export default function Taxes() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Taxes Withheld / Paid</p>
+            <p className="text-xs text-muted-foreground">Taxes Already Withheld or Paid</p>
             <p className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmt(totalCovered)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Estimated Tax Remaining</p>
+            <p className="text-xs text-muted-foreground">Remaining Estimated Tax to Cover</p>
             <p className={cn("text-xl font-bold tabular-nums", remainingTax > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(remainingTax)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Recommended Monthly Set-Aside</p>
+            <p className="text-xs text-muted-foreground">Recommended Tax Set-Aside / Month</p>
             <p className="text-xl font-bold tabular-nums text-primary">{fmt(monthlyGuidance)}</p>
           </CardContent>
         </Card>
@@ -308,7 +309,7 @@ export default function Taxes() {
                   <span>Total Estimated Tax</span><span>{fmt(e.totalTaxLiability)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
-                  <span>Taxes Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
+                  <span>Taxes Already Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
                   <span>Quarterly Payments</span><span>−{fmt(totalPaid)}</span>
@@ -327,7 +328,13 @@ export default function Taxes() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* ── Savings Log ── */}
+      {/* ── Debug Breakdown ── */}
+      {(taxMode === "actual" ? actualDebug : forecastDebug) && (
+        <TaxDebugPanel
+          debug={(taxMode === "actual" ? actualDebug : forecastDebug)!}
+          label={`Taxes Tab — ${taxMode === "forecast" ? "Forecast" : "Actual"} Calculation Debug`}
+        />
+      )}
       {savings.length > 0 && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Tax Savings Log</CardTitle></CardHeader>

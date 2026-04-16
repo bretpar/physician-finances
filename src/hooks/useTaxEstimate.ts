@@ -9,8 +9,9 @@ import { useStockTransactions } from "@/hooks/useStocks";
 import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
-import { calculateFullEstimate, type TaxEstimate } from "@/lib/taxEngine";
+import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
+import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -21,11 +22,12 @@ export function useTaxEstimate(): {
   setTaxMode: (mode: TaxMode) => void;
   actualEstimate: TaxEstimate | null;
   forecastEstimate: TaxEstimate | null;
+  actualDebug: TaxDebugBreakdown | null;
+  forecastDebug: TaxDebugBreakdown | null;
 } {
   const [taxMode, setTaxModeRaw] = useState<TaxMode>("actual");
 
   const setTaxMode = useCallback((mode: TaxMode) => {
-    // Only allow forecast mode if the feature is enabled
     if (mode === "forecast" && !isFeatureEnabled("forecast_mode")) return;
     setTaxModeRaw(mode);
   }, []);
@@ -48,21 +50,13 @@ export function useTaxEstimate(): {
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
 
-  // Shared base data computation
-  const baseData = useMemo(() => {
+  // Build shared base input once
+  const baseInput = useMemo(() => {
     if (!rates || !incomeEntries) return null;
 
-    const entries = incomeEntries;
     const personal = personalEntries || [];
 
-    // ── BUSINESS INCOME ──
-    const businessIncome = weighted.se;
-    const businessW2 = weighted.w2;
-    const businessWithheld = weighted.withheld;
-    const businessPreTax = weighted.preTax;
-    const businessRetirement = weighted.retirement;
-
-    // ── PERSONAL INCOME ──
+    // Personal income breakdown
     const personalW2 = personal
       .filter((e) => e.income_type === "w2_user" || e.income_type === "w2_partner")
       .reduce((s, e) => s + Number(e.gross_amount), 0);
@@ -87,7 +81,7 @@ export function useTaxEstimate(): {
 
     const totalPersonalIncome = personalW2 + personalOrdinary + personalCapGains + personalRental - personalLosses;
 
-    // ── STOCK GAINS ──
+    // Stock gains
     const stockGains = (stockTxs || [])
       .filter((s) => Number(s.gain_loss) > 0)
       .reduce((sum, s) => sum + Number(s.gain_loss), 0);
@@ -96,9 +90,7 @@ export function useTaxEstimate(): {
       .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
     const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses);
 
-    // ── BUSINESS DEDUCTIONS ──
-    // Use transaction_type field (not amount sign) to reliably find expenses
-    // This works for both manual entries (may have negative amounts) and Plaid imports (always positive)
+    // Business expenses
     const businessExpenses = (transactions || [])
       .filter((t) => t.transaction_type === "expense" && !t.is_deleted && t.category !== "Personal" && t.entity !== "Unassigned")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -106,7 +98,7 @@ export function useTaxEstimate(): {
     const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
     const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
 
-    // Taxes already withheld
+    // User reserves (NOT taxes paid)
     const txActualWithholding = (transactions || [])
       .filter((t) => t.transaction_type === "income" && !t.is_deleted)
       .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
@@ -114,94 +106,70 @@ export function useTaxEstimate(): {
     // Remaining pay periods
     const now = new Date();
     const monthsRemaining = 12 - now.getMonth();
-    const receivedEntries = entries.filter((e) => e.status === "received");
+    const receivedEntries = incomeEntries.filter((e) => e.status === "received");
     const avgEntriesPerMonth = receivedEntries.length > 0
       ? receivedEntries.length / (now.getMonth() + 1)
       : 1;
     const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
 
-    // Additional tax paid
     const quarterlyPaid = taxPayments.reduce((s, p) => s + Number(p.amount), 0);
     const savingsTotal = taxSavings.reduce((s, e) => s + Number(e.amount), 0);
-    const additionalTaxPaid = quarterlyPaid + savingsTotal;
 
-    return {
-      businessIncome, businessW2, businessWithheld, businessPreTax, businessRetirement,
-      totalPersonalIncome, personalW2, personalOrdinary, personalWithheld, personalPreTax, personalRetirement,
-      netStockGain, businessExpenses, mileageDeduction,
-      txActualWithholding, remainingPayPeriods, additionalTaxPaid,
-      entries,
-    };
-  }, [incomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, annualizedRetirement, taxPayments, taxSavings]);
-
-  // ── ACTUAL ESTIMATE (Core) ──
-  const actualEstimate = useMemo(() => {
-    if (!rates || !baseData) return null;
-
-    const totalIncome = baseData.businessIncome + baseData.businessW2 + baseData.totalPersonalIncome + baseData.netStockGain;
-    // W-2 wages only — used for SS wage cap offset in SE tax. Do NOT include ordinary non-wage income.
-    const w2Income = baseData.businessW2 + baseData.personalW2;
-    const seIncome = baseData.businessIncome;
-
-    const combinedPreTax = baseData.businessPreTax + baseData.personalPreTax;
-    const combined401k = baseData.businessRetirement + baseData.personalRetirement + annualizedRetirement.total;
-
-    // Only employer-withheld taxes count as "taxes paid". actual_withholding (user reserves) routes to additionalTaxPaid.
-    const combinedWithheld = baseData.businessWithheld + baseData.personalWithheld;
-
-    return calculateFullEstimate({
-      totalIncome, w2Income, seIncome,
-      preTaxDeductions: combinedPreTax,
-      retirement401k: combined401k,
-      businessDeductions: baseData.businessExpenses,
-      mileageDeduction: baseData.mileageDeduction,
-      taxesWithheld: combinedWithheld,
-      filingStatus: rates.filingStatus,
-      lastYearTax: rates.lastYearTax,
-      standardDeductionOverride: rates.standardDeductionOverride,
-      ssWageCap: rates.ssWageCap,
-      bnoRate: rates.bnoRate / 100,
-      remainingPayPeriods: baseData.remainingPayPeriods,
-      additionalTaxPaid: baseData.additionalTaxPaid + baseData.txActualWithholding,
-    });
-  }, [rates, baseData, annualizedRetirement]);
-
-  // ── FORECAST ESTIMATE (Advanced — includes projected income) ──
-  const forecastEstimate = useMemo(() => {
-    if (!rates || !baseData || !incomeEntries) return null;
-
+    // Projected totals
     const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries || []);
     const projTotals = getProjectedTotals(projectedPaychecks);
 
-    const totalIncome = baseData.businessIncome + baseData.businessW2 + baseData.totalPersonalIncome + projTotals.grossIncome + baseData.netStockGain;
-    // W-2 wages only — do NOT include ordinary non-wage income
-    const w2Income = baseData.businessW2 + baseData.personalW2;
-    const seIncome = baseData.businessIncome;
-
-    const combinedPreTax = baseData.businessPreTax + baseData.personalPreTax + projTotals.preTaxDeductions;
-    const combined401k = baseData.businessRetirement + baseData.personalRetirement + projTotals.retirement401k + annualizedRetirement.total;
-
-    // Only employer-withheld taxes count as "taxes paid" — user reserves route to additionalTaxPaid
-    const combinedWithheld = baseData.businessWithheld + baseData.personalWithheld + projTotals.taxesWithheld;
-
-    return calculateFullEstimate({
-      totalIncome, w2Income, seIncome,
-      preTaxDeductions: combinedPreTax,
-      retirement401k: combined401k,
-      businessDeductions: baseData.businessExpenses,
-      mileageDeduction: baseData.mileageDeduction,
-      taxesWithheld: combinedWithheld,
-      filingStatus: rates.filingStatus,
+    return {
+      businessIncome: weighted.se,
+      businessW2: weighted.w2,
+      businessWithheld: weighted.withheld,
+      businessPreTax: weighted.preTax,
+      businessRetirement: weighted.retirement,
+      personalIncome: totalPersonalIncome,
+      personalW2,
+      personalWithheld,
+      personalPreTax,
+      personalRetirement,
+      netStockGain,
+      businessExpenses,
+      mileageDeduction,
+      annualizedRetirement: annualizedRetirement.total,
+      txActualWithholding,
+      quarterlyPaid,
+      savingsTotal,
+      remainingPayPeriods,
+      projectedGrossIncome: projTotals.grossIncome,
+      projectedTaxesWithheld: projTotals.taxesWithheld,
+      projectedPreTax: projTotals.preTaxDeductions,
+      projectedRetirement: projTotals.retirement401k,
+      filingStatus: rates.filingStatus as "single" | "married_filing_jointly",
       lastYearTax: rates.lastYearTax,
       standardDeductionOverride: rates.standardDeductionOverride,
       ssWageCap: rates.ssWageCap,
       bnoRate: rates.bnoRate / 100,
-      remainingPayPeriods: baseData.remainingPayPeriods,
-      additionalTaxPaid: baseData.additionalTaxPaid + baseData.txActualWithholding,
-    });
-  }, [rates, baseData, incomeEntries, streams, bonuses, annualizedRetirement]);
+    };
+  }, [incomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings]);
 
+  // Actual estimate (no projected income)
+  const actualResult = useMemo(() => {
+    if (!baseInput) return null;
+    return computeUnifiedTaxEstimate({ ...baseInput, includeProjectedIncome: false });
+  }, [baseInput]);
+
+  // Forecast estimate (with projected income)
+  const forecastResult = useMemo(() => {
+    if (!baseInput) return null;
+    return computeUnifiedTaxEstimate({ ...baseInput, includeProjectedIncome: true });
+  }, [baseInput]);
+
+  const actualEstimate = actualResult?.estimate ?? null;
+  const forecastEstimate = forecastResult?.estimate ?? null;
   const estimate = taxMode === "forecast" ? forecastEstimate : actualEstimate;
 
-  return { estimate, isLoading, taxMode, setTaxMode, actualEstimate, forecastEstimate };
+  return {
+    estimate, isLoading, taxMode, setTaxMode,
+    actualEstimate, forecastEstimate,
+    actualDebug: actualResult?.debug ?? null,
+    forecastDebug: forecastResult?.debug ?? null,
+  };
 }
