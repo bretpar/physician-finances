@@ -309,7 +309,7 @@ export default function Taxes() {
                   <span>Total Estimated Tax</span><span>{fmt(e.totalTaxLiability)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
-                  <span>Taxes Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
+                  <span>Taxes Already Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
                   <span>Quarterly Payments</span><span>−{fmt(totalPaid)}</span>
