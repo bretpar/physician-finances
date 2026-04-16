@@ -420,7 +420,7 @@ export default function ProjectedIncome() {
         <TaxDebugPanel debug={forecastDebug} label="Income Planner — Tax Calculation Debug" />
       )}
 
-        <div className="flex items-center justify-between">
+        <div className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
           <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Add Income Stream
