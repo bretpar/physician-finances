@@ -5,6 +5,7 @@ import {
   DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
   X, RotateCcw, CheckCircle2, AlertCircle, Link2, ExternalLink,
 } from "lucide-react";
+import TaxDebugPanel from "@/components/TaxDebugPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -415,7 +416,10 @@ export default function ProjectedIncome() {
         />
       </div>
 
-      <div className="space-y-2">
+      {forecastDebug && (
+        <TaxDebugPanel debug={forecastDebug} label="Income Planner — Tax Calculation Debug" />
+      )}
+
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
           <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
