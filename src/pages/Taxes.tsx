@@ -328,7 +328,13 @@ export default function Taxes() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* ── Savings Log ── */}
+      {/* ── Debug Breakdown ── */}
+      {(taxMode === "actual" ? actualDebug : forecastDebug) && (
+        <TaxDebugPanel
+          debug={(taxMode === "actual" ? actualDebug : forecastDebug)!}
+          label={`Taxes Tab — ${taxMode === "forecast" ? "Forecast" : "Actual"} Calculation Debug`}
+        />
+      )}
       {savings.length > 0 && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">Tax Savings Log</CardTitle></CardHeader>
