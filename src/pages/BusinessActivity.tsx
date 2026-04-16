@@ -985,7 +985,31 @@ export default function Transactions() {
                     </div>
                   </div>
 
-                  {/* Actual withholding input */}
+                  {/* K-1 Owner Deductions Section */}
+                  {(incomeForm.income_type === "K1") && (
+                    <div className="rounded-lg border border-border p-3 bg-accent/30 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground mb-0.5">Owner Deductions / K-1 Adjustments</p>
+                        <p className="text-[10px] text-muted-foreground">These reduce your taxable income but do not reduce business profit.</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Healthcare Premiums</Label>
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={incomeForm.owner_healthcare}
+                          onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))}
+                          placeholder="0.00"
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">Self-employed health insurance deduction</p>
+                      </div>
+                      <div className="rounded px-2 py-1.5 bg-muted/40 text-[10px] text-muted-foreground space-y-0.5">
+                        <p>• <strong>Business expenses</strong> reduce business profit.</p>
+                        <p>• <strong>Owner deductions</strong> (healthcare, retirement, pre-tax) reduce taxable income.</p>
+                        <p>• <strong>Taxes withheld or set aside</strong> are payments/savings, not deductions.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Amount to set aside for quarterly taxes</Label>
