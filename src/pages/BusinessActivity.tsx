@@ -211,8 +211,8 @@ export default function Transactions() {
 
   const calculatedNet = useMemo(() => {
     if (grossIncome <= 0) return 0;
-    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k));
-  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k]);
+    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.owner_healthcare));
+  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.owner_healthcare]);
 
   // ─── Open Income Add ───
   function openAddIncome() {
@@ -283,6 +283,7 @@ export default function Transactions() {
     const taxWithheld = num(incomeForm.taxes_withheld);
     const preTaxDed = num(incomeForm.pre_tax_deductions);
     const retirement = num(incomeForm.retirement_401k);
+    const healthcare = num(incomeForm.owner_healthcare);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
     // Determine the correct amount for the transactions table:
