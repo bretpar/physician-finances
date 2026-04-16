@@ -65,6 +65,8 @@ export interface TaxDebugBreakdown {
   projectedIncome: number;
   totalGrossIncome: number;
   totalDeductions: number;
+  ownerDeductions: number;        // K-1 owner healthcare + retirement + pre-tax (reduces taxable income, not profit)
+  businessExpenses: number;       // Ordinary operating expenses (reduces business profit)
   totalTaxableIncome: number;
   estimatedAnnualTax: number;
   taxesAlreadyWithheld: number;
