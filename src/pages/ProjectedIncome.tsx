@@ -404,8 +404,8 @@ export default function ProjectedIncome() {
         <SummaryCard
           icon={<Shield className="h-4 w-4" />}
           label="Estimated Annual Tax"
-          value={fmt(estimate?.totalTaxLiability || 0)}
-          sublabel="Based on projected income"
+          value={fmt(forecastEstimate?.totalTaxLiability || 0)}
+          sublabel="Based on actual + projected income"
         />
         <SummaryCard
           icon={<PiggyBank className="h-4 w-4" />}
