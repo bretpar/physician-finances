@@ -710,7 +710,6 @@ export default function ProjectedIncome() {
             );
           })}
         </div>
-      </div>
 
       {streams && streams.length > 0 && (() => {
         const activeStreams = streams.filter((s) => !isStreamExpired(s));
