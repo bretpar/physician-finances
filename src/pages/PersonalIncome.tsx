@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Wallet } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +68,6 @@ interface FormState {
   deductions_pre_tax: string;
   source_name: string;
   notes: string;
-  additional_tax_reserve: string;
 }
 
 const emptyForm: FormState = {
@@ -85,11 +84,11 @@ const emptyForm: FormState = {
   deductions_pre_tax: "",
   source_name: "",
   notes: "",
-  additional_tax_reserve: "",
 };
 
 const isW2Type = (t: string) => t === "w2_user" || t === "w2_partner";
 const isStockType = (t: string) => t === "short_term_gain" || t === "long_term_gain";
+const isNonW2NonStock = (t: string) => !isW2Type(t) && !isStockType(t) && t !== "loss";
 
 const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown };
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
@@ -122,16 +121,19 @@ export default function PersonalIncome() {
     return entries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);
+        // Only count actual withholding (federal_withholding + state_withholding)
         const withheld = Number(e.federal_withholding) + Number(e.state_withholding);
+        const reserve = Number((e as any).additional_tax_reserve || 0);
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
           totalWithheld: acc.totalWithheld + withheld,
+          totalRecommended: acc.totalRecommended + reserve,
           w2Income: acc.w2Income + (isW2Type(e.income_type) ? amt : 0),
           capitalGains: acc.capitalGains + (isStockType(e.income_type) ? amt : 0),
           passiveIncome: acc.passiveIncome + (e.income_type === "rental" ? amt : 0),
         };
       },
-      { totalIncome: 0, totalWithheld: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0 }
+      { totalIncome: 0, totalWithheld: 0, totalRecommended: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0 }
     );
   }, [entries]);
 
@@ -171,7 +173,6 @@ export default function PersonalIncome() {
       deductions_pre_tax: String(entry.pre_tax_deductions),
       source_name: entry.company,
       notes: entry.notes || "",
-      additional_tax_reserve: String((entry as any).additional_tax_reserve || 0),
     });
     setEditingId(entry.id);
     setShowForm(true);
@@ -179,7 +180,8 @@ export default function PersonalIncome() {
 
   function buildPayload() {
     const grossAmt = num(form.gross_amount);
-    const computedNet = grossAmt - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax);
+    const actualWithheld = num(form.federal_withholding) + num(form.state_withholding);
+    const computedNet = grossAmt - actualWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
     // Compute the base tax estimate for the record
@@ -191,6 +193,9 @@ export default function PersonalIncome() {
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax),
     });
+
+    // For non-W2, the recommended set-aside is advisory
+    const recommendedSetAside = rec?.recommendedAdditionalReserve || 0;
 
     return {
       payload: {
@@ -205,8 +210,9 @@ export default function PersonalIncome() {
         deposited_amount: netReceived,
         cost_basis: isStockType(form.income_type) ? num(form.cost_basis) : null,
         realized_gain_loss: isStockType(form.income_type) ? num(form.realized_gain_loss) : null,
+        // ONLY actual withholding goes here — this reduces tax owed
         federal_withholding: num(form.federal_withholding),
-        taxes_withheld: num(form.federal_withholding),
+        taxes_withheld: num(form.federal_withholding), // actual withholding only
         state_withholding: num(form.state_withholding),
         retirement_401k: num(form.retirement_pretax),
         pre_tax_deductions: num(form.deductions_pre_tax),
@@ -218,7 +224,7 @@ export default function PersonalIncome() {
         base_tax_estimate: rec?.baseTaxEstimate || 0,
         dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
         quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
-        additional_tax_reserve: num(form.additional_tax_reserve),
+        additional_tax_reserve: recommendedSetAside, // advisory only, does NOT reduce tax owed
         recommendation_status: rec?.recommendationStatus || "on_track",
       },
       recommendation: rec,
@@ -249,11 +255,8 @@ export default function PersonalIncome() {
   }
 
   function applyRecommendation() {
-    // The recommendation is already saved in base_tax_estimate fields.
-    // Apply the recommended additional_tax_reserve to the most recently saved entry.
     if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0) {
-      // Find the most recent entry and update it
-      const latestEntry = entries[0]; // entries are sorted desc by date
+      const latestEntry = entries[0];
       if (latestEntry) {
         updateMutation.mutate({
           id: latestEntry.id,
@@ -305,35 +308,36 @@ export default function PersonalIncome() {
           <p className="text-lg font-bold">{fmt(totals.capitalGains)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">Passive Income</p>
-          <p className="text-lg font-bold">{fmt(totals.passiveIncome)}</p>
+          <p className="text-xs text-muted-foreground">Taxes Already Withheld</p>
+          <p className="text-lg font-bold text-emerald-600">{fmt(totals.totalWithheld)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">Taxes Withheld</p>
-          <p className="text-lg font-bold text-emerald-600">{fmt(totals.totalWithheld)}</p>
+          <p className="text-xs text-muted-foreground">Recommended Set-Aside</p>
+          <p className="text-lg font-bold text-amber-600">{fmt(totals.totalRecommended)}</p>
         </CardContent></Card>
       </div>
 
       {/* Entries table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="hidden sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="hidden sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_100px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>Date</span>
           <span>Description</span>
           <span>Type</span>
           <span className="text-right">Amount</span>
-          <span className="text-right">Withheld</span>
-          <span className="text-right">Reserve</span>
+          <span className="text-right">Actual Withheld</span>
+          <span className="text-right">Set-Aside</span>
           <span></span>
         </div>
         <div className="divide-y divide-border">
           {entries.map((entry) => {
             const typeLabel = INCOME_TYPES.find((t) => t.value === entry.income_type)?.label || entry.income_type;
             const isLoss = entry.income_type === "loss";
+            const actualWithheld = Number(entry.federal_withholding) + Number(entry.state_withholding);
             const reserve = Number((entry as any).additional_tax_reserve || 0);
             const status = ((entry as any).recommendation_status || "on_track") as keyof typeof STATUS_ICON;
             const StIcon = STATUS_ICON[status] || Minus;
             return (
-              <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
+              <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_100px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
@@ -348,8 +352,8 @@ export default function PersonalIncome() {
                 <span className={`text-sm font-semibold tabular-nums text-right ${isLoss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
                   {isLoss ? "-" : "+"}{fmt(Math.abs(Number(entry.gross_amount)))}
                 </span>
-                <span className="text-sm tabular-nums text-right text-muted-foreground">
-                  {Number(entry.federal_withholding) > 0 ? fmt(Number(entry.federal_withholding)) : "—"}
+                <span className="text-sm tabular-nums text-right text-emerald-600 dark:text-emerald-400">
+                  {actualWithheld > 0 ? fmt(actualWithheld) : "—"}
                 </span>
                 <span className="text-sm tabular-nums text-right text-muted-foreground flex items-center justify-end gap-1">
                   {reserve > 0 ? (
@@ -458,14 +462,15 @@ export default function PersonalIncome() {
             {/* W2-specific withholding & deductions */}
             {isW2Type(form.income_type) && (
               <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground">Withholding & Deductions</p>
+                <p className="text-xs font-semibold text-muted-foreground">Taxes Already Withheld & Deductions</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Taxes Withheld</Label>
                     <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Actual amount your employer withheld</p>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">State Taxes Withheld</Label>
                     <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
                   </div>
                 </div>
@@ -482,26 +487,38 @@ export default function PersonalIncome() {
               </div>
             )}
 
-            {/* Non-W2 withholding fields */}
-            {!isW2Type(form.income_type) && !isStockType(form.income_type) && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
-                </div>
-              </div>
-            )}
+            {/* Non-W2 withholding fields — clear distinction */}
+            {isNonW2NonStock(form.income_type) && grossAmount > 0 && (
+              <div className="space-y-3">
+                {/* Recommended set-aside (advisory) */}
+                {baseRecommendation && !baseRecommendation.isOverWithheld && baseRecommendation.recommendedWithholding > 0 && (
+                  <div className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20 p-3">
+                    <div className="flex items-start gap-2">
+                      <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Recommended Tax Set-Aside</p>
+                        <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{fmt(baseRecommendation.recommendedWithholding)}</p>
+                        <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1">
+                          This is <strong>not</strong> tax already paid — save this amount for future tax payments.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-            {/* Additional tax reserve field on edit */}
-            {isEditing && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
-                <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
-                <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
+                <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual Federal Taxes Paid</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                      <p className="text-[10px] text-muted-foreground mt-1">Only enter taxes actually paid or withheld</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual State Taxes Paid</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -510,17 +527,17 @@ export default function PersonalIncome() {
               <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
             </div>
 
-            {/* Base estimate preview at bottom of Modal 1 */}
-            {grossAmount > 0 && baseRecommendation && (
+            {/* Base estimate preview — W2 only */}
+            {isW2Type(form.income_type) && grossAmount > 0 && baseRecommendation && (
               <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                <p className="text-xs font-semibold text-muted-foreground">Estimated Tax Reserve</p>
+                <p className="text-xs font-semibold text-muted-foreground">Withholding Assessment</p>
                 {baseRecommendation.isOverWithheld ? (
                   <p className="text-sm text-emerald-600 dark:text-emerald-400">
                     Employer over-withheld by <strong>{fmt(Math.abs(baseRecommendation.recommendedWithholding))}</strong>
                   </p>
                 ) : baseRecommendation.recommendedWithholding > 0 ? (
                   <p className="text-sm text-amber-600 dark:text-amber-400">
-                    Estimated additional tax reserve: <strong>{fmt(baseRecommendation.recommendedWithholding)}</strong>
+                    Additional tax may be owed: <strong>{fmt(baseRecommendation.recommendedWithholding)}</strong>
                   </p>
                 ) : (
                   <p className="text-sm text-emerald-600 dark:text-emerald-400">
