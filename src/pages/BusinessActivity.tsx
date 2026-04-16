@@ -313,7 +313,8 @@ export default function Transactions() {
         onSuccess: (data) => {
           console.log("[saveIncome] Update succeeded", data);
           // Now update the linked income entry if present
-          const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding));
+          // Keep taxes_withheld as employer-only; actual_withholding is saved separately on the transaction
+          const effectiveWithheld = taxWithheld;
           const rec = getIncomeRec({
             grossIncome: paycheckAmt,
             incomeType: companyType,
@@ -980,7 +981,8 @@ export default function Transactions() {
                   {/* Actual withholding input */}
                   {grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual amount withheld / set aside</Label>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Amount to set aside for quarterly taxes</Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">Tracked as a reserve — not counted as taxes paid until you make a quarterly payment</p>
                       <Input
                         type="number"
                         min="0"
