@@ -142,6 +142,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     projectedIncome: projIncome,
     totalGrossIncome: totalIncome,
     totalDeductions,
+    ownerDeductions: ownerHealthcare + businessRetirement + businessPreTax,
+    businessExpenses,
     totalTaxableIncome: estimate.taxableIncome,
     estimatedAnnualTax: estimate.totalTaxLiability,
     taxesAlreadyWithheld: combinedWithheld,
