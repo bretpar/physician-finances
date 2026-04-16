@@ -1,0 +1,1 @@
+ALTER TABLE public.income_entries ADD COLUMN IF NOT EXISTS owner_healthcare numeric NOT NULL DEFAULT 0;
