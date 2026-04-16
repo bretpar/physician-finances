@@ -312,7 +312,7 @@ export default function PersonalIncome() {
           <p className="text-lg font-bold text-emerald-600">{fmt(totals.totalWithheld)}</p>
         </CardContent></Card>
         <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">Recommended Set-Aside</p>
+          <p className="text-xs text-muted-foreground">Recommended Tax Savings</p>
           <p className="text-lg font-bold text-amber-600">{fmt(totals.totalRecommended)}</p>
         </CardContent></Card>
       </div>
@@ -496,10 +496,10 @@ export default function PersonalIncome() {
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                       <div>
-                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Recommended Tax Set-Aside</p>
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Recommended Tax Savings</p>
                         <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{fmt(baseRecommendation.recommendedWithholding)}</p>
                         <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1">
-                          This is <strong>not</strong> tax already paid — save this amount for future tax payments.
+                          This is a suggested amount to save. It has not been paid to the IRS or state yet.
                         </p>
                       </div>
                     </div>
@@ -511,7 +511,7 @@ export default function PersonalIncome() {
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Actual Federal Taxes Paid</Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
-                      <p className="text-[10px] text-muted-foreground mt-1">Only enter taxes actually paid or withheld</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Only enter money that was actually withheld from this income or already paid toward taxes.</p>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Actual State Taxes Paid</Label>

@@ -852,7 +852,7 @@ export default function Transactions() {
                       )}
                       {recSetAside > 0 && !isW2Row && (
                         <span className="text-[10px] text-muted-foreground">
-                          Recommended set-aside: {fmt(recSetAside)}
+                          Recommended tax savings: {fmt(recSetAside)}
                         </span>
                       )}
                     </div>
@@ -986,7 +986,7 @@ export default function Transactions() {
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Already Withheld</Label>
                     <Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" />
-                    <p className="text-[10px] text-muted-foreground mt-1">Federal + state tax your employer already withheld</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Only enter money that was actually withheld from this income or already paid toward taxes.</p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
@@ -1028,10 +1028,10 @@ export default function Transactions() {
                     <div className="flex items-start gap-2">
                       <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                       <div>
-                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Recommended Tax Set-Aside</p>
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Recommended Tax Savings</p>
                         <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{fmt(recommendedSetAside)}</p>
                         <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1">
-                          This is <strong>not</strong> tax already paid — it's the amount you should save for future taxes.
+                          This is a suggested amount to save. It has not been paid to the IRS or state yet.
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">{recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate</p>
                       </div>
@@ -1052,7 +1052,7 @@ export default function Transactions() {
                       onChange={(e) => setIncomeForm((f) => ({ ...f, actual_tax_paid: e.target.value }))}
                     />
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Only enter amounts you have actually paid or had withheld. Leave at $0 if no tax was withheld.
+                      Only enter money that was actually withheld from this income or already paid toward taxes.
                     </p>
                   </div>
                   <div>
