@@ -22,6 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import TaxDebugPanel from "@/components/TaxDebugPanel";
 import { useTaxSavings, useAddTaxSaving, useUpdateTaxSaving, useDeleteTaxSaving } from "@/hooks/useTaxSavings";
 import { useTaxPayments, useAddTaxPayment, useUpdateTaxPayment, useDeleteTaxPayment } from "@/hooks/useTaxPayments";
 
@@ -38,7 +39,7 @@ const QUARTERS = [
 
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const { estimate, isLoading: estLoading, taxMode, setTaxMode } = useTaxEstimate();
+  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualDebug, forecastDebug } = useTaxEstimate();
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
 
