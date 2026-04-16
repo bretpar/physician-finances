@@ -419,6 +419,7 @@ export default function Transactions() {
         taxes_withheld: taxWithheld,
         pre_tax_deductions: preTaxDed,
         retirement_401k: retirement,
+        owner_healthcare: healthcare,
         notes: incomeForm.notes,
         base_tax_estimate: rec?.baseTaxEstimate || 0,
         dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
