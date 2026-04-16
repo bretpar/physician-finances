@@ -146,7 +146,8 @@ export function useTaxEstimate(): {
     const combinedPreTax = baseData.businessPreTax + baseData.personalPreTax;
     const combined401k = baseData.businessRetirement + baseData.personalRetirement + annualizedRetirement.total;
 
-    const combinedWithheld = Math.max(baseData.businessWithheld, baseData.txActualWithholding) + baseData.personalWithheld;
+    // Only employer-withheld taxes count as "taxes paid". actual_withholding (user reserves) routes to additionalTaxPaid.
+    const combinedWithheld = baseData.businessWithheld + baseData.personalWithheld;
 
     return calculateFullEstimate({
       totalIncome, w2Income, seIncome,
@@ -161,7 +162,7 @@ export function useTaxEstimate(): {
       ssWageCap: rates.ssWageCap,
       bnoRate: rates.bnoRate / 100,
       remainingPayPeriods: baseData.remainingPayPeriods,
-      additionalTaxPaid: baseData.additionalTaxPaid,
+      additionalTaxPaid: baseData.additionalTaxPaid + baseData.txActualWithholding,
     });
   }, [rates, baseData, annualizedRetirement]);
 
@@ -180,7 +181,8 @@ export function useTaxEstimate(): {
     const combinedPreTax = baseData.businessPreTax + baseData.personalPreTax + projTotals.preTaxDeductions;
     const combined401k = baseData.businessRetirement + baseData.personalRetirement + projTotals.retirement401k + annualizedRetirement.total;
 
-    const combinedWithheld = Math.max(baseData.businessWithheld, baseData.txActualWithholding) + baseData.personalWithheld + projTotals.taxesWithheld;
+    // Only employer-withheld taxes count as "taxes paid" — user reserves route to additionalTaxPaid
+    const combinedWithheld = baseData.businessWithheld + baseData.personalWithheld + projTotals.taxesWithheld;
 
     return calculateFullEstimate({
       totalIncome, w2Income, seIncome,
@@ -195,7 +197,7 @@ export function useTaxEstimate(): {
       ssWageCap: rates.ssWageCap,
       bnoRate: rates.bnoRate / 100,
       remainingPayPeriods: baseData.remainingPayPeriods,
-      additionalTaxPaid: baseData.additionalTaxPaid,
+      additionalTaxPaid: baseData.additionalTaxPaid + baseData.txActualWithholding,
     });
   }, [rates, baseData, incomeEntries, streams, bonuses, annualizedRetirement]);
 
