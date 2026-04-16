@@ -81,6 +81,7 @@ export interface TaxDebugBreakdown {
 export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxResult {
   const {
     businessIncome, businessW2, businessWithheld, businessPreTax, businessRetirement,
+    ownerHealthcare,
     personalIncome, personalW2, personalWithheld, personalPreTax, personalRetirement,
     netStockGain, businessExpenses, mileageDeduction, annualizedRetirement,
     txActualWithholding, quarterlyPaid, savingsTotal, remainingPayPeriods,
@@ -103,7 +104,9 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const w2Income = businessW2 + personalW2; // For SS wage cap
   const seIncome = businessIncome;
 
-  const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
+  // Owner deductions (healthcare, retirement, pre-tax) reduce TAXABLE INCOME, not business profit
+  // They flow through preTaxDeductions and retirement401k to the tax engine
+  const combinedPreTax = businessPreTax + personalPreTax + projPreTax + ownerHealthcare;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
 
   // Taxes already withheld = employer withholding only

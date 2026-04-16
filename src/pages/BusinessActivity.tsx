@@ -246,6 +246,7 @@ export default function Transactions() {
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
         pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
         retirement_401k: linked ? String(linked.retirement_401k) : "",
+        owner_healthcare: linked ? String((linked as any).owner_healthcare || 0) : "",
         actual_withholding: String((tx as any).actual_withholding || ""),
         additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
         notes: tx.notes || "",
