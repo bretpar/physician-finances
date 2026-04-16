@@ -24,6 +24,8 @@ const FIELDS: FieldDef[] = [
   { key: "actualIncome", label: "Actual income (YTD)" },
   { key: "projectedIncome", label: "Projected future income" },
   { key: "totalGrossIncome", label: "Total gross income" },
+  { key: "businessExpenses", label: "Business expenses (reduce profit)" },
+  { key: "ownerDeductions", label: "Owner deductions (reduce taxable income)" },
   { key: "totalDeductions", label: "Total deductions" },
   { key: "totalTaxableIncome", label: "Taxable income" },
   { key: "estimatedAnnualTax", label: "Estimated annual tax" },
