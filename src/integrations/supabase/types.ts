@@ -76,6 +76,7 @@ export type Database = {
           name: string
           notes: string | null
           organization_id: string | null
+          owner_healthcare: number
           paycheck_amount: number
           pre_tax_deductions: number
           quarterly_adjustment_amount: number
@@ -110,6 +111,7 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string | null
+          owner_healthcare?: number
           paycheck_amount?: number
           pre_tax_deductions?: number
           quarterly_adjustment_amount?: number
@@ -144,6 +146,7 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string | null
+          owner_healthcare?: number
           paycheck_amount?: number
           pre_tax_deductions?: number
           quarterly_adjustment_amount?: number

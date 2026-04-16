@@ -119,12 +119,18 @@ export function useTaxEstimate(): {
     const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries || []);
     const projTotals = getProjectedTotals(projectedPaychecks);
 
+    // Owner healthcare (K-1 deduction)
+    const ownerHealthcare = (incomeEntries || [])
+      .filter((e) => e.income_type === "K1")
+      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
+
     return {
       businessIncome: weighted.se,
       businessW2: weighted.w2,
       businessWithheld: weighted.withheld,
       businessPreTax: weighted.preTax,
       businessRetirement: weighted.retirement,
+      ownerHealthcare,
       personalIncome: totalPersonalIncome,
       personalW2,
       personalWithheld,

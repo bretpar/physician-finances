@@ -46,6 +46,7 @@ interface IncomeFormState {
   taxes_withheld: string;
   pre_tax_deductions: string;
   retirement_401k: string;
+  owner_healthcare: string;
   actual_withholding: string;
   additional_tax_reserve: string;
   notes: string;
@@ -61,6 +62,7 @@ const emptyIncomeForm: IncomeFormState = {
   taxes_withheld: "",
   pre_tax_deductions: "",
   retirement_401k: "",
+  owner_healthcare: "",
   actual_withholding: "",
   additional_tax_reserve: "",
   notes: "",
@@ -209,8 +211,8 @@ export default function Transactions() {
 
   const calculatedNet = useMemo(() => {
     if (grossIncome <= 0) return 0;
-    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k));
-  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k]);
+    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.owner_healthcare));
+  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.owner_healthcare]);
 
   // ─── Open Income Add ───
   function openAddIncome() {
@@ -244,6 +246,7 @@ export default function Transactions() {
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
         pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
         retirement_401k: linked ? String(linked.retirement_401k) : "",
+        owner_healthcare: linked ? String((linked as any).owner_healthcare || 0) : "",
         actual_withholding: String((tx as any).actual_withholding || ""),
         additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
         notes: tx.notes || "",
@@ -280,6 +283,7 @@ export default function Transactions() {
     const taxWithheld = num(incomeForm.taxes_withheld);
     const preTaxDed = num(incomeForm.pre_tax_deductions);
     const retirement = num(incomeForm.retirement_401k);
+    const healthcare = num(incomeForm.owner_healthcare);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
     // Determine the correct amount for the transactions table:
@@ -335,6 +339,7 @@ export default function Transactions() {
               taxes_withheld: effectiveWithheld,
               pre_tax_deductions: preTaxDed,
               retirement_401k: retirement,
+              owner_healthcare: healthcare,
               notes: incomeForm.notes,
               additional_tax_reserve: num(incomeForm.additional_tax_reserve),
               base_tax_estimate: rec?.baseTaxEstimate || 0,
@@ -361,6 +366,7 @@ export default function Transactions() {
                   taxes_withheld: effectiveWithheld,
                   pre_tax_deductions: preTaxDed,
                   retirement_401k: retirement,
+                  owner_healthcare: healthcare,
                   notes: incomeForm.notes,
                   status: "received",
                   linked_transaction_id: editingIncomeTxId,
@@ -413,6 +419,7 @@ export default function Transactions() {
         taxes_withheld: taxWithheld,
         pre_tax_deductions: preTaxDed,
         retirement_401k: retirement,
+        owner_healthcare: healthcare,
         notes: incomeForm.notes,
         base_tax_estimate: rec?.baseTaxEstimate || 0,
         dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
@@ -534,8 +541,12 @@ export default function Transactions() {
     const expenses = filtered
       .filter((t) => t.transaction_type === "expense" && !t.is_deleted)
       .reduce((s, t) => s + Math.abs(t.amount), 0);
-    return { revenue, expenses, profit: revenue - expenses };
-  }, [filtered]);
+    // Owner deductions from K-1 income entries (reduce taxable income, not profit)
+    const ownerDeds = (incomeEntries || [])
+      .filter((e) => e.income_type === "K1")
+      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
+    return { revenue, expenses, profit: revenue - expenses, ownerDeductions: ownerDeds };
+  }, [filtered, incomeEntries]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
@@ -576,6 +587,19 @@ export default function Transactions() {
           </p>
         </div>
       </div>
+
+      {/* Owner deductions summary (K-1 only) */}
+      {summaryStats.ownerDeductions > 0 && (
+        <div className="rounded-lg border border-border bg-accent/30 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-foreground">Owner Deductions / K-1 Adjustments</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Healthcare, retirement, & pre-tax deductions — reduce taxable income, not business profit</p>
+            </div>
+            <p className="text-lg font-bold text-foreground">{fmt(summaryStats.ownerDeductions)}</p>
+          </div>
+        </div>
+      )}
 
       {/* Search + filter tabs */}
       <div className="flex flex-col gap-3">
@@ -978,7 +1002,31 @@ export default function Transactions() {
                     </div>
                   </div>
 
-                  {/* Actual withholding input */}
+                  {/* K-1 Owner Deductions Section */}
+                  {(incomeForm.income_type === "K1") && (
+                    <div className="rounded-lg border border-border p-3 bg-accent/30 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground mb-0.5">Owner Deductions / K-1 Adjustments</p>
+                        <p className="text-[10px] text-muted-foreground">These reduce your taxable income but do not reduce business profit.</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Healthcare Premiums</Label>
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={incomeForm.owner_healthcare}
+                          onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))}
+                          placeholder="0.00"
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">Self-employed health insurance deduction</p>
+                      </div>
+                      <div className="rounded px-2 py-1.5 bg-muted/40 text-[10px] text-muted-foreground space-y-0.5">
+                        <p>• <strong>Business expenses</strong> reduce business profit.</p>
+                        <p>• <strong>Owner deductions</strong> (healthcare, retirement, pre-tax) reduce taxable income.</p>
+                        <p>• <strong>Taxes withheld or set aside</strong> are payments/savings, not deductions.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Amount to set aside for quarterly taxes</Label>
