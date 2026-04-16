@@ -105,7 +105,7 @@ export default function ProjectedIncome() {
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
   const { data: overrides } = useStreamOverrides();
   const { data: incomeEntries } = useIncomeEntries();
-  const { estimate } = useTaxEstimate();
+  const { forecastEstimate, forecastDebug } = useTaxEstimate();
 
   const addStream = useAddStream();
   const updateStream = useUpdateStream();
