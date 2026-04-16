@@ -172,7 +172,7 @@ export default function Taxes() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Projected Annual Income</p>
+            <p className="text-xs text-muted-foreground">Estimated Annual Income</p>
             <p className="text-xl font-bold tabular-nums">{fmt(e?.totalIncome ?? 0)}</p>
           </CardContent>
         </Card>
@@ -190,19 +190,19 @@ export default function Taxes() {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Taxes Withheld / Paid</p>
+            <p className="text-xs text-muted-foreground">Taxes Already Withheld or Paid</p>
             <p className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmt(totalCovered)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Estimated Tax Remaining</p>
+            <p className="text-xs text-muted-foreground">Remaining Estimated Tax to Cover</p>
             <p className={cn("text-xl font-bold tabular-nums", remainingTax > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(remainingTax)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Recommended Monthly Set-Aside</p>
+            <p className="text-xs text-muted-foreground">Recommended Tax Set-Aside / Month</p>
             <p className="text-xl font-bold tabular-nums text-primary">{fmt(monthlyGuidance)}</p>
           </CardContent>
         </Card>
