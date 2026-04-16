@@ -467,7 +467,7 @@ export default function PersonalIncome() {
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Taxes Withheld</Label>
                     <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground mt-1">Actual amount your employer withheld</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Only enter money that was actually withheld from this income or already paid toward taxes.</p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1.5 block">State Taxes Withheld</Label>
