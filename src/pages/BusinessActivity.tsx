@@ -25,7 +25,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Info } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 
@@ -34,17 +34,6 @@ const fmt = (n: number) =>
 
 const num = (v: string) => parseFloat(v) || 0;
 
-/* ── Income type options ── */
-const BUSINESS_INCOME_TYPES = [
-  { value: "W2", label: "W2 / Paycheck" },
-  { value: "1099", label: "1099 / Contractor" },
-  { value: "K1", label: "K-1 / Partnership" },
-  { value: "business", label: "Business Income" },
-  { value: "other", label: "Other Income" },
-];
-
-const isW2Type = (t: string) => t === "W2";
-
 /* ───── Income Form State ───── */
 interface IncomeFormState {
   date: string;
@@ -52,13 +41,13 @@ interface IncomeFormState {
   company: string;
   income_type: string;
   gross_amount: string;
-  // W2 fields
+  // Advanced
   net_received: string;
-  taxes_withheld: string; // actual taxes withheld (W2 employer withholding)
+  taxes_withheld: string;
   pre_tax_deductions: string;
   retirement_401k: string;
-  // Non-W2 actual withholding
-  actual_tax_paid: string; // actual estimated tax payments made for this income
+  actual_withholding: string;
+  additional_tax_reserve: string;
   notes: string;
 }
 
@@ -72,7 +61,8 @@ const emptyIncomeForm: IncomeFormState = {
   taxes_withheld: "",
   pre_tax_deductions: "",
   retirement_401k: "",
-  actual_tax_paid: "",
+  actual_withholding: "",
+  additional_tax_reserve: "",
   notes: "",
 };
 
@@ -165,11 +155,6 @@ export default function Transactions() {
     )].sort();
   }, [companies]);
 
-  // For W2 income type, show all companies
-  const allCompanyNamesIncludingW2 = useMemo(() => {
-    return [...new Set(companies.map((c) => c.name))].sort();
-  }, [companies]);
-
   const getCompanyType = (name: string) =>
     companies.find((c) => c.name === name)?.companyType || "1099";
 
@@ -209,25 +194,18 @@ export default function Transactions() {
   // --- Smart withholding recommendation engine ---
   const { getRecommendation } = useWithholdingRecommendation();
   const grossIncome = num(incomeForm.gross_amount);
-  const isW2 = isW2Type(incomeForm.income_type);
-
-  // For W2: actual withholding is taxes_withheld. For non-W2: actual is actual_tax_paid.
-  const actualWithheldForEntry = isW2
-    ? num(incomeForm.taxes_withheld)
-    : num(incomeForm.actual_tax_paid);
-
   const recommendation = useMemo(() => {
     if (grossIncome <= 0) return null;
     return getRecommendation({
       grossIncome,
-      incomeType: incomeForm.income_type === "business" || incomeForm.income_type === "other" ? "1099" : incomeForm.income_type,
-      taxesAlreadyWithheld: actualWithheldForEntry,
+      incomeType: incomeForm.income_type,
+      taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
       retirement401k: num(incomeForm.retirement_401k),
       preTaxDeductions: num(incomeForm.pre_tax_deductions),
       alreadyIncludedInEstimate: isEditingIncome,
     });
-  }, [grossIncome, incomeForm.income_type, actualWithheldForEntry, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, getRecommendation, isEditingIncome]);
-  const recommendedSetAside = recommendation?.recommendedWithholding ?? 0;
+  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, getRecommendation, isEditingIncome]);
+  const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   const calculatedNet = useMemo(() => {
     if (grossIncome <= 0) return 0;
@@ -256,29 +234,25 @@ export default function Transactions() {
     const linked = txType === "income" ? incomeByLinkedTx.get(tx.id) : null;
 
     if (txType === "income") {
-      const incType = linked?.income_type || tx.company_type || "1099";
-      const isW2Entry = isW2Type(incType);
-
       setIncomeForm({
         date: tx.transaction_date,
         name: tx.vendor,
         company: linked?.company || tx.entity || "",
-        income_type: incType,
+        income_type: linked?.income_type || tx.company_type || "1099",
         gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
         net_received: linked && linked.deposited_amount ? String(linked.deposited_amount) : "",
-        // For W2, taxes_withheld is the actual withholding
-        taxes_withheld: isW2Entry && linked ? String(linked.taxes_withheld) : "",
+        taxes_withheld: linked ? String(linked.taxes_withheld) : "",
         pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
         retirement_401k: linked ? String(linked.retirement_401k) : "",
-        // For non-W2, actual_tax_paid is actual taxes paid (stored in taxes_withheld on the entry)
-        actual_tax_paid: !isW2Entry && linked ? String(linked.taxes_withheld) : "",
+        actual_withholding: String((tx as any).actual_withholding || ""),
+        additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
         notes: tx.notes || "",
       });
       setEditingIncomeTxId(tx.id);
       setEditingIncomeEntryId(linked?.id || null);
       // Open advanced if any advanced fields have values
       const hasAdvanced = linked && (linked.taxes_withheld > 0 || linked.pre_tax_deductions > 0 || linked.retirement_401k > 0 || linked.deposited_amount > 0);
-      setAdvancedOpen(!!hasAdvanced || isW2Entry);
+      setAdvancedOpen(!!hasAdvanced);
       setShowIncomeForm(true);
     } else {
       setExpenseForm({
@@ -303,16 +277,10 @@ export default function Transactions() {
 
     const paycheckAmt = grossIncome;
     const depositedAmt = num(incomeForm.net_received);
+    const taxWithheld = num(incomeForm.taxes_withheld);
     const preTaxDed = num(incomeForm.pre_tax_deductions);
     const retirement = num(incomeForm.retirement_401k);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
-
-    // CRITICAL: Only store ACTUAL withholding in taxes_withheld
-    // W2: user enters actual employer withholding in taxes_withheld field
-    // Non-W2: user enters actual tax payments in actual_tax_paid field (defaults to $0)
-    const actualTaxWithheld = isW2
-      ? num(incomeForm.taxes_withheld)
-      : num(incomeForm.actual_tax_paid);
 
     // Determine the correct amount for the transactions table:
     // If user entered Net Received, use that; otherwise use Gross Income.
@@ -326,7 +294,6 @@ export default function Transactions() {
         newAmount: txAmount,
         grossIncome: paycheckAmt,
         netReceived: depositedAmt,
-        actualTaxWithheld,
         source_type: oldTx?.source_type,
       });
 
@@ -339,16 +306,18 @@ export default function Transactions() {
         entity: incomeForm.company || "Unassigned",
         company_type: companyType,
         notes: incomeForm.notes,
-        actual_withholding: actualTaxWithheld,
-        withholding_saved: actualTaxWithheld > 0,
-        recommended_withholding: recommendedSetAside,
+        actual_withholding: num(incomeForm.actual_withholding),
+        withholding_saved: num(incomeForm.actual_withholding) > 0,
+        recommended_withholding: recommendedWithholding,
       } as any, {
         onSuccess: (data) => {
           console.log("[saveIncome] Update succeeded", data);
+          // Now update the linked income entry if present
+          const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding));
           const rec = getIncomeRec({
             grossIncome: paycheckAmt,
             incomeType: companyType,
-            federalWithheld: actualTaxWithheld,
+            federalWithheld: effectiveWithheld,
             stateWithheld: 0,
             retirement401k: retirement,
             preTaxDeductions: preTaxDed,
@@ -362,14 +331,14 @@ export default function Transactions() {
               income_date: incomeForm.date,
               paycheck_amount: paycheckAmt,
               deposited_amount: depositedAmt,
-              taxes_withheld: actualTaxWithheld, // ONLY actual withholding
+              taxes_withheld: effectiveWithheld,
               pre_tax_deductions: preTaxDed,
               retirement_401k: retirement,
               notes: incomeForm.notes,
+              additional_tax_reserve: num(incomeForm.additional_tax_reserve),
               base_tax_estimate: rec?.baseTaxEstimate || 0,
               dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
               quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
-              additional_tax_reserve: recommendedSetAside, // advisory only
               recommendation_status: rec?.recommendationStatus || "on_track",
             } as any);
           } else {
@@ -388,16 +357,16 @@ export default function Transactions() {
                   income_date: incomeForm.date,
                   paycheck_amount: paycheckAmt,
                   deposited_amount: depositedAmt,
-                  taxes_withheld: actualTaxWithheld, // ONLY actual withholding
+                  taxes_withheld: effectiveWithheld,
                   pre_tax_deductions: preTaxDed,
                   retirement_401k: retirement,
                   notes: incomeForm.notes,
                   status: "received",
                   linked_transaction_id: editingIncomeTxId,
+                  additional_tax_reserve: num(incomeForm.additional_tax_reserve),
                   base_tax_estimate: rec?.baseTaxEstimate || 0,
                   dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
                   quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
-                  additional_tax_reserve: recommendedSetAside,
                   recommendation_status: rec?.recommendationStatus || "on_track",
                 } as any);
                 if (error) {
@@ -427,7 +396,7 @@ export default function Transactions() {
       const rec = getIncomeRec({
         grossIncome: paycheckAmt,
         incomeType: companyType,
-        federalWithheld: actualTaxWithheld,
+        federalWithheld: taxWithheld,
         stateWithheld: 0,
         retirement401k: retirement,
         preTaxDeductions: preTaxDed,
@@ -440,14 +409,14 @@ export default function Transactions() {
         income_date: incomeForm.date,
         paycheck_amount: paycheckAmt,
         deposited_amount: depositedAmt,
-        taxes_withheld: actualTaxWithheld, // ONLY actual withholding
+        taxes_withheld: taxWithheld,
         pre_tax_deductions: preTaxDed,
         retirement_401k: retirement,
         notes: incomeForm.notes,
         base_tax_estimate: rec?.baseTaxEstimate || 0,
         dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
         quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
-        additional_tax_reserve: recommendedSetAside,
+        additional_tax_reserve: num(incomeForm.additional_tax_reserve),
         recommendation_status: rec?.recommendationStatus || "on_track",
       } as any;
 
@@ -570,9 +539,6 @@ export default function Transactions() {
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
   }
-
-  // Company list depends on income type
-  const companyOptions = isW2 ? allCompanyNamesIncludingW2 : allCompanyNames;
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
@@ -712,7 +678,7 @@ export default function Transactions() {
               </SelectTrigger>
               <SelectContent>
                 {companies.map((c) => (
-                  <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -808,33 +774,29 @@ export default function Transactions() {
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
 
-            // Show actual withheld vs recommended set-aside for income rows
+            // Show recommended set-aside for income rows
             const linkedIncome = isIncomeTx ? incomeByLinkedTx.get(tx.id) : null;
-            const actualWithheld = linkedIncome ? Number(linkedIncome.taxes_withheld) : Number(tx.actual_withholding || 0);
-            const recSetAside = Number(tx.recommended_withholding || 0);
-            const incType = linkedIncome?.income_type || tx.company_type || "";
-            const isW2Row = isW2Type(incType);
 
             return (
               <div
                 key={tx.id}
-                className={`flex flex-col sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${isSelected ? "bg-primary/5" : ""}`}
+                className={`flex flex-col sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
+                  tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
+                } ${isSelected ? "bg-primary/5" : ""}`}
               >
                 <Checkbox
                   checked={isSelected}
-                  onCheckedChange={() => {
-                    setSelectedIds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(tx.id)) next.delete(tx.id); else next.add(tx.id);
-                      return next;
-                    });
+                  onCheckedChange={(checked) => {
+                    const next = new Set(selectedIds);
+                    if (checked) next.add(tx.id); else next.delete(tx.id);
+                    setSelectedIds(next);
                   }}
                 />
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
-                <div className="min-w-0">
-                  <span className="text-sm font-medium text-foreground truncate block">
+                <div className="truncate">
+                  <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
                     {tx.vendor}
                     {tx.needs_review && (
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Review</Badge>
@@ -843,19 +805,8 @@ export default function Transactions() {
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted text-muted-foreground">Excluded</Badge>
                     )}
                   </span>
-                  {isIncomeTx && (
-                    <div className="flex flex-col gap-0.5">
-                      {actualWithheld > 0 && (
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                          {isW2Row ? "Withheld" : "Tax paid"}: {fmt(actualWithheld)}
-                        </span>
-                      )}
-                      {recSetAside > 0 && !isW2Row && (
-                        <span className="text-[10px] text-muted-foreground">
-                          Recommended tax savings: {fmt(recSetAside)}
-                        </span>
-                      )}
-                    </div>
+                  {isIncomeTx && tx.recommended_withholding > 0 && (
+                    <span className="text-[10px] text-muted-foreground">Set aside: {fmt(tx.recommended_withholding)}</span>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground truncate">
@@ -924,19 +875,6 @@ export default function Transactions() {
             <DialogTitle>{isEditingIncome ? "Edit Income" : "Add Income"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Income Type Selector */}
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
-              <Select value={incomeForm.income_type} onValueChange={(v) => setIncomeForm((f) => ({ ...f, income_type: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {BUSINESS_INCOME_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -955,17 +893,17 @@ export default function Transactions() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-                <Select value={incomeForm.company} onValueChange={(v) => setIncomeForm((f) => ({ ...f, company: v }))}>
+                <Select value={incomeForm.company} onValueChange={(v) => setIncomeForm((f) => ({ ...f, company: v, income_type: getCompanyType(v) }))}>
                   <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
                   <SelectContent>
-                    {companyOptions.map((c) => (
+                    {allCompanyNames.map((c) => (
                       <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Income *</Label>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Amount *</Label>
                 <Input
                   type="number"
                   min="0"
@@ -978,16 +916,35 @@ export default function Transactions() {
               </div>
             </div>
 
-            {/* ── W2 FIELDS ── */}
-            {isW2 && grossIncome > 0 && (
-              <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground">Paycheck Details</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Already Withheld</Label>
-                    <Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" />
-                    <p className="text-[10px] text-muted-foreground mt-1">Only enter money that was actually withheld from this income or already paid toward taxes.</p>
-                  </div>
+            {/* Recommended to Set Aside */}
+            {grossIncome > 0 && recommendation && !recommendation.isOverWithheld && recommendedWithholding > 0 && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
+                  <p className="text-[11px] text-muted-foreground">{recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate</p>
+                </div>
+                <span className="text-lg font-bold text-primary">{fmt(recommendedWithholding)}</span>
+              </div>
+            )}
+            {grossIncome > 0 && recommendation && recommendation.isOverWithheld && (
+              <div className="rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20 p-3">
+                <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                  Employer over-withheld by <strong>{fmt(Math.abs(recommendedWithholding))}</strong> — consider adjusting your W-4.
+                </p>
+              </div>
+            )}
+
+            {/* Advanced details (collapsible) */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+                  {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  Advanced details
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
+                  {/* Net Received */}
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
                     <Input
@@ -998,93 +955,74 @@ export default function Transactions() {
                       value={incomeForm.net_received}
                       onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))}
                     />
-                    <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
-                    <Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement (401k)</Label>
-                    <Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" />
-                  </div>
-                </div>
-                {grossIncome > 0 && (
-                  <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                    Estimated Net: <strong>{fmt(calculatedNet)}</strong>
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* ── NON-W2 FIELDS (1099 / K1 / Business / Other) ── */}
-            {!isW2 && grossIncome > 0 && (
-              <div className="space-y-3">
-                {/* Recommended tax set-aside (advisory) */}
-                {recommendation && !recommendation.isOverWithheld && recommendedSetAside > 0 && (
-                  <div className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20 p-3">
-                    <div className="flex items-start gap-2">
-                      <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Recommended Tax Savings</p>
-                        <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{fmt(recommendedSetAside)}</p>
-                        <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1">
-                          This is a suggested amount to save. It has not been paid to the IRS or state yet.
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Actual tax paid (defaults to $0 for non-W2) */}
-                <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Actual Taxes Withheld / Paid</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={incomeForm.actual_tax_paid}
-                      onChange={(e) => setIncomeForm((f) => ({ ...f, actual_tax_paid: e.target.value }))}
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      Only enter money that was actually withheld from this income or already paid toward taxes.
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder={fmt(grossIncome)}
-                      value={incomeForm.net_received}
-                      onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))}
-                    />
                     <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
                   </div>
+                  {grossIncome > 0 && (
+                    <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                      Estimated Net: <strong>{fmt(calculatedNet)}</strong> based on your inputs
+                    </p>
+                  )}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label>
+                      <Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Ded.</Label>
+                      <Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement</Label>
+                      <Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" />
+                    </div>
+                  </div>
+
+                  {/* Actual withholding input */}
+                  {grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Actual amount withheld / set aside</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={fmt(recommendedWithholding)}
+                        value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding}
+                        onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  {/* Additional tax reserve (editing only) */}
+                  {isEditingIncome && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve}
+                        onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))}
+                      />
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                    <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
+                  </div>
                 </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Notes outside advanced when collapsed */}
+            {!advancedOpen && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
             )}
-
-            {/* W2 recommendation */}
-            {isW2 && grossIncome > 0 && recommendation && recommendation.isOverWithheld && (
-              <div className="rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20 p-3">
-                <p className="text-sm text-emerald-700 dark:text-emerald-400">
-                  Employer over-withheld by <strong>{fmt(Math.abs(recommendedSetAside))}</strong> — consider adjusting your W-4.
-                </p>
-              </div>
-            )}
-
-            {/* Notes */}
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-              <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
-            </div>
 
             <p className="text-[10px] text-muted-foreground italic">
               Withholding method controlled in Settings
@@ -1202,7 +1140,7 @@ export default function Transactions() {
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowExpenseForm(false)}>Cancel</Button>
                 <Button onClick={saveExpense} disabled={!expenseForm.name.trim() || !expenseForm.date || num(expenseForm.amount) === 0}>
-                  {isEditingExpense ? "Save" : "Add Expense"}
+                  {isEditingExpense ? "Save" : expenseForm.is_transfer ? "Add Transfer" : "Add Expense"}
                 </Button>
               </div>
             </div>
@@ -1210,35 +1148,8 @@ export default function Transactions() {
         </DialogContent>
       </Dialog>
 
-      {/* ═══════ RECOMMENDATION MODAL ═══════ */}
-      <RecommendationModal
-        open={showRecommendation}
-        onClose={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
-        onApplyRecommendation={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
-        recommendation={currentRecommendation}
-        entryTitle={savedEntryTitle}
-      />
-
-      {/* ═══════ BULK CATEGORY DIALOG ═══════ */}
-      <Dialog open={showBulkCategory} onOpenChange={setShowBulkCategory}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Categorize {selectedIds.size} Transactions</DialogTitle></DialogHeader>
-          <ExpenseCategoryCombobox value={bulkCategory} onValueChange={setBulkCategory} />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBulkCategory(false)}>Cancel</Button>
-            <Button onClick={() => {
-              if (!bulkCategory) return;
-              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { category: bulkCategory, needs_review: false } as any });
-              setBulkCategory("");
-              setShowBulkCategory(false);
-              setSelectedIds(new Set());
-            }} disabled={!bulkCategory}>Apply</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ═══════ DELETE DIALOGS ═══════ */}
-      <AlertDialog open={!!deleteTxId} onOpenChange={(open) => { if (!open) setDeleteTxId(null); }}>
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTxId} onOpenChange={(open) => !open && setDeleteTxId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
@@ -1251,22 +1162,84 @@ export default function Transactions() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Bulk delete confirmation */}
       <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedIds.size} Transactions</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove the selected transactions.</AlertDialogDescription>
+            <AlertDialogTitle>Delete {selectedIds.size} Transaction{selectedIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected transactions. Any linked income entries will be unlinked but not deleted. This action cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              bulkDeleteMutation.mutate([...selectedIds]);
-              setSelectedIds(new Set());
-              setShowBulkDeleteConfirm(false);
-            }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete All</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                bulkDeleteMutation.mutate([...selectedIds], {
+                  onSuccess: () => {
+                    setSelectedIds(new Set());
+                    setShowBulkDeleteConfirm(false);
+                  },
+                });
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Confirm Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Smart Recommendation Modal (Modal 2) */}
+      <RecommendationModal
+        open={showRecommendation}
+        onClose={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
+        onApplyRecommendation={() => {
+          if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0 && incomeEntries?.length) {
+            const latestEntry = incomeEntries[0];
+            if (latestEntry) {
+              updateIncomeMutation.mutate({
+                id: latestEntry.id,
+                additional_tax_reserve: currentRecommendation.recommendedAdditionalReserve,
+              } as any);
+            }
+          }
+          setShowRecommendation(false);
+          setCurrentRecommendation(null);
+        }}
+        recommendation={currentRecommendation}
+        entryTitle={savedEntryTitle}
+      />
+
+      {/* Bulk Category Assignment Dialog */}
+      <Dialog open={showBulkCategory} onOpenChange={setShowBulkCategory}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Assign Category to {selectedIds.size} transactions</DialogTitle>
+          </DialogHeader>
+          <ExpenseCategoryCombobox
+            value={bulkCategory}
+            onValueChange={setBulkCategory}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkCategory(false)}>Cancel</Button>
+            <Button
+              disabled={!bulkCategory}
+              onClick={() => {
+                bulkUpdateMutation.mutate({
+                  ids: [...selectedIds],
+                  updates: { category: bulkCategory, needs_review: false } as any,
+                });
+                setSelectedIds(new Set());
+                setBulkCategory("");
+                setShowBulkCategory(false);
+              }}
+            >
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
