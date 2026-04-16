@@ -46,6 +46,7 @@ interface IncomeFormState {
   taxes_withheld: string;
   pre_tax_deductions: string;
   retirement_401k: string;
+  owner_healthcare: string;
   actual_withholding: string;
   additional_tax_reserve: string;
   notes: string;
@@ -61,6 +62,7 @@ const emptyIncomeForm: IncomeFormState = {
   taxes_withheld: "",
   pre_tax_deductions: "",
   retirement_401k: "",
+  owner_healthcare: "",
   actual_withholding: "",
   additional_tax_reserve: "",
   notes: "",

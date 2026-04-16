@@ -20,13 +20,14 @@ export interface UnifiedTaxInput {
   businessWithheld: number;     // Employer withholding on business income
   businessPreTax: number;       // Pre-tax deductions on business income
   businessRetirement: number;   // Retirement contributions on business income
+  ownerHealthcare: number;      // K-1 owner healthcare premiums (reduces taxable income, not profit)
   personalIncome: number;       // Total personal income (W2+ordinary+capgains+rental-losses)
   personalW2: number;           // W2 portion of personal income
   personalWithheld: number;     // Employer withholding on personal income
   personalPreTax: number;
   personalRetirement: number;
   netStockGain: number;
-  businessExpenses: number;
+  businessExpenses: number;     // Ordinary operating expenses (reduce business profit)
   mileageDeduction: number;
   annualizedRetirement: number; // From retirement_contributions table
   txActualWithholding: number;  // User reserves (NOT taxes paid)
