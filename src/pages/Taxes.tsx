@@ -333,6 +333,8 @@ export default function Taxes() {
         <TaxDebugPanel
           debug={(taxMode === "actual" ? actualDebug : forecastDebug)!}
           label={`Taxes Tab — ${taxMode === "forecast" ? "Forecast" : "Actual"} Calculation Debug`}
+          compareDebug={taxMode === "forecast" ? forecastDebug : undefined}
+          compareLabel="Income Planner"
         />
       )}
       {savings.length > 0 && (
