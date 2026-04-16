@@ -1,45 +1,54 @@
 
 
-# Fix: Imported Transaction Edits Not Persisting (Fields Blank on Re-edit)
+# Fix: Separate "Taxes Withheld" from "Tax Reserve for Quarterly Payments"
 
-## Root Cause
+## Problem
 
-When editing an imported Plaid income transaction, the `openEdit` function looks up the transaction's linked `income_entry` via `incomeByLinkedTx.get(tx.id)`. For imported transactions that were **never manually created through the Add Income flow**, no `income_entry` exists — so `linked` is `null`.
+Two conceptually different tax amounts are being conflated:
 
-This means:
-- `gross_amount` falls back to `tx.amount` (works)
-- `taxes_withheld`, `pre_tax_deductions`, `retirement_401k`, `net_received` all fall back to `""` (blank)
+1. **Taxes Withheld** (Advanced section) — taxes already deducted from paycheck by the employer. These are **already paid** to the IRS.
+2. **Actual amount withheld / set aside** — the amount the user plans to **set aside** for quarterly estimated tax payments. This is **not yet paid**.
 
-When the user saves, the `saveIncome` function updates only the `transactions` table (amount, vendor, etc.). Since `editingIncomeEntryId` is null, **no income_entry is created**. The detailed fields (gross, taxes withheld, deductions, retirement) are lost.
+Currently, the system treats both as "taxes already covered" via `Math.max(businessWithheld, txActualWithholding)` in `useTaxEstimate.ts` (line 149). This means:
+- The tax reserve amount incorrectly reduces the estimated remaining tax liability
+- For 1099 income (no employer withholding), the set-aside amount is being counted as if taxes were already paid when they haven't been
 
-On re-edit, the same lookup happens — still no income_entry — fields are blank again.
+## Changes
 
-## Fix
+### 1. UI Label Clarification (`BusinessActivity.tsx`)
+- Rename "Actual amount withheld / set aside" → **"Amount to set aside for quarterly taxes"**
+- Add helper text: "This is your recommended reserve — it will be tracked separately until you make a quarterly payment"
+- The "Recommended to set aside" box above already shows the right number; the input below it is where the user confirms how much they're actually reserving
 
-**In `saveIncome()` inside `BusinessActivity.tsx`**: When editing an income transaction that has **no linked income_entry** (`editingIncomeEntryId` is null), **create** a new `income_entry` linked to the transaction instead of silently skipping. This ensures all detailed fields persist.
+### 2. Stop Counting `actual_withholding` as Taxes Paid (`useTaxEstimate.ts`)
+- **Line 149**: Change `combinedWithheld = Math.max(baseData.businessWithheld, baseData.txActualWithholding) + ...` to just use `baseData.businessWithheld + baseData.personalWithheld`
+- Remove `txActualWithholding` from the `taxesWithheld` input to `calculateFullEstimate`
+- Instead, track `actual_withholding` totals as a separate "tax reserves" number (alongside `taxSavings`) — it flows into `additionalTaxPaid` or a new `taxReserves` bucket
 
-### Changes
+### 3. Route `actual_withholding` into Tax Savings/Reserves (`useTaxEstimate.ts`)
+- Add `txActualWithholding` to `additionalTaxPaid` (line 126): `const additionalTaxPaid = quarterlyPaid + savingsTotal + txActualWithholding`
+- This way, the set-aside amount is tracked as "money earmarked but not yet submitted to IRS" — same bucket as tax savings
+- **Or**, if the user wants it completely separate until a quarterly payment is made, remove it from all "already covered" calculations and only show it as an informational reserve
 
-**`src/pages/BusinessActivity.tsx` — `saveIncome()` function (~lines 309-344)**
+### 4. Fix `effectiveWithheld` Merge in `saveIncome` (`BusinessActivity.tsx`)
+- **Line 316**: Stop merging the two: `const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding))`
+- Change to: save `taxes_withheld` and `actual_withholding` as separate fields
+- `income_entries.taxes_withheld` = only the employer/paycheck withholding amount
+- `transactions.actual_withholding` = only the quarterly tax reserve amount
 
-In the `onSuccess` callback of the `updateMutation.mutate` call for editing income:
+### 5. Same fix in forecast estimate (`useTaxEstimate.ts` line 183)
+- Remove `txActualWithholding` from `combinedWithheld` in the forecast estimate path as well
 
-- Current code: only calls `updateIncomeMutation.mutate(...)` if `editingIncomeEntryId` exists; otherwise does nothing with the detailed fields
-- New code: if `editingIncomeEntryId` is null, call `addIncomeMutation.mutate(...)` to create a new income_entry with `linked_transaction_id` set to the transaction ID, using all the form fields (gross, taxes withheld, deductions, retirement, etc.)
+## Summary of Semantic Separation
 
-This requires a slight modification to `useAddIncome` (or a new hook) since the current `useAddIncome` also creates a new transaction row. We need to either:
-1. **Add a `skipTransaction` flag** to `useAddIncome` so it can create just the income_entry when a transaction already exists, OR
-2. **Use a direct Supabase insert** in the `saveIncome` function for this case
+| Field | Meaning | Counts as "taxes paid"? |
+|-------|---------|------------------------|
+| `taxes_withheld` (income_entries) | Employer already sent to IRS | Yes |
+| `actual_withholding` (transactions) | User setting aside for quarterly payment | No — tracked as reserve |
+| Quarterly tax payments | User actually paid to IRS | Yes |
+| Tax savings | Money in savings for taxes | Yes (earmarked) |
 
-Option 2 is simpler — insert directly into `income_entries` in the `onSuccess` callback when no entry exists, then invalidate queries.
-
-### Summary of code changes
-
-1. **`src/pages/BusinessActivity.tsx`** — In `saveIncome()`, inside the `isEditingIncome` branch's `onSuccess`:
-   - If `editingIncomeEntryId` exists → update income_entry (current behavior, keep as-is)
-   - If `editingIncomeEntryId` is null → insert a new income_entry row with `linked_transaction_id = editingIncomeTxId`, populating all fields from the form. Then set `editingIncomeEntryId` equivalent so future edits update instead of re-creating.
-
-2. **`src/pages/BusinessActivity.tsx`** — In `openEdit()` for income transactions without a linked income_entry: also read from `tx` fields for `actual_withholding` and `notes` (already done, no change needed).
-
-No database migration needed — all tables and columns already exist.
+## Files Modified
+- `src/pages/BusinessActivity.tsx` — label rename, fix `effectiveWithheld` merge
+- `src/hooks/useTaxEstimate.ts` — separate `txActualWithholding` from `combinedWithheld`, route to reserves
 
