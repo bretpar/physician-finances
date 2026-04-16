@@ -541,8 +541,12 @@ export default function Transactions() {
     const expenses = filtered
       .filter((t) => t.transaction_type === "expense" && !t.is_deleted)
       .reduce((s, t) => s + Math.abs(t.amount), 0);
-    return { revenue, expenses, profit: revenue - expenses };
-  }, [filtered]);
+    // Owner deductions from K-1 income entries (reduce taxable income, not profit)
+    const ownerDeds = (incomeEntries || [])
+      .filter((e) => e.income_type === "K1")
+      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
+    return { revenue, expenses, profit: revenue - expenses, ownerDeductions: ownerDeds };
+  }, [filtered, incomeEntries]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
@@ -583,6 +587,19 @@ export default function Transactions() {
           </p>
         </div>
       </div>
+
+      {/* Owner deductions summary (K-1 only) */}
+      {summaryStats.ownerDeductions > 0 && (
+        <div className="rounded-lg border border-border bg-accent/30 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-foreground">Owner Deductions / K-1 Adjustments</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Healthcare, retirement, & pre-tax deductions — reduce taxable income, not business profit</p>
+            </div>
+            <p className="text-lg font-bold text-foreground">{fmt(summaryStats.ownerDeductions)}</p>
+          </div>
+        </div>
+      )}
 
       {/* Search + filter tabs */}
       <div className="flex flex-col gap-3">
