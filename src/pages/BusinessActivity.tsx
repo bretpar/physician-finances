@@ -1011,7 +1011,7 @@ export default function Transactions() {
 
       {/* ═══════ ADD INCOME MODAL ═══════ */}
       <Dialog open={showIncomeForm} onOpenChange={(open) => { if (!open) { setShowIncomeForm(false); setEditingIncomeTxId(null); } }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto max-w-lg" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditingIncome ? "Edit Income" : "Add Income"}</DialogTitle>
           </DialogHeader>
@@ -1223,7 +1223,7 @@ export default function Transactions() {
 
       {/* ═══════ ADD EXPENSE MODAL ═══════ */}
       <Dialog open={showExpenseForm} onOpenChange={(open) => { if (!open) { setShowExpenseForm(false); setEditingExpenseTxId(null); } }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditingExpense ? "Edit Expense" : "Add Expense"}</DialogTitle>
           </DialogHeader>
