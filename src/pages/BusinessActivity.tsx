@@ -551,7 +551,7 @@ export default function Transactions() {
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
     const ownerDeds = (incomeEntries || [])
-      .filter((e) => e.income_type === "K1")
+      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
     return { revenue, expenses, profit: revenue - expenses, ownerDeductions: ownerDeds };
   }, [filtered, incomeEntries]);

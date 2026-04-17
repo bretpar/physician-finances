@@ -15,6 +15,7 @@ import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
+import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 
 export interface WithholdingInput {
   grossIncome: number;
@@ -74,7 +75,8 @@ export function useWithholdingRecommendation() {
 
       if (!settings || grossIncome <= 0) return null;
 
-      const isW2 = incomeType === "W2";
+      const isW2 = isW2FilingType(incomeType);
+      const isSelfEmployed = isSelfEmployedFilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
 
       // Net taxable income for this entry
@@ -85,8 +87,8 @@ export function useWithholdingRecommendation() {
         const flatRate = settings.manualEffectiveTaxRate ?? 20;
         let taxOnEntry = netTaxableForEntry * (flatRate / 100);
 
-        // Add SE tax for non-W2
-        if (!isW2) {
+        // Add SE tax only for true self-employed (1099/K-1, NOT S-Corp distributions)
+        if (isSelfEmployed) {
           taxOnEntry += netTaxableForEntry * SE_INCOME_FACTOR * SE_TAX_RATE;
         }
 

@@ -140,7 +140,8 @@ export function useIncomeRecommendation() {
 
       if (!settings || grossIncome <= 0) return null;
 
-      const isW2 = incomeType === "W2" || incomeType === "w2_user" || incomeType === "w2_partner";
+      const isW2 = isW2FilingType(incomeType);
+      const isSelfEmployed = isSelfEmployedFilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
 
       // Net taxable for this entry
@@ -154,7 +155,7 @@ export function useIncomeRecommendation() {
       if (withholdingMethod === "flat_estimate") {
         const flatRate = settings.manualEffectiveTaxRate ?? 20;
         baseTaxEstimate = netTaxable * (flatRate / 100);
-        if (!isW2) {
+        if (isSelfEmployed) {
           baseTaxEstimate += netTaxable * SE_INCOME_FACTOR * SE_TAX_RATE;
         }
         effectiveRate = flatRate;
