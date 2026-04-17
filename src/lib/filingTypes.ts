@@ -146,6 +146,8 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "owner_healthcare",
     "retirement_401k",
     "pre_tax_deductions",
+    "guaranteed_payment",
+    "is_distribution",
     "actual_withholding",
     "additional_tax_reserve",
   ],
@@ -160,6 +162,7 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "pre_tax_deductions",
   ],
   "scorp_distribution": [
+    "net_received",
     "actual_withholding",
     "additional_tax_reserve",
   ],
@@ -180,3 +183,119 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "additional_tax_reserve",
   ],
 };
+
+/* ─── Per-company toggle catalog ───
+ * The Settings > Companies > Advanced tax settings section lets users
+ * toggle which optional fields appear in the Add/Edit Income form for
+ * that company. The available toggles depend on the company's filing
+ * type. Each toggle maps to one IncomeFieldKey (or the "notes" pseudo-key).
+ */
+
+export type ToggleKey = IncomeFieldKey | "notes";
+
+export interface ToggleOption {
+  key: ToggleKey;
+  label: string;
+}
+
+export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
+  "1099_schedule_c": [
+    { key: "net_received", label: "Net received" },
+    { key: "taxes_withheld", label: "Taxes actually withheld" },
+    { key: "actual_withholding", label: "Recommended tax set-aside" },
+    { key: "notes", label: "Notes" },
+  ],
+  "k1_partnership": [
+    { key: "net_received", label: "Net received" },
+    { key: "taxes_withheld", label: "Taxes actually withheld" },
+    { key: "owner_healthcare", label: "Partner health insurance deduction" },
+    { key: "retirement_401k", label: "Partner retirement / 401(k) contribution" },
+    { key: "pre_tax_deductions", label: "Other partner deductions" },
+    { key: "guaranteed_payment", label: "Guaranteed payment" },
+    { key: "is_distribution", label: "Distribution amount" },
+    { key: "notes", label: "Notes" },
+  ],
+  "scorp_w2": [
+    { key: "net_received", label: "Net received" },
+    { key: "federal_withholding", label: "Federal tax withheld" },
+    { key: "state_withholding", label: "State tax withheld" },
+    { key: "ss_withholding", label: "Social Security tax withheld" },
+    { key: "medicare_withholding", label: "Medicare tax withheld" },
+    { key: "retirement_401k", label: "Employee 401(k) contribution" },
+    { key: "owner_healthcare", label: "Health insurance deduction" },
+    { key: "pre_tax_deductions", label: "Other pre-tax deductions" },
+    { key: "notes", label: "Notes" },
+  ],
+  "scorp_distribution": [
+    { key: "net_received", label: "Distribution amount" },
+    { key: "taxes_withheld", label: "Taxes actually withheld" },
+    { key: "actual_withholding", label: "Recommended tax set-aside" },
+    { key: "notes", label: "Notes" },
+  ],
+  "w2": [
+    { key: "net_received", label: "Net received" },
+    { key: "federal_withholding", label: "Federal tax withheld" },
+    { key: "state_withholding", label: "State tax withheld" },
+    { key: "ss_withholding", label: "Social Security tax withheld" },
+    { key: "medicare_withholding", label: "Medicare tax withheld" },
+    { key: "retirement_401k", label: "401(k) contribution" },
+    { key: "owner_healthcare", label: "Health insurance deduction" },
+    { key: "pre_tax_deductions", label: "Other pre-tax deductions" },
+    { key: "notes", label: "Notes" },
+  ],
+  "other": [
+    { key: "net_received", label: "Net received" },
+    { key: "taxes_withheld", label: "Taxes actually withheld" },
+    { key: "actual_withholding", label: "Recommended tax set-aside" },
+    { key: "notes", label: "Notes" },
+  ],
+};
+
+export const DEFAULT_TOGGLES_BY_TYPE: Record<FilingType, ToggleKey[]> = {
+  "1099_schedule_c": ["net_received", "actual_withholding", "notes"],
+  "k1_partnership": [
+    "net_received",
+    "owner_healthcare",
+    "retirement_401k",
+    "pre_tax_deductions",
+    "notes",
+  ],
+  "scorp_w2": [
+    "net_received",
+    "federal_withholding",
+    "state_withholding",
+    "retirement_401k",
+    "owner_healthcare",
+    "pre_tax_deductions",
+    "notes",
+  ],
+  "scorp_distribution": ["net_received", "actual_withholding", "notes"],
+  "w2": [
+    "net_received",
+    "federal_withholding",
+    "state_withholding",
+    "retirement_401k",
+    "owner_healthcare",
+    "pre_tax_deductions",
+    "notes",
+  ],
+  "other": ["net_received", "notes"],
+};
+
+/** Resolve the effective toggle visibility map for a company. */
+export function resolveAdvancedVisibility(
+  filingType: FilingType,
+  saved: Record<string, boolean> | null | undefined,
+): Record<ToggleKey, boolean> {
+  const options = TOGGLE_OPTIONS_BY_TYPE[filingType];
+  const defaults = new Set(DEFAULT_TOGGLES_BY_TYPE[filingType]);
+  const out = {} as Record<ToggleKey, boolean>;
+  for (const opt of options) {
+    if (saved && Object.prototype.hasOwnProperty.call(saved, opt.key)) {
+      out[opt.key] = !!saved[opt.key];
+    } else {
+      out[opt.key] = defaults.has(opt.key);
+    }
+  }
+  return out;
+}
