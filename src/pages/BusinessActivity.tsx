@@ -1006,6 +1006,7 @@ export default function Transactions() {
           <DialogHeader>
             <DialogTitle>{isEditingIncome ? "Edit Income" : "Add Income"}</DialogTitle>
           </DialogHeader>
+          <TooltipProvider delayDuration={150}>
           <div className="space-y-4">
             {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
