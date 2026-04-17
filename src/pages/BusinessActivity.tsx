@@ -309,6 +309,7 @@ export default function Transactions() {
     setIncomeForm(emptyIncomeForm);
     setEditingIncomeTxId(null);
     setEditingIncomeEntryId(null);
+    setLinkedEntry(null);
     setAdvancedOpen(false);
     setShowIncomeForm(true);
   }
@@ -347,8 +348,19 @@ export default function Transactions() {
       });
       setEditingIncomeTxId(tx.id);
       setEditingIncomeEntryId(linked?.id || null);
-      // Open advanced if any advanced fields have values
-      const hasAdvanced = linked && (linked.taxes_withheld > 0 || linked.pre_tax_deductions > 0 || linked.retirement_401k > 0 || linked.deposited_amount > 0);
+      setLinkedEntry(linked || null);
+      // Auto-expand Advanced when any saved advanced value exists
+      const hasAdvanced =
+        linked &&
+        (linked.taxes_withheld > 0 ||
+          linked.pre_tax_deductions > 0 ||
+          linked.retirement_401k > 0 ||
+          linked.deposited_amount > 0 ||
+          (linked as any).owner_healthcare > 0 ||
+          (linked as any).federal_withholding > 0 ||
+          (linked as any).state_withholding > 0 ||
+          (linked as any).additional_tax_reserve > 0 ||
+          ((tx as any).actual_withholding || 0) > 0);
       setAdvancedOpen(!!hasAdvanced);
       setShowIncomeForm(true);
     } else {
@@ -1012,8 +1024,44 @@ export default function Transactions() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-                <Select value={incomeForm.company} onValueChange={(v) => setIncomeForm((f) => ({ ...f, company: v, income_type: getCompanyType(v) }))}>
-                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                <Select
+                  value={incomeForm.company}
+                  disabled={isEditingIncome}
+                  onValueChange={(v) => {
+                    if (isEditingIncome) return;
+                    // Switching company → reset advanced fields so incompatible
+                    // unsaved values don't leak across filing types.
+                    setIncomeForm((f) => ({
+                      ...f,
+                      company: v,
+                      income_type: getCompanyType(v),
+                      net_received: "",
+                      taxes_withheld: "",
+                      pre_tax_deductions: "",
+                      retirement_401k: "",
+                      owner_healthcare: "",
+                      federal_withholding: "",
+                      state_withholding: "",
+                      ss_withholding: "",
+                      medicare_withholding: "",
+                      actual_withholding: "",
+                      additional_tax_reserve: "0",
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select company" />
+                    {isEditingIncome && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Lock className="h-3 w-3 ml-1 text-muted-foreground inline-block" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <p className="text-xs">Company is locked after saving. To move this income, delete it and create a new transaction.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </SelectTrigger>
                   <SelectContent>
                     {allCompanyNames.map((c) => (
                       <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
