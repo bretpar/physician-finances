@@ -1209,9 +1209,9 @@ export default function Transactions() {
                   {isEditingIncome ? "Save" : "Add Income"}
                 </Button>
               </div>
+            </div>
           </div>
           </TooltipProvider>
-          </div>
         </DialogContent>
       </Dialog>
 
