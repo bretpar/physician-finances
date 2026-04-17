@@ -234,7 +234,7 @@ export default function ProjectedIncome() {
     const company = companies.find((c) => c.name === form.company);
     const payload: Partial<ProjectedIncomeStream> = {
       company: form.company,
-      company_type: company?.companyType || "W2",
+      company_type: company?.companyType || "w2",
       pay_frequency: form.pay_frequency,
       custom_interval_days: form.pay_frequency === "custom" ? num(form.custom_interval_days) : null,
       start_date: form.start_date,
@@ -317,7 +317,8 @@ export default function ProjectedIncome() {
   };
 
   const openConvert = (entry: ProjectedPaycheck) => {
-    const isBusiness = entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1";
+    const t = (entry.streamCompanyType || "").toLowerCase();
+    const isBusiness = t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution";
     setConvertDestination(isBusiness ? "business" : "personal");
     setConvertTarget(entry);
   };
@@ -343,7 +344,7 @@ export default function ProjectedIncome() {
       addPersonalIncome.mutate({
         name: entry.label,
         company: entry.label,
-        income_type: entry.streamCompanyType || "W2",
+        income_type: entry.streamCompanyType || "w2",
         income_date: entry.date,
         gross_amount: entry.grossAmount,
         paycheck_amount: entry.grossAmount,
@@ -356,7 +357,7 @@ export default function ProjectedIncome() {
       addIncome.mutate({
         name: entry.label,
         company: entry.label,
-        income_type: entry.streamCompanyType || "1099",
+        income_type: entry.streamCompanyType || "1099_schedule_c",
         income_date: entry.date,
         paycheck_amount: entry.grossAmount,
         deposited_amount: entry.netAmount,
@@ -521,7 +522,8 @@ export default function ProjectedIncome() {
                       const isConverted = isSkipped && override?.notes?.includes("Converted to actual income");
 
                       // Determine link destination for matched/converted entries
-                      const isBizType = entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1";
+                      const _t = (entry.streamCompanyType || "").toLowerCase();
+                      const isBizType = _t === "1099" || _t === "k1" || _t === "1099_schedule_c" || _t === "k1_partnership" || _t === "scorp_distribution";
                       const viewDestination = isBizType ? "/business-activity" : "/personal-income";
                       const viewLabel = isBizType ? "Business Activity" : "Personal Income";
 
