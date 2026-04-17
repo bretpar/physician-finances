@@ -60,7 +60,7 @@ function isValidEmail(email: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
 
 /* ─── Main Component ─── */
 export default function Settings() {
-  const { companies, addCompany, updateCompany, removeCompany } = useCompanies();
+  const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany } = useCompanies();
   const { organizationId, userRole, user } = useAuth();
   const isAdminOrOwner = userRole === "owner" || userRole === "admin";
   const { data: taxSettingsData } = useTaxSettings();
