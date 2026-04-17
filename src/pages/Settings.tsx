@@ -81,7 +81,17 @@ export default function Settings() {
 
   /* Companies */
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
-  function handleAddCompany() { addCompany({ name: "", companyType: "1099_schedule_c", includeInTax: true }); }
+  function handleAddCompany() {
+    addCompany({
+      name: "",
+      nickname: "",
+      companyType: "1099_schedule_c",
+      includeInTax: true,
+      defaultSetasideMethod: "recommended",
+      defaultSetasidePct: null,
+      notes: "",
+    });
+  }
   function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
 
   /* ─── Connected Accounts (Plaid) ─── */
