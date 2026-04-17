@@ -308,11 +308,12 @@ export function useWeightedIncome(entries: IncomeEntry[] | undefined) {
 
         const weight = CONFIDENCE_WEIGHTS[e.status] ?? 1;
         const amt = Number(e.paycheck_amount) * weight;
+        const isW2 = isW2FilingType(e.income_type);
 
         return {
           total: acc.total + amt,
-          w2: acc.w2 + (e.income_type === "W2" ? amt : 0),
-          se: acc.se + (e.income_type !== "W2" ? amt : 0),
+          w2: acc.w2 + (isW2 ? amt : 0),
+          se: acc.se + (!isW2 ? amt : 0),
           withheld: acc.withheld + Number(e.taxes_withheld) * weight,
           preTax: acc.preTax + Number(e.pre_tax_deductions) * weight,
           retirement: acc.retirement + Number(e.retirement_401k) * weight,
