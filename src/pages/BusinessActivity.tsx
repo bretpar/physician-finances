@@ -386,11 +386,20 @@ export default function Transactions() {
     if (grossIncome <= 0) { toast.error("Gross amount is required"); return; }
 
     const paycheckAmt = grossIncome;
-    const depositedAmt = num(incomeForm.net_received);
-    const taxWithheld = num(incomeForm.taxes_withheld);
-    const preTaxDed = num(incomeForm.pre_tax_deductions);
-    const retirement = num(incomeForm.retirement_401k);
-    const healthcare = num(incomeForm.owner_healthcare);
+    /**
+     * Hidden-field preservation: when an advanced field is currently toggled
+     * OFF and not surfaced as a legacy field, fall back to the saved value
+     * from the linked income entry instead of treating empty input as 0.
+     * This prevents toggle changes from silently zeroing historical data.
+     */
+    const preserve = (key: ToggleKey, current: number, savedVal: number) =>
+      showField(key) ? current : (linkedEntry ? savedVal : current);
+
+    const depositedAmt = preserve("net_received", num(incomeForm.net_received), linkedEntry?.deposited_amount || 0);
+    const taxWithheld = preserve("taxes_withheld", num(incomeForm.taxes_withheld), linkedEntry?.taxes_withheld || 0);
+    const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
+    const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
+    const healthcare = preserve("owner_healthcare", num(incomeForm.owner_healthcare), (linkedEntry as any)?.owner_healthcare || 0);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
     // Determine the correct amount for the transactions table:
@@ -1200,7 +1209,8 @@ export default function Transactions() {
                   {isEditingIncome ? "Save" : "Add Income"}
                 </Button>
               </div>
-            </div>
+          </div>
+          </TooltipProvider>
           </div>
         </DialogContent>
       </Dialog>
