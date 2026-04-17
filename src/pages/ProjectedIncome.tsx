@@ -614,11 +614,11 @@ export default function ProjectedIncome() {
                                   size="sm"
                                   variant="outline"
                                   className="h-6 text-xs px-2"
-                                  title={entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1" ? "Add to Business Activity" : "Add to Personal Income"}
+                                  title={(() => { const t = (entry.streamCompanyType || "").toLowerCase(); return (t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution") ? "Add to Business Activity" : "Add to Personal Income"; })()}
                                   onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
                                 >
                                   <Plus className="h-3 w-3 mr-0.5" />
-                                  {entry.streamCompanyType === "1099" || entry.streamCompanyType === "K1" ? "To Ledger" : "To Personal"}
+                                  {(() => { const t = (entry.streamCompanyType || "").toLowerCase(); return (t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution") ? "To Ledger" : "To Personal"; })()}
                                 </Button>
                                 <Button
                                   size="icon"
