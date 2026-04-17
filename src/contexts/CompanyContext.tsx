@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { toast } from "sonner";
-import type { FilingType } from "@/lib/filingTypes";
+import type { FilingType, ToggleKey } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
 
 export type SetasideMethod = "recommended" | "flat_percentage" | "none";
@@ -18,6 +18,12 @@ export interface Company {
   defaultSetasideMethod: SetasideMethod;
   defaultSetasidePct: number | null;
   notes: string;
+  /**
+   * Per-company toggle map: which optional fields appear in the Add/Edit
+   * Income form's Advanced section. Empty/missing keys fall back to the
+   * filing-type defaults from DEFAULT_TOGGLES_BY_TYPE.
+   */
+  advancedFieldVisibility: Partial<Record<ToggleKey, boolean>>;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
@@ -65,6 +71,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         defaultSetasideMethod: (c.default_setaside_method || "recommended") as SetasideMethod,
         defaultSetasidePct: c.default_setaside_pct ?? null,
         notes: c.notes || "",
+        advancedFieldVisibility:
+          (c.advanced_field_visibility as Partial<Record<ToggleKey, boolean>>) || {},
       }))
     );
     setLoading(false);
@@ -100,6 +108,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       default_setaside_method: company.defaultSetasideMethod,
       default_setaside_pct: company.defaultSetasidePct,
       notes: company.notes,
+      advanced_field_visibility: company.advancedFieldVisibility ?? {},
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
@@ -115,6 +124,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.defaultSetasideMethod !== undefined) dbUpdates.default_setaside_method = updates.defaultSetasideMethod;
     if (updates.defaultSetasidePct !== undefined) dbUpdates.default_setaside_pct = updates.defaultSetasidePct;
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+    if (updates.advancedFieldVisibility !== undefined) dbUpdates.advanced_field_visibility = updates.advancedFieldVisibility;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }

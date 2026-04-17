@@ -14,16 +14,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Plus, Trash2, Building2, Check, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, HelpCircle, AlertTriangle,
+  Lock, HelpCircle, AlertTriangle, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTaxSettings, useUpdateTaxSettings, type WithholdingMethod } from "@/hooks/useTaxSettings";
-import { FILING_TYPES, type FilingType } from "@/lib/filingTypes";
+import {
+  FILING_TYPES,
+  TOGGLE_OPTIONS_BY_TYPE,
+  resolveAdvancedVisibility,
+  type FilingType,
+  type ToggleKey,
+} from "@/lib/filingTypes";
 import {
   usePlaidItems,
   usePlaidAccounts,
@@ -99,9 +106,18 @@ export default function Settings() {
       defaultSetasideMethod: "recommended",
       defaultSetasidePct: null,
       notes: "",
+      advancedFieldVisibility: {},
     });
   }
   function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
+  const [advancedOpenIds, setAdvancedOpenIds] = useState<Set<string>>(new Set());
+  const toggleAdvancedOpen = (id: string) =>
+    setAdvancedOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   /* ─── Connected Accounts (Plaid) ─── */
   const { data: plaidItems = [], isLoading: plaidItemsLoading } = usePlaidItems();
@@ -414,142 +430,184 @@ export default function Settings() {
           <div>
             <h3 className="text-base font-semibold text-card-foreground">Companies</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Set the tax / filing type for each company. This decision controls which fields appear when adding income and how tax is calculated.
+              Set the filing type for each company. Use Advanced tax settings to choose which optional fields appear when adding income.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={handleAddCompany} className="gap-1.5"><Plus className="h-4 w-4" /> Add Company</Button>
         </div>
 
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-start gap-2">
-          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
-          <p className="text-xs text-foreground">
-            <span className="font-medium">Set this carefully.</span> Once income is saved under a company, the company cannot be changed on that transaction. To move income to another company, delete and recreate the transaction.
-          </p>
-        </div>
-
         {companies.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No companies added yet. Click "Add Company" to get started.</p>}
 
         <TooltipProvider delayDuration={150}>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {companies.map((company) => {
               const incomeCount = incomeCountByCompanyName[company.name] || 0;
               const filingTypeLocked = incomeCount > 0;
               const filingMeta = FILING_TYPES.find((t) => t.value === company.companyType);
+              const advOpen = advancedOpenIds.has(company.id);
+              const toggleOptions = TOGGLE_OPTIONS_BY_TYPE[company.companyType];
+              const visibility = resolveAdvancedVisibility(
+                company.companyType,
+                company.advancedFieldVisibility,
+              );
 
               return (
-                <div key={company.id} className="border border-border rounded-lg p-4 space-y-4">
-                  {/* Name + Nickname + Delete */}
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                <div key={company.id} className="border border-border rounded-lg p-4 space-y-3">
+                  {/* Default visible: name + filing type + delete */}
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px_auto] gap-3 items-end">
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Company name *</Label>
-                      <Input value={company.name} onChange={(e) => updateCompany(company.id, { name: e.target.value })} placeholder="e.g. Vituity" />
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
+                      <Input
+                        value={company.name}
+                        onChange={(e) => updateCompany(company.id, { name: e.target.value })}
+                        placeholder="e.g. Vituity"
+                      />
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Nickname (optional)</Label>
-                      <Input value={company.nickname} onChange={(e) => updateCompany(company.id, { nickname: e.target.value })} placeholder="Short label" />
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive" onClick={() => setDeleteCompanyId(company.id)}><Trash2 className="h-4 w-4" /></Button>
-                  </div>
-
-                  {/* Filing type */}
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Label className="text-xs text-muted-foreground">Tax / Filing Type *</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Why does this matter?">
-                            <HelpCircle className="h-3.5 w-3.5" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs">
-                          <p className="text-xs">Why does this matter? The selected filing type controls which advanced income fields appear, how deductions are handled, and whether tax payments are treated as already withheld or as recommended savings.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      {filingTypeLocked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
-                    </div>
-                    <Select
-                      value={company.companyType}
-                      onValueChange={(v) => updateCompany(company.id, { companyType: v as FilingType })}
-                      disabled={filingTypeLocked}
-                    >
-                      <SelectTrigger><SelectValue placeholder="Select filing type" /></SelectTrigger>
-                      <SelectContent>
-                        {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    {filingTypeLocked ? (
-                      <p className="text-xs text-muted-foreground mt-1.5 flex items-start gap-1">
-                        <Lock className="h-3 w-3 mt-0.5 shrink-0" />
-                        This filing type is locked because {incomeCount} income {incomeCount === 1 ? "transaction exists" : "transactions exist"} for this company. This prevents incompatible tax fields from affecting your calculations. To change it, create a new company profile and stop using the old one.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-1.5">
-                        Choose how this income is usually taxed. This controls which income fields appear, how deductions are handled, and whether tax payments are treated as already withheld or recommended savings.
-                      </p>
-                    )}
-                    <p className="text-xs text-foreground/80 mt-2 italic">{FILING_TYPE_BLURBS[company.companyType]}</p>
-                  </div>
-
-                  {/* Set-aside method + percentage */}
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-end">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Default tax set-aside method</Label>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Label className="text-xs text-muted-foreground">Filing type</Label>
+                        {filingTypeLocked && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Lock className="h-3 w-3 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <p className="text-xs">Locked because income transactions exist for this company. To change it, create a new company.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
                       <Select
-                        value={company.defaultSetasideMethod}
-                        onValueChange={(v) => updateCompany(company.id, { defaultSetasideMethod: v as any })}
+                        value={company.companyType}
+                        onValueChange={(v) => updateCompany(company.id, { companyType: v as FilingType })}
+                        disabled={filingTypeLocked}
                       >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select filing type" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="recommended">Use app recommendation</SelectItem>
-                          <SelectItem value="flat_percentage">Flat percentage of gross</SelectItem>
-                          <SelectItem value="none">No automatic set-aside</SelectItem>
+                          {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Default % (optional)</Label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        value={company.defaultSetasidePct ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          updateCompany(company.id, { defaultSetasidePct: v === "" ? null : parseFloat(v) });
-                        }}
-                        placeholder="e.g. 25"
-                        disabled={company.defaultSetasideMethod !== "flat_percentage"}
-                      />
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteCompanyId(company.id)}
+                      aria-label="Delete company"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
 
-                  {/* Notes */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</Label>
-                    <Textarea
-                      value={company.notes}
-                      onChange={(e) => updateCompany(company.id, { notes: e.target.value })}
-                      placeholder="Anything to remember about this company"
-                      rows={2}
-                    />
-                  </div>
+                  {/* Advanced tax settings (collapsed by default) */}
+                  <Collapsible open={advOpen} onOpenChange={() => toggleAdvancedOpen(company.id)}>
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1"
+                      >
+                        {advOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        Advanced tax settings
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-3">
+                      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-5">
+                        {/* Show-these-fields toggles */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-foreground">Show these fields when adding income</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Choose which optional fields appear when adding income for this company.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
+                            {toggleOptions.map((opt) => {
+                              const checked = visibility[opt.key];
+                              return (
+                                <label
+                                  key={opt.key}
+                                  className="flex items-center gap-2 text-xs text-foreground cursor-pointer"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(v) => {
+                                      const next = {
+                                        ...(company.advancedFieldVisibility || {}),
+                                        [opt.key]: !!v,
+                                      };
+                                      updateCompany(company.id, { advancedFieldVisibility: next });
+                                    }}
+                                  />
+                                  <span>{opt.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
 
-                  <div className="flex items-center gap-2">
-                    <Switch checked={company.includeInTax} onCheckedChange={(checked) => updateCompany(company.id, { includeInTax: checked })} />
-                    <Label className="text-xs text-muted-foreground">Include in tax projections</Label>
-                  </div>
+                        {/* Nickname */}
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Nickname (optional)</Label>
+                          <Input
+                            value={company.nickname}
+                            onChange={(e) => updateCompany(company.id, { nickname: e.target.value })}
+                            placeholder="Short label"
+                          />
+                        </div>
 
-                  {company.name && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground border-t border-border pt-3">
-                      <Building2 className="h-3.5 w-3.5" />
-                      <span>
-                        {company.name}{company.nickname ? ` (${company.nickname})` : ""} — {filingMeta?.label || company.companyType}
-                        {!company.includeInTax && " · excluded from tax"}
-                        {filingTypeLocked && ` · ${incomeCount} income ${incomeCount === 1 ? "entry" : "entries"}`}
-                      </span>
-                    </div>
-                  )}
+                        {/* Set-aside */}
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-end">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Default tax set-aside method</Label>
+                            <Select
+                              value={company.defaultSetasideMethod}
+                              onValueChange={(v) => updateCompany(company.id, { defaultSetasideMethod: v as any })}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="recommended">Use app recommendation</SelectItem>
+                                <SelectItem value="flat_percentage">Flat percentage of gross</SelectItem>
+                                <SelectItem value="none">No automatic set-aside</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Default %</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              value={company.defaultSetasidePct ?? ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                updateCompany(company.id, { defaultSetasidePct: v === "" ? null : parseFloat(v) });
+                              }}
+                              placeholder="e.g. 25"
+                              disabled={company.defaultSetasideMethod !== "flat_percentage"}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Notes */}
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</Label>
+                          <Textarea
+                            value={company.notes}
+                            onChange={(e) => updateCompany(company.id, { notes: e.target.value })}
+                            placeholder="Anything to remember about this company"
+                            rows={2}
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={company.includeInTax}
+                            onCheckedChange={(checked) => updateCompany(company.id, { includeInTax: checked })}
+                          />
+                          <Label className="text-xs text-muted-foreground">Include in tax projections</Label>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               );
             })}

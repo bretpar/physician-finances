@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       companies: {
         Row: {
+          advanced_field_visibility: Json
           company_type: string
           created_at: string
           default_setaside_method: string
@@ -30,6 +31,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          advanced_field_visibility?: Json
           company_type?: string
           created_at?: string
           default_setaside_method?: string
@@ -44,6 +46,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          advanced_field_visibility?: Json
           company_type?: string
           created_at?: string
           default_setaside_method?: string

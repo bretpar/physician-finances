@@ -32,8 +32,10 @@ import {
   isW2FilingType,
   normalizeFilingType,
   ADVANCED_FIELDS_BY_TYPE,
+  resolveAdvancedVisibility,
   type FilingType,
   type IncomeFieldKey,
+  type ToggleKey,
 } from "@/lib/filingTypes";
 import { toast } from "sonner";
 
@@ -190,6 +192,24 @@ export default function Transactions() {
 
   const getCompanyType = (name: string): FilingType =>
     normalizeFilingType(companies.find((c) => c.name === name)?.companyType);
+
+  /**
+   * Resolved per-company toggle visibility for the currently-selected
+   * company in the income form. Used to decide which advanced fields render.
+   * Falls back to filing-type defaults if the company has no saved overrides.
+   */
+  const visibleFields = useMemo<Record<ToggleKey, boolean>>(() => {
+    const company = companies.find((c) => c.name === incomeForm.company);
+    const filingType = (incomeForm.income_type as FilingType) ||
+      (company ? company.companyType : "1099_schedule_c");
+    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
+  }, [companies, incomeForm.company, incomeForm.income_type]);
+
+  /** True when at least one advanced toggle is enabled for this company. */
+  const hasAnyAdvancedField = useMemo(
+    () => Object.values(visibleFields).some(Boolean),
+    [visibleFields],
+  );
 
   const incomeByLinkedTx = useMemo(() => {
     const map = new Map<string, IncomeEntry>();
@@ -994,7 +1014,7 @@ export default function Transactions() {
               </div>
             )}
 
-            {/* Advanced details (collapsible) */}
+            {/* Advanced details (collapsible) — fields driven by per-company toggles */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger asChild>
                 <button className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
@@ -1004,110 +1024,75 @@ export default function Transactions() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 pt-2">
                 <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
-                  {/* Net Received */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"}
-                      value={incomeForm.net_received}
-                      onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))}
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
-                  </div>
-                  {grossIncome > 0 && (
+                  {!hasAnyAdvancedField && (
+                    <p className="text-xs text-muted-foreground italic">
+                      No advanced fields enabled for this income type. Adjust toggles in Settings → Companies → Advanced tax settings.
+                    </p>
+                  )}
+
+                  {visibleFields.net_received && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
+                      <Input type="number" min="0" step="0.01" placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"} value={incomeForm.net_received} onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))} />
+                      <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
+                    </div>
+                  )}
+                  {visibleFields.net_received && grossIncome > 0 && (
                     <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
                       Estimated Net: <strong>{fmt(calculatedNet)}</strong> based on your inputs
                     </p>
                   )}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label>
-                      <Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Ded.</Label>
-                      <Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement</Label>
-                      <Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" />
-                    </div>
-                  </div>
 
-                  {/* K-1 Owner Deductions Section */}
-                  {(incomeForm.income_type === "K1") && (
-                    <div className="rounded-lg border border-border p-3 bg-accent/30 space-y-3">
-                      <div>
-                        <p className="text-xs font-semibold text-foreground mb-0.5">Owner Deductions / K-1 Adjustments</p>
-                        <p className="text-[10px] text-muted-foreground">These reduce your taxable income but do not reduce business profit.</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1.5 block">Healthcare Premiums</Label>
-                        <Input
-                          type="number" min="0" step="0.01"
-                          value={incomeForm.owner_healthcare}
-                          onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))}
-                          placeholder="0.00"
-                        />
-                        <p className="text-[10px] text-muted-foreground mt-1">Self-employed health insurance deduction</p>
-                      </div>
-                      <div className="rounded px-2 py-1.5 bg-muted/40 text-[10px] text-muted-foreground space-y-0.5">
-                        <p>• <strong>Business expenses</strong> reduce business profit.</p>
-                        <p>• <strong>Owner deductions</strong> (healthcare, retirement, pre-tax) reduce taxable income.</p>
-                        <p>• <strong>Taxes withheld or set aside</strong> are payments/savings, not deductions.</p>
-                      </div>
+                  {(visibleFields.taxes_withheld || visibleFields.federal_withholding || visibleFields.state_withholding || visibleFields.ss_withholding || visibleFields.medicare_withholding) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {visibleFields.taxes_withheld && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label><Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" /></div>)}
+                      {visibleFields.federal_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.federal_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, federal_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {visibleFields.state_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">State W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.state_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, state_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {visibleFields.ss_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Social Security</Label><Input type="number" min="0" step="0.01" value={incomeForm.ss_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, ss_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {visibleFields.medicare_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Medicare</Label><Input type="number" min="0" step="0.01" value={incomeForm.medicare_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, medicare_withholding: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
 
-                  {grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
+                  {(visibleFields.retirement_401k || visibleFields.owner_healthcare || visibleFields.pre_tax_deductions) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {visibleFields.retirement_401k && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
+                      {visibleFields.owner_healthcare && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label><Input type="number" min="0" step="0.01" value={incomeForm.owner_healthcare} onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))} placeholder="0.00" /></div>)}
+                      {visibleFields.pre_tax_deductions && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
+                    </div>
+                  )}
+
+                  {visibleFields.actual_withholding && grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Amount to set aside for quarterly taxes</Label>
                       <p className="text-[10px] text-muted-foreground mb-1">Tracked as a reserve — not counted as taxes paid until you make a quarterly payment</p>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder={fmt(recommendedWithholding)}
-                        value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding}
-                        onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))}
-                      />
+                      <Input type="number" min="0" step="0.01" placeholder={fmt(recommendedWithholding)} value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))} />
                     </div>
                   )}
 
-                  {/* Additional tax reserve (editing only) */}
-                  {isEditingIncome && (
+                  {visibleFields.actual_withholding && isEditingIncome && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve}
-                        onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))}
-                      />
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve} onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))} />
                     </div>
                   )}
 
-                  {/* Notes */}
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-                    <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
-                  </div>
+                  {visibleFields.notes && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                      <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
+                    </div>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Notes outside advanced when collapsed */}
-            {!advancedOpen && (
+            {!advancedOpen && visibleFields.notes && (
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
                 <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
             )}
+
 
             <p className="text-[10px] text-muted-foreground italic">
               Withholding method controlled in Settings
