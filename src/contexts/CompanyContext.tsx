@@ -116,7 +116,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.defaultSetasidePct !== undefined) dbUpdates.default_setaside_pct = updates.defaultSetasidePct;
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
 
-    const { error } = await supabase.from("companies").update(dbUpdates).eq("id", id);
+    const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
     loadCompanies();
   }, [loadCompanies]);
