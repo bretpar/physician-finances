@@ -1128,38 +1128,44 @@ export default function Transactions() {
                     </p>
                   )}
 
-                  {visibleFields.net_received && (
+                  {Object.keys(legacyFields).length > 0 && (
+                    <p className="text-[10px] text-muted-foreground italic border-l-2 border-muted-foreground/40 pl-2">
+                      Some fields below are <strong>hidden in new entries</strong>, but shown here because this transaction has a saved value.
+                    </p>
+                  )}
+
+                  {showField("net_received") && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
                       <Input type="number" min="0" step="0.01" placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"} value={incomeForm.net_received} onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))} />
                       <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
                     </div>
                   )}
-                  {visibleFields.net_received && grossIncome > 0 && (
+                  {showField("net_received") && grossIncome > 0 && (
                     <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
                       Estimated Net: <strong>{fmt(calculatedNet)}</strong> based on your inputs
                     </p>
                   )}
 
-                  {(visibleFields.taxes_withheld || visibleFields.federal_withholding || visibleFields.state_withholding || visibleFields.ss_withholding || visibleFields.medicare_withholding) && (
+                  {(showField("taxes_withheld") || showField("federal_withholding") || showField("state_withholding") || showField("ss_withholding") || showField("medicare_withholding")) && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {visibleFields.taxes_withheld && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label><Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.federal_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.federal_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, federal_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.state_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">State W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.state_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, state_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.ss_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Social Security</Label><Input type="number" min="0" step="0.01" value={incomeForm.ss_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, ss_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.medicare_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Medicare</Label><Input type="number" min="0" step="0.01" value={incomeForm.medicare_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, medicare_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("taxes_withheld") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label><Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("federal_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.federal_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, federal_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("state_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">State W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.state_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, state_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("ss_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Social Security</Label><Input type="number" min="0" step="0.01" value={incomeForm.ss_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, ss_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("medicare_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Medicare</Label><Input type="number" min="0" step="0.01" value={incomeForm.medicare_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, medicare_withholding: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
 
-                  {(visibleFields.retirement_401k || visibleFields.owner_healthcare || visibleFields.pre_tax_deductions) && (
+                  {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {visibleFields.retirement_401k && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.owner_healthcare && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label><Input type="number" min="0" step="0.01" value={incomeForm.owner_healthcare} onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.pre_tax_deductions && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("retirement_401k") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("owner_healthcare") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label><Input type="number" min="0" step="0.01" value={incomeForm.owner_healthcare} onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("pre_tax_deductions") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
 
-                  {visibleFields.actual_withholding && grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
+                  {showField("actual_withholding") && grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Amount to set aside for quarterly taxes</Label>
                       <p className="text-[10px] text-muted-foreground mb-1">Tracked as a reserve — not counted as taxes paid until you make a quarterly payment</p>
@@ -1167,7 +1173,7 @@ export default function Transactions() {
                     </div>
                   )}
 
-                  {visibleFields.actual_withholding && isEditingIncome && (
+                  {showField("actual_withholding") && isEditingIncome && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00" value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve} onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))} />
@@ -1184,7 +1190,7 @@ export default function Transactions() {
               </CollapsibleContent>
             </Collapsible>
 
-            {!advancedOpen && visibleFields.notes && (
+            {!advancedOpen && showField("notes") && (
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
                 <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
