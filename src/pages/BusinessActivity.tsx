@@ -32,8 +32,10 @@ import {
   isW2FilingType,
   normalizeFilingType,
   ADVANCED_FIELDS_BY_TYPE,
+  resolveAdvancedVisibility,
   type FilingType,
   type IncomeFieldKey,
+  type ToggleKey,
 } from "@/lib/filingTypes";
 import { toast } from "sonner";
 
