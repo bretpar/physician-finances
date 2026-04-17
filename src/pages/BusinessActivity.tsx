@@ -219,14 +219,35 @@ export default function Transactions() {
     [visibleFields],
   );
 
-  const incomeByLinkedTx = useMemo(() => {
-    const map = new Map<string, IncomeEntry>();
-    if (!incomeEntries) return map;
-    for (const ie of incomeEntries) {
-      if (ie.linked_transaction_id) map.set(ie.linked_transaction_id, ie);
+  /**
+   * Map of fields that are toggled OFF for this company but still have a
+   * non-zero saved value on the existing transaction. We render them in the
+   * Edit form (with a small "Hidden in new entries" note) so the user can
+   * view or clear prior data on purpose without losing it.
+   */
+  const legacyFields = useMemo<Partial<Record<ToggleKey, true>>>(() => {
+    if (!isEditingIncome || !linkedEntry) return {};
+    const out: Partial<Record<ToggleKey, true>> = {};
+    const checks: Array<[ToggleKey, number]> = [
+      ["net_received", linkedEntry.deposited_amount || 0],
+      ["taxes_withheld", linkedEntry.taxes_withheld || 0],
+      ["pre_tax_deductions", linkedEntry.pre_tax_deductions || 0],
+      ["retirement_401k", linkedEntry.retirement_401k || 0],
+      ["owner_healthcare", (linkedEntry as any).owner_healthcare || 0],
+      ["federal_withholding", (linkedEntry as any).federal_withholding || 0],
+      ["state_withholding", (linkedEntry as any).state_withholding || 0],
+      ["additional_tax_reserve", (linkedEntry as any).additional_tax_reserve || 0],
+    ];
+    for (const [key, val] of checks) {
+      if (val > 0 && !visibleFields[key]) out[key] = true;
     }
-    return map;
-  }, [incomeEntries]);
+    return out;
+  }, [isEditingIncome, linkedEntry, visibleFields]);
+
+  /** Should a given field render in the form? Toggle on OR has a legacy saved value. */
+  const showField = (key: ToggleKey) => visibleFields[key] || !!legacyFields[key];
+
+
 
   // Filtered list
   const filtered = useMemo(() => {
