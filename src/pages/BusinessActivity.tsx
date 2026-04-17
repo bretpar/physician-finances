@@ -193,6 +193,24 @@ export default function Transactions() {
   const getCompanyType = (name: string): FilingType =>
     normalizeFilingType(companies.find((c) => c.name === name)?.companyType);
 
+  /**
+   * Resolved per-company toggle visibility for the currently-selected
+   * company in the income form. Used to decide which advanced fields render.
+   * Falls back to filing-type defaults if the company has no saved overrides.
+   */
+  const visibleFields = useMemo<Record<ToggleKey, boolean>>(() => {
+    const company = companies.find((c) => c.name === incomeForm.company);
+    const filingType = (incomeForm.income_type as FilingType) ||
+      (company ? company.companyType : "1099_schedule_c");
+    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
+  }, [companies, incomeForm.company, incomeForm.income_type]);
+
+  /** True when at least one advanced toggle is enabled for this company. */
+  const hasAnyAdvancedField = useMemo(
+    () => Object.values(visibleFields).some(Boolean),
+    [visibleFields],
+  );
+
   const incomeByLinkedTx = useMemo(() => {
     const map = new Map<string, IncomeEntry>();
     if (!incomeEntries) return map;
