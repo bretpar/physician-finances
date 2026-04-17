@@ -20,6 +20,7 @@ import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTaxSettings, useUpdateTaxSettings, type WithholdingMethod } from "@/hooks/useTaxSettings";
+import { FILING_TYPES, type FilingType } from "@/lib/filingTypes";
 import {
   usePlaidItems,
   usePlaidAccounts,
@@ -36,11 +37,7 @@ interface Profile { firstName: string; lastName: string; email: string; }
 interface TaxSettings { federalRate: number; stateRate: number; bnoRate: number; }
 interface OrgMember { id: string; user_id: string; role: string; email?: string; first_name?: string; last_name?: string; }
 
-const COMPANY_TYPES = [
-  { value: "1099", label: "1099" },
-  { value: "W2", label: "W2" },
-  { value: "K1", label: "K1" },
-] as const;
+const COMPANY_TYPES = FILING_TYPES.map((t) => ({ value: t.value, label: t.label }));
 
 const roleIcons = { owner: Crown, admin: Shield, member: User };
 const roleColors = { owner: "default", admin: "secondary", member: "outline" } as const;
@@ -81,7 +78,7 @@ export default function Settings() {
 
   /* Companies */
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
-  function handleAddCompany() { addCompany({ name: "", companyType: "1099", includeInTax: true }); }
+  function handleAddCompany() { addCompany({ name: "", companyType: "1099_schedule_c", includeInTax: true }); }
   function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
 
   /* ─── Connected Accounts (Plaid) ─── */

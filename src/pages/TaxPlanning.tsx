@@ -9,12 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Plus, Trash2, DollarSign, TrendingUp, PiggyBank, Receipt, AlertCircle } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { useCompanies } from "@/contexts/CompanyContext";
+import type { FilingType } from "@/lib/filingTypes";
 
 interface ForecastRow {
   id: string;
   month: string;
   companyName: string;
-  companyType: "1099" | "W2" | "K1";
+  companyType: FilingType;
   grossIncome: number;
   expectedWithholding: number;
   notes: string;
@@ -93,9 +94,9 @@ export default function TaxPlanning() {
   const calc = useMemo(() => {
     const activeForecasts = forecasts.filter((f) => f.grossIncome > 0);
 
-    const w2Rows = activeForecasts.filter((f) => f.companyType === "W2");
-    const t1099Rows = activeForecasts.filter((f) => f.companyType === "1099");
-    const k1Rows = activeForecasts.filter((f) => f.companyType === "K1");
+    const w2Rows = activeForecasts.filter((f) => f.companyType === "w2" || f.companyType === "scorp_w2");
+    const t1099Rows = activeForecasts.filter((f) => f.companyType === "1099_schedule_c" || f.companyType === "scorp_distribution");
+    const k1Rows = activeForecasts.filter((f) => f.companyType === "k1_partnership");
 
     const w2Income = w2Rows.reduce((s, r) => s + r.grossIncome, 0);
     const t1099Income = t1099Rows.reduce((s, r) => s + r.grossIncome, 0);
@@ -108,9 +109,12 @@ export default function TaxPlanning() {
     const w2TargetTax = w2Income * (TAX_RATES.federal + TAX_RATES.state);
     const w2Shortfall = Math.max(0, w2TargetTax - w2Withholding);
 
-    // 1099 tax
+    // 1099 / S-Corp distribution tax (note: SE tax only applies to true 1099, not distributions)
+    const trueSelfEmpIncome = activeForecasts
+      .filter((f) => f.companyType === "1099_schedule_c")
+      .reduce((s, r) => s + r.grossIncome, 0);
     const t1099Tax = t1099Income * (TAX_RATES.federal + TAX_RATES.state + TAX_RATES.bno);
-    const seTax1099 = t1099Income * 0.153 * 0.9235;
+    const seTax1099 = trueSelfEmpIncome * 0.153 * 0.9235;
 
     // K1 tax
     const k1Tax = k1Income * (TAX_RATES.federal + TAX_RATES.state);
@@ -124,9 +128,9 @@ export default function TaxPlanning() {
     const currentQ = getCurrentQuarter();
     const quarterlyData = [2, 3, 4].map((q) => {
       const qRows = activeForecasts.filter((f) => getQuarter(f.month) === q);
-      const q1099 = qRows.filter((r) => r.companyType === "1099");
-      const qK1 = qRows.filter((r) => r.companyType === "K1");
-      const qW2 = qRows.filter((r) => r.companyType === "W2");
+      const q1099 = qRows.filter((r) => r.companyType === "1099_schedule_c" || r.companyType === "scorp_distribution");
+      const qK1 = qRows.filter((r) => r.companyType === "k1_partnership");
+      const qW2 = qRows.filter((r) => r.companyType === "w2" || r.companyType === "scorp_w2");
 
       const q1099Income = q1099.reduce((s, r) => s + r.grossIncome, 0);
       const qK1Income = qK1.reduce((s, r) => s + r.grossIncome, 0);

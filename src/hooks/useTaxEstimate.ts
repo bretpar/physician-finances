@@ -12,6 +12,7 @@ import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
+import { normalizeFilingType } from "@/lib/filingTypes";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -121,7 +122,7 @@ export function useTaxEstimate(): {
 
     // Owner healthcare (K-1 deduction)
     const ownerHealthcare = (incomeEntries || [])
-      .filter((e) => e.income_type === "K1")
+      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
 
     return {

@@ -27,6 +27,14 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
+import {
+  getFilingMeta,
+  isW2FilingType,
+  normalizeFilingType,
+  ADVANCED_FIELDS_BY_TYPE,
+  type FilingType,
+  type IncomeFieldKey,
+} from "@/lib/filingTypes";
 import { toast } from "sonner";
 
 const fmt = (n: number) =>
@@ -41,9 +49,13 @@ interface IncomeFormState {
   company: string;
   income_type: string;
   gross_amount: string;
-  // Advanced
+  // Advanced (subset shown based on filing type)
   net_received: string;
   taxes_withheld: string;
+  federal_withholding: string;
+  state_withholding: string;
+  ss_withholding: string;
+  medicare_withholding: string;
   pre_tax_deductions: string;
   retirement_401k: string;
   owner_healthcare: string;
@@ -56,10 +68,14 @@ const emptyIncomeForm: IncomeFormState = {
   date: new Date().toISOString().split("T")[0],
   name: "",
   company: "",
-  income_type: "1099",
+  income_type: "1099_schedule_c",
   gross_amount: "",
   net_received: "",
   taxes_withheld: "",
+  federal_withholding: "",
+  state_withholding: "",
+  ss_withholding: "",
+  medicare_withholding: "",
   pre_tax_deductions: "",
   retirement_401k: "",
   owner_healthcare: "",
@@ -67,6 +83,21 @@ const emptyIncomeForm: IncomeFormState = {
   additional_tax_reserve: "",
   notes: "",
 };
+
+/** Reset advanced fields that don't apply to the new filing type. */
+function resetIrrelevantAdvancedFields(form: IncomeFormState, newType: FilingType): IncomeFormState {
+  const allowed = new Set<IncomeFieldKey>(ADVANCED_FIELDS_BY_TYPE[newType]);
+  const cleared: Partial<IncomeFormState> = {};
+  const allKeys: IncomeFieldKey[] = [
+    "net_received","taxes_withheld","federal_withholding","state_withholding",
+    "ss_withholding","medicare_withholding","pre_tax_deductions","retirement_401k",
+    "owner_healthcare","actual_withholding","additional_tax_reserve",
+  ];
+  for (const k of allKeys) {
+    if (!allowed.has(k)) (cleared as any)[k] = "";
+  }
+  return { ...form, ...cleared };
+}
 
 /* ───── Expense Form State ───── */
 interface ExpenseFormState {
@@ -150,15 +181,15 @@ export default function Transactions() {
   const isEditingIncome = !!editingIncomeTxId;
   const isEditingExpense = !!editingExpenseTxId;
 
-  // Business Activity: only show non-W2 companies (1099, K1)
+  // Business Activity: only show non-W2 companies (1099, K-1, S-Corp, Other)
   const allCompanyNames = useMemo(() => {
     return [...new Set(
-      companies.filter((c) => c.companyType !== "W2").map((c) => c.name)
+      companies.filter((c) => !isW2FilingType(c.companyType)).map((c) => c.name)
     )].sort();
   }, [companies]);
 
-  const getCompanyType = (name: string) =>
-    companies.find((c) => c.name === name)?.companyType || "1099";
+  const getCompanyType = (name: string): FilingType =>
+    normalizeFilingType(companies.find((c) => c.name === name)?.companyType);
 
   const incomeByLinkedTx = useMemo(() => {
     const map = new Map<string, IncomeEntry>();
@@ -543,7 +574,7 @@ export default function Transactions() {
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
     const ownerDeds = (incomeEntries || [])
-      .filter((e) => e.income_type === "K1")
+      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
     return { revenue, expenses, profit: revenue - expenses, ownerDeductions: ownerDeds };
   }, [filtered, incomeEntries]);

@@ -3,20 +3,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { toast } from "sonner";
+import type { FilingType } from "@/lib/filingTypes";
+import { normalizeFilingType } from "@/lib/filingTypes";
 
 export interface Company {
   id: string;
   name: string;
-  companyType: "1099" | "W2" | "K1";
+  /** Tax / Filing Type — see src/lib/filingTypes.ts */
+  companyType: FilingType;
   includeInTax: boolean;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [
-  { id: "c1", name: "Vituity", companyType: "K1", includeInTax: true },
-  { id: "c2", name: "WWEP", companyType: "1099", includeInTax: true },
-  { id: "c3", name: "Veterans Affairs", companyType: "W2", includeInTax: true },
-  { id: "c4", name: "Virginia Mason", companyType: "W2", includeInTax: true },
-  { id: "c5", name: "Optum", companyType: "W2", includeInTax: true },
+  { id: "c1", name: "Vituity", companyType: "k1_partnership", includeInTax: true },
+  { id: "c2", name: "WWEP", companyType: "1099_schedule_c", includeInTax: true },
+  { id: "c3", name: "Veterans Affairs", companyType: "w2", includeInTax: true },
+  { id: "c4", name: "Virginia Mason", companyType: "w2", includeInTax: true },
+  { id: "c5", name: "Optum", companyType: "w2", includeInTax: true },
 ];
 
 interface CompanyContextValue {
@@ -52,7 +55,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       (data || []).map((c) => ({
         id: c.id,
         name: c.name,
-        companyType: c.company_type as "1099" | "W2" | "K1",
+        companyType: normalizeFilingType(c.company_type),
         includeInTax: c.include_in_tax,
       }))
     );
