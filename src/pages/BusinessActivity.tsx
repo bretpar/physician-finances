@@ -183,6 +183,14 @@ export default function Transactions() {
   const isEditingIncome = !!editingIncomeTxId;
   const isEditingExpense = !!editingExpenseTxId;
 
+  /**
+   * Currently-loaded linked income entry (when editing). Used to:
+   *  - Preserve saved values for fields that are now toggled OFF in Settings
+   *    (so saving doesn't silently zero them out).
+   *  - Surface "previously saved but currently hidden" fields in the Edit form.
+   */
+  const [linkedEntry, setLinkedEntry] = useState<IncomeEntry | null>(null);
+
   // Business Activity: only show non-W2 companies (1099, K-1, S-Corp, Other)
   const allCompanyNames = useMemo(() => {
     return [...new Set(
