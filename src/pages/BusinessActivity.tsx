@@ -247,6 +247,16 @@ export default function Transactions() {
   /** Should a given field render in the form? Toggle on OR has a legacy saved value. */
   const showField = (key: ToggleKey) => visibleFields[key] || !!legacyFields[key];
 
+  const incomeByLinkedTx = useMemo(() => {
+    const map = new Map<string, IncomeEntry>();
+    if (!incomeEntries) return map;
+    for (const ie of incomeEntries) {
+      if (ie.linked_transaction_id) map.set(ie.linked_transaction_id, ie);
+    }
+    return map;
+  }, [incomeEntries]);
+
+
 
 
   // Filtered list
