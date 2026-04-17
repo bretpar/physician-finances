@@ -27,6 +27,14 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt } from "lucide-react";
 import { useCompanies } from "@/contexts/CompanyContext";
+import {
+  getFilingMeta,
+  isW2FilingType,
+  normalizeFilingType,
+  ADVANCED_FIELDS_BY_TYPE,
+  type FilingType,
+  type IncomeFieldKey,
+} from "@/lib/filingTypes";
 import { toast } from "sonner";
 
 const fmt = (n: number) =>
@@ -150,15 +158,15 @@ export default function Transactions() {
   const isEditingIncome = !!editingIncomeTxId;
   const isEditingExpense = !!editingExpenseTxId;
 
-  // Business Activity: only show non-W2 companies (1099, K1)
+  // Business Activity: only show non-W2 companies (1099, K-1, S-Corp, Other)
   const allCompanyNames = useMemo(() => {
     return [...new Set(
-      companies.filter((c) => c.companyType !== "W2").map((c) => c.name)
+      companies.filter((c) => !isW2FilingType(c.companyType)).map((c) => c.name)
     )].sort();
   }, [companies]);
 
-  const getCompanyType = (name: string) =>
-    companies.find((c) => c.name === name)?.companyType || "1099";
+  const getCompanyType = (name: string): FilingType =>
+    normalizeFilingType(companies.find((c) => c.name === name)?.companyType);
 
   const incomeByLinkedTx = useMemo(() => {
     const map = new Map<string, IncomeEntry>();
