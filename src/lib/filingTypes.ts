@@ -112,6 +112,32 @@ export function isSelfEmployedFilingType(raw: string | null | undefined): boolea
   return getFilingMeta(raw).isSelfEmployed;
 }
 
+/**
+ * Canonical income_type values accepted by the database constraint for
+ * NEW saves. The DB also still accepts legacy values for historical rows,
+ * but every new INSERT/UPDATE should funnel through this set.
+ */
+export type CanonicalIncomeType = "w2" | "1099" | "k1" | "other";
+
+/**
+ * Map any UI/legacy income type string to one of the 4 canonical
+ * income_type values that pass the income_entries_income_type_check
+ * constraint. Never store display labels or company names here.
+ */
+export function toCanonicalIncomeType(
+  raw: string | null | undefined,
+): CanonicalIncomeType {
+  if (!raw) return "other";
+  const v = raw.toLowerCase().trim();
+  if (v === "w2" || v === "w2_user" || v === "w2_partner" || v === "scorp_w2") {
+    return "w2";
+  }
+  if (v === "1099" || v === "1099_schedule_c") return "1099";
+  if (v === "k1" || v === "k1_partnership") return "k1";
+  // dividend / interest / rental / capital gains / loss / scorp_distribution / other_income → "other"
+  return "other";
+}
+
 /* ─── Advanced field configuration per filing type ───
  * Determines which inputs the Income form renders inside the Advanced section.
  * `relevantKeys` lists which IncomeFormState fields are used; the rest are
