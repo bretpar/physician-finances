@@ -481,7 +481,7 @@ export default function Transactions() {
                   organization_id: orgId,
                   name: incomeForm.name,
                   company: incomeForm.company,
-                  income_type: companyType,
+                  income_type: toCanonicalIncomeType(companyType),
                   income_date: incomeForm.date,
                   paycheck_amount: paycheckAmt,
                   deposited_amount: depositedAmt,

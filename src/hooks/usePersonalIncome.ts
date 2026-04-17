@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { toCanonicalIncomeType } from "@/lib/filingTypes";
 
 export interface PersonalIncomeEntry {
   id: string;
@@ -60,7 +61,7 @@ export function useAddPersonalIncome() {
         organization_id: orgId,
         name: entry.name || "",
         company: entry.company || "",
-        income_type: entry.income_type || "other_income",
+        income_type: toCanonicalIncomeType(entry.income_type),
         income_date: entry.income_date || new Date().toISOString().split("T")[0],
         gross_amount: entry.gross_amount || 0,
         paycheck_amount: entry.paycheck_amount || entry.gross_amount || 0,
@@ -94,9 +95,13 @@ export function useUpdatePersonalIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonalIncomeEntry> & { id: string }) => {
+      const safe: any = { ...updates };
+      if (typeof safe.income_type === "string") {
+        safe.income_type = toCanonicalIncomeType(safe.income_type);
+      }
       const { error } = await supabase
         .from("income_entries")
-        .update(updates as any)
+        .update(safe)
         .eq("id", id);
       if (error) throw error;
     },

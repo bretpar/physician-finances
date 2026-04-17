@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo, useCallback } from "react";
-import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { isW2FilingType, isSelfEmployedFilingType, toCanonicalIncomeType } from "@/lib/filingTypes";
 
 export type IncomeStatus = "projected" | "expected" | "received";
 
@@ -80,6 +80,9 @@ export function useAddIncome() {
         entity: entry.company || "Unassigned",
         company_type: entry.income_type || "1099_schedule_c",
         transaction_type: "income",
+        // (transactions.company_type accepts free text — keep the descriptive
+        // filing type here for tax routing; only income_entries.income_type is
+        // constrained to the canonical 4 values.)
         recommended_withholding: Math.round(recommendedWithholding * 100) / 100,
         withholding_saved: false,
       } as any).select("id").single();
@@ -91,7 +94,7 @@ export function useAddIncome() {
         organization_id: orgId,
         name: entry.name || "",
         company: entry.company || "",
-        income_type: entry.income_type || "1099_schedule_c",
+        income_type: toCanonicalIncomeType(entry.income_type),
         income_date: incomeDate,
         paycheck_amount: paycheckAmount,
         deposited_amount: entry.deposited_amount || 0,
@@ -122,9 +125,13 @@ export function useUpdateIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<IncomeEntry> & { id: string }) => {
+      const safe: any = { ...updates };
+      if (typeof safe.income_type === "string") {
+        safe.income_type = toCanonicalIncomeType(safe.income_type);
+      }
       const { error } = await supabase
         .from("income_entries")
-        .update(updates as any)
+        .update(safe)
         .eq("id", id);
       if (error) throw error;
     },
