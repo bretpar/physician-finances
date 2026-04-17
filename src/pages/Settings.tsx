@@ -14,16 +14,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Plus, Trash2, Building2, Check, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, HelpCircle, AlertTriangle,
+  Lock, HelpCircle, AlertTriangle, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTaxSettings, useUpdateTaxSettings, type WithholdingMethod } from "@/hooks/useTaxSettings";
-import { FILING_TYPES, type FilingType } from "@/lib/filingTypes";
+import {
+  FILING_TYPES,
+  TOGGLE_OPTIONS_BY_TYPE,
+  resolveAdvancedVisibility,
+  type FilingType,
+  type ToggleKey,
+} from "@/lib/filingTypes";
 import {
   usePlaidItems,
   usePlaidAccounts,
@@ -99,9 +106,18 @@ export default function Settings() {
       defaultSetasideMethod: "recommended",
       defaultSetasidePct: null,
       notes: "",
+      advancedFieldVisibility: {},
     });
   }
   function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
+  const [advancedOpenIds, setAdvancedOpenIds] = useState<Set<string>>(new Set());
+  const toggleAdvancedOpen = (id: string) =>
+    setAdvancedOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   /* ─── Connected Accounts (Plaid) ─── */
   const { data: plaidItems = [], isLoading: plaidItemsLoading } = usePlaidItems();
