@@ -42,6 +42,15 @@ interface OrgMember { id: string; user_id: string; role: string; email?: string;
 
 const COMPANY_TYPES = FILING_TYPES.map((t) => ({ value: t.value, label: t.label }));
 
+const FILING_TYPE_BLURBS: Record<FilingType, string> = {
+  "1099_schedule_c": "Use for independent contractor or self-employed income. Taxes are usually not withheld, so the app will recommend how much to set aside.",
+  "k1_partnership": "Use for partnership income reported on a K-1. This may include partner deductions such as health insurance, retirement contributions, or other partner-level adjustments.",
+  "scorp_w2": "Use for wages paid to you through your S-Corp payroll. Tax withholding and payroll deductions are treated like a W-2 paycheck.",
+  "scorp_distribution": "Use for owner distributions from an S-Corp. These are usually not payroll wages and taxes are generally not withheld.",
+  "w2": "Use for employee wages from an employer. Taxes are usually withheld through payroll.",
+  "other": "Use when the income does not fit one of the standard categories. The app will show a simplified income form.",
+};
+
 const roleIcons = { owner: Crown, admin: Shield, member: User };
 const roleColors = { owner: "default", admin: "secondary", member: "outline" } as const;
 
