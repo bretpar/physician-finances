@@ -18,6 +18,7 @@ import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } 
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
+import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 
 export type RecommendationStatus = "ahead" | "on_track" | "behind";
 export type RecommendationConfidence = "high" | "estimated" | "low";
