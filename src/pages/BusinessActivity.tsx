@@ -25,7 +25,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
 import {
   getFilingMeta,
@@ -183,6 +184,14 @@ export default function Transactions() {
   const isEditingIncome = !!editingIncomeTxId;
   const isEditingExpense = !!editingExpenseTxId;
 
+  /**
+   * Currently-loaded linked income entry (when editing). Used to:
+   *  - Preserve saved values for fields that are now toggled OFF in Settings
+   *    (so saving doesn't silently zero them out).
+   *  - Surface "previously saved but currently hidden" fields in the Edit form.
+   */
+  const [linkedEntry, setLinkedEntry] = useState<IncomeEntry | null>(null);
+
   // Business Activity: only show non-W2 companies (1099, K-1, S-Corp, Other)
   const allCompanyNames = useMemo(() => {
     return [...new Set(
@@ -211,6 +220,34 @@ export default function Transactions() {
     [visibleFields],
   );
 
+  /**
+   * Map of fields that are toggled OFF for this company but still have a
+   * non-zero saved value on the existing transaction. We render them in the
+   * Edit form (with a small "Hidden in new entries" note) so the user can
+   * view or clear prior data on purpose without losing it.
+   */
+  const legacyFields = useMemo<Partial<Record<ToggleKey, true>>>(() => {
+    if (!isEditingIncome || !linkedEntry) return {};
+    const out: Partial<Record<ToggleKey, true>> = {};
+    const checks: Array<[ToggleKey, number]> = [
+      ["net_received", linkedEntry.deposited_amount || 0],
+      ["taxes_withheld", linkedEntry.taxes_withheld || 0],
+      ["pre_tax_deductions", linkedEntry.pre_tax_deductions || 0],
+      ["retirement_401k", linkedEntry.retirement_401k || 0],
+      ["owner_healthcare", (linkedEntry as any).owner_healthcare || 0],
+      ["federal_withholding", (linkedEntry as any).federal_withholding || 0],
+      ["state_withholding", (linkedEntry as any).state_withholding || 0],
+      ["additional_tax_reserve", (linkedEntry as any).additional_tax_reserve || 0],
+    ];
+    for (const [key, val] of checks) {
+      if (val > 0 && !visibleFields[key]) out[key] = true;
+    }
+    return out;
+  }, [isEditingIncome, linkedEntry, visibleFields]);
+
+  /** Should a given field render in the form? Toggle on OR has a legacy saved value. */
+  const showField = (key: ToggleKey) => visibleFields[key] || !!legacyFields[key];
+
   const incomeByLinkedTx = useMemo(() => {
     const map = new Map<string, IncomeEntry>();
     if (!incomeEntries) return map;
@@ -219,6 +256,9 @@ export default function Transactions() {
     }
     return map;
   }, [incomeEntries]);
+
+
+
 
   // Filtered list
   const filtered = useMemo(() => {
@@ -270,6 +310,7 @@ export default function Transactions() {
     setIncomeForm(emptyIncomeForm);
     setEditingIncomeTxId(null);
     setEditingIncomeEntryId(null);
+    setLinkedEntry(null);
     setAdvancedOpen(false);
     setShowIncomeForm(true);
   }
@@ -308,8 +349,19 @@ export default function Transactions() {
       });
       setEditingIncomeTxId(tx.id);
       setEditingIncomeEntryId(linked?.id || null);
-      // Open advanced if any advanced fields have values
-      const hasAdvanced = linked && (linked.taxes_withheld > 0 || linked.pre_tax_deductions > 0 || linked.retirement_401k > 0 || linked.deposited_amount > 0);
+      setLinkedEntry(linked || null);
+      // Auto-expand Advanced when any saved advanced value exists
+      const hasAdvanced =
+        linked &&
+        (linked.taxes_withheld > 0 ||
+          linked.pre_tax_deductions > 0 ||
+          linked.retirement_401k > 0 ||
+          linked.deposited_amount > 0 ||
+          (linked as any).owner_healthcare > 0 ||
+          (linked as any).federal_withholding > 0 ||
+          (linked as any).state_withholding > 0 ||
+          (linked as any).additional_tax_reserve > 0 ||
+          ((tx as any).actual_withholding || 0) > 0);
       setAdvancedOpen(!!hasAdvanced);
       setShowIncomeForm(true);
     } else {
@@ -334,11 +386,20 @@ export default function Transactions() {
     if (grossIncome <= 0) { toast.error("Gross amount is required"); return; }
 
     const paycheckAmt = grossIncome;
-    const depositedAmt = num(incomeForm.net_received);
-    const taxWithheld = num(incomeForm.taxes_withheld);
-    const preTaxDed = num(incomeForm.pre_tax_deductions);
-    const retirement = num(incomeForm.retirement_401k);
-    const healthcare = num(incomeForm.owner_healthcare);
+    /**
+     * Hidden-field preservation: when an advanced field is currently toggled
+     * OFF and not surfaced as a legacy field, fall back to the saved value
+     * from the linked income entry instead of treating empty input as 0.
+     * This prevents toggle changes from silently zeroing historical data.
+     */
+    const preserve = (key: ToggleKey, current: number, savedVal: number) =>
+      showField(key) ? current : (linkedEntry ? savedVal : current);
+
+    const depositedAmt = preserve("net_received", num(incomeForm.net_received), linkedEntry?.deposited_amount || 0);
+    const taxWithheld = preserve("taxes_withheld", num(incomeForm.taxes_withheld), linkedEntry?.taxes_withheld || 0);
+    const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
+    const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
+    const healthcare = preserve("owner_healthcare", num(incomeForm.owner_healthcare), (linkedEntry as any)?.owner_healthcare || 0);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
     // Determine the correct amount for the transactions table:
@@ -954,6 +1015,7 @@ export default function Transactions() {
           <DialogHeader>
             <DialogTitle>{isEditingIncome ? "Edit Income" : "Add Income"}</DialogTitle>
           </DialogHeader>
+          <TooltipProvider delayDuration={150}>
           <div className="space-y-4">
             {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
@@ -973,8 +1035,44 @@ export default function Transactions() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-                <Select value={incomeForm.company} onValueChange={(v) => setIncomeForm((f) => ({ ...f, company: v, income_type: getCompanyType(v) }))}>
-                  <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                <Select
+                  value={incomeForm.company}
+                  disabled={isEditingIncome}
+                  onValueChange={(v) => {
+                    if (isEditingIncome) return;
+                    // Switching company → reset advanced fields so incompatible
+                    // unsaved values don't leak across filing types.
+                    setIncomeForm((f) => ({
+                      ...f,
+                      company: v,
+                      income_type: getCompanyType(v),
+                      net_received: "",
+                      taxes_withheld: "",
+                      pre_tax_deductions: "",
+                      retirement_401k: "",
+                      owner_healthcare: "",
+                      federal_withholding: "",
+                      state_withholding: "",
+                      ss_withholding: "",
+                      medicare_withholding: "",
+                      actual_withholding: "",
+                      additional_tax_reserve: "0",
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select company" />
+                    {isEditingIncome && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Lock className="h-3 w-3 ml-1 text-muted-foreground inline-block" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <p className="text-xs">Company is locked after saving. To move this income, delete it and create a new transaction.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </SelectTrigger>
                   <SelectContent>
                     {allCompanyNames.map((c) => (
                       <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
@@ -1030,38 +1128,44 @@ export default function Transactions() {
                     </p>
                   )}
 
-                  {visibleFields.net_received && (
+                  {Object.keys(legacyFields).length > 0 && (
+                    <p className="text-[10px] text-muted-foreground italic border-l-2 border-muted-foreground/40 pl-2">
+                      Some fields below are <strong>hidden in new entries</strong>, but shown here because this transaction has a saved value.
+                    </p>
+                  )}
+
+                  {showField("net_received") && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received</Label>
                       <Input type="number" min="0" step="0.01" placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"} value={incomeForm.net_received} onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))} />
                       <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
                     </div>
                   )}
-                  {visibleFields.net_received && grossIncome > 0 && (
+                  {showField("net_received") && grossIncome > 0 && (
                     <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
                       Estimated Net: <strong>{fmt(calculatedNet)}</strong> based on your inputs
                     </p>
                   )}
 
-                  {(visibleFields.taxes_withheld || visibleFields.federal_withholding || visibleFields.state_withholding || visibleFields.ss_withholding || visibleFields.medicare_withholding) && (
+                  {(showField("taxes_withheld") || showField("federal_withholding") || showField("state_withholding") || showField("ss_withholding") || showField("medicare_withholding")) && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {visibleFields.taxes_withheld && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label><Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.federal_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.federal_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, federal_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.state_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">State W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.state_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, state_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.ss_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Social Security</Label><Input type="number" min="0" step="0.01" value={incomeForm.ss_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, ss_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.medicare_withholding && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Medicare</Label><Input type="number" min="0" step="0.01" value={incomeForm.medicare_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, medicare_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("taxes_withheld") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld</Label><Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("federal_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.federal_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, federal_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("state_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">State W/H</Label><Input type="number" min="0" step="0.01" value={incomeForm.state_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, state_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("ss_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Social Security</Label><Input type="number" min="0" step="0.01" value={incomeForm.ss_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, ss_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("medicare_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Medicare</Label><Input type="number" min="0" step="0.01" value={incomeForm.medicare_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, medicare_withholding: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
 
-                  {(visibleFields.retirement_401k || visibleFields.owner_healthcare || visibleFields.pre_tax_deductions) && (
+                  {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {visibleFields.retirement_401k && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.owner_healthcare && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label><Input type="number" min="0" step="0.01" value={incomeForm.owner_healthcare} onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))} placeholder="0.00" /></div>)}
-                      {visibleFields.pre_tax_deductions && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("retirement_401k") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("owner_healthcare") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label><Input type="number" min="0" step="0.01" value={incomeForm.owner_healthcare} onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("pre_tax_deductions") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
 
-                  {visibleFields.actual_withholding && grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
+                  {showField("actual_withholding") && grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Amount to set aside for quarterly taxes</Label>
                       <p className="text-[10px] text-muted-foreground mb-1">Tracked as a reserve — not counted as taxes paid until you make a quarterly payment</p>
@@ -1069,7 +1173,7 @@ export default function Transactions() {
                     </div>
                   )}
 
-                  {visibleFields.actual_withholding && isEditingIncome && (
+                  {showField("actual_withholding") && isEditingIncome && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00" value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve} onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))} />
@@ -1086,7 +1190,7 @@ export default function Transactions() {
               </CollapsibleContent>
             </Collapsible>
 
-            {!advancedOpen && visibleFields.notes && (
+            {!advancedOpen && showField("notes") && (
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
                 <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
@@ -1113,6 +1217,7 @@ export default function Transactions() {
               </div>
             </div>
           </div>
+          </TooltipProvider>
         </DialogContent>
       </Dialog>
 
