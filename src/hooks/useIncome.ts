@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo, useCallback } from "react";
+import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 
 export type IncomeStatus = "projected" | "expected" | "received";
 
@@ -62,8 +63,8 @@ export function useAddIncome() {
       const taxWithheld = entry.taxes_withheld || 0;
       const preTaxDed = (entry.pre_tax_deductions || 0) + (entry.retirement_401k || 0);
       const taxableForThis = Math.max(0, paycheckAmount - preTaxDed);
-      // Use a simple combined rate estimate (federal + SE if 1099)
-      const isSelfEmployed = entry.income_type === "1099" || entry.income_type === "K1";
+      // Use a simple combined rate estimate (federal + SE if self-employed)
+      const isSelfEmployed = isSelfEmployedFilingType(entry.income_type);
       const estimatedRate = isSelfEmployed ? 0.35 : 0.25; // rough combined rate
       const recommendedWithholding = Math.max(0, (taxableForThis * estimatedRate) - taxWithheld);
 
@@ -77,7 +78,7 @@ export function useAddIncome() {
         category: "Income",
         notes: entry.notes || "",
         entity: entry.company || "Unassigned",
-        company_type: entry.income_type || "1099",
+        company_type: entry.income_type || "1099_schedule_c",
         transaction_type: "income",
         recommended_withholding: Math.round(recommendedWithholding * 100) / 100,
         withholding_saved: false,
@@ -90,7 +91,7 @@ export function useAddIncome() {
         organization_id: orgId,
         name: entry.name || "",
         company: entry.company || "",
-        income_type: entry.income_type || "1099",
+        income_type: entry.income_type || "1099_schedule_c",
         income_date: incomeDate,
         paycheck_amount: paycheckAmount,
         deposited_amount: entry.deposited_amount || 0,
