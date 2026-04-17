@@ -49,9 +49,13 @@ interface IncomeFormState {
   company: string;
   income_type: string;
   gross_amount: string;
-  // Advanced
+  // Advanced (subset shown based on filing type)
   net_received: string;
   taxes_withheld: string;
+  federal_withholding: string;
+  state_withholding: string;
+  ss_withholding: string;
+  medicare_withholding: string;
   pre_tax_deductions: string;
   retirement_401k: string;
   owner_healthcare: string;
@@ -64,10 +68,14 @@ const emptyIncomeForm: IncomeFormState = {
   date: new Date().toISOString().split("T")[0],
   name: "",
   company: "",
-  income_type: "1099",
+  income_type: "1099_schedule_c",
   gross_amount: "",
   net_received: "",
   taxes_withheld: "",
+  federal_withholding: "",
+  state_withholding: "",
+  ss_withholding: "",
+  medicare_withholding: "",
   pre_tax_deductions: "",
   retirement_401k: "",
   owner_healthcare: "",
@@ -75,6 +83,21 @@ const emptyIncomeForm: IncomeFormState = {
   additional_tax_reserve: "",
   notes: "",
 };
+
+/** Reset advanced fields that don't apply to the new filing type. */
+function resetIrrelevantAdvancedFields(form: IncomeFormState, newType: FilingType): IncomeFormState {
+  const allowed = new Set<IncomeFieldKey>(ADVANCED_FIELDS_BY_TYPE[newType]);
+  const cleared: Partial<IncomeFormState> = {};
+  const allKeys: IncomeFieldKey[] = [
+    "net_received","taxes_withheld","federal_withholding","state_withholding",
+    "ss_withholding","medicare_withholding","pre_tax_deductions","retirement_401k",
+    "owner_healthcare","actual_withholding","additional_tax_reserve",
+  ];
+  for (const k of allKeys) {
+    if (!allowed.has(k)) (cleared as any)[k] = "";
+  }
+  return { ...form, ...cleared };
+}
 
 /* ───── Expense Form State ───── */
 interface ExpenseFormState {
