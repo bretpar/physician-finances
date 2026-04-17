@@ -12,9 +12,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Trash2, Building2, Check, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
+  Lock, HelpCircle, AlertTriangle,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,6 +42,15 @@ interface OrgMember { id: string; user_id: string; role: string; email?: string;
 
 const COMPANY_TYPES = FILING_TYPES.map((t) => ({ value: t.value, label: t.label }));
 
+const FILING_TYPE_BLURBS: Record<FilingType, string> = {
+  "1099_schedule_c": "Use for independent contractor or self-employed income. Taxes are usually not withheld, so the app will recommend how much to set aside.",
+  "k1_partnership": "Use for partnership income reported on a K-1. This may include partner deductions such as health insurance, retirement contributions, or other partner-level adjustments.",
+  "scorp_w2": "Use for wages paid to you through your S-Corp payroll. Tax withholding and payroll deductions are treated like a W-2 paycheck.",
+  "scorp_distribution": "Use for owner distributions from an S-Corp. These are usually not payroll wages and taxes are generally not withheld.",
+  "w2": "Use for employee wages from an employer. Taxes are usually withheld through payroll.",
+  "other": "Use when the income does not fit one of the standard categories. The app will show a simplified income form.",
+};
+
 const roleIcons = { owner: Crown, admin: Shield, member: User };
 const roleColors = { owner: "default", admin: "secondary", member: "outline" } as const;
 
@@ -57,7 +69,7 @@ function isValidEmail(email: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
 
 /* ─── Main Component ─── */
 export default function Settings() {
-  const { companies, addCompany, updateCompany, removeCompany } = useCompanies();
+  const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany } = useCompanies();
   const { organizationId, userRole, user } = useAuth();
   const isAdminOrOwner = userRole === "owner" || userRole === "admin";
   const { data: taxSettingsData } = useTaxSettings();
@@ -78,7 +90,17 @@ export default function Settings() {
 
   /* Companies */
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
-  function handleAddCompany() { addCompany({ name: "", companyType: "1099_schedule_c", includeInTax: true }); }
+  function handleAddCompany() {
+    addCompany({
+      name: "",
+      nickname: "",
+      companyType: "1099_schedule_c",
+      includeInTax: true,
+      defaultSetasideMethod: "recommended",
+      defaultSetasidePct: null,
+      notes: "",
+    });
+  }
   function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
 
   /* ─── Connected Accounts (Plaid) ─── */
@@ -389,36 +411,150 @@ export default function Settings() {
       {/* ─── Companies ─── */}
       <section className="glass-card rounded-xl p-6 space-y-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-card-foreground">Companies</h3>
+          <div>
+            <h3 className="text-base font-semibold text-card-foreground">Companies</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Set the tax / filing type for each company. This decision controls which fields appear when adding income and how tax is calculated.
+            </p>
+          </div>
           <Button variant="outline" size="sm" onClick={handleAddCompany} className="gap-1.5"><Plus className="h-4 w-4" /> Add Company</Button>
         </div>
-        {companies.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No companies added yet. Click "Add Company" to get started.</p>}
-        <div className="space-y-3">
-          {companies.map((company) => (
-            <div key={company.id} className="border border-border rounded-lg p-4 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-3 items-end">
-                <div><Label className="text-xs text-muted-foreground mb-1.5 block">Company Name</Label><Input value={company.name} onChange={(e) => updateCompany(company.id, { name: e.target.value })} placeholder="Company name" /></div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Type</Label>
-                  <Select value={company.companyType} onValueChange={(v) => updateCompany(company.id, { companyType: v as Company["companyType"] })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive" onClick={() => setDeleteCompanyId(company.id)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={company.includeInTax} onCheckedChange={(checked) => updateCompany(company.id, { includeInTax: checked })} />
-                <Label className="text-xs text-muted-foreground">Include in tax projections</Label>
-              </div>
-              {company.name && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Building2 className="h-3.5 w-3.5" /><span>{company.name} — {company.companyType}{!company.includeInTax && " (excluded from tax calculations)"}</span>
-                </div>
-              )}
-            </div>
-          ))}
+
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+          <p className="text-xs text-foreground">
+            <span className="font-medium">Set this carefully.</span> Once income is saved under a company, the company cannot be changed on that transaction. To move income to another company, delete and recreate the transaction.
+          </p>
         </div>
+
+        {companies.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No companies added yet. Click "Add Company" to get started.</p>}
+
+        <TooltipProvider delayDuration={150}>
+          <div className="space-y-4">
+            {companies.map((company) => {
+              const incomeCount = incomeCountByCompanyName[company.name] || 0;
+              const filingTypeLocked = incomeCount > 0;
+              const filingMeta = FILING_TYPES.find((t) => t.value === company.companyType);
+
+              return (
+                <div key={company.id} className="border border-border rounded-lg p-4 space-y-4">
+                  {/* Name + Nickname + Delete */}
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Company name *</Label>
+                      <Input value={company.name} onChange={(e) => updateCompany(company.id, { name: e.target.value })} placeholder="e.g. Vituity" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Nickname (optional)</Label>
+                      <Input value={company.nickname} onChange={(e) => updateCompany(company.id, { nickname: e.target.value })} placeholder="Short label" />
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-destructive" onClick={() => setDeleteCompanyId(company.id)}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+
+                  {/* Filing type */}
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Label className="text-xs text-muted-foreground">Tax / Filing Type *</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="Why does this matter?">
+                            <HelpCircle className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <p className="text-xs">Why does this matter? The selected filing type controls which advanced income fields appear, how deductions are handled, and whether tax payments are treated as already withheld or as recommended savings.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      {filingTypeLocked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </div>
+                    <Select
+                      value={company.companyType}
+                      onValueChange={(v) => updateCompany(company.id, { companyType: v as FilingType })}
+                      disabled={filingTypeLocked}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select filing type" /></SelectTrigger>
+                      <SelectContent>
+                        {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {filingTypeLocked ? (
+                      <p className="text-xs text-muted-foreground mt-1.5 flex items-start gap-1">
+                        <Lock className="h-3 w-3 mt-0.5 shrink-0" />
+                        This filing type is locked because {incomeCount} income {incomeCount === 1 ? "transaction exists" : "transactions exist"} for this company. This prevents incompatible tax fields from affecting your calculations. To change it, create a new company profile and stop using the old one.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        Choose how this income is usually taxed. This controls which income fields appear, how deductions are handled, and whether tax payments are treated as already withheld or recommended savings.
+                      </p>
+                    )}
+                    <p className="text-xs text-foreground/80 mt-2 italic">{FILING_TYPE_BLURBS[company.companyType]}</p>
+                  </div>
+
+                  {/* Set-aside method + percentage */}
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-end">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Default tax set-aside method</Label>
+                      <Select
+                        value={company.defaultSetasideMethod}
+                        onValueChange={(v) => updateCompany(company.id, { defaultSetasideMethod: v as any })}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="recommended">Use app recommendation</SelectItem>
+                          <SelectItem value="flat_percentage">Flat percentage of gross</SelectItem>
+                          <SelectItem value="none">No automatic set-aside</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Default % (optional)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={company.defaultSetasidePct ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          updateCompany(company.id, { defaultSetasidePct: v === "" ? null : parseFloat(v) });
+                        }}
+                        placeholder="e.g. 25"
+                        disabled={company.defaultSetasideMethod !== "flat_percentage"}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</Label>
+                    <Textarea
+                      value={company.notes}
+                      onChange={(e) => updateCompany(company.id, { notes: e.target.value })}
+                      placeholder="Anything to remember about this company"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch checked={company.includeInTax} onCheckedChange={(checked) => updateCompany(company.id, { includeInTax: checked })} />
+                    <Label className="text-xs text-muted-foreground">Include in tax projections</Label>
+                  </div>
+
+                  {company.name && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground border-t border-border pt-3">
+                      <Building2 className="h-3.5 w-3.5" />
+                      <span>
+                        {company.name}{company.nickname ? ` (${company.nickname})` : ""} — {filingMeta?.label || company.companyType}
+                        {!company.includeInTax && " · excluded from tax"}
+                        {filingTypeLocked && ` · ${incomeCount} income ${incomeCount === 1 ? "entry" : "entries"}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </TooltipProvider>
       </section>
 
       <Separator />

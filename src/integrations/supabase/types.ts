@@ -18,9 +18,13 @@ export type Database = {
         Row: {
           company_type: string
           created_at: string
+          default_setaside_method: string
+          default_setaside_pct: number | null
           id: string
           include_in_tax: boolean
           name: string
+          nickname: string
+          notes: string
           organization_id: string | null
           updated_at: string
           user_id: string
@@ -28,9 +32,13 @@ export type Database = {
         Insert: {
           company_type?: string
           created_at?: string
+          default_setaside_method?: string
+          default_setaside_pct?: number | null
           id?: string
           include_in_tax?: boolean
           name?: string
+          nickname?: string
+          notes?: string
           organization_id?: string | null
           updated_at?: string
           user_id: string
@@ -38,9 +46,13 @@ export type Database = {
         Update: {
           company_type?: string
           created_at?: string
+          default_setaside_method?: string
+          default_setaside_pct?: number | null
           id?: string
           include_in_tax?: boolean
           name?: string
+          nickname?: string
+          notes?: string
           organization_id?: string | null
           updated_at?: string
           user_id?: string

@@ -6,28 +6,31 @@ import { toast } from "sonner";
 import type { FilingType } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
 
+export type SetasideMethod = "recommended" | "flat_percentage" | "none";
+
 export interface Company {
   id: string;
   name: string;
+  nickname: string;
   /** Tax / Filing Type — see src/lib/filingTypes.ts */
   companyType: FilingType;
   includeInTax: boolean;
+  defaultSetasideMethod: SetasideMethod;
+  defaultSetasidePct: number | null;
+  notes: string;
 }
 
-export const DEFAULT_COMPANIES: Company[] = [
-  { id: "c1", name: "Vituity", companyType: "k1_partnership", includeInTax: true },
-  { id: "c2", name: "WWEP", companyType: "1099_schedule_c", includeInTax: true },
-  { id: "c3", name: "Veterans Affairs", companyType: "w2", includeInTax: true },
-  { id: "c4", name: "Virginia Mason", companyType: "w2", includeInTax: true },
-  { id: "c5", name: "Optum", companyType: "w2", includeInTax: true },
-];
+export const DEFAULT_COMPANIES: Company[] = [];
 
 interface CompanyContextValue {
   companies: Company[];
+  /** Map of company name → number of saved income_entries. Drives filing-type lock. */
+  incomeCountByCompanyName: Record<string, number>;
   addCompany: (company: Omit<Company, "id">) => Promise<void>;
   updateCompany: (id: string, updates: Partial<Company>) => Promise<void>;
   removeCompany: (id: string) => Promise<void>;
   loading: boolean;
+  refreshIncomeCounts: () => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
@@ -35,6 +38,7 @@ const CompanyContext = createContext<CompanyContextValue | null>(null);
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [incomeCountByCompanyName, setIncomeCountByCompanyName] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const loadCompanies = useCallback(async () => {
@@ -52,19 +56,36 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
 
     setCompanies(
-      (data || []).map((c) => ({
+      (data || []).map((c: any) => ({
         id: c.id,
         name: c.name,
+        nickname: c.nickname || "",
         companyType: normalizeFilingType(c.company_type),
         includeInTax: c.include_in_tax,
+        defaultSetasideMethod: (c.default_setaside_method || "recommended") as SetasideMethod,
+        defaultSetasidePct: c.default_setaside_pct ?? null,
+        notes: c.notes || "",
       }))
     );
     setLoading(false);
   }, [user]);
 
+  const refreshIncomeCounts = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase.from("income_entries").select("company");
+    if (error) return;
+    const counts: Record<string, number> = {};
+    for (const row of data || []) {
+      const name = (row as any).company || "";
+      counts[name] = (counts[name] || 0) + 1;
+    }
+    setIncomeCountByCompanyName(counts);
+  }, [user]);
+
   useEffect(() => {
     loadCompanies();
-  }, [loadCompanies]);
+    refreshIncomeCounts();
+  }, [loadCompanies, refreshIncomeCounts]);
 
   const addCompany = useCallback(async (company: Omit<Company, "id">) => {
     if (!user) return;
@@ -73,25 +94,29 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       user_id: user.id,
       organization_id: orgId,
       name: company.name,
+      nickname: company.nickname,
       company_type: company.companyType,
       include_in_tax: company.includeInTax,
-    });
+      default_setaside_method: company.defaultSetasideMethod,
+      default_setaside_pct: company.defaultSetasidePct,
+      notes: company.notes,
+    } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
     loadCompanies();
   }, [user, loadCompanies]);
 
   const updateCompany = useCallback(async (id: string, updates: Partial<Company>) => {
-    const dbUpdates: {
-      name?: string;
-      company_type?: string;
-      include_in_tax?: boolean;
-    } = {};
+    const dbUpdates: Record<string, any> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.nickname !== undefined) dbUpdates.nickname = updates.nickname;
     if (updates.companyType !== undefined) dbUpdates.company_type = updates.companyType;
     if (updates.includeInTax !== undefined) dbUpdates.include_in_tax = updates.includeInTax;
+    if (updates.defaultSetasideMethod !== undefined) dbUpdates.default_setaside_method = updates.defaultSetasideMethod;
+    if (updates.defaultSetasidePct !== undefined) dbUpdates.default_setaside_pct = updates.defaultSetasidePct;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
 
-    const { error } = await supabase.from("companies").update(dbUpdates).eq("id", id);
+    const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
     loadCompanies();
   }, [loadCompanies]);
@@ -104,7 +129,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [loadCompanies]);
 
   return (
-    <CompanyContext.Provider value={{ companies, addCompany, updateCompany, removeCompany, loading }}>
+    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, loading, refreshIncomeCounts }}>
       {children}
     </CompanyContext.Provider>
   );
