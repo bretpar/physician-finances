@@ -9,12 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Plus, Trash2, DollarSign, TrendingUp, PiggyBank, Receipt, AlertCircle } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { useCompanies } from "@/contexts/CompanyContext";
+import type { FilingType } from "@/lib/filingTypes";
 
 interface ForecastRow {
   id: string;
   month: string;
   companyName: string;
-  companyType: "1099" | "W2" | "K1";
+  companyType: FilingType;
   grossIncome: number;
   expectedWithholding: number;
   notes: string;
