@@ -121,7 +121,7 @@ function W2Card({ data }: { data: W2Breakdown }) {
       <CardContent className="pt-5 pb-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+            <div className="h-9 w-9 rounded-lg bg-secondary text-secondary-foreground flex items-center justify-center shrink-0">
               <Wallet className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -152,7 +152,7 @@ function CapGainsCard({ data }: { data: CapGainsBreakdown }) {
       <CardContent className="pt-5 pb-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="h-9 w-9 rounded-lg bg-accent text-accent-foreground flex items-center justify-center shrink-0">
               <TrendingUp className="h-4 w-4" />
             </div>
             <div className="min-w-0">
