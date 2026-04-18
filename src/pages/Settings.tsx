@@ -487,6 +487,18 @@ export default function Settings() {
                           {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      {(() => {
+                        const bucket = ledgerForIncomeType(company.companyType);
+                        return (
+                          <p className="mt-1.5 text-[11px] text-muted-foreground">
+                            Ledger:{" "}
+                            <span className={bucket === "business" ? "text-primary font-medium" : "text-foreground font-medium"}>
+                              {ledgerLabel(bucket)}
+                            </span>
+                            <span className="ml-1 opacity-70">(auto from filing type)</span>
+                          </p>
+                        );
+                      })()}
                     </div>
                     <Button
                       variant="ghost"
