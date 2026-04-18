@@ -159,6 +159,9 @@ export default function Transactions() {
   const [bulkCategory, setBulkCategory] = useState("");
   const [showBulkCategory, setShowBulkCategory] = useState(false);
 
+  // Attachment counts per transaction (for paperclip badges)
+  const { data: attachmentCounts } = useAttachmentCounts();
+
   // Suggested matches (pass income entries for net-amount matching)
   const suggestions = useSuggestedMatches(transactions, incomeEntries);
 

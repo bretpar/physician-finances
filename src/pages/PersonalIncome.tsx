@@ -104,6 +104,7 @@ export default function PersonalIncome() {
   const deleteMutation = useDeletePersonalIncome();
   const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
+  const { data: attachmentCounts } = useAttachmentCounts();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
