@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
+import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 
 export interface PersonalIncomeEntry {
   id: string;
@@ -44,7 +45,11 @@ export function usePersonalIncomeEntries() {
         .eq("is_actual", true)
         .order("income_date", { ascending: false });
       if (error) throw error;
-      return (data || []) as PersonalIncomeEntry[];
+      // Defensive filter: hide any rows whose income_type is a business
+      // filing type (1099 / K-1 / S-Corp Distribution). They should be
+      // repaired into the business bucket but must never display here.
+      const rows = (data || []) as PersonalIncomeEntry[];
+      return rows.filter((r) => !isBusinessIncomeType(r.income_type));
     },
   });
 }
@@ -55,6 +60,11 @@ export function useAddPersonalIncome() {
     mutationFn: async (entry: Partial<PersonalIncomeEntry>) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+      if (isBusinessIncomeType(entry.income_type)) {
+        throw new Error(
+          "1099, K-1, and S-Corp Distribution income belongs in Business Activity, not Personal Income.",
+        );
+      }
       const orgId = await getUserOrgId();
       const { error } = await supabase.from("income_entries").insert({
         user_id: user.id,
@@ -95,6 +105,11 @@ export function useUpdatePersonalIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonalIncomeEntry> & { id: string }) => {
+      if (isBusinessIncomeType(updates.income_type)) {
+        throw new Error(
+          "1099, K-1, and S-Corp Distribution income belongs in Business Activity, not Personal Income.",
+        );
+      }
       const safe: any = { ...updates };
       if (typeof safe.income_type === "string") {
         safe.income_type = toCanonicalIncomeType(safe.income_type);
