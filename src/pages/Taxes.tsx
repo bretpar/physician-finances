@@ -528,6 +528,8 @@ export default function Taxes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
