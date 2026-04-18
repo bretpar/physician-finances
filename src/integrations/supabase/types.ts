@@ -415,6 +415,13 @@ export type Database = {
             referencedRelation: "plaid_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "plaid_accounts_plaid_item_id_fkey"
+            columns: ["plaid_item_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_items_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       plaid_items: {
@@ -1338,7 +1345,56 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      plaid_items_safe: {
+        Row: {
+          created_at: string | null
+          cursor: string | null
+          id: string | null
+          institution_id: string | null
+          institution_name: string | null
+          item_id: string | null
+          last_synced_at: string | null
+          organization_id: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          cursor?: string | null
+          id?: string | null
+          institution_id?: string | null
+          institution_name?: string | null
+          item_id?: string | null
+          last_synced_at?: string | null
+          organization_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          cursor?: string | null
+          id?: string | null
+          institution_id?: string | null
+          institution_name?: string | null
+          item_id?: string | null
+          last_synced_at?: string | null
+          organization_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plaid_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_user_org_ids: { Args: { _user_id: string }; Returns: string[] }

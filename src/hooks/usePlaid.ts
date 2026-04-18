@@ -7,8 +7,8 @@ export function usePlaidItems() {
   return useQuery({
     queryKey: ["plaid-items"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("plaid_items")
+      const { data, error } = await (supabase as any)
+        .from("plaid_items_safe")
         .select("*")
         .eq("status", "active")
         .order("created_at", { ascending: false });
