@@ -1257,6 +1257,7 @@ export type Database = {
           receipt_url: string | null
           recommended_withholding: number
           recurring_frequency: string | null
+          schedule_c_category: string | null
           source_type: string
           transaction_date: string
           transaction_type: string
@@ -1290,6 +1291,7 @@ export type Database = {
           receipt_url?: string | null
           recommended_withholding?: number
           recurring_frequency?: string | null
+          schedule_c_category?: string | null
           source_type?: string
           transaction_date?: string
           transaction_type?: string
@@ -1323,6 +1325,7 @@ export type Database = {
           receipt_url?: string | null
           recommended_withholding?: number
           recurring_frequency?: string | null
+          schedule_c_category?: string | null
           source_type?: string
           transaction_date?: string
           transaction_type?: string
