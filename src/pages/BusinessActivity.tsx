@@ -345,7 +345,7 @@ export default function Transactions() {
         date: tx.transaction_date,
         name: tx.vendor,
         company: linked?.company || tx.entity || "",
-        income_type: linked?.income_type || tx.company_type || "1099",
+        income_type: normalizeFilingType(linked?.income_type || tx.company_type || "1099_schedule_c"),
         gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
         net_received: linked && linked.deposited_amount ? String(linked.deposited_amount) : "",
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
