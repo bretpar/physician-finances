@@ -28,6 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments } from "@/components/TransactionAttachments";
+import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useAttachmentCounts } from "@/hooks/useAttachments";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
