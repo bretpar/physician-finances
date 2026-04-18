@@ -113,6 +113,7 @@ interface ExpenseFormState {
   company: string;
   amount: string;
   category: string;
+  schedule_c_category: string;
   notes: string;
   is_transfer: boolean;
   transfer_subtype: string;
@@ -124,6 +125,7 @@ const emptyExpenseForm: ExpenseFormState = {
   company: "",
   amount: "",
   category: "",
+  schedule_c_category: "",
   notes: "",
   is_transfer: false,
   transfer_subtype: "",
@@ -390,6 +392,7 @@ export default function Transactions() {
         company: tx.entity || "",
         amount: String(Math.abs(tx.amount)),
         category: tx.category,
+        schedule_c_category: (tx as any).schedule_c_category || "",
         notes: tx.notes || "",
         is_transfer: txType === "transfer",
         transfer_subtype: tx.transfer_subtype || "",
@@ -624,6 +627,7 @@ export default function Transactions() {
           vendor: expenseForm.name,
           amount,
           category: expenseForm.category,
+          schedule_c_category: expenseForm.schedule_c_category || null,
           notes: expenseForm.notes,
           entity: expenseForm.company || "Unassigned",
         } as any);
@@ -633,10 +637,11 @@ export default function Transactions() {
           vendor: expenseForm.name,
           amount,
           category: expenseForm.category,
+          schedule_c_category: expenseForm.schedule_c_category || null,
           notes: expenseForm.notes,
           transaction_type: "expense",
           entity: expenseForm.company || "Unassigned",
-        });
+        } as any);
       }
     }
 
@@ -1394,10 +1399,29 @@ export default function Transactions() {
             </div>
 
             {!expenseForm.is_transfer && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                <ExpenseCategoryCombobox value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v }))} />
-              </div>
+              <>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                  <ExpenseCategoryCombobox value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v }))} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Schedule C category <span className="text-muted-foreground/70">(optional, for tax breakdown)</span>
+                  </Label>
+                  <Select
+                    value={expenseForm.schedule_c_category || "auto"}
+                    onValueChange={(v) => setExpenseForm((f) => ({ ...f, schedule_c_category: v === "auto" ? "" : v }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto-detect from category</SelectItem>
+                      {SCHEDULE_C_CATEGORIES.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
 
             {expenseForm.is_transfer && (
