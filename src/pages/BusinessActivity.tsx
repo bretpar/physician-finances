@@ -916,8 +916,8 @@ export default function Transactions() {
           <span></span>
         </div>
 
-        {/* Rows */}
-        <div className="divide-y divide-border">
+        {/* Desktop rows */}
+        <div className="hidden sm:block divide-y divide-border">
           {filtered.map((tx) => {
             const type = (tx.transaction_type || "expense") as string;
             const isIncomeTx = type === "income";
@@ -929,13 +929,10 @@ export default function Transactions() {
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
 
-            // Show recommended set-aside for income rows
-            const linkedIncome = isIncomeTx ? incomeByLinkedTx.get(tx.id) : null;
-
             return (
               <div
                 key={tx.id}
-                className={`flex flex-col sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
+                className={`grid grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
                   tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
                 } ${isSelected ? "bg-primary/5" : ""}`}
               >
@@ -1018,6 +1015,67 @@ export default function Transactions() {
           {filtered.length === 0 && (
             <div className="px-4 py-16 text-center text-muted-foreground text-sm">
               No transactions yet. Click "+ Add Income" or "+ Add Expense" to get started.
+            </div>
+          )}
+        </div>
+
+        {/* Mobile rows — grouped by month */}
+        <div className="sm:hidden">
+          {groupByMonth(filtered, (t) => t.transaction_date).map((group) => (
+            <div key={group.key}>
+              <MonthHeader label={group.label} />
+              <div className="divide-y divide-border">
+                {group.items.map((tx) => {
+                  const type = (tx.transaction_type || "expense") as string;
+                  const isIncomeTx = type === "income";
+                  const isTransferTx = type === "transfer";
+                  const transferLabel = isTransferTx && tx.transfer_subtype
+                    ? TRANSFER_SUBTYPES.find((s) => s.value === tx.transfer_subtype)?.label || "Transfer"
+                    : "Transfer";
+                  const displayAmount = isIncomeTx
+                    ? Math.abs(tx.amount)
+                    : isTransferTx
+                      ? Math.abs(tx.amount)
+                      : -Math.abs(tx.amount);
+                  const source = tx.source_type || "manual";
+                  const kind = isIncomeTx ? "income" : isTransferTx ? "transfer" : "expense";
+                  const dateStr = new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", {
+                    month: "numeric",
+                    day: "numeric",
+                    year: "2-digit",
+                  });
+                  const badges: LedgerRowBadge[] = [];
+                  if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
+                  if (tx.excluded_from_reports) badges.push({ label: "Excluded", tone: "muted" });
+                  if (source === "merged") badges.push({ label: "Linked", tone: "info" });
+                  if (isTransferTx) badges.push({ label: transferLabel, tone: "info" });
+
+                  const subtitle = isIncomeTx ? "Income" : mapLegacyCategory(tx.category) || "Uncategorized";
+                  const meta = tx.entity ? tx.entity : null;
+
+                  return (
+                    <LedgerRow
+                      key={tx.id}
+                      kind={kind}
+                      title={tx.vendor || "(No payee)"}
+                      subtitle={subtitle}
+                      meta={meta}
+                      date={dateStr}
+                      amount={displayAmount}
+                      amountTone={isIncomeTx ? "positive" : isTransferTx ? "neutral" : "neutral"}
+                      amountPrefix={isIncomeTx ? "+" : isTransferTx ? "" : "-"}
+                      badges={badges}
+                      selected={selectedIds.has(tx.id)}
+                      onClick={() => openEdit(tx)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-4 py-16 text-center text-muted-foreground text-sm">
+              No transactions yet. Tap "+ Add Income" or "+ Add Expense" to get started.
             </div>
           )}
         </div>
