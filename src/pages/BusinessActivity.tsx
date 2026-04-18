@@ -210,8 +210,9 @@ export default function Transactions() {
    */
   const visibleFields = useMemo<Record<ToggleKey, boolean>>(() => {
     const company = companies.find((c) => c.name === incomeForm.company);
-    const filingType = (incomeForm.income_type as FilingType) ||
-      (company ? company.companyType : "1099_schedule_c");
+    const filingType = normalizeFilingType(
+      incomeForm.income_type || company?.companyType || "1099_schedule_c"
+    );
     return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
   }, [companies, incomeForm.company, incomeForm.income_type]);
 
