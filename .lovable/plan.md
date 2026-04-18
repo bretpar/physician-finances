@@ -1,54 +1,28 @@
 
+The user wants the "amount to set aside for taxes" input restored on the Business Activity income form. The recommendation shows but there's no input to capture what they're actually saving.
 
-# Fix: Separate "Taxes Withheld" from "Tax Reserve for Quarterly Payments"
+Looking at the codebase: `BusinessActivity.tsx` uses `showField()` gated by `visibleFields` from the company's advanced toggles. The relevant toggle key is likely `additional_tax_reserve` (or `actual_withholding` per the plan history). Per `mem://features/income-architecture` context: `additional_tax_reserve` = recommended set-aside the user commits to saving; `actual_withholding` = legacy, now repurposed.
 
-## Problem
+Need to verify exact toggle key + ensure it's in defaults for 1099/Schedule C, S-Corp Distribution, Other — and that the input renders even when the recommendation card is shown.
 
-Two conceptually different tax amounts are being conflated:
+## Plan
 
-1. **Taxes Withheld** (Advanced section) — taxes already deducted from paycheck by the employer. These are **already paid** to the IRS.
-2. **Actual amount withheld / set aside** — the amount the user plans to **set aside** for quarterly estimated tax payments. This is **not yet paid**.
+**Restore "Amount saving for taxes" input in Business Activity income form.**
 
-Currently, the system treats both as "taxes already covered" via `Math.max(businessWithheld, txActualWithholding)` in `useTaxEstimate.ts` (line 149). This means:
-- The tax reserve amount incorrectly reduces the estimated remaining tax liability
-- For 1099 income (no employer withholding), the set-aside amount is being counted as if taxes were already paid when they haven't been
+1. **`src/lib/filingTypes.ts`** — Confirm/add `additional_tax_reserve` toggle option (label: "Amount saving for taxes") to:
+   - 1099 / Schedule C (default ON)
+   - S-Corp Distribution (default ON)
+   - Other (default ON, optional)
+   - K-1 Partnership (available, default OFF)
 
-## Changes
+2. **`src/pages/BusinessActivity.tsx`** — In the Advanced section, render an input for `additional_tax_reserve` directly under the "Recommended set-aside" display card whenever `showField("additional_tax_reserve")` is true. Label: "Amount you're saving for taxes". Helper: "Tracked as a reserve — does not count as taxes already paid." Wire to `incomeForm.additional_tax_reserve` state and persist via existing save path (`income_entries.additional_tax_reserve` column already exists).
 
-### 1. UI Label Clarification (`BusinessActivity.tsx`)
-- Rename "Actual amount withheld / set aside" → **"Amount to set aside for quarterly taxes"**
-- Add helper text: "This is your recommended reserve — it will be tracked separately until you make a quarterly payment"
-- The "Recommended to set aside" box above already shows the right number; the input below it is where the user confirms how much they're actually reserving
+3. **Save behavior** — Use the existing `preserve()` helper so hidden values aren't zeroed. Confirm the value is NOT added to `taxesWithheld` in the tax engine — it stays a separate reserve number (already handled per prior plan).
 
-### 2. Stop Counting `actual_withholding` as Taxes Paid (`useTaxEstimate.ts`)
-- **Line 149**: Change `combinedWithheld = Math.max(baseData.businessWithheld, baseData.txActualWithholding) + ...` to just use `baseData.businessWithheld + baseData.personalWithheld`
-- Remove `txActualWithholding` from the `taxesWithheld` input to `calculateFullEstimate`
-- Instead, track `actual_withholding` totals as a separate "tax reserves" number (alongside `taxSavings`) — it flows into `additionalTaxPaid` or a new `taxReserves` bucket
+4. **Edit mode** — Field auto-shows for legacy transactions with a saved `additional_tax_reserve > 0` via `showField` legacy logic.
 
-### 3. Route `actual_withholding` into Tax Savings/Reserves (`useTaxEstimate.ts`)
-- Add `txActualWithholding` to `additionalTaxPaid` (line 126): `const additionalTaxPaid = quarterlyPaid + savingsTotal + txActualWithholding`
-- This way, the set-aside amount is tracked as "money earmarked but not yet submitted to IRS" — same bucket as tax savings
-- **Or**, if the user wants it completely separate until a quarterly payment is made, remove it from all "already covered" calculations and only show it as an informational reserve
+## Files
+- `src/lib/filingTypes.ts` — toggle option + defaults
+- `src/pages/BusinessActivity.tsx` — render input in Advanced section
 
-### 4. Fix `effectiveWithheld` Merge in `saveIncome` (`BusinessActivity.tsx`)
-- **Line 316**: Stop merging the two: `const effectiveWithheld = Math.max(taxWithheld, num(incomeForm.actual_withholding))`
-- Change to: save `taxes_withheld` and `actual_withholding` as separate fields
-- `income_entries.taxes_withheld` = only the employer/paycheck withholding amount
-- `transactions.actual_withholding` = only the quarterly tax reserve amount
-
-### 5. Same fix in forecast estimate (`useTaxEstimate.ts` line 183)
-- Remove `txActualWithholding` from `combinedWithheld` in the forecast estimate path as well
-
-## Summary of Semantic Separation
-
-| Field | Meaning | Counts as "taxes paid"? |
-|-------|---------|------------------------|
-| `taxes_withheld` (income_entries) | Employer already sent to IRS | Yes |
-| `actual_withholding` (transactions) | User setting aside for quarterly payment | No — tracked as reserve |
-| Quarterly tax payments | User actually paid to IRS | Yes |
-| Tax savings | Money in savings for taxes | Yes (earmarked) |
-
-## Files Modified
-- `src/pages/BusinessActivity.tsx` — label rename, fix `effectiveWithheld` merge
-- `src/hooks/useTaxEstimate.ts` — separate `txActualWithholding` from `combinedWithheld`, route to reserves
-
+No DB migration needed (`additional_tax_reserve` column exists).
