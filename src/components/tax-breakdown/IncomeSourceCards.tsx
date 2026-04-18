@@ -12,6 +12,7 @@ import type {
   W2Breakdown,
   CapGainsBreakdown,
   OtherIncomeBreakdown,
+  TaxBreakdownMode,
 } from "@/hooks/useTaxBreakdown";
 
 const fmt = (n: number) =>
@@ -22,22 +23,22 @@ function Row({
   value,
   bold,
   muted,
-  positive,
+  planned,
 }: {
   label: string;
   value: string;
   bold?: boolean;
   muted?: boolean;
-  positive?: boolean;
+  planned?: boolean;
 }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className={cn(muted ? "text-muted-foreground" : "text-foreground")}>{label}</span>
+      <span className={cn(muted ? "text-muted-foreground" : "text-foreground", planned && "italic")}>{label}</span>
       <span
         className={cn(
           "tabular-nums",
           bold ? "font-semibold" : "font-medium",
-          positive ? "text-success" : "text-foreground",
+          planned && "text-primary",
         )}
       >
         {value}
@@ -46,9 +47,18 @@ function Row({
   );
 }
 
-function BusinessCard({ data }: { data: BusinessBreakdown }) {
+function PlannedBadge() {
+  return (
+    <Badge variant="outline" className="ml-1.5 h-4 px-1.5 text-[9px] font-medium border-primary/30 text-primary">
+      Planned
+    </Badge>
+  );
+}
+
+function BusinessCard({ data, mode }: { data: BusinessBreakdown; mode: TaxBreakdownMode }) {
   const [open, setOpen] = useState(false);
   const meta = getFilingMeta(data.filingType);
+  const showPlanned = mode === "forecast" && data.plannedRevenue > 0;
   return (
     <Card>
       <CardContent className="pt-5 pb-4 space-y-3">
@@ -68,7 +78,15 @@ function BusinessCard({ data }: { data: BusinessBreakdown }) {
         </div>
 
         <div className="space-y-1.5 pt-1">
-          <Row label="Revenue" value={fmt(data.revenue)} muted />
+          {showPlanned ? (
+            <>
+              <Row label="Actual revenue" value={fmt(data.actualRevenue)} muted />
+              <Row label={`Planned revenue`} value={`+${fmt(data.plannedRevenue)}`} planned />
+              <Row label="Total revenue used" value={fmt(data.revenue)} bold />
+            </>
+          ) : (
+            <Row label="Revenue" value={fmt(data.revenue)} muted />
+          )}
           <Row label="Expenses" value={`−${fmt(data.expenses)}`} muted />
           <div className="border-t border-border pt-1.5">
             <Row label="Profit" value={fmt(data.profit)} bold />
@@ -91,11 +109,11 @@ function BusinessCard({ data }: { data: BusinessBreakdown }) {
             {open && (
               <div className="space-y-1.5 pt-1 pl-1">
                 {data.expenseCategories.map((c) => {
-                  const meta = getScheduleCMeta(c.category);
+                  const m = getScheduleCMeta(c.category);
                   return (
                     <div key={c.category} className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
-                        {meta.label}{" "}
+                        {m.label}{" "}
                         <span className="text-xs">({c.count})</span>
                       </span>
                       <span className="tabular-nums font-medium">{fmt(c.total)}</span>
@@ -115,7 +133,8 @@ function BusinessCard({ data }: { data: BusinessBreakdown }) {
   );
 }
 
-function W2Card({ data }: { data: W2Breakdown }) {
+function W2Card({ data, mode }: { data: W2Breakdown; mode: TaxBreakdownMode }) {
+  const showPlanned = mode === "forecast" && data.plannedGrossWages > 0;
   return (
     <Card>
       <CardContent className="pt-5 pb-4 space-y-3">
@@ -125,14 +144,25 @@ function W2Card({ data }: { data: W2Breakdown }) {
               <Wallet className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold truncate">{data.companyName}</p>
+              <p className="text-sm font-semibold truncate">
+                {data.companyName}
+                {showPlanned && <PlannedBadge />}
+              </p>
               <Badge variant="secondary" className="mt-0.5 text-[10px] font-normal">W-2 Employment</Badge>
             </div>
           </div>
           <p className="text-lg font-bold tabular-nums shrink-0">{fmt(data.grossWages)}</p>
         </div>
         <div className="space-y-1.5 pt-1">
-          <Row label="Gross wages" value={fmt(data.grossWages)} muted />
+          {showPlanned ? (
+            <>
+              <Row label="Actual gross wages" value={fmt(data.actualGrossWages)} muted />
+              <Row label="Planned gross wages" value={`+${fmt(data.plannedGrossWages)}`} planned />
+              <Row label="Total gross wages used" value={fmt(data.grossWages)} bold />
+            </>
+          ) : (
+            <Row label="Gross wages" value={fmt(data.grossWages)} muted />
+          )}
           <Row label="Federal tax withheld" value={`−${fmt(data.federalWithheld)}`} muted />
           {data.stateWithheld > 0 && <Row label="State tax withheld" value={`−${fmt(data.stateWithheld)}`} muted />}
           {data.preTaxDeductions > 0 && <Row label="Pre-tax deductions" value={`−${fmt(data.preTaxDeductions)}`} muted />}
@@ -175,8 +205,9 @@ function CapGainsCard({ data }: { data: CapGainsBreakdown }) {
   );
 }
 
-function OtherCard({ data }: { data: OtherIncomeBreakdown }) {
+function OtherCard({ data, mode }: { data: OtherIncomeBreakdown; mode: TaxBreakdownMode }) {
   const meta = getFilingMeta(data.filingType);
+  const showPlanned = mode === "forecast" && data.plannedGrossAmount > 0;
   return (
     <Card>
       <CardContent className="pt-5 pb-4 space-y-3">
@@ -186,14 +217,25 @@ function OtherCard({ data }: { data: OtherIncomeBreakdown }) {
               <Receipt className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold truncate">{data.companyName}</p>
+              <p className="text-sm font-semibold truncate">
+                {data.companyName}
+                {showPlanned && <PlannedBadge />}
+              </p>
               <Badge variant="secondary" className="mt-0.5 text-[10px] font-normal">{meta.label}</Badge>
             </div>
           </div>
           <p className="text-lg font-bold tabular-nums shrink-0">{fmt(data.grossAmount)}</p>
         </div>
         <div className="space-y-1.5 pt-1">
-          <Row label="Gross amount" value={fmt(data.grossAmount)} muted />
+          {showPlanned ? (
+            <>
+              <Row label="Actual amount" value={fmt(data.actualGrossAmount)} muted />
+              <Row label="Planned amount" value={`+${fmt(data.plannedGrossAmount)}`} planned />
+              <Row label="Total used" value={fmt(data.grossAmount)} bold />
+            </>
+          ) : (
+            <Row label="Gross amount" value={fmt(data.grossAmount)} muted />
+          )}
           <div className="border-t border-border pt-1.5">
             <Row label="Taxable amount" value={fmt(data.taxableAmount)} bold />
           </div>
@@ -203,7 +245,13 @@ function OtherCard({ data }: { data: OtherIncomeBreakdown }) {
   );
 }
 
-export default function IncomeSourceCards({ sources }: { sources: IncomeSourceBreakdown[] }) {
+export default function IncomeSourceCards({
+  sources,
+  mode = "actual",
+}: {
+  sources: IncomeSourceBreakdown[];
+  mode?: TaxBreakdownMode;
+}) {
   if (sources.length === 0) {
     return (
       <Card>
@@ -217,10 +265,10 @@ export default function IncomeSourceCards({ sources }: { sources: IncomeSourceBr
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {sources.map((s, i) => {
-        if (s.kind === "business") return <BusinessCard key={i} data={s} />;
-        if (s.kind === "w2") return <W2Card key={i} data={s} />;
+        if (s.kind === "business") return <BusinessCard key={i} data={s} mode={mode} />;
+        if (s.kind === "w2") return <W2Card key={i} data={s} mode={mode} />;
         if (s.kind === "capital_gains") return <CapGainsCard key={i} data={s} />;
-        return <OtherCard key={i} data={s} />;
+        return <OtherCard key={i} data={s} mode={mode} />;
       })}
     </div>
   );

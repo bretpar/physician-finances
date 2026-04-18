@@ -20,11 +20,13 @@ function Step({
   value,
   op,
   bold,
+  planned,
 }: {
   label: string;
   value: string;
   op?: "add" | "subtract" | "equals";
   bold?: boolean;
+  planned?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between text-sm py-1.5">
@@ -34,9 +36,9 @@ function Step({
             {op === "add" ? "+" : op === "subtract" ? "−" : "="}
           </span>
         )}
-        <span className={cn(bold ? "font-semibold" : "text-muted-foreground")}>{label}</span>
+        <span className={cn(bold ? "font-semibold" : "text-muted-foreground", planned && "italic")}>{label}</span>
       </div>
-      <span className={cn("tabular-nums", bold ? "font-bold" : "font-medium")}>{value}</span>
+      <span className={cn("tabular-nums", bold ? "font-bold" : "font-medium", planned && "text-primary")}>{value}</span>
     </div>
   );
 }
@@ -44,11 +46,19 @@ function Step({
 export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
   const filingLabel =
     data.filingStatus === "married_filing_jointly" ? "Married Filing Jointly" : "Single";
+  const showPlanned = data.mode === "forecast" && data.plannedTotalIncome > 0;
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Show calculation details</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2">
+          Show calculation details
+          {showPlanned && (
+            <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+              Actual + Planned
+            </Badge>
+          )}
+        </CardTitle>
         <p className="text-xs text-muted-foreground">
           Filing status: <span className="font-medium text-foreground">{filingLabel}</span> · 2025 tax year
         </p>
@@ -59,18 +69,55 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
           <AccordionItem value="taxable">
             <AccordionTrigger className="text-sm">A. Taxable income calculation</AccordionTrigger>
             <AccordionContent className="space-y-0">
-              {data.totalW2Income > 0 && <Step label="W-2 wages" value={fmt(data.totalW2Income)} op="add" />}
-              {data.totalBusinessProfit !== 0 && (
-                <Step label="Business profit" value={fmt(data.totalBusinessProfit)} op="add" />
-              )}
-              {data.totalShortTermGains > 0 && (
-                <Step label="Short-term capital gains" value={fmt(data.totalShortTermGains)} op="add" />
-              )}
-              {data.totalLongTermGains > 0 && (
-                <Step label="Long-term capital gains" value={fmt(data.totalLongTermGains)} op="add" />
-              )}
-              {data.totalOtherIncome > 0 && (
-                <Step label="Other income" value={fmt(data.totalOtherIncome)} op="add" />
+              {showPlanned ? (
+                <>
+                  {(data.actualW2Income > 0 || data.plannedW2Income > 0) && (
+                    <>
+                      <Step label="Actual W-2 wages" value={fmt(data.actualW2Income)} op="add" />
+                      {data.plannedW2Income > 0 && (
+                        <Step label="Planned W-2 wages" value={fmt(data.plannedW2Income)} op="add" planned />
+                      )}
+                    </>
+                  )}
+                  {(data.actualBusinessRevenue > 0 || data.plannedBusinessRevenue > 0) && (
+                    <>
+                      <Step label="Actual business profit" value={fmt(data.actualBusinessRevenue - data.totalBusinessExpenses)} op="add" />
+                      {data.plannedBusinessRevenue > 0 && (
+                        <Step label="Planned business revenue" value={fmt(data.plannedBusinessRevenue)} op="add" planned />
+                      )}
+                    </>
+                  )}
+                  {data.totalShortTermGains > 0 && (
+                    <Step label="Short-term capital gains" value={fmt(data.totalShortTermGains)} op="add" />
+                  )}
+                  {data.totalLongTermGains > 0 && (
+                    <Step label="Long-term capital gains" value={fmt(data.totalLongTermGains)} op="add" />
+                  )}
+                  {(data.actualOtherIncome > 0 || data.plannedOtherIncome > 0) && (
+                    <>
+                      <Step label="Actual other income" value={fmt(data.actualOtherIncome)} op="add" />
+                      {data.plannedOtherIncome > 0 && (
+                        <Step label="Planned other income" value={fmt(data.plannedOtherIncome)} op="add" planned />
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {data.totalW2Income > 0 && <Step label="W-2 wages" value={fmt(data.totalW2Income)} op="add" />}
+                  {data.totalBusinessProfit !== 0 && (
+                    <Step label="Business profit" value={fmt(data.totalBusinessProfit)} op="add" />
+                  )}
+                  {data.totalShortTermGains > 0 && (
+                    <Step label="Short-term capital gains" value={fmt(data.totalShortTermGains)} op="add" />
+                  )}
+                  {data.totalLongTermGains > 0 && (
+                    <Step label="Long-term capital gains" value={fmt(data.totalLongTermGains)} op="add" />
+                  )}
+                  {data.totalOtherIncome > 0 && (
+                    <Step label="Other income" value={fmt(data.totalOtherIncome)} op="add" />
+                  )}
+                </>
               )}
               <div className="border-t border-border my-1" />
               <Step label="Total gross income" value={fmt(data.totalGrossIncome)} op="equals" bold />
@@ -91,6 +138,11 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
                 <Step label="Taxable long-term gains" value={fmt(data.taxableLTCG)} op="equals" />
               )}
               <Step label="Total taxable income" value={fmt(data.totalTaxableIncome)} op="equals" bold />
+              {showPlanned && (
+                <p className="text-[11px] text-muted-foreground italic pt-2">
+                  Planned amounts are projected · based on current plan assumptions
+                </p>
+              )}
             </AccordionContent>
           </AccordionItem>
 
@@ -98,10 +150,20 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
           <AccordionItem value="brackets">
             <AccordionTrigger className="text-sm">B. Tax bracket breakdown</AccordionTrigger>
             <AccordionContent className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                 <span>Filing status:</span>
                 <Badge variant="secondary" className="text-[10px]">{filingLabel}</Badge>
+                {showPlanned && (
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                    Includes planned income
+                  </Badge>
+                )}
               </div>
+              {showPlanned && (
+                <p className="text-xs text-muted-foreground">
+                  Planned income is added to taxable income, which may push you into a higher bracket.
+                </p>
+              )}
               {data.ordinaryBracketCalc.lines.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No taxable ordinary income.</p>
               ) : (
@@ -146,7 +208,7 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
               <AccordionTrigger className="text-sm">C. Self-employment tax breakdown</AccordionTrigger>
               <AccordionContent className="space-y-0">
                 <p className="text-xs text-muted-foreground pb-2">
-                  Estimated · based on current inputs
+                  Estimated · based on current inputs{showPlanned && " (includes planned income)"}
                 </p>
                 <Step label="Net self-employment income" value={fmt(data.seTax.netSEIncome)} op="equals" />
                 <Step label="× 92.35% (SE base)" value={fmt(data.seTax.seBase)} op="equals" />
