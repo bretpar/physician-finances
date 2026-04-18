@@ -588,6 +588,9 @@ export default function PersonalIncome() {
               </div>
             )}
 
+            {/* Attachments */}
+            <TransactionAttachments transactionId={editingId} />
+
             <div className="flex justify-between">
               {isEditing ? (
                 <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId!); setShowForm(false); }}>
