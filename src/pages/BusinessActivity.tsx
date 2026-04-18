@@ -228,23 +228,28 @@ export default function Transactions() {
    * view or clear prior data on purpose without losing it.
    */
   const legacyFields = useMemo<Partial<Record<ToggleKey, true>>>(() => {
-    if (!isEditingIncome || !linkedEntry) return {};
+    if (!isEditingIncome) return {};
+    const editingTx = editingIncomeTxId
+      ? transactions.find((t) => t.id === editingIncomeTxId)
+      : null;
     const out: Partial<Record<ToggleKey, true>> = {};
     const checks: Array<[ToggleKey, number]> = [
-      ["net_received", linkedEntry.deposited_amount || 0],
-      ["taxes_withheld", linkedEntry.taxes_withheld || 0],
-      ["pre_tax_deductions", linkedEntry.pre_tax_deductions || 0],
-      ["retirement_401k", linkedEntry.retirement_401k || 0],
-      ["owner_healthcare", (linkedEntry as any).owner_healthcare || 0],
-      ["federal_withholding", (linkedEntry as any).federal_withholding || 0],
-      ["state_withholding", (linkedEntry as any).state_withholding || 0],
-      ["additional_tax_reserve", (linkedEntry as any).additional_tax_reserve || 0],
+      ["net_received", linkedEntry?.deposited_amount || 0],
+      ["taxes_withheld", linkedEntry?.taxes_withheld || 0],
+      ["pre_tax_deductions", linkedEntry?.pre_tax_deductions || 0],
+      ["retirement_401k", linkedEntry?.retirement_401k || 0],
+      ["owner_healthcare", (linkedEntry as any)?.owner_healthcare || 0],
+      ["federal_withholding", (linkedEntry as any)?.federal_withholding || 0],
+      ["state_withholding", (linkedEntry as any)?.state_withholding || 0],
+      ["additional_tax_reserve", (linkedEntry as any)?.additional_tax_reserve || 0],
+      // actual_withholding lives on the transaction row, not income_entries
+      ["actual_withholding", (editingTx as any)?.actual_withholding || 0],
     ];
     for (const [key, val] of checks) {
       if (val > 0 && !visibleFields[key]) out[key] = true;
     }
     return out;
-  }, [isEditingIncome, linkedEntry, visibleFields]);
+  }, [isEditingIncome, editingIncomeTxId, transactions, linkedEntry, visibleFields]);
 
   /** Should a given field render in the form? Toggle on OR has a legacy saved value. */
   const showField = (key: ToggleKey) => visibleFields[key] || !!legacyFields[key];
@@ -1179,8 +1184,8 @@ export default function Transactions() {
                       </Label>
                       <p className="text-[10px] text-muted-foreground mb-1">
                         {recommendedWithholding > 0
-                          ? `Recommended: ${fmt(recommendedWithholding)} — tracked as a reserve, not counted as taxes paid until you make a quarterly payment`
-                          : "Tracked as a reserve — not counted as taxes paid until you make a quarterly payment"}
+                          ? `Recommended: ${fmt(recommendedWithholding)}. Tracked as a reserve only. This is not counted as taxes paid until you make an IRS or state tax payment.`
+                          : "Tracked as a reserve only. This is not counted as taxes paid until you make an IRS or state tax payment."}
                       </p>
                       <Input
                         type="number"

@@ -228,7 +228,7 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
   "1099_schedule_c": [
     { key: "net_received", label: "Net received" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
-    { key: "actual_withholding", label: "Recommended tax set-aside" },
+    { key: "actual_withholding", label: "Amount you're saving for taxes" },
     { key: "notes", label: "Notes" },
   ],
   "k1_partnership": [
@@ -239,6 +239,7 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "pre_tax_deductions", label: "Other partner deductions" },
     { key: "guaranteed_payment", label: "Guaranteed payment" },
     { key: "is_distribution", label: "Distribution amount" },
+    { key: "actual_withholding", label: "Amount you're saving for taxes" },
     { key: "notes", label: "Notes" },
   ],
   "scorp_w2": [
@@ -255,7 +256,7 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
   "scorp_distribution": [
     { key: "net_received", label: "Distribution amount" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
-    { key: "actual_withholding", label: "Recommended tax set-aside" },
+    { key: "actual_withholding", label: "Amount you're saving for taxes" },
     { key: "notes", label: "Notes" },
   ],
   "w2": [
@@ -272,7 +273,7 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
   "other": [
     { key: "net_received", label: "Net received" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
-    { key: "actual_withholding", label: "Recommended tax set-aside" },
+    { key: "actual_withholding", label: "Amount you're saving for taxes" },
     { key: "notes", label: "Notes" },
   ],
 };
@@ -284,6 +285,7 @@ export const DEFAULT_TOGGLES_BY_TYPE: Record<FilingType, ToggleKey[]> = {
     "owner_healthcare",
     "retirement_401k",
     "pre_tax_deductions",
+    "actual_withholding",
     "notes",
   ],
   "scorp_w2": [
