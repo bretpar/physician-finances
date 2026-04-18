@@ -19,6 +19,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TaxBreakdown from "@/components/tax-breakdown/TaxBreakdown";
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
@@ -137,6 +139,17 @@ export default function Taxes() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Tax Overview</TabsTrigger>
+          <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="breakdown" className="mt-0">
+          <TaxBreakdown />
+        </TabsContent>
+
+        <TabsContent value="overview" className="space-y-6 mt-0">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Tax Overview</h1>
@@ -515,6 +528,8 @@ export default function Taxes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -418,6 +418,28 @@ export default function Settings() {
           {taxSaved && <span className="text-xs text-success flex items-center gap-1"><Check className="h-3 w-3" /> Saved</span>}
         </div>
         <p className="text-xs text-muted-foreground -mt-3">These rates feed into all dashboard tax calculations and quarterly estimates.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Filing Status</Label>
+            <Select
+              value={taxSettingsData?.filingStatus || "single"}
+              onValueChange={(v) => {
+                if (!taxSettingsData?.id) return;
+                updateTaxSettingsMutation.mutate({
+                  id: taxSettingsData.id,
+                  filingStatus: v as "single" | "married_filing_jointly",
+                });
+              }}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">Single</SelectItem>
+                <SelectItem value="married_filing_jointly">Married Filing Jointly</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">Used for tax bracket calculations on the Tax Breakdown page.</p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal Tax Rate (%)</Label><Input type="number" step="0.1" min="0" max="100" value={taxSettings.federalRate} onChange={(e) => setTaxSettings((s) => ({ ...s, federalRate: parseFloat(e.target.value) || 0 }))} /></div>
           <div><Label className="text-xs text-muted-foreground mb-1.5 block">State Tax Rate (%)</Label><Input type="number" step="0.1" min="0" max="100" value={taxSettings.stateRate} onChange={(e) => setTaxSettings((s) => ({ ...s, stateRate: parseFloat(e.target.value) || 0 }))} /></div>
