@@ -1172,18 +1172,41 @@ export default function Transactions() {
                     </div>
                   )}
 
-                  {showField("actual_withholding") && grossIncome > 0 && recommendation && recommendedWithholding > 0 && (
+                  {showField("actual_withholding") && (
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Amount to set aside for quarterly taxes</Label>
-                      <p className="text-[10px] text-muted-foreground mb-1">Tracked as a reserve — not counted as taxes paid until you make a quarterly payment</p>
-                      <Input type="number" min="0" step="0.01" placeholder={fmt(recommendedWithholding)} value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))} />
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">
+                        Amount you're saving for taxes<LegacyNote field="actual_withholding" />
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        {recommendedWithholding > 0
+                          ? `Recommended: ${fmt(recommendedWithholding)} — tracked as a reserve, not counted as taxes paid until you make a quarterly payment`
+                          : "Tracked as a reserve — not counted as taxes paid until you make a quarterly payment"}
+                      </p>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder={recommendedWithholding > 0 ? fmt(recommendedWithholding) : "0.00"}
+                        value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding}
+                        onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))}
+                      />
                     </div>
                   )}
 
-                  {showField("actual_withholding") && isEditingIncome && (
+                  {showField("additional_tax_reserve") && (
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Additional tax reserve</Label>
-                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve} onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))} />
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">
+                        Additional tax reserve<LegacyNote field="additional_tax_reserve" />
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground mb-1">Optional extra amount to set aside beyond the recommendation</p>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={incomeForm.additional_tax_reserve === "0" ? "" : incomeForm.additional_tax_reserve}
+                        onChange={(e) => setIncomeForm((f) => ({ ...f, additional_tax_reserve: e.target.value }))}
+                      />
                     </div>
                   )}
 
