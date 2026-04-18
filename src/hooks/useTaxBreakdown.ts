@@ -6,7 +6,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import {
   useProjectedStreams,
   useProjectedBonuses,
-  useProjectedOverrides,
+  useStreamOverrides,
   generateProjectedPaychecks,
 } from "@/hooks/useProjectedIncome";
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
@@ -145,7 +145,7 @@ export function useTaxBreakdown(
   const { companies } = useCompanies();
   const { data: streams = [], isLoading: stLoading } = useProjectedStreams();
   const { data: bonuses = [], isLoading: bLoading } = useProjectedBonuses();
-  const { data: overrides = [], isLoading: oLoading } = useProjectedOverrides();
+  const { data: overrides = [], isLoading: oLoading } = useStreamOverrides();
 
   return useMemo(() => {
     const filingStatus: FilingStatus = (settings?.filingStatus as FilingStatus) ?? "single";
