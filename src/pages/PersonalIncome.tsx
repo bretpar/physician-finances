@@ -408,6 +408,8 @@ export default function PersonalIncome() {
                     { month: "numeric", day: "numeric", year: "2-digit" },
                   );
                   const badges: LedgerRowBadge[] = [];
+                  const attCount = attachmentCounts?.get(entry.id) ?? 0;
+                  if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
                   if (withheld > 0) badges.push({ label: `Withheld ${fmt(withheld)}`, tone: "muted" });
                   if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
 

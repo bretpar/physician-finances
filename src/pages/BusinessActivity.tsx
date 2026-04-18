@@ -955,6 +955,12 @@ export default function Transactions() {
                 <div className="truncate">
                   <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
                     {tx.vendor}
+                    {(attachmentCounts?.get(tx.id) ?? 0) > 0 && (
+                      <span title={`${attachmentCounts!.get(tx.id)} attachment${attachmentCounts!.get(tx.id)! > 1 ? "s" : ""}`} className="inline-flex items-center gap-0.5 text-muted-foreground">
+                        <Paperclip className="h-3 w-3" />
+                        <span className="text-[10px] tabular-nums">{attachmentCounts!.get(tx.id)}</span>
+                      </span>
+                    )}
                     {tx.needs_review && (
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Review</Badge>
                     )}
@@ -1050,6 +1056,8 @@ export default function Transactions() {
                     year: "2-digit",
                   });
                   const badges: LedgerRowBadge[] = [];
+                  const attCount = attachmentCounts?.get(tx.id) ?? 0;
+                  if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if (tx.excluded_from_reports) badges.push({ label: "Excluded", tone: "muted" });
                   if (source === "merged") badges.push({ label: "Linked", tone: "info" });
