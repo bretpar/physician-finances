@@ -37,7 +37,7 @@ function Row({
         className={cn(
           "tabular-nums",
           bold ? "font-semibold" : "font-medium",
-          positive ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
+          positive ? "text-success" : "text-foreground",
         )}
       >
         {value}
