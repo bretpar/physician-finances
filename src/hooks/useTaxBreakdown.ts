@@ -3,6 +3,12 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useCompanies } from "@/contexts/CompanyContext";
+import {
+  useProjectedStreams,
+  useProjectedBonuses,
+  useProjectedOverrides,
+  generateProjectedPaychecks,
+} from "@/hooks/useProjectedIncome";
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import {
@@ -17,6 +23,8 @@ import {
   type SETaxCalc,
 } from "@/lib/taxBrackets";
 
+export type TaxBreakdownMode = "actual" | "forecast";
+
 export interface CategoryBreakdown {
   category: ScheduleCCategory;
   total: number;
@@ -28,9 +36,13 @@ export interface BusinessBreakdown {
   companyId: string | null;
   companyName: string;
   filingType: FilingType;
-  revenue: number;
+  revenue: number;          // actual + planned (total used in calc)
+  actualRevenue: number;
+  plannedRevenue: number;
   expenses: number;
-  profit: number;
+  profit: number;           // (actual + planned revenue) - expenses
+  actualProfit: number;
+  plannedProfit: number;
   expenseCategories: CategoryBreakdown[];
   expenseTxCount: number;
 }
@@ -38,7 +50,9 @@ export interface BusinessBreakdown {
 export interface W2Breakdown {
   kind: "w2";
   companyName: string;
-  grossWages: number;
+  grossWages: number;       // actual + planned
+  actualGrossWages: number;
+  plannedGrossWages: number;
   federalWithheld: number;
   stateWithheld: number;
   preTaxDeductions: number;
@@ -59,7 +73,9 @@ export interface OtherIncomeBreakdown {
   kind: "other";
   companyName: string;
   filingType: FilingType;
-  grossAmount: number;
+  grossAmount: number;        // actual + planned
+  actualGrossAmount: number;
+  plannedGrossAmount: number;
   taxableAmount: number;
 }
 
@@ -70,10 +86,11 @@ export type IncomeSourceBreakdown =
   | OtherIncomeBreakdown;
 
 export interface TaxBreakdownResult {
+  mode: TaxBreakdownMode;
   filingStatus: FilingStatus;
   // Sources
   sources: IncomeSourceBreakdown[];
-  // Aggregates
+  // Aggregates (totals already include planned when mode === "forecast")
   totalBusinessRevenue: number;
   totalBusinessExpenses: number;
   totalBusinessProfit: number;
@@ -87,6 +104,17 @@ export interface TaxBreakdownResult {
   retirement401k: number;
   standardDeduction: number;
   seDeductibleHalf: number;
+  // Planned-only totals (zero when mode === "actual")
+  plannedBusinessRevenue: number;
+  plannedW2Income: number;
+  plannedOtherIncome: number;
+  plannedPreTax: number;
+  plannedRetirement: number;
+  plannedTotalIncome: number;
+  // Actual-only totals (always reflect actuals regardless of mode)
+  actualBusinessRevenue: number;
+  actualW2Income: number;
+  actualOtherIncome: number;
   // Tax calc
   taxableOrdinaryIncome: number;
   taxableLTCG: number;
@@ -107,11 +135,17 @@ const FILING_TO_KIND = (ft: FilingType): IncomeSourceBreakdown["kind"] => {
   return "other";
 };
 
-export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult {
+export function useTaxBreakdown(
+  filterCompanyName?: string,
+  mode: TaxBreakdownMode = "actual",
+): TaxBreakdownResult {
   const { data: settings, isLoading: sLoading } = useTaxSettings();
   const { data: txs = [], isLoading: tLoading } = useTransactions();
   const { data: incomes = [], isLoading: iLoading } = useIncomeEntries();
   const { companies } = useCompanies();
+  const { data: streams = [], isLoading: stLoading } = useProjectedStreams();
+  const { data: bonuses = [], isLoading: bLoading } = useProjectedBonuses();
+  const { data: overrides = [], isLoading: oLoading } = useProjectedOverrides();
 
   return useMemo(() => {
     const filingStatus: FilingStatus = (settings?.filingStatus as FilingStatus) ?? "single";
@@ -120,40 +154,76 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
     const matchCompany = (entity?: string | null) =>
       !filterCompanyName || (entity ?? "") === filterCompanyName;
 
-    // ── Group income_entries by company ──
+    // ── Group income_entries by company (ACTUAL) ──
     interface CompanyAgg {
       name: string;
       filingType: FilingType;
-      gross: number;
+      actualGross: number;
+      plannedGross: number;
       preTax: number;
       retirement: number;
       withheld: number;
       stateWithheld: number;
       federalWithheld: number;
+      plannedPreTax: number;
+      plannedRetirement: number;
     }
     const companyAgg = new Map<string, CompanyAgg>();
 
-    for (const e of incomes) {
-      if (!matchCompany(e.company)) continue;
-      const ft = normalizeFilingType(e.income_type);
-      const key = `${e.company || "Unassigned"}::${ft}`;
+    const ensureAgg = (name: string, ft: FilingType): CompanyAgg => {
+      const key = `${name}::${ft}`;
       const existing = companyAgg.get(key) ?? {
-        name: e.company || "Unassigned",
+        name,
         filingType: ft,
-        gross: 0,
+        actualGross: 0,
+        plannedGross: 0,
         preTax: 0,
         retirement: 0,
         withheld: 0,
         stateWithheld: 0,
         federalWithheld: 0,
+        plannedPreTax: 0,
+        plannedRetirement: 0,
       };
-      existing.gross += Number(e.paycheck_amount) || 0;
-      existing.preTax += Number(e.pre_tax_deductions) || 0;
-      existing.retirement += Number(e.retirement_401k) || 0;
-      existing.withheld += Number(e.taxes_withheld) || 0;
-      existing.federalWithheld += Number((e as any).federal_withholding) || 0;
-      existing.stateWithheld += Number((e as any).state_withholding) || 0;
       companyAgg.set(key, existing);
+      return existing;
+    };
+
+    for (const e of incomes) {
+      if (!matchCompany(e.company)) continue;
+      const ft = normalizeFilingType(e.income_type);
+      const agg = ensureAgg(e.company || "Unassigned", ft);
+      agg.actualGross += Number(e.paycheck_amount) || 0;
+      agg.preTax += Number(e.pre_tax_deductions) || 0;
+      agg.retirement += Number(e.retirement_401k) || 0;
+      agg.withheld += Number(e.taxes_withheld) || 0;
+      agg.federalWithheld += Number((e as any).federal_withholding) || 0;
+      agg.stateWithheld += Number((e as any).state_withholding) || 0;
+    }
+
+    // ── Add PLANNED income (only when mode === "forecast") ──
+    let plannedPreTaxTotal = 0;
+    let plannedRetirementTotal = 0;
+    if (mode === "forecast") {
+      const paychecks = generateProjectedPaychecks(streams, bonuses, incomes, overrides);
+      // Only "active" (future, unmatched) paychecks count as planned add-on
+      const activePlanned = paychecks.filter((p) => p.matchStatus === "active");
+      for (const p of activePlanned) {
+        const company = p.label.split(" (")[0]; // bonuses formatted "<bonusName> (<company>)"
+        const stream = streams.find((s) => s.id === p.streamId);
+        const ft = normalizeFilingType(stream?.company_type || "1099");
+        const companyName = stream?.company || company || "Planned";
+        if (!matchCompany(companyName)) continue;
+        const agg = ensureAgg(companyName, ft);
+        agg.plannedGross += p.grossAmount;
+        agg.plannedPreTax += p.preTaxDeductions;
+        agg.plannedRetirement += p.retirement401k;
+        agg.preTax += p.preTaxDeductions;
+        agg.retirement += p.retirement401k;
+        agg.withheld += p.taxesWithheld;
+        plannedPreTaxTotal += p.preTaxDeductions;
+        plannedRetirementTotal += p.retirement401k;
+      }
     }
 
     // ── Group expense transactions by company ──
@@ -174,7 +244,6 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
 
       if (txType === "expense") {
         const company = tx.entity || "Unassigned";
-        // Only count expenses that belong to a known business company
         const knownCompany = companies.find((c) => c.name === company);
         if (!knownCompany) continue;
 
@@ -197,8 +266,6 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
         expensesByCompany.set(company, agg);
       } else if (txType === "capital_gain" || txType === "stock") {
         const amt = Number(tx.amount) || 0;
-        // Heuristic: positive = gain, negative = loss; we don't have term yet
-        // so categorize all as short-term unless flagged in notes
         const isLong = /long[-\s]?term|ltcg/i.test((tx.notes || "") + " " + (tx.category || ""));
         if (amt < 0) capGainsLosses += Math.abs(amt);
         else if (isLong) capGainsLong += amt;
@@ -213,25 +280,34 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
     let totalBusinessProfit = 0;
     let totalW2Income = 0;
     let totalOtherIncome = 0;
+    let plannedBusinessRevenue = 0;
+    let plannedW2Income = 0;
+    let plannedOtherIncome = 0;
+    let actualBusinessRevenue = 0;
+    let actualW2Income = 0;
+    let actualOtherIncome = 0;
     let preTaxDeductions = 0;
     let retirement401k = 0;
-    let totalWithheld = 0;
     let totalSEIncome = 0;
 
     for (const agg of companyAgg.values()) {
       const kind = FILING_TO_KIND(agg.filingType);
+      const totalGross = agg.actualGross + agg.plannedGross;
       preTaxDeductions += agg.preTax;
       retirement401k += agg.retirement;
-      totalWithheld += agg.withheld + agg.federalWithheld + agg.stateWithheld;
 
       if (kind === "w2") {
-        const taxableWages = Math.max(0, agg.gross - agg.preTax - agg.retirement);
-        totalW2Income += agg.gross;
+        const taxableWages = Math.max(0, totalGross - agg.preTax - agg.retirement);
+        totalW2Income += totalGross;
+        actualW2Income += agg.actualGross;
+        plannedW2Income += agg.plannedGross;
         sources.push({
           kind: "w2",
           companyName: agg.name,
-          grossWages: agg.gross,
-          federalWithheld: agg.federalWithheld + agg.withheld, // legacy lump
+          grossWages: totalGross,
+          actualGrossWages: agg.actualGross,
+          plannedGrossWages: agg.plannedGross,
+          federalWithheld: agg.federalWithheld + agg.withheld,
           stateWithheld: agg.stateWithheld,
           preTaxDeductions: agg.preTax,
           retirement401k: agg.retirement,
@@ -240,8 +316,12 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
       } else if (kind === "business") {
         const exp = expensesByCompany.get(agg.name);
         const expenses = exp?.total ?? 0;
-        const profit = agg.gross - expenses;
-        totalBusinessRevenue += agg.gross;
+        const profit = totalGross - expenses;
+        const actualProfit = agg.actualGross - expenses;
+        const plannedProfit = agg.plannedGross;
+        totalBusinessRevenue += totalGross;
+        actualBusinessRevenue += agg.actualGross;
+        plannedBusinessRevenue += agg.plannedGross;
         totalBusinessExpenses += expenses;
         totalBusinessProfit += profit;
         if (agg.filingType === "1099_schedule_c" || agg.filingType === "k1_partnership") {
@@ -258,25 +338,32 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
           companyId,
           companyName: agg.name,
           filingType: agg.filingType,
-          revenue: agg.gross,
+          revenue: totalGross,
+          actualRevenue: agg.actualGross,
+          plannedRevenue: agg.plannedGross,
           expenses,
           profit,
+          actualProfit,
+          plannedProfit,
           expenseCategories,
           expenseTxCount: exp?.txCount ?? 0,
         });
       } else {
-        totalOtherIncome += agg.gross;
+        totalOtherIncome += totalGross;
+        actualOtherIncome += agg.actualGross;
+        plannedOtherIncome += agg.plannedGross;
         sources.push({
           kind: "other",
           companyName: agg.name,
           filingType: agg.filingType,
-          grossAmount: agg.gross,
-          taxableAmount: Math.max(0, agg.gross - agg.preTax - agg.retirement),
+          grossAmount: totalGross,
+          actualGrossAmount: agg.actualGross,
+          plannedGrossAmount: agg.plannedGross,
+          taxableAmount: Math.max(0, totalGross - agg.preTax - agg.retirement),
         });
       }
     }
 
-    // Add capital gains as a synthetic source if any
     const totalShortTermGains = capGainsShort;
     const totalLongTermGains = capGainsLong;
     if (totalShortTermGains > 0 || totalLongTermGains > 0 || capGainsLosses > 0) {
@@ -292,8 +379,6 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
 
     // ── Tax math ──
     const seTax = calcSETax(totalSEIncome, totalW2Income);
-
-    // Ordinary income = W2 + business profit + ST cap gains + other
     const ordinaryGross =
       totalW2Income + totalBusinessProfit + totalShortTermGains + totalOtherIncome;
     const standardDeduction = STANDARD_DEDUCTION_2025[filingStatus];
@@ -311,12 +396,11 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
     const ltcgBrackets = LTCG_BRACKETS_2025[filingStatus];
 
     const ordinaryBracketCalc = calcBracketTax(taxableOrdinaryIncome, ordBrackets);
-    // LTCG stacked on top of ordinary
     const ltcgRawCalc = calcBracketTax(taxableOrdinaryIncome + taxableLTCG, ltcgBrackets);
     const ltcgBaselineCalc = calcBracketTax(taxableOrdinaryIncome, ltcgBrackets);
     const ltcgBracketCalc: BracketCalc = {
       total: Math.max(0, ltcgRawCalc.total - ltcgBaselineCalc.total),
-      lines: ltcgRawCalc.lines, // show the stacked picture; UI explains
+      lines: ltcgRawCalc.lines,
     };
 
     const totalEstimatedTax =
@@ -326,6 +410,7 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
     const marginalRate = getMarginalRate(taxableOrdinaryIncome, ordBrackets);
 
     return {
+      mode,
       filingStatus,
       sources,
       totalBusinessRevenue,
@@ -341,6 +426,15 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
       retirement401k,
       standardDeduction,
       seDeductibleHalf: seTax.deductibleHalf,
+      plannedBusinessRevenue,
+      plannedW2Income,
+      plannedOtherIncome,
+      plannedPreTax: plannedPreTaxTotal,
+      plannedRetirement: plannedRetirementTotal,
+      plannedTotalIncome: plannedBusinessRevenue + plannedW2Income + plannedOtherIncome,
+      actualBusinessRevenue,
+      actualW2Income,
+      actualOtherIncome,
       taxableOrdinaryIncome,
       taxableLTCG,
       totalTaxableIncome,
@@ -350,7 +444,7 @@ export function useTaxBreakdown(filterCompanyName?: string): TaxBreakdownResult 
       totalEstimatedTax,
       effectiveRate,
       marginalRate,
-      isLoading: sLoading || tLoading || iLoading,
+      isLoading: sLoading || tLoading || iLoading || stLoading || bLoading || oLoading,
     };
-  }, [settings, txs, incomes, companies, filterCompanyName, sLoading, tLoading, iLoading]);
+  }, [settings, txs, incomes, companies, streams, bonuses, overrides, filterCompanyName, mode, sLoading, tLoading, iLoading, stLoading, bLoading, oLoading]);
 }

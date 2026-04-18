@@ -5,12 +5,15 @@ interface Props {
   taxableIncome: number;
   estimatedTax: number;
   effectiveRate: number; // 0-1
+  mode?: "actual" | "forecast";
 }
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
-export default function SummaryCards({ totalIncome, taxableIncome, estimatedTax, effectiveRate }: Props) {
+export default function SummaryCards({ totalIncome, taxableIncome, estimatedTax, effectiveRate, mode = "actual" }: Props) {
+  const helper =
+    mode === "forecast" ? "Includes planned income" : "Estimated · current year";
   const items = [
     { label: "Total Income", value: fmt(totalIncome), tone: "default" },
     { label: "Taxable Income", value: fmt(taxableIncome), tone: "default" },
@@ -35,7 +38,7 @@ export default function SummaryCards({ totalIncome, taxableIncome, estimatedTax,
             >
               {it.value}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Estimated · current year</p>
+            <p className="text-xs text-muted-foreground mt-1">{helper}</p>
           </CardContent>
         </Card>
       ))}
