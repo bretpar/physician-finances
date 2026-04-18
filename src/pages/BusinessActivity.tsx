@@ -1299,6 +1299,12 @@ export default function Transactions() {
               Withholding method controlled in Settings
             </p>
 
+            {/* Attachments */}
+            <TransactionAttachments
+              transactionId={editingIncomeTxId}
+              companyId={companies.find((c) => c.name === incomeForm.company)?.id || null}
+            />
+
             {/* Actions */}
             <div className="flex justify-between">
               {isEditingIncome ? (
@@ -1401,6 +1407,12 @@ export default function Transactions() {
               <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
               <Input placeholder="Optional" value={expenseForm.notes} onChange={(e) => setExpenseForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
+
+            {/* Attachments */}
+            <TransactionAttachments
+              transactionId={editingExpenseTxId}
+              companyId={companies.find((c) => c.name === expenseForm.company)?.id || null}
+            />
 
             {/* Actions */}
             <div className="flex justify-between">
