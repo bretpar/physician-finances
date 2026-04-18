@@ -66,7 +66,7 @@ export function useAddPersonalIncome() {
         );
       }
       const orgId = await getUserOrgId();
-      const { error } = await supabase.from("income_entries").insert({
+      const { data, error } = await supabase.from("income_entries").insert({
         user_id: user.id,
         organization_id: orgId,
         name: entry.name || "",
@@ -89,8 +89,9 @@ export function useAddPersonalIncome() {
         include_in_cash_flow: false,
         notes: entry.notes || "",
         status: "received",
-      } as any);
+      } as any).select("id").single();
       if (error) throw error;
+      return data as { id: string } | null;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });

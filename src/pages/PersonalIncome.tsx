@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
+import { TransactionAttachments } from "@/components/TransactionAttachments";
+import { useAttachmentCounts } from "@/hooks/useAttachments";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
@@ -102,6 +104,7 @@ export default function PersonalIncome() {
   const deleteMutation = useDeletePersonalIncome();
   const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
+  const { data: attachmentCounts } = useAttachmentCounts();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -405,6 +408,8 @@ export default function PersonalIncome() {
                     { month: "numeric", day: "numeric", year: "2-digit" },
                   );
                   const badges: LedgerRowBadge[] = [];
+                  const attCount = attachmentCounts?.get(entry.id) ?? 0;
+                  if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
                   if (withheld > 0) badges.push({ label: `Withheld ${fmt(withheld)}`, tone: "muted" });
                   if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
 
@@ -585,6 +590,9 @@ export default function PersonalIncome() {
                 </p>
               </div>
             )}
+
+            {/* Attachments */}
+            <TransactionAttachments transactionId={editingId} />
 
             <div className="flex justify-between">
               {isEditing ? (

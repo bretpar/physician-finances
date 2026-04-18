@@ -1032,6 +1032,81 @@ export type Database = {
           },
         ]
       }
+      transaction_attachments: {
+        Row: {
+          caption: string | null
+          company_id: string | null
+          created_at: string
+          extracted_amount: number | null
+          extracted_date: string | null
+          extracted_vendor: string | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          ocr_status: string | null
+          organization_id: string | null
+          thumbnail_path: string | null
+          transaction_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          company_id?: string | null
+          created_at?: string
+          extracted_amount?: number | null
+          extracted_date?: string | null
+          extracted_vendor?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          ocr_status?: string | null
+          organization_id?: string | null
+          thumbnail_path?: string | null
+          transaction_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string | null
+          created_at?: string
+          extracted_amount?: number | null
+          extracted_date?: string | null
+          extracted_vendor?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          ocr_status?: string | null
+          organization_id?: string | null
+          thumbnail_path?: string | null
+          transaction_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_attachments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_links: {
         Row: {
           confidence_score: number | null

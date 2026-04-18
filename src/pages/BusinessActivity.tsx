@@ -25,8 +25,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
+import { TransactionAttachments } from "@/components/TransactionAttachments";
+import { useAttachmentCounts } from "@/hooks/useAttachments";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
 import {
@@ -156,6 +158,9 @@ export default function Transactions() {
   const [bulkCompany, setBulkCompany] = useState("");
   const [bulkCategory, setBulkCategory] = useState("");
   const [showBulkCategory, setShowBulkCategory] = useState(false);
+
+  // Attachment counts per transaction (for paperclip badges)
+  const { data: attachmentCounts } = useAttachmentCounts();
 
   // Suggested matches (pass income entries for net-amount matching)
   const suggestions = useSuggestedMatches(transactions, incomeEntries);
@@ -950,6 +955,12 @@ export default function Transactions() {
                 <div className="truncate">
                   <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
                     {tx.vendor}
+                    {(attachmentCounts?.get(tx.id) ?? 0) > 0 && (
+                      <span title={`${attachmentCounts!.get(tx.id)} attachment${attachmentCounts!.get(tx.id)! > 1 ? "s" : ""}`} className="inline-flex items-center gap-0.5 text-muted-foreground">
+                        <Paperclip className="h-3 w-3" />
+                        <span className="text-[10px] tabular-nums">{attachmentCounts!.get(tx.id)}</span>
+                      </span>
+                    )}
                     {tx.needs_review && (
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Review</Badge>
                     )}
@@ -1045,6 +1056,8 @@ export default function Transactions() {
                     year: "2-digit",
                   });
                   const badges: LedgerRowBadge[] = [];
+                  const attCount = attachmentCounts?.get(tx.id) ?? 0;
+                  if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if (tx.excluded_from_reports) badges.push({ label: "Excluded", tone: "muted" });
                   if (source === "merged") badges.push({ label: "Linked", tone: "info" });
@@ -1297,6 +1310,12 @@ export default function Transactions() {
               Withholding method controlled in Settings
             </p>
 
+            {/* Attachments */}
+            <TransactionAttachments
+              transactionId={editingIncomeTxId}
+              companyId={companies.find((c) => c.name === incomeForm.company)?.id || null}
+            />
+
             {/* Actions */}
             <div className="flex justify-between">
               {isEditingIncome ? (
@@ -1399,6 +1418,12 @@ export default function Transactions() {
               <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
               <Input placeholder="Optional" value={expenseForm.notes} onChange={(e) => setExpenseForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
+
+            {/* Attachments */}
+            <TransactionAttachments
+              transactionId={editingExpenseTxId}
+              companyId={companies.find((c) => c.name === expenseForm.company)?.id || null}
+            />
 
             {/* Actions */}
             <div className="flex justify-between">
