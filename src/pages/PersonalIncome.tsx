@@ -326,7 +326,9 @@ export default function PersonalIncome() {
           <span className="text-right">Reserve</span>
           <span></span>
         </div>
-        <div className="divide-y divide-border">
+
+        {/* Desktop rows */}
+        <div className="hidden sm:block divide-y divide-border">
           {entries.map((entry) => {
             const typeLabel = INCOME_TYPES.find((t) => t.value === entry.income_type)?.label || entry.income_type;
             const isLoss = entry.income_type === "loss";
@@ -334,7 +336,7 @@ export default function PersonalIncome() {
             const status = ((entry as any).recommendation_status || "on_track") as keyof typeof STATUS_ICON;
             const StIcon = STATUS_ICON[status] || Minus;
             return (
-              <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-1 sm:gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
+              <div key={entry.id} className="grid grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
@@ -381,6 +383,53 @@ export default function PersonalIncome() {
           {entries.length === 0 && (
             <div className="px-4 py-16 text-center text-muted-foreground text-sm">
               No personal income entries yet. Click "Add" to get started.
+            </div>
+          )}
+        </div>
+
+        {/* Mobile rows — grouped by month */}
+        <div className="sm:hidden">
+          {groupByMonth(entries, (e) => e.income_date).map((group) => (
+            <div key={group.key}>
+              <MonthHeader label={group.label} />
+              <div className="divide-y divide-border">
+                {group.items.map((entry) => {
+                  const typeLabel =
+                    INCOME_TYPES.find((t) => t.value === entry.income_type)?.label ||
+                    entry.income_type;
+                  const isLoss = entry.income_type === "loss";
+                  const withheld = Number(entry.federal_withholding) || 0;
+                  const reserve = Number((entry as any).additional_tax_reserve || 0);
+                  const dateStr = new Date(entry.income_date + "T00:00:00").toLocaleDateString(
+                    "en-US",
+                    { month: "numeric", day: "numeric", year: "2-digit" },
+                  );
+                  const badges: LedgerRowBadge[] = [];
+                  if (withheld > 0) badges.push({ label: `Withheld ${fmt(withheld)}`, tone: "muted" });
+                  if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
+
+                  return (
+                    <LedgerRow
+                      key={entry.id}
+                      kind={isLoss ? "neutral" : "income"}
+                      title={entry.name || "(No payor)"}
+                      subtitle={typeLabel}
+                      meta={entry.company || null}
+                      date={dateStr}
+                      amount={Number(entry.gross_amount) || 0}
+                      amountTone={isLoss ? "negative" : "positive"}
+                      amountPrefix={isLoss ? "-" : "+"}
+                      badges={badges}
+                      onClick={() => openEdit(entry)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {entries.length === 0 && (
+            <div className="px-4 py-16 text-center text-muted-foreground text-sm">
+              No personal income entries yet. Tap "Add" to get started.
             </div>
           )}
         </div>
