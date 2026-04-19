@@ -208,7 +208,6 @@ export interface TaxEstimate {
   taxCredits: number;
   federalTax: number;
   seTax: SelfEmploymentTax;
-  bnoTax: number;
   /** State income tax owed (personal). Includes withheld floor; never negative. */
   personalStateTax: number;
   /** State income tax owed (business). Net of any provided business state withholding. Never negative. */
