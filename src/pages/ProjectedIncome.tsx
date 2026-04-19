@@ -199,6 +199,7 @@ export default function ProjectedIncome() {
   const deleteOverride = useDeleteOverride();
   const addIncome = useAddIncome();
   const addPersonalIncome = useAddPersonalIncome();
+  const createSource = useCreateIncomeSource();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -206,6 +207,8 @@ export default function ProjectedIncome() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [convertTarget, setConvertTarget] = useState<ProjectedPaycheck | null>(null);
   const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [showSourceError, setShowSourceError] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => {
     const current = new Date().getMonth();
     return new Set([current]);
@@ -281,55 +284,172 @@ export default function ProjectedIncome() {
   const setField = (key: keyof StreamForm, value: string | boolean) =>
     setForm((p) => ({ ...p, [key]: value }));
 
+  /** Resolve which advanced fields to render — driven by selected company's
+   *  Settings → Advanced tax settings. Falls back to filing-type defaults
+   *  derived from the chosen UI subtype when no company is linked. */
+  const visibleFields = useMemo<Record<ToggleKey, boolean>>(() => {
+    const company = form.source_id
+      ? companies.find((c) => c.id === form.source_id)
+      : undefined;
+    const meta = subtypeMeta(form.ui_income_subtype);
+    const filingType = company?.companyType
+      ? normalizeFilingType(company.companyType)
+      : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
+    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
+  }, [companies, form.source_id, form.ui_income_subtype]);
+  const showField = (key: ToggleKey) => !!visibleFields[key];
+
   const resetForm = () => {
     setForm(emptyForm());
     setEditingId(null);
     setShowForm(false);
+    setAdvancedOpen(false);
+    setShowSourceError(false);
   };
 
   const openAddForMonth = (monthIdx: number) => {
     setForm(emptyForm(monthIdx));
     setEditingId(null);
+    setAdvancedOpen(false);
+    setShowSourceError(false);
     setShowForm(true);
   };
 
   const startEdit = (s: ProjectedIncomeStream) => {
+    const subtype = hydrateSubtype(s);
     setForm({
       company: s.company,
+      source_id: s.source_id ?? null,
+      source_name: s.source_id ? "" : (s.company || ""),
+      source_save_as_new: false,
+      source_new_kind: null,
+      ui_income_subtype: subtype,
       pay_frequency: s.pay_frequency,
       custom_interval_days: String(s.custom_interval_days || 14),
       start_date: s.start_date,
       end_date: s.end_date || "",
       paycheck_amount: String(s.paycheck_amount),
       taxes_withheld: String(s.taxes_withheld),
+      federal_withholding: String(s.federal_withholding || 0),
+      state_withholding: String(s.state_withholding || 0),
+      ss_withholding: String(s.ss_withholding || 0),
+      medicare_withholding: String(s.medicare_withholding || 0),
       retirement_401k: String(s.retirement_401k),
+      owner_healthcare: String(s.owner_healthcare || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
+      additional_tax_reserve: String(s.additional_tax_reserve || 0),
+      notes: s.notes || "",
       is_active: s.is_active,
       include_in_tax: s.include_in_tax,
     });
     setEditingId(s.id);
+    setAdvancedOpen(
+      Number(s.federal_withholding || 0) > 0 ||
+      Number(s.state_withholding || 0) > 0 ||
+      Number(s.ss_withholding || 0) > 0 ||
+      Number(s.medicare_withholding || 0) > 0 ||
+      Number(s.retirement_401k) > 0 ||
+      Number(s.owner_healthcare || 0) > 0 ||
+      Number(s.pre_tax_deductions) > 0 ||
+      Number(s.taxes_withheld) > 0 ||
+      Number(s.additional_tax_reserve || 0) > 0 ||
+      !!(s.notes && s.notes.trim()),
+    );
+    setShowSourceError(false);
     setShowForm(true);
   };
 
   const isOneTime = form.pay_frequency === "single";
+  const isW2Subtype = form.ui_income_subtype === "w2_user" || form.ui_income_subtype === "w2_partner";
 
-  const handleSubmit = () => {
-    if (!form.company || num(form.paycheck_amount) <= 0) return;
-    const company = companies.find((c) => c.name === form.company);
+  /** Validates the Source/Employer assignment. Required for W-2 subtypes,
+   *  optional otherwise (matches Personal Income behavior). */
+  function validateSource(): boolean {
+    if (!isW2Subtype) return true;
+    if (form.source_id) return true;
+    if (form.source_name.trim()) {
+      if (form.source_save_as_new && !form.source_new_kind) return false;
+      return true;
+    }
+    return false;
+  }
+
+  const handleSubmit = async () => {
+    if (num(form.paycheck_amount) <= 0) return;
+    // Need either a linked source or a company name (or a valid W-2 source for W-2 subtypes)
+    const hasIdentity = !!form.source_id || !!form.source_name.trim() || !!form.company.trim();
+    if (!hasIdentity) return;
+    if (!validateSource()) {
+      setShowSourceError(true);
+      return;
+    }
+
+    // Persist new source if requested
+    let payloadSourceId = form.source_id;
+    if (!payloadSourceId && form.source_save_as_new && form.source_new_kind && form.source_name.trim()) {
+      try {
+        payloadSourceId = await persistNewSourceIfRequested(
+          {
+            otherName: form.source_name,
+            saveAsNew: true,
+            newSourceKind: form.source_new_kind,
+          },
+          createSource.mutateAsync,
+        );
+      } catch {
+        return;
+      }
+    }
+
+    // Resolve company display name
+    const linkedCompany = payloadSourceId
+      ? companies.find((c) => c.id === payloadSourceId)
+      : undefined;
+    const companyName =
+      linkedCompany?.nickname ||
+      linkedCompany?.name ||
+      form.source_name.trim() ||
+      form.company.trim();
+
+    // Resolve canonical company_type from the linked company's filing type,
+    // falling back to the subtype's filing type. Persists 4-letter canonical
+    // for back-compat with the existing tax engine routing.
+    const meta = subtypeMeta(form.ui_income_subtype);
+    const filingType = linkedCompany?.companyType
+      ? normalizeFilingType(linkedCompany.companyType)
+      : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
+    const canonical = toCanonicalIncomeType(filingType);
+
     const payload: Partial<ProjectedIncomeStream> = {
-      company: form.company,
-      company_type: company?.companyType || "w2",
+      company: companyName,
+      company_type: canonical, // "w2" | "1099" | "k1" | "other" — used by tax engine routing
+      source_id: payloadSourceId,
+      ui_income_subtype: form.ui_income_subtype,
       pay_frequency: form.pay_frequency,
       custom_interval_days: form.pay_frequency === "custom" ? num(form.custom_interval_days) : null,
       start_date: form.start_date,
       end_date: isOneTime ? null : (form.end_date || null),
       paycheck_amount: num(form.paycheck_amount),
-      taxes_withheld: num(form.taxes_withheld),
-      retirement_401k: num(form.retirement_401k),
-      pre_tax_deductions: num(form.pre_tax_deductions),
+      // Aggregate "taxes_withheld" stays as the catch-all for non-W-2 flows;
+      // for W-2 it's mirrored to federal_withholding so tax math still works.
+      taxes_withheld: showField("taxes_withheld")
+        ? num(form.taxes_withheld)
+        : num(form.federal_withholding),
+      federal_withholding: showField("federal_withholding") ? num(form.federal_withholding) : 0,
+      state_withholding: showField("state_withholding") ? num(form.state_withholding) : 0,
+      ss_withholding: showField("ss_withholding") ? num(form.ss_withholding) : 0,
+      medicare_withholding: showField("medicare_withholding") ? num(form.medicare_withholding) : 0,
+      retirement_401k: showField("retirement_401k") ? num(form.retirement_401k) : 0,
+      owner_healthcare: showField("owner_healthcare") ? num(form.owner_healthcare) : 0,
+      pre_tax_deductions: showField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
+      additional_tax_reserve: showField("additional_tax_reserve")
+        ? num(form.additional_tax_reserve)
+        : 0,
+      notes: visibleFields.notes ? form.notes : "",
       is_active: form.is_active,
       include_in_tax: form.include_in_tax,
     };
+
     if (editingId) {
       updateStream.mutate({ id: editingId, ...payload }, { onSuccess: resetForm });
     } else {
