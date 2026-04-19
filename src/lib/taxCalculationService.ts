@@ -187,7 +187,6 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     eligibleBusinessMileage: businessStateEligibleMileage,
     eligibleBusinessOwnerAdjustments: businessStateEligibleOwnerAdjustments,
     businessStateWithheld,
-    legacyStateRate,
   };
 
   const estimate = calculateFullEstimate({
