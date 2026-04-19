@@ -5,6 +5,9 @@ import { toast } from "sonner";
 export type WithholdingMethod = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
 export type DeductionType = "standard" | "itemized";
 export type WithholdingOverrideType = "none" | "percent" | "amount";
+export type PersonalStateTaxMode = "none" | "flat_rate" | "annual_estimate";
+export type BusinessStateTaxBase = "net_profit" | "gross";
+export type BusinessStateTaxApplicationMode = "all_business" | "selected";
 
 export interface TaxRates {
   id?: string;
@@ -28,6 +31,17 @@ export interface TaxRates {
   withholdingOverrideType: WithholdingOverrideType;
   withholdingOverridePercent: number | null;
   withholdingOverrideAmount: number | null;
+  // ─── State Tax (new) ───
+  stateTaxEnabled: boolean;
+  stateOfResidence: string;
+  personalStateTaxMode: PersonalStateTaxMode;
+  personalStateTaxRate: number;              // percent (e.g. 4.5 = 4.5%)
+  personalStateTaxAnnualEstimate: number;    // dollars
+  businessStateTaxEnabled: boolean;
+  businessStateTaxRate: number;              // percent
+  businessStateTaxBase: BusinessStateTaxBase;
+  businessStateTaxApplicationMode: BusinessStateTaxApplicationMode;
+  businessStateTaxCompanyIds: string[];
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -48,6 +62,16 @@ const DEFAULT_RATES: TaxRates = {
   withholdingOverrideType: "none",
   withholdingOverridePercent: null,
   withholdingOverrideAmount: null,
+  stateTaxEnabled: false,
+  stateOfResidence: "",
+  personalStateTaxMode: "none",
+  personalStateTaxRate: 0,
+  personalStateTaxAnnualEstimate: 0,
+  businessStateTaxEnabled: false,
+  businessStateTaxRate: 0,
+  businessStateTaxBase: "net_profit",
+  businessStateTaxApplicationMode: "all_business",
+  businessStateTaxCompanyIds: [],
 };
 
 export function useTaxSettings() {
@@ -81,6 +105,16 @@ export function useTaxSettings() {
         withholdingOverrideType: (d.withholding_override_type as WithholdingOverrideType) || "none",
         withholdingOverridePercent: d.withholding_override_percent != null ? Number(d.withholding_override_percent) : null,
         withholdingOverrideAmount: d.withholding_override_amount != null ? Number(d.withholding_override_amount) : null,
+        stateTaxEnabled: !!d.state_tax_enabled,
+        stateOfResidence: (d.state_of_residence as string) || "",
+        personalStateTaxMode: (d.personal_state_tax_mode as PersonalStateTaxMode) || "none",
+        personalStateTaxRate: Number(d.personal_state_tax_rate) || 0,
+        personalStateTaxAnnualEstimate: Number(d.personal_state_tax_annual_estimate) || 0,
+        businessStateTaxEnabled: !!d.business_state_tax_enabled,
+        businessStateTaxRate: Number(d.business_state_tax_rate) || 0,
+        businessStateTaxBase: (d.business_state_tax_base as BusinessStateTaxBase) || "net_profit",
+        businessStateTaxApplicationMode: (d.business_state_tax_application_mode as BusinessStateTaxApplicationMode) || "all_business",
+        businessStateTaxCompanyIds: Array.isArray(d.business_state_tax_company_ids) ? (d.business_state_tax_company_ids as string[]) : [],
       } as TaxRates;
     },
   });
@@ -108,6 +142,16 @@ export function useUpdateTaxSettings() {
       if (rest.withholdingOverrideType !== undefined) payload.withholding_override_type = rest.withholdingOverrideType;
       if (rest.withholdingOverridePercent !== undefined) payload.withholding_override_percent = rest.withholdingOverridePercent;
       if (rest.withholdingOverrideAmount !== undefined) payload.withholding_override_amount = rest.withholdingOverrideAmount;
+      if (rest.stateTaxEnabled !== undefined) payload.state_tax_enabled = rest.stateTaxEnabled;
+      if (rest.stateOfResidence !== undefined) payload.state_of_residence = rest.stateOfResidence;
+      if (rest.personalStateTaxMode !== undefined) payload.personal_state_tax_mode = rest.personalStateTaxMode;
+      if (rest.personalStateTaxRate !== undefined) payload.personal_state_tax_rate = rest.personalStateTaxRate;
+      if (rest.personalStateTaxAnnualEstimate !== undefined) payload.personal_state_tax_annual_estimate = rest.personalStateTaxAnnualEstimate;
+      if (rest.businessStateTaxEnabled !== undefined) payload.business_state_tax_enabled = rest.businessStateTaxEnabled;
+      if (rest.businessStateTaxRate !== undefined) payload.business_state_tax_rate = rest.businessStateTaxRate;
+      if (rest.businessStateTaxBase !== undefined) payload.business_state_tax_base = rest.businessStateTaxBase;
+      if (rest.businessStateTaxApplicationMode !== undefined) payload.business_state_tax_application_mode = rest.businessStateTaxApplicationMode;
+      if (rest.businessStateTaxCompanyIds !== undefined) payload.business_state_tax_company_ids = rest.businessStateTaxCompanyIds;
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
