@@ -196,6 +196,14 @@ export default function PersonalIncome() {
     });
     setEditingId(entry.id);
     setShowSourceError(false);
+    setAdvancedOpen(
+      Number(entry.federal_withholding) > 0 ||
+      Number(entry.state_withholding) > 0 ||
+      Number(entry.retirement_401k) > 0 ||
+      Number(entry.pre_tax_deductions) > 0 ||
+      Number((entry as any).additional_tax_reserve || 0) > 0 ||
+      !!(entry.notes && entry.notes.trim())
+    );
     setShowForm(true);
   }
 
