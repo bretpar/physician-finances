@@ -27,6 +27,8 @@ import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendati
 import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { RecommendationModal } from "@/components/RecommendationModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
+import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
+import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -70,6 +72,9 @@ interface FormState {
   retirement_pretax: string;
   deductions_pre_tax: string;
   source_name: string;
+  source_id: string | null;
+  source_save_as_new: boolean;
+  source_new_kind: SourceKind | null;
   notes: string;
   additional_tax_reserve: string;
 }
@@ -87,6 +92,9 @@ const emptyForm: FormState = {
   retirement_pretax: "",
   deductions_pre_tax: "",
   source_name: "",
+  source_id: null,
+  source_save_as_new: false,
+  source_new_kind: null,
   notes: "",
   additional_tax_reserve: "",
 };
