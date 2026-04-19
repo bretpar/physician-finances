@@ -22,7 +22,6 @@ function estimate(overrides: Partial<Parameters<typeof calculateFullEstimate>[0]
     taxesWithheld: 0,
     filingStatus: "single",
     lastYearTax: 0,
-    bnoRate: 0.015,
     ...overrides,
   });
 }
@@ -64,10 +63,10 @@ describe("Business deductions are sign-agnostic in the engine", () => {
 });
 
 // ================================================================
-// 2. W-2 only income — no SE tax, no B&O
+// 2. W-2 only income — no SE tax
 // ================================================================
 describe("W-2 only income", () => {
-  it("has zero SE tax and zero B&O tax", () => {
+  it("has zero SE tax", () => {
     const result = estimate({
       totalIncome: 200000,
       w2Income: 200000,
@@ -75,7 +74,6 @@ describe("W-2 only income", () => {
     });
 
     expect(result.seTax.total).toBe(0);
-    expect(result.bnoTax).toBe(0);
     expect(result.federalTax).toBeGreaterThan(0);
   });
 
@@ -106,7 +104,6 @@ describe("Ordinary non-wage income only (dividends, interest)", () => {
     });
 
     expect(result.seTax.total).toBe(0);
-    expect(result.bnoTax).toBe(0);
     expect(result.federalTax).toBeGreaterThan(0);
   });
 
@@ -151,10 +148,9 @@ describe("Mixed W-2 + SE income household", () => {
 
     expect(result.seTax.ssTax).toBeCloseTo(expectedSSTax, 2);
     expect(result.seTax.medicareTax).toBeCloseTo(seBase * 0.029, 2);
-    expect(result.bnoTax).toBeCloseTo(50000 * 0.015, 2);
   });
 
-  it("total tax = federal + SE + B&O", () => {
+  it("total tax = federal + SE", () => {
     const result = estimate({
       totalIncome: 200000,
       w2Income: 100000,
@@ -163,7 +159,7 @@ describe("Mixed W-2 + SE income household", () => {
     });
 
     expect(result.totalTaxLiability).toBeCloseTo(
-      result.federalTax + result.seTax.total + result.bnoTax,
+      result.federalTax + result.seTax.total,
       2
     );
   });
