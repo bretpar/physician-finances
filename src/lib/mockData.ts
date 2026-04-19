@@ -95,16 +95,13 @@ export function getSummary(transactions: Transaction[]) {
 
   const federalRate = 0.32;
   const seRate = 0.153;
-  const bnoRate = 0.015;
 
   // Federal tax on ALL income (including W-2)
   const estimatedTax = netProfit * federalRate;
   // SE tax only on self-employment profit
   const seTax = Math.max(0, selfEmploymentProfit) * seRate * 0.9235;
-  // B&O tax only on non-W-2 business income
-  const bnoTax = selfEmploymentIncome * bnoRate;
 
-  const totalTaxLiability = estimatedTax + seTax + bnoTax;
+  const totalTaxLiability = estimatedTax + seTax;
   const remainingLiability = Math.max(0, totalTaxLiability - w2Withheld);
   const quarterlyEstimate = remainingLiability / 4;
 
@@ -115,7 +112,6 @@ export function getSummary(transactions: Transaction[]) {
     estimatedTax,
     seTax,
     quarterlyEstimate,
-    bnoTax,
     w2Income,
     w2Withheld,
     selfEmploymentIncome,
