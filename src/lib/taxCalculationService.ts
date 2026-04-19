@@ -202,7 +202,6 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     lastYearTax,
     standardDeductionOverride,
     ssWageCap,
-    bnoRate,
     remainingPayPeriods,
     additionalTaxPaid,
     deductionType,
