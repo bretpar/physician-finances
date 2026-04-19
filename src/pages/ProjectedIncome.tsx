@@ -622,6 +622,40 @@ export default function ProjectedIncome() {
       </div>
 
       {forecastDebug && (
+        <Card>
+          <CardContent className="pt-5 pb-5 space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Tax Flow (Actual + Projected)</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Same IRS-style flow as the Tax Overview, using your actual YTD income plus everything still planned.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <FlowStat label="Gross Business Income" value={fmt(forecastDebug.grossBusinessIncome)} />
+              <FlowStat label="Business Expenses" value={`−${fmt(forecastDebug.businessExpenses)}`} tone="muted" />
+              <FlowStat label="Net Business Profit" value={fmt(forecastDebug.netBusinessProfit)} />
+              <FlowStat label="Total Return Income" value={fmt(forecastDebug.totalReturnIncomeBeforeAdjustments)} />
+              <FlowStat label="Taxable Income" value={fmt(forecastDebug.totalTaxableIncome)} />
+              <FlowStat label="Total Estimated Tax" value={fmt(forecastDebug.totalEstimatedTax)} tone="destructive" />
+              <FlowStat label="Taxes Already Withheld/Paid" value={fmt(forecastDebug.countedCreditsTotal)} tone="success" />
+              <FlowStat
+                label="Remaining Tax To Cover"
+                value={fmt(forecastDebug.remainingTaxDue)}
+                tone={forecastDebug.remainingTaxDue > 0 ? "warning" : "success"}
+              />
+            </div>
+
+            {forecastDebug.nonCountedSavingsTotal > 0 && (
+              <p className="text-[11px] text-muted-foreground italic">
+                Plus {fmt(forecastDebug.nonCountedSavingsTotal)} set aside in savings — shown for planning only, not counted as a submitted tax payment.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {forecastDebug && (
         <TaxDebugPanel debug={forecastDebug} label="Income Planner — Tax Calculation Debug" />
       )}
 
@@ -1493,5 +1527,28 @@ function SummaryCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function FlowStat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "muted" | "destructive" | "success" | "warning";
+}) {
+  const toneClass =
+    tone === "destructive" ? "text-destructive"
+    : tone === "success" ? "text-emerald-600 dark:text-emerald-400"
+    : tone === "warning" ? "text-amber-600 dark:text-amber-400"
+    : tone === "muted" ? "text-muted-foreground"
+    : "text-foreground";
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`text-lg font-semibold tabular-nums mt-1 ${toneClass}`}>{value}</p>
+    </div>
   );
 }
