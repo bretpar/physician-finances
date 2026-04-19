@@ -121,6 +121,7 @@ export default function PersonalIncome() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showSourceError, setShowSourceError] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Modal 2 state
   const [showRecommendation, setShowRecommendation] = useState(false);
