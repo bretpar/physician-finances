@@ -635,19 +635,78 @@ export function generateProjectedPaychecks(
 }
 
 /* ─── Aggregate projected totals ─── */
-/** Only counts "active" (future, unmatched) paychecks — never matched, skipped, or past_due */
-export function getProjectedTotals(paychecks: ProjectedPaycheck[]) {
-  return paychecks
-    .filter((p) => p.matchStatus === "active")
-    .reduce(
-      (acc, p) => ({
-        grossIncome: acc.grossIncome + p.grossAmount,
-        taxesWithheld: acc.taxesWithheld + p.taxesWithheld,
-        retirement401k: acc.retirement401k + p.retirement401k,
-        preTaxDeductions: acc.preTaxDeductions + p.preTaxDeductions,
-        netIncome: acc.netIncome + p.netAmount,
-        count: acc.count + 1,
-      }),
-      { grossIncome: 0, taxesWithheld: 0, retirement401k: 0, preTaxDeductions: 0, netIncome: 0, count: 0 }
-    );
+
+/** Classify a stream's company_type into a tax bucket. */
+function classifyStreamType(companyType?: string): "w2" | "se" | "other" {
+  const t = (companyType || "").toLowerCase().trim();
+  if (t === "w2" || t === "w2_user" || t === "w2_partner" || t === "scorp_w2") return "w2";
+  if (
+    t === "1099" ||
+    t === "1099_schedule_c" ||
+    t === "k1" ||
+    t === "k1_partnership"
+  ) return "se";
+  // scorp_distribution, other → "other" (taxable but not SE)
+  return "other";
+}
+
+/**
+ * Only counts "active" (future, unmatched) paychecks — never matched, skipped, or past_due.
+ *
+ * Returns income split by tax type AND withholding split by federal/state so the
+ * tax engine can route each piece correctly. Falls back to the aggregate
+ * `taxes_withheld` field when per-stream federal/state aren't separated.
+ */
+export function getProjectedTotals(
+  paychecks: ProjectedPaycheck[],
+  streams: ProjectedIncomeStream[] = [],
+) {
+  const streamById = new Map(streams.map((s) => [s.id, s] as const));
+
+  const acc = {
+    grossIncome: 0,
+    taxesWithheld: 0,        // legacy alias = federal + state
+    federalWithheld: 0,
+    stateWithheld: 0,
+    retirement401k: 0,
+    preTaxDeductions: 0,
+    netIncome: 0,
+    count: 0,
+    w2Income: 0,
+    seIncome: 0,
+    otherIncome: 0,
+  };
+
+  for (const p of paychecks) {
+    if (p.matchStatus !== "active") continue;
+    const stream = streamById.get(p.streamId);
+    const bucket = classifyStreamType(stream?.company_type ?? p.streamCompanyType);
+
+    // Per-stream split (W-2 paychecks usually carry federal_withholding/state_withholding fields)
+    let fed = Number(stream?.federal_withholding || 0);
+    let st = Number(stream?.state_withholding || 0);
+    // Bonuses & legacy streams use only the aggregate p.taxesWithheld.
+    if (fed === 0 && st === 0) {
+      // Treat aggregate as federal — state withholding only applies when explicitly tagged.
+      fed = p.taxesWithheld;
+    } else {
+      // Scale per-paycheck stream values: stream stores per-paycheck amounts already.
+      // No scaling needed — they're applied per occurrence.
+    }
+
+    acc.grossIncome += p.grossAmount;
+    acc.federalWithheld += fed;
+    acc.stateWithheld += st;
+    acc.taxesWithheld += fed + st;
+    acc.retirement401k += p.retirement401k;
+    acc.preTaxDeductions += p.preTaxDeductions;
+    acc.netIncome += p.netAmount;
+    acc.count += 1;
+
+    if (bucket === "w2") acc.w2Income += p.grossAmount;
+    else if (bucket === "se") acc.seIncome += p.grossAmount;
+    else acc.otherIncome += p.grossAmount;
+  }
+
+  return acc;
 }
