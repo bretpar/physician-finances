@@ -37,6 +37,17 @@ import {
   isStreamExpired,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";
+import {
+  SourceEmployerCombobox, persistNewSourceIfRequested,
+} from "@/components/SourceEmployerCombobox";
+import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
+import {
+  normalizeFilingType,
+  resolveAdvancedVisibility,
+  toCanonicalIncomeType,
+  type ToggleKey,
+} from "@/lib/filingTypes";
+import { ledgerForIncomeType } from "@/lib/ledgerRouting";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -57,16 +68,50 @@ const PAY_FREQUENCIES = [
   { value: "custom", label: "Custom" },
 ];
 
+/** All UI subtypes supported across both ledgers — preserved for transfer fidelity. */
+const INCOME_SUBTYPES = [
+  // Personal
+  { value: "w2_user", label: "W-2 Income (You)", filingType: "w2" as const },
+  { value: "w2_partner", label: "W-2 Income (Partner)", filingType: "w2" as const },
+  { value: "short_term_gain", label: "Short-Term Capital Gain", filingType: "other" as const },
+  { value: "long_term_gain", label: "Long-Term Capital Gain", filingType: "other" as const },
+  { value: "dividend", label: "Dividend", filingType: "other" as const },
+  { value: "interest", label: "Interest", filingType: "other" as const },
+  { value: "rental", label: "Rental Income", filingType: "other" as const },
+  { value: "other_income", label: "Other Income", filingType: "other" as const },
+  { value: "loss", label: "Loss", filingType: "other" as const },
+  // Business
+  { value: "1099_schedule_c", label: "1099 / Schedule C", filingType: "1099_schedule_c" as const },
+  { value: "k1_partnership", label: "K-1 Partnership", filingType: "k1_partnership" as const },
+  { value: "scorp_w2", label: "S-Corp W-2 Wages", filingType: "scorp_w2" as const },
+  { value: "scorp_distribution", label: "S-Corp Distribution", filingType: "scorp_distribution" as const },
+];
+
+const VALID_SUBTYPES = new Set(INCOME_SUBTYPES.map((t) => t.value));
+const subtypeMeta = (v: string) => INCOME_SUBTYPES.find((t) => t.value === v);
+
 interface StreamForm {
   company: string;
+  source_id: string | null;
+  source_name: string;
+  source_save_as_new: boolean;
+  source_new_kind: SourceKind | null;
+  ui_income_subtype: string;
   pay_frequency: string;
   custom_interval_days: string;
   start_date: string;
   end_date: string;
   paycheck_amount: string;
   taxes_withheld: string;
+  federal_withholding: string;
+  state_withholding: string;
+  ss_withholding: string;
+  medicare_withholding: string;
   retirement_401k: string;
+  owner_healthcare: string;
   pre_tax_deductions: string;
+  additional_tax_reserve: string;
+  notes: string;
   is_active: boolean;
   include_in_tax: boolean;
 }
@@ -86,18 +131,57 @@ const emptyForm = (monthIdx?: number): StreamForm => {
   const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-15`;
   return {
     company: "",
+    source_id: null,
+    source_name: "",
+    source_save_as_new: false,
+    source_new_kind: null,
+    ui_income_subtype: "w2_user",
     pay_frequency: "biweekly",
     custom_interval_days: "14",
     start_date: dateStr,
     end_date: "",
     paycheck_amount: "",
     taxes_withheld: "",
+    federal_withholding: "",
+    state_withholding: "",
+    ss_withholding: "",
+    medicare_withholding: "",
     retirement_401k: "",
+    owner_healthcare: "",
     pre_tax_deductions: "",
+    additional_tax_reserve: "",
+    notes: "",
     is_active: true,
     include_in_tax: true,
   };
 };
+
+/** Map a saved stream's stored subtype back to a valid UI Select value. */
+function hydrateSubtype(s: ProjectedIncomeStream): string {
+  const ui = s.ui_income_subtype;
+  if (ui && VALID_SUBTYPES.has(ui)) return ui;
+  // Fallback from canonical company_type for legacy rows.
+  const t = (s.company_type || "").toLowerCase().trim();
+  if (t === "w2" || t === "w2_user") return "w2_user";
+  if (t === "w2_partner") return "w2_partner";
+  if (t === "1099" || t === "1099_schedule_c") return "1099_schedule_c";
+  if (t === "k1" || t === "k1_partnership") return "k1_partnership";
+  if (t === "scorp_w2") return "scorp_w2";
+  if (t === "scorp_distribution") return "scorp_distribution";
+  return "w2_user";
+}
+
+/** Map a SourceKind to a sensible default UI subtype when picking a new source. */
+function defaultSubtypeForSourceKind(kind: SourceKind | undefined): string | null {
+  if (!kind) return null;
+  if (kind === "w2_employer") return "w2_user";
+  if (kind === "personal") return "other_income";
+  if (kind === "1099_schedule_c") return "1099_schedule_c";
+  if (kind === "k1_partnership") return "k1_partnership";
+  if (kind === "scorp_w2") return "scorp_w2";
+  if (kind === "scorp_distribution") return "scorp_distribution";
+  return null;
+}
 
 export default function ProjectedIncome() {
   const navigate = useNavigate();
