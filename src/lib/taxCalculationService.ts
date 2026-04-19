@@ -16,32 +16,34 @@ import {
 
 export interface UnifiedTaxInput {
   // Actual (YTD) numbers
-  businessIncome: number;       // 1099/K1 gross
-  businessW2: number;           // W2 gross from business income entries
-  businessFederalWithheld: number;  // Federal-only withholding on business income
-  businessStateWithheld: number;    // State-only withholding on business income
-  businessPreTax: number;       // Pre-tax deductions on business income
-  businessRetirement: number;   // Retirement contributions on business income
-  ownerHealthcare: number;      // K-1 owner healthcare premiums (reduces taxable income, not profit)
-  /** Eligible business gross income for state business tax (filtered by app mode + per-company toggle). */
+  /** All non-W2 business gross receipts (Schedule C + K-1 + S-Corp distributions). */
+  businessIncome: number;
+  /** Subset of businessIncome that is true SE earnings (Schedule C + K-1 partnership). */
+  seEligibleBusinessIncome: number;
+  businessW2: number;
+  businessFederalWithheld: number;
+  businessStateWithheld: number;
+  businessPreTax: number;
+  businessRetirement: number;
+  ownerHealthcare: number;
   businessStateEligibleGross: number;
-  /** Eligible business expenses (proportional). */
   businessStateEligibleExpenses: number;
-  /** Eligible mileage deduction (proportional). */
   businessStateEligibleMileage: number;
-  /** Eligible owner adjustments (healthcare + retirement). */
   businessStateEligibleOwnerAdjustments: number;
-  personalIncome: number;       // Total personal income (W2+ordinary+capgains+rental-losses)
-  personalW2: number;           // W2 portion of personal income
-  personalFederalWithheld: number;  // Federal-only withholding on personal income
-  personalStateWithheld: number;    // State-only withholding on personal income
+  /** Total personal income (W2 + ordinary + capgains + rental − losses). */
+  personalIncome: number;
+  personalW2: number;
+  /** Personal taxable income that is NOT W-2 (ordinary, cap gains, rental, etc.) — used as "other income" on the return. */
+  personalNonW2Income: number;
+  personalFederalWithheld: number;
+  personalStateWithheld: number;
   personalPreTax: number;
   personalRetirement: number;
   netStockGain: number;
-  businessExpenses: number;     // Ordinary operating expenses (reduce business profit)
+  businessExpenses: number;
   mileageDeduction: number;
-  annualizedRetirement: number; // From retirement_contributions table
-  txActualWithholding: number;  // User reserves (NOT taxes paid)
+  annualizedRetirement: number;
+  txActualWithholding: number;
   quarterlyPaid: number;
   savingsTotal: number;
   remainingPayPeriods: number;
@@ -57,7 +59,6 @@ export interface UnifiedTaxInput {
   lastYearTax: number;
   standardDeductionOverride?: number | null;
   ssWageCap: number;
-  // New tax-profile inputs
   deductionType?: "standard" | "itemized";
   itemizedDeductionAmount?: number;
   qualifyingChildrenCount?: number;
@@ -66,7 +67,6 @@ export interface UnifiedTaxInput {
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
 
-  /** State tax settings — passed through to engine. */
   stateTaxEnabled?: boolean;
   personalStateTaxMode?: "none" | "flat_rate" | "annual_estimate";
   personalStateTaxRate?: number;
@@ -75,7 +75,6 @@ export interface UnifiedTaxInput {
   businessStateTaxRate?: number;
   businessStateTaxBase?: "net_profit" | "gross";
 
-  // Mode
   includeProjectedIncome: boolean;
 }
 
