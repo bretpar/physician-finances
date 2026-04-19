@@ -964,16 +964,68 @@ export default function ProjectedIncome() {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
+            {/* Source / Employer — drives advanced field visibility */}
             <div className="space-y-1.5">
-              <Label>Company *</Label>
-              <Select value={form.company} onValueChange={(v) => setField("company", v)}>
-                <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+              <Label>
+                Source / Employer
+                {isW2Subtype && <span className="text-destructive"> *</span>}
+              </Label>
+              <SourceEmployerCombobox
+                sourceId={form.source_id}
+                otherName={form.source_name}
+                saveAsNew={form.source_save_as_new}
+                newSourceKind={form.source_new_kind}
+                required={isW2Subtype}
+                invalid={showSourceError}
+                onChange={(next) => {
+                  setForm((prev) => {
+                    let nextSubtype = prev.ui_income_subtype;
+                    // When linking a source on add, default the subtype from the source's kind
+                    // so advanced field visibility flips immediately.
+                    if (!editingId && next.linkedSource) {
+                      const suggested = defaultSubtypeForSourceKind(next.linkedSource.source_kind);
+                      if (suggested) nextSubtype = suggested;
+                    }
+                    return {
+                      ...prev,
+                      source_id: next.sourceId,
+                      source_name: next.otherName,
+                      source_save_as_new: next.saveAsNew,
+                      source_new_kind: next.newSourceKind,
+                      ui_income_subtype: nextSubtype,
+                    };
+                  });
+                  if (showSourceError) setShowSourceError(false);
+                }}
+              />
+              {showSourceError && isW2Subtype && !form.source_id && !form.source_name.trim() && (
+                <p className="text-[10px] text-destructive mt-1">Pick a source or enter one under "Other".</p>
+              )}
+            </div>
+
+            {/* Income subtype — preserves transfer fidelity */}
+            <div className="space-y-1.5">
+              <Label>Income Type</Label>
+              <Select
+                value={form.ui_income_subtype}
+                onValueChange={(v) => setField("ui_income_subtype", v)}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {companyNames.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  {INCOME_SUBTYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Determines whether this stream transfers to{" "}
+                <strong>
+                  {ledgerForIncomeType(form.ui_income_subtype) === "business"
+                    ? "Business Activity"
+                    : "Personal Income"}
+                </strong>{" "}
+                when you convert it.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1037,50 +1089,133 @@ export default function ProjectedIncome() {
               )}
             </div>
 
-            <div className="border-t border-border pt-3 space-y-3">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Optional Details</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tax Withholding</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0"
-                    value={form.taxes_withheld}
-                    onChange={(e) => setField("taxes_withheld", e.target.value)}
-                  />
+            {/* Advanced details — driven by company / filing-type toggles */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                {advancedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Advanced details
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
+                  {/* Catch-all withholding (1099, k1, scorp_distribution, other) */}
+                  {showField("taxes_withheld") && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Taxes actually withheld</Label>
+                      <Input
+                        type="number" min="0" step="0.01" placeholder="0.00"
+                        value={form.taxes_withheld}
+                        onChange={(e) => setField("taxes_withheld", e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Payroll-style withholdings (W-2 / S-Corp W-2) */}
+                  {(showField("federal_withholding") || showField("state_withholding") ||
+                    showField("ss_withholding") || showField("medicare_withholding")) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {showField("federal_withholding") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Federal tax withheld</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.federal_withholding}
+                            onChange={(e) => setField("federal_withholding", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("state_withholding") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">State tax withheld</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.state_withholding}
+                            onChange={(e) => setField("state_withholding", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("ss_withholding") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Social Security tax</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.ss_withholding}
+                            onChange={(e) => setField("ss_withholding", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("medicare_withholding") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Medicare tax</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.medicare_withholding}
+                            onChange={(e) => setField("medicare_withholding", e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pre-tax deductions */}
+                  {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {showField("retirement_401k") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">401(k) contribution</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.retirement_401k}
+                            onChange={(e) => setField("retirement_401k", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("owner_healthcare") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Health insurance</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.owner_healthcare}
+                            onChange={(e) => setField("owner_healthcare", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("pre_tax_deductions") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Other pre-tax deductions</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.pre_tax_deductions}
+                            onChange={(e) => setField("pre_tax_deductions", e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {showField("additional_tax_reserve") && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Amount you're saving for taxes</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00"
+                        value={form.additional_tax_reserve}
+                        onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
+                    </div>
+                  )}
+
+                  {visibleFields.notes && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Notes</Label>
+                      <Input
+                        value={form.notes}
+                        onChange={(e) => setField("notes", e.target.value)}
+                        placeholder="Optional notes"
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">401(k)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0"
-                    value={form.retirement_401k}
-                    onChange={(e) => setField("retirement_401k", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Deductions</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0"
-                    value={form.pre_tax_deductions}
-                    onChange={(e) => setField("pre_tax_deductions", e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {num(form.paycheck_amount) > 0 && (
               <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
                 <span className="text-muted-foreground">Est. take-home: </span>
                 <span className="font-semibold text-foreground">
-                  {fmtFull(Math.max(0, num(form.paycheck_amount) - num(form.taxes_withheld) - num(form.retirement_401k) - num(form.pre_tax_deductions)))}
+                  {fmtFull(Math.max(0,
+                    num(form.paycheck_amount)
+                    - num(form.taxes_withheld)
+                    - num(form.federal_withholding)
+                    - num(form.state_withholding)
+                    - num(form.ss_withholding)
+                    - num(form.medicare_withholding)
+                    - num(form.retirement_401k)
+                    - num(form.owner_healthcare)
+                    - num(form.pre_tax_deductions)
+                  ))}
                 </span>
               </div>
             )}
@@ -1090,7 +1225,10 @@ export default function ProjectedIncome() {
             <Button variant="outline" onClick={resetForm}>Cancel</Button>
             <Button
               onClick={handleSubmit}
-              disabled={!form.company || num(form.paycheck_amount) <= 0}
+              disabled={
+                num(form.paycheck_amount) <= 0 ||
+                (!form.source_id && !form.source_name.trim() && !form.company.trim())
+              }
             >
               {editingId ? "Save Changes" : (isOneTime ? "Add One-Time Income" : "Add Stream")}
             </Button>
