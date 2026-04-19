@@ -1023,12 +1023,16 @@ export type Database = {
         Row: {
           bno_rate: number
           created_at: string
+          deduction_type: string
           federal_rate: number
           filing_status: string
           id: string
+          itemized_deduction_amount: number
           last_year_tax: number
           manual_effective_tax_rate: number | null
           organization_id: string | null
+          other_dependents_count: number
+          qualifying_children_count: number
           ss_wage_cap: number
           standard_deduction_override: number | null
           state_rate: number
@@ -1036,16 +1040,23 @@ export type Database = {
           updated_at: string
           user_id: string
           withholding_method: string
+          withholding_override_amount: number | null
+          withholding_override_percent: number | null
+          withholding_override_type: string
         }
         Insert: {
           bno_rate?: number
           created_at?: string
+          deduction_type?: string
           federal_rate?: number
           filing_status?: string
           id?: string
+          itemized_deduction_amount?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null
           organization_id?: string | null
+          other_dependents_count?: number
+          qualifying_children_count?: number
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_rate?: number
@@ -1053,16 +1064,23 @@ export type Database = {
           updated_at?: string
           user_id: string
           withholding_method?: string
+          withholding_override_amount?: number | null
+          withholding_override_percent?: number | null
+          withholding_override_type?: string
         }
         Update: {
           bno_rate?: number
           created_at?: string
+          deduction_type?: string
           federal_rate?: number
           filing_status?: string
           id?: string
+          itemized_deduction_amount?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null
           organization_id?: string | null
+          other_dependents_count?: number
+          qualifying_children_count?: number
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_rate?: number
@@ -1070,6 +1088,9 @@ export type Database = {
           updated_at?: string
           user_id?: string
           withholding_method?: string
+          withholding_override_amount?: number | null
+          withholding_override_percent?: number | null
+          withholding_override_type?: string
         }
         Relationships: [
           {
