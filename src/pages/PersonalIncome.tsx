@@ -170,6 +170,7 @@ export default function PersonalIncome() {
     setForm(emptyForm);
     setEditingId(null);
     setShowSourceError(false);
+    setAdvancedOpen(false);
     setShowForm(true);
   }
 
