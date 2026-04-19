@@ -91,6 +91,7 @@ export type Database = {
           income_type: string
           is_actual: boolean
           linked_transaction_id: string | null
+          medicare_withholding: number
           name: string
           notes: string | null
           organization_id: string | null
@@ -103,10 +104,12 @@ export type Database = {
           retirement_401k: number
           source_bucket: string
           source_id: string | null
+          ss_withholding: number
           state_withholding: number
           status: string
           tax_category: string
           taxes_withheld: number
+          ui_income_subtype: string | null
           updated_at: string
           user_id: string
         }
@@ -127,6 +130,7 @@ export type Database = {
           income_type?: string
           is_actual?: boolean
           linked_transaction_id?: string | null
+          medicare_withholding?: number
           name?: string
           notes?: string | null
           organization_id?: string | null
@@ -139,10 +143,12 @@ export type Database = {
           retirement_401k?: number
           source_bucket?: string
           source_id?: string | null
+          ss_withholding?: number
           state_withholding?: number
           status?: string
           tax_category?: string
           taxes_withheld?: number
+          ui_income_subtype?: string | null
           updated_at?: string
           user_id: string
         }
@@ -163,6 +169,7 @@ export type Database = {
           income_type?: string
           is_actual?: boolean
           linked_transaction_id?: string | null
+          medicare_withholding?: number
           name?: string
           notes?: string | null
           organization_id?: string | null
@@ -175,10 +182,12 @@ export type Database = {
           retirement_401k?: number
           source_bucket?: string
           source_id?: string | null
+          ss_withholding?: number
           state_withholding?: number
           status?: string
           tax_category?: string
           taxes_withheld?: number
+          ui_income_subtype?: string | null
           updated_at?: string
           user_id?: string
         }
