@@ -15,13 +15,15 @@ import {
 /* ─── Input types ─── */
 
 export interface UnifiedTaxInput {
-  // Actual (YTD) numbers
+  // ── Actual (YTD) numbers ──
   /** All non-W2 business gross receipts (Schedule C + K-1 + S-Corp distributions). */
   businessIncome: number;
   /** Subset of businessIncome that is true SE earnings (Schedule C + K-1 partnership). */
   seEligibleBusinessIncome: number;
   businessW2: number;
+  /** Federal withholding actually withheld from business/1099 income to date. */
   businessFederalWithheld: number;
+  /** State withholding actually withheld from business/1099 income to date. */
   businessStateWithheld: number;
   businessPreTax: number;
   businessRetirement: number;
@@ -35,7 +37,9 @@ export interface UnifiedTaxInput {
   personalW2: number;
   /** Personal taxable income that is NOT W-2 (ordinary, cap gains, rental, etc.) — used as "other income" on the return. */
   personalNonW2Income: number;
+  /** Federal withholding actually withheld from personal income to date. */
   personalFederalWithheld: number;
+  /** State withholding actually withheld from personal income to date. */
   personalStateWithheld: number;
   personalPreTax: number;
   personalRetirement: number;
@@ -43,18 +47,29 @@ export interface UnifiedTaxInput {
   businessExpenses: number;
   mileageDeduction: number;
   annualizedRetirement: number;
+  /** User-set-aside reserves on transactions (informational — NOT a submitted tax payment). */
   txActualWithholding: number;
-  quarterlyPaid: number;
-  savingsTotal: number;
+  /** Quarterly estimated tax payments actually submitted to the IRS/state. */
+  actualEstimatedPaymentsMade: number;
+  /** Money set aside in a savings bucket (informational — NOT a submitted tax payment). */
+  taxSavingsSetAside: number;
   remainingPayPeriods: number;
 
-  // Projected future numbers (only used when includeProjectedIncome=true)
-  projectedGrossIncome: number;
-  projectedTaxesWithheld: number;
+  // ── Projected future numbers (only used when includeProjectedIncome=true) ──
+  /** Future projected W-2 paychecks gross. */
+  projectedW2Income: number;
+  /** Future projected SE income (Schedule C / K-1) gross. */
+  projectedSEIncome: number;
+  /** Future projected non-SE other income (S-Corp distributions, etc.) gross. */
+  projectedOtherIncome: number;
+  /** Future federal withholding expected from projected W-2 paychecks. */
+  projectedFederalWithheld: number;
+  /** Future state withholding expected from projected W-2 paychecks. */
+  projectedStateWithheld: number;
   projectedPreTax: number;
   projectedRetirement: number;
 
-  // Settings
+  // ── Settings ──
   filingStatus: "single" | "married_filing_jointly";
   lastYearTax: number;
   standardDeductionOverride?: number | null;
@@ -100,7 +115,7 @@ export interface TaxDebugBreakdown {
   preTaxDeductions: number;
   retirementContributions: number;
   halfSETaxDeduction: number;
-  ownerDeductions: number;        // K-1 owner healthcare etc. (already inside preTaxDeductions)
+  ownerDeductions: number;
   deductionApplied: number;
   deductionType: "standard" | "itemized";
   totalTaxableIncome: number;
@@ -109,21 +124,41 @@ export interface TaxDebugBreakdown {
   selfEmploymentTax: number;
   stateTax: number;
   totalEstimatedTax: number;
-  estimatedAnnualTax: number;     // alias of totalEstimatedTax (kept for back-compat)
+  estimatedAnnualTax: number;     // alias of totalEstimatedTax
   federalTaxBeforeCredits: number;
   taxCredits: number;
-  taxesAlreadyWithheldOrPaid: number;
-  taxesAlreadyWithheld: number;   // Federal-only — kept for back-compat
-  federalWithheld: number;
-  stateWithheld: number;
+  // ── Credits against tax (explicit) ──
+  /** Federal withholding already paid on actual income to date. */
+  actualFederalWithheld: number;
+  /** State withholding already paid on actual income to date. */
+  actualStateWithheld: number;
+  /** Future federal withholding from projected W-2 paychecks (only when includeProjectedIncome). */
+  projectedFederalWithheld: number;
+  /** Future state withholding from projected W-2 paychecks (only when includeProjectedIncome). */
+  projectedStateWithheld: number;
+  /** Quarterly estimated payments actually submitted. */
+  estimatedPaymentsMade: number;
+  /** Tax savings set aside in a bucket — informational only, NOT counted. */
+  taxSavingsSetAside: number;
+  /** Total counted credits = actual fed + actual state + projected fed + projected state + estimated payments. */
+  countedCreditsTotal: number;
+  /** Total NOT counted = tax savings + tx reserves (informational only). */
+  nonCountedSavingsTotal: number;
+  /** Remaining tax due after counted credits. */
+  remainingTaxDue: number;
+  // ── Back-compat aliases ──
+  taxesAlreadyWithheldOrPaid: number; // = countedCreditsTotal
+  taxesAlreadyWithheld: number;       // = actualFederalWithheld + projectedFederalWithheld
+  federalWithheld: number;            // = actualFederalWithheld + projectedFederalWithheld
+  stateWithheld: number;              // = actualStateWithheld + projectedStateWithheld
   personalStateTax: number;
   businessStateTax: number;
-  taxReserves: number;
-  quarterlyPayments: number;
-  taxSavings: number;
-  additionalTaxPaid: number;
-  remainingTaxToCover: number;
-  remainingEstimatedTax: number;  // alias for back-compat
+  taxReserves: number;                // tx-level set-aside (not counted)
+  quarterlyPayments: number;          // = estimatedPaymentsMade
+  taxSavings: number;                 // = taxSavingsSetAside
+  additionalTaxPaid: number;          // = estimatedPaymentsMade (NO LONGER includes savings)
+  remainingTaxToCover: number;        // = remainingTaxDue
+  remainingEstimatedTax: number;      // = remainingTaxDue
   recommendedSetAside: number;
   targetSetAside: number;
   withholdingOverrideType: "none" | "percent" | "amount";
@@ -144,8 +179,13 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     personalFederalWithheld, personalStateWithheld,
     personalPreTax, personalRetirement,
     netStockGain, businessExpenses, mileageDeduction, annualizedRetirement,
-    txActualWithholding, quarterlyPaid, savingsTotal, remainingPayPeriods,
-    projectedGrossIncome, projectedTaxesWithheld, projectedPreTax, projectedRetirement,
+    txActualWithholding,
+    actualEstimatedPaymentsMade,
+    taxSavingsSetAside,
+    remainingPayPeriods,
+    projectedW2Income, projectedSEIncome, projectedOtherIncome,
+    projectedFederalWithheld, projectedStateWithheld,
+    projectedPreTax, projectedRetirement,
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
@@ -167,41 +207,51 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // ── Actual income ──
   const actualIncome = businessIncome + businessW2 + personalIncome + netStockGain;
 
-  // ── Projected additions (assume W-2 paychecks today) ──
-  const projIncome = includeProjectedIncome ? projectedGrossIncome : 0;
-  const projWithheld = includeProjectedIncome ? projectedTaxesWithheld : 0;
+  // ── Projected additions, classified by tax bucket ──
+  const projW2 = includeProjectedIncome ? projectedW2Income : 0;
+  const projSE = includeProjectedIncome ? projectedSEIncome : 0;
+  const projOther = includeProjectedIncome ? projectedOtherIncome : 0;
+  const projIncome = projW2 + projSE + projOther;
+
+  const projFedWH = includeProjectedIncome ? projectedFederalWithheld : 0;
+  const projStateWH = includeProjectedIncome ? projectedStateWithheld : 0;
   const projPreTax = includeProjectedIncome ? projectedPreTax : 0;
   const projRetirement = includeProjectedIncome ? projectedRetirement : 0;
 
   // ── Totals ──
   const totalIncome = actualIncome + projIncome;
-  const w2Income = businessW2 + personalW2 + projIncome; // For SS wage cap & W-2 line
 
-  // SE-eligible only true SE earnings (Schedule C + K-1 partnership)
-  const seIncome = seEligibleBusinessIncome;
+  // W-2 line includes future projected W-2 only.
+  const w2Income = businessW2 + personalW2 + projW2;
 
-  // Display-only: ALL business gross
-  const grossBusinessIncome = businessIncome;
+  // True SE income for SE tax (actual + projected SE).
+  const seIncome = seEligibleBusinessIncome + projSE;
 
-  // Other income = personal non-W2 (ordinary, cap gains, rental) + stock + ineligible
-  // business income (e.g. S-Corp distributions). Avoid double-count: subtract
-  // SE-eligible from total business gross to capture distributions.
+  // Display: ALL business gross (actual + projected SE + projected other-business).
+  const grossBusinessIncome = businessIncome + projSE + projOther;
+
+  // Other income = personal non-W2 + stock + ineligible actual business + projected other.
   const ineligibleBusinessIncome = Math.max(0, businessIncome - seEligibleBusinessIncome);
-  const otherIncome = personalNonW2Income + netStockGain + ineligibleBusinessIncome;
+  const otherIncome = personalNonW2Income + netStockGain + ineligibleBusinessIncome + projOther;
 
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax + ownerHealthcare;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
 
-  const combinedFederalWithheld = businessFederalWithheld + personalFederalWithheld + projWithheld;
-  const combinedStateWithheld = businessStateWithheld + personalStateWithheld;
-  const additionalTaxPaid = quarterlyPaid + savingsTotal;
+  // ── Credits against tax (explicit) ──
+  const actualFederalWithheld = businessFederalWithheld + personalFederalWithheld;
+  const actualStateWithheld = businessStateWithheld + personalStateWithheld;
+  const combinedFederalWithheld = actualFederalWithheld + projFedWH;
+  const combinedStateWithheld = actualStateWithheld + projStateWH;
+
+  // additionalTaxPaid = ONLY actual estimated payments. Savings are NOT counted.
+  const additionalTaxPaid = actualEstimatedPaymentsMade;
 
   const stateTaxInputs: StateTaxInputs = {
     stateTaxEnabled,
     personalStateTaxMode,
     personalStateTaxRate,
     personalStateTaxAnnualEstimate,
-    personalStateWithheld,
+    personalStateWithheld: actualStateWithheld + projStateWH,
     businessStateTaxEnabled,
     businessStateTaxRate,
     businessStateTaxBase,
@@ -243,7 +293,13 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     combinedPreTax + combined401k + businessExpenses + mileageDeduction +
     estimate.deductionApplied + estimate.seTax.deductibleHalf;
 
-  const taxesAlreadyWithheldOrPaid = combinedFederalWithheld + additionalTaxPaid;
+  // Counted credits = federal + state withholding + estimated payments.
+  // (State withholding offsets state tax inside the engine; we surface the gross
+  // here so users see the full picture of money already applied to their bill.)
+  const countedCreditsTotal =
+    combinedFederalWithheld + combinedStateWithheld + actualEstimatedPaymentsMade;
+  const nonCountedSavingsTotal = taxSavingsSetAside + txActualWithholding;
+  const remainingTaxDue = estimate.remainingLiability;
 
   const debug: TaxDebugBreakdown = {
     includeProjectedIncome,
@@ -270,18 +326,29 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     estimatedAnnualTax: estimate.totalTaxLiability,
     federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
     taxCredits: estimate.taxCredits,
-    taxesAlreadyWithheldOrPaid,
+    // Explicit credits
+    actualFederalWithheld,
+    actualStateWithheld,
+    projectedFederalWithheld: projFedWH,
+    projectedStateWithheld: projStateWH,
+    estimatedPaymentsMade: actualEstimatedPaymentsMade,
+    taxSavingsSetAside,
+    countedCreditsTotal,
+    nonCountedSavingsTotal,
+    remainingTaxDue,
+    // Back-compat aliases
+    taxesAlreadyWithheldOrPaid: countedCreditsTotal,
     taxesAlreadyWithheld: combinedFederalWithheld,
     federalWithheld: combinedFederalWithheld,
     stateWithheld: combinedStateWithheld,
     personalStateTax: estimate.personalStateTax,
     businessStateTax: estimate.businessStateTax,
     taxReserves: txActualWithholding,
-    quarterlyPayments: quarterlyPaid,
-    taxSavings: savingsTotal,
+    quarterlyPayments: actualEstimatedPaymentsMade,
+    taxSavings: taxSavingsSetAside,
     additionalTaxPaid,
-    remainingTaxToCover: estimate.remainingLiability,
-    remainingEstimatedTax: estimate.remainingLiability,
+    remainingTaxToCover: remainingTaxDue,
+    remainingEstimatedTax: remainingTaxDue,
     recommendedSetAside: estimate.recommendedSetAside,
     targetSetAside: estimate.targetSetAside,
     withholdingOverrideType,
