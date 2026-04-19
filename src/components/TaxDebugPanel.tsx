@@ -24,17 +24,22 @@ const FIELDS: FieldDef[] = [
   { key: "actualIncome", label: "Actual income (YTD)" },
   { key: "projectedIncome", label: "Projected future income" },
   { key: "totalGrossIncome", label: "Total gross income" },
+  { key: "preTaxDeductions", label: "Pre-tax deductions" },
   { key: "businessExpenses", label: "Business expenses (reduce profit)" },
   { key: "ownerDeductions", label: "Owner deductions (reduce taxable income)" },
+  { key: "deductionApplied", label: "Standard/Itemized deduction applied" },
   { key: "totalDeductions", label: "Total deductions" },
   { key: "totalTaxableIncome", label: "Taxable income" },
-  { key: "estimatedAnnualTax", label: "Estimated annual tax" },
+  { key: "federalTaxBeforeCredits", label: "Federal tax (before credits)" },
+  { key: "taxCredits", label: "Child/Dependent credits applied" },
+  { key: "estimatedAnnualTax", label: "Estimated annual tax (after credits)" },
   { key: "taxesAlreadyWithheld", label: "Taxes already withheld" },
   { key: "quarterlyPayments", label: "Quarterly payments made" },
   { key: "taxSavings", label: "Tax savings set aside" },
   { key: "taxReserves", label: "Tax reserves (not paid)" },
   { key: "remainingEstimatedTax", label: "Remaining estimated tax" },
   { key: "recommendedSetAside", label: "Recommended set-aside/paycheck" },
+  { key: "targetSetAside", label: "User-target set-aside (override)" },
 ];
 
 function formatValue(val: unknown, isBool?: boolean): string {
