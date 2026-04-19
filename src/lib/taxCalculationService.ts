@@ -132,7 +132,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     netStockGain, businessExpenses, mileageDeduction, annualizedRetirement,
     txActualWithholding, quarterlyPaid, savingsTotal, remainingPayPeriods,
     projectedGrossIncome, projectedTaxesWithheld, projectedPreTax, projectedRetirement,
-    filingStatus, lastYearTax, standardDeductionOverride, ssWageCap, bnoRate,
+    filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
     qualifyingChildrenCount = 0,
@@ -147,7 +147,6 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     businessStateTaxEnabled = false,
     businessStateTaxRate = 0,
     businessStateTaxBase = "net_profit",
-    legacyStateRate = 0,
     includeProjectedIncome,
   } = input;
 
