@@ -13,6 +13,8 @@ export interface PersonalIncomeEntry {
   company: string;
   source_id: string | null;
   income_type: string;
+  /** Original UI subtype (e.g. "w2_user", "dividend") preserved across edits. */
+  ui_income_subtype: string | null;
   income_date: string;
   gross_amount: number;
   paycheck_amount: number;
@@ -20,9 +22,12 @@ export interface PersonalIncomeEntry {
   realized_gain_loss: number | null;
   federal_withholding: number;
   state_withholding: number;
+  ss_withholding: number;
+  medicare_withholding: number;
   taxes_withheld: number;
   pre_tax_deductions: number;
   retirement_401k: number;
+  owner_healthcare: number;
   source_bucket: string;
   tax_category: string;
   is_actual: boolean;
@@ -46,9 +51,6 @@ export function usePersonalIncomeEntries() {
         .eq("is_actual", true)
         .order("income_date", { ascending: false });
       if (error) throw error;
-      // Defensive filter: hide any rows whose income_type is a business
-      // filing type (1099 / K-1 / S-Corp Distribution). They should be
-      // repaired into the business bucket but must never display here.
       const rows = (data || []) as PersonalIncomeEntry[];
       return rows.filter((r) => !isBusinessIncomeType(r.income_type));
     },
@@ -58,7 +60,7 @@ export function usePersonalIncomeEntries() {
 export function useAddPersonalIncome() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (entry: Partial<PersonalIncomeEntry>) => {
+    mutationFn: async (entry: Partial<PersonalIncomeEntry> & { ui_income_subtype?: string | null }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       if (isBusinessIncomeType(entry.income_type)) {
@@ -74,6 +76,7 @@ export function useAddPersonalIncome() {
         company: entry.company || "",
         source_id: entry.source_id ?? null,
         income_type: toCanonicalIncomeType(entry.income_type),
+        ui_income_subtype: entry.ui_income_subtype ?? entry.income_type ?? null,
         income_date: entry.income_date || new Date().toISOString().split("T")[0],
         gross_amount: entry.gross_amount || 0,
         paycheck_amount: entry.paycheck_amount || entry.gross_amount || 0,
@@ -81,9 +84,12 @@ export function useAddPersonalIncome() {
         realized_gain_loss: entry.realized_gain_loss ?? null,
         federal_withholding: entry.federal_withholding || 0,
         state_withholding: entry.state_withholding || 0,
+        ss_withholding: entry.ss_withholding || 0,
+        medicare_withholding: entry.medicare_withholding || 0,
         taxes_withheld: entry.taxes_withheld || entry.federal_withholding || 0,
         pre_tax_deductions: entry.pre_tax_deductions || 0,
         retirement_401k: entry.retirement_401k || 0,
+        owner_healthcare: entry.owner_healthcare || 0,
         source_bucket: "personal",
         tax_category: entry.tax_category || "ordinary",
         is_actual: true,
@@ -107,7 +113,7 @@ export function useAddPersonalIncome() {
 export function useUpdatePersonalIncome() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<PersonalIncomeEntry> & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: Partial<PersonalIncomeEntry> & { id: string; ui_income_subtype?: string | null }) => {
       if (isBusinessIncomeType(updates.income_type)) {
         throw new Error(
           "1099, K-1, and S-Corp Distribution income belongs in Business Activity, not Personal Income.",
@@ -115,6 +121,10 @@ export function useUpdatePersonalIncome() {
       }
       const safe: any = { ...updates };
       if (typeof safe.income_type === "string") {
+        // Preserve the UI subtype before canonicalizing (unless caller already set one).
+        if (safe.ui_income_subtype === undefined) {
+          safe.ui_income_subtype = safe.income_type;
+        }
         safe.income_type = toCanonicalIncomeType(safe.income_type);
       }
       const { error } = await supabase

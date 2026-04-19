@@ -30,6 +30,8 @@ import { RecommendationModal } from "@/components/RecommendationModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
+import { useCompanies } from "@/contexts/CompanyContext";
+import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -48,6 +50,8 @@ const INCOME_TYPES = [
   { value: "loss", label: "Loss" },
 ];
 
+const VALID_UI_TYPES = new Set(INCOME_TYPES.map((t) => t.value));
+
 const TAX_CATEGORY_MAP: Record<string, string> = {
   w2_user: "ordinary",
   w2_partner: "ordinary",
@@ -60,6 +64,24 @@ const TAX_CATEGORY_MAP: Record<string, string> = {
   loss: "loss",
 };
 
+/**
+ * Map a saved DB income_type / ui_income_subtype back to a valid Personal
+ * Income UI Select value. The DB stores canonical values like "w2", "other"
+ * which don't match UI options like "w2_user". The new ui_income_subtype
+ * column preserves the original selection — fall back to a sensible mapping
+ * for rows saved before that column existed.
+ */
+function hydrateIncomeType(entry: PersonalIncomeEntry): string {
+  const ui = (entry as any).ui_income_subtype as string | null | undefined;
+  if (ui && VALID_UI_TYPES.has(ui)) return ui;
+  const raw = (entry.income_type || "").toLowerCase();
+  if (VALID_UI_TYPES.has(raw)) return raw;
+  if (raw === "w2") return "w2_user";
+  if (raw === "other") return "other_income";
+  // Anything else falls through to a safe default so the Select never blanks out.
+  return "other_income";
+}
+
 interface FormState {
   date: string;
   title: string;
@@ -70,8 +92,11 @@ interface FormState {
   realized_gain_loss: string;
   federal_withholding: string;
   state_withholding: string;
+  ss_withholding: string;
+  medicare_withholding: string;
   retirement_pretax: string;
   deductions_pre_tax: string;
+  owner_healthcare: string;
   source_name: string;
   source_id: string | null;
   source_save_as_new: boolean;
@@ -90,8 +115,11 @@ const emptyForm: FormState = {
   realized_gain_loss: "",
   federal_withholding: "",
   state_withholding: "",
+  ss_withholding: "",
+  medicare_withholding: "",
   retirement_pretax: "",
   deductions_pre_tax: "",
+  owner_healthcare: "",
   source_name: "",
   source_id: null,
   source_save_as_new: false,
@@ -108,6 +136,7 @@ const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
   const { data: entries = [], isLoading } = usePersonalIncomeEntries();
+  const { companies } = useCompanies();
   const addMutation = useAddPersonalIncome();
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
@@ -133,6 +162,25 @@ export default function PersonalIncome() {
   const setField = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  /**
+   * Resolve which advanced fields to render. Driven by the selected company's
+   * Settings → Advanced tax settings toggles. When no company is linked
+   * (e.g. non-W2 personal entries don't show the source picker), fall back to
+   * the filing-type defaults derived from the UI income type.
+   */
+  const visibleFields = useMemo<Record<ToggleKey, boolean>>(() => {
+    const company = form.source_id
+      ? companies.find((c) => c.id === form.source_id)
+      : undefined;
+    // Map UI income type → filing type. W-2 personal income → "w2" filing type.
+    const filingType = normalizeFilingType(
+      isW2Type(form.income_type) ? "w2" : form.income_type,
+    );
+    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
+  }, [companies, form.source_id, form.income_type]);
+
+  const showField = (key: ToggleKey) => !!visibleFields[key];
+
   // Summary stats
   const totals = useMemo(() => {
     return entries.reduce(
@@ -142,9 +190,9 @@ export default function PersonalIncome() {
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
           totalWithheld: acc.totalWithheld + withheld,
-          w2Income: acc.w2Income + (isW2Type(e.income_type) ? amt : 0),
-          capitalGains: acc.capitalGains + (isStockType(e.income_type) ? amt : 0),
-          passiveIncome: acc.passiveIncome + (e.income_type === "rental" ? amt : 0),
+          w2Income: acc.w2Income + (isW2Type(hydrateIncomeType(e)) ? amt : 0),
+          capitalGains: acc.capitalGains + (isStockType(hydrateIncomeType(e)) ? amt : 0),
+          passiveIncome: acc.passiveIncome + (hydrateIncomeType(e) === "rental" ? amt : 0),
         };
       },
       { totalIncome: 0, totalWithheld: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0 }
@@ -159,12 +207,12 @@ export default function PersonalIncome() {
     return getWithholdingRec({
       grossIncome: grossAmount,
       incomeType: incType,
-      taxesAlreadyWithheld: num(form.federal_withholding),
+      taxesAlreadyWithheld: num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding),
       retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.owner_healthcare),
       alreadyIncludedInEstimate: isEditing,
     });
-  }, [grossAmount, form.income_type, form.federal_withholding, form.retirement_pretax, form.deductions_pre_tax, getWithholdingRec, isEditing]);
+  }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.owner_healthcare, getWithholdingRec, isEditing]);
 
   function openAdd() {
     setForm(emptyForm);
@@ -175,18 +223,22 @@ export default function PersonalIncome() {
   }
 
   function openEdit(entry: PersonalIncomeEntry) {
+    const uiType = hydrateIncomeType(entry);
     setForm({
       date: entry.income_date,
       title: entry.name,
-      income_type: entry.income_type,
+      income_type: uiType,
       gross_amount: String(entry.gross_amount),
       net_received: "",
       cost_basis: entry.cost_basis != null ? String(entry.cost_basis) : "",
       realized_gain_loss: entry.realized_gain_loss != null ? String(entry.realized_gain_loss) : "",
       federal_withholding: String(entry.federal_withholding),
       state_withholding: String(entry.state_withholding),
+      ss_withholding: String((entry as any).ss_withholding || 0),
+      medicare_withholding: String((entry as any).medicare_withholding || 0),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
+      owner_healthcare: String((entry as any).owner_healthcare || 0),
       source_name: entry.company,
       source_id: (entry as any).source_id ?? null,
       source_save_as_new: false,
@@ -199,8 +251,11 @@ export default function PersonalIncome() {
     setAdvancedOpen(
       Number(entry.federal_withholding) > 0 ||
       Number(entry.state_withholding) > 0 ||
+      Number((entry as any).ss_withholding || 0) > 0 ||
+      Number((entry as any).medicare_withholding || 0) > 0 ||
       Number(entry.retirement_401k) > 0 ||
       Number(entry.pre_tax_deductions) > 0 ||
+      Number((entry as any).owner_healthcare || 0) > 0 ||
       Number((entry as any).additional_tax_reserve || 0) > 0 ||
       !!(entry.notes && entry.notes.trim())
     );
@@ -209,7 +264,8 @@ export default function PersonalIncome() {
 
   function buildPayload() {
     const grossAmt = num(form.gross_amount);
-    const computedNet = grossAmt - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax);
+    const totalWithheld = num(form.federal_withholding) + num(form.state_withholding) + num(form.ss_withholding) + num(form.medicare_withholding);
+    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
     // Compute the base tax estimate for the record
@@ -219,7 +275,7 @@ export default function PersonalIncome() {
       federalWithheld: num(form.federal_withholding),
       stateWithheld: num(form.state_withholding),
       retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.owner_healthcare),
     });
 
     return {
@@ -227,6 +283,7 @@ export default function PersonalIncome() {
         name: form.title,
         income_date: form.date,
         income_type: form.income_type,
+        ui_income_subtype: form.income_type,
         company: form.source_name,
         source_id: form.source_id,
         source_bucket: "personal" as const,
@@ -239,8 +296,11 @@ export default function PersonalIncome() {
         federal_withholding: num(form.federal_withholding),
         taxes_withheld: num(form.federal_withholding),
         state_withholding: num(form.state_withholding),
+        ss_withholding: num(form.ss_withholding),
+        medicare_withholding: num(form.medicare_withholding),
         retirement_401k: num(form.retirement_pretax),
         pre_tax_deductions: num(form.deductions_pre_tax),
+        owner_healthcare: num(form.owner_healthcare),
         is_actual: true,
         include_in_tax_estimate: true,
         include_in_cash_flow: false,
@@ -260,9 +320,7 @@ export default function PersonalIncome() {
   function validateSource(): boolean {
     // Source/Employer is only required for W2 income types.
     if (!isW2Type(form.income_type)) return true;
-    // Linked source picked → OK.
     if (form.source_id) return true;
-    // "Other" entered with a name → OK (unless save-as-new is on without a kind).
     if (form.source_name.trim()) {
       if (form.source_save_as_new && !form.source_new_kind) return false;
       return true;
@@ -278,7 +336,6 @@ export default function PersonalIncome() {
     }
     setShowSourceError(false);
 
-    // If "save as new source" was checked, create the source first and link it.
     let payloadSourceId = form.source_id;
     if (!payloadSourceId && form.source_save_as_new && form.source_new_kind && form.source_name.trim()) {
       try {
@@ -292,7 +349,7 @@ export default function PersonalIncome() {
         );
         payloadSourceId = newId;
       } catch {
-        return; // toast already fired in mutation
+        return;
       }
     }
 
@@ -319,11 +376,8 @@ export default function PersonalIncome() {
   }
 
   function applyRecommendation() {
-    // The recommendation is already saved in base_tax_estimate fields.
-    // Apply the recommended additional_tax_reserve to the most recently saved entry.
     if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0) {
-      // Find the most recent entry and update it
-      const latestEntry = entries[0]; // entries are sorted desc by date
+      const latestEntry = entries[0];
       if (latestEntry) {
         updateMutation.mutate({
           id: latestEntry.id,
@@ -399,8 +453,9 @@ export default function PersonalIncome() {
         {/* Desktop rows */}
         <div className="hidden sm:block divide-y divide-border">
           {entries.map((entry) => {
-            const typeLabel = INCOME_TYPES.find((t) => t.value === entry.income_type)?.label || entry.income_type;
-            const isLoss = entry.income_type === "loss";
+            const uiType = hydrateIncomeType(entry);
+            const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
+            const isLoss = uiType === "loss";
             const reserve = Number((entry as any).additional_tax_reserve || 0);
             const status = ((entry as any).recommendation_status || "on_track") as keyof typeof STATUS_ICON;
             const StIcon = STATUS_ICON[status] || Minus;
@@ -463,10 +518,11 @@ export default function PersonalIncome() {
               <MonthHeader label={group.label} />
               <div className="divide-y divide-border">
                 {group.items.map((entry) => {
+                  const uiType = hydrateIncomeType(entry);
                   const typeLabel =
-                    INCOME_TYPES.find((t) => t.value === entry.income_type)?.label ||
-                    entry.income_type;
-                  const isLoss = entry.income_type === "loss";
+                    INCOME_TYPES.find((t) => t.value === uiType)?.label ||
+                    uiType;
+                  const isLoss = uiType === "loss";
                   const withheld = Number(entry.federal_withholding) || 0;
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = new Date(entry.income_date + "T00:00:00").toLocaleDateString(
@@ -589,11 +645,16 @@ export default function PersonalIncome() {
               <div className="space-y-2">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
-                  <Input type="number" min="0" step="0.01" placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax)))} value={form.net_received} onChange={(e) => setField("net_received", e.target.value)} />
+                  <Input
+                    type="number" min="0" step="0.01"
+                    placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare)))}
+                    value={form.net_received}
+                    onChange={(e) => setField("net_received", e.target.value)}
+                  />
                   <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account after taxes and deductions</p>
                 </div>
                 <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax)))}</strong> based on your inputs
+                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare)))}</strong> based on your inputs
                 </p>
               </div>
             )}
@@ -612,66 +673,81 @@ export default function PersonalIncome() {
               </div>
             )}
 
-            {/* Advanced details collapsible */}
+            {/* Advanced details collapsible — driven by company/filing-type toggles */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
                 {advancedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 Advanced details
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 pt-2">
-                {/* W2-specific withholding & deductions */}
-                {isW2Type(form.income_type) && (
-                  <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
-                    <p className="text-xs font-semibold text-muted-foreground">Withholding & Deductions</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
-                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
-                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
-                      </div>
+              <CollapsibleContent className="space-y-3 pt-2">
+                <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
+                  {(showField("federal_withholding") || showField("state_withholding") || showField("ss_withholding") || showField("medicare_withholding")) && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {showField("federal_withholding") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("state_withholding") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">State W/H</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("ss_withholding") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Social Security</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.ss_withholding} onChange={(e) => setField("ss_withholding", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("medicare_withholding") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Medicare</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.medicare_withholding} onChange={(e) => setField("medicare_withholding", e.target.value)} />
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
-                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement (401k)</Label>
-                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Non-W2 withholding fields */}
-                {!isW2Type(form.income_type) && !isStockType(form.income_type) && (
-                  <div className="grid grid-cols-2 gap-3">
+                  {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {showField("retirement_401k") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("owner_healthcare") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.owner_healthcare} onChange={(e) => setField("owner_healthcare", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("pre_tax_deductions") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Additional tax reserve field on edit */}
+                  {isEditing && (
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
-                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
+                      <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
                     </div>
+                  )}
+
+                  {visibleFields.notes && (
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
-                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                      <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
                     </div>
-                  </div>
-                )}
-
-                {/* Additional tax reserve field on edit */}
-                {isEditing && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-                  <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
