@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Wallet } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,6 +121,7 @@ export default function PersonalIncome() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showSourceError, setShowSourceError] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Modal 2 state
   const [showRecommendation, setShowRecommendation] = useState(false);
@@ -168,6 +170,7 @@ export default function PersonalIncome() {
     setForm(emptyForm);
     setEditingId(null);
     setShowSourceError(false);
+    setAdvancedOpen(false);
     setShowForm(true);
   }
 
@@ -193,6 +196,14 @@ export default function PersonalIncome() {
     });
     setEditingId(entry.id);
     setShowSourceError(false);
+    setAdvancedOpen(
+      Number(entry.federal_withholding) > 0 ||
+      Number(entry.state_withholding) > 0 ||
+      Number(entry.retirement_401k) > 0 ||
+      Number(entry.pre_tax_deductions) > 0 ||
+      Number((entry as any).additional_tax_reserve || 0) > 0 ||
+      !!(entry.notes && entry.notes.trim())
+    );
     setShowForm(true);
   }
 
@@ -247,6 +258,8 @@ export default function PersonalIncome() {
 
   /** Validates the Source/Employer assignment. Returns true if OK. */
   function validateSource(): boolean {
+    // Source/Employer is only required for W2 income types.
+    if (!isW2Type(form.income_type)) return true;
     // Linked source picked → OK.
     if (form.source_id) return true;
     // "Other" entered with a name → OK (unless save-as-new is on without a kind).
@@ -518,47 +531,47 @@ export default function PersonalIncome() {
               </div>
             </div>
 
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Source / Employer <span className="text-destructive">*</span>
-              </Label>
-              <SourceEmployerCombobox
-                sourceId={form.source_id}
-                otherName={form.source_name}
-                saveAsNew={form.source_save_as_new}
-                newSourceKind={form.source_new_kind}
-                required
-                invalid={showSourceError}
-                onChange={(next) => {
-                  setForm((prev) => {
-                    // When a linked W-2 employer is picked, auto-pick a sensible income type
-                    // for new entries only (don't overwrite the user's choice mid-edit).
-                    let nextIncomeType = prev.income_type;
-                    if (!isEditing && next.linkedSource) {
-                      const k = next.linkedSource.source_kind;
-                      if (k === "w2_employer" && !isW2Type(prev.income_type)) {
-                        nextIncomeType = "w2_user";
+            {isW2Type(form.income_type) && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  Source / Employer <span className="text-destructive">*</span>
+                </Label>
+                <SourceEmployerCombobox
+                  sourceId={form.source_id}
+                  otherName={form.source_name}
+                  saveAsNew={form.source_save_as_new}
+                  newSourceKind={form.source_new_kind}
+                  required
+                  invalid={showSourceError}
+                  onChange={(next) => {
+                    setForm((prev) => {
+                      let nextIncomeType = prev.income_type;
+                      if (!isEditing && next.linkedSource) {
+                        const k = next.linkedSource.source_kind;
+                        if (k === "w2_employer" && !isW2Type(prev.income_type)) {
+                          nextIncomeType = "w2_user";
+                        }
                       }
-                    }
-                    return {
-                      ...prev,
-                      source_id: next.sourceId,
-                      source_name: next.otherName,
-                      source_save_as_new: next.saveAsNew,
-                      source_new_kind: next.newSourceKind,
-                      income_type: nextIncomeType,
-                    };
-                  });
-                  if (showSourceError) setShowSourceError(false);
-                }}
-              />
-              {showSourceError && !form.source_id && !form.source_name.trim() && (
-                <p className="text-[10px] text-destructive mt-1">Pick a source or enter one under "Other".</p>
-              )}
-              {showSourceError && form.source_save_as_new && !form.source_new_kind && (
-                <p className="text-[10px] text-destructive mt-1">Choose a source type to save it.</p>
-              )}
-            </div>
+                      return {
+                        ...prev,
+                        source_id: next.sourceId,
+                        source_name: next.otherName,
+                        source_save_as_new: next.saveAsNew,
+                        source_new_kind: next.newSourceKind,
+                        income_type: nextIncomeType,
+                      };
+                    });
+                    if (showSourceError) setShowSourceError(false);
+                  }}
+                />
+                {showSourceError && !form.source_id && !form.source_name.trim() && (
+                  <p className="text-[10px] text-destructive mt-1">Pick a source or enter one under "Other".</p>
+                )}
+                {showSourceError && form.source_save_as_new && !form.source_new_kind && (
+                  <p className="text-[10px] text-destructive mt-1">Choose a source type to save it.</p>
+                )}
+              </div>
+            )}
 
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Title / Description</Label>
@@ -599,60 +612,69 @@ export default function PersonalIncome() {
               </div>
             )}
 
-            {/* W2-specific withholding & deductions */}
-            {isW2Type(form.income_type) && (
-              <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground">Withholding & Deductions</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+            {/* Advanced details collapsible */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                {advancedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Advanced details
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-2">
+                {/* W2-specific withholding & deductions */}
+                {isW2Type(form.income_type) && (
+                  <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
+                    <p className="text-xs font-semibold text-muted-foreground">Withholding & Deductions</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement (401k)</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement (401k)</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
-                  </div>
-                </div>
-              </div>
-            )}
+                )}
 
-            {/* Non-W2 withholding fields */}
-            {!isW2Type(form.income_type) && !isStockType(form.income_type) && (
-              <div className="grid grid-cols-2 gap-3">
+                {/* Non-W2 withholding fields */}
+                {!isW2Type(form.income_type) && !isStockType(form.income_type) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional tax reserve field on edit */}
+                {isEditing && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
+                  </div>
+                )}
+
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                  <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
-                </div>
-              </div>
-            )}
-
-            {/* Additional tax reserve field on edit */}
-            {isEditing && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
-                <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
-                <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
-              </div>
-            )}
-
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-              <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Base estimate preview at bottom of Modal 1 */}
             {grossAmount > 0 && baseRecommendation && (
