@@ -22,7 +22,7 @@ import {
   type BracketCalc,
   type SETaxCalc,
 } from "@/lib/taxBrackets";
-import { calculateDependentCredits } from "@/lib/taxEngine";
+import { calculateDependentCredits, calculatePersonalStateTax, calculateBusinessStateTax } from "@/lib/taxEngine";
 
 export type TaxBreakdownMode = "actual" | "forecast";
 
@@ -133,6 +133,12 @@ export interface TaxBreakdownResult {
   qualifyingChildrenCount: number;
   otherDependentsCount: number;
   totalEstimatedTax: number;
+  /** Personal state tax due (already net of personal state withholding) */
+  personalStateTax: number;
+  /** Business state tax due (already net of business state withholding) */
+  businessStateTax: number;
+  /** Sum of personal + business state tax */
+  stateTax: number;
   effectiveRate: number; // 0-1
   marginalRate: number; // 0-1
   // Optional withholding override
@@ -439,7 +445,51 @@ export function useTaxBreakdown(
     );
 
     const federalAfterCredits = Math.max(0, federalTaxBeforeCredits - dependentCredits);
-    const totalEstimatedTax = federalAfterCredits + seTax.total;
+
+    // ── State tax (separate engine) ──
+    // Determine eligible business gross/expenses based on application mode + per-company toggle
+    const businessAppMode = (settings as any)?.businessStateTaxApplicationMode ?? "all_business";
+    const businessSelectedIds: string[] = Array.isArray((settings as any)?.businessStateTaxCompanyIds)
+      ? (settings as any).businessStateTaxCompanyIds
+      : [];
+    let eligibleBusinessGross = 0;
+    let eligibleBusinessExpenses = 0;
+    for (const s of sources) {
+      if (s.kind !== "business") continue;
+      const co = companies.find((c) => c.name === s.companyName);
+      const perCompanyOn = co ? (co as any).applyBusinessStateTax !== false : true;
+      const inSelection =
+        businessAppMode === "selected"
+          ? co ? businessSelectedIds.includes(co.id) : false
+          : true;
+      if (!perCompanyOn || !inSelection) continue;
+      eligibleBusinessGross += s.revenue;
+      eligibleBusinessExpenses += s.expenses;
+    }
+
+    const stateInputs = {
+      stateTaxEnabled: !!settings?.stateTaxEnabled,
+      personalStateTaxMode: settings?.personalStateTaxMode,
+      personalStateTaxRate: settings?.personalStateTaxRate,
+      personalStateTaxAnnualEstimate: settings?.personalStateTaxAnnualEstimate,
+      businessStateTaxEnabled: !!(settings as any)?.businessStateTaxEnabled,
+      businessStateTaxRate: (settings as any)?.businessStateTaxRate,
+      businessStateTaxBase: (settings as any)?.businessStateTaxBase,
+      eligibleBusinessGross,
+      eligibleBusinessExpenses,
+    } as any;
+
+    const personalState = calculatePersonalStateTax({
+      taxableIncome: taxableOrdinaryIncome,
+      agi: agiProxy,
+      inputs: stateInputs,
+    });
+    const businessState = calculateBusinessStateTax({ inputs: stateInputs });
+    const personalStateTax = personalState.tax;
+    const businessStateTax = businessState.tax;
+    const stateTax = personalStateTax + businessStateTax;
+
+    const totalEstimatedTax = federalAfterCredits + seTax.total + stateTax;
 
     const effectiveRate = totalGrossIncome > 0 ? totalEstimatedTax / totalGrossIncome : 0;
     const marginalRate = getMarginalRate(taxableOrdinaryIncome, ordBrackets);
@@ -496,6 +546,9 @@ export function useTaxBreakdown(
       qualifyingChildrenCount,
       otherDependentsCount,
       totalEstimatedTax,
+      personalStateTax,
+      businessStateTax,
+      stateTax,
       effectiveRate,
       marginalRate,
       withholdingOverrideType,

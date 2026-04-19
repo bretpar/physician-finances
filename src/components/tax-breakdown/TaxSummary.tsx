@@ -130,6 +130,16 @@ export default function TaxSummary({ data }: { data: TaxBreakdownResult }) {
             />
           )}
           <Row label="Self-employment tax" value={fmt(data.seTax.total)} muted />
+          {(data.personalStateTax > 0 || data.businessStateTax > 0) && (
+            <>
+              {data.personalStateTax > 0 && (
+                <Row label="Personal state tax" value={fmt(data.personalStateTax)} muted />
+              )}
+              {data.businessStateTax > 0 && (
+                <Row label="Business state tax" value={fmt(data.businessStateTax)} muted />
+              )}
+            </>
+          )}
           <div className="border-t border-border my-1.5" />
           <Row label="Total estimated tax" value={fmt(data.totalEstimatedTax)} bold highlight />
           <Row
