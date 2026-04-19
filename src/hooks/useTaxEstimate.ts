@@ -9,10 +9,11 @@ import { useStockTransactions } from "@/hooks/useStocks";
 import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
+import { useCompanies } from "@/contexts/CompanyContext";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
-import { normalizeFilingType } from "@/lib/filingTypes";
+import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -45,6 +46,7 @@ export function useTaxEstimate(): {
   const { data: retirementContribs, isLoading: retLoading } = useRetirementContributions();
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
+  const { companies } = useCompanies();
 
   const weighted = useWeightedIncome(incomeEntries);
   const annualizedRetirement = useAnnualizedContributions(retirementContribs);
@@ -73,8 +75,10 @@ export function useTaxEstimate(): {
     const personalLosses = personal
       .filter((e) => e.income_type === "loss")
       .reduce((s, e) => s + Math.abs(Number(e.gross_amount)), 0);
-    const personalWithheld = personal
+    const personalFederalWithheld = personal
       .reduce((s, e) => s + Number(e.federal_withholding || 0), 0);
+    const personalStateWithheld = personal
+      .reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
     const personalPreTax = personal
       .reduce((s, e) => s + Number(e.pre_tax_deductions || 0), 0);
     const personalRetirement = personal
@@ -125,16 +129,54 @@ export function useTaxEstimate(): {
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
 
+    // ── Business federal vs state withholding (split out from weighted aggregate) ──
+    const businessFederalWithheld = (incomeEntries || []).reduce(
+      (s, e) => s + Number((e as any).federal_withholding || 0) + Number(e.taxes_withheld || 0),
+      0,
+    );
+    const businessStateWithheld = (incomeEntries || []).reduce(
+      (s, e) => s + Number((e as any).state_withholding || 0),
+      0,
+    );
+
+    // ── Eligible business income for state business tax ──
+    // Filter income entries: must be self-employed (not W2/S-Corp W2) AND
+    // either app mode = 'all_business' or company is in selected list AND
+    // company's per-company `apply_business_state_tax` is on.
+    const eligibleCompanyNames = new Set<string>();
+    for (const c of companies) {
+      const meta = normalizeFilingType(c.companyType);
+      const isBusiness = meta === "1099_schedule_c" || meta === "k1_partnership" || meta === "scorp_distribution";
+      if (!isBusiness) continue;
+      if (c.applyBusinessStateTax === false) continue;
+      if (rates.businessStateTaxApplicationMode === "selected" && !rates.businessStateTaxCompanyIds.includes(c.id)) continue;
+      eligibleCompanyNames.add(c.name);
+    }
+    const businessStateEligibleGross = (incomeEntries || [])
+      .filter((e) => isSelfEmployedFilingType(e.income_type) && eligibleCompanyNames.has(e.company))
+      .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
+    const totalBusinessGross = weighted.se || 1;
+    const eligibleRatio = totalBusinessGross > 0 ? businessStateEligibleGross / totalBusinessGross : 0;
+    const businessStateEligibleExpenses = businessExpenses * eligibleRatio;
+    const businessStateEligibleMileage = mileageDeduction * eligibleRatio;
+    const businessStateEligibleOwnerAdjustments = (ownerHealthcare + weighted.retirement) * eligibleRatio;
+
     return {
       businessIncome: weighted.se,
       businessW2: weighted.w2,
-      businessWithheld: weighted.withheld,
+      businessFederalWithheld,
+      businessStateWithheld,
       businessPreTax: weighted.preTax,
       businessRetirement: weighted.retirement,
       ownerHealthcare,
+      businessStateEligibleGross,
+      businessStateEligibleExpenses,
+      businessStateEligibleMileage,
+      businessStateEligibleOwnerAdjustments,
       personalIncome: totalPersonalIncome,
       personalW2,
-      personalWithheld,
+      personalFederalWithheld,
+      personalStateWithheld,
       personalPreTax,
       personalRetirement,
       netStockGain,
@@ -161,8 +203,16 @@ export function useTaxEstimate(): {
       withholdingOverrideType: rates.withholdingOverrideType,
       withholdingOverridePercent: rates.withholdingOverridePercent,
       withholdingOverrideAmount: rates.withholdingOverrideAmount,
+      stateTaxEnabled: rates.stateTaxEnabled,
+      personalStateTaxMode: rates.personalStateTaxMode,
+      personalStateTaxRate: rates.personalStateTaxRate,
+      personalStateTaxAnnualEstimate: rates.personalStateTaxAnnualEstimate,
+      businessStateTaxEnabled: rates.businessStateTaxEnabled,
+      businessStateTaxRate: rates.businessStateTaxRate,
+      businessStateTaxBase: rates.businessStateTaxBase,
+      legacyStateRate: rates.stateRate,
     };
-  }, [incomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings]);
+  }, [incomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
 
   // Actual estimate (no projected income)
   const actualResult = useMemo(() => {

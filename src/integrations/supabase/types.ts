@@ -17,6 +17,7 @@ export type Database = {
       companies: {
         Row: {
           advanced_field_visibility: Json
+          apply_business_state_tax: boolean
           company_type: string
           created_at: string
           default_setaside_method: string
@@ -33,6 +34,7 @@ export type Database = {
         }
         Insert: {
           advanced_field_visibility?: Json
+          apply_business_state_tax?: boolean
           company_type?: string
           created_at?: string
           default_setaside_method?: string
@@ -49,6 +51,7 @@ export type Database = {
         }
         Update: {
           advanced_field_visibility?: Json
+          apply_business_state_tax?: boolean
           company_type?: string
           created_at?: string
           default_setaside_method?: string
@@ -1022,6 +1025,11 @@ export type Database = {
       tax_settings: {
         Row: {
           bno_rate: number
+          business_state_tax_application_mode: string
+          business_state_tax_base: string
+          business_state_tax_company_ids: string[]
+          business_state_tax_enabled: boolean
+          business_state_tax_rate: number
           created_at: string
           deduction_type: string
           federal_rate: number
@@ -1032,10 +1040,15 @@ export type Database = {
           manual_effective_tax_rate: number | null
           organization_id: string | null
           other_dependents_count: number
+          personal_state_tax_annual_estimate: number
+          personal_state_tax_mode: string
+          personal_state_tax_rate: number
           qualifying_children_count: number
           ss_wage_cap: number
           standard_deduction_override: number | null
+          state_of_residence: string
           state_rate: number
+          state_tax_enabled: boolean
           tax_mode: string
           updated_at: string
           user_id: string
@@ -1046,6 +1059,11 @@ export type Database = {
         }
         Insert: {
           bno_rate?: number
+          business_state_tax_application_mode?: string
+          business_state_tax_base?: string
+          business_state_tax_company_ids?: string[]
+          business_state_tax_enabled?: boolean
+          business_state_tax_rate?: number
           created_at?: string
           deduction_type?: string
           federal_rate?: number
@@ -1056,10 +1074,15 @@ export type Database = {
           manual_effective_tax_rate?: number | null
           organization_id?: string | null
           other_dependents_count?: number
+          personal_state_tax_annual_estimate?: number
+          personal_state_tax_mode?: string
+          personal_state_tax_rate?: number
           qualifying_children_count?: number
           ss_wage_cap?: number
           standard_deduction_override?: number | null
+          state_of_residence?: string
           state_rate?: number
+          state_tax_enabled?: boolean
           tax_mode?: string
           updated_at?: string
           user_id: string
@@ -1070,6 +1093,11 @@ export type Database = {
         }
         Update: {
           bno_rate?: number
+          business_state_tax_application_mode?: string
+          business_state_tax_base?: string
+          business_state_tax_company_ids?: string[]
+          business_state_tax_enabled?: boolean
+          business_state_tax_rate?: number
           created_at?: string
           deduction_type?: string
           federal_rate?: number
@@ -1080,10 +1108,15 @@ export type Database = {
           manual_effective_tax_rate?: number | null
           organization_id?: string | null
           other_dependents_count?: number
+          personal_state_tax_annual_estimate?: number
+          personal_state_tax_mode?: string
+          personal_state_tax_rate?: number
           qualifying_children_count?: number
           ss_wage_cap?: number
           standard_deduction_override?: number | null
+          state_of_residence?: string
           state_rate?: number
+          state_tax_enabled?: boolean
           tax_mode?: string
           updated_at?: string
           user_id?: string
