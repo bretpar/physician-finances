@@ -191,9 +191,22 @@ function formatCurrency(n: number): string {
 export interface TaxEstimate {
   totalIncome: number;
   w2Income: number;
+  /** True self-employment income (Schedule C + active K-1 partnership) used for SE tax. */
   seIncome: number;
+  /** All business gross receipts (SE + S-Corp distributions etc.) — display only. */
+  grossBusinessIncome: number;
+  /** Ordinary business operating expenses (reduce business profit). */
+  businessExpenses: number;
+  /** Net business profit = gross business income − business expenses − mileage. */
+  netBusinessProfit: number;
+  /** Other taxable income that is neither W-2 nor business (cap gains, dividends, rental, etc.). */
+  otherIncome: number;
+  /** w2 + netBusinessProfit + otherIncome — what flows onto a 1040 before adjustments. */
+  totalReturnIncomeBeforeAdjustments: number;
   preTaxDeductions: number;
   retirement401k: number;
+  /** Half of SE tax — above-the-line adjustment to AGI. */
+  halfSETaxDeduction: number;
   businessDeductions: number;
   mileageDeduction: number;
   agi: number;
@@ -333,7 +346,12 @@ export function calculateBusinessStateTax(args: {
 export function calculateFullEstimate(params: {
   totalIncome: number;
   w2Income: number;
+  /** True SE income (Schedule C + K-1 partnership active earnings) used for SE tax base. */
   seIncome: number;
+  /** All business gross receipts (SE + S-Corp distributions, etc.) — display only. */
+  grossBusinessIncome?: number;
+  /** Other taxable income that is not W-2 and not business (cap gains, dividends, rental…). */
+  otherIncome?: number;
   preTaxDeductions: number;
   retirement401k: number;
   businessDeductions: number;
@@ -344,21 +362,21 @@ export function calculateFullEstimate(params: {
   standardDeductionOverride?: number | null;
   ssWageCap?: number;
   remainingPayPeriods?: number;
-  additionalTaxPaid?: number; // quarterly payments + tax savings
-  // New tax-profile inputs
+  additionalTaxPaid?: number;
   deductionType?: "standard" | "itemized";
   itemizedDeductionAmount?: number;
   qualifyingChildrenCount?: number;
   otherDependentsCount?: number;
-  /** Optional planning override for set-aside output */
   withholdingOverrideType?: "none" | "percent" | "amount";
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
-  /** State tax inputs (separate engine — federal/state isolated) */
   stateTaxInputs?: StateTaxInputs;
 }): TaxEstimate {
   const {
-    totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
+    totalIncome, w2Income, seIncome,
+    grossBusinessIncome: grossBusinessIncomeParam,
+    otherIncome: otherIncomeParam,
+    preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
     lastYearTax, standardDeductionOverride, ssWageCap = SS_WAGE_CAP_DEFAULT,
     remainingPayPeriods = 12, additionalTaxPaid = 0,
@@ -372,12 +390,26 @@ export function calculateFullEstimate(params: {
     stateTaxInputs = {},
   } = params;
 
-  // SE tax (calculate first — half is deductible)
+  // Default backward-compat: if caller didn't separate, treat seIncome as both
+  // gross business and SE-eligible. otherIncome defaults to whatever's left of
+  // totalIncome after w2 + business.
+  const grossBusinessIncome = grossBusinessIncomeParam ?? seIncome;
+  const otherIncome = otherIncomeParam ?? Math.max(0, totalIncome - w2Income - grossBusinessIncome);
+
+  // SE tax — only on TRUE self-employment net income
   const netSEIncome = seIncome - businessDeductions - mileageDeduction;
   const seTax = calculateSETax(netSEIncome, filingStatus, ssWageCap, w2Income);
 
-  // AGI
-  const agi = totalIncome - preTaxDeductions - retirement401k - seTax.deductibleHalf;
+  // Net business profit (display) — uses gross business income (all biz) minus
+  // expenses & mileage. May differ from netSEIncome when SE-ineligible business
+  // income (e.g. S-Corp distributions) is present.
+  const netBusinessProfit = grossBusinessIncome - businessDeductions - mileageDeduction;
+
+  // Total return income (1040-style line) = W-2 + net business profit + other income
+  const totalReturnIncomeBeforeAdjustments = w2Income + netBusinessProfit + otherIncome;
+
+  // AGI = return income - above-the-line adjustments (pre-tax / 401k / ½ SE)
+  const agi = totalReturnIncomeBeforeAdjustments - preTaxDeductions - retirement401k - seTax.deductibleHalf;
 
   // Standard deduction (fallback) and resolved deduction applied
   const standardDeduction = standardDeductionOverride ?? STANDARD_DEDUCTION[filingStatus];
@@ -453,7 +485,14 @@ export function calculateFullEstimate(params: {
   });
 
   return {
-    totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
+    totalIncome, w2Income, seIncome,
+    grossBusinessIncome,
+    businessExpenses: businessDeductions,
+    netBusinessProfit,
+    otherIncome,
+    totalReturnIncomeBeforeAdjustments,
+    halfSETaxDeduction: seTax.deductibleHalf,
+    preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     deductionApplied, deductionType,
     federalTaxBeforeCredits, taxCredits,

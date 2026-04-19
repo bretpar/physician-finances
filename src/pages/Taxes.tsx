@@ -181,42 +181,54 @@ export default function Taxes() {
         </div>
       </div>
 
-      {/* ── 5 Key Numbers ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* ── 8 IRS-flow Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Estimated Annual Income</p>
-            <p className="text-xl font-bold tabular-nums">{fmt(e?.totalIncome ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">Gross Business Income</p>
+            <p className="text-xl font-bold tabular-nums">{fmt(e?.grossBusinessIncome ?? 0)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Estimated Taxable Income</p>
+            <p className="text-xs text-muted-foreground">Business Expenses</p>
+            <p className="text-xl font-bold tabular-nums">−{fmt(e?.businessExpenses ?? 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Net Business Profit</p>
+            <p className="text-xl font-bold tabular-nums">{fmt(e?.netBusinessProfit ?? 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Total Return Income</p>
+            <p className="text-xl font-bold tabular-nums">{fmt(e?.totalReturnIncomeBeforeAdjustments ?? 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Taxable Income</p>
             <p className="text-xl font-bold tabular-nums">{fmt(e?.taxableIncome ?? 0)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Estimated Annual Tax</p>
+            <p className="text-xs text-muted-foreground">Total Estimated Tax</p>
             <p className="text-xl font-bold tabular-nums text-destructive">{fmt(estimatedOwed)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Taxes Already Withheld or Paid</p>
+            <p className="text-xs text-muted-foreground">Taxes Already Withheld/Paid</p>
             <p className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmt(totalCovered)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Remaining Estimated Tax to Cover</p>
+            <p className="text-xs text-muted-foreground">Remaining Tax To Cover</p>
             <p className={cn("text-xl font-bold tabular-nums", remainingTax > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(remainingTax)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Recommended Tax Set-Aside / Month</p>
-            <p className="text-xl font-bold tabular-nums text-primary">{fmt(monthlyGuidance)}</p>
           </CardContent>
         </Card>
       </div>
