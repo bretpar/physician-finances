@@ -1,28 +1,27 @@
 
-The user wants the "amount to set aside for taxes" input restored on the Business Activity income form. The recommendation shows but there's no input to capture what they're actually saving.
+## Plan: Conditional Source/Employer + Advanced Collapsible in Personal Income form
 
-Looking at the codebase: `BusinessActivity.tsx` uses `showField()` gated by `visibleFields` from the company's advanced toggles. The relevant toggle key is likely `additional_tax_reserve` (or `actual_withholding` per the plan history). Per `mem://features/income-architecture` context: `additional_tax_reserve` = recommended set-aside the user commits to saving; `actual_withholding` = legacy, now repurposed.
+### Changes (single file: `src/pages/PersonalIncome.tsx`)
 
-Need to verify exact toggle key + ensure it's in defaults for 1099/Schedule C, S-Corp Distribution, Other — and that the input renders even when the recommendation card is shown.
+**1. Show "Source / Employer" only for W2 income types**
+- Wrap the entire `<SourceEmployerCombobox>` block (lines 521–561) in `{isW2Type(form.income_type) && (...)}`.
+- When the user switches to a non-W2 type, the field is removed from the UI.
+- Update `validateSource()` to only require a source when `isW2Type(form.income_type)` is true; non-W2 entries skip the source validation entirely.
+- In `saveForm()`, the `payloadSourceId` and `source_name` logic already gracefully handles empty values, so non-W2 entries will save with no linked source / empty company name.
 
-## Plan
+**2. Move "Withholding & Deductions" + "Notes" into an Advanced collapsible (matching Business Activity)**
+- Add imports: `Collapsible, CollapsibleTrigger, CollapsibleContent` from `@/components/ui/collapsible` and `ChevronDown, ChevronRight` from `lucide-react`.
+- Add state: `const [advancedOpen, setAdvancedOpen] = useState(false);`
+- Reset `setAdvancedOpen(false)` in `openAdd()`; in `openEdit()` auto-open it when any of `federal_withholding / state_withholding / retirement_pretax / deductions_pre_tax / additional_tax_reserve / notes` are non-empty.
+- Wrap the following existing blocks inside one `<Collapsible>` with a "Advanced details" trigger styled the same as Business Activity:
+  - W2 "Withholding & Deductions" panel (lines 602–627)
+  - Non-W2 federal/state withholding grid (lines 629–641)
+  - Additional Tax Reserve (edit-only) field (lines 643–650)
+  - Notes field (lines 652–655)
+- Stock-specific Cost Basis / Realized Gain/Loss block (lines 588–600) stays in the main form (it's structural to the entry, not "advanced").
+- The Estimated Tax Reserve preview (lines 657–681) and Attachments stay below the collapsible.
 
-**Restore "Amount saving for taxes" input in Business Activity income form.**
-
-1. **`src/lib/filingTypes.ts`** — Confirm/add `additional_tax_reserve` toggle option (label: "Amount saving for taxes") to:
-   - 1099 / Schedule C (default ON)
-   - S-Corp Distribution (default ON)
-   - Other (default ON, optional)
-   - K-1 Partnership (available, default OFF)
-
-2. **`src/pages/BusinessActivity.tsx`** — In the Advanced section, render an input for `additional_tax_reserve` directly under the "Recommended set-aside" display card whenever `showField("additional_tax_reserve")` is true. Label: "Amount you're saving for taxes". Helper: "Tracked as a reserve — does not count as taxes already paid." Wire to `incomeForm.additional_tax_reserve` state and persist via existing save path (`income_entries.additional_tax_reserve` column already exists).
-
-3. **Save behavior** — Use the existing `preserve()` helper so hidden values aren't zeroed. Confirm the value is NOT added to `taxesWithheld` in the tax engine — it stays a separate reserve number (already handled per prior plan).
-
-4. **Edit mode** — Field auto-shows for legacy transactions with a saved `additional_tax_reserve > 0` via `showField` legacy logic.
-
-## Files
-- `src/lib/filingTypes.ts` — toggle option + defaults
-- `src/pages/BusinessActivity.tsx` — render input in Advanced section
-
-No DB migration needed (`additional_tax_reserve` column exists).
+### Behavior summary
+- Source/Employer field appears only when Income Type is "W2 Income (You)" or "W2 Income (Partner)".
+- All withholdings, deductions, retirement, additional reserve, and notes live under a collapsible "Advanced details" section, closed by default for new entries and auto-opened when editing an entry that has any of those values set.
+- No schema, hook, or other-page changes required.
