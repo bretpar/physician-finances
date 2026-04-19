@@ -45,7 +45,6 @@ import {
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
-interface TaxSettings { federalRate: number; stateRate: number; bnoRate: number; }
 interface OrgMember { id: string; user_id: string; role: string; email?: string; first_name?: string; last_name?: string; }
 
 const COMPANY_TYPES = FILING_TYPES.map((t) => ({ value: t.value, label: t.label }));
@@ -92,9 +91,7 @@ export default function Settings() {
     toast.success("Profile saved", { duration: 1500 });
   });
 
-  /* Tax Settings */
-  const [taxSettings, setTaxSettings] = useState<TaxSettings>({ federalRate: 20, stateRate: 0, bnoRate: 1.5 });
-  const taxSaved = useAutoSave(taxSettings, () => { toast.success("Tax settings saved", { duration: 1500 }); });
+  /* Tax Settings — driven entirely by taxSettingsData via auto-save mutations */
 
   /* Companies */
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
