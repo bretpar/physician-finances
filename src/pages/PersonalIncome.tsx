@@ -518,15 +518,51 @@ export default function PersonalIncome() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Title / Description</Label>
-                <Input placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Source / Employer</Label>
-                <Input placeholder="e.g. Hospital System" value={form.source_name} onChange={(e) => setField("source_name", e.target.value)} />
-              </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Source / Employer <span className="text-destructive">*</span>
+              </Label>
+              <SourceEmployerCombobox
+                sourceId={form.source_id}
+                otherName={form.source_name}
+                saveAsNew={form.source_save_as_new}
+                newSourceKind={form.source_new_kind}
+                required
+                invalid={showSourceError}
+                onChange={(next) => {
+                  setForm((prev) => {
+                    // When a linked W-2 employer is picked, auto-pick a sensible income type
+                    // for new entries only (don't overwrite the user's choice mid-edit).
+                    let nextIncomeType = prev.income_type;
+                    if (!isEditing && next.linkedSource) {
+                      const k = next.linkedSource.source_kind;
+                      if (k === "w2_employer" && !isW2Type(prev.income_type)) {
+                        nextIncomeType = "w2_user";
+                      }
+                    }
+                    return {
+                      ...prev,
+                      source_id: next.sourceId,
+                      source_name: next.otherName,
+                      source_save_as_new: next.saveAsNew,
+                      source_new_kind: next.newSourceKind,
+                      income_type: nextIncomeType,
+                    };
+                  });
+                  if (showSourceError) setShowSourceError(false);
+                }}
+              />
+              {showSourceError && !form.source_id && !form.source_name.trim() && (
+                <p className="text-[10px] text-destructive mt-1">Pick a source or enter one under "Other".</p>
+              )}
+              {showSourceError && form.source_save_as_new && !form.source_new_kind && (
+                <p className="text-[10px] text-destructive mt-1">Choose a source type to save it.</p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Title / Description</Label>
+              <Input placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
             </div>
 
             <div>
