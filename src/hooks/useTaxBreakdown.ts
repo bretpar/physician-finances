@@ -133,6 +133,12 @@ export interface TaxBreakdownResult {
   qualifyingChildrenCount: number;
   otherDependentsCount: number;
   totalEstimatedTax: number;
+  /** Personal state tax due (already net of personal state withholding) */
+  personalStateTax: number;
+  /** Business state tax due (already net of business state withholding) */
+  businessStateTax: number;
+  /** Sum of personal + business state tax */
+  stateTax: number;
   effectiveRate: number; // 0-1
   marginalRate: number; // 0-1
   // Optional withholding override
