@@ -11,6 +11,7 @@ export interface PersonalIncomeEntry {
   organization_id: string | null;
   name: string;
   company: string;
+  source_id: string | null;
   income_type: string;
   income_date: string;
   gross_amount: number;
@@ -71,6 +72,7 @@ export function useAddPersonalIncome() {
         organization_id: orgId,
         name: entry.name || "",
         company: entry.company || "",
+        source_id: entry.source_id ?? null,
         income_type: toCanonicalIncomeType(entry.income_type),
         income_date: entry.income_date || new Date().toISOString().split("T")[0],
         gross_amount: entry.gross_amount || 0,
