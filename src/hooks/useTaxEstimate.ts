@@ -78,6 +78,8 @@ export function useTaxEstimate(): {
       .reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
     const totalPersonalIncome = personalW2 + personalOrdinary + personalCapGains + personalRental - personalLosses;
+    // Personal non-W2 portion → flows into "other income" line on the return.
+    const personalNonW2Income = Math.max(0, personalOrdinary + personalCapGains + personalRental - personalLosses);
 
     // Stock gains
     const stockGains = (stockTxs || [])
@@ -122,7 +124,7 @@ export function useTaxEstimate(): {
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
 
-    // ── Business federal vs state withholding (split out from weighted aggregate) ──
+    // Business federal vs state withholding
     const businessFederalWithheld = (incomeEntries || []).reduce(
       (s, e) => s + Number((e as any).federal_withholding || 0) + Number(e.taxes_withheld || 0),
       0,
@@ -132,10 +134,15 @@ export function useTaxEstimate(): {
       0,
     );
 
+    // ── SE-eligible business income (Schedule C + K-1 partnership only) ──
+    // Excludes scorp_distribution, scorp_w2, w2, other — those are NOT subject
+    // to SE tax even though they may be tracked under a "business" company.
+    const SE_ELIGIBLE_TYPES = new Set(["1099_schedule_c", "k1_partnership"]);
+    const seEligibleBusinessIncome = (incomeEntries || [])
+      .filter((e) => SE_ELIGIBLE_TYPES.has(normalizeFilingType(e.income_type)))
+      .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
+
     // ── Eligible business income for state business tax ──
-    // Filter income entries: must be self-employed (not W2/S-Corp W2) AND
-    // either app mode = 'all_business' or company is in selected list AND
-    // company's per-company `apply_business_state_tax` is on.
     const eligibleCompanyNames = new Set<string>();
     for (const c of companies) {
       const meta = normalizeFilingType(c.companyType);
@@ -156,6 +163,7 @@ export function useTaxEstimate(): {
 
     return {
       businessIncome: weighted.se,
+      seEligibleBusinessIncome,
       businessW2: weighted.w2,
       businessFederalWithheld,
       businessStateWithheld,
@@ -168,6 +176,7 @@ export function useTaxEstimate(): {
       businessStateEligibleOwnerAdjustments,
       personalIncome: totalPersonalIncome,
       personalW2,
+      personalNonW2Income,
       personalFederalWithheld,
       personalStateWithheld,
       personalPreTax,
