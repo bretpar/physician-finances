@@ -354,7 +354,21 @@ export default function PersonalIncome() {
     }
 
     const { payload, recommendation } = buildPayload();
-    const finalPayload = { ...payload, source_id: payloadSourceId };
+    // Resolve company name: when a source is linked, the combobox clears
+    // source_name, so we must look up the linked company's name. Falls back
+    // to the manually-entered "Other" name for unlinked entries.
+    const linkedCompany = payloadSourceId
+      ? companies.find((c) => c.id === payloadSourceId)
+      : undefined;
+    const resolvedCompanyName =
+      linkedCompany?.nickname?.trim() ||
+      linkedCompany?.name?.trim() ||
+      form.source_name.trim();
+    const finalPayload = {
+      ...payload,
+      company: resolvedCompanyName,
+      source_id: payloadSourceId,
+    };
     const showModal2 = isFeatureEnabled("recommendation_modal") && !isEditing;
 
     if (isEditing) {
