@@ -342,6 +342,17 @@ export function calculateFullEstimate(params: {
   const effectivePayPeriods = Math.max(1, remainingPayPeriods);
   const recommendedSetAside = remainingLiability / effectivePayPeriods;
 
+  // Optional withholding override (planning layer — does NOT change underlying tax math)
+  let targetSetAside = recommendedSetAside;
+  if (withholdingOverrideType === "percent" && withholdingOverridePercent != null) {
+    // Treat as % of gross income, distributed across remaining pay periods
+    const annualTarget = totalIncome * (withholdingOverridePercent / 100);
+    const remainingTarget = Math.max(0, annualTarget - totalPaid);
+    targetSetAside = remainingTarget / effectivePayPeriods;
+  } else if (withholdingOverrideType === "amount" && withholdingOverrideAmount != null) {
+    targetSetAside = withholdingOverrideAmount;
+  }
+
   // Time-based tracking
   const tracking = calculateTimeBasedTracking({
     annualTax: totalTaxLiability,
@@ -353,9 +364,11 @@ export function calculateFullEstimate(params: {
   return {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
+    deductionApplied, deductionType,
+    federalTaxBeforeCredits, taxCredits,
     federalTax, seTax, bnoTax, totalTaxLiability, taxesAlreadyWithheld: taxesWithheld,
     remainingLiability, quarterlyEstimate, effectiveRate, federalEffectiveRate, marginalRate,
-    safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside,
+    safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside, targetSetAside,
     tracking,
   };
 }
