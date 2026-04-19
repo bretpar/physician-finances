@@ -110,6 +110,7 @@ export default function PersonalIncome() {
   const addMutation = useAddPersonalIncome();
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
+  const createSource = useCreateIncomeSource();
   const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
@@ -118,6 +119,7 @@ export default function PersonalIncome() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showSourceError, setShowSourceError] = useState(false);
 
   // Modal 2 state
   const [showRecommendation, setShowRecommendation] = useState(false);
@@ -165,6 +167,7 @@ export default function PersonalIncome() {
   function openAdd() {
     setForm(emptyForm);
     setEditingId(null);
+    setShowSourceError(false);
     setShowForm(true);
   }
 
@@ -182,10 +185,14 @@ export default function PersonalIncome() {
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       source_name: entry.company,
+      source_id: (entry as any).source_id ?? null,
+      source_save_as_new: false,
+      source_new_kind: null,
       notes: entry.notes || "",
       additional_tax_reserve: String((entry as any).additional_tax_reserve || 0),
     });
     setEditingId(entry.id);
+    setShowSourceError(false);
     setShowForm(true);
   }
 
