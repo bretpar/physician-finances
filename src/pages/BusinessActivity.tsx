@@ -1304,12 +1304,6 @@ export default function Transactions() {
               </CollapsibleContent>
             </Collapsible>
 
-            {!advancedOpen && showField("notes") && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-                <Input placeholder="Optional" value={incomeForm.notes} onChange={(e) => setIncomeForm((f) => ({ ...f, notes: e.target.value }))} />
-              </div>
-            )}
 
 
             <p className="text-[10px] text-muted-foreground italic">
