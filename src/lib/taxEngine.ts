@@ -485,7 +485,14 @@ export function calculateFullEstimate(params: {
   });
 
   return {
-    totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
+    totalIncome, w2Income, seIncome,
+    grossBusinessIncome,
+    businessExpenses: businessDeductions,
+    netBusinessProfit,
+    otherIncome,
+    totalReturnIncomeBeforeAdjustments,
+    halfSETaxDeduction: seTax.deductibleHalf,
+    preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     deductionApplied, deductionType,
     federalTaxBeforeCredits, taxCredits,
