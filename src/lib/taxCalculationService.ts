@@ -47,6 +47,14 @@ export interface UnifiedTaxInput {
   standardDeductionOverride?: number | null;
   ssWageCap: number;
   bnoRate: number;              // Already as decimal (e.g. 0.015)
+  // New tax-profile inputs
+  deductionType?: "standard" | "itemized";
+  itemizedDeductionAmount?: number;
+  qualifyingChildrenCount?: number;
+  otherDependentsCount?: number;
+  withholdingOverrideType?: "none" | "percent" | "amount";
+  withholdingOverridePercent?: number | null;
+  withholdingOverrideAmount?: number | null;
 
   // Mode
   includeProjectedIncome: boolean;
@@ -67,8 +75,13 @@ export interface TaxDebugBreakdown {
   totalDeductions: number;
   ownerDeductions: number;        // K-1 owner healthcare + retirement + pre-tax (reduces taxable income, not profit)
   businessExpenses: number;       // Ordinary operating expenses (reduces business profit)
+  preTaxDeductions: number;       // 401k + health/HSA + other pre-tax
+  deductionApplied: number;       // Standard or itemized actually applied
+  deductionType: "standard" | "itemized";
   totalTaxableIncome: number;
   estimatedAnnualTax: number;
+  federalTaxBeforeCredits: number;
+  taxCredits: number;             // CTC + ODC after phase-out
   taxesAlreadyWithheld: number;
   taxReserves: number;           // actual_withholding — recommendation, not paid
   quarterlyPayments: number;
@@ -76,6 +89,8 @@ export interface TaxDebugBreakdown {
   additionalTaxPaid: number;     // quarterly + savings (NOT reserves)
   remainingEstimatedTax: number;
   recommendedSetAside: number;
+  targetSetAside: number;        // After optional withholding override
+  withholdingOverrideType: "none" | "percent" | "amount";
 }
 
 /* ─── Main function ─── */
