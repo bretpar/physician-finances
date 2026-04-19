@@ -109,13 +109,25 @@ export default function TaxSummary({ data }: { data: TaxBreakdownResult }) {
           <Row label="Pre-tax deductions" value={`−${fmt(data.preTaxDeductions)}`} negative />
           <Row label="Retirement contributions" value={`−${fmt(data.retirement401k)}`} negative />
           <Row label="½ SE tax deduction" value={`−${fmt(data.seDeductibleHalf)}`} negative />
-          <Row label="Standard deduction" value={`−${fmt(data.standardDeduction)}`} negative />
+          <Row
+            label={data.deductionType === "itemized" ? "Itemized deduction" : "Standard deduction"}
+            value={`−${fmt(data.deductionApplied)}`}
+            negative
+          />
           <div className="border-t border-border my-1.5" />
           <Row label="Total taxable income" value={fmt(data.totalTaxableIncome)} bold />
           <div className="h-2" />
           <Row label="Ordinary income tax" value={fmt(data.ordinaryBracketCalc.total)} muted />
           {data.ltcgBracketCalc.total > 0 && (
             <Row label="Long-term capital gains tax" value={fmt(data.ltcgBracketCalc.total)} muted />
+          )}
+          <Row label="Federal tax before credits" value={fmt(data.federalTaxBeforeCredits)} />
+          {(data.qualifyingChildrenCount > 0 || data.otherDependentsCount > 0) && (
+            <Row
+              label={`Child & dependent credits${data.qualifyingChildrenCount + data.otherDependentsCount > 0 ? ` (${data.qualifyingChildrenCount} child${data.qualifyingChildrenCount === 1 ? "" : "ren"}, ${data.otherDependentsCount} other)` : ""}`}
+              value={`−${fmt(data.dependentCredits)}`}
+              negative
+            />
           )}
           <Row label="Self-employment tax" value={fmt(data.seTax.total)} muted />
           <div className="border-t border-border my-1.5" />
@@ -130,6 +142,28 @@ export default function TaxSummary({ data }: { data: TaxBreakdownResult }) {
             value={`${(data.marginalRate * 100).toFixed(0)}%`}
             muted
           />
+          {data.withholdingOverrideType !== "none" && (
+            <>
+              <div className="border-t border-border my-1.5" />
+              <Row
+                label="Recommended (annual)"
+                value={fmt(data.totalEstimatedTax)}
+                muted
+              />
+              <Row
+                label={
+                  data.withholdingOverrideType === "percent"
+                    ? `Your target (${data.withholdingOverridePercent ?? 0}%)`
+                    : `Your target ($${(data.withholdingOverrideAmount ?? 0).toLocaleString()}/mo × 12)`
+                }
+                value={fmt(data.targetAnnualWithholding)}
+                bold
+              />
+              <p className="text-[11px] text-muted-foreground pt-1 italic">
+                Override is for planning only. Doesn't change estimated tax owed.
+              </p>
+            </>
+          )}
           {showPlanned && (
             <p className="text-[11px] text-muted-foreground pt-2 italic">
               Based on current plan assumptions · planned income may push you into a higher bracket

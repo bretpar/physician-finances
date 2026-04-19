@@ -131,13 +131,26 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
               {data.seDeductibleHalf > 0 && (
                 <Step label="½ self-employment tax" value={fmt(data.seDeductibleHalf)} op="subtract" />
               )}
-              <Step label="Standard deduction" value={fmt(data.standardDeduction)} op="subtract" />
+              <Step
+                label={data.deductionType === "itemized" ? "Itemized deduction" : "Standard deduction"}
+                value={fmt(data.deductionApplied)}
+                op="subtract"
+              />
               <div className="border-t border-border my-1" />
               <Step label="Taxable ordinary income" value={fmt(data.taxableOrdinaryIncome)} op="equals" />
               {data.taxableLTCG > 0 && (
                 <Step label="Taxable long-term gains" value={fmt(data.taxableLTCG)} op="equals" />
               )}
               <Step label="Total taxable income" value={fmt(data.totalTaxableIncome)} op="equals" bold />
+              <div className="h-2" />
+              <Step label="Federal tax before credits" value={fmt(data.federalTaxBeforeCredits)} op="equals" />
+              {data.dependentCredits > 0 && (
+                <Step
+                  label={`Child & dependent credits (${data.qualifyingChildrenCount} child${data.qualifyingChildrenCount === 1 ? "" : "ren"}, ${data.otherDependentsCount} other)`}
+                  value={fmt(data.dependentCredits)}
+                  op="subtract"
+                />
+              )}
               {showPlanned && (
                 <p className="text-[11px] text-muted-foreground italic pt-2">
                   Planned amounts are projected · based on current plan assumptions

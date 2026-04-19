@@ -22,6 +22,7 @@ import {
   type BracketCalc,
   type SETaxCalc,
 } from "@/lib/taxBrackets";
+import { calculateDependentCredits } from "@/lib/taxEngine";
 
 export type TaxBreakdownMode = "actual" | "forecast";
 
@@ -103,6 +104,9 @@ export interface TaxBreakdownResult {
   preTaxDeductions: number;
   retirement401k: number;
   standardDeduction: number;
+  itemizedDeduction: number;
+  deductionApplied: number;
+  deductionType: "standard" | "itemized";
   seDeductibleHalf: number;
   // Planned-only totals (zero when mode === "actual")
   plannedBusinessRevenue: number;
@@ -122,9 +126,21 @@ export interface TaxBreakdownResult {
   ordinaryBracketCalc: BracketCalc;
   ltcgBracketCalc: BracketCalc;
   seTax: SETaxCalc;
+  /** Federal income tax computed from brackets, before applying dependent credits */
+  federalTaxBeforeCredits: number;
+  /** Child + other-dependent credits (with phase-out) */
+  dependentCredits: number;
+  qualifyingChildrenCount: number;
+  otherDependentsCount: number;
   totalEstimatedTax: number;
   effectiveRate: number; // 0-1
   marginalRate: number; // 0-1
+  // Optional withholding override
+  withholdingOverrideType: "none" | "percent" | "amount";
+  withholdingOverridePercent: number | null;
+  withholdingOverrideAmount: number | null;
+  /** Annual target derived from override (or estimated tax if no override) */
+  targetAnnualWithholding: number;
   isLoading: boolean;
 }
 
@@ -381,13 +397,20 @@ export function useTaxBreakdown(
     const seTax = calcSETax(totalSEIncome, totalW2Income);
     const ordinaryGross =
       totalW2Income + totalBusinessProfit + totalShortTermGains + totalOtherIncome;
-    const standardDeduction = STANDARD_DEDUCTION_2025[filingStatus];
-    const totalDeductions = preTaxDeductions + retirement401k + seTax.deductibleHalf + standardDeduction;
+
+    const standardDeduction = settings?.standardDeductionOverride ?? STANDARD_DEDUCTION_2025[filingStatus];
+    const itemizedDeduction = Number(settings?.itemizedDeductionAmount) || 0;
+    const deductionType: "standard" | "itemized" = settings?.deductionType === "itemized" ? "itemized" : "standard";
+    const deductionApplied = deductionType === "itemized"
+      ? Math.max(0, itemizedDeduction)
+      : standardDeduction;
+
+    const totalDeductions = preTaxDeductions + retirement401k + seTax.deductibleHalf + deductionApplied;
     const totalGrossIncome = ordinaryGross + totalLongTermGains;
 
     const taxableOrdinaryIncome = Math.max(
       0,
-      ordinaryGross - preTaxDeductions - retirement401k - seTax.deductibleHalf - standardDeduction,
+      ordinaryGross - preTaxDeductions - retirement401k - seTax.deductibleHalf - deductionApplied,
     );
     const taxableLTCG = Math.max(0, totalLongTermGains);
     const totalTaxableIncome = taxableOrdinaryIncome + taxableLTCG;
@@ -403,11 +426,35 @@ export function useTaxBreakdown(
       lines: ltcgRawCalc.lines,
     };
 
-    const totalEstimatedTax =
-      ordinaryBracketCalc.total + ltcgBracketCalc.total + seTax.total;
+    const federalTaxBeforeCredits = ordinaryBracketCalc.total + ltcgBracketCalc.total;
+    const qualifyingChildrenCount = Number(settings?.qualifyingChildrenCount) || 0;
+    const otherDependentsCount = Number(settings?.otherDependentsCount) || 0;
+    // Use AGI-ish proxy = gross - pretax/retirement/½SE
+    const agiProxy = Math.max(0, totalGrossIncome - preTaxDeductions - retirement401k - seTax.deductibleHalf);
+    const dependentCredits = calculateDependentCredits(
+      qualifyingChildrenCount,
+      otherDependentsCount,
+      agiProxy,
+      filingStatus,
+    );
+
+    const federalAfterCredits = Math.max(0, federalTaxBeforeCredits - dependentCredits);
+    const totalEstimatedTax = federalAfterCredits + seTax.total;
 
     const effectiveRate = totalGrossIncome > 0 ? totalEstimatedTax / totalGrossIncome : 0;
     const marginalRate = getMarginalRate(taxableOrdinaryIncome, ordBrackets);
+
+    // Optional withholding override → annual target (planning layer only)
+    const withholdingOverrideType = (settings?.withholdingOverrideType as "none" | "percent" | "amount") ?? "none";
+    const withholdingOverridePercent = settings?.withholdingOverridePercent ?? null;
+    const withholdingOverrideAmount = settings?.withholdingOverrideAmount ?? null;
+    let targetAnnualWithholding = totalEstimatedTax;
+    if (withholdingOverrideType === "percent" && withholdingOverridePercent != null) {
+      targetAnnualWithholding = totalGrossIncome * (withholdingOverridePercent / 100);
+    } else if (withholdingOverrideType === "amount" && withholdingOverrideAmount != null) {
+      // Treat as monthly target → annualize for planning summary
+      targetAnnualWithholding = withholdingOverrideAmount * 12;
+    }
 
     return {
       mode,
@@ -425,6 +472,9 @@ export function useTaxBreakdown(
       preTaxDeductions,
       retirement401k,
       standardDeduction,
+      itemizedDeduction,
+      deductionApplied,
+      deductionType,
       seDeductibleHalf: seTax.deductibleHalf,
       plannedBusinessRevenue,
       plannedW2Income,
@@ -441,9 +491,17 @@ export function useTaxBreakdown(
       ordinaryBracketCalc,
       ltcgBracketCalc,
       seTax,
+      federalTaxBeforeCredits,
+      dependentCredits,
+      qualifyingChildrenCount,
+      otherDependentsCount,
       totalEstimatedTax,
       effectiveRate,
       marginalRate,
+      withholdingOverrideType,
+      withholdingOverridePercent,
+      withholdingOverrideAmount,
+      targetAnnualWithholding,
       isLoading: sLoading || tLoading || iLoading || stLoading || bLoading || oLoading,
     };
   }, [settings, txs, incomes, companies, streams, bonuses, overrides, filterCompanyName, mode, sLoading, tLoading, iLoading, stLoading, bLoading, oLoading]);
