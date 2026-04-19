@@ -45,7 +45,6 @@ import {
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
-interface TaxSettings { federalRate: number; stateRate: number; bnoRate: number; }
 interface OrgMember { id: string; user_id: string; role: string; email?: string; first_name?: string; last_name?: string; }
 
 const COMPANY_TYPES = FILING_TYPES.map((t) => ({ value: t.value, label: t.label }));
@@ -92,9 +91,7 @@ export default function Settings() {
     toast.success("Profile saved", { duration: 1500 });
   });
 
-  /* Tax Settings */
-  const [taxSettings, setTaxSettings] = useState<TaxSettings>({ federalRate: 20, stateRate: 0, bnoRate: 1.5 });
-  const taxSaved = useAutoSave(taxSettings, () => { toast.success("Tax settings saved", { duration: 1500 }); });
+  /* Tax Settings — driven entirely by taxSettingsData via auto-save mutations */
 
   /* Companies */
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
@@ -411,13 +408,16 @@ export default function Settings() {
         </RadioGroup>
       </section>
 
-      {/* ─── Tax Settings ─── */}
+      {/* ─── Tax Profile ─── */}
       <section className="glass-card rounded-xl p-6 space-y-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-card-foreground">Tax Settings</h3>
-          {taxSaved && <span className="text-xs text-success flex items-center gap-1"><Check className="h-3 w-3" /> Saved</span>}
+          <h3 className="text-base font-semibold text-card-foreground">Tax Profile</h3>
         </div>
-        <p className="text-xs text-muted-foreground -mt-3">These rates feed into all dashboard tax calculations and quarterly estimates.</p>
+        <p className="text-xs text-muted-foreground -mt-3">
+          These inputs drive the predictive tax model. Paycheck-level deductions and withholdings come from your income transactions automatically.
+        </p>
+
+        {/* Filing Status + Deduction Type */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label className="text-xs text-muted-foreground mb-1.5 block">Filing Status</Label>
@@ -437,14 +437,215 @@ export default function Settings() {
                 <SelectItem value="married_filing_jointly">Married Filing Jointly</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground mt-1">Used for tax bracket calculations on the Tax Breakdown page.</p>
+            <p className="text-xs text-muted-foreground mt-1">Affects bracket calculations.</p>
+          </div>
+
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Deduction Type</Label>
+            <Select
+              value={taxSettingsData?.deductionType || "standard"}
+              onValueChange={(v) => {
+                if (!taxSettingsData?.id) return;
+                updateTaxSettingsMutation.mutate({
+                  id: taxSettingsData.id,
+                  deductionType: v as "standard" | "itemized",
+                });
+              }}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard">Standard Deduction</SelectItem>
+                <SelectItem value="itemized">Itemized Deduction</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">Affects taxable income.</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal Tax Rate (%)</Label><Input type="number" step="0.1" min="0" max="100" value={taxSettings.federalRate} onChange={(e) => setTaxSettings((s) => ({ ...s, federalRate: parseFloat(e.target.value) || 0 }))} /></div>
-          <div><Label className="text-xs text-muted-foreground mb-1.5 block">State Tax Rate (%)</Label><Input type="number" step="0.1" min="0" max="100" value={taxSettings.stateRate} onChange={(e) => setTaxSettings((s) => ({ ...s, stateRate: parseFloat(e.target.value) || 0 }))} /></div>
-          <div><Label className="text-xs text-muted-foreground mb-1.5 block">B&O Tax Rate (%)</Label><Input type="number" step="0.1" min="0" max="100" value={taxSettings.bnoRate} onChange={(e) => setTaxSettings((s) => ({ ...s, bnoRate: parseFloat(e.target.value) || 0 }))} /></div>
+
+        {/* Itemized amount (conditional) */}
+        {taxSettingsData?.deductionType === "itemized" && (
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Itemized Deduction Amount ($)</Label>
+            <Input
+              type="number"
+              step="100"
+              min="0"
+              value={taxSettingsData?.itemizedDeductionAmount ?? 0}
+              onChange={(e) => {
+                if (!taxSettingsData?.id) return;
+                const v = Math.max(0, parseFloat(e.target.value) || 0);
+                updateTaxSettingsMutation.mutate({
+                  id: taxSettingsData.id,
+                  itemizedDeductionAmount: v,
+                });
+              }}
+              placeholder="e.g. 35000"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Total of mortgage interest, SALT (capped), charity, etc.</p>
+          </div>
+        )}
+
+        {/* Dependents */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Qualifying Children</Label>
+            <Input
+              type="number"
+              step="1"
+              min="0"
+              value={taxSettingsData?.qualifyingChildrenCount ?? 0}
+              onChange={(e) => {
+                if (!taxSettingsData?.id) return;
+                const v = Math.max(0, Math.floor(parseFloat(e.target.value) || 0));
+                updateTaxSettingsMutation.mutate({
+                  id: taxSettingsData.id,
+                  qualifyingChildrenCount: v,
+                });
+              }}
+            />
+            <p className="text-xs text-muted-foreground mt-1">$2,000 federal credit each (phases out above high income).</p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Other Dependents</Label>
+            <Input
+              type="number"
+              step="1"
+              min="0"
+              value={taxSettingsData?.otherDependentsCount ?? 0}
+              onChange={(e) => {
+                if (!taxSettingsData?.id) return;
+                const v = Math.max(0, Math.floor(parseFloat(e.target.value) || 0));
+                updateTaxSettingsMutation.mutate({
+                  id: taxSettingsData.id,
+                  otherDependentsCount: v,
+                });
+              }}
+            />
+            <p className="text-xs text-muted-foreground mt-1">$500 federal credit each (phases out above high income).</p>
+          </div>
         </div>
+
+        {/* Optional withholding override */}
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Optional Withholding Target</Label>
+            <p className="text-[11px] text-muted-foreground mb-2">Optional override for the recommended set-aside output. Used for planning only — does not change the underlying tax calculation.</p>
+            <Select
+              value={taxSettingsData?.withholdingOverrideType || "none"}
+              onValueChange={(v) => {
+                if (!taxSettingsData?.id) return;
+                updateTaxSettingsMutation.mutate({
+                  id: taxSettingsData.id,
+                  withholdingOverrideType: v as "none" | "percent" | "amount",
+                });
+              }}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No override (use recommendation)</SelectItem>
+                <SelectItem value="percent">Target withholding percent</SelectItem>
+                <SelectItem value="amount">Target extra dollar amount</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {taxSettingsData?.withholdingOverrideType === "percent" && (
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Target Withholding %</Label>
+              <Input
+                type="number"
+                step="0.5"
+                min="0"
+                max="100"
+                value={taxSettingsData?.withholdingOverridePercent ?? ""}
+                onChange={(e) => {
+                  if (!taxSettingsData?.id) return;
+                  const raw = parseFloat(e.target.value);
+                  const v = isNaN(raw) ? null : Math.min(100, Math.max(0, raw));
+                  updateTaxSettingsMutation.mutate({
+                    id: taxSettingsData.id,
+                    withholdingOverridePercent: v,
+                  });
+                }}
+                placeholder="e.g. 25"
+              />
+            </div>
+          )}
+
+          {taxSettingsData?.withholdingOverrideType === "amount" && (
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Target Extra Amount ($) per pay period</Label>
+              <Input
+                type="number"
+                step="50"
+                min="0"
+                value={taxSettingsData?.withholdingOverrideAmount ?? ""}
+                onChange={(e) => {
+                  if (!taxSettingsData?.id) return;
+                  const raw = parseFloat(e.target.value);
+                  const v = isNaN(raw) ? null : Math.max(0, raw);
+                  updateTaxSettingsMutation.mutate({
+                    id: taxSettingsData.id,
+                    withholdingOverrideAmount: v,
+                  });
+                }}
+                placeholder="e.g. 500"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Legacy / Advanced collapsible */}
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <button type="button" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+              <ChevronRight className="h-3.5 w-3.5" />
+              Legacy / Advanced rate fields
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-3">
+            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+              <p className="text-[11px] text-muted-foreground">
+                These flat-percentage rates are kept for backward compatibility. The predictive engine now uses your filing status, deduction type, dependents, and per-paycheck data instead.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Tax Rate (%)</Label>
+                  <Input
+                    type="number" step="0.1" min="0" max="100"
+                    value={taxSettingsData?.federalRate ?? 20}
+                    onChange={(e) => {
+                      if (!taxSettingsData?.id) return;
+                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, federalRate: parseFloat(e.target.value) || 0 });
+                    }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">State Tax Rate (%)</Label>
+                  <Input
+                    type="number" step="0.1" min="0" max="100"
+                    value={taxSettingsData?.stateRate ?? 0}
+                    onChange={(e) => {
+                      if (!taxSettingsData?.id) return;
+                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, stateRate: parseFloat(e.target.value) || 0 });
+                    }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">B&O Tax Rate (%)</Label>
+                  <Input
+                    type="number" step="0.1" min="0" max="100"
+                    value={taxSettingsData?.bnoRate ?? 1.5}
+                    onChange={(e) => {
+                      if (!taxSettingsData?.id) return;
+                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, bnoRate: parseFloat(e.target.value) || 0 });
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </section>
 
       {/* ─── Companies ─── */}

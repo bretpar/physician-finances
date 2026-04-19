@@ -47,6 +47,14 @@ export interface UnifiedTaxInput {
   standardDeductionOverride?: number | null;
   ssWageCap: number;
   bnoRate: number;              // Already as decimal (e.g. 0.015)
+  // New tax-profile inputs
+  deductionType?: "standard" | "itemized";
+  itemizedDeductionAmount?: number;
+  qualifyingChildrenCount?: number;
+  otherDependentsCount?: number;
+  withholdingOverrideType?: "none" | "percent" | "amount";
+  withholdingOverridePercent?: number | null;
+  withholdingOverrideAmount?: number | null;
 
   // Mode
   includeProjectedIncome: boolean;
@@ -67,8 +75,13 @@ export interface TaxDebugBreakdown {
   totalDeductions: number;
   ownerDeductions: number;        // K-1 owner healthcare + retirement + pre-tax (reduces taxable income, not profit)
   businessExpenses: number;       // Ordinary operating expenses (reduces business profit)
+  preTaxDeductions: number;       // 401k + health/HSA + other pre-tax
+  deductionApplied: number;       // Standard or itemized actually applied
+  deductionType: "standard" | "itemized";
   totalTaxableIncome: number;
   estimatedAnnualTax: number;
+  federalTaxBeforeCredits: number;
+  taxCredits: number;             // CTC + ODC after phase-out
   taxesAlreadyWithheld: number;
   taxReserves: number;           // actual_withholding — recommendation, not paid
   quarterlyPayments: number;
@@ -76,6 +89,8 @@ export interface TaxDebugBreakdown {
   additionalTaxPaid: number;     // quarterly + savings (NOT reserves)
   remainingEstimatedTax: number;
   recommendedSetAside: number;
+  targetSetAside: number;        // After optional withholding override
+  withholdingOverrideType: "none" | "percent" | "amount";
 }
 
 /* ─── Main function ─── */
@@ -89,6 +104,13 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     txActualWithholding, quarterlyPaid, savingsTotal, remainingPayPeriods,
     projectedGrossIncome, projectedTaxesWithheld, projectedPreTax, projectedRetirement,
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap, bnoRate,
+    deductionType = "standard",
+    itemizedDeductionAmount = 0,
+    qualifyingChildrenCount = 0,
+    otherDependentsCount = 0,
+    withholdingOverrideType = "none",
+    withholdingOverridePercent = null,
+    withholdingOverrideAmount = null,
     includeProjectedIncome,
   } = input;
 
@@ -132,9 +154,16 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     bnoRate,
     remainingPayPeriods,
     additionalTaxPaid,
+    deductionType,
+    itemizedDeductionAmount,
+    qualifyingChildrenCount,
+    otherDependentsCount,
+    withholdingOverrideType,
+    withholdingOverridePercent,
+    withholdingOverrideAmount,
   });
 
-  const totalDeductions = combinedPreTax + combined401k + businessExpenses + mileageDeduction + estimate.standardDeduction + estimate.seTax.deductibleHalf;
+  const totalDeductions = combinedPreTax + combined401k + businessExpenses + mileageDeduction + estimate.deductionApplied + estimate.seTax.deductibleHalf;
 
   const debug: TaxDebugBreakdown = {
     includeProjectedIncome,
@@ -144,8 +173,13 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     totalDeductions,
     ownerDeductions: ownerHealthcare + businessRetirement + businessPreTax,
     businessExpenses,
+    preTaxDeductions: combinedPreTax,
+    deductionApplied: estimate.deductionApplied,
+    deductionType: estimate.deductionType,
     totalTaxableIncome: estimate.taxableIncome,
     estimatedAnnualTax: estimate.totalTaxLiability,
+    federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
+    taxCredits: estimate.taxCredits,
     taxesAlreadyWithheld: combinedWithheld,
     taxReserves: txActualWithholding,
     quarterlyPayments: quarterlyPaid,
@@ -153,6 +187,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     additionalTaxPaid,
     remainingEstimatedTax: estimate.remainingLiability,
     recommendedSetAside: estimate.recommendedSetAside,
+    targetSetAside: estimate.targetSetAside,
+    withholdingOverrideType,
   };
 
   return { estimate, debug };

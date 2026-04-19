@@ -154,6 +154,13 @@ export function useTaxEstimate(): {
       standardDeductionOverride: rates.standardDeductionOverride,
       ssWageCap: rates.ssWageCap,
       bnoRate: rates.bnoRate / 100,
+      deductionType: rates.deductionType,
+      itemizedDeductionAmount: rates.itemizedDeductionAmount,
+      qualifyingChildrenCount: rates.qualifyingChildrenCount,
+      otherDependentsCount: rates.otherDependentsCount,
+      withholdingOverrideType: rates.withholdingOverrideType,
+      withholdingOverridePercent: rates.withholdingOverridePercent,
+      withholdingOverrideAmount: rates.withholdingOverrideAmount,
     };
   }, [incomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings]);
 

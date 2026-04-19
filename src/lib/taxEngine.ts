@@ -198,7 +198,14 @@ export interface TaxEstimate {
   mileageDeduction: number;
   agi: number;
   standardDeduction: number;
+  /** Resolved deduction actually applied — standard or itemized */
+  deductionApplied: number;
+  /** "standard" or "itemized" */
+  deductionType: "standard" | "itemized";
   taxableIncome: number;
+  federalTaxBeforeCredits: number;
+  /** Total credits applied (CTC + ODC, with phase-out) */
+  taxCredits: number;
   federalTax: number;
   seTax: SelfEmploymentTax;
   bnoTax: number;
@@ -215,8 +222,29 @@ export interface TaxEstimate {
   safeHarborStatus: "on_track" | "behind" | "ahead";
   // Per-paycheck
   recommendedSetAside: number;
+  /** When user provides a withholding override, this reflects their target.
+   *  Otherwise equals recommendedSetAside. */
+  targetSetAside: number;
   // Time-based tracking
   tracking: TimeBasedTracking;
+}
+
+/** Compute Child Tax Credit + Other Dependent Credit with high-income phase-out.
+ *  CTC: $2,000/qualifying child. ODC: $500/other dependent.
+ *  Phase-out begins at $200k single / $400k MFJ; $50 reduction per $1,000 over (or fraction). */
+export function calculateDependentCredits(
+  qualifyingChildren: number,
+  otherDependents: number,
+  agi: number,
+  filingStatus: "single" | "married_filing_jointly",
+): number {
+  const baseCredit = Math.max(0, qualifyingChildren) * 2000 + Math.max(0, otherDependents) * 500;
+  if (baseCredit <= 0) return 0;
+  const threshold = filingStatus === "married_filing_jointly" ? 400000 : 200000;
+  if (agi <= threshold) return baseCredit;
+  const over = agi - threshold;
+  const reduction = Math.ceil(over / 1000) * 50;
+  return Math.max(0, baseCredit - reduction);
 }
 
 export function calculateFullEstimate(params: {
@@ -235,12 +263,28 @@ export function calculateFullEstimate(params: {
   bnoRate?: number;
   remainingPayPeriods?: number;
   additionalTaxPaid?: number; // quarterly payments + tax savings
+  // New tax-profile inputs
+  deductionType?: "standard" | "itemized";
+  itemizedDeductionAmount?: number;
+  qualifyingChildrenCount?: number;
+  otherDependentsCount?: number;
+  /** Optional planning override for set-aside output */
+  withholdingOverrideType?: "none" | "percent" | "amount";
+  withholdingOverridePercent?: number | null;
+  withholdingOverrideAmount?: number | null;
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
     lastYearTax, standardDeductionOverride, ssWageCap = SS_WAGE_CAP_DEFAULT,
     bnoRate = 0.015, remainingPayPeriods = 12, additionalTaxPaid = 0,
+    deductionType = "standard",
+    itemizedDeductionAmount = 0,
+    qualifyingChildrenCount = 0,
+    otherDependentsCount = 0,
+    withholdingOverrideType = "none",
+    withholdingOverridePercent = null,
+    withholdingOverrideAmount = null,
   } = params;
 
   // SE tax (calculate first — half is deductible)
@@ -250,13 +294,20 @@ export function calculateFullEstimate(params: {
   // AGI
   const agi = totalIncome - preTaxDeductions - retirement401k - seTax.deductibleHalf;
 
-  // Standard deduction
+  // Standard deduction (fallback) and resolved deduction applied
   const standardDeduction = standardDeductionOverride ?? STANDARD_DEDUCTION[filingStatus];
-  const taxableIncome = Math.max(0, agi - standardDeduction);
+  const deductionApplied = deductionType === "itemized"
+    ? Math.max(0, itemizedDeductionAmount)
+    : standardDeduction;
+  const taxableIncome = Math.max(0, agi - deductionApplied);
 
-  // Federal income tax
+  // Federal income tax (before credits)
   const brackets = filingStatus === "married_filing_jointly" ? BRACKETS_MFJ : BRACKETS_SINGLE;
-  const federalTax = calculateProgressiveTax(taxableIncome, brackets);
+  const federalTaxBeforeCredits = calculateProgressiveTax(taxableIncome, brackets);
+
+  // Dependent credits (reduce federal tax, not income)
+  const taxCredits = calculateDependentCredits(qualifyingChildrenCount, otherDependentsCount, agi, filingStatus);
+  const federalTax = Math.max(0, federalTaxBeforeCredits - taxCredits);
 
   // B&O tax (WA)
   const bnoTax = seIncome * bnoRate;
@@ -291,6 +342,17 @@ export function calculateFullEstimate(params: {
   const effectivePayPeriods = Math.max(1, remainingPayPeriods);
   const recommendedSetAside = remainingLiability / effectivePayPeriods;
 
+  // Optional withholding override (planning layer — does NOT change underlying tax math)
+  let targetSetAside = recommendedSetAside;
+  if (withholdingOverrideType === "percent" && withholdingOverridePercent != null) {
+    // Treat as % of gross income, distributed across remaining pay periods
+    const annualTarget = totalIncome * (withholdingOverridePercent / 100);
+    const remainingTarget = Math.max(0, annualTarget - totalPaid);
+    targetSetAside = remainingTarget / effectivePayPeriods;
+  } else if (withholdingOverrideType === "amount" && withholdingOverrideAmount != null) {
+    targetSetAside = withholdingOverrideAmount;
+  }
+
   // Time-based tracking
   const tracking = calculateTimeBasedTracking({
     annualTax: totalTaxLiability,
@@ -302,9 +364,11 @@ export function calculateFullEstimate(params: {
   return {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
+    deductionApplied, deductionType,
+    federalTaxBeforeCredits, taxCredits,
     federalTax, seTax, bnoTax, totalTaxLiability, taxesAlreadyWithheld: taxesWithheld,
     remainingLiability, quarterlyEstimate, effectiveRate, federalEffectiveRate, marginalRate,
-    safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside,
+    safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside, targetSetAside,
     tracking,
   };
 }
