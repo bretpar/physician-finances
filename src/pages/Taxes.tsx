@@ -76,12 +76,19 @@ export default function Taxes() {
   const isLoading = ratesLoading || estLoading;
 
   const e = estimate;
+  const debug = taxMode === "actual" ? actualDebug : forecastDebug;
   const totalSetAside = savings.reduce((s, sv) => s + Number(sv.amount), 0);
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
-  const estimatedOwed = e?.totalTaxLiability ?? 0;
-  const taxesWithheld = e?.taxesAlreadyWithheld ?? 0;
-  const totalCovered = taxesWithheld + totalPaid;
-  const remainingTax = Math.max(0, estimatedOwed - totalCovered);
+
+  // Use the unified debug breakdown as the source of truth so UI matches engine.
+  const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
+  const actualFedWH = debug?.actualFederalWithheld ?? 0;
+  const actualStateWH = debug?.actualStateWithheld ?? 0;
+  const projFedWH = debug?.projectedFederalWithheld ?? 0;
+  const projStateWH = debug?.projectedStateWithheld ?? 0;
+  const futureW2WH = projFedWH + projStateWH;
+  const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
+  const totalCovered = debug?.countedCreditsTotal ?? 0;
+  const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
 
   const now = new Date();
   const monthsLeft = Math.max(1, 12 - now.getMonth());
