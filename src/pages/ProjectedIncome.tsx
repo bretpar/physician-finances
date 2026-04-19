@@ -178,8 +178,8 @@ function defaultSubtypeForSourceKind(kind: SourceKind | undefined): string | nul
   if (kind === "personal") return "other_income";
   if (kind === "1099_schedule_c") return "1099_schedule_c";
   if (kind === "k1_partnership") return "k1_partnership";
-  if (kind === "scorp_w2") return "scorp_w2";
-  if (kind === "scorp_distribution") return "scorp_distribution";
+  if (kind === "s_corp") return "scorp_w2";
+  if (kind === "other_business") return "1099_schedule_c";
   return null;
 }
 
