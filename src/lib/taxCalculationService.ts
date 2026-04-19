@@ -57,7 +57,6 @@ export interface UnifiedTaxInput {
   lastYearTax: number;
   standardDeductionOverride?: number | null;
   ssWageCap: number;
-  bnoRate: number;              // Already as decimal (e.g. 0.015)
   // New tax-profile inputs
   deductionType?: "standard" | "itemized";
   itemizedDeductionAmount?: number;
@@ -75,8 +74,6 @@ export interface UnifiedTaxInput {
   businessStateTaxEnabled?: boolean;
   businessStateTaxRate?: number;
   businessStateTaxBase?: "net_profit" | "gross";
-  /** Legacy flat state rate (used only if stateTaxEnabled=false and rate>0). */
-  legacyStateRate?: number;
 
   // Mode
   includeProjectedIncome: boolean;
