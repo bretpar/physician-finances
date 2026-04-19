@@ -27,6 +27,8 @@ import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendati
 import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { RecommendationModal } from "@/components/RecommendationModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
+import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
+import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -70,6 +72,9 @@ interface FormState {
   retirement_pretax: string;
   deductions_pre_tax: string;
   source_name: string;
+  source_id: string | null;
+  source_save_as_new: boolean;
+  source_new_kind: SourceKind | null;
   notes: string;
   additional_tax_reserve: string;
 }
@@ -87,6 +92,9 @@ const emptyForm: FormState = {
   retirement_pretax: "",
   deductions_pre_tax: "",
   source_name: "",
+  source_id: null,
+  source_save_as_new: false,
+  source_new_kind: null,
   notes: "",
   additional_tax_reserve: "",
 };
@@ -102,6 +110,7 @@ export default function PersonalIncome() {
   const addMutation = useAddPersonalIncome();
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
+  const createSource = useCreateIncomeSource();
   const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
@@ -110,6 +119,7 @@ export default function PersonalIncome() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showSourceError, setShowSourceError] = useState(false);
 
   // Modal 2 state
   const [showRecommendation, setShowRecommendation] = useState(false);
@@ -157,6 +167,7 @@ export default function PersonalIncome() {
   function openAdd() {
     setForm(emptyForm);
     setEditingId(null);
+    setShowSourceError(false);
     setShowForm(true);
   }
 
@@ -174,10 +185,14 @@ export default function PersonalIncome() {
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       source_name: entry.company,
+      source_id: (entry as any).source_id ?? null,
+      source_save_as_new: false,
+      source_new_kind: null,
       notes: entry.notes || "",
       additional_tax_reserve: String((entry as any).additional_tax_reserve || 0),
     });
     setEditingId(entry.id);
+    setShowSourceError(false);
     setShowForm(true);
   }
 
@@ -202,6 +217,7 @@ export default function PersonalIncome() {
         income_date: form.date,
         income_type: form.income_type,
         company: form.source_name,
+        source_id: form.source_id,
         source_bucket: "personal" as const,
         tax_category: TAX_CATEGORY_MAP[form.income_type] || "ordinary",
         gross_amount: grossAmt,
@@ -229,17 +245,54 @@ export default function PersonalIncome() {
     };
   }
 
-  function saveForm() {
+  /** Validates the Source/Employer assignment. Returns true if OK. */
+  function validateSource(): boolean {
+    // Linked source picked → OK.
+    if (form.source_id) return true;
+    // "Other" entered with a name → OK (unless save-as-new is on without a kind).
+    if (form.source_name.trim()) {
+      if (form.source_save_as_new && !form.source_new_kind) return false;
+      return true;
+    }
+    return false;
+  }
+
+  async function saveForm() {
     if (!form.title.trim() || !form.date || num(form.gross_amount) <= 0) return;
+    if (!validateSource()) {
+      setShowSourceError(true);
+      return;
+    }
+    setShowSourceError(false);
+
+    // If "save as new source" was checked, create the source first and link it.
+    let payloadSourceId = form.source_id;
+    if (!payloadSourceId && form.source_save_as_new && form.source_new_kind && form.source_name.trim()) {
+      try {
+        const newId = await persistNewSourceIfRequested(
+          {
+            otherName: form.source_name,
+            saveAsNew: true,
+            newSourceKind: form.source_new_kind,
+          },
+          createSource.mutateAsync,
+        );
+        payloadSourceId = newId;
+      } catch {
+        return; // toast already fired in mutation
+      }
+    }
+
     const { payload, recommendation } = buildPayload();
+    const finalPayload = { ...payload, source_id: payloadSourceId };
     const showModal2 = isFeatureEnabled("recommendation_modal") && !isEditing;
 
     if (isEditing) {
-      updateMutation.mutate({ id: editingId!, ...payload } as any, {
+      updateMutation.mutate({ id: editingId!, ...finalPayload } as any, {
         onSuccess: () => { setShowForm(false); setEditingId(null); },
       });
     } else {
-      addMutation.mutate(payload as any, {
+      addMutation.mutate(finalPayload as any, {
         onSuccess: (_, __, context) => {
           setShowForm(false);
           if (showModal2 && recommendation) {
@@ -465,15 +518,51 @@ export default function PersonalIncome() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Title / Description</Label>
-                <Input placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Source / Employer</Label>
-                <Input placeholder="e.g. Hospital System" value={form.source_name} onChange={(e) => setField("source_name", e.target.value)} />
-              </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Source / Employer <span className="text-destructive">*</span>
+              </Label>
+              <SourceEmployerCombobox
+                sourceId={form.source_id}
+                otherName={form.source_name}
+                saveAsNew={form.source_save_as_new}
+                newSourceKind={form.source_new_kind}
+                required
+                invalid={showSourceError}
+                onChange={(next) => {
+                  setForm((prev) => {
+                    // When a linked W-2 employer is picked, auto-pick a sensible income type
+                    // for new entries only (don't overwrite the user's choice mid-edit).
+                    let nextIncomeType = prev.income_type;
+                    if (!isEditing && next.linkedSource) {
+                      const k = next.linkedSource.source_kind;
+                      if (k === "w2_employer" && !isW2Type(prev.income_type)) {
+                        nextIncomeType = "w2_user";
+                      }
+                    }
+                    return {
+                      ...prev,
+                      source_id: next.sourceId,
+                      source_name: next.otherName,
+                      source_save_as_new: next.saveAsNew,
+                      source_new_kind: next.newSourceKind,
+                      income_type: nextIncomeType,
+                    };
+                  });
+                  if (showSourceError) setShowSourceError(false);
+                }}
+              />
+              {showSourceError && !form.source_id && !form.source_name.trim() && (
+                <p className="text-[10px] text-destructive mt-1">Pick a source or enter one under "Other".</p>
+              )}
+              {showSourceError && form.source_save_as_new && !form.source_new_kind && (
+                <p className="text-[10px] text-destructive mt-1">Choose a source type to save it.</p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Title / Description</Label>
+              <Input placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
             </div>
 
             <div>
