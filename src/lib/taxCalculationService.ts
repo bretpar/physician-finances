@@ -90,29 +90,44 @@ export interface TaxDebugBreakdown {
   actualIncome: number;
   projectedIncome: number;
   totalGrossIncome: number;
-  totalDeductions: number;
-  ownerDeductions: number;        // K-1 owner healthcare + retirement + pre-tax (reduces taxable income, not profit)
-  businessExpenses: number;       // Ordinary operating expenses (reduces business profit)
-  preTaxDeductions: number;       // 401k + health/HSA + other pre-tax
-  deductionApplied: number;       // Standard or itemized actually applied
+  // ── IRS-style flow ──
+  grossBusinessIncome: number;
+  businessExpenses: number;
+  netBusinessProfit: number;
+  w2Income: number;
+  otherIncome: number;
+  totalReturnIncomeBeforeAdjustments: number;
+  preTaxDeductions: number;
+  retirementContributions: number;
+  halfSETaxDeduction: number;
+  ownerDeductions: number;        // K-1 owner healthcare etc. (already inside preTaxDeductions)
+  deductionApplied: number;
   deductionType: "standard" | "itemized";
   totalTaxableIncome: number;
-  estimatedAnnualTax: number;
+  // ── Tax math ──
+  federalIncomeTax: number;
+  selfEmploymentTax: number;
+  stateTax: number;
+  totalEstimatedTax: number;
+  estimatedAnnualTax: number;     // alias of totalEstimatedTax (kept for back-compat)
   federalTaxBeforeCredits: number;
-  taxCredits: number;             // CTC + ODC after phase-out
-  taxesAlreadyWithheld: number;   // Federal-only
+  taxCredits: number;
+  taxesAlreadyWithheldOrPaid: number;
+  taxesAlreadyWithheld: number;   // Federal-only — kept for back-compat
   federalWithheld: number;
   stateWithheld: number;
   personalStateTax: number;
   businessStateTax: number;
-  taxReserves: number;           // actual_withholding — recommendation, not paid
+  taxReserves: number;
   quarterlyPayments: number;
   taxSavings: number;
-  additionalTaxPaid: number;     // quarterly + savings (NOT reserves)
-  remainingEstimatedTax: number;
+  additionalTaxPaid: number;
+  remainingTaxToCover: number;
+  remainingEstimatedTax: number;  // alias for back-compat
   recommendedSetAside: number;
-  targetSetAside: number;        // After optional withholding override
+  targetSetAside: number;
   withholdingOverrideType: "none" | "percent" | "amount";
+  totalDeductions: number;
 }
 
 /* ─── Main function ─── */
