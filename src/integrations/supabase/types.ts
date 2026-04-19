@@ -27,6 +27,7 @@ export type Database = {
           nickname: string
           notes: string
           organization_id: string | null
+          source_kind: string
           updated_at: string
           user_id: string
         }
@@ -42,6 +43,7 @@ export type Database = {
           nickname?: string
           notes?: string
           organization_id?: string | null
+          source_kind?: string
           updated_at?: string
           user_id: string
         }
@@ -57,6 +59,7 @@ export type Database = {
           nickname?: string
           notes?: string
           organization_id?: string | null
+          source_kind?: string
           updated_at?: string
           user_id?: string
         }
@@ -99,6 +102,7 @@ export type Database = {
           recommendation_status: string
           retirement_401k: number
           source_bucket: string
+          source_id: string | null
           state_withholding: number
           status: string
           tax_category: string
@@ -134,6 +138,7 @@ export type Database = {
           recommendation_status?: string
           retirement_401k?: number
           source_bucket?: string
+          source_id?: string | null
           state_withholding?: number
           status?: string
           tax_category?: string
@@ -169,6 +174,7 @@ export type Database = {
           recommendation_status?: string
           retirement_401k?: number
           source_bucket?: string
+          source_id?: string | null
           state_withholding?: number
           status?: string
           tax_category?: string
@@ -727,6 +733,7 @@ export type Database = {
           paycheck_amount: number
           pre_tax_deductions: number
           retirement_401k: number
+          source_id: string | null
           start_date: string
           taxes_withheld: number
           updated_at: string
@@ -746,6 +753,7 @@ export type Database = {
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
+          source_id?: string | null
           start_date?: string
           taxes_withheld?: number
           updated_at?: string
@@ -765,6 +773,7 @@ export type Database = {
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
+          source_id?: string | null
           start_date?: string
           taxes_withheld?: number
           updated_at?: string
@@ -1258,6 +1267,7 @@ export type Database = {
           recommended_withholding: number
           recurring_frequency: string | null
           schedule_c_category: string | null
+          source_id: string | null
           source_type: string
           transaction_date: string
           transaction_type: string
@@ -1292,6 +1302,7 @@ export type Database = {
           recommended_withholding?: number
           recurring_frequency?: string | null
           schedule_c_category?: string | null
+          source_id?: string | null
           source_type?: string
           transaction_date?: string
           transaction_type?: string
@@ -1326,6 +1337,7 @@ export type Database = {
           recommended_withholding?: number
           recurring_frequency?: string | null
           schedule_c_category?: string | null
+          source_id?: string | null
           source_type?: string
           transaction_date?: string
           transaction_type?: string
