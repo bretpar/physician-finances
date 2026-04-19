@@ -1000,6 +1000,21 @@ export default function Settings() {
                           />
                           <Label className="text-xs text-muted-foreground">Include in tax projections</Label>
                         </div>
+
+                        {ledgerForIncomeType(company.companyType) === "business" && (
+                          <div className="flex items-start gap-2 pt-1">
+                            <Switch
+                              checked={company.applyBusinessStateTax !== false}
+                              onCheckedChange={(checked) => updateCompany(company.id, { applyBusinessStateTax: checked })}
+                            />
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Apply business state tax</Label>
+                              <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                                Only used when business state tax is enabled in Tax Profile and "Apply to" is set to "Selected companies only".
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </CollapsibleContent>
                   </Collapsible>
