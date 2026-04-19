@@ -76,12 +76,19 @@ export default function Taxes() {
   const isLoading = ratesLoading || estLoading;
 
   const e = estimate;
+  const debug = taxMode === "actual" ? actualDebug : forecastDebug;
   const totalSetAside = savings.reduce((s, sv) => s + Number(sv.amount), 0);
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
-  const estimatedOwed = e?.totalTaxLiability ?? 0;
-  const taxesWithheld = e?.taxesAlreadyWithheld ?? 0;
-  const totalCovered = taxesWithheld + totalPaid;
-  const remainingTax = Math.max(0, estimatedOwed - totalCovered);
+
+  // Use the unified debug breakdown as the source of truth so UI matches engine.
+  const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
+  const actualFedWH = debug?.actualFederalWithheld ?? 0;
+  const actualStateWH = debug?.actualStateWithheld ?? 0;
+  const projFedWH = debug?.projectedFederalWithheld ?? 0;
+  const projStateWH = debug?.projectedStateWithheld ?? 0;
+  const futureW2WH = projFedWH + projStateWH;
+  const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
+  const totalCovered = debug?.countedCreditsTotal ?? 0;
+  const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
 
   const now = new Date();
   const monthsLeft = Math.max(1, 12 - now.getMonth());
@@ -248,6 +255,60 @@ export default function Taxes() {
         </CardContent>
       </Card>
 
+      {/* ── Credits Against Tax ── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Credits Against Tax</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Federal withholding already paid</span>
+            <span className="font-medium tabular-nums">{fmt(actualFedWH)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">State withholding already paid</span>
+            <span className="font-medium tabular-nums">{fmt(actualStateWH)}</span>
+          </div>
+          {taxMode === "forecast" && futureW2WH > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Future W-2 withholding projected</span>
+              <span className="font-medium tabular-nums">{fmt(futureW2WH)}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Estimated tax payments made</span>
+            <span className="font-medium tabular-nums">{fmt(estPaymentsMade)}</span>
+          </div>
+          <div className="border-t border-border pt-2 flex justify-between font-semibold">
+            <span>Total counted credits</span>
+            <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(totalCovered)}</span>
+          </div>
+          <div className="flex justify-between italic text-muted-foreground">
+            <span>Savings set aside (not counted)</span>
+            <span className="tabular-nums">{fmt(totalSetAside)}</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground italic pt-1">
+            Savings set aside is shown for planning only and is not treated as a submitted tax payment.
+          </p>
+          <div className="border-t border-border pt-2 flex justify-between font-semibold">
+            <span>Total tax liability</span>
+            <span className="tabular-nums">{fmt(estimatedOwed)}</span>
+          </div>
+          <div className="flex justify-between font-semibold">
+            <span>Remaining estimated tax due</span>
+            <span className={cn("tabular-nums", remainingTax > 0 ? "text-amber-600" : "text-emerald-600")}>
+              {fmt(remainingTax)}
+            </span>
+          </div>
+          {remainingTax > 0 && (
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Per remaining quarter (~{Math.max(1, 4 - Math.floor(now.getMonth() / 3))})</span>
+              <span className="tabular-nums">{fmt(remainingTax / Math.max(1, 4 - Math.floor(now.getMonth() / 3)))}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ── Quarterly Overview ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {quarterData.map((q) => (
@@ -339,7 +400,7 @@ export default function Taxes() {
                   <span>Taxes Already Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-600">
-                  <span>Quarterly Payments</span><span>−{fmt(totalPaid)}</span>
+                  <span>Quarterly Payments</span><span>−{fmt(estPaymentsMade)}</span>
                 </div>
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
                   <span>Remaining</span>

@@ -115,9 +115,9 @@ export function useTaxEstimate(): {
     const quarterlyPaid = taxPayments.reduce((s, p) => s + Number(p.amount), 0);
     const savingsTotal = taxSavings.reduce((s, e) => s + Number(e.amount), 0);
 
-    // Projected totals
+    // Projected totals (bucketed by W-2 / SE / other; fed/state withholding split)
     const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries || []);
-    const projTotals = getProjectedTotals(projectedPaychecks);
+    const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
 
     // Owner healthcare (K-1 deduction)
     const ownerHealthcare = (incomeEntries || [])
@@ -186,11 +186,14 @@ export function useTaxEstimate(): {
       mileageDeduction,
       annualizedRetirement: annualizedRetirement.total,
       txActualWithholding,
-      quarterlyPaid,
-      savingsTotal,
+      actualEstimatedPaymentsMade: quarterlyPaid,
+      taxSavingsSetAside: savingsTotal,
       remainingPayPeriods,
-      projectedGrossIncome: projTotals.grossIncome,
-      projectedTaxesWithheld: projTotals.taxesWithheld,
+      projectedW2Income: projTotals.w2Income,
+      projectedSEIncome: projTotals.seIncome,
+      projectedOtherIncome: projTotals.otherIncome,
+      projectedFederalWithheld: projTotals.federalWithheld,
+      projectedStateWithheld: projTotals.stateWithheld,
       projectedPreTax: projTotals.preTaxDeductions,
       projectedRetirement: projTotals.retirement401k,
       filingStatus: rates.filingStatus as "single" | "married_filing_jointly",
