@@ -596,13 +596,13 @@ export default function Settings() {
           )}
         </div>
 
-        {/* ─── State Taxes ─── */}
+        {/* ─── Personal State Tax ─── */}
         <div className="pt-2 border-t border-border space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-semibold text-card-foreground">State Taxes</h4>
+              <h4 className="text-sm font-semibold text-card-foreground">Personal State Tax</h4>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Configure personal and business state-tax handling. When enabled, these settings replace the legacy flat State Tax Rate below.
+                State income tax on personal (W-2 and non-business) income.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -613,7 +613,7 @@ export default function Settings() {
                   updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, stateTaxEnabled: v });
                 }}
               />
-              <Label className="text-xs text-muted-foreground">Enable state income tax</Label>
+              <Label className="text-xs text-muted-foreground">Enable</Label>
             </div>
           </div>
 
@@ -678,133 +678,84 @@ export default function Settings() {
                   />
                 </div>
               )}
-
-              {/* Business State Tax */}
-              <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3 mt-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-foreground">Business state tax</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Applies only to business-type companies (1099, K-1, S-Corp distributions). Never applied to W-2 income.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={!!taxSettingsData?.businessStateTaxEnabled}
-                    onCheckedChange={(v) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxEnabled: v });
-                    }}
-                  />
-                </div>
-
-                {taxSettingsData?.businessStateTaxEnabled && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Rate (%)</Label>
-                      <Input
-                        type="number" step="0.1" min="0" max="100"
-                        value={taxSettingsData?.businessStateTaxRate ?? 0}
-                        onChange={(e) => {
-                          if (!taxSettingsData?.id) return;
-                          updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxRate: parseFloat(e.target.value) || 0 });
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Tax base</Label>
-                      <Select
-                        value={taxSettingsData?.businessStateTaxBase ?? "net_profit"}
-                        onValueChange={(v) => {
-                          if (!taxSettingsData?.id) return;
-                          updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxBase: v as any });
-                        }}
-                      >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="net_profit">Net business profit</SelectItem>
-                          <SelectItem value="gross">Gross business income</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Apply to</Label>
-                      <Select
-                        value={taxSettingsData?.businessStateTaxApplicationMode ?? "all_business"}
-                        onValueChange={(v) => {
-                          if (!taxSettingsData?.id) return;
-                          updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxApplicationMode: v as any });
-                        }}
-                      >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all_business">All business companies</SelectItem>
-                          <SelectItem value="selected">Selected companies only</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {taxSettingsData?.businessStateTaxApplicationMode === "selected" && (
-                      <p className="text-[11px] text-muted-foreground sm:col-span-3">
-                        Use each company's "Apply business state tax" toggle (in Companies → Advanced tax settings) to choose which ones are included.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
             </>
           )}
         </div>
 
-        {/* Legacy / Advanced collapsible */}
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <button type="button" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
-              <ChevronRight className="h-3.5 w-3.5" />
-              Legacy / Advanced rate fields
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-3">
-            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-              <p className="text-[11px] text-muted-foreground">
-                These flat-percentage rates are kept for backward compatibility. The predictive engine now uses your filing status, deduction type, dependents, and per-paycheck data instead.
+        {/* ─── Business State Tax (independent of Personal State Tax) ─── */}
+        <div className="pt-2 border-t border-border space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-card-foreground">Business State Tax</h4>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Applies only to business-type companies (1099, K-1, S-Corp distributions). Never applied to W-2 income.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Tax Rate (%)</Label>
-                  <Input
-                    type="number" step="0.1" min="0" max="100"
-                    value={taxSettingsData?.federalRate ?? 20}
-                    onChange={(e) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, federalRate: parseFloat(e.target.value) || 0 });
-                    }}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">State Tax Rate (%)</Label>
-                  <Input
-                    type="number" step="0.1" min="0" max="100"
-                    value={taxSettingsData?.stateRate ?? 0}
-                    onChange={(e) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, stateRate: parseFloat(e.target.value) || 0 });
-                    }}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">B&O Tax Rate (%)</Label>
-                  <Input
-                    type="number" step="0.1" min="0" max="100"
-                    value={taxSettingsData?.bnoRate ?? 1.5}
-                    onChange={(e) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, bnoRate: parseFloat(e.target.value) || 0 });
-                    }}
-                  />
-                </div>
-              </div>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={!!taxSettingsData?.businessStateTaxEnabled}
+                onCheckedChange={(v) => {
+                  if (!taxSettingsData?.id) return;
+                  updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxEnabled: v });
+                }}
+              />
+              <Label className="text-xs text-muted-foreground">Enable</Label>
+            </div>
+          </div>
+
+          {taxSettingsData?.businessStateTaxEnabled && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Rate (%)</Label>
+                <Input
+                  type="number" step="0.1" min="0" max="100"
+                  value={taxSettingsData?.businessStateTaxRate ?? 0}
+                  onChange={(e) => {
+                    if (!taxSettingsData?.id) return;
+                    updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxRate: parseFloat(e.target.value) || 0 });
+                  }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Tax base</Label>
+                <Select
+                  value={taxSettingsData?.businessStateTaxBase ?? "net_profit"}
+                  onValueChange={(v) => {
+                    if (!taxSettingsData?.id) return;
+                    updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxBase: v as any });
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="net_profit">Net business profit</SelectItem>
+                    <SelectItem value="gross">Gross business income</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Apply to</Label>
+                <Select
+                  value={taxSettingsData?.businessStateTaxApplicationMode ?? "all_business"}
+                  onValueChange={(v) => {
+                    if (!taxSettingsData?.id) return;
+                    updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxApplicationMode: v as any });
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all_business">All business companies</SelectItem>
+                    <SelectItem value="selected">Selected companies only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {taxSettingsData?.businessStateTaxApplicationMode === "selected" && (
+                <p className="text-[11px] text-muted-foreground sm:col-span-3">
+                  Use each company's "Apply business state tax" toggle (in Companies → Advanced tax settings) to choose which ones are included.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ─── Companies ─── */}
