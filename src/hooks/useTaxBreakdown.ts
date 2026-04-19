@@ -22,7 +22,7 @@ import {
   type BracketCalc,
   type SETaxCalc,
 } from "@/lib/taxBrackets";
-import { calculateDependentCredits } from "@/lib/taxEngine";
+import { calculateDependentCredits, calculatePersonalStateTax, calculateBusinessStateTax } from "@/lib/taxEngine";
 
 export type TaxBreakdownMode = "actual" | "forecast";
 
