@@ -729,62 +729,86 @@ export type Database = {
       }
       projected_income_streams: {
         Row: {
+          additional_tax_reserve: number
           company: string
           company_type: string
           created_at: string
           custom_interval_days: number | null
           end_date: string | null
+          federal_withholding: number
           id: string
           include_in_tax: boolean
           is_active: boolean
+          medicare_withholding: number
+          notes: string
           organization_id: string | null
+          owner_healthcare: number
           pay_frequency: string
           paycheck_amount: number
           pre_tax_deductions: number
           retirement_401k: number
           source_id: string | null
+          ss_withholding: number
           start_date: string
+          state_withholding: number
           taxes_withheld: number
+          ui_income_subtype: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          additional_tax_reserve?: number
           company?: string
           company_type?: string
           created_at?: string
           custom_interval_days?: number | null
           end_date?: string | null
+          federal_withholding?: number
           id?: string
           include_in_tax?: boolean
           is_active?: boolean
+          medicare_withholding?: number
+          notes?: string
           organization_id?: string | null
+          owner_healthcare?: number
           pay_frequency?: string
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
           source_id?: string | null
+          ss_withholding?: number
           start_date?: string
+          state_withholding?: number
           taxes_withheld?: number
+          ui_income_subtype?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          additional_tax_reserve?: number
           company?: string
           company_type?: string
           created_at?: string
           custom_interval_days?: number | null
           end_date?: string | null
+          federal_withholding?: number
           id?: string
           include_in_tax?: boolean
           is_active?: boolean
+          medicare_withholding?: number
+          notes?: string
           organization_id?: string | null
+          owner_healthcare?: number
           pay_frequency?: string
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
           source_id?: string | null
+          ss_withholding?: number
           start_date?: string
+          state_withholding?: number
           taxes_withheld?: number
+          ui_income_subtype?: string | null
           updated_at?: string
           user_id?: string
         }
