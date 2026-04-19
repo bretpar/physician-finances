@@ -612,60 +612,69 @@ export default function PersonalIncome() {
               </div>
             )}
 
-            {/* W2-specific withholding & deductions */}
-            {isW2Type(form.income_type) && (
-              <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground">Withholding & Deductions</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+            {/* Advanced details collapsible */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                {advancedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Advanced details
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-2">
+                {/* W2-specific withholding & deductions */}
+                {isW2Type(form.income_type) && (
+                  <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
+                    <p className="text-xs font-semibold text-muted-foreground">Withholding & Deductions</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement (401k)</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Pre-Tax Deductions</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement (401k)</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
-                  </div>
-                </div>
-              </div>
-            )}
+                )}
 
-            {/* Non-W2 withholding fields */}
-            {!isW2Type(form.income_type) && !isStockType(form.income_type) && (
-              <div className="grid grid-cols-2 gap-3">
+                {/* Non-W2 withholding fields */}
+                {!isW2Type(form.income_type) && !isStockType(form.income_type) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional tax reserve field on edit */}
+                {isEditing && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
+                  </div>
+                )}
+
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Federal Withholding</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
+                  <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
                 </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">State Withholding</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
-                </div>
-              </div>
-            )}
-
-            {/* Additional tax reserve field on edit */}
-            {isEditing && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
-                <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
-                <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
-              </div>
-            )}
-
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-              <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Base estimate preview at bottom of Modal 1 */}
             {grossAmount > 0 && baseRecommendation && (
