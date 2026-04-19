@@ -31,6 +31,18 @@ export interface ProjectedIncomeStream {
   pre_tax_deductions: number;
   is_active: boolean;
   include_in_tax: boolean;
+  /** Linked source/employer (companies.id). Optional for legacy rows. */
+  source_id: string | null;
+  /** Original UI subtype (w2_user, 1099_schedule_c, etc.) — preserves edit/transfer fidelity. */
+  ui_income_subtype: string | null;
+  /** Per-paycheck withholdings/deductions (mirror Personal Income & Business Activity). */
+  federal_withholding: number;
+  state_withholding: number;
+  ss_withholding: number;
+  medicare_withholding: number;
+  owner_healthcare: number;
+  additional_tax_reserve: number;
+  notes: string;
   created_at: string;
   updated_at: string;
 }
@@ -217,7 +229,7 @@ export function useAddStream() {
         user_id: user.id,
         organization_id: orgId,
         company: stream.company || "",
-        company_type: stream.company_type || "W2",
+        company_type: stream.company_type || "w2",
         pay_frequency: stream.pay_frequency || "biweekly",
         custom_interval_days: stream.custom_interval_days || null,
         start_date: stream.start_date || new Date().toISOString().split("T")[0],
@@ -228,7 +240,16 @@ export function useAddStream() {
         pre_tax_deductions: stream.pre_tax_deductions || 0,
         is_active: stream.is_active ?? true,
         include_in_tax: stream.include_in_tax ?? true,
-      });
+        source_id: stream.source_id ?? null,
+        ui_income_subtype: stream.ui_income_subtype ?? null,
+        federal_withholding: stream.federal_withholding || 0,
+        state_withholding: stream.state_withholding || 0,
+        ss_withholding: stream.ss_withholding || 0,
+        medicare_withholding: stream.medicare_withholding || 0,
+        owner_healthcare: stream.owner_healthcare || 0,
+        additional_tax_reserve: stream.additional_tax_reserve || 0,
+        notes: stream.notes || "",
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
