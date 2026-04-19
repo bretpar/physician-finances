@@ -14,6 +14,7 @@ import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { aggregateByCategory } from "@/lib/incomeClassification";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -59,22 +60,14 @@ export function useTaxEstimate(): {
 
     const personal = personalEntries || [];
 
-    // Personal income breakdown
-    const personalW2 = personal
-      .filter((e) => e.income_type === "w2_user" || e.income_type === "w2_partner")
-      .reduce((s, e) => s + Number(e.gross_amount), 0);
-    const personalOrdinary = personal
-      .filter((e) => ["dividend", "interest", "other_income"].includes(e.income_type))
-      .reduce((s, e) => s + Number(e.gross_amount), 0);
-    const personalCapGains = personal
-      .filter((e) => ["short_term_gain", "long_term_gain"].includes(e.income_type))
-      .reduce((s, e) => s + Number(e.gross_amount), 0);
-    const personalRental = personal
-      .filter((e) => e.income_type === "rental")
-      .reduce((s, e) => s + Number(e.gross_amount), 0);
-    const personalLosses = personal
-      .filter((e) => e.income_type === "loss")
-      .reduce((s, e) => s + Math.abs(Number(e.gross_amount)), 0);
+    // Personal income breakdown — resilient classifier (handles canonical +
+    // legacy + missing subtype). Never drops a row; falls back to "ordinary".
+    const buckets = aggregateByCategory(personal);
+    const personalW2 = buckets.w2;
+    const personalOrdinary = buckets.ordinary;
+    const personalCapGains = buckets.capital_gains;
+    const personalRental = buckets.rental;
+    const personalLosses = buckets.loss;
     const personalFederalWithheld = personal
       .reduce((s, e) => s + Number(e.federal_withholding || 0), 0);
     const personalStateWithheld = personal
