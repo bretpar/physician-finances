@@ -23,14 +23,13 @@ interface TaxWidgetProps {
   estimatedTax: number;
   seTax: number;
   quarterlyEstimate: number;
-  bnoTax: number;
   netProfit: number;
   w2Withheld: number;
   totalTaxLiability: number;
   remainingLiability: number;
 }
 
-export default function TaxWidget({ estimatedTax, seTax, quarterlyEstimate, bnoTax, netProfit, w2Withheld, totalTaxLiability, remainingLiability }: TaxWidgetProps) {
+export default function TaxWidget({ estimatedTax, seTax, quarterlyEstimate, netProfit, w2Withheld, totalTaxLiability, remainingLiability }: TaxWidgetProps) {
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
@@ -41,7 +40,6 @@ export default function TaxWidget({ estimatedTax, seTax, quarterlyEstimate, bnoT
       <h3 className="text-sm font-semibold text-card-foreground">Tax Estimates — April 2026</h3>
       <TaxLine label="Federal (32% all income)" value={fmt(estimatedTax)} percent={32} />
       <TaxLine label="SE Tax (15.3% on 1099/K-1)" value={fmt(seTax)} percent={15.3} />
-      <TaxLine label="WA B&O (1.5% non-W-2)" value={fmt(bnoTax)} percent={1.5} />
       <div className="pt-3 border-t border-border space-y-3">
         <TaxLine label="Total Tax Liability" value={fmt(totalTaxLiability)} />
         <TaxLine label="W-2 Withholdings" value={`−${fmt(w2Withheld)}`} variant="success" />
