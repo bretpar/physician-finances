@@ -104,6 +104,13 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     txActualWithholding, quarterlyPaid, savingsTotal, remainingPayPeriods,
     projectedGrossIncome, projectedTaxesWithheld, projectedPreTax, projectedRetirement,
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap, bnoRate,
+    deductionType = "standard",
+    itemizedDeductionAmount = 0,
+    qualifyingChildrenCount = 0,
+    otherDependentsCount = 0,
+    withholdingOverrideType = "none",
+    withholdingOverridePercent = null,
+    withholdingOverrideAmount = null,
     includeProjectedIncome,
   } = input;
 
@@ -147,9 +154,16 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     bnoRate,
     remainingPayPeriods,
     additionalTaxPaid,
+    deductionType,
+    itemizedDeductionAmount,
+    qualifyingChildrenCount,
+    otherDependentsCount,
+    withholdingOverrideType,
+    withholdingOverridePercent,
+    withholdingOverrideAmount,
   });
 
-  const totalDeductions = combinedPreTax + combined401k + businessExpenses + mileageDeduction + estimate.standardDeduction + estimate.seTax.deductibleHalf;
+  const totalDeductions = combinedPreTax + combined401k + businessExpenses + mileageDeduction + estimate.deductionApplied + estimate.seTax.deductibleHalf;
 
   const debug: TaxDebugBreakdown = {
     includeProjectedIncome,
@@ -159,8 +173,13 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     totalDeductions,
     ownerDeductions: ownerHealthcare + businessRetirement + businessPreTax,
     businessExpenses,
+    preTaxDeductions: combinedPreTax,
+    deductionApplied: estimate.deductionApplied,
+    deductionType: estimate.deductionType,
     totalTaxableIncome: estimate.taxableIncome,
     estimatedAnnualTax: estimate.totalTaxLiability,
+    federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
+    taxCredits: estimate.taxCredits,
     taxesAlreadyWithheld: combinedWithheld,
     taxReserves: txActualWithholding,
     quarterlyPayments: quarterlyPaid,
@@ -168,6 +187,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     additionalTaxPaid,
     remainingEstimatedTax: estimate.remainingLiability,
     recommendedSetAside: estimate.recommendedSetAside,
+    targetSetAside: estimate.targetSetAside,
+    withholdingOverrideType,
   };
 
   return { estimate, debug };
