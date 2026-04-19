@@ -191,9 +191,22 @@ function formatCurrency(n: number): string {
 export interface TaxEstimate {
   totalIncome: number;
   w2Income: number;
+  /** True self-employment income (Schedule C + active K-1 partnership) used for SE tax. */
   seIncome: number;
+  /** All business gross receipts (SE + S-Corp distributions etc.) — display only. */
+  grossBusinessIncome: number;
+  /** Ordinary business operating expenses (reduce business profit). */
+  businessExpenses: number;
+  /** Net business profit = gross business income − business expenses − mileage. */
+  netBusinessProfit: number;
+  /** Other taxable income that is neither W-2 nor business (cap gains, dividends, rental, etc.). */
+  otherIncome: number;
+  /** w2 + netBusinessProfit + otherIncome — what flows onto a 1040 before adjustments. */
+  totalReturnIncomeBeforeAdjustments: number;
   preTaxDeductions: number;
   retirement401k: number;
+  /** Half of SE tax — above-the-line adjustment to AGI. */
+  halfSETaxDeduction: number;
   businessDeductions: number;
   mileageDeduction: number;
   agi: number;
