@@ -165,6 +165,7 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "taxes_withheld",
     "actual_withholding",
     "additional_tax_reserve",
+    "retirement_401k",
   ],
   "k1_partnership": [
     "net_received",
@@ -229,6 +230,7 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "net_received", label: "Net received" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "actual_withholding", label: "Amount you're saving for taxes" },
+    { key: "retirement_401k", label: "Solo 401(k) / retirement contribution" },
     { key: "notes", label: "Notes" },
   ],
   "k1_partnership": [
