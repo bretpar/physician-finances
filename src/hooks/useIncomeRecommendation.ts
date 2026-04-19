@@ -194,8 +194,9 @@ export function useIncomeRecommendation() {
 
           const totalWithheld = estimate.taxesAlreadyWithheld;
           const quarterlyPaid = taxPayments.reduce((s, p) => s + Number(p.amount), 0);
-          const savingsTotal = taxSavings.reduce((s, e) => s + Number(e.amount), 0);
-          const totalCovered = totalWithheld + quarterlyPaid + savingsTotal;
+          // Savings set aside is informational only — NOT a submitted tax payment, so it
+          // does NOT count as money applied against the bill.
+          const totalCovered = totalWithheld + quarterlyPaid;
 
           shortfallOrSurplus = Math.round((targetByNextDeadline - totalCovered) * 100) / 100;
           totalShortfallByDeadline = Math.max(0, shortfallOrSurplus);
