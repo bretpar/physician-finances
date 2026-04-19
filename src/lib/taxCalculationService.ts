@@ -9,6 +9,7 @@
 import {
   calculateFullEstimate,
   type TaxEstimate,
+  type StateTaxInputs,
 } from "@/lib/taxEngine";
 
 /* ─── Input types ─── */
@@ -17,13 +18,23 @@ export interface UnifiedTaxInput {
   // Actual (YTD) numbers
   businessIncome: number;       // 1099/K1 gross
   businessW2: number;           // W2 gross from business income entries
-  businessWithheld: number;     // Employer withholding on business income
+  businessFederalWithheld: number;  // Federal-only withholding on business income
+  businessStateWithheld: number;    // State-only withholding on business income
   businessPreTax: number;       // Pre-tax deductions on business income
   businessRetirement: number;   // Retirement contributions on business income
   ownerHealthcare: number;      // K-1 owner healthcare premiums (reduces taxable income, not profit)
+  /** Eligible business gross income for state business tax (filtered by app mode + per-company toggle). */
+  businessStateEligibleGross: number;
+  /** Eligible business expenses (proportional). */
+  businessStateEligibleExpenses: number;
+  /** Eligible mileage deduction (proportional). */
+  businessStateEligibleMileage: number;
+  /** Eligible owner adjustments (healthcare + retirement). */
+  businessStateEligibleOwnerAdjustments: number;
   personalIncome: number;       // Total personal income (W2+ordinary+capgains+rental-losses)
   personalW2: number;           // W2 portion of personal income
-  personalWithheld: number;     // Employer withholding on personal income
+  personalFederalWithheld: number;  // Federal-only withholding on personal income
+  personalStateWithheld: number;    // State-only withholding on personal income
   personalPreTax: number;
   personalRetirement: number;
   netStockGain: number;
@@ -56,6 +67,17 @@ export interface UnifiedTaxInput {
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
 
+  /** State tax settings — passed through to engine. */
+  stateTaxEnabled?: boolean;
+  personalStateTaxMode?: "none" | "flat_rate" | "annual_estimate";
+  personalStateTaxRate?: number;
+  personalStateTaxAnnualEstimate?: number;
+  businessStateTaxEnabled?: boolean;
+  businessStateTaxRate?: number;
+  businessStateTaxBase?: "net_profit" | "gross";
+  /** Legacy flat state rate (used only if stateTaxEnabled=false and rate>0). */
+  legacyStateRate?: number;
+
   // Mode
   includeProjectedIncome: boolean;
 }
@@ -82,7 +104,11 @@ export interface TaxDebugBreakdown {
   estimatedAnnualTax: number;
   federalTaxBeforeCredits: number;
   taxCredits: number;             // CTC + ODC after phase-out
-  taxesAlreadyWithheld: number;
+  taxesAlreadyWithheld: number;   // Federal-only
+  federalWithheld: number;
+  stateWithheld: number;
+  personalStateTax: number;
+  businessStateTax: number;
   taxReserves: number;           // actual_withholding — recommendation, not paid
   quarterlyPayments: number;
   taxSavings: number;
@@ -97,9 +123,15 @@ export interface TaxDebugBreakdown {
 
 export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxResult {
   const {
-    businessIncome, businessW2, businessWithheld, businessPreTax, businessRetirement,
+    businessIncome, businessW2,
+    businessFederalWithheld, businessStateWithheld,
+    businessPreTax, businessRetirement,
     ownerHealthcare,
-    personalIncome, personalW2, personalWithheld, personalPreTax, personalRetirement,
+    businessStateEligibleGross, businessStateEligibleExpenses,
+    businessStateEligibleMileage, businessStateEligibleOwnerAdjustments,
+    personalIncome, personalW2,
+    personalFederalWithheld, personalStateWithheld,
+    personalPreTax, personalRetirement,
     netStockGain, businessExpenses, mileageDeduction, annualizedRetirement,
     txActualWithholding, quarterlyPaid, savingsTotal, remainingPayPeriods,
     projectedGrossIncome, projectedTaxesWithheld, projectedPreTax, projectedRetirement,
@@ -111,6 +143,14 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     withholdingOverrideType = "none",
     withholdingOverridePercent = null,
     withholdingOverrideAmount = null,
+    stateTaxEnabled = false,
+    personalStateTaxMode = "none",
+    personalStateTaxRate = 0,
+    personalStateTaxAnnualEstimate = 0,
+    businessStateTaxEnabled = false,
+    businessStateTaxRate = 0,
+    businessStateTaxBase = "net_profit",
+    legacyStateRate = 0,
     includeProjectedIncome,
   } = input;
 
@@ -128,15 +168,31 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const w2Income = businessW2 + personalW2; // For SS wage cap
   const seIncome = businessIncome;
 
-  // Owner deductions (healthcare, retirement, pre-tax) reduce TAXABLE INCOME, not business profit
-  // They flow through preTaxDeductions and retirement401k to the tax engine
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax + ownerHealthcare;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
 
-  // Taxes already withheld = employer withholding only
-  // txActualWithholding is a RESERVE — routes to additionalTaxPaid alongside quarterly+savings
-  const combinedWithheld = businessWithheld + personalWithheld + projWithheld;
+  // FEDERAL withholding only (state isolated)
+  const combinedFederalWithheld = businessFederalWithheld + personalFederalWithheld + projWithheld;
+  const combinedStateWithheld = businessStateWithheld + personalStateWithheld;
   const additionalTaxPaid = quarterlyPaid + savingsTotal;
+
+  // Split state withholding into business vs personal pots for the engine
+  const stateTaxInputs: StateTaxInputs = {
+    stateTaxEnabled,
+    personalStateTaxMode,
+    personalStateTaxRate,
+    personalStateTaxAnnualEstimate,
+    personalStateWithheld,
+    businessStateTaxEnabled,
+    businessStateTaxRate,
+    businessStateTaxBase,
+    eligibleBusinessGross: businessStateEligibleGross,
+    eligibleBusinessExpenses: businessStateEligibleExpenses,
+    eligibleBusinessMileage: businessStateEligibleMileage,
+    eligibleBusinessOwnerAdjustments: businessStateEligibleOwnerAdjustments,
+    businessStateWithheld,
+    legacyStateRate,
+  };
 
   const estimate = calculateFullEstimate({
     totalIncome,
@@ -146,7 +202,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     retirement401k: combined401k,
     businessDeductions: businessExpenses,
     mileageDeduction,
-    taxesWithheld: combinedWithheld,
+    taxesWithheld: combinedFederalWithheld,
     filingStatus,
     lastYearTax,
     standardDeductionOverride,
@@ -161,6 +217,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     withholdingOverrideType,
     withholdingOverridePercent,
     withholdingOverrideAmount,
+    stateTaxInputs,
   });
 
   const totalDeductions = combinedPreTax + combined401k + businessExpenses + mileageDeduction + estimate.deductionApplied + estimate.seTax.deductibleHalf;
@@ -180,7 +237,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     estimatedAnnualTax: estimate.totalTaxLiability,
     federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
     taxCredits: estimate.taxCredits,
-    taxesAlreadyWithheld: combinedWithheld,
+    taxesAlreadyWithheld: combinedFederalWithheld,
+    federalWithheld: combinedFederalWithheld,
+    stateWithheld: combinedStateWithheld,
+    personalStateTax: estimate.personalStateTax,
+    businessStateTax: estimate.businessStateTax,
     taxReserves: txActualWithholding,
     quarterlyPayments: quarterlyPaid,
     taxSavings: savingsTotal,
