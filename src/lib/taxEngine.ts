@@ -209,8 +209,18 @@ export interface TaxEstimate {
   federalTax: number;
   seTax: SelfEmploymentTax;
   bnoTax: number;
+  /** State income tax owed (personal). Includes withheld floor; never negative. */
+  personalStateTax: number;
+  /** State income tax owed (business). Net of any provided business state withholding. Never negative. */
+  businessStateTax: number;
+  /** Backwards-compat alias = personalStateTax + businessStateTax. */
+  stateTax: number;
   totalTaxLiability: number;
   taxesAlreadyWithheld: number;
+  /** Federal-only withholding included in taxesAlreadyWithheld. */
+  federalWithheld: number;
+  /** State-only withholding (separate from federal). */
+  stateWithheld: number;
   remainingLiability: number;
   quarterlyEstimate: number;
   effectiveRate: number;
@@ -247,6 +257,88 @@ export function calculateDependentCredits(
   return Math.max(0, baseCredit - reduction);
 }
 
+export interface StateTaxInputs {
+  /** Master switch — if false, both personal & business state tax are 0. */
+  stateTaxEnabled?: boolean;
+  /** Personal state tax mode: 'none' | 'flat_rate' | 'annual_estimate'. */
+  personalStateTaxMode?: "none" | "flat_rate" | "annual_estimate";
+  /** Personal state tax rate (percent, e.g. 4.5). Used when mode='flat_rate'. */
+  personalStateTaxRate?: number;
+  /** Personal annual state tax estimate ($). Used when mode='annual_estimate'. */
+  personalStateTaxAnnualEstimate?: number;
+  /** Withholding already paid to state on personal income. */
+  personalStateWithheld?: number;
+  /** Business state tax: enabled + rate (percent). */
+  businessStateTaxEnabled?: boolean;
+  businessStateTaxRate?: number;
+  /** Business state tax base for the *eligible* portion of business income. */
+  businessStateTaxBase?: "net_profit" | "gross";
+  /** Eligible business gross income (already filtered by application mode + per-company toggle). */
+  eligibleBusinessGross?: number;
+  /** Eligible business expenses (proportional, used when base='net_profit'). */
+  eligibleBusinessExpenses?: number;
+  /** Eligible mileage deduction (proportional). */
+  eligibleBusinessMileage?: number;
+  /** Eligible owner healthcare + retirement (subtracted when base='net_profit'). */
+  eligibleBusinessOwnerAdjustments?: number;
+  /** Withholding already paid to state on business income. */
+  businessStateWithheld?: number;
+  /** Legacy fallback rate (percent). Used only if state_tax_enabled is undefined/false AND a legacy value is non-zero. */
+  legacyStateRate?: number;
+}
+
+export function calculatePersonalStateTax(args: {
+  taxableIncome: number;
+  agi: number;
+  inputs: StateTaxInputs;
+}): { tax: number; withheld: number } {
+  const { taxableIncome, agi, inputs } = args;
+  const withheld = Math.max(0, inputs.personalStateWithheld || 0);
+
+  // New engine takes precedence when state_tax_enabled is true
+  if (inputs.stateTaxEnabled) {
+    let gross = 0;
+    if (inputs.personalStateTaxMode === "flat_rate") {
+      gross = Math.max(0, taxableIncome) * ((inputs.personalStateTaxRate || 0) / 100);
+    } else if (inputs.personalStateTaxMode === "annual_estimate") {
+      gross = Math.max(0, inputs.personalStateTaxAnnualEstimate || 0);
+    }
+    // mode='none' → 0
+    const due = Math.max(0, gross - withheld);
+    return { tax: due, withheld };
+  }
+
+  // Legacy fallback (only if new engine disabled and legacy rate > 0)
+  const legacy = (inputs.legacyStateRate || 0) / 100;
+  if (legacy > 0) {
+    const gross = Math.max(0, agi) * legacy;
+    return { tax: Math.max(0, gross - withheld), withheld };
+  }
+  return { tax: 0, withheld };
+}
+
+export function calculateBusinessStateTax(args: {
+  inputs: StateTaxInputs;
+}): { tax: number; withheld: number } {
+  const { inputs } = args;
+  const withheld = Math.max(0, inputs.businessStateWithheld || 0);
+  if (!inputs.stateTaxEnabled || !inputs.businessStateTaxEnabled) return { tax: 0, withheld };
+  const rate = (inputs.businessStateTaxRate || 0) / 100;
+  if (rate <= 0) return { tax: 0, withheld };
+  const gross = Math.max(0, inputs.eligibleBusinessGross || 0);
+  const base = inputs.businessStateTaxBase === "gross"
+    ? gross
+    : Math.max(
+        0,
+        gross
+          - (inputs.eligibleBusinessExpenses || 0)
+          - (inputs.eligibleBusinessMileage || 0)
+          - (inputs.eligibleBusinessOwnerAdjustments || 0),
+      );
+  const due = Math.max(0, base * rate - withheld);
+  return { tax: due, withheld };
+}
+
 export function calculateFullEstimate(params: {
   totalIncome: number;
   w2Income: number;
@@ -272,6 +364,8 @@ export function calculateFullEstimate(params: {
   withholdingOverrideType?: "none" | "percent" | "amount";
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
+  /** State tax inputs (separate engine — federal/state isolated) */
+  stateTaxInputs?: StateTaxInputs;
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
@@ -285,6 +379,7 @@ export function calculateFullEstimate(params: {
     withholdingOverrideType = "none",
     withholdingOverridePercent = null,
     withholdingOverrideAmount = null,
+    stateTaxInputs = {},
   } = params;
 
   // SE tax (calculate first — half is deductible)
@@ -312,9 +407,19 @@ export function calculateFullEstimate(params: {
   // B&O tax (WA)
   const bnoTax = seIncome * bnoRate;
 
-  // Total
-  const totalTaxLiability = federalTax + seTax.total + bnoTax;
-  const totalPaid = taxesWithheld + additionalTaxPaid;
+  // ── State tax (separate engine; floored at 0; withholding only offsets state) ──
+  const personal = calculatePersonalStateTax({ taxableIncome, agi, inputs: stateTaxInputs });
+  const business = calculateBusinessStateTax({ inputs: stateTaxInputs });
+  const personalStateTax = personal.tax;
+  const businessStateTax = business.tax;
+  const stateTax = personalStateTax + businessStateTax;
+  const stateWithheld = personal.withheld + business.withheld;
+
+  // Total liability includes state tax due (already net of state withholding)
+  const totalTaxLiability = federalTax + seTax.total + bnoTax + stateTax;
+  // taxesWithheld passed in is FEDERAL-side withholding only (state isolated)
+  const federalWithheld = Math.max(0, taxesWithheld);
+  const totalPaid = federalWithheld + additionalTaxPaid;
   const remainingLiability = Math.max(0, totalTaxLiability - totalPaid);
 
   // Quarterly
@@ -345,7 +450,6 @@ export function calculateFullEstimate(params: {
   // Optional withholding override (planning layer — does NOT change underlying tax math)
   let targetSetAside = recommendedSetAside;
   if (withholdingOverrideType === "percent" && withholdingOverridePercent != null) {
-    // Treat as % of gross income, distributed across remaining pay periods
     const annualTarget = totalIncome * (withholdingOverridePercent / 100);
     const remainingTarget = Math.max(0, annualTarget - totalPaid);
     targetSetAside = remainingTarget / effectivePayPeriods;
@@ -366,7 +470,11 @@ export function calculateFullEstimate(params: {
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     deductionApplied, deductionType,
     federalTaxBeforeCredits, taxCredits,
-    federalTax, seTax, bnoTax, totalTaxLiability, taxesAlreadyWithheld: taxesWithheld,
+    federalTax, seTax, bnoTax,
+    personalStateTax, businessStateTax, stateTax,
+    totalTaxLiability,
+    taxesAlreadyWithheld: federalWithheld,
+    federalWithheld, stateWithheld,
     remainingLiability, quarterlyEstimate, effectiveRate, federalEffectiveRate, marginalRate,
     safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside, targetSetAside,
     tracking,
