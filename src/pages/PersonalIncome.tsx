@@ -258,6 +258,8 @@ export default function PersonalIncome() {
 
   /** Validates the Source/Employer assignment. Returns true if OK. */
   function validateSource(): boolean {
+    // Source/Employer is only required for W2 income types.
+    if (!isW2Type(form.income_type)) return true;
     // Linked source picked → OK.
     if (form.source_id) return true;
     // "Other" entered with a name → OK (unless save-as-new is on without a kind).
