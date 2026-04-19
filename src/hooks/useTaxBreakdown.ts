@@ -104,6 +104,9 @@ export interface TaxBreakdownResult {
   preTaxDeductions: number;
   retirement401k: number;
   standardDeduction: number;
+  itemizedDeduction: number;
+  deductionApplied: number;
+  deductionType: "standard" | "itemized";
   seDeductibleHalf: number;
   // Planned-only totals (zero when mode === "actual")
   plannedBusinessRevenue: number;
@@ -123,9 +126,21 @@ export interface TaxBreakdownResult {
   ordinaryBracketCalc: BracketCalc;
   ltcgBracketCalc: BracketCalc;
   seTax: SETaxCalc;
+  /** Federal income tax computed from brackets, before applying dependent credits */
+  federalTaxBeforeCredits: number;
+  /** Child + other-dependent credits (with phase-out) */
+  dependentCredits: number;
+  qualifyingChildrenCount: number;
+  otherDependentsCount: number;
   totalEstimatedTax: number;
   effectiveRate: number; // 0-1
   marginalRate: number; // 0-1
+  // Optional withholding override
+  withholdingOverrideType: "none" | "percent" | "amount";
+  withholdingOverridePercent: number | null;
+  withholdingOverrideAmount: number | null;
+  /** Annual target derived from override (or estimated tax if no override) */
+  targetAnnualWithholding: number;
   isLoading: boolean;
 }
 
