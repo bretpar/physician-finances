@@ -208,7 +208,6 @@ export interface TaxEstimate {
   taxCredits: number;
   federalTax: number;
   seTax: SelfEmploymentTax;
-  bnoTax: number;
   /** State income tax owed (personal). Includes withheld floor; never negative. */
   personalStateTax: number;
   /** State income tax owed (business). Net of any provided business state withholding. Never negative. */
@@ -224,7 +223,7 @@ export interface TaxEstimate {
   remainingLiability: number;
   quarterlyEstimate: number;
   effectiveRate: number;
-  /** Federal income tax only as % of total income (excludes SE + B&O) */
+  /** Federal income tax only as % of total income (excludes SE) */
   federalEffectiveRate: number;
   marginalRate: number;
   // Safe harbor (legacy)
@@ -283,8 +282,6 @@ export interface StateTaxInputs {
   eligibleBusinessOwnerAdjustments?: number;
   /** Withholding already paid to state on business income. */
   businessStateWithheld?: number;
-  /** Legacy fallback rate (percent). Used only if state_tax_enabled is undefined/false AND a legacy value is non-zero. */
-  legacyStateRate?: number;
 }
 
 export function calculatePersonalStateTax(args: {
@@ -308,12 +305,6 @@ export function calculatePersonalStateTax(args: {
     return { tax: due, withheld };
   }
 
-  // Legacy fallback (only if new engine disabled and legacy rate > 0)
-  const legacy = (inputs.legacyStateRate || 0) / 100;
-  if (legacy > 0) {
-    const gross = Math.max(0, agi) * legacy;
-    return { tax: Math.max(0, gross - withheld), withheld };
-  }
   return { tax: 0, withheld };
 }
 
@@ -352,7 +343,6 @@ export function calculateFullEstimate(params: {
   lastYearTax: number;
   standardDeductionOverride?: number | null;
   ssWageCap?: number;
-  bnoRate?: number;
   remainingPayPeriods?: number;
   additionalTaxPaid?: number; // quarterly payments + tax savings
   // New tax-profile inputs
@@ -371,7 +361,7 @@ export function calculateFullEstimate(params: {
     totalIncome, w2Income, seIncome, preTaxDeductions, retirement401k,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
     lastYearTax, standardDeductionOverride, ssWageCap = SS_WAGE_CAP_DEFAULT,
-    bnoRate = 0.015, remainingPayPeriods = 12, additionalTaxPaid = 0,
+    remainingPayPeriods = 12, additionalTaxPaid = 0,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
     qualifyingChildrenCount = 0,
@@ -404,9 +394,6 @@ export function calculateFullEstimate(params: {
   const taxCredits = calculateDependentCredits(qualifyingChildrenCount, otherDependentsCount, agi, filingStatus);
   const federalTax = Math.max(0, federalTaxBeforeCredits - taxCredits);
 
-  // B&O tax (WA)
-  const bnoTax = seIncome * bnoRate;
-
   // ── State tax (separate engine; floored at 0; withholding only offsets state) ──
   const personal = calculatePersonalStateTax({ taxableIncome, agi, inputs: stateTaxInputs });
   const business = calculateBusinessStateTax({ inputs: stateTaxInputs });
@@ -416,7 +403,7 @@ export function calculateFullEstimate(params: {
   const stateWithheld = personal.withheld + business.withheld;
 
   // Total liability includes state tax due (already net of state withholding)
-  const totalTaxLiability = federalTax + seTax.total + bnoTax + stateTax;
+  const totalTaxLiability = federalTax + seTax.total + stateTax;
   // taxesWithheld passed in is FEDERAL-side withholding only (state isolated)
   const federalWithheld = Math.max(0, taxesWithheld);
   const totalPaid = federalWithheld + additionalTaxPaid;
@@ -470,7 +457,7 @@ export function calculateFullEstimate(params: {
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     deductionApplied, deductionType,
     federalTaxBeforeCredits, taxCredits,
-    federalTax, seTax, bnoTax,
+    federalTax, seTax,
     personalStateTax, businessStateTax, stateTax,
     totalTaxLiability,
     taxesAlreadyWithheld: federalWithheld,

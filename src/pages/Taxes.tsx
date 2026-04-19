@@ -293,7 +293,7 @@ export default function Taxes() {
               <ul className="list-disc pl-5 space-y-1">
                 <li>We combine your <strong>actual income received</strong> with any <strong>projected future income</strong> to estimate your annual total.</li>
                 <li>We subtract deductions — pre-tax contributions, retirement, business expenses, and your standard deduction.</li>
-                <li>We apply <strong>federal tax brackets</strong> to your estimated taxable income, plus self-employment tax and WA B&O tax where applicable.</li>
+                <li>We apply <strong>federal tax brackets</strong> to your estimated taxable income, plus self-employment tax and state tax where applicable.</li>
                 <li>We subtract taxes already withheld from paychecks and any quarterly payments you've made.</li>
                 <li>The remaining amount is spread across remaining months to give you a <strong>recommended monthly set-aside</strong>.</li>
               </ul>
@@ -317,7 +317,9 @@ export default function Taxes() {
               <CardContent className="pt-4 pb-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Federal Income Tax</span><span className="font-medium">{fmt(e.federalTax)}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(e.seTax.total)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">WA B&O Tax</span><span className="font-medium">{fmt(e.bnoTax)}</span></div>
+                {(e.personalStateTax > 0 || e.businessStateTax > 0) && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">State Tax</span><span className="font-medium">{fmt(e.stateTax)}</span></div>
+                )}
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
                   <span>Total Estimated Tax</span><span>{fmt(e.totalTaxLiability)}</span>
                 </div>

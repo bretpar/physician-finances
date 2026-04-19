@@ -1024,7 +1024,6 @@ export type Database = {
       }
       tax_settings: {
         Row: {
-          bno_rate: number
           business_state_tax_application_mode: string
           business_state_tax_base: string
           business_state_tax_company_ids: string[]
@@ -1032,7 +1031,6 @@ export type Database = {
           business_state_tax_rate: number
           created_at: string
           deduction_type: string
-          federal_rate: number
           filing_status: string
           id: string
           itemized_deduction_amount: number
@@ -1047,7 +1045,6 @@ export type Database = {
           ss_wage_cap: number
           standard_deduction_override: number | null
           state_of_residence: string
-          state_rate: number
           state_tax_enabled: boolean
           tax_mode: string
           updated_at: string
@@ -1058,7 +1055,6 @@ export type Database = {
           withholding_override_type: string
         }
         Insert: {
-          bno_rate?: number
           business_state_tax_application_mode?: string
           business_state_tax_base?: string
           business_state_tax_company_ids?: string[]
@@ -1066,7 +1062,6 @@ export type Database = {
           business_state_tax_rate?: number
           created_at?: string
           deduction_type?: string
-          federal_rate?: number
           filing_status?: string
           id?: string
           itemized_deduction_amount?: number
@@ -1081,7 +1076,6 @@ export type Database = {
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_of_residence?: string
-          state_rate?: number
           state_tax_enabled?: boolean
           tax_mode?: string
           updated_at?: string
@@ -1092,7 +1086,6 @@ export type Database = {
           withholding_override_type?: string
         }
         Update: {
-          bno_rate?: number
           business_state_tax_application_mode?: string
           business_state_tax_base?: string
           business_state_tax_company_ids?: string[]
@@ -1100,7 +1093,6 @@ export type Database = {
           business_state_tax_rate?: number
           created_at?: string
           deduction_type?: string
-          federal_rate?: number
           filing_status?: string
           id?: string
           itemized_deduction_amount?: number
@@ -1115,7 +1107,6 @@ export type Database = {
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_of_residence?: string
-          state_rate?: number
           state_tax_enabled?: boolean
           tax_mode?: string
           updated_at?: string

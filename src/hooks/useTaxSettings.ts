@@ -11,10 +11,6 @@ export type BusinessStateTaxApplicationMode = "all_business" | "selected";
 
 export interface TaxRates {
   id?: string;
-  // Legacy fields (kept for backward compatibility, shown under "Legacy / Advanced")
-  federalRate: number;
-  stateRate: number;
-  bnoRate: number;
   // Core profile
   filingStatus: "single" | "married_filing_jointly";
   lastYearTax: number;
@@ -31,7 +27,7 @@ export interface TaxRates {
   withholdingOverrideType: WithholdingOverrideType;
   withholdingOverridePercent: number | null;
   withholdingOverrideAmount: number | null;
-  // ─── State Tax (new) ───
+  // ─── State Tax ───
   stateTaxEnabled: boolean;
   stateOfResidence: string;
   personalStateTaxMode: PersonalStateTaxMode;
@@ -45,9 +41,6 @@ export interface TaxRates {
 }
 
 const DEFAULT_RATES: TaxRates = {
-  federalRate: 20,
-  stateRate: 0,
-  bnoRate: 1.5,
   filingStatus: "single",
   lastYearTax: 0,
   standardDeductionOverride: null,
@@ -88,9 +81,6 @@ export function useTaxSettings() {
       const d = data as any;
       return {
         id: data.id,
-        federalRate: Number(data.federal_rate),
-        stateRate: Number(data.state_rate),
-        bnoRate: Number(data.bno_rate),
         filingStatus: (data.filing_status as TaxRates["filingStatus"]) || "single",
         lastYearTax: Number(data.last_year_tax) || 0,
         standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,
@@ -126,9 +116,6 @@ export function useUpdateTaxSettings() {
     mutationFn: async (settings: Partial<TaxRates> & { id: string }) => {
       const { id, ...rest } = settings;
       const payload: Record<string, unknown> = {};
-      if (rest.federalRate !== undefined) payload.federal_rate = rest.federalRate;
-      if (rest.stateRate !== undefined) payload.state_rate = rest.stateRate;
-      if (rest.bnoRate !== undefined) payload.bno_rate = rest.bnoRate;
       if (rest.filingStatus !== undefined) payload.filing_status = rest.filingStatus;
       if (rest.lastYearTax !== undefined) payload.last_year_tax = rest.lastYearTax;
       if (rest.standardDeductionOverride !== undefined) payload.standard_deduction_override = rest.standardDeductionOverride;

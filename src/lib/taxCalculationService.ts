@@ -57,7 +57,6 @@ export interface UnifiedTaxInput {
   lastYearTax: number;
   standardDeductionOverride?: number | null;
   ssWageCap: number;
-  bnoRate: number;              // Already as decimal (e.g. 0.015)
   // New tax-profile inputs
   deductionType?: "standard" | "itemized";
   itemizedDeductionAmount?: number;
@@ -75,8 +74,6 @@ export interface UnifiedTaxInput {
   businessStateTaxEnabled?: boolean;
   businessStateTaxRate?: number;
   businessStateTaxBase?: "net_profit" | "gross";
-  /** Legacy flat state rate (used only if stateTaxEnabled=false and rate>0). */
-  legacyStateRate?: number;
 
   // Mode
   includeProjectedIncome: boolean;
@@ -135,7 +132,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     netStockGain, businessExpenses, mileageDeduction, annualizedRetirement,
     txActualWithholding, quarterlyPaid, savingsTotal, remainingPayPeriods,
     projectedGrossIncome, projectedTaxesWithheld, projectedPreTax, projectedRetirement,
-    filingStatus, lastYearTax, standardDeductionOverride, ssWageCap, bnoRate,
+    filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
     qualifyingChildrenCount = 0,
@@ -150,7 +147,6 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     businessStateTaxEnabled = false,
     businessStateTaxRate = 0,
     businessStateTaxBase = "net_profit",
-    legacyStateRate = 0,
     includeProjectedIncome,
   } = input;
 
@@ -191,7 +187,6 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     eligibleBusinessMileage: businessStateEligibleMileage,
     eligibleBusinessOwnerAdjustments: businessStateEligibleOwnerAdjustments,
     businessStateWithheld,
-    legacyStateRate,
   };
 
   const estimate = calculateFullEstimate({
@@ -207,7 +202,6 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     lastYearTax,
     standardDeductionOverride,
     ssWageCap,
-    bnoRate,
     remainingPayPeriods,
     additionalTaxPaid,
     deductionType,
