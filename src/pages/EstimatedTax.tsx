@@ -252,10 +252,12 @@ export default function EstimatedTax() {
               )}
               <div className="flex justify-between"><span>Deductible half (reduces AGI)</span><span>−{fmt(e.seTax.deductibleHalf)}</span></div>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">WA B&O Tax</span>
-              <span className="font-medium">{fmt(e.bnoTax)}</span>
-            </div>
+            {(e.personalStateTax > 0 || e.businessStateTax > 0) && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">State Tax</span>
+                <span className="font-medium">{fmt(e.stateTax)}</span>
+              </div>
+            )}
             <div className="border-t border-border pt-2 flex justify-between font-semibold">
               <span>Total Estimated Tax</span>
               <span>{fmt(e.totalTaxLiability)}</span>
@@ -439,14 +441,6 @@ export default function EstimatedTax() {
         {editingSettings && rates?.id && (
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">B&O Tax Rate (%)</Label>
-                <Input
-                  type="number" step="0.1" min="0"
-                  defaultValue={rates.bnoRate}
-                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, bnoRate: parseFloat(ev.target.value) || 0 })}
-                />
-              </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">SS Wage Cap</Label>
                 <Input
