@@ -423,6 +423,10 @@ export default function Transactions() {
     const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
     const healthcare = preserve("owner_healthcare", num(incomeForm.owner_healthcare), (linkedEntry as any)?.owner_healthcare || 0);
+    const fedWH = preserve("federal_withholding", num(incomeForm.federal_withholding), (linkedEntry as any)?.federal_withholding || 0);
+    const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
+    const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
+    const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
     // Determine the correct amount for the transactions table:
