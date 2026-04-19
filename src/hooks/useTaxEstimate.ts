@@ -195,7 +195,6 @@ export function useTaxEstimate(): {
       lastYearTax: rates.lastYearTax,
       standardDeductionOverride: rates.standardDeductionOverride,
       ssWageCap: rates.ssWageCap,
-      bnoRate: rates.bnoRate / 100,
       deductionType: rates.deductionType,
       itemizedDeductionAmount: rates.itemizedDeductionAmount,
       qualifyingChildrenCount: rates.qualifyingChildrenCount,
@@ -210,7 +209,6 @@ export function useTaxEstimate(): {
       businessStateTaxEnabled: rates.businessStateTaxEnabled,
       businessStateTaxRate: rates.businessStateTaxRate,
       businessStateTaxBase: rates.businessStateTaxBase,
-      legacyStateRate: rates.stateRate,
     };
   }, [incomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
 
