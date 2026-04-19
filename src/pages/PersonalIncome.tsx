@@ -217,6 +217,7 @@ export default function PersonalIncome() {
         income_date: form.date,
         income_type: form.income_type,
         company: form.source_name,
+        source_id: form.source_id,
         source_bucket: "personal" as const,
         tax_category: TAX_CATEGORY_MAP[form.income_type] || "ordinary",
         gross_amount: grossAmt,
@@ -244,17 +245,54 @@ export default function PersonalIncome() {
     };
   }
 
-  function saveForm() {
+  /** Validates the Source/Employer assignment. Returns true if OK. */
+  function validateSource(): boolean {
+    // Linked source picked → OK.
+    if (form.source_id) return true;
+    // "Other" entered with a name → OK (unless save-as-new is on without a kind).
+    if (form.source_name.trim()) {
+      if (form.source_save_as_new && !form.source_new_kind) return false;
+      return true;
+    }
+    return false;
+  }
+
+  async function saveForm() {
     if (!form.title.trim() || !form.date || num(form.gross_amount) <= 0) return;
+    if (!validateSource()) {
+      setShowSourceError(true);
+      return;
+    }
+    setShowSourceError(false);
+
+    // If "save as new source" was checked, create the source first and link it.
+    let payloadSourceId = form.source_id;
+    if (!payloadSourceId && form.source_save_as_new && form.source_new_kind && form.source_name.trim()) {
+      try {
+        const newId = await persistNewSourceIfRequested(
+          {
+            otherName: form.source_name,
+            saveAsNew: true,
+            newSourceKind: form.source_new_kind,
+          },
+          createSource.mutateAsync,
+        );
+        payloadSourceId = newId;
+      } catch {
+        return; // toast already fired in mutation
+      }
+    }
+
     const { payload, recommendation } = buildPayload();
+    const finalPayload = { ...payload, source_id: payloadSourceId };
     const showModal2 = isFeatureEnabled("recommendation_modal") && !isEditing;
 
     if (isEditing) {
-      updateMutation.mutate({ id: editingId!, ...payload } as any, {
+      updateMutation.mutate({ id: editingId!, ...finalPayload } as any, {
         onSuccess: () => { setShowForm(false); setEditingId(null); },
       });
     } else {
-      addMutation.mutate(payload as any, {
+      addMutation.mutate(finalPayload as any, {
         onSuccess: (_, __, context) => {
           setShowForm(false);
           if (showModal2 && recommendation) {
