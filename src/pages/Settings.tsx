@@ -105,6 +105,7 @@ export default function Settings() {
       defaultSetasidePct: null,
       notes: "",
       advancedFieldVisibility: {},
+      applyBusinessStateTax: true,
     });
   }
   function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
