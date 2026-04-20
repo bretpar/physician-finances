@@ -677,6 +677,7 @@ export function getProjectedTotals(
     stateWithheld: 0,
     retirement401k: 0,
     preTaxDeductions: 0,
+    healthInsuranceDeduction: 0,
     netIncome: 0,
     count: 0,
     w2Income: 0,
@@ -707,6 +708,7 @@ export function getProjectedTotals(
     acc.taxesWithheld += fed + st;
     acc.retirement401k += p.retirement401k;
     acc.preTaxDeductions += p.preTaxDeductions;
+    acc.healthInsuranceDeduction += p.ownerHealthcare || 0;
     acc.netIncome += p.netAmount;
     acc.count += 1;
 
