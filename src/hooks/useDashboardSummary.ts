@@ -57,7 +57,7 @@ export function useDashboardSummary(
 
     // Business withholding from transactions
     const txWithheld = txs
-      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
 
     // Legacy business income entries withholding

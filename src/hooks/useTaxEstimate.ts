@@ -152,7 +152,7 @@ export function useTaxEstimate(): {
 
     // Business expenses
     const businessExpenses = (transactions || [])
-      .filter((t) => t.transaction_type === "expense" && !t.is_deleted && t.category !== "Personal" && t.entity !== "Unassigned")
+      .filter((t) => t.transaction_type === "expense" && t.category !== "Personal" && t.entity !== "Unassigned")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
 
     const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
@@ -160,7 +160,7 @@ export function useTaxEstimate(): {
 
     // User reserves (NOT taxes paid)
     const txActualWithholding = (transactions || [])
-      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
 
     // Remaining pay periods
