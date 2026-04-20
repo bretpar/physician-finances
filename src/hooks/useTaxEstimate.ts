@@ -176,11 +176,11 @@ export function useTaxEstimate(): {
     const savingsTotal = taxSavings.reduce((s, e) => s + Number(e.amount), 0);
 
     // Projected totals (bucketed by W-2 / SE / other; fed/state withholding split)
-    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries || []);
+    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
     const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
 
     // Owner healthcare (K-1 deduction)
-    const ownerHealthcare = (incomeEntries || [])
+    const ownerHealthcare = incomeEntriesClean
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
 
