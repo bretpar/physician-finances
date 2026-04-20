@@ -49,7 +49,66 @@ export function useTaxEstimate(): {
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
   const { companies } = useCompanies();
 
-  const weighted = useWeightedIncome(incomeEntries);
+  // ── Reconcile income_entries before any tax math ─────────────────────────
+  // Two failure modes we defend against:
+  //  1) ORPHANS — an income_entry with a linked_transaction_id pointing at a
+  //     transaction that no longer exists (e.g. user deleted the manual income
+  //     row in Business Activity but the income_entry was left behind). These
+  //     would otherwise inflate Gross Business Income on the Taxes page even
+  //     though Business Activity no longer shows them.
+  //  2) DUPLICATES — same company + same income_date + same paycheck_amount
+  //     appearing twice (e.g. user re-entered after a delete, or a manual
+  //     entry + Plaid import both got promoted to income_entries). We keep the
+  //     row that's still linked to a live transaction; otherwise we keep one.
+  const reconciledIncomeEntries = useMemo(() => {
+    if (!incomeEntries) return undefined;
+    const liveTxIds = new Set((transactions || []).map((t) => t.id));
+
+    // 1) Drop orphans (linked_transaction_id set but transaction missing)
+    const notOrphans = incomeEntries.filter((e) => {
+      if (!e.linked_transaction_id) return true; // unlinked is fine
+      return liveTxIds.has(e.linked_transaction_id);
+    });
+
+    // 2) Dedupe by exact (company|date|amount). Prefer the live-linked row.
+    const byKey = new Map<string, typeof notOrphans[number]>();
+    for (const e of notOrphans) {
+      const key = `${e.company || ""}|${e.income_date}|${Number(e.paycheck_amount || 0).toFixed(2)}`;
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, e);
+        continue;
+      }
+      const existingLinked = !!existing.linked_transaction_id && liveTxIds.has(existing.linked_transaction_id);
+      const candidateLinked = !!e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id);
+      if (candidateLinked && !existingLinked) {
+        byKey.set(key, e);
+      } else if (candidateLinked === existingLinked) {
+        const newer = new Date(e.updated_at || e.created_at) > new Date(existing.updated_at || existing.created_at) ? e : existing;
+        byKey.set(key, newer);
+      }
+    }
+
+    const result = Array.from(byKey.values());
+
+    if (typeof window !== "undefined") {
+      const orphanCount = incomeEntries.length - notOrphans.length;
+      const dupeCount = notOrphans.length - result.length;
+      if (orphanCount > 0 || dupeCount > 0) {
+        // eslint-disable-next-line no-console
+        console.warn("[useTaxEstimate] income_entries reconciliation:", {
+          total: incomeEntries.length,
+          excludedOrphans: orphanCount,
+          excludedDuplicates: dupeCount,
+          included: result.length,
+          includedBusinessGross: result.reduce((s, e) => s + Number(e.paycheck_amount || 0), 0),
+        });
+      }
+    }
+    return result;
+  }, [incomeEntries, transactions]);
+
+  const weighted = useWeightedIncome(reconciledIncomeEntries);
   const annualizedRetirement = useAnnualizedContributions(retirementContribs);
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
