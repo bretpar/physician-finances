@@ -471,6 +471,7 @@ export function generateProjectedPaychecks(
     taxesWithheld: number;
     retirement401k: number;
     preTaxDeductions: number;
+    ownerHealthcare: number;
     type: "paycheck" | "bonus";
     label: string;
     streamId: string;
