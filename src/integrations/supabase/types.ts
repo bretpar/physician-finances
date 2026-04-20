@@ -1381,6 +1381,7 @@ export type Database = {
           schedule_c_category: string | null
           source_id: string | null
           source_type: string
+          status: string
           transaction_date: string
           transaction_type: string
           transfer_subtype: string | null
@@ -1415,6 +1416,7 @@ export type Database = {
           schedule_c_category?: string | null
           source_id?: string | null
           source_type?: string
+          status?: string
           transaction_date?: string
           transaction_type?: string
           transfer_subtype?: string | null
@@ -1449,6 +1451,7 @@ export type Database = {
           schedule_c_category?: string | null
           source_id?: string | null
           source_type?: string
+          status?: string
           transaction_date?: string
           transaction_type?: string
           transfer_subtype?: string | null
@@ -1464,6 +1467,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]

@@ -32,6 +32,8 @@ export interface DbTransaction {
   receipt_url: string | null;
   entity: string;
   company_type: string;
+  /** Canonical FK → companies.id. Source of truth for which business the row belongs to. */
+  source_id: string | null;
   parent_transaction_id: string | null;
   recurring_frequency: string | null;
   is_recurring: boolean;
@@ -43,6 +45,8 @@ export interface DbTransaction {
   plaid_transaction_ref: string | null;
   linked_group_id: string | null;
   match_status: string;
+  /** 'active' = visible in ledger. 'duplicate' | 'merged' | 'archived' = hidden. */
+  status: string;
   needs_review: boolean;
   excluded_from_reports: boolean;
   transfer_subtype: string | null;
@@ -70,16 +74,56 @@ export function useBulkUpdateTransactions() {
   });
 }
 
+/**
+ * Global transactions feed (all of the user's active rows across companies).
+ * Hard-delete model: deletion removes the row. We additionally filter by
+ * `status = 'active'` so rows soft-marked as 'merged' / 'duplicate' / 'archived'
+ * (e.g. the non-canonical side of a manual↔Plaid match) never appear in the
+ * ledger or in totals.
+ */
 export function useTransactions() {
   return useQuery({
     queryKey: ["transactions"],
     queryFn: async () => {
-      // Hard-delete model: rows in this table are always live.
-      // No is_deleted filter needed — deletion removes the row.
       const { data, error } = await supabase
         .from("transactions")
         .select("*")
-        .order("transaction_date", { ascending: false });
+        .eq("status", "active")
+        .order("transaction_date", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as DbTransaction[];
+    },
+  });
+}
+
+/**
+ * Strict business-ledger query. Reads the canonical `transactions` table as
+ * the single source of truth. Returns ONLY rows that:
+ *   - belong to the current authenticated user (enforced by RLS, repeated for safety)
+ *   - belong to the requested business (`source_id = sourceId`)
+ *   - are still active (not duplicate / merged / archived)
+ *   - are not excluded from reports (treated as `is_hidden`)
+ *
+ * Account → business mapping is only a default at import time; this query
+ * trusts `source_id` as the final assignment.
+ */
+export function useBusinessLedger(sourceId: string | null) {
+  return useQuery({
+    queryKey: ["transactions", "business-ledger", sourceId],
+    enabled: !!sourceId,
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !sourceId) return [] as DbTransaction[];
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("source_id", sourceId)
+        .eq("status", "active")
+        .eq("excluded_from_reports", false)
+        .order("transaction_date", { ascending: false })
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as DbTransaction[];
     },
