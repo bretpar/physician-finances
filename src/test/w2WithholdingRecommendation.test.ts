@@ -55,7 +55,7 @@ const baseInput: UnifiedTaxInput = {
   withholdingOverridePercent: null,
   withholdingOverrideAmount: null,
   stateTaxEnabled: false,
-  personalStateTaxMode: "rate",
+  personalStateTaxMode: "flat_rate",
   personalStateTaxRate: 0,
   personalStateTaxAnnualEstimate: 0,
   businessStateTaxEnabled: false,
