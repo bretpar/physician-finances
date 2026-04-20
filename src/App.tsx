@@ -17,6 +17,7 @@ import Reports from "@/pages/Reports";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import ProjectedIncome from "@/pages/ProjectedIncome";
+import DebugTransactions from "@/pages/DebugTransactions";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ function ProtectedRoutes() {
           <Route path="/taxes" element={<Taxes />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/debug/transactions" element={<DebugTransactions />} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />

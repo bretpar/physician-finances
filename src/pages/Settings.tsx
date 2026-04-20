@@ -44,6 +44,7 @@ import {
 } from "@/hooks/usePlaid";
 import { DuplicateCleanupCard } from "@/components/DuplicateCleanupCard";
 import { RestoreTombstonesCard } from "@/components/RestoreTombstonesCard";
+import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -1147,6 +1148,7 @@ export default function Settings() {
         <h2 className="text-base font-semibold text-foreground">Data Maintenance</h2>
         <DuplicateCleanupCard />
         <RestoreTombstonesCard />
+        <OrphanIncomeCleanupCard />
       </section>
 
       {/* Edit account routing dialog */}

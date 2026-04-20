@@ -111,6 +111,105 @@ export function useTaxEstimate(): {
   const weighted = useWeightedIncome(reconciledIncomeEntries);
   const annualizedRetirement = useAnnualizedContributions(retirementContribs);
 
+  // ── Canonical business income (matches Business Ledger exactly) ──────────
+  // The Business Ledger reads `transactions` where status='active'. Tax math
+  // MUST use the same set, otherwise a manually deleted transaction can leave
+  // the ledger and Tax Overview disagreeing. We classify each active income
+  // transaction by its company's filing type (preferred) or its denormalized
+  // company_type field (fallback) into:
+  //   - W-2 (scorp_w2, w2)             → not subject to SE tax
+  //   - SE  (1099_schedule_c, k1)      → subject to SE tax
+  //   - other (scorp_distribution etc.)→ ordinary, no SE
+  //
+  // income_entries is then used ONLY as an enrichment layer for the canonical
+  // transactions, providing per-paycheck withholding / retirement / pre-tax
+  // / owner_healthcare values. Income_entries with no live linked transaction
+  // contribute nothing — they cannot inflate gross above what the ledger shows.
+  const canonicalBusiness = useMemo(() => {
+    const txs = transactions || [];
+    const companyById = new Map(companies.map((c) => [c.id, c] as const));
+    const companyByName = new Map(companies.map((c) => [c.name.toLowerCase().trim(), c] as const));
+
+    let grossSE = 0;        // 1099 + K-1 (subject to SE tax)
+    let grossW2Business = 0; // scorp_w2, w2 booked under a business
+    let grossOtherBusiness = 0; // scorp_distribution, other
+
+    const seEligibleTxIds = new Set<string>();
+    const businessStateEligibleByTx = new Map<string, number>();
+
+    // Build eligible-company set for state business tax
+    const eligibleCompanyIds = new Set<string>();
+    const eligibleCompanyNames = new Set<string>();
+    for (const c of companies) {
+      const meta = normalizeFilingType(c.companyType);
+      const isBusiness = meta === "1099_schedule_c" || meta === "k1_partnership" || meta === "scorp_distribution";
+      if (!isBusiness) continue;
+      if (c.applyBusinessStateTax === false) continue;
+      if (rates?.businessStateTaxApplicationMode === "selected" && !rates.businessStateTaxCompanyIds.includes(c.id)) continue;
+      eligibleCompanyIds.add(c.id);
+      eligibleCompanyNames.add(c.name.toLowerCase().trim());
+    }
+
+    for (const t of txs) {
+      if (t.transaction_type !== "income") continue;
+      // Resolve filing type: prefer companies.companyType via source_id, else fall back to tx.company_type
+      const company = (t.source_id && companyById.get(t.source_id)) ||
+        (t.entity && companyByName.get(t.entity.toLowerCase().trim()));
+      const filingRaw = company?.companyType ?? t.company_type;
+      const filing = normalizeFilingType(filingRaw);
+      const amt = Math.abs(Number(t.amount) || 0);
+
+      if (filing === "1099_schedule_c" || filing === "k1_partnership") {
+        grossSE += amt;
+        seEligibleTxIds.add(t.id);
+      } else if (filing === "scorp_w2" || filing === "w2") {
+        grossW2Business += amt;
+      } else {
+        grossOtherBusiness += amt;
+      }
+
+      // State business tax eligibility check
+      const isBusinessFiling = filing === "1099_schedule_c" || filing === "k1_partnership" || filing === "scorp_distribution";
+      if (isBusinessFiling) {
+        const eligible = company
+          ? eligibleCompanyIds.has(company.id)
+          : eligibleCompanyNames.has((t.entity || "").toLowerCase().trim());
+        if (eligible) businessStateEligibleByTx.set(t.id, amt);
+      }
+    }
+
+    // Enrichment from income_entries — but ONLY for entries linked to a live
+    // active transaction. This prevents stale/orphaned income_entries from
+    // contributing federal_withholding, retirement, etc.
+    const liveTxIds = new Set(txs.filter((t) => t.transaction_type === "income").map((t) => t.id));
+    const linkedEntries = (reconciledIncomeEntries || []).filter(
+      (e) => e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id),
+    );
+
+    const businessFederalWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).federal_withholding || 0), 0);
+    const businessStateWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
+    const businessPreTax = linkedEntries.reduce((s, e) => s + Number(e.pre_tax_deductions || 0), 0);
+    const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
+    const ownerHealthcare = linkedEntries
+      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
+      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
+
+    const businessStateEligibleGross = Array.from(businessStateEligibleByTx.values()).reduce((s, v) => s + v, 0);
+
+    return {
+      grossSE,
+      grossW2Business,
+      grossOtherBusiness,
+      totalBusinessGross: grossSE + grossW2Business + grossOtherBusiness,
+      businessFederalWithheld,
+      businessStateWithheld,
+      businessPreTax,
+      businessRetirement,
+      ownerHealthcare,
+      businessStateEligibleGross,
+    };
+  }, [transactions, reconciledIncomeEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds]);
+
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
 
   // Build shared base input once
@@ -179,66 +278,34 @@ export function useTaxEstimate(): {
     const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
     const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
 
-    // Owner healthcare (K-1 deduction)
-    const ownerHealthcare = incomeEntriesClean
-      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
-      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
+    // ── BUSINESS INCOME: derived from canonical transactions, not income_entries ──
+    // This is the single source of truth that the Business Ledger also reads.
+    // (See `canonicalBusiness` above.) income_entries only enriches this with
+    // per-paycheck withholding/retirement/owner-healthcare values.
+    const businessIncome = canonicalBusiness.grossSE;
+    const seEligibleBusinessIncome = canonicalBusiness.grossSE;
+    const businessW2 = canonicalBusiness.grossW2Business;
+    const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
+    const businessStateWithheld = canonicalBusiness.businessStateWithheld;
+    const businessPreTax = canonicalBusiness.businessPreTax;
+    const businessRetirement = canonicalBusiness.businessRetirement;
+    const ownerHealthcare = canonicalBusiness.ownerHealthcare;
+    const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
 
-    // Business federal vs state withholding.
-    //
-    // Field semantics (income_entries):
-    //   federal_withholding = actual federal tax already withheld (TRUSTED)
-    //   state_withholding   = actual state tax already withheld   (TRUSTED)
-    //   taxes_withheld      = legacy/general field — NOT trusted for tax-credit
-    //                         totals (would double-count federal_withholding)
-    //   actual_withholding  (on transactions) = savings reserve only, NOT a
-    //                         submitted tax payment
-    //
-    // We intentionally only sum the canonical federal_withholding column here.
-    const businessFederalWithheld = incomeEntriesClean.reduce(
-      (s, e) => s + Number((e as any).federal_withholding || 0),
-      0,
-    );
-    const businessStateWithheld = incomeEntriesClean.reduce(
-      (s, e) => s + Number((e as any).state_withholding || 0),
-      0,
-    );
-
-    // ── SE-eligible business income (Schedule C + K-1 partnership only) ──
-    // Excludes scorp_distribution, scorp_w2, w2, other — those are NOT subject
-    // to SE tax even though they may be tracked under a "business" company.
-    const SE_ELIGIBLE_TYPES = new Set(["1099_schedule_c", "k1_partnership"]);
-    const seEligibleBusinessIncome = incomeEntriesClean
-      .filter((e) => SE_ELIGIBLE_TYPES.has(normalizeFilingType(e.income_type)))
-      .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
-
-    // ── Eligible business income for state business tax ──
-    const eligibleCompanyNames = new Set<string>();
-    for (const c of companies) {
-      const meta = normalizeFilingType(c.companyType);
-      const isBusiness = meta === "1099_schedule_c" || meta === "k1_partnership" || meta === "scorp_distribution";
-      if (!isBusiness) continue;
-      if (c.applyBusinessStateTax === false) continue;
-      if (rates.businessStateTaxApplicationMode === "selected" && !rates.businessStateTaxCompanyIds.includes(c.id)) continue;
-      eligibleCompanyNames.add(c.name);
-    }
-    const businessStateEligibleGross = incomeEntriesClean
-      .filter((e) => isSelfEmployedFilingType(e.income_type) && eligibleCompanyNames.has(e.company))
-      .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
-    const totalBusinessGross = weighted.se || 1;
-    const eligibleRatio = totalBusinessGross > 0 ? businessStateEligibleGross / totalBusinessGross : 0;
+    const totalBG = canonicalBusiness.totalBusinessGross || 0;
+    const eligibleRatio = totalBG > 0 ? businessStateEligibleGross / totalBG : 0;
     const businessStateEligibleExpenses = businessExpenses * eligibleRatio;
     const businessStateEligibleMileage = mileageDeduction * eligibleRatio;
-    const businessStateEligibleOwnerAdjustments = (ownerHealthcare + weighted.retirement) * eligibleRatio;
+    const businessStateEligibleOwnerAdjustments = (ownerHealthcare + businessRetirement) * eligibleRatio;
 
     return {
-      businessIncome: weighted.se,
+      businessIncome,
       seEligibleBusinessIncome,
-      businessW2: weighted.w2,
+      businessW2,
       businessFederalWithheld,
       businessStateWithheld,
-      businessPreTax: weighted.preTax,
-      businessRetirement: weighted.retirement,
+      businessPreTax,
+      businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
       businessStateEligibleExpenses,
@@ -286,7 +353,7 @@ export function useTaxEstimate(): {
       businessStateTaxRate: rates.businessStateTaxRate,
       businessStateTaxBase: rates.businessStateTaxBase,
     };
-  }, [reconciledIncomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
+  }, [reconciledIncomeEntries, personalEntries, canonicalBusiness, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
 
   // Actual estimate (no projected income)
   const actualResult = useMemo(() => {
