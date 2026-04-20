@@ -45,6 +45,24 @@ export default function Reports() {
   const { data: transactions = [] } = useTransactions();
   const { data: incomeEntries = [] } = useIncomeEntries();
   const { companies } = useCompanies();
+  const currentYearForMileage = new Date().getFullYear();
+  const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
+
+  const VEHICLE_CATEGORY = "Car and truck expenses";
+
+  // Resolve a mileage entry to a company NAME (Reports filters by entity name).
+  // Entries with no company_id are skipped — they never count toward any company total.
+  const mileageByCompanyName = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of ytdMileage) {
+      if (!e.company_id) continue;
+      const c = companies.find((x) => x.id === e.company_id);
+      if (!c) continue;
+      const dollars = Number(e.miles) * IRS_MILEAGE_RATE;
+      m.set(c.name, (m.get(c.name) || 0) + dollars);
+    }
+    return m;
+  }, [ytdMileage, companies]);
 
   // P&L state
   const [plCompany, setPlCompany] = useState("all");
