@@ -68,6 +68,8 @@ export interface UnifiedTaxInput {
   projectedStateWithheld: number;
   projectedPreTax: number;
   projectedRetirement: number;
+  /** Future projected health insurance deduction from projected streams. */
+  projectedHealthInsuranceDeduction: number;
 
   // ── Settings ──
   filingStatus: "single" | "married_filing_jointly";
@@ -116,6 +118,10 @@ export interface TaxDebugBreakdown {
   retirementContributions: number;
   /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
   healthInsuranceDeduction: number;
+  /** Actual (YTD) portion of healthInsuranceDeduction. */
+  actualHealthInsuranceDeduction: number;
+  /** Projected future portion (only when includeProjectedIncome=true). */
+  projectedHealthInsuranceDeduction: number;
   halfSETaxDeduction: number;
   ownerDeductions: number;
   /** Adjusted Gross Income = total return income − preTax − retirement − health insurance − ½ SE tax. */
@@ -189,7 +195,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     remainingPayPeriods,
     projectedW2Income, projectedSEIncome, projectedOtherIncome,
     projectedFederalWithheld, projectedStateWithheld,
-    projectedPreTax, projectedRetirement,
+    projectedPreTax, projectedRetirement, projectedHealthInsuranceDeduction,
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
@@ -221,6 +227,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const projStateWH = includeProjectedIncome ? projectedStateWithheld : 0;
   const projPreTax = includeProjectedIncome ? projectedPreTax : 0;
   const projRetirement = includeProjectedIncome ? projectedRetirement : 0;
+  // Projected healthcare must ONLY appear in forecast mode — never leak into Actual Only.
+  const projHealthInsurance = includeProjectedIncome ? projectedHealthInsuranceDeduction : 0;
 
   // ── Totals ──
   const totalIncome = actualIncome + projIncome;
@@ -240,8 +248,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
 
   // combinedPreTax = ONLY actual pre-tax deductions (NOT health insurance).
   // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
+  // Actual healthcare always counts; projected healthcare only when includeProjectedIncome=true.
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
-  const healthInsuranceDeduction = ownerHealthcare;
+  const actualHealthInsuranceDeduction = ownerHealthcare;
+  const healthInsuranceDeduction = actualHealthInsuranceDeduction + projHealthInsurance;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
 
   // ── Credits against tax (explicit) ──
@@ -322,6 +332,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     preTaxDeductions: combinedPreTax,
     retirementContributions: combined401k,
     healthInsuranceDeduction,
+    actualHealthInsuranceDeduction,
+    projectedHealthInsuranceDeduction: projHealthInsurance,
     halfSETaxDeduction: estimate.halfSETaxDeduction,
     ownerDeductions: ownerHealthcare + businessRetirement + businessPreTax,
     agi: estimate.agi,

@@ -249,6 +249,7 @@ export function useTaxBreakdown(
         agg.plannedRetirement += p.retirement401k;
         agg.preTax += p.preTaxDeductions;
         agg.retirement += p.retirement401k;
+        agg.healthcare += p.ownerHealthcare || 0;
         agg.withheld += p.taxesWithheld;
         plannedPreTaxTotal += p.preTaxDeductions;
         plannedRetirementTotal += p.retirement401k;

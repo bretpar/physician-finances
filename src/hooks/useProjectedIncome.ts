@@ -85,6 +85,7 @@ export interface ProjectedPaycheck {
   taxesWithheld: number;
   retirement401k: number;
   preTaxDeductions: number;
+  ownerHealthcare: number;
   netAmount: number;
   type: "paycheck" | "bonus";
   label: string;
@@ -470,6 +471,7 @@ export function generateProjectedPaychecks(
     taxesWithheld: number;
     retirement401k: number;
     preTaxDeductions: number;
+    ownerHealthcare: number;
     type: "paycheck" | "bonus";
     label: string;
     streamId: string;
@@ -494,6 +496,7 @@ export function generateProjectedPaychecks(
             date: dateStr, grossAmount: stream.paycheck_amount,
             taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
             preTaxDeductions: stream.pre_tax_deductions,
+            ownerHealthcare: stream.owner_healthcare || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
             isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
           });
@@ -504,6 +507,7 @@ export function generateProjectedPaychecks(
           const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
           rawPaychecks.push({
             date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
+            ownerHealthcare: stream.owner_healthcare || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
             isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
           });
@@ -531,6 +535,7 @@ export function generateProjectedPaychecks(
           date: dateStr, grossAmount: stream.paycheck_amount,
           taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
           preTaxDeductions: stream.pre_tax_deductions,
+          ownerHealthcare: stream.owner_healthcare || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
         });
@@ -541,6 +546,7 @@ export function generateProjectedPaychecks(
         const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
         rawPaychecks.push({
           date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
+          ownerHealthcare: stream.owner_healthcare || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
         });
@@ -576,6 +582,7 @@ export function generateProjectedPaychecks(
         taxesWithheld: bonus.taxes_withheld,
         retirement401k: 0,
         preTaxDeductions: 0,
+        ownerHealthcare: 0,
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
@@ -591,7 +598,7 @@ export function generateProjectedPaychecks(
   const entries = incomeEntries || [];
 
   for (const raw of rawPaychecks) {
-    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions;
+    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions - raw.ownerHealthcare;
 
     if (raw.isSkipped) {
       paychecks.push({
@@ -670,6 +677,7 @@ export function getProjectedTotals(
     stateWithheld: 0,
     retirement401k: 0,
     preTaxDeductions: 0,
+    healthInsuranceDeduction: 0,
     netIncome: 0,
     count: 0,
     w2Income: 0,
@@ -700,6 +708,7 @@ export function getProjectedTotals(
     acc.taxesWithheld += fed + st;
     acc.retirement401k += p.retirement401k;
     acc.preTaxDeductions += p.preTaxDeductions;
+    acc.healthInsuranceDeduction += p.ownerHealthcare || 0;
     acc.netIncome += p.netAmount;
     acc.count += 1;
 
