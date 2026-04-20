@@ -222,7 +222,7 @@ export function useTaxEstimate(): {
       if (rates.businessStateTaxApplicationMode === "selected" && !rates.businessStateTaxCompanyIds.includes(c.id)) continue;
       eligibleCompanyNames.add(c.name);
     }
-    const businessStateEligibleGross = (incomeEntries || [])
+    const businessStateEligibleGross = incomeEntriesClean
       .filter((e) => isSelfEmployedFilingType(e.income_type) && eligibleCompanyNames.has(e.company))
       .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
     const totalBusinessGross = weighted.se || 1;
