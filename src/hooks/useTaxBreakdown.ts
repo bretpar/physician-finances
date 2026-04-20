@@ -446,12 +446,10 @@ export function useTaxBreakdown(
     const federalTaxBeforeCredits = ordinaryBracketCalc.total + ltcgBracketCalc.total;
     const qualifyingChildrenCount = Number(settings?.qualifyingChildrenCount) || 0;
     const otherDependentsCount = Number(settings?.otherDependentsCount) || 0;
-    // Use AGI-ish proxy = gross - pretax/retirement/½SE
-    const agiProxy = Math.max(0, totalGrossIncome - preTaxDeductions - retirement401k - seTax.deductibleHalf);
     const dependentCredits = calculateDependentCredits(
       qualifyingChildrenCount,
       otherDependentsCount,
-      agiProxy,
+      agi,
       filingStatus,
     );
 
