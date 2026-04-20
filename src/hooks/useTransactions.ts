@@ -144,6 +144,22 @@ export function useDeleteTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // If this is an income transaction, also delete any linked income_entries
+      // row so it doesn't remain as an orphan inflating the tax estimate.
+      const { data: tx } = await supabase
+        .from("transactions")
+        .select("id, transaction_type")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (tx && (tx as any).transaction_type === "income") {
+        const { error: ieErr } = await supabase
+          .from("income_entries")
+          .delete()
+          .eq("linked_transaction_id", id);
+        if (ieErr) console.error("Delete linked income_entries error:", ieErr);
+      }
+
       const { error } = await supabase
         .from("transactions")
         .delete()
@@ -152,6 +168,7 @@ export function useDeleteTransaction() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
       toast.success("Transaction deleted");
     },
     onError: (e) => toast.error(e.message),
@@ -162,12 +179,23 @@ export function useBulkDeleteTransactions() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      // Unlink any income entries that reference these transactions
-      const { error: unlinkError } = await supabase
-        .from("income_entries")
-        .update({ linked_transaction_id: null } as any)
-        .in("linked_transaction_id", ids);
-      if (unlinkError) console.error("Unlink income entries error:", unlinkError);
+      // Find which of these are income transactions — for those, delete the
+      // linked income_entries rows (don't just unlink) so they no longer
+      // contribute to tax totals as orphans.
+      const { data: incomeTxs } = await supabase
+        .from("transactions")
+        .select("id")
+        .in("id", ids)
+        .eq("transaction_type", "income");
+      const incomeTxIds = (incomeTxs || []).map((t: any) => t.id);
+
+      if (incomeTxIds.length > 0) {
+        const { error: delIeError } = await supabase
+          .from("income_entries")
+          .delete()
+          .in("linked_transaction_id", incomeTxIds);
+        if (delIeError) console.error("Delete linked income_entries error:", delIeError);
+      }
 
       // Delete the transactions
       const { error } = await supabase
@@ -179,7 +207,7 @@ export function useBulkDeleteTransactions() {
     },
     onSuccess: (count) => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["income-entries"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
       toast.success(`Deleted ${count} transaction${count !== 1 ? "s" : ""}`);
     },
     onError: (e) => toast.error(e.message),
