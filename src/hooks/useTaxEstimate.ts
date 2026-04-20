@@ -195,11 +195,11 @@ export function useTaxEstimate(): {
     //                         submitted tax payment
     //
     // We intentionally only sum the canonical federal_withholding column here.
-    const businessFederalWithheld = (incomeEntries || []).reduce(
+    const businessFederalWithheld = incomeEntriesClean.reduce(
       (s, e) => s + Number((e as any).federal_withholding || 0),
       0,
     );
-    const businessStateWithheld = (incomeEntries || []).reduce(
+    const businessStateWithheld = incomeEntriesClean.reduce(
       (s, e) => s + Number((e as any).state_withholding || 0),
       0,
     );
@@ -208,7 +208,7 @@ export function useTaxEstimate(): {
     // Excludes scorp_distribution, scorp_w2, w2, other — those are NOT subject
     // to SE tax even though they may be tracked under a "business" company.
     const SE_ELIGIBLE_TYPES = new Set(["1099_schedule_c", "k1_partnership"]);
-    const seEligibleBusinessIncome = (incomeEntries || [])
+    const seEligibleBusinessIncome = incomeEntriesClean
       .filter((e) => SE_ELIGIBLE_TYPES.has(normalizeFilingType(e.income_type)))
       .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
 
