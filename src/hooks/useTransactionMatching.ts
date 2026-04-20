@@ -65,10 +65,10 @@ export function useSuggestedMatches(
 
   return useMemo(() => {
     const manual = transactions.filter(
-      (t) => t.source_type === "manual" && t.match_status !== "linked" && !t.is_deleted
+      (t) => t.source_type === "manual" && t.match_status !== "linked"
     );
     const plaid = transactions.filter(
-      (t) => t.source_type === "plaid" && t.match_status !== "linked" && !t.is_deleted
+      (t) => t.source_type === "plaid" && t.match_status !== "linked"
     );
 
     const incomeByTxId = new Map<string, IncomeEntry>();
