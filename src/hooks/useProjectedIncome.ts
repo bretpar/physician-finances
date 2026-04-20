@@ -535,6 +535,7 @@ export function generateProjectedPaychecks(
           date: dateStr, grossAmount: stream.paycheck_amount,
           taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
           preTaxDeductions: stream.pre_tax_deductions,
+          ownerHealthcare: stream.owner_healthcare || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
         });
@@ -545,6 +546,7 @@ export function generateProjectedPaychecks(
         const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
         rawPaychecks.push({
           date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
+          ownerHealthcare: stream.owner_healthcare || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
         });
