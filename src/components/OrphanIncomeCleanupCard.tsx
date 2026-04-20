@@ -43,7 +43,7 @@ export function OrphanIncomeCleanupCard() {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          <AlertTriangle className="h-4 w-4 text-warning" />
           Orphaned income entries ({count})
         </CardTitle>
         <CardDescription>
