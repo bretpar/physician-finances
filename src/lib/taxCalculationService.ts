@@ -195,7 +195,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     remainingPayPeriods,
     projectedW2Income, projectedSEIncome, projectedOtherIncome,
     projectedFederalWithheld, projectedStateWithheld,
-    projectedPreTax, projectedRetirement,
+    projectedPreTax, projectedRetirement, projectedHealthInsuranceDeduction,
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
