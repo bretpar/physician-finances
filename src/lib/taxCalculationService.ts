@@ -68,6 +68,8 @@ export interface UnifiedTaxInput {
   projectedStateWithheld: number;
   projectedPreTax: number;
   projectedRetirement: number;
+  /** Future projected health insurance deduction from projected streams. */
+  projectedHealthInsuranceDeduction: number;
 
   // ── Settings ──
   filingStatus: "single" | "married_filing_jointly";
