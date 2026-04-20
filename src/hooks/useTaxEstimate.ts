@@ -278,57 +278,25 @@ export function useTaxEstimate(): {
     const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
     const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
 
-    // Owner healthcare (K-1 deduction)
-    const ownerHealthcare = incomeEntriesClean
-      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
-      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
+    // ── BUSINESS INCOME: derived from canonical transactions, not income_entries ──
+    // This is the single source of truth that the Business Ledger also reads.
+    // (See `canonicalBusiness` above.) income_entries only enriches this with
+    // per-paycheck withholding/retirement/owner-healthcare values.
+    const businessIncome = canonicalBusiness.grossSE;
+    const seEligibleBusinessIncome = canonicalBusiness.grossSE;
+    const businessW2 = canonicalBusiness.grossW2Business;
+    const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
+    const businessStateWithheld = canonicalBusiness.businessStateWithheld;
+    const businessPreTax = canonicalBusiness.businessPreTax;
+    const businessRetirement = canonicalBusiness.businessRetirement;
+    const ownerHealthcare = canonicalBusiness.ownerHealthcare;
+    const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
 
-    // Business federal vs state withholding.
-    //
-    // Field semantics (income_entries):
-    //   federal_withholding = actual federal tax already withheld (TRUSTED)
-    //   state_withholding   = actual state tax already withheld   (TRUSTED)
-    //   taxes_withheld      = legacy/general field — NOT trusted for tax-credit
-    //                         totals (would double-count federal_withholding)
-    //   actual_withholding  (on transactions) = savings reserve only, NOT a
-    //                         submitted tax payment
-    //
-    // We intentionally only sum the canonical federal_withholding column here.
-    const businessFederalWithheld = incomeEntriesClean.reduce(
-      (s, e) => s + Number((e as any).federal_withholding || 0),
-      0,
-    );
-    const businessStateWithheld = incomeEntriesClean.reduce(
-      (s, e) => s + Number((e as any).state_withholding || 0),
-      0,
-    );
-
-    // ── SE-eligible business income (Schedule C + K-1 partnership only) ──
-    // Excludes scorp_distribution, scorp_w2, w2, other — those are NOT subject
-    // to SE tax even though they may be tracked under a "business" company.
-    const SE_ELIGIBLE_TYPES = new Set(["1099_schedule_c", "k1_partnership"]);
-    const seEligibleBusinessIncome = incomeEntriesClean
-      .filter((e) => SE_ELIGIBLE_TYPES.has(normalizeFilingType(e.income_type)))
-      .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
-
-    // ── Eligible business income for state business tax ──
-    const eligibleCompanyNames = new Set<string>();
-    for (const c of companies) {
-      const meta = normalizeFilingType(c.companyType);
-      const isBusiness = meta === "1099_schedule_c" || meta === "k1_partnership" || meta === "scorp_distribution";
-      if (!isBusiness) continue;
-      if (c.applyBusinessStateTax === false) continue;
-      if (rates.businessStateTaxApplicationMode === "selected" && !rates.businessStateTaxCompanyIds.includes(c.id)) continue;
-      eligibleCompanyNames.add(c.name);
-    }
-    const businessStateEligibleGross = incomeEntriesClean
-      .filter((e) => isSelfEmployedFilingType(e.income_type) && eligibleCompanyNames.has(e.company))
-      .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
-    const totalBusinessGross = weighted.se || 1;
-    const eligibleRatio = totalBusinessGross > 0 ? businessStateEligibleGross / totalBusinessGross : 0;
+    const totalBG = canonicalBusiness.totalBusinessGross || 0;
+    const eligibleRatio = totalBG > 0 ? businessStateEligibleGross / totalBG : 0;
     const businessStateEligibleExpenses = businessExpenses * eligibleRatio;
     const businessStateEligibleMileage = mileageDeduction * eligibleRatio;
-    const businessStateEligibleOwnerAdjustments = (ownerHealthcare + weighted.retirement) * eligibleRatio;
+    const businessStateEligibleOwnerAdjustments = (ownerHealthcare + businessRetirement) * eligibleRatio;
 
     return {
       businessIncome: weighted.se,
