@@ -101,17 +101,29 @@ export default function Reports() {
     });
 
     const grossIncome = incomeTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
-    const totalExpenses = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const txExpenseTotal = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
 
-    // Category breakdown
+    // Mileage deduction allocated to selected company (or all assigned mileage)
+    let mileageDed = 0;
+    if (plCompany === "all") {
+      for (const v of mileageByCompanyName.values()) mileageDed += v;
+    } else {
+      mileageDed = mileageByCompanyName.get(plCompany) || 0;
+    }
+    const totalExpenses = txExpenseTotal + mileageDed;
+
+    // Category breakdown — fold mileage into "Car and truck expenses"
     const byCategory: Record<string, number> = {};
     for (const t of expenseTxs) {
       const cat = mapLegacyCategory(t.category);
       byCategory[cat] = (byCategory[cat] || 0) + Math.abs(t.amount);
     }
+    if (mileageDed > 0) {
+      byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
+    }
 
-    return { grossIncome, totalExpenses, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
-  }, [transactions, plCompany, dateRange]);
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
+  }, [transactions, plCompany, dateRange, mileageByCompanyName]);
 
   // ──── Annual Tax Summary Computation ────
   const taxData = useMemo(() => {
@@ -133,7 +145,16 @@ export default function Reports() {
     });
 
     const grossIncome = incomeTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
-    const totalExpenses = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const txExpenseTotal = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
+
+    // Mileage deduction → folded into "Car and truck expenses" Schedule C bucket
+    let mileageDed = 0;
+    if (taxCompany === "all") {
+      for (const v of mileageByCompanyName.values()) mileageDed += v;
+    } else {
+      mileageDed = mileageByCompanyName.get(taxCompany) || 0;
+    }
+    const totalExpenses = txExpenseTotal + mileageDed;
 
     const byCategory: Record<string, number> = {};
     for (const cat of EXPENSE_CATEGORIES) byCategory[cat] = 0;
@@ -141,9 +162,10 @@ export default function Reports() {
       const cat = mapLegacyCategory(t.category);
       byCategory[cat] = (byCategory[cat] || 0) + Math.abs(t.amount);
     }
+    byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
 
-    return { grossIncome, totalExpenses, netProfit: grossIncome - totalExpenses, byCategory };
-  }, [transactions, taxCompany, taxYear]);
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory };
+  }, [transactions, taxCompany, taxYear, mileageByCompanyName]);
 
   // ──── Export helpers ────
   function exportPLCSV() {
