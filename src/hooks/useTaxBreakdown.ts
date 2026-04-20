@@ -490,7 +490,7 @@ export function useTaxBreakdown(
 
     const personalState = calculatePersonalStateTax({
       taxableIncome: taxableOrdinaryIncome,
-      agi: agiProxy,
+      agi,
       inputs: stateInputs,
     });
     const businessState = calculateBusinessStateTax({ inputs: stateInputs });
