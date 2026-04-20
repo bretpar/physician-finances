@@ -332,6 +332,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     preTaxDeductions: combinedPreTax,
     retirementContributions: combined401k,
     healthInsuranceDeduction,
+    actualHealthInsuranceDeduction,
+    projectedHealthInsuranceDeduction: projHealthInsurance,
     halfSETaxDeduction: estimate.halfSETaxDeduction,
     ownerDeductions: ownerHealthcare + businessRetirement + businessPreTax,
     agi: estimate.agi,
