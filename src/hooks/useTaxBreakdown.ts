@@ -366,7 +366,10 @@ export function useTaxBreakdown(
           grossWages: totalGross,
           actualGrossWages: agg.actualGross,
           plannedGrossWages: agg.plannedGross,
-          federalWithheld: agg.federalWithheld + agg.withheld,
+          // Use only federal_withholding for federal withholding display.
+          // taxes_withheld is a legacy/general bucket and must not be summed
+          // into federal totals (would double-count when both are populated).
+          federalWithheld: agg.federalWithheld,
           stateWithheld: agg.stateWithheld,
           preTaxDeductions: agg.preTax,
           retirement401k: agg.retirement,
