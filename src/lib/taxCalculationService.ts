@@ -238,7 +238,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const ineligibleBusinessIncome = Math.max(0, businessIncome - seEligibleBusinessIncome);
   const otherIncome = personalNonW2Income + netStockGain + ineligibleBusinessIncome + projOther;
 
-  const combinedPreTax = businessPreTax + personalPreTax + projPreTax + ownerHealthcare;
+  // combinedPreTax = ONLY actual pre-tax deductions (NOT health insurance).
+  // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
+  const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
+  const healthInsuranceDeduction = ownerHealthcare;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
 
   // ── Credits against tax (explicit) ──
