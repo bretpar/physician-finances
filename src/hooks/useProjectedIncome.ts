@@ -598,7 +598,7 @@ export function generateProjectedPaychecks(
   const entries = incomeEntries || [];
 
   for (const raw of rawPaychecks) {
-    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions;
+    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions - raw.ownerHealthcare;
 
     if (raw.isSkipped) {
       paychecks.push({
