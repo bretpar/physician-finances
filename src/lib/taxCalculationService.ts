@@ -227,6 +227,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const projStateWH = includeProjectedIncome ? projectedStateWithheld : 0;
   const projPreTax = includeProjectedIncome ? projectedPreTax : 0;
   const projRetirement = includeProjectedIncome ? projectedRetirement : 0;
+  // Projected healthcare must ONLY appear in forecast mode — never leak into Actual Only.
+  const projHealthInsurance = includeProjectedIncome ? projectedHealthInsuranceDeduction : 0;
 
   // ── Totals ──
   const totalIncome = actualIncome + projIncome;
