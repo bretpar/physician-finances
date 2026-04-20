@@ -166,7 +166,7 @@ export function useTaxEstimate(): {
     // Remaining pay periods
     const now = new Date();
     const monthsRemaining = 12 - now.getMonth();
-    const receivedEntries = incomeEntries.filter((e) => e.status === "received");
+    const receivedEntries = incomeEntriesClean.filter((e) => e.status === "received");
     const avgEntriesPerMonth = receivedEntries.length > 0
       ? receivedEntries.length / (now.getMonth() + 1)
       : 1;
