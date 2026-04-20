@@ -217,22 +217,49 @@ export function useTaxBreakdown(
       return existing;
     };
 
+    let plannedPreTaxTotal = 0;
+    let plannedRetirementTotal = 0;
+
+    // income_entries.status can be: "received" | "expected" | "projected".
+    // - Actual Only mode must only count `received` entries as actual income.
+    // - `expected` and `projected` entries represent future/planned income and
+    //   must NOT flow into actualGross. In forecast mode, planned income is
+    //   layered in separately below from projected_income_streams + bonuses.
+    // Note: taxes_withheld is a legacy/general field; do NOT merge it into
+    // federal_withholding totals or display it as federal withholding.
     for (const e of incomes) {
       if (!matchCompany(e.company)) continue;
+      const status = ((e as any).status ?? "received") as string;
+      const isReceived = status === "received";
       const ft = normalizeFilingType(e.income_type);
       const agg = ensureAgg(e.company || "Unassigned", ft);
-      agg.actualGross += Number(e.paycheck_amount) || 0;
-      agg.preTax += Number(e.pre_tax_deductions) || 0;
-      agg.retirement += Number(e.retirement_401k) || 0;
-      agg.healthcare += Number((e as any).owner_healthcare) || 0;
-      agg.withheld += Number(e.taxes_withheld) || 0;
-      agg.federalWithheld += Number((e as any).federal_withholding) || 0;
-      agg.stateWithheld += Number((e as any).state_withholding) || 0;
+
+      if (isReceived) {
+        agg.actualGross += Number(e.paycheck_amount) || 0;
+        agg.preTax += Number(e.pre_tax_deductions) || 0;
+        agg.retirement += Number(e.retirement_401k) || 0;
+        agg.healthcare += Number((e as any).owner_healthcare) || 0;
+        agg.withheld += Number(e.taxes_withheld) || 0;
+        agg.federalWithheld += Number((e as any).federal_withholding) || 0;
+        agg.stateWithheld += Number((e as any).state_withholding) || 0;
+      } else if (mode === "forecast") {
+        // Treat expected/projected income_entries as planned in forecast mode only.
+        const gross = Number(e.paycheck_amount) || 0;
+        const preTax = Number(e.pre_tax_deductions) || 0;
+        const retirement = Number(e.retirement_401k) || 0;
+        agg.plannedGross += gross;
+        agg.plannedPreTax += preTax;
+        agg.plannedRetirement += retirement;
+        agg.preTax += preTax;
+        agg.retirement += retirement;
+        agg.healthcare += Number((e as any).owner_healthcare) || 0;
+        plannedPreTaxTotal += preTax;
+        plannedRetirementTotal += retirement;
+      }
+      // In "actual" mode, non-received entries are completely ignored.
     }
 
     // ── Add PLANNED income (only when mode === "forecast") ──
-    let plannedPreTaxTotal = 0;
-    let plannedRetirementTotal = 0;
     if (mode === "forecast") {
       const paychecks = generateProjectedPaychecks(streams, bonuses, incomes, overrides);
       // Only "active" (future, unmatched) paychecks count as planned add-on
@@ -339,7 +366,10 @@ export function useTaxBreakdown(
           grossWages: totalGross,
           actualGrossWages: agg.actualGross,
           plannedGrossWages: agg.plannedGross,
-          federalWithheld: agg.federalWithheld + agg.withheld,
+          // Use only federal_withholding for federal withholding display.
+          // taxes_withheld is a legacy/general bucket and must not be summed
+          // into federal totals (would double-count when both are populated).
+          federalWithheld: agg.federalWithheld,
           stateWithheld: agg.stateWithheld,
           preTaxDeductions: agg.preTax,
           retirement401k: agg.retirement,
