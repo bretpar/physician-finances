@@ -320,7 +320,6 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     otherIncome: estimate.otherIncome,
     totalReturnIncomeBeforeAdjustments: estimate.totalReturnIncomeBeforeAdjustments,
     preTaxDeductions: combinedPreTax,
-    preTaxDeductions: combinedPreTax,
     retirementContributions: combined401k,
     healthInsuranceDeduction,
     halfSETaxDeduction: estimate.halfSETaxDeduction,
