@@ -50,13 +50,12 @@ function getConfidenceLabel(score: number): "Strong match" | "Possible match" | 
 }
 
 /**
- * Enhanced matching logic:
- * - For income transactions, compare imported amount against:
- *   1. Manual tx's net received (deposited_amount from linked income entry)
- *   2. Calculated net = gross - taxes_withheld - pre_tax_deductions - retirement
- *   3. Gross amount as fallback
- * - Date tolerance: 0-3 days
- * - Vendor similarity bonus
+ * Score-based matching (no exact-amount requirement):
+ *  - Manual income transactions store GROSS in transactions.amount.
+ *    The actual bank deposit lives on the linked income_entry as deposited_amount.
+ *  - Plaid imported transactions reflect the bank deposit amount.
+ *  - We weigh date proximity, amount plausibility (vs deposited / vs net of gross),
+ *    vendor similarity, and company context. We never require exact equality.
  */
 export function useSuggestedMatches(
   transactions: DbTransaction[],
@@ -72,7 +71,6 @@ export function useSuggestedMatches(
       (t) => t.source_type === "plaid" && t.match_status !== "linked" && !t.is_deleted
     );
 
-    // Build a map from transaction id to linked income entry for net amount lookups
     const incomeByTxId = new Map<string, IncomeEntry>();
     if (incomeEntries) {
       for (const ie of incomeEntries) {
@@ -89,7 +87,6 @@ export function useSuggestedMatches(
     for (const m of manual) {
       for (const p of plaid) {
         if (ignoredPairs.has(`${m.id}:${p.id}`)) continue;
-        // Must be same type
         if ((m.transaction_type || "expense") !== (p.transaction_type || "expense")) continue;
 
         const reasons: string[] = [];
@@ -97,90 +94,100 @@ export function useSuggestedMatches(
 
         const isIncome = (m.transaction_type || "expense") === "income";
         const pAmount = Math.abs(p.amount);
-        const mAmount = Math.abs(m.amount);
+        const mAmount = Math.abs(m.amount); // for income this is GROSS
 
-        // For income, try matching against net received or calculated net
-        let amountMatched = false;
-        if (isIncome) {
-          const linkedIncome = incomeByTxId.get(m.id);
-          const netReceived = linkedIncome?.deposited_amount;
-          const gross = linkedIncome?.paycheck_amount ?? mAmount;
-          const taxesWithheld = linkedIncome?.taxes_withheld ?? 0;
-          const preTaxDed = linkedIncome?.pre_tax_deductions ?? 0;
-          const retirement = linkedIncome?.retirement_401k ?? 0;
-          const calculatedNet = Math.max(0, gross - taxesWithheld - preTaxDed - retirement);
-
-          // Priority 1: match against net received
-          if (netReceived && netReceived > 0) {
-            const diff = Math.abs(pAmount - netReceived);
-            if (diff === 0) { score += 50; reasons.push("Exact match to net received"); amountMatched = true; }
-            else if (diff <= 1) { score += 40; reasons.push("Net received within $1"); amountMatched = true; }
-            else if (diff / netReceived <= 0.02) { score += 25; reasons.push("Net received within 2%"); amountMatched = true; }
-          }
-
-          // Priority 2: match against calculated net
-          if (!amountMatched && calculatedNet > 0) {
-            const diff = Math.abs(pAmount - calculatedNet);
-            if (diff === 0) { score += 45; reasons.push("Exact match to calculated net"); amountMatched = true; }
-            else if (diff <= 1) { score += 35; reasons.push("Calculated net within $1"); amountMatched = true; }
-            else if (diff / calculatedNet <= 0.02) { score += 20; reasons.push("Calculated net within 2%"); amountMatched = true; }
-          }
-
-          // Priority 3: gross amount fallback
-          if (!amountMatched) {
-            const diff = Math.abs(pAmount - mAmount);
-            if (diff === 0) { score += 40; reasons.push("Exact gross amount match"); amountMatched = true; }
-            else if (diff <= 1) { score += 25; reasons.push("Gross amount within $1"); amountMatched = true; }
-          }
-        } else {
-          // Non-income: simple amount match
-          const amtDiff = Math.abs(mAmount - pAmount);
-          if (amtDiff === 0) { score += 50; reasons.push("Exact amount match"); amountMatched = true; }
-          else if (amtDiff <= 1) { score += 30; reasons.push("Amount within $1"); amountMatched = true; }
-        }
-
-        if (!amountMatched) continue;
-
-        // Date match (0-3 business days)
+        // ── Date proximity (required signal) ──
         const mDate = new Date(m.transaction_date).getTime();
         const pDate = new Date(p.transaction_date).getTime();
         const daysDiff = Math.abs(mDate - pDate) / (1000 * 60 * 60 * 24);
-        if (daysDiff === 0) { score += 30; reasons.push("Same date"); }
-        else if (daysDiff <= 1) { score += 25; reasons.push("1 day apart"); }
-        else if (daysDiff <= 3) { score += 15; reasons.push(`${Math.round(daysDiff)}d apart`); }
-        else continue; // skip if more than 3 days apart
+        if (daysDiff > 7) continue;
+        let dateScore = 0;
+        if (daysDiff <= 1) { dateScore = 30; reasons.push(daysDiff === 0 ? "Same date" : "1 day apart"); }
+        else if (daysDiff <= 3) { dateScore = 22; reasons.push(`${Math.round(daysDiff)}d apart`); }
+        else if (daysDiff <= 5) { dateScore = 14; reasons.push(`${Math.round(daysDiff)}d apart`); }
+        else { dateScore = 6; reasons.push(`${Math.round(daysDiff)}d apart`); }
+        score += dateScore;
 
-        // Vendor/name similarity bonus
-        const mVendor = (m.vendor || "").toLowerCase();
-        const pVendor = (p.vendor || "").toLowerCase();
+        // ── Amount plausibility (no exact match required) ──
+        let amountScore = 0;
+        if (isIncome) {
+          const linkedIncome = incomeByTxId.get(m.id);
+          const deposited = Number(linkedIncome?.deposited_amount || 0);
+          const gross = Number(linkedIncome?.paycheck_amount || mAmount);
+          const taxesWithheld = Number(linkedIncome?.taxes_withheld || 0);
+          const preTaxDed = Number(linkedIncome?.pre_tax_deductions || 0);
+          const retirement = Number(linkedIncome?.retirement_401k || 0);
+          const calcNet = Math.max(0, gross - taxesWithheld - preTaxDed - retirement);
+
+          // Prefer deposited_amount when present
+          if (deposited > 0) {
+            const rel = Math.abs(pAmount - deposited) / Math.max(deposited, 1);
+            if (rel <= 0.005) { amountScore = 50; reasons.push("Matches net deposit"); }
+            else if (rel <= 0.02) { amountScore = 42; reasons.push("Within 2% of deposit"); }
+            else if (rel <= 0.10) { amountScore = 28; reasons.push("Close to deposit"); }
+            else if (rel <= 0.25) { amountScore = 14; reasons.push("Near deposit"); }
+          } else if (calcNet > 0) {
+            const rel = Math.abs(pAmount - calcNet) / Math.max(calcNet, 1);
+            if (rel <= 0.02) { amountScore = 38; reasons.push("Matches calculated net"); }
+            else if (rel <= 0.10) { amountScore = 26; reasons.push("Close to calculated net"); }
+            else if (rel <= 0.25) { amountScore = 12; reasons.push("Plausible net of gross"); }
+          } else {
+            // No deposit info — judge plausibility against gross
+            const rel = Math.abs(pAmount - gross) / Math.max(gross, 1);
+            if (rel <= 0.02) { amountScore = 35; reasons.push("Matches gross"); }
+            else if (pAmount <= gross && pAmount >= gross * 0.5) {
+              amountScore = 18; reasons.push("Plausible deposit vs gross");
+            } else if (pAmount <= gross && pAmount >= gross * 0.3) {
+              amountScore = 8; reasons.push("Possible deposit vs gross");
+            }
+          }
+        } else {
+          const diff = Math.abs(mAmount - pAmount);
+          const rel = diff / Math.max(mAmount, 1);
+          if (rel <= 0.005) { amountScore = 45; reasons.push("Amount matches"); }
+          else if (rel <= 0.02) { amountScore = 32; reasons.push("Within 2%"); }
+          else if (rel <= 0.10) { amountScore = 16; reasons.push("Close amount"); }
+        }
+        score += amountScore;
+
+        // ── Vendor similarity ──
+        const mVendor = (m.vendor || "").toLowerCase().trim();
+        const pVendor = (p.vendor || "").toLowerCase().trim();
         if (mVendor && pVendor && (mVendor.includes(pVendor) || pVendor.includes(mVendor))) {
-          score += 20;
+          score += 18;
           reasons.push("Similar description");
         }
 
-        // Company match bonus
+        // ── Company / entity context ──
         if (m.entity && p.entity && m.entity === p.entity && m.entity !== "Unassigned") {
           score += 10;
           reasons.push("Same company");
         }
 
-        if (score >= 40) {
-          const cappedScore = Math.min(score, 100);
-          suggestions.push({
-            manualTx: m,
-            plaidTx: p,
-            confidence: cappedScore,
-            confidenceLabel: getConfidenceLabel(cappedScore),
-            reasons,
-          });
-        }
+        // ── Tiering thresholds (per spec) ──
+        // Strong: ≤3d AND amount near deposit (amountScore high)
+        // Likely: ≤5d AND amount plausibly < gross
+        // Possible: ≤7d AND directionally plausible
+        const minScore =
+          daysDiff <= 3 && amountScore >= 28 ? 40 :
+          daysDiff <= 5 && amountScore >= 12 ? 35 :
+          daysDiff <= 7 && amountScore >= 8 ? 30 :
+          999; // skip
+        if (score < minScore) continue;
+
+        const cappedScore = Math.min(score, 100);
+        suggestions.push({
+          manualTx: m,
+          plaidTx: p,
+          confidence: cappedScore,
+          confidenceLabel: getConfidenceLabel(cappedScore),
+          reasons,
+        });
       }
     }
 
-    // Sort by confidence desc
     suggestions.sort((a, b) => b.confidence - a.confidence);
 
-    // Deduplicate: each tx should only appear in one best suggestion
     const usedManual = new Set<string>();
     const usedPlaid = new Set<string>();
     return suggestions.filter((s) => {
