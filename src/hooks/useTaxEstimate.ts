@@ -299,13 +299,13 @@ export function useTaxEstimate(): {
     const businessStateEligibleOwnerAdjustments = (ownerHealthcare + businessRetirement) * eligibleRatio;
 
     return {
-      businessIncome: weighted.se,
+      businessIncome,
       seEligibleBusinessIncome,
-      businessW2: weighted.w2,
+      businessW2,
       businessFederalWithheld,
       businessStateWithheld,
-      businessPreTax: weighted.preTax,
-      businessRetirement: weighted.retirement,
+      businessPreTax,
+      businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
       businessStateEligibleExpenses,
