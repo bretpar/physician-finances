@@ -38,6 +38,7 @@ import {
   generateProjectedPaychecks,
 } from "@/hooks/useProjectedIncome";
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
+import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import {
   ORDINARY_BRACKETS_2025,
@@ -205,6 +206,8 @@ export function useTaxBreakdown(
   const { data: streams = [], isLoading: stLoading } = useProjectedStreams();
   const { data: bonuses = [], isLoading: bLoading } = useProjectedBonuses();
   const { data: overrides = [], isLoading: oLoading } = useStreamOverrides();
+  const currentYear = new Date().getFullYear();
+  const { data: mileageEntries = [] } = useMileageYTD(currentYear);
 
   // 🎯 SINGLE SOURCE OF TRUTH for all totals
   const {
