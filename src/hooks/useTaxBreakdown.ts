@@ -574,15 +574,18 @@ export function useTaxBreakdown(
       actualBusinessRevenue, actualW2Income, actualOtherIncome,
       taxableOrdinaryIncome, taxableLTCG, totalTaxableIncome: taxableIncome,
       ordinaryBracketCalc, ltcgBracketCalc,
-      seTax: {
-        netSEIncome: 0, // not surfaced by engine; UI shows total via debug fields
-        seBase: 0,
-        ssTax: seTaxFromEngine?.ssTax ?? 0,
-        medicareTax: seTaxFromEngine?.medicareTax ?? 0,
-        additionalMedicare: seTaxFromEngine?.additionalMedicare ?? 0,
-        total: debug.selfEmploymentTax,
-        deductibleHalf: seDeductibleHalf,
-      },
+      seTax: (() => {
+        const netSEIncome = Math.max(0, estimate.seIncome - estimate.businessExpenses - (estimate as any).mileageDeduction);
+        const seBase = netSEIncome * 0.9235;
+        return {
+          netSEIncome, seBase,
+          ssTax: seTaxFromEngine?.ssTax ?? 0,
+          medicareTax: seTaxFromEngine?.medicareTax ?? 0,
+          additionalMedicare: seTaxFromEngine?.additionalMedicare ?? 0,
+          total: debug.selfEmploymentTax,
+          deductibleHalf: seDeductibleHalf,
+        };
+      })(),
       federalTaxBeforeCredits,
       dependentCredits,
       taxCredits: dependentCredits,
