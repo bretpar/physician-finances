@@ -217,6 +217,9 @@ export function useTaxBreakdown(
       return existing;
     };
 
+    let plannedPreTaxTotal = 0;
+    let plannedRetirementTotal = 0;
+
     // income_entries.status can be: "received" | "expected" | "projected".
     // - Actual Only mode must only count `received` entries as actual income.
     // - `expected` and `projected` entries represent future/planned income and
