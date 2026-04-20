@@ -160,7 +160,7 @@ describe("Unified tax engine — credits, double-counting, mode parity", () => {
       federalTaxBeforeCredits: breakdown.federalTaxBeforeCredits,
       taxCredits: breakdown.taxCredits,
       federalIncomeTax: breakdown.federalIncomeTax,
-      seTax: breakdown.seTax,
+      selfEmploymentTax: breakdown.selfEmploymentTax,
       stateTax: breakdown.stateTax,
       countedCreditsTotal: breakdown.countedCreditsTotal,
       remainingTaxDue: breakdown.remainingTaxDue,
