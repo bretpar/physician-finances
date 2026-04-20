@@ -275,7 +275,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     seIncome,
     grossBusinessIncome,
     otherIncome,
-    preTaxDeductions: combinedPreTax,
+    preTaxDeductions: combinedPreTax + healthInsuranceDeduction,
     retirement401k: combined401k,
     businessDeductions: businessExpenses,
     mileageDeduction,
