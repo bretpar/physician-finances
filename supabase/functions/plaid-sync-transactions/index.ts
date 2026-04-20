@@ -317,25 +317,32 @@ Deno.serve(async (req) => {
           const assignedEntity = bizInfo ? bizInfo.companyName : "Unassigned";
           const assignmentSource = bizInfo ? "account_default" : "none";
 
-          const { error: appTxError } = await adminClient.from("transactions").insert({
-            user_id: user.id,
-            organization_id: orgId,
-            transaction_date: txn.date,
-            vendor: txn.merchant_name || txn.name || "",
-            amount: Math.abs(txn.amount),
-            category: txType === "transfer" ? "Transfer" : "Uncategorized",
-            account_source: item.institution_name,
-            transaction_type: txType,
-            transfer_subtype: transferSubtype,
-            source_type: "plaid",
-            plaid_transaction_ref: plaidTxRow?.id || null,
-            match_status: "unmatched",
-            entity: assignedEntity,
-            assignment_source: assignmentSource,
-            notes: "",
-            needs_review: true,
-            excluded_from_reports: txType === "transfer",
-          });
+          // Upsert by (user_id, plaid_transaction_ref) — the unique partial
+          // index uq_transactions_user_plaid_ref guarantees we never create
+          // a duplicate transactions row for the same imported transaction.
+          // If a row already exists (e.g. retry after partial failure), we
+          // ignore the conflict instead of inserting a duplicate.
+          const { error: appTxError } = await adminClient
+            .from("transactions")
+            .upsert({
+              user_id: user.id,
+              organization_id: orgId,
+              transaction_date: txn.date,
+              vendor: txn.merchant_name || txn.name || "",
+              amount: Math.abs(txn.amount),
+              category: txType === "transfer" ? "Transfer" : "Uncategorized",
+              account_source: item.institution_name,
+              transaction_type: txType,
+              transfer_subtype: transferSubtype,
+              source_type: "plaid",
+              plaid_transaction_ref: plaidTxRow?.id || null,
+              match_status: "unmatched",
+              entity: assignedEntity,
+              assignment_source: assignmentSource,
+              notes: "",
+              needs_review: true,
+              excluded_from_reports: txType === "transfer",
+            }, { onConflict: "user_id,plaid_transaction_ref", ignoreDuplicates: true });
 
           if (appTxError) {
             console.error("Insert app transaction error:", appTxError);
