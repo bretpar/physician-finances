@@ -1,14 +1,22 @@
 /**
  * Smart Withholding Recommendation Engine
  *
- * Uses the user's global withholding method (from Settings) and combined
- * total income across all sections (business + personal + stocks + projected)
- * to produce a single consistent recommendation.
+ * Uses the user's global withholding method (from Settings) and the UNIFIED
+ * tax estimate (actual + projected W-2 withholding + estimated payments) to
+ * produce a single consistent per-entry recommendation.
+ *
+ * Key fix (Apr 2026): W-2 recommendations now respect projected future W-2
+ * withholding already expected across the year. Previously we applied the
+ * effective rate to each paycheck and subtracted only that paycheck's own
+ * withholding — which double-counted tax that employer payroll will already
+ * withhold on remaining checks. We now distribute only the UNIFIED
+ * remaining-after-credits annual tax across remaining pay periods.
  *
  * Methods:
- * - flat_estimate: user-defined flat % on net taxable
+ * - flat_estimate: user-defined flat % on net taxable (legacy per-entry)
  * - dynamic_actual: bracket-based using actual income only
- * - dynamic_planner: bracket-based using actual + projected income
+ * - dynamic_planner: bracket-based using actual + projected income (and
+ *   projected future W-2 withholding as a counted credit)
  */
 
 import { useMemo } from "react";
@@ -35,18 +43,29 @@ export interface WithholdingRecommendation {
   estimatedTaxableIncome: number;
   /** Total estimated annual tax liability */
   estimatedAnnualTax: number;
-  /** Total taxes already covered (withheld + quarterly + savings) */
+  /** Total counted credits (fed W/H + state W/H + projected W/H + estimated payments) */
   taxesAlreadyCovered: number;
-  /** Remaining estimated tax for the year */
+  /** Remaining estimated tax for the year AFTER all counted credits */
   estimatedRemainingTax: number;
   /** Effective tax rate on total income */
   effectiveRate: number;
   /** Whether using flat rate mode */
   isManualMode: boolean;
-  /** Whether the W2 employer over-withheld */
+  /** Whether the entry is over-withheld / fully covered */
   isOverWithheld: boolean;
   /** Label describing which method is used */
   methodLabel: string;
+  // ── Transparency fields (see spec §6) ──
+  annualTaxLiability: number;
+  countedCreditsTotal: number;
+  annualRemainingTax: number;
+  projectedFederalWithheld: number;
+  projectedStateWithheld: number;
+  actualFederalWithheld: number;
+  actualStateWithheld: number;
+  estimatedPaymentsMade: number;
+  taxSavingsSetAside: number;
+  recommendationBasis: "annual_remaining_tax" | "flat_rate" | "per_entry_rate";
 }
 
 /**
@@ -57,7 +76,13 @@ export interface WithholdingRecommendation {
  * per-entry withholding.
  */
 export function useWithholdingRecommendation() {
-  const { actualEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
+  const {
+    actualEstimate,
+    forecastEstimate,
+    actualDebug,
+    forecastDebug,
+    isLoading: estLoading,
+  } = useTaxEstimate();
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
 
   const isLoading = estLoading || settingsLoading;
@@ -105,47 +130,126 @@ export function useWithholdingRecommendation() {
           isManualMode: true,
           isOverWithheld: rec < 0,
           methodLabel: `Flat ${flatRate}% estimate`,
+          annualTaxLiability: 0,
+          countedCreditsTotal: 0,
+          annualRemainingTax: 0,
+          projectedFederalWithheld: 0,
+          projectedStateWithheld: 0,
+          actualFederalWithheld: 0,
+          actualStateWithheld: 0,
+          estimatedPaymentsMade: 0,
+          taxSavingsSetAside: 0,
+          recommendationBasis: "flat_rate",
         };
       }
 
-      // DYNAMIC MODES: pick the right estimate
-      const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : actualEstimate;
-      if (!estimate) return null;
+      // DYNAMIC MODES: pick the right unified estimate + debug
+      const usePlanner = withholdingMethod === "dynamic_planner";
+      const estimate = usePlanner ? forecastEstimate : actualEstimate;
+      const debug = usePlanner ? forecastDebug : actualDebug;
+      if (!estimate || !debug) return null;
 
-      const methodLabel = withholdingMethod === "dynamic_planner"
+      const methodLabel = usePlanner
         ? "Based on actual + planned income"
         : "Based on combined actual income";
 
-      // W2: use federal-only rate (SE + B&O don't apply to W2 income)
-      // 1099/K1: use blended rate (already includes federal + SE + B&O)
-      const rateToUse = isW2 ? estimate.federalEffectiveRate : estimate.effectiveRate;
+      // ── Unified "annual remaining tax" view ─────────────────────────────
+      // debug.countedCreditsTotal already includes:
+      //   - actual federal withholding
+      //   - actual state withholding
+      //   - projected federal withholding (planner mode only)
+      //   - projected state withholding (planner mode only)
+      //   - estimated payments actually made
+      // It explicitly does NOT include tax savings / reserves.
+      const annualTaxLiability = estimate.totalTaxLiability;
+      const countedCreditsTotal = debug.countedCreditsTotal;
+      const annualRemainingTax = debug.remainingTaxDue; // = max(0, liability − credits)
 
-      // Tax owed on this entry's net taxable portion
+      // Remaining pay periods → used to spread the uncovered remainder. Falls
+      // back to 1 so we never divide by zero. This is the employer-agnostic
+      // way of answering "how much MORE should be withheld on this check?"
+      const remainingPayPeriods = Math.max(1, Number((estimate as any).remainingPayPeriods) || 1);
+
+      // ── W-2 path: annual-remaining-tax distribution ─────────────────────
+      if (isW2) {
+        // If annual tax is already fully covered (by actual + projected W/H +
+        // estimated payments), no additional set-aside is needed on this
+        // paycheck. We surface this as 0 (or negative, if the user intended
+        // to express the overage — see below).
+        let recommendedWithholding = 0;
+        if (annualRemainingTax > 0) {
+          const perPeriodShortfall = annualRemainingTax / remainingPayPeriods;
+          // The user's employer is already withholding `taxesAlreadyWithheld`
+          // on this check. Only recommend the SHORTFALL beyond that.
+          recommendedWithholding = perPeriodShortfall - taxesAlreadyWithheld;
+        } else {
+          // Over-withheld case: surface as negative so UI can say
+          // "you are set aside ≈$X over". Only negative when this specific
+          // paycheck's own withholding exceeds its proportional share (0
+          // of remaining), i.e. any withholding on this check is "extra".
+          recommendedWithholding = -taxesAlreadyWithheld;
+        }
+
+        recommendedWithholding = Math.round(recommendedWithholding * 100) / 100;
+
+        return {
+          recommendedWithholding,
+          annualIncomeEstimate: estimate.totalIncome + (alreadyIncludedInEstimate ? 0 : grossIncome),
+          estimatedTaxableIncome: estimate.taxableIncome,
+          estimatedAnnualTax: annualTaxLiability,
+          taxesAlreadyCovered: countedCreditsTotal,
+          estimatedRemainingTax: annualRemainingTax,
+          effectiveRate: estimate.federalEffectiveRate,
+          isManualMode: false,
+          isOverWithheld: recommendedWithholding <= 0,
+          methodLabel,
+          annualTaxLiability,
+          countedCreditsTotal,
+          annualRemainingTax,
+          projectedFederalWithheld: debug.projectedFederalWithheld,
+          projectedStateWithheld: debug.projectedStateWithheld,
+          actualFederalWithheld: debug.actualFederalWithheld,
+          actualStateWithheld: debug.actualStateWithheld,
+          estimatedPaymentsMade: debug.estimatedPaymentsMade,
+          taxSavingsSetAside: debug.taxSavingsSetAside,
+          recommendationBasis: "annual_remaining_tax",
+        };
+      }
+
+      // ── 1099 / K-1 / Schedule-C path ────────────────────────────────────
+      // Non-W2 income typically has no automatic withholding, so a per-entry
+      // set-aside style recommendation is still appropriate. Use the blended
+      // rate (federal + SE + state business) for this entry, then subtract
+      // any withholding already applied to THIS paycheck. Floor at 0.
+      const rateToUse = estimate.effectiveRate;
       const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
-
-      // Subtract what's already withheld for this specific paycheck
-      const recommendedWithholding = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
-
-      // For 1099/K1, floor at 0 (they don't have employer withholding to adjust)
-      // For W2, allow negative to indicate over-withholding
-      const finalRecommendation = isW2
-        ? recommendedWithholding
-        : Math.max(0, recommendedWithholding);
+      const raw = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
+      const recommendedWithholding = Math.max(0, raw);
 
       return {
-        recommendedWithholding: finalRecommendation,
+        recommendedWithholding,
         annualIncomeEstimate: estimate.totalIncome + (alreadyIncludedInEstimate ? 0 : grossIncome),
         estimatedTaxableIncome: estimate.taxableIncome,
-        estimatedAnnualTax: estimate.totalTaxLiability,
-        taxesAlreadyCovered: estimate.taxesAlreadyWithheld,
-        estimatedRemainingTax: estimate.remainingLiability,
+        estimatedAnnualTax: annualTaxLiability,
+        taxesAlreadyCovered: countedCreditsTotal,
+        estimatedRemainingTax: annualRemainingTax,
         effectiveRate: rateToUse,
         isManualMode: false,
-        isOverWithheld: finalRecommendation < 0,
+        isOverWithheld: false,
         methodLabel,
+        annualTaxLiability,
+        countedCreditsTotal,
+        annualRemainingTax,
+        projectedFederalWithheld: debug.projectedFederalWithheld,
+        projectedStateWithheld: debug.projectedStateWithheld,
+        actualFederalWithheld: debug.actualFederalWithheld,
+        actualStateWithheld: debug.actualStateWithheld,
+        estimatedPaymentsMade: debug.estimatedPaymentsMade,
+        taxSavingsSetAside: debug.taxSavingsSetAside,
+        recommendationBasis: "per_entry_rate",
       };
     };
-  }, [actualEstimate, forecastEstimate, settings]);
+  }, [actualEstimate, forecastEstimate, actualDebug, forecastDebug, settings]);
 
   return { getRecommendation, isLoading };
 }
