@@ -248,8 +248,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
 
   // combinedPreTax = ONLY actual pre-tax deductions (NOT health insurance).
   // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
+  // Actual healthcare always counts; projected healthcare only when includeProjectedIncome=true.
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
-  const healthInsuranceDeduction = ownerHealthcare;
+  const actualHealthInsuranceDeduction = ownerHealthcare;
+  const healthInsuranceDeduction = actualHealthInsuranceDeduction + projHealthInsurance;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
 
   // ── Credits against tax (explicit) ──
