@@ -145,7 +145,7 @@ describe("Unified tax engine — credits, double-counting, mode parity", () => {
       federalTaxBeforeCredits: overview.federalTaxBeforeCredits,
       taxCredits: overview.taxCredits,
       federalIncomeTax: overview.federalIncomeTax,
-      seTax: overview.seTax,
+      selfEmploymentTax: overview.selfEmploymentTax,
       stateTax: overview.stateTax,
       countedCreditsTotal: overview.countedCreditsTotal,
       remainingTaxDue: overview.remainingTaxDue,
