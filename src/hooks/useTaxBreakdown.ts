@@ -184,6 +184,7 @@ export function useTaxBreakdown(
       plannedGross: number;
       preTax: number;
       retirement: number;
+      healthcare: number;
       withheld: number;
       stateWithheld: number;
       federalWithheld: number;
@@ -201,6 +202,7 @@ export function useTaxBreakdown(
         plannedGross: 0,
         preTax: 0,
         retirement: 0,
+        healthcare: 0,
         withheld: 0,
         stateWithheld: 0,
         federalWithheld: 0,
@@ -218,6 +220,7 @@ export function useTaxBreakdown(
       agg.actualGross += Number(e.paycheck_amount) || 0;
       agg.preTax += Number(e.pre_tax_deductions) || 0;
       agg.retirement += Number(e.retirement_401k) || 0;
+      agg.healthcare += Number((e as any).owner_healthcare) || 0;
       agg.withheld += Number(e.taxes_withheld) || 0;
       agg.federalWithheld += Number((e as any).federal_withholding) || 0;
       agg.stateWithheld += Number((e as any).state_withholding) || 0;
