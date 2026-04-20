@@ -49,14 +49,74 @@ export function useTaxEstimate(): {
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
   const { companies } = useCompanies();
 
-  const weighted = useWeightedIncome(incomeEntries);
+  // ── Reconcile income_entries before any tax math ─────────────────────────
+  // Two failure modes we defend against:
+  //  1) ORPHANS — an income_entry with a linked_transaction_id pointing at a
+  //     transaction that no longer exists (e.g. user deleted the manual income
+  //     row in Business Activity but the income_entry was left behind). These
+  //     would otherwise inflate Gross Business Income on the Taxes page even
+  //     though Business Activity no longer shows them.
+  //  2) DUPLICATES — same company + same income_date + same paycheck_amount
+  //     appearing twice (e.g. user re-entered after a delete, or a manual
+  //     entry + Plaid import both got promoted to income_entries). We keep the
+  //     row that's still linked to a live transaction; otherwise we keep one.
+  const reconciledIncomeEntries = useMemo(() => {
+    if (!incomeEntries) return undefined;
+    const liveTxIds = new Set((transactions || []).map((t) => t.id));
+
+    // 1) Drop orphans (linked_transaction_id set but transaction missing)
+    const notOrphans = incomeEntries.filter((e) => {
+      if (!e.linked_transaction_id) return true; // unlinked is fine
+      return liveTxIds.has(e.linked_transaction_id);
+    });
+
+    // 2) Dedupe by exact (company|date|amount). Prefer the live-linked row.
+    const byKey = new Map<string, typeof notOrphans[number]>();
+    for (const e of notOrphans) {
+      const key = `${e.company || ""}|${e.income_date}|${Number(e.paycheck_amount || 0).toFixed(2)}`;
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, e);
+        continue;
+      }
+      const existingLinked = !!existing.linked_transaction_id && liveTxIds.has(existing.linked_transaction_id);
+      const candidateLinked = !!e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id);
+      if (candidateLinked && !existingLinked) {
+        byKey.set(key, e);
+      } else if (candidateLinked === existingLinked) {
+        const newer = new Date(e.updated_at || e.created_at) > new Date(existing.updated_at || existing.created_at) ? e : existing;
+        byKey.set(key, newer);
+      }
+    }
+
+    const result = Array.from(byKey.values());
+
+    if (typeof window !== "undefined") {
+      const orphanCount = incomeEntries.length - notOrphans.length;
+      const dupeCount = notOrphans.length - result.length;
+      if (orphanCount > 0 || dupeCount > 0) {
+        // eslint-disable-next-line no-console
+        console.warn("[useTaxEstimate] income_entries reconciliation:", {
+          total: incomeEntries.length,
+          excludedOrphans: orphanCount,
+          excludedDuplicates: dupeCount,
+          included: result.length,
+          includedBusinessGross: result.reduce((s, e) => s + Number(e.paycheck_amount || 0), 0),
+        });
+      }
+    }
+    return result;
+  }, [incomeEntries, transactions]);
+
+  const weighted = useWeightedIncome(reconciledIncomeEntries);
   const annualizedRetirement = useAnnualizedContributions(retirementContribs);
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
 
   // Build shared base input once
   const baseInput = useMemo(() => {
-    if (!rates || !incomeEntries) return null;
+    if (!rates || !reconciledIncomeEntries) return null;
+    const incomeEntriesClean = reconciledIncomeEntries;
 
     const personal = personalEntries || [];
 
@@ -106,7 +166,7 @@ export function useTaxEstimate(): {
     // Remaining pay periods
     const now = new Date();
     const monthsRemaining = 12 - now.getMonth();
-    const receivedEntries = incomeEntries.filter((e) => e.status === "received");
+    const receivedEntries = incomeEntriesClean.filter((e) => e.status === "received");
     const avgEntriesPerMonth = receivedEntries.length > 0
       ? receivedEntries.length / (now.getMonth() + 1)
       : 1;
@@ -116,11 +176,11 @@ export function useTaxEstimate(): {
     const savingsTotal = taxSavings.reduce((s, e) => s + Number(e.amount), 0);
 
     // Projected totals (bucketed by W-2 / SE / other; fed/state withholding split)
-    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries || []);
+    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
     const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
 
     // Owner healthcare (K-1 deduction)
-    const ownerHealthcare = (incomeEntries || [])
+    const ownerHealthcare = incomeEntriesClean
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
 
@@ -135,11 +195,11 @@ export function useTaxEstimate(): {
     //                         submitted tax payment
     //
     // We intentionally only sum the canonical federal_withholding column here.
-    const businessFederalWithheld = (incomeEntries || []).reduce(
+    const businessFederalWithheld = incomeEntriesClean.reduce(
       (s, e) => s + Number((e as any).federal_withholding || 0),
       0,
     );
-    const businessStateWithheld = (incomeEntries || []).reduce(
+    const businessStateWithheld = incomeEntriesClean.reduce(
       (s, e) => s + Number((e as any).state_withholding || 0),
       0,
     );
@@ -148,7 +208,7 @@ export function useTaxEstimate(): {
     // Excludes scorp_distribution, scorp_w2, w2, other — those are NOT subject
     // to SE tax even though they may be tracked under a "business" company.
     const SE_ELIGIBLE_TYPES = new Set(["1099_schedule_c", "k1_partnership"]);
-    const seEligibleBusinessIncome = (incomeEntries || [])
+    const seEligibleBusinessIncome = incomeEntriesClean
       .filter((e) => SE_ELIGIBLE_TYPES.has(normalizeFilingType(e.income_type)))
       .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
 
@@ -162,7 +222,7 @@ export function useTaxEstimate(): {
       if (rates.businessStateTaxApplicationMode === "selected" && !rates.businessStateTaxCompanyIds.includes(c.id)) continue;
       eligibleCompanyNames.add(c.name);
     }
-    const businessStateEligibleGross = (incomeEntries || [])
+    const businessStateEligibleGross = incomeEntriesClean
       .filter((e) => isSelfEmployedFilingType(e.income_type) && eligibleCompanyNames.has(e.company))
       .reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
     const totalBusinessGross = weighted.se || 1;
@@ -225,7 +285,7 @@ export function useTaxEstimate(): {
       businessStateTaxRate: rates.businessStateTaxRate,
       businessStateTaxBase: rates.businessStateTaxBase,
     };
-  }, [incomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
+  }, [reconciledIncomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
 
   // Actual estimate (no projected income)
   const actualResult = useMemo(() => {
