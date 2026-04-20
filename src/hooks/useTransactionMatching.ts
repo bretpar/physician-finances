@@ -65,10 +65,10 @@ export function useSuggestedMatches(
 
   return useMemo(() => {
     const manual = transactions.filter(
-      (t) => t.source_type === "manual" && t.match_status !== "linked" && !t.is_deleted
+      (t) => t.source_type === "manual" && t.match_status !== "linked"
     );
     const plaid = transactions.filter(
-      (t) => t.source_type === "plaid" && t.match_status !== "linked" && !t.is_deleted
+      (t) => t.source_type === "plaid" && t.match_status !== "linked"
     );
 
     const incomeByTxId = new Map<string, IncomeEntry>();
@@ -255,17 +255,20 @@ export function useLinkTransactions() {
       });
       if (linkErr) throw linkErr;
 
-      // Update manual tx
+      // Update manual tx — it becomes the canonical visible row.
       const { error: e1 } = await supabase
         .from("transactions")
         .update({ match_status: "linked", linked_group_id: groupId, source_type: "merged" })
         .eq("id", manualTxId);
       if (e1) throw e1;
 
-      // Update plaid tx — mark as linked and hide from main view
+      // HARD-DELETE the plaid duplicate row. The transaction_links record
+      // (with linked_group_id) preserves the audit trail. The plaid_transactions
+      // raw row is untouched, so re-syncs still see it as known and won't
+      // re-create a transactions row (unique index on plaid_transaction_ref).
       const { error: e2 } = await supabase
         .from("transactions")
-        .update({ match_status: "linked", linked_group_id: groupId, is_deleted: true })
+        .delete()
         .eq("id", plaidTxId);
       if (e2) throw e2;
     },
@@ -283,24 +286,23 @@ export function useUnlinkTransactions() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (groupId: string) => {
+      // Restore the manual side back to "unmatched / manual".
+      // The Plaid duplicate was hard-deleted at link time; we cannot resurrect
+      // the transactions row, but the underlying plaid_transactions raw row is
+      // still there. Mark the link as unlinked so the next sync (or a manual
+      // re-import) can re-introduce a row if desired.
       const { error: e1 } = await supabase
         .from("transactions")
         .update({ match_status: "unmatched", linked_group_id: null, source_type: "manual" })
         .eq("linked_group_id", groupId)
         .eq("source_type", "merged");
 
-      const { error: e2 } = await supabase
-        .from("transactions")
-        .update({ match_status: "unmatched", linked_group_id: null, is_deleted: false, source_type: "plaid" })
-        .eq("linked_group_id", groupId)
-        .eq("is_deleted", true);
-
       const { error: e3 } = await supabase
         .from("transaction_links")
         .update({ status: "unlinked" })
         .eq("linked_group_id", groupId);
 
-      if (e1 || e2 || e3) throw new Error("Failed to unlink");
+      if (e1 || e3) throw new Error("Failed to unlink");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });

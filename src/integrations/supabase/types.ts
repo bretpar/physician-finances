@@ -442,6 +442,41 @@ export type Database = {
           },
         ]
       }
+      plaid_deleted_tombstones: {
+        Row: {
+          deleted_at: string
+          id: string
+          organization_id: string | null
+          plaid_transaction_id: string
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          id?: string
+          organization_id?: string | null
+          plaid_transaction_id: string
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          deleted_at?: string
+          id?: string
+          organization_id?: string | null
+          plaid_transaction_id?: string
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plaid_deleted_tombstones_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plaid_items: {
         Row: {
           access_token: string
@@ -1332,7 +1367,6 @@ export type Database = {
           entity: string
           excluded_from_reports: boolean
           id: string
-          is_deleted: boolean
           is_recurring: boolean
           linked_group_id: string | null
           match_status: string
@@ -1367,7 +1401,6 @@ export type Database = {
           entity?: string
           excluded_from_reports?: boolean
           id?: string
-          is_deleted?: boolean
           is_recurring?: boolean
           linked_group_id?: string | null
           match_status?: string
@@ -1402,7 +1435,6 @@ export type Database = {
           entity?: string
           excluded_from_reports?: boolean
           id?: string
-          is_deleted?: boolean
           is_recurring?: boolean
           linked_group_id?: string | null
           match_status?: string

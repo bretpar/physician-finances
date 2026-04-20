@@ -16,7 +16,7 @@ export interface ExpenseSummary {
   byCompanyType: Record<string, number>;
 }
 
-function isExpense(tx: DbTransaction): boolean { return tx.transaction_type === "expense" && !tx.is_deleted; }
+function isExpense(tx: DbTransaction): boolean { return tx.transaction_type === "expense"; }
 
 export function useExpenseSummary(transactions: DbTransaction[], companies?: Company[]): ExpenseSummary {
   return useMemo(() => {

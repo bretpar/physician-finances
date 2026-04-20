@@ -292,13 +292,14 @@ export default function Transactions() {
       if (filterReview === "needs_review" && !t.needs_review) return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
-      if (hideLinkedDupes && t.match_status === "linked" && t.is_deleted) return false;
+      // Linked-duplicate hiding is no longer needed — linking now hard-deletes
+      // the Plaid duplicate, so there's nothing to hide.
       return true;
     });
   }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo, hideLinkedDupes]);
 
   const needsReviewCount = useMemo(() =>
-    transactions.filter((t) => t.needs_review && !t.is_deleted).length
+    transactions.filter((t) => t.needs_review).length
   , [transactions]);
 
   const companyFilterOptions = useMemo(() => {
@@ -693,10 +694,10 @@ export default function Transactions() {
 
   const summaryStats = useMemo(() => {
     const revenue = filtered
-      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const expenses = filtered
-      .filter((t) => t.transaction_type === "expense" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "expense")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
     const ownerDeds = (incomeEntries || [])

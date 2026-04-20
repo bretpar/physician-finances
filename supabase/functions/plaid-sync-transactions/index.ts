@@ -155,6 +155,7 @@ Deno.serve(async (req) => {
     let totalAdded = 0;
     let totalModified = 0;
     let totalSkipped = 0;
+    let totalTombstoned = 0;
     const newlyAdded: Array<{
       id: string;
       plaid_account_id: string;
@@ -163,6 +164,13 @@ Deno.serve(async (req) => {
       name: string;
       raw_amount: number;
     }> = [];
+
+    // Pre-fetch tombstones so we never resurrect user-deleted Plaid transactions.
+    const { data: tombstones } = await adminClient
+      .from("plaid_deleted_tombstones")
+      .select("plaid_transaction_id")
+      .eq("user_id", user.id);
+    const tombstonedIds = new Set((tombstones || []).map((t: any) => t.plaid_transaction_id));
 
     for (const item of plaidItems) {
       let hasMore = true;
@@ -213,7 +221,13 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Store raw plaid transaction
+          // Honor the user's prior delete: never resurrect a tombstoned tx.
+          if (tombstonedIds.has(txn.transaction_id)) {
+            totalTombstoned++;
+            continue;
+          }
+
+          // Store raw plaid transaction (idempotent on plaid_transaction_id)
           const { data: plaidTxRow, error: plaidTxError } = await adminClient
             .from("plaid_transactions")
             .upsert({
@@ -303,25 +317,32 @@ Deno.serve(async (req) => {
           const assignedEntity = bizInfo ? bizInfo.companyName : "Unassigned";
           const assignmentSource = bizInfo ? "account_default" : "none";
 
-          const { error: appTxError } = await adminClient.from("transactions").insert({
-            user_id: user.id,
-            organization_id: orgId,
-            transaction_date: txn.date,
-            vendor: txn.merchant_name || txn.name || "",
-            amount: Math.abs(txn.amount),
-            category: txType === "transfer" ? "Transfer" : "Uncategorized",
-            account_source: item.institution_name,
-            transaction_type: txType,
-            transfer_subtype: transferSubtype,
-            source_type: "plaid",
-            plaid_transaction_ref: plaidTxRow?.id || null,
-            match_status: "unmatched",
-            entity: assignedEntity,
-            assignment_source: assignmentSource,
-            notes: "",
-            needs_review: true,
-            excluded_from_reports: txType === "transfer",
-          });
+          // Upsert by (user_id, plaid_transaction_ref) — the unique partial
+          // index uq_transactions_user_plaid_ref guarantees we never create
+          // a duplicate transactions row for the same imported transaction.
+          // If a row already exists (e.g. retry after partial failure), we
+          // ignore the conflict instead of inserting a duplicate.
+          const { error: appTxError } = await adminClient
+            .from("transactions")
+            .upsert({
+              user_id: user.id,
+              organization_id: orgId,
+              transaction_date: txn.date,
+              vendor: txn.merchant_name || txn.name || "",
+              amount: Math.abs(txn.amount),
+              category: txType === "transfer" ? "Transfer" : "Uncategorized",
+              account_source: item.institution_name,
+              transaction_type: txType,
+              transfer_subtype: transferSubtype,
+              source_type: "plaid",
+              plaid_transaction_ref: plaidTxRow?.id || null,
+              match_status: "unmatched",
+              entity: assignedEntity,
+              assignment_source: assignmentSource,
+              notes: "",
+              needs_review: true,
+              excluded_from_reports: txType === "transfer",
+            }, { onConflict: "user_id,plaid_transaction_ref", ignoreDuplicates: true });
 
           if (appTxError) {
             console.error("Insert app transaction error:", appTxError);
@@ -384,21 +405,32 @@ Deno.serve(async (req) => {
           totalModified++;
         }
 
-        // Process REMOVED transactions (soft-delete app transactions)
+        // Process REMOVED transactions: hard-delete the visible app row AND
+        // tombstone so it's never resurrected. We keep the raw plaid_transactions
+        // entry untouched for audit.
         const removed = syncData.removed || [];
         for (const txn of removed) {
           const { data: plaidTx } = await adminClient
             .from("plaid_transactions")
             .select("id")
             .eq("plaid_transaction_id", txn.transaction_id)
-            .single();
-          
+            .maybeSingle();
+
           if (plaidTx) {
             await adminClient
               .from("transactions")
-              .update({ is_deleted: true })
+              .delete()
               .eq("plaid_transaction_ref", plaidTx.id);
           }
+
+          await adminClient
+            .from("plaid_deleted_tombstones")
+            .upsert({
+              user_id: user.id,
+              organization_id: orgId,
+              plaid_transaction_id: txn.transaction_id,
+              reason: "plaid_removed",
+            }, { onConflict: "user_id,plaid_transaction_id", ignoreDuplicates: true });
         }
 
         cursor = syncData.next_cursor;
@@ -458,6 +490,7 @@ Deno.serve(async (req) => {
       transactions_added: totalAdded,
       transactions_modified: totalModified,
       transactions_skipped: totalSkipped,
+      transactions_tombstoned: totalTombstoned,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

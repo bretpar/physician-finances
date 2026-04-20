@@ -36,10 +36,10 @@ export function useDashboardSummary(
     // Business income and expenses from transactions
     const txs = transactions || [];
     const businessIncome = txs
-      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const businessExpenses = txs
-      .filter((t) => t.transaction_type === "expense" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "expense")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const businessNetIncome = businessIncome - businessExpenses;
 
@@ -57,7 +57,7 @@ export function useDashboardSummary(
 
     // Business withholding from transactions
     const txWithheld = txs
-      .filter((t) => t.transaction_type === "income" && !t.is_deleted)
+      .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
 
     // Legacy business income entries withholding

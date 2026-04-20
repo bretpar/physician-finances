@@ -30,7 +30,6 @@ export interface DbTransaction {
   category: string;
   notes: string | null;
   receipt_url: string | null;
-  is_deleted: boolean;
   entity: string;
   company_type: string;
   parent_transaction_id: string | null;
@@ -75,13 +74,14 @@ export function useTransactions() {
   return useQuery({
     queryKey: ["transactions"],
     queryFn: async () => {
+      // Hard-delete model: rows in this table are always live.
+      // No is_deleted filter needed — deletion removes the row.
       const { data, error } = await supabase
         .from("transactions")
         .select("*")
-        .eq("is_deleted", false)
         .order("transaction_date", { ascending: false });
       if (error) throw error;
-      return (data || []) as DbTransaction[];
+      return (data || []) as unknown as DbTransaction[];
     },
   });
 }
@@ -144,11 +144,13 @@ export function useDeleteTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // If this is an income transaction, also delete any linked income_entries
-      // row so it doesn't remain as an orphan inflating the tax estimate.
+      // Look up the row first so we can:
+      //   1. Clean up linked income_entries (avoid orphan tax inflation)
+      //   2. If this was an imported Plaid row, write a tombstone so the next
+      //      Plaid sync does NOT silently re-create it.
       const { data: tx } = await supabase
         .from("transactions")
-        .select("id, transaction_type")
+        .select("id, transaction_type, plaid_transaction_ref, user_id, organization_id")
         .eq("id", id)
         .maybeSingle();
 
@@ -159,6 +161,27 @@ export function useDeleteTransaction() {
           .eq("linked_transaction_id", id);
         if (ieErr) console.error("Delete linked income_entries error:", ieErr);
       }
+
+      // Tombstone Plaid imports so they aren't resurrected on resync.
+      if (tx && (tx as any).plaid_transaction_ref) {
+        const { data: plaidRow } = await supabase
+          .from("plaid_transactions")
+          .select("plaid_transaction_id")
+          .eq("id", (tx as any).plaid_transaction_ref)
+          .maybeSingle();
+        if (plaidRow?.plaid_transaction_id) {
+          await supabase.from("plaid_deleted_tombstones").insert({
+            user_id: (tx as any).user_id,
+            organization_id: (tx as any).organization_id ?? null,
+            plaid_transaction_id: plaidRow.plaid_transaction_id,
+            reason: "user_deleted",
+          } as any);
+        }
+      }
+
+      // Clean up any link/match records pointing at this transaction.
+      await supabase.from("transaction_links").delete()
+        .or(`manual_transaction_id.eq.${id},plaid_transaction_record_id.eq.${id}`);
 
       const { error } = await supabase
         .from("transactions")
