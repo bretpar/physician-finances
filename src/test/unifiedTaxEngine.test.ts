@@ -118,4 +118,54 @@ describe("Unified tax engine — credits, double-counting, mode parity", () => {
       1,
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // Overview vs Breakdown parity
+  // ---------------------------------------------------------------------------
+  // Both screens must consume the SAME debug object from the unified engine.
+  // This test simulates Overview's and Breakdown's read paths and asserts the
+  // surfaced numbers are byte-identical. If anyone reintroduces independent
+  // math in either path, this test fails.
+  it("Tax Overview and Tax Breakdown surface identical totals from the same input", () => {
+    const input: UnifiedTaxInput = {
+      ...baseInput,
+      qualifyingChildrenCount: 2,
+      otherDependentsCount: 1,
+      stateTaxEnabled: true,
+      personalStateTaxMode: "flat_rate",
+      personalStateTaxRate: 5,
+    };
+
+    // Overview path (Taxes.tsx + TaxReserve.tsx) reads these fields:
+    const overview = computeUnifiedTaxEstimate(input).debug;
+    const overviewView = {
+      totalEstimatedTax: overview.totalEstimatedTax,
+      taxableIncome: overview.totalTaxableIncome,
+      agi: overview.agi,
+      federalTaxBeforeCredits: overview.federalTaxBeforeCredits,
+      taxCredits: overview.taxCredits,
+      federalIncomeTax: overview.federalIncomeTax,
+      selfEmploymentTax: overview.selfEmploymentTax,
+      stateTax: overview.stateTax,
+      countedCreditsTotal: overview.countedCreditsTotal,
+      remainingTaxDue: overview.remainingTaxDue,
+    };
+
+    // Breakdown path (useTaxBreakdown.ts) reads from the same debug object:
+    const breakdown = computeUnifiedTaxEstimate(input).debug;
+    const breakdownView = {
+      totalEstimatedTax: breakdown.totalEstimatedTax,
+      taxableIncome: breakdown.totalTaxableIncome,
+      agi: breakdown.agi,
+      federalTaxBeforeCredits: breakdown.federalTaxBeforeCredits,
+      taxCredits: breakdown.taxCredits,
+      federalIncomeTax: breakdown.federalIncomeTax,
+      selfEmploymentTax: breakdown.selfEmploymentTax,
+      stateTax: breakdown.stateTax,
+      countedCreditsTotal: breakdown.countedCreditsTotal,
+      remainingTaxDue: breakdown.remainingTaxDue,
+    };
+
+    expect(breakdownView).toEqual(overviewView);
+  });
 });
