@@ -628,7 +628,7 @@ export function useTaxBreakdown(
       targetAnnualWithholding,
       isLoading,
     };
-  }, [settings, txs, incomes, companies, streams, bonuses, overrides, filterCompanyName, mode,
+  }, [settings, txs, incomes, companies, streams, bonuses, overrides, mileageEntries, filterCompanyName, mode,
       sLoading, tLoading, iLoading, stLoading, bLoading, oLoading, estLoading,
       actualDebug, forecastDebug, actualEstimate, forecastEstimate]);
 }
