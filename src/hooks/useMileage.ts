@@ -9,12 +9,17 @@ export interface MileageEntry {
   month: number;
   year: number;
   company_name: string;
+  /** Canonical link to companies.id. Null = unassigned (legacy). */
+  company_id: string | null;
   miles: number;
   created_at: string;
   updated_at: string;
 }
 
 export const IRS_MILEAGE_RATE = 0.67;
+
+/** Sentinel value used in selects to represent "no company / legacy". */
+export const UNASSIGNED_COMPANY_VALUE = "__unassigned__";
 
 export function useMileageEntries(month?: number, year?: number) {
   return useQuery({
@@ -45,10 +50,26 @@ export function useMileageYTD(year: number) {
   });
 }
 
+/**
+ * Returns YTD deductible mileage dollars grouped by company_id.
+ * Entries without a company_id are bucketed under the empty string "".
+ */
+export function getMileageDeductionByCompany(
+  entries: MileageEntry[] | undefined | null,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const e of entries || []) {
+    const key = e.company_id || "";
+    const amt = Number(e.miles) * IRS_MILEAGE_RATE;
+    map.set(key, (map.get(key) || 0) + amt);
+  }
+  return map;
+}
+
 export function useAddMileageEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (entry: Pick<MileageEntry, "month" | "year" | "company_name" | "miles">) => {
+    mutationFn: async (entry: Pick<MileageEntry, "month" | "year" | "company_name" | "miles"> & { company_id?: string | null }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
@@ -58,6 +79,7 @@ export function useAddMileageEntry() {
         month: entry.month,
         year: entry.year,
         company_name: entry.company_name,
+        company_id: entry.company_id ?? null,
         miles: entry.miles,
       });
       if (error) throw error;
