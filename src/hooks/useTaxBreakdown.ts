@@ -534,6 +534,8 @@ export function useTaxBreakdown(
       totalDeductions,
       preTaxDeductions,
       retirement401k,
+      healthInsuranceDeduction,
+      agi,
       standardDeduction,
       itemizedDeduction,
       deductionApplied,
