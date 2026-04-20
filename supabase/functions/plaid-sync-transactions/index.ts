@@ -155,6 +155,7 @@ Deno.serve(async (req) => {
     let totalAdded = 0;
     let totalModified = 0;
     let totalSkipped = 0;
+    let totalTombstoned = 0;
     const newlyAdded: Array<{
       id: string;
       plaid_account_id: string;
@@ -163,6 +164,13 @@ Deno.serve(async (req) => {
       name: string;
       raw_amount: number;
     }> = [];
+
+    // Pre-fetch tombstones so we never resurrect user-deleted Plaid transactions.
+    const { data: tombstones } = await adminClient
+      .from("plaid_deleted_tombstones")
+      .select("plaid_transaction_id")
+      .eq("user_id", user.id);
+    const tombstonedIds = new Set((tombstones || []).map((t: any) => t.plaid_transaction_id));
 
     for (const item of plaidItems) {
       let hasMore = true;
@@ -213,7 +221,13 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Store raw plaid transaction
+          // Honor the user's prior delete: never resurrect a tombstoned tx.
+          if (tombstonedIds.has(txn.transaction_id)) {
+            totalTombstoned++;
+            continue;
+          }
+
+          // Store raw plaid transaction (idempotent on plaid_transaction_id)
           const { data: plaidTxRow, error: plaidTxError } = await adminClient
             .from("plaid_transactions")
             .upsert({
