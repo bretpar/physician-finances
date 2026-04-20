@@ -42,6 +42,7 @@ import {
   useToggleAccountSync,
   useReviewAccounts,
 } from "@/hooks/usePlaid";
+import { DuplicateCleanupCard } from "@/components/DuplicateCleanupCard";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -1139,6 +1140,12 @@ export default function Settings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Data Maintenance */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-foreground">Data Maintenance</h2>
+        <DuplicateCleanupCard />
+      </section>
 
       {/* Edit account routing dialog */}
       <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
