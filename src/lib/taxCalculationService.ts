@@ -118,6 +118,10 @@ export interface TaxDebugBreakdown {
   retirementContributions: number;
   /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
   healthInsuranceDeduction: number;
+  /** Actual (YTD) portion of healthInsuranceDeduction. */
+  actualHealthInsuranceDeduction: number;
+  /** Projected future portion (only when includeProjectedIncome=true). */
+  projectedHealthInsuranceDeduction: number;
   halfSETaxDeduction: number;
   ownerDeductions: number;
   /** Adjusted Gross Income = total return income − preTax − retirement − health insurance − ½ SE tax. */
