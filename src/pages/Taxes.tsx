@@ -385,25 +385,32 @@ export default function Taxes() {
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-2">
-          {e && (
+          {e && debug && (
             <Card>
               <CardContent className="pt-4 pb-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Federal Income Tax</span><span className="font-medium">{fmt(e.federalTax)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(e.seTax.total)}</span></div>
-                {(e.personalStateTax > 0 || e.businessStateTax > 0) && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">State Tax</span><span className="font-medium">{fmt(e.stateTax)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Federal tax before credits</span><span className="font-medium">{fmt(debug.federalTaxBeforeCredits)}</span></div>
+                {debug.taxCredits > 0 && (
+                  <div className="flex justify-between text-emerald-600"><span>Child &amp; dependent credits</span><span>−{fmt(debug.taxCredits)}</span></div>
+                )}
+                <div className="flex justify-between"><span className="text-muted-foreground">Federal tax after credits</span><span className="font-medium">{fmt(debug.federalIncomeTax)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(debug.selfEmploymentTax)}</span></div>
+                {debug.stateTax > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">State Tax</span><span className="font-medium">{fmt(debug.stateTax)}</span></div>
                 )}
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
-                  <span>Total Estimated Tax</span><span>{fmt(e.totalTaxLiability)}</span>
+                  <span>Total Estimated Tax</span><span>{fmt(debug.totalEstimatedTax)}</span>
                 </div>
-                <div className="flex justify-between text-emerald-600">
-                  <span>Taxes Already Withheld</span><span>−{fmt(e.taxesAlreadyWithheld)}</span>
-                </div>
-                <div className="flex justify-between text-emerald-600">
-                  <span>Quarterly Payments</span><span>−{fmt(estPaymentsMade)}</span>
-                </div>
+                {debug.federalWithheld > 0 && (
+                  <div className="flex justify-between text-emerald-600"><span>Federal withholding paid</span><span>−{fmt(debug.federalWithheld)}</span></div>
+                )}
+                {debug.stateWithheld > 0 && (
+                  <div className="flex justify-between text-emerald-600"><span>State withholding paid</span><span>−{fmt(debug.stateWithheld)}</span></div>
+                )}
+                {estPaymentsMade > 0 && (
+                  <div className="flex justify-between text-emerald-600"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
+                )}
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
-                  <span>Remaining</span>
+                  <span>Remaining tax due</span>
                   <span className={remainingTax > 0 ? "text-amber-600" : "text-emerald-600"}>{fmt(remainingTax)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground pt-1">

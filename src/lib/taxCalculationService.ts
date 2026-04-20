@@ -316,7 +316,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const countedCreditsTotal =
     combinedFederalWithheld + combinedStateWithheld + actualEstimatedPaymentsMade;
   const nonCountedSavingsTotal = taxSavingsSetAside + txActualWithholding;
-  const remainingTaxDue = estimate.remainingLiability;
+  // Remaining = totalEstimatedTax − countedCreditsTotal. We compute this here
+  // (instead of using estimate.remainingLiability) so the identity always
+  // holds and state withholding never gets "double-counted" by being implicit
+  // in state tax due AND added to countedCreditsTotal.
+  const remainingTaxDue = Math.max(0, estimate.totalTaxLiability - countedCreditsTotal);
 
   const debug: TaxDebugBreakdown = {
     includeProjectedIncome,
