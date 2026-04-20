@@ -353,7 +353,7 @@ export function useTaxEstimate(): {
       businessStateTaxRate: rates.businessStateTaxRate,
       businessStateTaxBase: rates.businessStateTaxBase,
     };
-  }, [reconciledIncomeEntries, personalEntries, weighted, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
+  }, [reconciledIncomeEntries, personalEntries, canonicalBusiness, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
 
   // Actual estimate (no projected income)
   const actualResult = useMemo(() => {
