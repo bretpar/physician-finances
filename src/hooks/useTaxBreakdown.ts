@@ -416,12 +416,18 @@ export function useTaxBreakdown(
       ? Math.max(0, itemizedDeduction)
       : standardDeduction;
 
-    const totalDeductions = preTaxDeductions + retirement401k + seTax.deductibleHalf + deductionApplied;
+    const totalDeductions = preTaxDeductions + retirement401k + healthInsuranceDeduction + seTax.deductibleHalf + deductionApplied;
     const totalGrossIncome = ordinaryGross + totalLongTermGains;
+
+    // AGI = gross − pre-tax − retirement − health insurance − ½ SE tax
+    const agi = Math.max(
+      0,
+      totalGrossIncome - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf,
+    );
 
     const taxableOrdinaryIncome = Math.max(
       0,
-      ordinaryGross - preTaxDeductions - retirement401k - seTax.deductibleHalf - deductionApplied,
+      ordinaryGross - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf - deductionApplied,
     );
     const taxableLTCG = Math.max(0, totalLongTermGains);
     const totalTaxableIncome = taxableOrdinaryIncome + taxableLTCG;
