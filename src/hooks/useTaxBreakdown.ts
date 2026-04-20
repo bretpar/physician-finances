@@ -313,6 +313,7 @@ export function useTaxBreakdown(
     let actualOtherIncome = 0;
     let preTaxDeductions = 0;
     let retirement401k = 0;
+    let healthInsuranceDeduction = 0;
     let totalSEIncome = 0;
 
     for (const agg of companyAgg.values()) {
@@ -320,6 +321,7 @@ export function useTaxBreakdown(
       const totalGross = agg.actualGross + agg.plannedGross;
       preTaxDeductions += agg.preTax;
       retirement401k += agg.retirement;
+      healthInsuranceDeduction += agg.healthcare;
 
       if (kind === "w2") {
         const taxableWages = Math.max(0, totalGross - agg.preTax - agg.retirement);
