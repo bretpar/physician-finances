@@ -103,6 +103,10 @@ export interface TaxBreakdownResult {
   totalDeductions: number;
   preTaxDeductions: number;
   retirement401k: number;
+  /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
+  healthInsuranceDeduction: number;
+  /** Adjusted Gross Income = totalGrossIncome − preTax − retirement − health insurance − ½ SE tax. */
+  agi: number;
   standardDeduction: number;
   itemizedDeduction: number;
   deductionApplied: number;
