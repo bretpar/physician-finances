@@ -124,9 +124,19 @@ export function useTaxEstimate(): {
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
 
-    // Business federal vs state withholding
+    // Business federal vs state withholding.
+    //
+    // Field semantics (income_entries):
+    //   federal_withholding = actual federal tax already withheld (TRUSTED)
+    //   state_withholding   = actual state tax already withheld   (TRUSTED)
+    //   taxes_withheld      = legacy/general field — NOT trusted for tax-credit
+    //                         totals (would double-count federal_withholding)
+    //   actual_withholding  (on transactions) = savings reserve only, NOT a
+    //                         submitted tax payment
+    //
+    // We intentionally only sum the canonical federal_withholding column here.
     const businessFederalWithheld = (incomeEntries || []).reduce(
-      (s, e) => s + Number((e as any).federal_withholding || 0) + Number(e.taxes_withheld || 0),
+      (s, e) => s + Number((e as any).federal_withholding || 0),
       0,
     );
     const businessStateWithheld = (incomeEntries || []).reduce(
