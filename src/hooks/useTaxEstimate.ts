@@ -266,6 +266,7 @@ export function useTaxEstimate(): {
       projectedStateWithheld: projTotals.stateWithheld,
       projectedPreTax: projTotals.preTaxDeductions,
       projectedRetirement: projTotals.retirement401k,
+      projectedHealthInsuranceDeduction: projTotals.healthInsuranceDeduction,
       filingStatus: rates.filingStatus as "single" | "married_filing_jointly",
       lastYearTax: rates.lastYearTax,
       standardDeductionOverride: rates.standardDeductionOverride,
