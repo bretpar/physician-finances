@@ -85,6 +85,7 @@ export interface ProjectedPaycheck {
   taxesWithheld: number;
   retirement401k: number;
   preTaxDeductions: number;
+  ownerHealthcare: number;
   netAmount: number;
   type: "paycheck" | "bonus";
   label: string;
