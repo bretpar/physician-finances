@@ -282,18 +282,21 @@ export default function Transactions() {
 
 
 
-  // Filtered list
+  // Filtered list.
+  // Note: useTransactions() already filters status='active' server-side, so
+  // duplicate / merged / archived rows are excluded from the ledger and totals.
+  // Company filter uses the canonical companies.id stored on transactions.source_id
+  // (NOT the denormalized text in `entity`). This is the single source of truth
+  // for which business a transaction belongs to.
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
-      if (filterCompany !== "all" && t.entity !== filterCompany) return false;
+      if (filterCompany !== "all" && (t.source_id || "") !== filterCompany) return false;
       if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
       if (filterReview === "needs_review" && !t.needs_review) return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
-      // Linked-duplicate hiding is no longer needed — linking now hard-deletes
-      // the Plaid duplicate, so there's nothing to hide.
       return true;
     });
   }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo, hideLinkedDupes]);
@@ -302,10 +305,13 @@ export default function Transactions() {
     transactions.filter((t) => t.needs_review).length
   , [transactions]);
 
+  // Company filter: list non-W2 companies by id (canonical) with name as label.
   const companyFilterOptions = useMemo(() => {
-    const names = new Set(transactions.map((t) => t.entity).filter(Boolean));
-    return [...names].sort();
-  }, [transactions]);
+    return companies
+      .filter((c) => !isW2FilingType(c.companyType))
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [companies]);
 
   // --- Smart withholding recommendation engine ---
   const { getRecommendation } = useWithholdingRecommendation();
@@ -791,7 +797,7 @@ export default function Transactions() {
             <SelectContent>
               <SelectItem value="all">All Companies</SelectItem>
               {companyFilterOptions.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
