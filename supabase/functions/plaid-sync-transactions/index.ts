@@ -405,21 +405,32 @@ Deno.serve(async (req) => {
           totalModified++;
         }
 
-        // Process REMOVED transactions (soft-delete app transactions)
+        // Process REMOVED transactions: hard-delete the visible app row AND
+        // tombstone so it's never resurrected. We keep the raw plaid_transactions
+        // entry untouched for audit.
         const removed = syncData.removed || [];
         for (const txn of removed) {
           const { data: plaidTx } = await adminClient
             .from("plaid_transactions")
             .select("id")
             .eq("plaid_transaction_id", txn.transaction_id)
-            .single();
-          
+            .maybeSingle();
+
           if (plaidTx) {
             await adminClient
               .from("transactions")
-              .update({ is_deleted: true })
+              .delete()
               .eq("plaid_transaction_ref", plaidTx.id);
           }
+
+          await adminClient
+            .from("plaid_deleted_tombstones")
+            .upsert({
+              user_id: user.id,
+              organization_id: orgId,
+              plaid_transaction_id: txn.transaction_id,
+              reason: "plaid_removed",
+            }, { onConflict: "user_id,plaid_transaction_id", ignoreDuplicates: true });
         }
 
         cursor = syncData.next_cursor;
@@ -479,6 +490,7 @@ Deno.serve(async (req) => {
       transactions_added: totalAdded,
       transactions_modified: totalModified,
       transactions_skipped: totalSkipped,
+      transactions_tombstoned: totalTombstoned,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
