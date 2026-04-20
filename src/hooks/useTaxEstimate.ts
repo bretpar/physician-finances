@@ -115,7 +115,8 @@ export function useTaxEstimate(): {
 
   // Build shared base input once
   const baseInput = useMemo(() => {
-    if (!rates || !incomeEntries) return null;
+    if (!rates || !reconciledIncomeEntries) return null;
+    const incomeEntriesClean = reconciledIncomeEntries;
 
     const personal = personalEntries || [];
 
