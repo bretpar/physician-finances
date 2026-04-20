@@ -68,12 +68,14 @@ export function useAddIncome() {
       const estimatedRate = isSelfEmployed ? 0.35 : 0.25; // rough combined rate
       const recommendedWithholding = Math.max(0, (taxableForThis * estimatedRate) - taxWithheld);
 
+      // Source of truth for revenue/tax = gross (paycheck) amount.
+      // deposited_amount is stored separately on income_entries for matching/cashflow.
       const { data: txData, error: txError } = await supabase.from("transactions").insert({
         user_id: user.id,
         organization_id: orgId,
         transaction_date: incomeDate,
         vendor: entry.name || entry.company || "",
-        amount: entry.deposited_amount || paycheckAmount,
+        amount: paycheckAmount,
         account_source: "",
         category: "Income",
         notes: entry.notes || "",
