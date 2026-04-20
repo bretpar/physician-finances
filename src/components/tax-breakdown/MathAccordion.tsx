@@ -128,9 +128,15 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
               {data.retirement401k > 0 && (
                 <Step label="Retirement contributions" value={fmt(data.retirement401k)} op="subtract" />
               )}
+              {data.healthInsuranceDeduction > 0 && (
+                <Step label="Health insurance deduction" value={fmt(data.healthInsuranceDeduction)} op="subtract" />
+              )}
               {data.seDeductibleHalf > 0 && (
                 <Step label="½ self-employment tax" value={fmt(data.seDeductibleHalf)} op="subtract" />
               )}
+              <div className="border-t border-border my-1" />
+              <Step label="Adjusted Gross Income (AGI)" value={fmt(data.agi)} op="equals" bold />
+              <div className="h-2" />
               <Step
                 label={data.deductionType === "itemized" ? "Itemized deduction" : "Standard deduction"}
                 value={fmt(data.deductionApplied)}

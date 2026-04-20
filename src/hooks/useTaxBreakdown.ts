@@ -103,6 +103,10 @@ export interface TaxBreakdownResult {
   totalDeductions: number;
   preTaxDeductions: number;
   retirement401k: number;
+  /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
+  healthInsuranceDeduction: number;
+  /** Adjusted Gross Income = totalGrossIncome − preTax − retirement − health insurance − ½ SE tax. */
+  agi: number;
   standardDeduction: number;
   itemizedDeduction: number;
   deductionApplied: number;
@@ -184,6 +188,7 @@ export function useTaxBreakdown(
       plannedGross: number;
       preTax: number;
       retirement: number;
+      healthcare: number;
       withheld: number;
       stateWithheld: number;
       federalWithheld: number;
@@ -201,6 +206,7 @@ export function useTaxBreakdown(
         plannedGross: 0,
         preTax: 0,
         retirement: 0,
+        healthcare: 0,
         withheld: 0,
         stateWithheld: 0,
         federalWithheld: 0,
@@ -218,6 +224,7 @@ export function useTaxBreakdown(
       agg.actualGross += Number(e.paycheck_amount) || 0;
       agg.preTax += Number(e.pre_tax_deductions) || 0;
       agg.retirement += Number(e.retirement_401k) || 0;
+      agg.healthcare += Number((e as any).owner_healthcare) || 0;
       agg.withheld += Number(e.taxes_withheld) || 0;
       agg.federalWithheld += Number((e as any).federal_withholding) || 0;
       agg.stateWithheld += Number((e as any).state_withholding) || 0;
@@ -310,6 +317,7 @@ export function useTaxBreakdown(
     let actualOtherIncome = 0;
     let preTaxDeductions = 0;
     let retirement401k = 0;
+    let healthInsuranceDeduction = 0;
     let totalSEIncome = 0;
 
     for (const agg of companyAgg.values()) {
@@ -317,6 +325,7 @@ export function useTaxBreakdown(
       const totalGross = agg.actualGross + agg.plannedGross;
       preTaxDeductions += agg.preTax;
       retirement401k += agg.retirement;
+      healthInsuranceDeduction += agg.healthcare;
 
       if (kind === "w2") {
         const taxableWages = Math.max(0, totalGross - agg.preTax - agg.retirement);
@@ -411,12 +420,18 @@ export function useTaxBreakdown(
       ? Math.max(0, itemizedDeduction)
       : standardDeduction;
 
-    const totalDeductions = preTaxDeductions + retirement401k + seTax.deductibleHalf + deductionApplied;
+    const totalDeductions = preTaxDeductions + retirement401k + healthInsuranceDeduction + seTax.deductibleHalf + deductionApplied;
     const totalGrossIncome = ordinaryGross + totalLongTermGains;
+
+    // AGI = gross − pre-tax − retirement − health insurance − ½ SE tax
+    const agi = Math.max(
+      0,
+      totalGrossIncome - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf,
+    );
 
     const taxableOrdinaryIncome = Math.max(
       0,
-      ordinaryGross - preTaxDeductions - retirement401k - seTax.deductibleHalf - deductionApplied,
+      ordinaryGross - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf - deductionApplied,
     );
     const taxableLTCG = Math.max(0, totalLongTermGains);
     const totalTaxableIncome = taxableOrdinaryIncome + taxableLTCG;
@@ -435,12 +450,10 @@ export function useTaxBreakdown(
     const federalTaxBeforeCredits = ordinaryBracketCalc.total + ltcgBracketCalc.total;
     const qualifyingChildrenCount = Number(settings?.qualifyingChildrenCount) || 0;
     const otherDependentsCount = Number(settings?.otherDependentsCount) || 0;
-    // Use AGI-ish proxy = gross - pretax/retirement/½SE
-    const agiProxy = Math.max(0, totalGrossIncome - preTaxDeductions - retirement401k - seTax.deductibleHalf);
     const dependentCredits = calculateDependentCredits(
       qualifyingChildrenCount,
       otherDependentsCount,
-      agiProxy,
+      agi,
       filingStatus,
     );
 
@@ -481,7 +494,7 @@ export function useTaxBreakdown(
 
     const personalState = calculatePersonalStateTax({
       taxableIncome: taxableOrdinaryIncome,
-      agi: agiProxy,
+      agi,
       inputs: stateInputs,
     });
     const businessState = calculateBusinessStateTax({ inputs: stateInputs });
@@ -521,6 +534,8 @@ export function useTaxBreakdown(
       totalDeductions,
       preTaxDeductions,
       retirement401k,
+      healthInsuranceDeduction,
+      agi,
       standardDeduction,
       itemizedDeduction,
       deductionApplied,

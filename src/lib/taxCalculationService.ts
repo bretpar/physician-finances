@@ -114,8 +114,12 @@ export interface TaxDebugBreakdown {
   totalReturnIncomeBeforeAdjustments: number;
   preTaxDeductions: number;
   retirementContributions: number;
+  /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
+  healthInsuranceDeduction: number;
   halfSETaxDeduction: number;
   ownerDeductions: number;
+  /** Adjusted Gross Income = total return income − preTax − retirement − health insurance − ½ SE tax. */
+  agi: number;
   deductionApplied: number;
   deductionType: "standard" | "itemized";
   totalTaxableIncome: number;
@@ -234,7 +238,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const ineligibleBusinessIncome = Math.max(0, businessIncome - seEligibleBusinessIncome);
   const otherIncome = personalNonW2Income + netStockGain + ineligibleBusinessIncome + projOther;
 
-  const combinedPreTax = businessPreTax + personalPreTax + projPreTax + ownerHealthcare;
+  // combinedPreTax = ONLY actual pre-tax deductions (NOT health insurance).
+  // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
+  const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
+  const healthInsuranceDeduction = ownerHealthcare;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
 
   // ── Credits against tax (explicit) ──
@@ -268,7 +275,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     seIncome,
     grossBusinessIncome,
     otherIncome,
-    preTaxDeductions: combinedPreTax,
+    preTaxDeductions: combinedPreTax + healthInsuranceDeduction,
     retirement401k: combined401k,
     businessDeductions: businessExpenses,
     mileageDeduction,
@@ -314,8 +321,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     totalReturnIncomeBeforeAdjustments: estimate.totalReturnIncomeBeforeAdjustments,
     preTaxDeductions: combinedPreTax,
     retirementContributions: combined401k,
+    healthInsuranceDeduction,
     halfSETaxDeduction: estimate.halfSETaxDeduction,
     ownerDeductions: ownerHealthcare + businessRetirement + businessPreTax,
+    agi: estimate.agi,
     deductionApplied: estimate.deductionApplied,
     deductionType: estimate.deductionType,
     totalTaxableIncome: estimate.taxableIncome,
