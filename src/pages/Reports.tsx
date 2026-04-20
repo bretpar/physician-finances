@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { mapLegacyCategory, EXPENSE_CATEGORIES } from "@/components/ExpenseCategoryCombobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,24 @@ export default function Reports() {
   const { data: transactions = [] } = useTransactions();
   const { data: incomeEntries = [] } = useIncomeEntries();
   const { companies } = useCompanies();
+  const currentYearForMileage = new Date().getFullYear();
+  const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
+
+  const VEHICLE_CATEGORY = "Car and truck expenses";
+
+  // Resolve a mileage entry to a company NAME (Reports filters by entity name).
+  // Entries with no company_id are skipped — they never count toward any company total.
+  const mileageByCompanyName = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of ytdMileage) {
+      if (!e.company_id) continue;
+      const c = companies.find((x) => x.id === e.company_id);
+      if (!c) continue;
+      const dollars = Number(e.miles) * IRS_MILEAGE_RATE;
+      m.set(c.name, (m.get(c.name) || 0) + dollars);
+    }
+    return m;
+  }, [ytdMileage, companies]);
 
   // P&L state
   const [plCompany, setPlCompany] = useState("all");
@@ -82,17 +101,29 @@ export default function Reports() {
     });
 
     const grossIncome = incomeTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
-    const totalExpenses = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const txExpenseTotal = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
 
-    // Category breakdown
+    // Mileage deduction allocated to selected company (or all assigned mileage)
+    let mileageDed = 0;
+    if (plCompany === "all") {
+      for (const v of mileageByCompanyName.values()) mileageDed += v;
+    } else {
+      mileageDed = mileageByCompanyName.get(plCompany) || 0;
+    }
+    const totalExpenses = txExpenseTotal + mileageDed;
+
+    // Category breakdown — fold mileage into "Car and truck expenses"
     const byCategory: Record<string, number> = {};
     for (const t of expenseTxs) {
       const cat = mapLegacyCategory(t.category);
       byCategory[cat] = (byCategory[cat] || 0) + Math.abs(t.amount);
     }
+    if (mileageDed > 0) {
+      byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
+    }
 
-    return { grossIncome, totalExpenses, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
-  }, [transactions, plCompany, dateRange]);
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
+  }, [transactions, plCompany, dateRange, mileageByCompanyName]);
 
   // ──── Annual Tax Summary Computation ────
   const taxData = useMemo(() => {
@@ -114,7 +145,16 @@ export default function Reports() {
     });
 
     const grossIncome = incomeTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
-    const totalExpenses = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const txExpenseTotal = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
+
+    // Mileage deduction → folded into "Car and truck expenses" Schedule C bucket
+    let mileageDed = 0;
+    if (taxCompany === "all") {
+      for (const v of mileageByCompanyName.values()) mileageDed += v;
+    } else {
+      mileageDed = mileageByCompanyName.get(taxCompany) || 0;
+    }
+    const totalExpenses = txExpenseTotal + mileageDed;
 
     const byCategory: Record<string, number> = {};
     for (const cat of EXPENSE_CATEGORIES) byCategory[cat] = 0;
@@ -122,9 +162,10 @@ export default function Reports() {
       const cat = mapLegacyCategory(t.category);
       byCategory[cat] = (byCategory[cat] || 0) + Math.abs(t.amount);
     }
+    byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
 
-    return { grossIncome, totalExpenses, netProfit: grossIncome - totalExpenses, byCategory };
-  }, [transactions, taxCompany, taxYear]);
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory };
+  }, [transactions, taxCompany, taxYear, mileageByCompanyName]);
 
   // ──── Export helpers ────
   function exportPLCSV() {

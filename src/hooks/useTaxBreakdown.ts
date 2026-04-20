@@ -38,6 +38,7 @@ import {
   generateProjectedPaychecks,
 } from "@/hooks/useProjectedIncome";
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
+import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import {
   ORDINARY_BRACKETS_2025,
@@ -205,6 +206,8 @@ export function useTaxBreakdown(
   const { data: streams = [], isLoading: stLoading } = useProjectedStreams();
   const { data: bonuses = [], isLoading: bLoading } = useProjectedBonuses();
   const { data: overrides = [], isLoading: oLoading } = useStreamOverrides();
+  const currentYear = new Date().getFullYear();
+  const { data: mileageEntries = [] } = useMileageYTD(currentYear);
 
   // 🎯 SINGLE SOURCE OF TRUTH for all totals
   const {
@@ -354,7 +357,28 @@ export function useTaxBreakdown(
       }
     }
 
-    // Build per-source breakdown rows + per-source DISPLAY totals
+    // ── Mileage deductions per company (folded into Schedule C "car_truck") ──
+    // Each mileage entry's deductible amount = miles × IRS rate flows into the
+    // associated company's expenses, profit math, and Schedule C output.
+    // Entries with company_id = NULL are treated as Unassigned and intentionally
+    // excluded from any per-company total (no double counting).
+    for (const m of mileageEntries) {
+      if (!m.company_id) continue;
+      const company = companies.find((c) => c.id === m.company_id);
+      if (!company) continue; // company deleted → skip
+      if (!matchCompany(company.name)) continue;
+      const dollars = Number(m.miles) * IRS_MILEAGE_RATE;
+      if (dollars <= 0) continue;
+      const agg = expensesByCompany.get(company.name) ?? {
+        total: 0, byCategory: new Map(), txCount: 0,
+      };
+      agg.total += dollars;
+      const catAgg = agg.byCategory.get("car_truck") ?? { total: 0, count: 0 };
+      catAgg.total += dollars;
+      catAgg.count += 1;
+      agg.byCategory.set("car_truck", catAgg);
+      expensesByCompany.set(company.name, agg);
+    }
     const sources: IncomeSourceBreakdown[] = [];
     let totalBusinessRevenue = 0;
     let totalBusinessExpenses = 0;
@@ -604,7 +628,7 @@ export function useTaxBreakdown(
       targetAnnualWithholding,
       isLoading,
     };
-  }, [settings, txs, incomes, companies, streams, bonuses, overrides, filterCompanyName, mode,
+  }, [settings, txs, incomes, companies, streams, bonuses, overrides, mileageEntries, filterCompanyName, mode,
       sLoading, tLoading, iLoading, stLoading, bLoading, oLoading, estLoading,
       actualDebug, forecastDebug, actualEstimate, forecastEstimate]);
 }

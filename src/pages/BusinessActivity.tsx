@@ -29,6 +29,7 @@ import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Lin
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments } from "@/components/TransactionAttachments";
 import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
+import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts } from "@/hooks/useAttachments";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
@@ -698,19 +699,33 @@ export default function Transactions() {
     URL.revokeObjectURL(url);
   }
 
+  const { data: ytdMileage = [] } = useMileageYTD(new Date().getFullYear());
+
   const summaryStats = useMemo(() => {
     const revenue = filtered
       .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
-    const expenses = filtered
+    const txExpenses = filtered
       .filter((t) => t.transaction_type === "expense")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
+
+    // Mileage deductions: include only entries linked to companies that pass
+    // the current company filter. "all" → every assigned mileage entry.
+    const mileageDed = ytdMileage
+      .filter((m) => {
+        if (!m.company_id) return false; // Unassigned never counts toward a company total
+        if (filterCompany === "all") return true;
+        return m.company_id === filterCompany;
+      })
+      .reduce((s, m) => s + Number(m.miles) * IRS_MILEAGE_RATE, 0);
+
+    const expenses = txExpenses + mileageDed;
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
     const ownerDeds = (incomeEntries || [])
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).owner_healthcare || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
-    return { revenue, expenses, profit: revenue - expenses, ownerDeductions: ownerDeds };
-  }, [filtered, incomeEntries]);
+    return { revenue, expenses, txExpenses, mileageDeduction: mileageDed, profit: revenue - expenses, ownerDeductions: ownerDeds };
+  }, [filtered, incomeEntries, ytdMileage, filterCompany]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;

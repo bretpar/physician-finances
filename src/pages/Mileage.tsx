@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
-import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
@@ -61,12 +61,19 @@ export default function Mileage() {
   const deleteMileage = useDeleteMileageEntry();
 
   const [showAdd, setShowAdd] = useState(false);
-  const [addCompany, setAddCompany] = useState("");
+  // Add form: company_id is canonical link; UNASSIGNED for legacy/no-company entries
+  const [addCompanyId, setAddCompanyId] = useState<string>("");
   const [addMiles, setAddMiles] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
-  const [editCompany, setEditCompany] = useState("");
+  const [editCompanyId, setEditCompanyId] = useState<string>("");
   const [editMiles, setEditMiles] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Resolve company name from id (or fall back to a stored legacy name)
+  const companyNameById = (id: string | null | undefined, fallback?: string | null) => {
+    if (!id || id === UNASSIGNED_COMPANY_VALUE) return fallback || "Unassigned";
+    return companies.find((c) => c.id === id)?.name || fallback || "Unassigned";
+  };
 
   // ─── Retirement state ─────────────────────────
   const { data: contributions, isLoading: contribLoading } = useRetirementContributions();
@@ -111,20 +118,39 @@ export default function Mileage() {
 
   function handleAddMileage() {
     const miles = parseFloat(addMiles);
-    if (!addCompany.trim() || isNaN(miles) || miles < 0) return;
-    addMileage.mutate({ month: selectedMonth, year: selectedYear, company_name: addCompany.trim(), miles });
-    setShowAdd(false); setAddCompany(""); setAddMiles("");
+    if (!addCompanyId || isNaN(miles) || miles < 0) return;
+    const isUnassigned = addCompanyId === UNASSIGNED_COMPANY_VALUE;
+    const name = isUnassigned ? "Unassigned" : (companies.find((c) => c.id === addCompanyId)?.name || "");
+    if (!name) return;
+    addMileage.mutate({
+      month: selectedMonth,
+      year: selectedYear,
+      company_name: name,
+      company_id: isUnassigned ? null : addCompanyId,
+      miles,
+    });
+    setShowAdd(false); setAddCompanyId(""); setAddMiles("");
   }
 
   function openEditMileage(entry: typeof monthEntries[0]) {
-    setEditId(entry.id); setEditCompany(entry.company_name); setEditMiles(String(entry.miles));
+    setEditId(entry.id);
+    setEditCompanyId(entry.company_id || UNASSIGNED_COMPANY_VALUE);
+    setEditMiles(String(entry.miles));
   }
 
   function handleEditMileage() {
     if (!editId) return;
     const miles = parseFloat(editMiles);
-    if (!editCompany.trim() || isNaN(miles) || miles < 0) return;
-    updateMileage.mutate({ id: editId, company_name: editCompany.trim(), miles });
+    if (!editCompanyId || isNaN(miles) || miles < 0) return;
+    const isUnassigned = editCompanyId === UNASSIGNED_COMPANY_VALUE;
+    const name = isUnassigned ? "Unassigned" : (companies.find((c) => c.id === editCompanyId)?.name || "");
+    if (!name) return;
+    updateMileage.mutate({
+      id: editId,
+      company_name: name,
+      company_id: isUnassigned ? null : editCompanyId,
+      miles,
+    });
     setEditId(null);
   }
 
@@ -278,7 +304,12 @@ export default function Mileage() {
               ) : (
                 monthEntries.map((entry) => (
                   <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[1fr_120px_120px_80px] gap-1 sm:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center">
-                    <span className="text-sm font-medium text-card-foreground">{entry.company_name}</span>
+                    <span className="text-sm font-medium text-card-foreground">
+                      {companyNameById(entry.company_id, entry.company_name)}
+                      {!entry.company_id && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">Unassigned</span>
+                      )}
+                    </span>
                     <span className="text-sm tabular-nums text-right">{Number(entry.miles).toLocaleString()}</span>
                     <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * IRS_MILEAGE_RATE)}</span>
                     <div className="flex gap-1 justify-end">
@@ -503,15 +534,16 @@ export default function Mileage() {
           <div className="space-y-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-              {pastCompanies.length > 0 ? (
-                <Select value={addCompany} onValueChange={setAddCompany}>
-                  <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
-                  <SelectContent>{pastCompanies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
-              ) : (
-                <Input value={addCompany} onChange={(e) => setAddCompany(e.target.value)} placeholder="Company name" />
-              )}
-              {pastCompanies.length > 0 && <Input className="mt-2" value={addCompany} onChange={(e) => setAddCompany(e.target.value)} placeholder="Or type a new company name" />}
+              <Select value={addCompanyId} onValueChange={setAddCompanyId}>
+                <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned (no company)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                The deductible amount is added to this company's expenses on Reports & Schedule C.
+              </p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label>
@@ -522,7 +554,7 @@ export default function Mileage() {
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button onClick={handleAddMileage} disabled={!addCompany.trim() || !(parseFloat(addMiles) >= 0)}>Add Entry</Button>
+              <Button onClick={handleAddMileage} disabled={!addCompanyId || !(parseFloat(addMiles) >= 0)}>Add Entry</Button>
             </div>
           </div>
         </DialogContent>
@@ -532,11 +564,20 @@ export default function Mileage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Mileage Entry</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label><Input value={editCompany} onChange={(e) => setEditCompany(e.target.value)} /></div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
+              <Select value={editCompanyId} onValueChange={setEditCompanyId}>
+                <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned (no company)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label><Input type="number" min="0" step="0.1" value={editMiles} onChange={(e) => setEditMiles(e.target.value)} /></div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditId(null)}>Cancel</Button>
-              <Button onClick={handleEditMileage}>Save</Button>
+              <Button onClick={handleEditMileage} disabled={!editCompanyId}>Save</Button>
             </div>
           </div>
         </DialogContent>
