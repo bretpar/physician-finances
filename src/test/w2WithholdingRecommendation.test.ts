@@ -61,7 +61,7 @@ const baseInput: UnifiedTaxInput = {
   businessStateTaxEnabled: false,
   businessStateTaxRate: 0,
   businessStateTaxBase: "gross",
-};
+  includeProjectedIncome: false,
 
 describe("W-2 withholding recommendation — unified annual remaining tax", () => {
   it("Scenario A: W-2 fully covered by projected withholding → remainingTaxDue is 0", () => {
