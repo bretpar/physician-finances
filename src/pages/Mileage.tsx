@@ -304,7 +304,12 @@ export default function Mileage() {
               ) : (
                 monthEntries.map((entry) => (
                   <div key={entry.id} className="flex flex-col sm:grid sm:grid-cols-[1fr_120px_120px_80px] gap-1 sm:gap-2 px-5 py-3 hover:bg-muted/50 transition-colors items-center">
-                    <span className="text-sm font-medium text-card-foreground">{entry.company_name}</span>
+                    <span className="text-sm font-medium text-card-foreground">
+                      {companyNameById(entry.company_id, entry.company_name)}
+                      {!entry.company_id && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">Unassigned</span>
+                      )}
+                    </span>
                     <span className="text-sm tabular-nums text-right">{Number(entry.miles).toLocaleString()}</span>
                     <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * IRS_MILEAGE_RATE)}</span>
                     <div className="flex gap-1 justify-end">
@@ -529,15 +534,16 @@ export default function Mileage() {
           <div className="space-y-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
-              {pastCompanies.length > 0 ? (
-                <Select value={addCompany} onValueChange={setAddCompany}>
-                  <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
-                  <SelectContent>{pastCompanies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
-              ) : (
-                <Input value={addCompany} onChange={(e) => setAddCompany(e.target.value)} placeholder="Company name" />
-              )}
-              {pastCompanies.length > 0 && <Input className="mt-2" value={addCompany} onChange={(e) => setAddCompany(e.target.value)} placeholder="Or type a new company name" />}
+              <Select value={addCompanyId} onValueChange={setAddCompanyId}>
+                <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned (no company)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                The deductible amount is added to this company's expenses on Reports & Schedule C.
+              </p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label>
@@ -548,7 +554,7 @@ export default function Mileage() {
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button onClick={handleAddMileage} disabled={!addCompany.trim() || !(parseFloat(addMiles) >= 0)}>Add Entry</Button>
+              <Button onClick={handleAddMileage} disabled={!addCompanyId || !(parseFloat(addMiles) >= 0)}>Add Entry</Button>
             </div>
           </div>
         </DialogContent>
@@ -558,11 +564,20 @@ export default function Mileage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Mileage Entry</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label><Input value={editCompany} onChange={(e) => setEditCompany(e.target.value)} /></div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
+              <Select value={editCompanyId} onValueChange={setEditCompanyId}>
+                <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned (no company)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label><Input type="number" min="0" step="0.1" value={editMiles} onChange={(e) => setEditMiles(e.target.value)} /></div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditId(null)}>Cancel</Button>
-              <Button onClick={handleEditMileage}>Save</Button>
+              <Button onClick={handleEditMileage} disabled={!editCompanyId}>Save</Button>
             </div>
           </div>
         </DialogContent>
