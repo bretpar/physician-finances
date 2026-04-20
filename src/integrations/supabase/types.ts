@@ -256,6 +256,7 @@ export type Database = {
       }
       mileage_entries: {
         Row: {
+          company_id: string | null
           company_name: string
           created_at: string
           id: string
@@ -267,6 +268,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          company_id?: string | null
           company_name?: string
           created_at?: string
           id?: string
@@ -278,6 +280,7 @@ export type Database = {
           year: number
         }
         Update: {
+          company_id?: string | null
           company_name?: string
           created_at?: string
           id?: string
@@ -289,6 +292,13 @@ export type Database = {
           year?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "mileage_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mileage_entries_organization_id_fkey"
             columns: ["organization_id"]
