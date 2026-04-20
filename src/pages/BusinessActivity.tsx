@@ -429,9 +429,9 @@ export default function Transactions() {
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
     const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
 
-    // Determine the correct amount for the transactions table:
-    // If user entered Net Received, use that; otherwise use Gross Income.
-    const txAmount = depositedAmt > 0 ? depositedAmt : paycheckAmt;
+    // Gross income is the source of truth for revenue/tax totals.
+    // Deposited (net) amount is stored separately on income_entries for matching/cashflow.
+    const txAmount = paycheckAmt;
 
     if (isEditingIncome) {
       const oldTx = transactions.find(t => t.id === editingIncomeTxId);
@@ -1084,6 +1084,14 @@ export default function Transactions() {
                   if (tx.excluded_from_reports) badges.push({ label: "Excluded", tone: "muted" });
                   if (source === "merged") badges.push({ label: "Linked", tone: "info" });
                   if (isTransferTx) badges.push({ label: transferLabel, tone: "info" });
+                  // Show net-deposit badge for income with a separate deposited amount
+                  if (isIncomeTx) {
+                    const linked = incomeByLinkedTx.get(tx.id);
+                    const deposited = Number(linked?.deposited_amount || 0);
+                    if (deposited > 0 && Math.abs(deposited - Math.abs(tx.amount)) > 0.5) {
+                      badges.push({ label: `Deposited: ${fmt(deposited)}`, tone: "muted" });
+                    }
+                  }
 
                   const subtitle = isIncomeTx ? "Income" : mapLegacyCategory(tx.category) || "Uncategorized";
                   const meta = tx.entity ? tx.entity : null;
