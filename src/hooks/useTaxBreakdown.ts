@@ -257,8 +257,6 @@ export function useTaxBreakdown(
     }
 
     // ── Add PLANNED income (only when mode === "forecast") ──
-    let plannedPreTaxTotal = 0;
-    let plannedRetirementTotal = 0;
     if (mode === "forecast") {
       const paychecks = generateProjectedPaychecks(streams, bonuses, incomes, overrides);
       // Only "active" (future, unmatched) paychecks count as planned add-on
