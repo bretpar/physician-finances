@@ -114,8 +114,12 @@ export interface TaxDebugBreakdown {
   totalReturnIncomeBeforeAdjustments: number;
   preTaxDeductions: number;
   retirementContributions: number;
+  /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
+  healthInsuranceDeduction: number;
   halfSETaxDeduction: number;
   ownerDeductions: number;
+  /** Adjusted Gross Income = total return income − preTax − retirement − health insurance − ½ SE tax. */
+  agi: number;
   deductionApplied: number;
   deductionType: "standard" | "itemized";
   totalTaxableIncome: number;
