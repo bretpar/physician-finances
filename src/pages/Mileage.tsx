@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
-import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
@@ -61,12 +61,19 @@ export default function Mileage() {
   const deleteMileage = useDeleteMileageEntry();
 
   const [showAdd, setShowAdd] = useState(false);
-  const [addCompany, setAddCompany] = useState("");
+  // Add form: company_id is canonical link; UNASSIGNED for legacy/no-company entries
+  const [addCompanyId, setAddCompanyId] = useState<string>("");
   const [addMiles, setAddMiles] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
-  const [editCompany, setEditCompany] = useState("");
+  const [editCompanyId, setEditCompanyId] = useState<string>("");
   const [editMiles, setEditMiles] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Resolve company name from id (or fall back to a stored legacy name)
+  const companyNameById = (id: string | null | undefined, fallback?: string | null) => {
+    if (!id || id === UNASSIGNED_COMPANY_VALUE) return fallback || "Unassigned";
+    return companies.find((c) => c.id === id)?.name || fallback || "Unassigned";
+  };
 
   // ─── Retirement state ─────────────────────────
   const { data: contributions, isLoading: contribLoading } = useRetirementContributions();
@@ -111,20 +118,39 @@ export default function Mileage() {
 
   function handleAddMileage() {
     const miles = parseFloat(addMiles);
-    if (!addCompany.trim() || isNaN(miles) || miles < 0) return;
-    addMileage.mutate({ month: selectedMonth, year: selectedYear, company_name: addCompany.trim(), miles });
-    setShowAdd(false); setAddCompany(""); setAddMiles("");
+    if (!addCompanyId || isNaN(miles) || miles < 0) return;
+    const isUnassigned = addCompanyId === UNASSIGNED_COMPANY_VALUE;
+    const name = isUnassigned ? "Unassigned" : (companies.find((c) => c.id === addCompanyId)?.name || "");
+    if (!name) return;
+    addMileage.mutate({
+      month: selectedMonth,
+      year: selectedYear,
+      company_name: name,
+      company_id: isUnassigned ? null : addCompanyId,
+      miles,
+    });
+    setShowAdd(false); setAddCompanyId(""); setAddMiles("");
   }
 
   function openEditMileage(entry: typeof monthEntries[0]) {
-    setEditId(entry.id); setEditCompany(entry.company_name); setEditMiles(String(entry.miles));
+    setEditId(entry.id);
+    setEditCompanyId(entry.company_id || UNASSIGNED_COMPANY_VALUE);
+    setEditMiles(String(entry.miles));
   }
 
   function handleEditMileage() {
     if (!editId) return;
     const miles = parseFloat(editMiles);
-    if (!editCompany.trim() || isNaN(miles) || miles < 0) return;
-    updateMileage.mutate({ id: editId, company_name: editCompany.trim(), miles });
+    if (!editCompanyId || isNaN(miles) || miles < 0) return;
+    const isUnassigned = editCompanyId === UNASSIGNED_COMPANY_VALUE;
+    const name = isUnassigned ? "Unassigned" : (companies.find((c) => c.id === editCompanyId)?.name || "");
+    if (!name) return;
+    updateMileage.mutate({
+      id: editId,
+      company_name: name,
+      company_id: isUnassigned ? null : editCompanyId,
+      miles,
+    });
     setEditId(null);
   }
 
