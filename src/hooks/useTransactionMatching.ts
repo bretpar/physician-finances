@@ -255,20 +255,28 @@ export function useLinkTransactions() {
       });
       if (linkErr) throw linkErr;
 
-      // Update manual tx — it becomes the canonical visible row.
+      // Update manual tx — it becomes the canonical VISIBLE (active) row.
       const { error: e1 } = await supabase
         .from("transactions")
-        .update({ match_status: "linked", linked_group_id: groupId, source_type: "merged" })
+        .update({
+          match_status: "linked",
+          linked_group_id: groupId,
+          source_type: "merged",
+          status: "active",
+        })
         .eq("id", manualTxId);
       if (e1) throw e1;
 
-      // HARD-DELETE the plaid duplicate row. The transaction_links record
-      // (with linked_group_id) preserves the audit trail. The plaid_transactions
-      // raw row is untouched, so re-syncs still see it as known and won't
-      // re-create a transactions row (unique index on plaid_transaction_ref).
+      // SOFT-MARK the Plaid duplicate as 'merged'. The row is preserved for
+      // audit / unlink, but business-ledger and global queries filter
+      // status='active', so it disappears from the UI and totals.
       const { error: e2 } = await supabase
         .from("transactions")
-        .delete()
+        .update({
+          status: "merged",
+          match_status: "linked",
+          linked_group_id: groupId,
+        })
         .eq("id", plaidTxId);
       if (e2) throw e2;
     },
@@ -286,23 +294,27 @@ export function useUnlinkTransactions() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (groupId: string) => {
-      // Restore the manual side back to "unmatched / manual".
-      // The Plaid duplicate was hard-deleted at link time; we cannot resurrect
-      // the transactions row, but the underlying plaid_transactions raw row is
-      // still there. Mark the link as unlinked so the next sync (or a manual
-      // re-import) can re-introduce a row if desired.
+      // Restore the manual side back to "unmatched / manual" and re-activate
+      // the Plaid side that was soft-marked as 'merged' at link time.
       const { error: e1 } = await supabase
         .from("transactions")
         .update({ match_status: "unmatched", linked_group_id: null, source_type: "manual" })
         .eq("linked_group_id", groupId)
-        .eq("source_type", "merged");
+        .eq("source_type", "merged")
+        .eq("status", "active");
+
+      const { error: e2 } = await supabase
+        .from("transactions")
+        .update({ match_status: "unmatched", linked_group_id: null, status: "active" })
+        .eq("linked_group_id", groupId)
+        .eq("status", "merged");
 
       const { error: e3 } = await supabase
         .from("transaction_links")
         .update({ status: "unlinked" })
         .eq("linked_group_id", groupId);
 
-      if (e1 || e3) throw new Error("Failed to unlink");
+      if (e1 || e2 || e3) throw new Error("Failed to unlink");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
