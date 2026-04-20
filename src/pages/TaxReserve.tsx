@@ -33,7 +33,8 @@ export default function TaxReserve() {
   const addMutation = useAddTaxSaving();
   const updateMutation = useUpdateTaxSaving();
   const deleteMutation = useDeleteTaxSaving();
-  const { estimate } = useTaxEstimate();
+  const { estimate, taxMode, actualDebug, forecastDebug } = useTaxEstimate();
+  const debug = taxMode === "forecast" ? forecastDebug : actualDebug;
 
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -47,9 +48,11 @@ export default function TaxReserve() {
 
   const totalSetAside = useMemo(() => savings.reduce((s, e) => s + Number(e.amount), 0), [savings]);
   const t = estimate?.tracking;
-  const estimatedOwed = estimate?.totalTaxLiability ?? 0;
-  const taxesWithheld = estimate?.taxesAlreadyWithheld ?? 0;
-  const remainingOwed = Math.max(0, estimatedOwed - taxesWithheld);
+  // Use unified engine output: total tax owed and ALL counted credits (federal
+  // W/H + state W/H + estimated payments). Same definition as Tax Overview.
+  const estimatedOwed = debug?.totalEstimatedTax ?? estimate?.totalTaxLiability ?? 0;
+  const taxesWithheld = debug?.countedCreditsTotal ?? 0;
+  const remainingOwed = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - taxesWithheld);
   const taxGap = totalSetAside - remainingOwed;
   const onTrack = taxGap >= 0;
 
