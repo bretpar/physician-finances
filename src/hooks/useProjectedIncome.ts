@@ -582,6 +582,7 @@ export function generateProjectedPaychecks(
         taxesWithheld: bonus.taxes_withheld,
         retirement401k: 0,
         preTaxDeductions: 0,
+        ownerHealthcare: 0,
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
