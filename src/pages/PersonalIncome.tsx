@@ -307,9 +307,12 @@ export default function PersonalIncome() {
         deposited_amount: netReceived,
         cost_basis: isStockType(form.income_type) ? num(form.cost_basis) : null,
         realized_gain_loss: isStockType(form.income_type) ? num(form.realized_gain_loss) : null,
-        federal_withholding: num(form.federal_withholding),
-        taxes_withheld: num(form.federal_withholding),
-        state_withholding: num(form.state_withholding),
+        // The canonical federal total (federal income tax + SS + Medicare).
+        // Stored in federal_withholding so the tax engine reads a single value.
+        federal_withholding: totalFederal,
+        taxes_withheld: totalFederal,
+        state_withholding: stateW,
+        // Preserve the breakdown for backward compat / reporting.
         ss_withholding: num(form.ss_withholding),
         medicare_withholding: num(form.medicare_withholding),
         retirement_401k: num(form.retirement_pretax),
