@@ -153,7 +153,8 @@ export type IncomeFieldKey =
   | "medicare_withholding"
   | "pre_tax_deductions"
   | "retirement_401k"
-  | "owner_healthcare"
+  | "healthcare_deduction"
+  | "hsa_contribution"
   | "actual_withholding"
   | "additional_tax_reserve"
   | "guaranteed_payment"
@@ -166,11 +167,14 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "actual_withholding",
     "additional_tax_reserve",
     "retirement_401k",
+    "healthcare_deduction",
+    "hsa_contribution",
   ],
   "k1_partnership": [
     "net_received",
     "taxes_withheld",
-    "owner_healthcare",
+    "healthcare_deduction",
+    "hsa_contribution",
     "retirement_401k",
     "pre_tax_deductions",
     "guaranteed_payment",
@@ -185,13 +189,16 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "ss_withholding",
     "medicare_withholding",
     "retirement_401k",
-    "owner_healthcare",
+    "healthcare_deduction",
+    "hsa_contribution",
     "pre_tax_deductions",
   ],
   "scorp_distribution": [
     "net_received",
     "actual_withholding",
     "additional_tax_reserve",
+    "healthcare_deduction",
+    "hsa_contribution",
   ],
   "w2": [
     "net_received",
@@ -200,7 +207,8 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "ss_withholding",
     "medicare_withholding",
     "retirement_401k",
-    "owner_healthcare",
+    "healthcare_deduction",
+    "hsa_contribution",
     "pre_tax_deductions",
   ],
   "other": [
@@ -208,6 +216,8 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "taxes_withheld",
     "actual_withholding",
     "additional_tax_reserve",
+    "healthcare_deduction",
+    "hsa_contribution",
   ],
 };
 
