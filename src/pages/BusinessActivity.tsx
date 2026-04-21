@@ -758,6 +758,11 @@ export default function Transactions() {
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs font-medium text-muted-foreground mb-1">Total Business Expenses</p>
           <p className="text-xl font-bold text-card-foreground">{fmt(summaryStats.expenses)}</p>
+          {summaryStats.mileageDeduction > 0 && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Includes <span className="font-medium text-foreground">{fmt(summaryStats.mileageDeduction)}</span> mileage deduction
+            </p>
+          )}
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-xs font-medium text-muted-foreground mb-1">Business Profit</p>
