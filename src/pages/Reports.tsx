@@ -3,6 +3,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { mapLegacyCategory, EXPENSE_CATEGORIES } from "@/components/ExpenseCategoryCombobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
