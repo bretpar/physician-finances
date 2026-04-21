@@ -76,6 +76,69 @@ export type Database = {
           },
         ]
       }
+      hsa_contributions: {
+        Row: {
+          amount: number
+          company_id: string | null
+          contribution_date: string
+          created_at: string
+          created_from: string
+          id: string
+          income_entry_id: string | null
+          notes: string | null
+          organization_id: string | null
+          source_type: string
+          tax_year: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          company_id?: string | null
+          contribution_date?: string
+          created_at?: string
+          created_from?: string
+          id?: string
+          income_entry_id?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          source_type?: string
+          tax_year?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string | null
+          contribution_date?: string
+          created_at?: string
+          created_from?: string
+          id?: string
+          income_entry_id?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          source_type?: string
+          tax_year?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hsa_contributions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hsa_contributions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       income_entries: {
         Row: {
           additional_tax_reserve: number
@@ -95,6 +158,7 @@ export type Database = {
           income_date: string
           income_type: string
           is_actual: boolean
+          linked_hsa_contribution_id: string | null
           linked_transaction_id: string | null
           medicare_withholding: number
           name: string
@@ -135,6 +199,7 @@ export type Database = {
           income_date?: string
           income_type?: string
           is_actual?: boolean
+          linked_hsa_contribution_id?: string | null
           linked_transaction_id?: string | null
           medicare_withholding?: number
           name?: string
@@ -175,6 +240,7 @@ export type Database = {
           income_date?: string
           income_type?: string
           is_actual?: boolean
+          linked_hsa_contribution_id?: string | null
           linked_transaction_id?: string | null
           medicare_withholding?: number
           name?: string
@@ -1089,6 +1155,8 @@ export type Database = {
           created_at: string
           deduction_type: string
           filing_status: string
+          hsa_enabled: boolean
+          hsa_source_company_id: string | null
           id: string
           itemized_deduction_amount: number
           last_year_tax: number
@@ -1120,6 +1188,8 @@ export type Database = {
           created_at?: string
           deduction_type?: string
           filing_status?: string
+          hsa_enabled?: boolean
+          hsa_source_company_id?: string | null
           id?: string
           itemized_deduction_amount?: number
           last_year_tax?: number
@@ -1151,6 +1221,8 @@ export type Database = {
           created_at?: string
           deduction_type?: string
           filing_status?: string
+          hsa_enabled?: boolean
+          hsa_source_company_id?: string | null
           id?: string
           itemized_deduction_amount?: number
           last_year_tax?: number

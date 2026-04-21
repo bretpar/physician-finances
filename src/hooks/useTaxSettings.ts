@@ -38,6 +38,9 @@ export interface TaxRates {
   businessStateTaxBase: BusinessStateTaxBase;
   businessStateTaxApplicationMode: BusinessStateTaxApplicationMode;
   businessStateTaxCompanyIds: string[];
+  // ─── HSA ───
+  hsaEnabled: boolean;
+  hsaSourceCompanyId: string | null;
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -65,6 +68,8 @@ const DEFAULT_RATES: TaxRates = {
   businessStateTaxBase: "net_profit",
   businessStateTaxApplicationMode: "all_business",
   businessStateTaxCompanyIds: [],
+  hsaEnabled: false,
+  hsaSourceCompanyId: null,
 };
 
 export function useTaxSettings() {
@@ -105,6 +110,8 @@ export function useTaxSettings() {
         businessStateTaxBase: (d.business_state_tax_base as BusinessStateTaxBase) || "net_profit",
         businessStateTaxApplicationMode: (d.business_state_tax_application_mode as BusinessStateTaxApplicationMode) || "all_business",
         businessStateTaxCompanyIds: Array.isArray(d.business_state_tax_company_ids) ? (d.business_state_tax_company_ids as string[]) : [],
+        hsaEnabled: !!d.hsa_enabled,
+        hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
       } as TaxRates;
     },
   });
@@ -139,6 +146,8 @@ export function useUpdateTaxSettings() {
       if (rest.businessStateTaxBase !== undefined) payload.business_state_tax_base = rest.businessStateTaxBase;
       if (rest.businessStateTaxApplicationMode !== undefined) payload.business_state_tax_application_mode = rest.businessStateTaxApplicationMode;
       if (rest.businessStateTaxCompanyIds !== undefined) payload.business_state_tax_company_ids = rest.businessStateTaxCompanyIds;
+      if (rest.hsaEnabled !== undefined) payload.hsa_enabled = rest.hsaEnabled;
+      if (rest.hsaSourceCompanyId !== undefined) payload.hsa_source_company_id = rest.hsaSourceCompanyId;
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
