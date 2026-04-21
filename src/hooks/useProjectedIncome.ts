@@ -40,7 +40,8 @@ export interface ProjectedIncomeStream {
   state_withholding: number;
   ss_withholding: number;
   medicare_withholding: number;
-  owner_healthcare: number;
+  healthcare_deduction: number;
+  hsa_contribution: number;
   additional_tax_reserve: number;
   notes: string;
   created_at: string;
@@ -85,7 +86,10 @@ export interface ProjectedPaycheck {
   taxesWithheld: number;
   retirement401k: number;
   preTaxDeductions: number;
-  ownerHealthcare: number;
+  /** Healthcare deduction (formerly ownerHealthcare). */
+  healthcareDeduction: number;
+  /** HSA contribution — tracked separately for reporting. */
+  hsaContribution: number;
   netAmount: number;
   type: "paycheck" | "bonus";
   label: string;
@@ -247,7 +251,8 @@ export function useAddStream() {
         state_withholding: stream.state_withholding || 0,
         ss_withholding: stream.ss_withholding || 0,
         medicare_withholding: stream.medicare_withholding || 0,
-        owner_healthcare: stream.owner_healthcare || 0,
+        healthcare_deduction: stream.healthcare_deduction || 0,
+        hsa_contribution: stream.hsa_contribution || 0,
         additional_tax_reserve: stream.additional_tax_reserve || 0,
         notes: stream.notes || "",
       } as any);
@@ -471,7 +476,8 @@ export function generateProjectedPaychecks(
     taxesWithheld: number;
     retirement401k: number;
     preTaxDeductions: number;
-    ownerHealthcare: number;
+    healthcareDeduction: number;
+    hsaContribution: number;
     type: "paycheck" | "bonus";
     label: string;
     streamId: string;

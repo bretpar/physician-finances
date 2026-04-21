@@ -27,7 +27,8 @@ export interface PersonalIncomeEntry {
   taxes_withheld: number;
   pre_tax_deductions: number;
   retirement_401k: number;
-  owner_healthcare: number;
+  healthcare_deduction: number;
+  hsa_contribution: number;
   source_bucket: string;
   tax_category: string;
   is_actual: boolean;
@@ -89,7 +90,8 @@ export function useAddPersonalIncome() {
         taxes_withheld: entry.taxes_withheld || entry.federal_withholding || 0,
         pre_tax_deductions: entry.pre_tax_deductions || 0,
         retirement_401k: entry.retirement_401k || 0,
-        owner_healthcare: entry.owner_healthcare || 0,
+        healthcare_deduction: entry.healthcare_deduction || 0,
+        hsa_contribution: entry.hsa_contribution || 0,
         source_bucket: "personal",
         tax_category: entry.tax_category || "ordinary",
         is_actual: true,
