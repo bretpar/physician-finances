@@ -415,6 +415,32 @@ export default function Reports() {
             </div>
           </div>
 
+          {/* HSA summary */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">HSA Contributions ({taxYear})</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Payroll HSA</p>
+                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.payroll)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Individual HSA</p>
+                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.individual)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total HSA</p>
+                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.total)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Deductible (applied)</p>
+                <p className="text-base font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(hsaSummary.deductible)}</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Payroll HSA flows in via paycheck pre-tax; Individual HSA is added as an above-the-line deduction. Both are counted once in the tax engine.
+            </p>
+          </div>
+
           <p className="text-xs text-muted-foreground text-center">
             This is a tax-prep worksheet for reference — not an official IRS form. Use alongside Schedule C when filing.
           </p>
