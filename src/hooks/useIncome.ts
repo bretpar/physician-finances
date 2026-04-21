@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo, useCallback } from "react";
 import { isW2FilingType, isSelfEmployedFilingType, toCanonicalIncomeType } from "@/lib/filingTypes";
+import { syncPayrollHsaForIncome } from "@/hooks/useHsaContributions";
 
 export type IncomeStatus = "projected" | "expected" | "received";
 
