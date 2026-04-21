@@ -1451,38 +1451,38 @@ function StreamTable({
   expired?: boolean;
 }) {
   return (
-    <div className={`overflow-x-auto rounded-lg border border-border ${expired ? "opacity-60" : ""}`}>
+    <div className={`rounded-lg border border-border ${expired ? "opacity-60" : ""}`}>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Company</TableHead>
-            <TableHead>Frequency</TableHead>
-            <TableHead className="text-right">Gross / Pay</TableHead>
-            <TableHead className="text-right">Withholding</TableHead>
-            <TableHead className="text-right">401(k)</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead className="hidden sm:table-cell">Frequency</TableHead>
+            <TableHead className="text-right whitespace-nowrap">Gross / Pay</TableHead>
+            <TableHead className="text-right whitespace-nowrap hidden md:table-cell">Withholding</TableHead>
+            <TableHead className="text-right whitespace-nowrap hidden lg:table-cell">401(k)</TableHead>
+            <TableHead className="hidden sm:table-cell">Status</TableHead>
             <TableHead className="w-20"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {streams.map((s) => (
             <TableRow key={s.id} className={!s.is_active ? "opacity-50" : ""}>
-              <TableCell className="font-medium">{s.company}</TableCell>
-              <TableCell className="text-muted-foreground text-sm">
+              <TableCell className="font-medium min-w-0"><span className="block truncate">{s.company}</span></TableCell>
+              <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
                 {PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}
               </TableCell>
-              <TableCell className="text-right font-medium text-success">
+              <TableCell className="text-right font-medium text-success whitespace-nowrap tabular-nums">
                 {fmtFull(s.paycheck_amount)}
               </TableCell>
-              <TableCell className="text-right text-sm">{fmtFull(s.taxes_withheld)}</TableCell>
-              <TableCell className="text-right text-sm">{fmtFull(s.retirement_401k)}</TableCell>
-              <TableCell>
+              <TableCell className="text-right text-sm whitespace-nowrap tabular-nums hidden md:table-cell">{fmtFull(s.taxes_withheld)}</TableCell>
+              <TableCell className="text-right text-sm whitespace-nowrap tabular-nums hidden lg:table-cell">{fmtFull(s.retirement_401k)}</TableCell>
+              <TableCell className="hidden sm:table-cell">
                 <Badge variant={expired ? "secondary" : s.is_active ? "default" : "secondary"}>
                   {expired ? "Expired" : s.is_active ? "Active" : "Paused"}
                 </Badge>
               </TableCell>
               <TableCell>
-                <div className="flex gap-1">
+                <div className="flex gap-1 justify-end">
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
                     <Pencil className="h-3 w-3" />
                   </Button>

@@ -92,7 +92,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header className="flex items-center gap-4 px-4 py-3 border-b border-border bg-card lg:px-6">
           <button
             className="lg:hidden text-foreground"
@@ -100,11 +100,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <h2 className="text-lg font-semibold text-foreground">
+          <h2 className="text-lg font-semibold text-foreground truncate">
             {navItems.find((i) => i.to === location.pathname)?.label ?? "Page"}
           </h2>
         </header>
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 min-w-0">{children}</div>
       </main>
     </div>
   );
