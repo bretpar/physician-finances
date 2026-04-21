@@ -375,6 +375,7 @@ export default function Transactions() {
         pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
         retirement_401k: linked ? String(linked.retirement_401k) : "",
         healthcare_deduction: linked ? String((linked as any).healthcare_deduction || 0) : "",
+        hsa_contribution: linked ? String((linked as any).hsa_contribution || 0) : "",
         federal_withholding: linked ? String((linked as any).federal_withholding || 0) : "",
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
@@ -444,6 +445,7 @@ export default function Transactions() {
     const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
     const healthcare = preserve("healthcare_deduction", num(incomeForm.healthcare_deduction), (linkedEntry as any)?.healthcare_deduction || 0);
+    const hsa = preserve("hsa_contribution", num(incomeForm.hsa_contribution), (linkedEntry as any)?.hsa_contribution || 0);
     // Canonical federal total = federal income tax + SS + Medicare. Stored in
     // federal_withholding so the tax engine reads a single value.
     const totalFederal = num(incomeForm.total_federal_payroll_taxes);
@@ -507,6 +509,7 @@ export default function Transactions() {
               pre_tax_deductions: preTaxDed,
               retirement_401k: retirement,
               healthcare_deduction: healthcare,
+              hsa_contribution: hsa,
               federal_withholding: fedWH,
               state_withholding: stateWH,
               ss_withholding: ssWH,
@@ -538,6 +541,7 @@ export default function Transactions() {
                   pre_tax_deductions: preTaxDed,
                   retirement_401k: retirement,
                   healthcare_deduction: healthcare,
+              hsa_contribution: hsa,
                   federal_withholding: fedWH,
                   state_withholding: stateWH,
                   ss_withholding: ssWH,
@@ -595,6 +599,7 @@ export default function Transactions() {
         pre_tax_deductions: preTaxDed,
         retirement_401k: retirement,
         healthcare_deduction: healthcare,
+              hsa_contribution: hsa,
         federal_withholding: fedWH,
         state_withholding: stateWH,
         ss_withholding: ssWH,
@@ -1232,6 +1237,7 @@ export default function Transactions() {
                       pre_tax_deductions: "",
                       retirement_401k: "",
                       healthcare_deduction: "",
+                      hsa_contribution: "",
                       federal_withholding: "",
                       state_withholding: "",
                       ss_withholding: "",

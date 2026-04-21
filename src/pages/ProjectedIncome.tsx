@@ -348,6 +348,7 @@ export default function ProjectedIncome() {
       ),
       retirement_401k: String(s.retirement_401k),
       healthcare_deduction: String(s.healthcare_deduction || 0),
+      hsa_contribution: String(s.hsa_contribution || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
       additional_tax_reserve: String(s.additional_tax_reserve || 0),
       notes: s.notes || "",
@@ -362,6 +363,7 @@ export default function ProjectedIncome() {
       Number(s.medicare_withholding || 0) > 0 ||
       Number(s.retirement_401k) > 0 ||
       Number(s.healthcare_deduction || 0) > 0 ||
+      Number(s.hsa_contribution || 0) > 0 ||
       Number(s.pre_tax_deductions) > 0 ||
       Number(s.taxes_withheld) > 0 ||
       Number(s.additional_tax_reserve || 0) > 0 ||
@@ -455,6 +457,7 @@ export default function ProjectedIncome() {
       medicare_withholding: showField("medicare_withholding") ? num(form.medicare_withholding) : 0,
       retirement_401k: showField("retirement_401k") ? num(form.retirement_401k) : 0,
       healthcare_deduction: showField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
+      hsa_contribution: showField("hsa_contribution") ? num(form.hsa_contribution) : 0,
       pre_tax_deductions: showField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
       additional_tax_reserve: showField("additional_tax_reserve")
         ? num(form.additional_tax_reserve)

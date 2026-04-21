@@ -253,6 +253,7 @@ export default function PersonalIncome() {
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       healthcare_deduction: String((entry as any).healthcare_deduction || 0),
+      hsa_contribution: String((entry as any).hsa_contribution || 0),
       source_name: entry.company,
       source_id: (entry as any).source_id ?? null,
       source_save_as_new: false,
@@ -270,6 +271,7 @@ export default function PersonalIncome() {
       Number(entry.retirement_401k) > 0 ||
       Number(entry.pre_tax_deductions) > 0 ||
       Number((entry as any).healthcare_deduction || 0) > 0 ||
+      Number((entry as any).hsa_contribution || 0) > 0 ||
       Number((entry as any).additional_tax_reserve || 0) > 0 ||
       !!(entry.notes && entry.notes.trim())
     );
@@ -321,6 +323,7 @@ export default function PersonalIncome() {
         retirement_401k: num(form.retirement_pretax),
         pre_tax_deductions: num(form.deductions_pre_tax),
         healthcare_deduction: num(form.healthcare_deduction),
+        hsa_contribution: num(form.hsa_contribution),
         is_actual: true,
         include_in_tax_estimate: true,
         include_in_cash_flow: false,
