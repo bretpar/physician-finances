@@ -23,6 +23,7 @@ import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments } from "@/components/TransactionAttachments";
 import { useAttachmentCounts } from "@/hooks/useAttachments";
+import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
@@ -603,7 +604,7 @@ export default function PersonalIncome() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
-                <Input type="date" value={form.date} onChange={(e) => setField("date", e.target.value)} />
+                <DateField value={form.date} onChange={(v) => setField("date", v)} />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
