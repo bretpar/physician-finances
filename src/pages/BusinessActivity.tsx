@@ -1104,37 +1104,60 @@ export default function Transactions() {
                     day: "numeric",
                     year: "2-digit",
                   });
+                  // Primary badges (kept visible): type for transfers, review state
                   const badges: LedgerRowBadge[] = [];
-                  const attCount = attachmentCounts?.get(tx.id) ?? 0;
-                  if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
-                  if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
-                  if (tx.excluded_from_reports) badges.push({ label: "Excluded", tone: "muted" });
-                  if (source === "merged") badges.push({ label: "Linked", tone: "info" });
                   if (isTransferTx) badges.push({ label: transferLabel, tone: "info" });
-                  // Show net-deposit badge for income with a separate deposited amount
-                  if (isIncomeTx) {
-                    const linked = incomeByLinkedTx.get(tx.id);
-                    const deposited = Number(linked?.deposited_amount || 0);
-                    if (deposited > 0 && Math.abs(deposited - Math.abs(tx.amount)) > 0.5) {
-                      badges.push({ label: `Deposited: ${fmt(deposited)}`, tone: "muted" });
-                    }
-                  }
+                  else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "muted" });
+                  if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
 
-                  const subtitle = isIncomeTx ? "Income" : mapLegacyCategory(tx.category) || "Uncategorized";
-                  const meta = tx.entity ? tx.entity : null;
+                  // Secondary metadata (behind expand toggle)
+                  const attCount = attachmentCounts?.get(tx.id) ?? 0;
+                  const categoryLabel = isIncomeTx ? "Income" : mapLegacyCategory(tx.category) || "Uncategorized";
+                  const linked = incomeByLinkedTx.get(tx.id);
+                  const deposited = Number(linked?.deposited_amount || 0);
+                  const showDeposited = isIncomeTx && deposited > 0 && Math.abs(deposited - Math.abs(tx.amount)) > 0.5;
+
+                  const expandableContent = (
+                    <>
+                      <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
+                      {tx.entity && (
+                        <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{tx.entity}</span></div>
+                      )}
+                      {tx.schedule_c_category && (
+                        <div className="flex justify-between gap-3"><span>Schedule C</span><span className="text-foreground text-right truncate">{tx.schedule_c_category}</span></div>
+                      )}
+                      <div className="flex justify-between gap-3"><span>Source</span><span className="text-foreground text-right truncate">{source === "merged" ? "Linked (manual + bank)" : source}</span></div>
+                      {tx.account_source && (
+                        <div className="flex justify-between gap-3"><span>Account</span><span className="text-foreground text-right truncate">{tx.account_source}</span></div>
+                      )}
+                      {attCount > 0 && (
+                        <div className="flex justify-between gap-3"><span>Attachments</span><span className="text-foreground text-right">📎 {attCount}</span></div>
+                      )}
+                      {showDeposited && (
+                        <div className="flex justify-between gap-3"><span>Deposited</span><span className="text-foreground text-right tabular-nums">{fmt(deposited)}</span></div>
+                      )}
+                      {tx.excluded_from_reports && (
+                        <div className="flex justify-between gap-3"><span>Status</span><span className="text-foreground text-right">Excluded from reports</span></div>
+                      )}
+                      {tx.notes && (
+                        <div className="pt-1"><div className="text-muted-foreground/80 mb-0.5">Notes</div><div className="text-foreground whitespace-pre-wrap break-words">{tx.notes}</div></div>
+                      )}
+                    </>
+                  );
 
                   return (
                     <LedgerRow
                       key={tx.id}
                       kind={kind}
                       title={tx.vendor || "(No payee)"}
-                      subtitle={subtitle}
-                      meta={meta}
+                      subtitle={null}
+                      meta={null}
                       date={dateStr}
                       amount={displayAmount}
                       amountTone={isIncomeTx ? "positive" : isTransferTx ? "neutral" : "neutral"}
                       amountPrefix={isIncomeTx ? "+" : isTransferTx ? "" : "-"}
                       badges={badges}
+                      expandableContent={expandableContent}
                       selected={selectedIds.has(tx.id)}
                       onClick={() => openEdit(tx)}
                     />
