@@ -275,16 +275,19 @@ export default function PersonalIncome() {
 
   function buildPayload() {
     const grossAmt = num(form.gross_amount);
-    const totalWithheld = num(form.federal_withholding) + num(form.state_withholding) + num(form.ss_withholding) + num(form.medicare_withholding);
+    // Single canonical federal total (auto-summed from breakdown when present).
+    const totalFederal = num(form.total_federal_payroll_taxes);
+    const stateW = stateTaxEnabled ? num(form.state_withholding) : 0;
+    const totalWithheld = totalFederal + stateW;
     const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
-    // Compute the base tax estimate for the record
+    // Compute the base tax estimate for the record using the canonical total.
     const rec = getIncomeRec({
       grossIncome: grossAmt,
       incomeType: form.income_type,
-      federalWithheld: num(form.federal_withholding),
-      stateWithheld: num(form.state_withholding),
+      federalWithheld: totalFederal,
+      stateWithheld: stateW,
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.owner_healthcare),
     });
