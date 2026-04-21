@@ -100,7 +100,7 @@ interface FormState {
   total_federal_payroll_taxes: string;
   retirement_pretax: string;
   deductions_pre_tax: string;
-  owner_healthcare: string;
+  healthcare_deduction: string;
   source_name: string;
   source_id: string | null;
   source_save_as_new: boolean;
@@ -124,7 +124,7 @@ const emptyForm: FormState = {
   total_federal_payroll_taxes: "",
   retirement_pretax: "",
   deductions_pre_tax: "",
-  owner_healthcare: "",
+  healthcare_deduction: "",
   source_name: "",
   source_id: null,
   source_save_as_new: false,
@@ -216,10 +216,10 @@ export default function PersonalIncome() {
       incomeType: incType,
       taxesAlreadyWithheld: num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding),
       retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.owner_healthcare),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction),
       alreadyIncludedInEstimate: isEditing,
     });
-  }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.owner_healthcare, getWithholdingRec, isEditing]);
+  }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, getWithholdingRec, isEditing]);
 
   function openAdd() {
     setForm(emptyForm);
@@ -250,7 +250,7 @@ export default function PersonalIncome() {
       ),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
-      owner_healthcare: String((entry as any).owner_healthcare || 0),
+      healthcare_deduction: String((entry as any).healthcare_deduction || 0),
       source_name: entry.company,
       source_id: (entry as any).source_id ?? null,
       source_save_as_new: false,
@@ -267,7 +267,7 @@ export default function PersonalIncome() {
       Number((entry as any).medicare_withholding || 0) > 0 ||
       Number(entry.retirement_401k) > 0 ||
       Number(entry.pre_tax_deductions) > 0 ||
-      Number((entry as any).owner_healthcare || 0) > 0 ||
+      Number((entry as any).healthcare_deduction || 0) > 0 ||
       Number((entry as any).additional_tax_reserve || 0) > 0 ||
       !!(entry.notes && entry.notes.trim())
     );
@@ -280,7 +280,7 @@ export default function PersonalIncome() {
     const totalFederal = num(form.total_federal_payroll_taxes);
     const stateW = stateTaxEnabled ? num(form.state_withholding) : 0;
     const totalWithheld = totalFederal + stateW;
-    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare);
+    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
     // Compute the base tax estimate for the record using the canonical total.
@@ -290,7 +290,7 @@ export default function PersonalIncome() {
       federalWithheld: totalFederal,
       stateWithheld: stateW,
       retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.owner_healthcare),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction),
     });
 
     return {
@@ -318,7 +318,7 @@ export default function PersonalIncome() {
         medicare_withholding: num(form.medicare_withholding),
         retirement_401k: num(form.retirement_pretax),
         pre_tax_deductions: num(form.deductions_pre_tax),
-        owner_healthcare: num(form.owner_healthcare),
+        healthcare_deduction: num(form.healthcare_deduction),
         is_actual: true,
         include_in_tax_estimate: true,
         include_in_cash_flow: false,
@@ -679,14 +679,14 @@ export default function PersonalIncome() {
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
                   <Input
                     type="number" min="0" step="0.01"
-                    placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare)))}
+                    placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction)))}
                     value={form.net_received}
                     onChange={(e) => setField("net_received", e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account after taxes and deductions</p>
                 </div>
                 <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare)))}</strong> based on your inputs
+                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction)))}</strong> based on your inputs
                 </p>
               </div>
             )}
@@ -746,7 +746,7 @@ export default function PersonalIncome() {
                   {/* Federal/state/SS/Medicare moved out into the
                       simplified TotalFederalTaxField above. */}
 
-                  {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div>
@@ -754,10 +754,10 @@ export default function PersonalIncome() {
                           <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
                         </div>
                       )}
-                      {showField("owner_healthcare") && (
+                      {showField("healthcare_deduction") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.owner_healthcare} onChange={(e) => setField("owner_healthcare", e.target.value)} />
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (

@@ -70,7 +70,7 @@ interface IncomeFormState {
   total_federal_payroll_taxes: string;
   pre_tax_deductions: string;
   retirement_401k: string;
-  owner_healthcare: string;
+  healthcare_deduction: string;
   actual_withholding: string;
   additional_tax_reserve: string;
   notes: string;
@@ -91,7 +91,7 @@ const emptyIncomeForm: IncomeFormState = {
   total_federal_payroll_taxes: "",
   pre_tax_deductions: "",
   retirement_401k: "",
-  owner_healthcare: "",
+  healthcare_deduction: "",
   actual_withholding: "",
   additional_tax_reserve: "",
   notes: "",
@@ -104,7 +104,7 @@ function resetIrrelevantAdvancedFields(form: IncomeFormState, newType: FilingTyp
   const allKeys: IncomeFieldKey[] = [
     "net_received","taxes_withheld","federal_withholding","state_withholding",
     "ss_withholding","medicare_withholding","pre_tax_deductions","retirement_401k",
-    "owner_healthcare","actual_withholding","additional_tax_reserve",
+    "healthcare_deduction","actual_withholding","additional_tax_reserve",
   ];
   for (const k of allKeys) {
     if (!allowed.has(k)) (cleared as any)[k] = "";
@@ -253,7 +253,7 @@ export default function Transactions() {
       ["taxes_withheld", linkedEntry?.taxes_withheld || 0],
       ["pre_tax_deductions", linkedEntry?.pre_tax_deductions || 0],
       ["retirement_401k", linkedEntry?.retirement_401k || 0],
-      ["owner_healthcare", (linkedEntry as any)?.owner_healthcare || 0],
+      ["healthcare_deduction", (linkedEntry as any)?.healthcare_deduction || 0],
       ["federal_withholding", (linkedEntry as any)?.federal_withholding || 0],
       ["state_withholding", (linkedEntry as any)?.state_withholding || 0],
       ["additional_tax_reserve", (linkedEntry as any)?.additional_tax_reserve || 0],
@@ -336,8 +336,8 @@ export default function Transactions() {
 
   const calculatedNet = useMemo(() => {
     if (grossIncome <= 0) return 0;
-    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.owner_healthcare));
-  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.owner_healthcare]);
+    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.healthcare_deduction));
+  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.healthcare_deduction]);
 
   // ─── Open Income Add ───
   function openAddIncome() {
@@ -372,7 +372,7 @@ export default function Transactions() {
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
         pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
         retirement_401k: linked ? String(linked.retirement_401k) : "",
-        owner_healthcare: linked ? String((linked as any).owner_healthcare || 0) : "",
+        healthcare_deduction: linked ? String((linked as any).healthcare_deduction || 0) : "",
         federal_withholding: linked ? String((linked as any).federal_withholding || 0) : "",
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
@@ -398,7 +398,7 @@ export default function Transactions() {
           linked.pre_tax_deductions > 0 ||
           linked.retirement_401k > 0 ||
           linked.deposited_amount > 0 ||
-          (linked as any).owner_healthcare > 0 ||
+          (linked as any).healthcare_deduction > 0 ||
           (linked as any).federal_withholding > 0 ||
           (linked as any).state_withholding > 0 ||
           (linked as any).additional_tax_reserve > 0 ||
@@ -441,7 +441,7 @@ export default function Transactions() {
     const taxWithheld = preserve("taxes_withheld", num(incomeForm.taxes_withheld), linkedEntry?.taxes_withheld || 0);
     const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
-    const healthcare = preserve("owner_healthcare", num(incomeForm.owner_healthcare), (linkedEntry as any)?.owner_healthcare || 0);
+    const healthcare = preserve("healthcare_deduction", num(incomeForm.healthcare_deduction), (linkedEntry as any)?.healthcare_deduction || 0);
     // Canonical federal total = federal income tax + SS + Medicare. Stored in
     // federal_withholding so the tax engine reads a single value.
     const totalFederal = num(incomeForm.total_federal_payroll_taxes);
@@ -504,7 +504,7 @@ export default function Transactions() {
               taxes_withheld: effectiveWithheld,
               pre_tax_deductions: preTaxDed,
               retirement_401k: retirement,
-              owner_healthcare: healthcare,
+              healthcare_deduction: healthcare,
               federal_withholding: fedWH,
               state_withholding: stateWH,
               ss_withholding: ssWH,
@@ -535,7 +535,7 @@ export default function Transactions() {
                   taxes_withheld: effectiveWithheld,
                   pre_tax_deductions: preTaxDed,
                   retirement_401k: retirement,
-                  owner_healthcare: healthcare,
+                  healthcare_deduction: healthcare,
                   federal_withholding: fedWH,
                   state_withholding: stateWH,
                   ss_withholding: ssWH,
@@ -592,7 +592,7 @@ export default function Transactions() {
         taxes_withheld: taxWithheld,
         pre_tax_deductions: preTaxDed,
         retirement_401k: retirement,
-        owner_healthcare: healthcare,
+        healthcare_deduction: healthcare,
         federal_withholding: fedWH,
         state_withholding: stateWH,
         ss_withholding: ssWH,
@@ -737,7 +737,7 @@ export default function Transactions() {
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
     const ownerDeds = (incomeEntries || [])
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
-      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
+      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
     return { revenue, expenses, txExpenses, mileageDeduction: mileageDed, profit: revenue - expenses, ownerDeductions: ownerDeds };
   }, [filtered, incomeEntries, ytdMileage, filterCompany]);
 
@@ -1229,7 +1229,7 @@ export default function Transactions() {
                       taxes_withheld: "",
                       pre_tax_deductions: "",
                       retirement_401k: "",
-                      owner_healthcare: "",
+                      healthcare_deduction: "",
                       federal_withholding: "",
                       state_withholding: "",
                       ss_withholding: "",
@@ -1362,10 +1362,10 @@ export default function Transactions() {
                     </div>
                   )}
 
-                  {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">{normalizeFilingType(incomeForm.income_type) === "1099_schedule_c" ? "Solo 401(k) / retirement contribution" : "Retirement / 401(k)"}<LegacyNote field="retirement_401k" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
-                      {showField("owner_healthcare") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance<LegacyNote field="owner_healthcare" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.owner_healthcare} onChange={(e) => setIncomeForm((f) => ({ ...f, owner_healthcare: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("healthcare_deduction") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance<LegacyNote field="healthcare_deduction" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.healthcare_deduction} onChange={(e) => setIncomeForm((f) => ({ ...f, healthcare_deduction: e.target.value }))} placeholder="0.00" /></div>)}
                       {showField("pre_tax_deductions") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax<LegacyNote field="pre_tax_deductions" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
