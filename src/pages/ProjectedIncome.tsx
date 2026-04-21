@@ -111,7 +111,8 @@ interface StreamForm {
   medicare_withholding: string;
   total_federal_payroll_taxes: string;
   retirement_401k: string;
-  owner_healthcare: string;
+  healthcare_deduction: string;
+  hsa_contribution: string;
   pre_tax_deductions: string;
   additional_tax_reserve: string;
   notes: string;
@@ -151,7 +152,8 @@ const emptyForm = (monthIdx?: number): StreamForm => {
     medicare_withholding: "",
     total_federal_payroll_taxes: "",
     retirement_401k: "",
-    owner_healthcare: "",
+    healthcare_deduction: "",
+    hsa_contribution: "",
     pre_tax_deductions: "",
     additional_tax_reserve: "",
     notes: "",
@@ -345,7 +347,8 @@ export default function ProjectedIncome() {
         Number(s.medicare_withholding || 0)
       ),
       retirement_401k: String(s.retirement_401k),
-      owner_healthcare: String(s.owner_healthcare || 0),
+      healthcare_deduction: String(s.healthcare_deduction || 0),
+      hsa_contribution: String(s.hsa_contribution || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
       additional_tax_reserve: String(s.additional_tax_reserve || 0),
       notes: s.notes || "",
@@ -359,7 +362,8 @@ export default function ProjectedIncome() {
       Number(s.ss_withholding || 0) > 0 ||
       Number(s.medicare_withholding || 0) > 0 ||
       Number(s.retirement_401k) > 0 ||
-      Number(s.owner_healthcare || 0) > 0 ||
+      Number(s.healthcare_deduction || 0) > 0 ||
+      Number(s.hsa_contribution || 0) > 0 ||
       Number(s.pre_tax_deductions) > 0 ||
       Number(s.taxes_withheld) > 0 ||
       Number(s.additional_tax_reserve || 0) > 0 ||
@@ -452,7 +456,8 @@ export default function ProjectedIncome() {
       ss_withholding: showField("ss_withholding") ? num(form.ss_withholding) : 0,
       medicare_withholding: showField("medicare_withholding") ? num(form.medicare_withholding) : 0,
       retirement_401k: showField("retirement_401k") ? num(form.retirement_401k) : 0,
-      owner_healthcare: showField("owner_healthcare") ? num(form.owner_healthcare) : 0,
+      healthcare_deduction: showField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
+      hsa_contribution: showField("hsa_contribution") ? num(form.hsa_contribution) : 0,
       pre_tax_deductions: showField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
       additional_tax_reserve: showField("additional_tax_reserve")
         ? num(form.additional_tax_reserve)
@@ -1183,7 +1188,7 @@ export default function ProjectedIncome() {
                   )}
 
                   {/* Pre-tax deductions */}
-                  {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div className="space-y-1.5">
@@ -1193,12 +1198,20 @@ export default function ProjectedIncome() {
                             onChange={(e) => setField("retirement_401k", e.target.value)} />
                         </div>
                       )}
-                      {showField("owner_healthcare") && (
+                      {showField("healthcare_deduction") && (
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Health insurance</Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
-                            value={form.owner_healthcare}
-                            onChange={(e) => setField("owner_healthcare", e.target.value)} />
+                            value={form.healthcare_deduction}
+                            onChange={(e) => setField("healthcare_deduction", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("hsa_contribution") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">HSA contribution</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.hsa_contribution}
+                            onChange={(e) => setField("hsa_contribution", e.target.value)} />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (
@@ -1247,7 +1260,7 @@ export default function ProjectedIncome() {
                     - num(form.ss_withholding)
                     - num(form.medicare_withholding)
                     - num(form.retirement_401k)
-                    - num(form.owner_healthcare)
+                    - num(form.healthcare_deduction)
                     - num(form.pre_tax_deductions)
                   ))}
                 </span>
