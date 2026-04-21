@@ -739,12 +739,12 @@ export default function Transactions() {
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:justify-end">
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 w-full sm:w-auto">
             <Download className="h-3.5 w-3.5" /> Export
-          {/* Swapped: Add Income now outline (secondary), Add Expense now primary */}
-          <Button size="sm" onClick={openAddIncome} className="gap-1.5 w-full sm:w-auto">
-            <DollarSign className="h-3.5 w-3.5" /> Add Income
           </Button>
-          <Button variant="outline" size="sm" onClick={openAddExpense} className="gap-1.5 col-span-2 sm:col-span-1 w-full sm:w-auto">
+          <Button size="sm" onClick={openAddExpense} className="gap-1.5 w-full sm:w-auto">
             <Receipt className="h-3.5 w-3.5" /> Add Expense
+          </Button>
+          <Button variant="outline" size="sm" onClick={openAddIncome} className="gap-1.5 col-span-2 sm:col-span-1 w-full sm:w-auto">
+            <DollarSign className="h-3.5 w-3.5" /> Add Income
           </Button>
         </div>
       </div>
