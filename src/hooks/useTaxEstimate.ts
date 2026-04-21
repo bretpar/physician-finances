@@ -240,8 +240,18 @@ export function useTaxEstimate(): {
       .reduce((s, e) => s + Number(e.federal_withholding || 0), 0);
     const personalStateWithheld = personal
       .reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
+    // Personal pre-tax = pre_tax_deductions field + payroll HSA on personal
+    // paychecks + manual individual HSA contributions (above-the-line). HSA
+    // rows of source_type='payroll' are EXCLUDED to prevent double counting
+    // with the per-paycheck hsa_contribution field above.
+    const individualHsaTotal = (hsaRows || [])
+      .filter((r) => r.source_type === "individual")
+      .reduce((s, r) => s + Number(r.amount || 0), 0);
     const personalPreTax = personal
-      .reduce((s, e) => s + Number(e.pre_tax_deductions || 0), 0);
+      .reduce(
+        (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
+        0,
+      ) + individualHsaTotal;
     const personalRetirement = personal
       .reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
