@@ -242,6 +242,11 @@ export default function PersonalIncome() {
       state_withholding: String(entry.state_withholding),
       ss_withholding: String((entry as any).ss_withholding || 0),
       medicare_withholding: String((entry as any).medicare_withholding || 0),
+      total_federal_payroll_taxes: String(
+        Number(entry.federal_withholding || 0) +
+        Number((entry as any).ss_withholding || 0) +
+        Number((entry as any).medicare_withholding || 0)
+      ),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       owner_healthcare: String((entry as any).owner_healthcare || 0),
