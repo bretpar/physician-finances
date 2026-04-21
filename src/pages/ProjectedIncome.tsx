@@ -48,6 +48,8 @@ import {
   type ToggleKey,
 } from "@/lib/filingTypes";
 import { ledgerForIncomeType } from "@/lib/ledgerRouting";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -107,6 +109,7 @@ interface StreamForm {
   state_withholding: string;
   ss_withholding: string;
   medicare_withholding: string;
+  total_federal_payroll_taxes: string;
   retirement_401k: string;
   owner_healthcare: string;
   pre_tax_deductions: string;
@@ -146,6 +149,7 @@ const emptyForm = (monthIdx?: number): StreamForm => {
     state_withholding: "",
     ss_withholding: "",
     medicare_withholding: "",
+    total_federal_payroll_taxes: "",
     retirement_401k: "",
     owner_healthcare: "",
     pre_tax_deductions: "",
@@ -334,6 +338,11 @@ export default function ProjectedIncome() {
       state_withholding: String(s.state_withholding || 0),
       ss_withholding: String(s.ss_withholding || 0),
       medicare_withholding: String(s.medicare_withholding || 0),
+      total_federal_payroll_taxes: String(
+        Number(s.federal_withholding || 0) +
+        Number(s.ss_withholding || 0) +
+        Number(s.medicare_withholding || 0)
+      ),
       retirement_401k: String(s.retirement_401k),
       owner_healthcare: String(s.owner_healthcare || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
