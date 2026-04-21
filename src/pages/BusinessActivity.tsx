@@ -71,6 +71,7 @@ interface IncomeFormState {
   pre_tax_deductions: string;
   retirement_401k: string;
   healthcare_deduction: string;
+  hsa_contribution: string;
   actual_withholding: string;
   additional_tax_reserve: string;
   notes: string;
@@ -92,6 +93,7 @@ const emptyIncomeForm: IncomeFormState = {
   pre_tax_deductions: "",
   retirement_401k: "",
   healthcare_deduction: "",
+  hsa_contribution: "",
   actual_withholding: "",
   additional_tax_reserve: "",
   notes: "",
@@ -104,7 +106,7 @@ function resetIrrelevantAdvancedFields(form: IncomeFormState, newType: FilingTyp
   const allKeys: IncomeFieldKey[] = [
     "net_received","taxes_withheld","federal_withholding","state_withholding",
     "ss_withholding","medicare_withholding","pre_tax_deductions","retirement_401k",
-    "healthcare_deduction","actual_withholding","additional_tax_reserve",
+    "healthcare_deduction","hsa_contribution","actual_withholding","additional_tax_reserve",
   ];
   for (const k of allKeys) {
     if (!allowed.has(k)) (cleared as any)[k] = "";

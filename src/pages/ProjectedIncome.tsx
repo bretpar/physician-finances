@@ -112,6 +112,7 @@ interface StreamForm {
   total_federal_payroll_taxes: string;
   retirement_401k: string;
   healthcare_deduction: string;
+  hsa_contribution: string;
   pre_tax_deductions: string;
   additional_tax_reserve: string;
   notes: string;
@@ -152,6 +153,7 @@ const emptyForm = (monthIdx?: number): StreamForm => {
     total_federal_payroll_taxes: "",
     retirement_401k: "",
     healthcare_deduction: "",
+    hsa_contribution: "",
     pre_tax_deductions: "",
     additional_tax_reserve: "",
     notes: "",

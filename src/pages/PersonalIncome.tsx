@@ -101,6 +101,7 @@ interface FormState {
   retirement_pretax: string;
   deductions_pre_tax: string;
   healthcare_deduction: string;
+  hsa_contribution: string;
   source_name: string;
   source_id: string | null;
   source_save_as_new: boolean;
@@ -125,6 +126,7 @@ const emptyForm: FormState = {
   retirement_pretax: "",
   deductions_pre_tax: "",
   healthcare_deduction: "",
+  hsa_contribution: "",
   source_name: "",
   source_id: null,
   source_save_as_new: false,
