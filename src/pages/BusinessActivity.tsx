@@ -33,6 +33,7 @@ import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts } from "@/hooks/useAttachments";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import {
   getFilingMeta,
   isW2FilingType,
