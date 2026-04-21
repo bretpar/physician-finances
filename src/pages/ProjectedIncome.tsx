@@ -194,6 +194,7 @@ export default function ProjectedIncome() {
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
   const { data: overrides } = useStreamOverrides();
   const { data: incomeEntries } = useIncomeEntries();
+  const { data: taxSettings } = useTaxSettings();
   const { forecastEstimate, forecastDebug } = useTaxEstimate();
 
   const addStream = useAddStream();
@@ -1154,42 +1155,30 @@ export default function ProjectedIncome() {
                     </div>
                   )}
 
-                  {/* Payroll-style withholdings (W-2 / S-Corp W-2) */}
-                  {(showField("federal_withholding") || showField("state_withholding") ||
-                    showField("ss_withholding") || showField("medicare_withholding")) && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {showField("federal_withholding") && (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Federal tax withheld</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00"
-                            value={form.federal_withholding}
-                            onChange={(e) => setField("federal_withholding", e.target.value)} />
-                        </div>
-                      )}
-                      {showField("state_withholding") && (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">State tax withheld</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00"
-                            value={form.state_withholding}
-                            onChange={(e) => setField("state_withholding", e.target.value)} />
-                        </div>
-                      )}
-                      {showField("ss_withholding") && (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Social Security tax</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00"
-                            value={form.ss_withholding}
-                            onChange={(e) => setField("ss_withholding", e.target.value)} />
-                        </div>
-                      )}
-                      {showField("medicare_withholding") && (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Medicare tax</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00"
-                            value={form.medicare_withholding}
-                            onChange={(e) => setField("medicare_withholding", e.target.value)} />
-                        </div>
-                      )}
+                  {/* Simplified federal payroll tax (W-2 / S-Corp W-2) */}
+                  {showField("federal_withholding") && (
+                    <TotalFederalTaxField
+                      total={form.total_federal_payroll_taxes}
+                      onTotalChange={(v) => setField("total_federal_payroll_taxes", v)}
+                      federal={form.federal_withholding}
+                      onFederalChange={(v) => setField("federal_withholding", v)}
+                      ss={form.ss_withholding}
+                      onSsChange={(v) => setField("ss_withholding", v)}
+                      medicare={form.medicare_withholding}
+                      onMedicareChange={(v) => setField("medicare_withholding", v)}
+                      defaultAdvancedOpen={
+                        num(form.federal_withholding) > 0 ||
+                        num(form.ss_withholding) > 0 ||
+                        num(form.medicare_withholding) > 0
+                      }
+                    />
+                  )}
+                  {!!taxSettings?.stateTaxEnabled && showField("state_withholding") && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">State tax withheld</Label>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00"
+                        value={form.state_withholding}
+                        onChange={(e) => setField("state_withholding", e.target.value)} />
                     </div>
                   )}
 
