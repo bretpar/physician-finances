@@ -204,12 +204,16 @@ export default function Accounts() {
     else toast.warning(`Refreshed ${ok}, ${failed} failed`);
   };
 
-  // ── Auto-refresh on mount: trigger a background sync for healthy items ──
+  // ── Auto-refresh on mount: trigger a background sync if it's been > 5 min ──
   useEffect(() => {
     if (isLoading) return;
     const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
     if (healthy.length === 0) return;
-    // Fire one combined sync (server iterates all of the user's active items)
+    const stale = healthy.some((it) => {
+      if (!it.last_synced_at) return true;
+      return Date.now() - new Date(it.last_synced_at).getTime() > 5 * 60 * 1000;
+    });
+    if (!stale) return;
     syncMutation.mutate(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);
