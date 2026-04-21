@@ -87,6 +87,8 @@ export type Database = {
           dynamic_tax_recommendation: number
           federal_withholding: number
           gross_amount: number
+          healthcare_deduction: number
+          hsa_contribution: number
           id: string
           include_in_cash_flow: boolean
           include_in_tax_estimate: boolean
@@ -98,7 +100,6 @@ export type Database = {
           name: string
           notes: string | null
           organization_id: string | null
-          owner_healthcare: number
           paycheck_amount: number
           pre_tax_deductions: number
           quarterly_adjustment_amount: number
@@ -126,6 +127,8 @@ export type Database = {
           dynamic_tax_recommendation?: number
           federal_withholding?: number
           gross_amount?: number
+          healthcare_deduction?: number
+          hsa_contribution?: number
           id?: string
           include_in_cash_flow?: boolean
           include_in_tax_estimate?: boolean
@@ -137,7 +140,6 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string | null
-          owner_healthcare?: number
           paycheck_amount?: number
           pre_tax_deductions?: number
           quarterly_adjustment_amount?: number
@@ -165,6 +167,8 @@ export type Database = {
           dynamic_tax_recommendation?: number
           federal_withholding?: number
           gross_amount?: number
+          healthcare_deduction?: number
+          hsa_contribution?: number
           id?: string
           include_in_cash_flow?: boolean
           include_in_tax_estimate?: boolean
@@ -176,7 +180,6 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string | null
-          owner_healthcare?: number
           paycheck_amount?: number
           pre_tax_deductions?: number
           quarterly_adjustment_amount?: number
@@ -716,6 +719,8 @@ export type Database = {
         Row: {
           action: string
           created_at: string
+          healthcare_deduction: number
+          hsa_contribution: number
           id: string
           notes: string | null
           organization_id: string | null
@@ -731,6 +736,8 @@ export type Database = {
         Insert: {
           action?: string
           created_at?: string
+          healthcare_deduction?: number
+          hsa_contribution?: number
           id?: string
           notes?: string | null
           organization_id?: string | null
@@ -746,6 +753,8 @@ export type Database = {
         Update: {
           action?: string
           created_at?: string
+          healthcare_deduction?: number
+          hsa_contribution?: number
           id?: string
           notes?: string | null
           organization_id?: string | null
@@ -784,13 +793,14 @@ export type Database = {
           custom_interval_days: number | null
           end_date: string | null
           federal_withholding: number
+          healthcare_deduction: number
+          hsa_contribution: number
           id: string
           include_in_tax: boolean
           is_active: boolean
           medicare_withholding: number
           notes: string
           organization_id: string | null
-          owner_healthcare: number
           pay_frequency: string
           paycheck_amount: number
           pre_tax_deductions: number
@@ -812,13 +822,14 @@ export type Database = {
           custom_interval_days?: number | null
           end_date?: string | null
           federal_withholding?: number
+          healthcare_deduction?: number
+          hsa_contribution?: number
           id?: string
           include_in_tax?: boolean
           is_active?: boolean
           medicare_withholding?: number
           notes?: string
           organization_id?: string | null
-          owner_healthcare?: number
           pay_frequency?: string
           paycheck_amount?: number
           pre_tax_deductions?: number
@@ -840,13 +851,14 @@ export type Database = {
           custom_interval_days?: number | null
           end_date?: string | null
           federal_withholding?: number
+          healthcare_deduction?: number
+          hsa_contribution?: number
           id?: string
           include_in_tax?: boolean
           is_active?: boolean
           medicare_withholding?: number
           notes?: string
           organization_id?: string | null
-          owner_healthcare?: number
           pay_frequency?: string
           paycheck_amount?: number
           pre_tax_deductions?: number
