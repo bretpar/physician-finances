@@ -436,11 +436,11 @@ export default function Mileage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Account Type</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Frequency</TableHead>
-                      <TableHead className="text-right">Annual</TableHead>
-                      <TableHead className="text-right">Employer Match</TableHead>
-                      <TableHead>Withholding</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
+                      <TableHead className="hidden sm:table-cell">Frequency</TableHead>
+                      <TableHead className="text-right whitespace-nowrap hidden md:table-cell">Annual</TableHead>
+                      <TableHead className="text-right whitespace-nowrap hidden lg:table-cell">Employer Match</TableHead>
+                      <TableHead className="hidden md:table-cell">Withholding</TableHead>
                       <TableHead className="w-24"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -457,18 +457,18 @@ export default function Mileage() {
                         const annual = c.frequency === "per_paycheck" ? amt * 26 : c.frequency === "monthly" ? amt * 12 : amt;
                         return (
                           <TableRow key={c.id}>
-                            <TableCell className="font-medium">{getAccountLabel(c.account_type)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmt(amt)}</TableCell>
-                            <TableCell><Badge variant="outline">{getFreqLabel(c.frequency)}</Badge></TableCell>
-                            <TableCell className="text-right tabular-nums font-medium">{fmt(annual)}</TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">{Number(c.employer_match) > 0 ? fmt(Number(c.employer_match)) : "—"}</TableCell>
-                            <TableCell>
+                            <TableCell className="font-medium"><span className="block truncate">{getAccountLabel(c.account_type)}</span></TableCell>
+                            <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(amt)}</TableCell>
+                            <TableCell className="hidden sm:table-cell"><Badge variant="outline">{getFreqLabel(c.frequency)}</Badge></TableCell>
+                            <TableCell className="text-right tabular-nums whitespace-nowrap font-medium hidden md:table-cell">{fmt(annual)}</TableCell>
+                            <TableCell className="text-right tabular-nums whitespace-nowrap text-muted-foreground hidden lg:table-cell">{Number(c.employer_match) > 0 ? fmt(Number(c.employer_match)) : "—"}</TableCell>
+                            <TableCell className="hidden md:table-cell">
                               <Badge variant="outline" className={c.apply_to_withholding ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}>
                                 {c.apply_to_withholding ? "Active" : "Projection Only"}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <div className="flex gap-1">
+                              <div className="flex gap-1 justify-end">
                                 <Button size="icon" variant="ghost" onClick={() => startEditContrib(c)}><Pencil className="h-4 w-4" /></Button>
                                 <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setContribDeleteId(c.id)}><Trash2 className="h-4 w-4" /></Button>
                               </div>
