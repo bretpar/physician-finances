@@ -3,6 +3,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { mapLegacyCategory, EXPENSE_CATEGORIES } from "@/components/ExpenseCategoryCombobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export default function Reports() {
   const { companies } = useCompanies();
   const currentYearForMileage = new Date().getFullYear();
   const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
+  const { data: hsaRows = [] } = useHsaContributions(currentYearForMileage);
 
   const VEHICLE_CATEGORY = "Car and truck expenses";
 
@@ -166,6 +168,17 @@ export default function Reports() {
 
     return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory };
   }, [transactions, taxCompany, taxYear, mileageByCompanyName]);
+
+  // ──── HSA summary (deductions/reporting) ────
+  const hsaSummary = useMemo(() => {
+    const yearMatch = (d: string) => d?.startsWith(taxYear);
+    const rows = hsaRows.filter((r) => yearMatch(r.contribution_date));
+    const payroll = rows.filter((r) => r.source_type === "payroll").reduce((s, r) => s + Number(r.amount), 0);
+    const individual = rows.filter((r) => r.source_type === "individual").reduce((s, r) => s + Number(r.amount), 0);
+    // Deductible = total HSA flowed into AGI deductions (no double-counting in engine)
+    const deductible = payroll + individual;
+    return { payroll, individual, total: payroll + individual, deductible };
+  }, [hsaRows, taxYear]);
 
   // ──── Export helpers ────
   function exportPLCSV() {
@@ -400,6 +413,32 @@ export default function Reports() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* HSA summary */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">HSA Contributions ({taxYear})</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Payroll HSA</p>
+                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.payroll)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Individual HSA</p>
+                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.individual)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total HSA</p>
+                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.total)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Deductible (applied)</p>
+                <p className="text-base font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(hsaSummary.deductible)}</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Payroll HSA flows in via paycheck pre-tax; Individual HSA is added as an above-the-line deduction. Both are counted once in the tax engine.
+            </p>
           </div>
 
           <p className="text-xs text-muted-foreground text-center">

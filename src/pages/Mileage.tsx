@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet } from "lucide-react";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet, HeartPulse } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { HsaSettingsSection, HsaLedgerSection } from "@/components/settings/HsaSection";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
@@ -230,9 +231,10 @@ export default function Mileage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <Tabs defaultValue="mileage" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 max-w-xl">
           <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>
           <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>
+          <TabsTrigger value="hsa" className="gap-2"><HeartPulse className="h-4 w-4" /> HSA</TabsTrigger>
         </TabsList>
 
         {/* ─── MILEAGE TAB ──────────────────────────── */}
@@ -524,6 +526,12 @@ export default function Mileage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* ─── HSA TAB ────────────────────────────── */}
+        <TabsContent value="hsa" className="space-y-6 mt-6">
+          <HsaSettingsSection />
+          <HsaLedgerSection />
         </TabsContent>
       </Tabs>
 

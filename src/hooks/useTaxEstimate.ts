@@ -9,6 +9,7 @@ import { useStockTransactions } from "@/hooks/useStocks";
 import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
+import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
@@ -47,6 +48,7 @@ export function useTaxEstimate(): {
   const { data: retirementContribs, isLoading: retLoading } = useRetirementContributions();
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
+  const { data: hsaRows = [] } = useHsaContributions(currentYear);
   const { companies } = useCompanies();
 
   // ── Reconcile income_entries before any tax math ─────────────────────────
@@ -188,7 +190,14 @@ export function useTaxEstimate(): {
 
     const businessFederalWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).federal_withholding || 0), 0);
     const businessStateWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
-    const businessPreTax = linkedEntries.reduce((s, e) => s + Number(e.pre_tax_deductions || 0), 0);
+    // Pre-tax = `pre_tax_deductions` field + payroll HSA on the same paycheck.
+    // Payroll HSA is captured on income_entries.hsa_contribution and treated
+    // as pre-tax (Section 125) for AGI purposes. Individual HSA is added later
+    // as an above-the-line deduction via personalPreTax.
+    const businessPreTax = linkedEntries.reduce(
+      (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
+      0,
+    );
     const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
     const ownerHealthcare = linkedEntries
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
@@ -231,8 +240,18 @@ export function useTaxEstimate(): {
       .reduce((s, e) => s + Number(e.federal_withholding || 0), 0);
     const personalStateWithheld = personal
       .reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
+    // Personal pre-tax = pre_tax_deductions field + payroll HSA on personal
+    // paychecks + manual individual HSA contributions (above-the-line). HSA
+    // rows of source_type='payroll' are EXCLUDED to prevent double counting
+    // with the per-paycheck hsa_contribution field above.
+    const individualHsaTotal = (hsaRows || [])
+      .filter((r) => r.source_type === "individual")
+      .reduce((s, r) => s + Number(r.amount || 0), 0);
     const personalPreTax = personal
-      .reduce((s, e) => s + Number(e.pre_tax_deductions || 0), 0);
+      .reduce(
+        (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
+        0,
+      ) + individualHsaTotal;
     const personalRetirement = personal
       .reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
@@ -353,7 +372,7 @@ export function useTaxEstimate(): {
       businessStateTaxRate: rates.businessStateTaxRate,
       businessStateTaxBase: rates.businessStateTaxBase,
     };
-  }, [reconciledIncomeEntries, personalEntries, canonicalBusiness, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies]);
+  }, [reconciledIncomeEntries, personalEntries, canonicalBusiness, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies, hsaRows]);
 
   // Actual estimate (no projected income)
   const actualResult = useMemo(() => {

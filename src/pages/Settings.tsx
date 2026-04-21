@@ -43,7 +43,7 @@ import { DuplicateCleanupCard } from "@/components/DuplicateCleanupCard";
 import { RestoreTombstonesCard } from "@/components/RestoreTombstonesCard";
 import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 import { SectionCard } from "@/components/settings/SectionCard";
-import { HsaSettingsSection, HsaLedgerSection } from "@/components/settings/HsaSection";
+import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { cn } from "@/lib/utils";
@@ -1513,7 +1513,6 @@ export default function Settings() {
       <TaxWithholdingSection />
       <TaxProfileSection />
       <HsaSettingsSection />
-      <HsaLedgerSection />
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
