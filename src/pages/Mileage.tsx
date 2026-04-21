@@ -431,7 +431,7 @@ export default function Mileage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -495,7 +495,7 @@ export default function Mileage() {
                 </p>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <div>
                   <Table>
                     <TableHeader>
                       <TableRow>

@@ -1451,7 +1451,7 @@ function StreamTable({
   expired?: boolean;
 }) {
   return (
-    <div className={`overflow-x-auto rounded-lg border border-border ${expired ? "opacity-60" : ""}`}>
+    <div className={`rounded-lg border border-border ${expired ? "opacity-60" : ""}`}>
       <Table>
         <TableHeader>
           <TableRow>
