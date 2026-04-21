@@ -732,18 +732,18 @@ export default function Transactions() {
   }
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
+    <div className="space-y-4 max-w-4xl w-full mx-auto min-w-0">
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-foreground">Business Activity</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:justify-end">
+          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 w-full sm:w-auto">
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
-          <Button variant="outline" size="sm" onClick={openAddExpense} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={openAddExpense} className="gap-1.5 w-full sm:w-auto">
             <Receipt className="h-3.5 w-3.5" /> Add Expense
           </Button>
-          <Button size="sm" onClick={openAddIncome} className="gap-1.5">
+          <Button size="sm" onClick={openAddIncome} className="gap-1.5 col-span-2 sm:col-span-1 w-full sm:w-auto">
             <DollarSign className="h-3.5 w-3.5" /> Add Income
           </Button>
         </div>
