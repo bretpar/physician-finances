@@ -190,7 +190,14 @@ export function useTaxEstimate(): {
 
     const businessFederalWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).federal_withholding || 0), 0);
     const businessStateWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
-    const businessPreTax = linkedEntries.reduce((s, e) => s + Number(e.pre_tax_deductions || 0), 0);
+    // Pre-tax = `pre_tax_deductions` field + payroll HSA on the same paycheck.
+    // Payroll HSA is captured on income_entries.hsa_contribution and treated
+    // as pre-tax (Section 125) for AGI purposes. Individual HSA is added later
+    // as an above-the-line deduction via personalPreTax.
+    const businessPreTax = linkedEntries.reduce(
+      (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
+      0,
+    );
     const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
     const ownerHealthcare = linkedEntries
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
