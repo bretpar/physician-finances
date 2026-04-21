@@ -32,6 +32,8 @@ import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/component
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -94,6 +96,7 @@ interface FormState {
   state_withholding: string;
   ss_withholding: string;
   medicare_withholding: string;
+  total_federal_payroll_taxes: string;
   retirement_pretax: string;
   deductions_pre_tax: string;
   owner_healthcare: string;
@@ -117,6 +120,7 @@ const emptyForm: FormState = {
   state_withholding: "",
   ss_withholding: "",
   medicare_withholding: "",
+  total_federal_payroll_taxes: "",
   retirement_pretax: "",
   deductions_pre_tax: "",
   owner_healthcare: "",
@@ -144,6 +148,8 @@ export default function PersonalIncome() {
   const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
+  const { data: taxSettings } = useTaxSettings();
+  const stateTaxEnabled = !!taxSettings?.stateTaxEnabled;
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
