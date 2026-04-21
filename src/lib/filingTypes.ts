@@ -241,12 +241,15 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "actual_withholding", label: "Amount you're saving for taxes" },
     { key: "retirement_401k", label: "Solo 401(k) / retirement contribution" },
+    { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
+    { key: "hsa_contribution", label: "HSA contribution" },
     { key: "notes", label: "Notes" },
   ],
   "k1_partnership": [
     { key: "net_received", label: "Net received" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
-    { key: "owner_healthcare", label: "Partner health insurance deduction" },
+    { key: "healthcare_deduction", label: "Partner health insurance deduction" },
+    { key: "hsa_contribution", label: "HSA contribution" },
     { key: "retirement_401k", label: "Partner retirement / 401(k) contribution" },
     { key: "pre_tax_deductions", label: "Other partner deductions" },
     { key: "guaranteed_payment", label: "Guaranteed payment" },
@@ -261,7 +264,8 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "ss_withholding", label: "Social Security tax withheld" },
     { key: "medicare_withholding", label: "Medicare tax withheld" },
     { key: "retirement_401k", label: "Employee 401(k) contribution" },
-    { key: "owner_healthcare", label: "Health insurance deduction" },
+    { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
+    { key: "hsa_contribution", label: "HSA contribution" },
     { key: "pre_tax_deductions", label: "Other pre-tax deductions" },
     { key: "notes", label: "Notes" },
   ],
@@ -269,6 +273,8 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "net_received", label: "Distribution amount" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "actual_withholding", label: "Amount you're saving for taxes" },
+    { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
+    { key: "hsa_contribution", label: "HSA contribution" },
     { key: "notes", label: "Notes" },
   ],
   "w2": [
@@ -278,7 +284,8 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "ss_withholding", label: "Social Security tax withheld" },
     { key: "medicare_withholding", label: "Medicare tax withheld" },
     { key: "retirement_401k", label: "401(k) contribution" },
-    { key: "owner_healthcare", label: "Health insurance deduction" },
+    { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
+    { key: "hsa_contribution", label: "HSA contribution" },
     { key: "pre_tax_deductions", label: "Other pre-tax deductions" },
     { key: "notes", label: "Notes" },
   ],
@@ -286,6 +293,8 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "net_received", label: "Net received" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "actual_withholding", label: "Amount you're saving for taxes" },
+    { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
+    { key: "hsa_contribution", label: "HSA contribution" },
     { key: "notes", label: "Notes" },
   ],
 };
@@ -294,7 +303,7 @@ export const DEFAULT_TOGGLES_BY_TYPE: Record<FilingType, ToggleKey[]> = {
   "1099_schedule_c": ["net_received", "actual_withholding", "notes"],
   "k1_partnership": [
     "net_received",
-    "owner_healthcare",
+    "healthcare_deduction",
     "retirement_401k",
     "pre_tax_deductions",
     "actual_withholding",
@@ -305,7 +314,7 @@ export const DEFAULT_TOGGLES_BY_TYPE: Record<FilingType, ToggleKey[]> = {
     "federal_withholding",
     "state_withholding",
     "retirement_401k",
-    "owner_healthcare",
+    "healthcare_deduction",
     "pre_tax_deductions",
     "notes",
   ],
@@ -315,14 +324,16 @@ export const DEFAULT_TOGGLES_BY_TYPE: Record<FilingType, ToggleKey[]> = {
     "federal_withholding",
     "state_withholding",
     "retirement_401k",
-    "owner_healthcare",
+    "healthcare_deduction",
     "pre_tax_deductions",
     "notes",
   ],
   "other": ["net_received", "notes"],
 };
 
-/** Resolve the effective toggle visibility map for a company. */
+/** Resolve the effective toggle visibility map for a company.
+ *  Migrates legacy `owner_healthcare` key → `healthcare_deduction`.
+ */
 export function resolveAdvancedVisibility(
   filingType: FilingType,
   saved: Record<string, boolean> | null | undefined,
@@ -330,9 +341,17 @@ export function resolveAdvancedVisibility(
   const options = TOGGLE_OPTIONS_BY_TYPE[filingType];
   const defaults = new Set(DEFAULT_TOGGLES_BY_TYPE[filingType]);
   const out = {} as Record<ToggleKey, boolean>;
+  // Legacy migration: owner_healthcare → healthcare_deduction
+  const normalizedSaved: Record<string, boolean> = { ...(saved || {}) };
+  if (
+    normalizedSaved.owner_healthcare !== undefined &&
+    normalizedSaved.healthcare_deduction === undefined
+  ) {
+    normalizedSaved.healthcare_deduction = normalizedSaved.owner_healthcare;
+  }
   for (const opt of options) {
-    if (saved && Object.prototype.hasOwnProperty.call(saved, opt.key)) {
-      out[opt.key] = !!saved[opt.key];
+    if (Object.prototype.hasOwnProperty.call(normalizedSaved, opt.key)) {
+      out[opt.key] = !!normalizedSaved[opt.key];
     } else {
       out[opt.key] = defaults.has(opt.key);
     }
