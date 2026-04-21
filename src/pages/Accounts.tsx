@@ -126,12 +126,12 @@ export default function Accounts() {
   const isNeedsReauth = (item: any) =>
     item.status === "needs_reauth" || item.status === "login_required" || item.status === "error";
 
-  const mostRecentSync = plaidItems.reduce<string | null>((acc, it) => {
+  const mostRecentSync: string | null = (plaidItems as any[]).reduce((acc: string | null, it: any) => {
     const t = it.last_synced_at;
     if (!t) return acc;
     if (!acc || new Date(t) > new Date(acc)) return t;
     return acc;
-  }, null);
+  }, null as string | null);
 
   const getCompanyName = (companyId: string | null) => {
     if (!companyId) return null;
