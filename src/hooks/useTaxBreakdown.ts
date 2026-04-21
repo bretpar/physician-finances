@@ -273,7 +273,7 @@ export function useTaxBreakdown(
         agg.actualGross += Number(e.paycheck_amount) || 0;
         agg.preTax += Number(e.pre_tax_deductions) || 0;
         agg.retirement += Number(e.retirement_401k) || 0;
-        agg.healthcare += Number((e as any).owner_healthcare) || 0;
+        agg.healthcare += Number((e as any).healthcare_deduction) || 0;
         agg.withheld += Number(e.taxes_withheld) || 0;
         agg.federalWithheld += Number((e as any).federal_withholding) || 0;
         agg.stateWithheld += Number((e as any).state_withholding) || 0;
@@ -286,7 +286,7 @@ export function useTaxBreakdown(
         agg.plannedRetirement += retirement;
         agg.preTax += preTax;
         agg.retirement += retirement;
-        agg.healthcare += Number((e as any).owner_healthcare) || 0;
+        agg.healthcare += Number((e as any).healthcare_deduction) || 0;
         plannedPreTaxTotal += preTax;
         plannedRetirementTotal += retirement;
       }
@@ -307,7 +307,7 @@ export function useTaxBreakdown(
         agg.plannedRetirement += p.retirement401k;
         agg.preTax += p.preTaxDeductions;
         agg.retirement += p.retirement401k;
-        agg.healthcare += p.ownerHealthcare || 0;
+        agg.healthcare += p.healthcareDeduction || 0;
         agg.withheld += p.taxesWithheld;
         plannedPreTaxTotal += p.preTaxDeductions;
         plannedRetirementTotal += p.retirement401k;

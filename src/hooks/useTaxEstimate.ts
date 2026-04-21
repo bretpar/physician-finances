@@ -123,7 +123,7 @@ export function useTaxEstimate(): {
   //
   // income_entries is then used ONLY as an enrichment layer for the canonical
   // transactions, providing per-paycheck withholding / retirement / pre-tax
-  // / owner_healthcare values. Income_entries with no live linked transaction
+  // / healthcare_deduction values. Income_entries with no live linked transaction
   // contribute nothing — they cannot inflate gross above what the ledger shows.
   const canonicalBusiness = useMemo(() => {
     const txs = transactions || [];
@@ -192,7 +192,7 @@ export function useTaxEstimate(): {
     const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
     const ownerHealthcare = linkedEntries
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
-      .reduce((s, e) => s + Number((e as any).owner_healthcare || 0), 0);
+      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
 
     const businessStateEligibleGross = Array.from(businessStateEligibleByTx.values()).reduce((s, v) => s + v, 0);
 
