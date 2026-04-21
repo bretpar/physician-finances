@@ -33,6 +33,7 @@ import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts } from "@/hooks/useAttachments";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import {
   getFilingMeta,
   isW2FilingType,
@@ -65,6 +66,7 @@ interface IncomeFormState {
   state_withholding: string;
   ss_withholding: string;
   medicare_withholding: string;
+  total_federal_payroll_taxes: string;
   pre_tax_deductions: string;
   retirement_401k: string;
   owner_healthcare: string;
@@ -85,6 +87,7 @@ const emptyIncomeForm: IncomeFormState = {
   state_withholding: "",
   ss_withholding: "",
   medicare_withholding: "",
+  total_federal_payroll_taxes: "",
   pre_tax_deductions: "",
   retirement_401k: "",
   owner_healthcare: "",
@@ -373,6 +376,13 @@ export default function Transactions() {
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
         medicare_withholding: linked ? String((linked as any).medicare_withholding || 0) : "",
+        total_federal_payroll_taxes: linked
+          ? String(
+              Number((linked as any).federal_withholding || 0) +
+              Number((linked as any).ss_withholding || 0) +
+              Number((linked as any).medicare_withholding || 0)
+            )
+          : "",
         actual_withholding: String((tx as any).actual_withholding || ""),
         additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
         notes: tx.notes || "",
@@ -431,7 +441,10 @@ export default function Transactions() {
     const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
     const healthcare = preserve("owner_healthcare", num(incomeForm.owner_healthcare), (linkedEntry as any)?.owner_healthcare || 0);
-    const fedWH = preserve("federal_withholding", num(incomeForm.federal_withholding), (linkedEntry as any)?.federal_withholding || 0);
+    // Canonical federal total = federal income tax + SS + Medicare. Stored in
+    // federal_withholding so the tax engine reads a single value.
+    const totalFederal = num(incomeForm.total_federal_payroll_taxes);
+    const fedWH = preserve("federal_withholding", totalFederal, (linkedEntry as any)?.federal_withholding || 0);
     const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
     const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
@@ -1277,6 +1290,36 @@ export default function Transactions() {
               </div>
             )}
 
+            {/* Simplified federal payroll tax + optional state withholding */}
+            {showField("federal_withholding") && (
+              <TotalFederalTaxField
+                total={incomeForm.total_federal_payroll_taxes}
+                onTotalChange={(v) => setIncomeForm((f) => ({ ...f, total_federal_payroll_taxes: v }))}
+                federal={incomeForm.federal_withholding}
+                onFederalChange={(v) => setIncomeForm((f) => ({ ...f, federal_withholding: v }))}
+                ss={incomeForm.ss_withholding}
+                onSsChange={(v) => setIncomeForm((f) => ({ ...f, ss_withholding: v }))}
+                medicare={incomeForm.medicare_withholding}
+                onMedicareChange={(v) => setIncomeForm((f) => ({ ...f, medicare_withholding: v }))}
+                defaultAdvancedOpen={
+                  num(incomeForm.federal_withholding) > 0 ||
+                  num(incomeForm.ss_withholding) > 0 ||
+                  num(incomeForm.medicare_withholding) > 0
+                }
+              />
+            )}
+
+            {!!taxSettings?.stateTaxEnabled && showField("state_withholding") && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">State tax withheld</Label>
+                <Input
+                  type="number" min="0" step="0.01" placeholder="0.00"
+                  value={incomeForm.state_withholding}
+                  onChange={(e) => setIncomeForm((f) => ({ ...f, state_withholding: e.target.value }))}
+                />
+              </div>
+            )}
+
             {/* Advanced details (collapsible) — fields driven by per-company toggles */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger asChild>
@@ -1312,13 +1355,9 @@ export default function Transactions() {
                     </p>
                   )}
 
-                  {(showField("taxes_withheld") || showField("federal_withholding") || showField("state_withholding") || showField("ss_withholding") || showField("medicare_withholding")) && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {showField("taxes_withheld") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld<LegacyNote field="taxes_withheld" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" /></div>)}
-                      {showField("federal_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H<LegacyNote field="federal_withholding" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.federal_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, federal_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {showField("state_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">State W/H<LegacyNote field="state_withholding" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.state_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, state_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {showField("ss_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Social Security<LegacyNote field="ss_withholding" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.ss_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, ss_withholding: e.target.value }))} placeholder="0.00" /></div>)}
-                      {showField("medicare_withholding") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Medicare<LegacyNote field="medicare_withholding" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.medicare_withholding} onChange={(e) => setIncomeForm((f) => ({ ...f, medicare_withholding: e.target.value }))} placeholder="0.00" /></div>)}
+                  {showField("taxes_withheld") && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div><Label className="text-xs text-muted-foreground mb-1.5 block">Taxes Withheld<LegacyNote field="taxes_withheld" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.taxes_withheld} onChange={(e) => setIncomeForm((f) => ({ ...f, taxes_withheld: e.target.value }))} placeholder="0.00" /></div>
                     </div>
                   )}
 

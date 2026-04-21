@@ -32,6 +32,8 @@ import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/component
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -94,6 +96,7 @@ interface FormState {
   state_withholding: string;
   ss_withholding: string;
   medicare_withholding: string;
+  total_federal_payroll_taxes: string;
   retirement_pretax: string;
   deductions_pre_tax: string;
   owner_healthcare: string;
@@ -117,6 +120,7 @@ const emptyForm: FormState = {
   state_withholding: "",
   ss_withholding: "",
   medicare_withholding: "",
+  total_federal_payroll_taxes: "",
   retirement_pretax: "",
   deductions_pre_tax: "",
   owner_healthcare: "",
@@ -144,6 +148,8 @@ export default function PersonalIncome() {
   const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
+  const { data: taxSettings } = useTaxSettings();
+  const stateTaxEnabled = !!taxSettings?.stateTaxEnabled;
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -236,6 +242,11 @@ export default function PersonalIncome() {
       state_withholding: String(entry.state_withholding),
       ss_withholding: String((entry as any).ss_withholding || 0),
       medicare_withholding: String((entry as any).medicare_withholding || 0),
+      total_federal_payroll_taxes: String(
+        Number(entry.federal_withholding || 0) +
+        Number((entry as any).ss_withholding || 0) +
+        Number((entry as any).medicare_withholding || 0)
+      ),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       owner_healthcare: String((entry as any).owner_healthcare || 0),
@@ -264,16 +275,19 @@ export default function PersonalIncome() {
 
   function buildPayload() {
     const grossAmt = num(form.gross_amount);
-    const totalWithheld = num(form.federal_withholding) + num(form.state_withholding) + num(form.ss_withholding) + num(form.medicare_withholding);
+    // Single canonical federal total (auto-summed from breakdown when present).
+    const totalFederal = num(form.total_federal_payroll_taxes);
+    const stateW = stateTaxEnabled ? num(form.state_withholding) : 0;
+    const totalWithheld = totalFederal + stateW;
     const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.owner_healthcare);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
-    // Compute the base tax estimate for the record
+    // Compute the base tax estimate for the record using the canonical total.
     const rec = getIncomeRec({
       grossIncome: grossAmt,
       incomeType: form.income_type,
-      federalWithheld: num(form.federal_withholding),
-      stateWithheld: num(form.state_withholding),
+      federalWithheld: totalFederal,
+      stateWithheld: stateW,
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.owner_healthcare),
     });
@@ -293,9 +307,12 @@ export default function PersonalIncome() {
         deposited_amount: netReceived,
         cost_basis: isStockType(form.income_type) ? num(form.cost_basis) : null,
         realized_gain_loss: isStockType(form.income_type) ? num(form.realized_gain_loss) : null,
-        federal_withholding: num(form.federal_withholding),
-        taxes_withheld: num(form.federal_withholding),
-        state_withholding: num(form.state_withholding),
+        // The canonical federal total (federal income tax + SS + Medicare).
+        // Stored in federal_withholding so the tax engine reads a single value.
+        federal_withholding: totalFederal,
+        taxes_withheld: totalFederal,
+        state_withholding: stateW,
+        // Preserve the breakdown for backward compat / reporting.
         ss_withholding: num(form.ss_withholding),
         medicare_withholding: num(form.medicare_withholding),
         retirement_401k: num(form.retirement_pretax),
@@ -687,6 +704,36 @@ export default function PersonalIncome() {
               </div>
             )}
 
+            {/* Simplified federal payroll tax + optional state withholding */}
+            {showField("federal_withholding") && (
+              <TotalFederalTaxField
+                total={form.total_federal_payroll_taxes}
+                onTotalChange={(v) => setField("total_federal_payroll_taxes", v)}
+                federal={form.federal_withholding}
+                onFederalChange={(v) => setField("federal_withholding", v)}
+                ss={form.ss_withholding}
+                onSsChange={(v) => setField("ss_withholding", v)}
+                medicare={form.medicare_withholding}
+                onMedicareChange={(v) => setField("medicare_withholding", v)}
+                defaultAdvancedOpen={
+                  num(form.federal_withholding) > 0 ||
+                  num(form.ss_withholding) > 0 ||
+                  num(form.medicare_withholding) > 0
+                }
+              />
+            )}
+
+            {stateTaxEnabled && showField("state_withholding") && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">State tax withheld</Label>
+                <Input
+                  type="number" min="0" step="0.01" placeholder="0.00"
+                  value={form.state_withholding}
+                  onChange={(e) => setField("state_withholding", e.target.value)}
+                />
+              </div>
+            )}
+
             {/* Advanced details collapsible — driven by company/filing-type toggles */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
@@ -695,34 +742,8 @@ export default function PersonalIncome() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 pt-2">
                 <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
-                  {(showField("federal_withholding") || showField("state_withholding") || showField("ss_withholding") || showField("medicare_withholding")) && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {showField("federal_withholding") && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Federal W/H</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.federal_withholding} onChange={(e) => setField("federal_withholding", e.target.value)} />
-                        </div>
-                      )}
-                      {showField("state_withholding") && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">State W/H</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.state_withholding} onChange={(e) => setField("state_withholding", e.target.value)} />
-                        </div>
-                      )}
-                      {showField("ss_withholding") && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Social Security</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.ss_withholding} onChange={(e) => setField("ss_withholding", e.target.value)} />
-                        </div>
-                      )}
-                      {showField("medicare_withholding") && (
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Medicare</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.medicare_withholding} onChange={(e) => setField("medicare_withholding", e.target.value)} />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Federal/state/SS/Medicare moved out into the
+                      simplified TotalFederalTaxField above. */}
 
                   {(showField("retirement_401k") || showField("owner_healthcare") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
