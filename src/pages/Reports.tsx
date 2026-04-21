@@ -169,6 +169,17 @@ export default function Reports() {
     return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory };
   }, [transactions, taxCompany, taxYear, mileageByCompanyName]);
 
+  // ──── HSA summary (deductions/reporting) ────
+  const hsaSummary = useMemo(() => {
+    const yearMatch = (d: string) => d?.startsWith(taxYear);
+    const rows = hsaRows.filter((r) => yearMatch(r.contribution_date));
+    const payroll = rows.filter((r) => r.source_type === "payroll").reduce((s, r) => s + Number(r.amount), 0);
+    const individual = rows.filter((r) => r.source_type === "individual").reduce((s, r) => s + Number(r.amount), 0);
+    // Deductible = total HSA flowed into AGI deductions (no double-counting in engine)
+    const deductible = payroll + individual;
+    return { payroll, individual, total: payroll + individual, deductible };
+  }, [hsaRows, taxYear]);
+
   // ──── Export helpers ────
   function exportPLCSV() {
     const companyLabel = plCompany === "all" ? "All Companies" : plCompany;
