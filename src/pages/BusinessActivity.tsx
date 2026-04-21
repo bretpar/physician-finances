@@ -375,6 +375,13 @@ export default function Transactions() {
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
         medicare_withholding: linked ? String((linked as any).medicare_withholding || 0) : "",
+        total_federal_payroll_taxes: linked
+          ? String(
+              Number((linked as any).federal_withholding || 0) +
+              Number((linked as any).ss_withholding || 0) +
+              Number((linked as any).medicare_withholding || 0)
+            )
+          : "",
         actual_withholding: String((tx as any).actual_withholding || ""),
         additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",
         notes: tx.notes || "",
@@ -433,7 +440,10 @@ export default function Transactions() {
     const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
     const healthcare = preserve("owner_healthcare", num(incomeForm.owner_healthcare), (linkedEntry as any)?.owner_healthcare || 0);
-    const fedWH = preserve("federal_withholding", num(incomeForm.federal_withholding), (linkedEntry as any)?.federal_withholding || 0);
+    // Canonical federal total = federal income tax + SS + Medicare. Stored in
+    // federal_withholding so the tax engine reads a single value.
+    const totalFederal = num(incomeForm.total_federal_payroll_taxes);
+    const fedWH = preserve("federal_withholding", totalFederal, (linkedEntry as any)?.federal_withholding || 0);
     const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
     const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
