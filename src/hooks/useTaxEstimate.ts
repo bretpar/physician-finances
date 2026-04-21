@@ -9,6 +9,7 @@ import { useStockTransactions } from "@/hooks/useStocks";
 import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
+import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
