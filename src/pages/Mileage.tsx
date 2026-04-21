@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet } from "lucide-react";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet, HeartPulse } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { HsaSettingsSection, HsaLedgerSection } from "@/components/settings/HsaSection";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
