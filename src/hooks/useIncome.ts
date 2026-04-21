@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo, useCallback } from "react";
 import { isW2FilingType, isSelfEmployedFilingType, toCanonicalIncomeType } from "@/lib/filingTypes";
+import { syncPayrollHsaForIncome } from "@/hooks/useHsaContributions";
 
 export type IncomeStatus = "projected" | "expected" | "received";
 
@@ -91,7 +92,7 @@ export function useAddIncome() {
       if (txError) throw txError;
 
       // 2. Create the income_entries record (detailed breakdown for tax engine)
-      const { error } = await supabase.from("income_entries").insert({
+      const { data: entryData, error } = await supabase.from("income_entries").insert({
         user_id: user.id,
         organization_id: orgId,
         name: entry.name || "",
@@ -103,6 +104,9 @@ export function useAddIncome() {
         taxes_withheld: entry.taxes_withheld || 0,
         pre_tax_deductions: entry.pre_tax_deductions || 0,
         retirement_401k: entry.retirement_401k || 0,
+        healthcare_deduction: (entry as any).healthcare_deduction || 0,
+        hsa_contribution: (entry as any).hsa_contribution || 0,
+        source_id: (entry as any).source_id || null,
         notes: entry.notes || "",
         status: (entry.status as string) || "received",
         linked_transaction_id: txData?.id || null,
@@ -111,12 +115,37 @@ export function useAddIncome() {
         quarterly_adjustment_amount: (entry as any).quarterly_adjustment_amount || 0,
         additional_tax_reserve: (entry as any).additional_tax_reserve || 0,
         recommendation_status: (entry as any).recommendation_status || "on_track",
-      } as any);
+      } as any).select("id").single();
       if (error) throw error;
+
+      // 3. Sync payroll HSA into hsa_contributions ledger
+      const hsaAmount = Number((entry as any).hsa_contribution || 0);
+      if (entryData?.id) {
+        try {
+          const linkedHsaId = await syncPayrollHsaForIncome({
+            userId: user.id,
+            organizationId: orgId,
+            incomeEntryId: entryData.id,
+            existingHsaId: null,
+            amount: hsaAmount,
+            contributionDate: incomeDate,
+            companyId: (entry as any).source_id || null,
+          });
+          if (linkedHsaId) {
+            await supabase
+              .from("income_entries")
+              .update({ linked_hsa_contribution_id: linkedHsaId } as any)
+              .eq("id", entryData.id);
+          }
+        } catch (e) {
+          console.error("[useAddIncome] HSA sync failed", e);
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
       toast.success("Income entry added");
     },
     onError: (e) => toast.error(e.message),
@@ -136,9 +165,40 @@ export function useUpdateIncome() {
         .update(safe)
         .eq("id", id);
       if (error) throw error;
+
+      // Sync payroll HSA if hsa_contribution was part of the update
+      if ("hsa_contribution" in updates) {
+        try {
+          const { data: existing } = await supabase
+            .from("income_entries")
+            .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
+            .eq("id", id)
+            .single();
+          if (existing) {
+            const linkedHsaId = await syncPayrollHsaForIncome({
+              userId: (existing as any).user_id,
+              organizationId: (existing as any).organization_id,
+              incomeEntryId: id,
+              existingHsaId: (existing as any).linked_hsa_contribution_id,
+              amount: Number((updates as any).hsa_contribution || 0),
+              contributionDate: (updates as any).income_date || (existing as any).income_date,
+              companyId: (updates as any).source_id ?? (existing as any).source_id ?? null,
+            });
+            if (linkedHsaId !== (existing as any).linked_hsa_contribution_id) {
+              await supabase
+                .from("income_entries")
+                .update({ linked_hsa_contribution_id: linkedHsaId } as any)
+                .eq("id", id);
+            }
+          }
+        } catch (e) {
+          console.error("[useUpdateIncome] HSA sync failed", e);
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
       toast.success("Income entry updated");
     },
     onError: (e) => toast.error(e.message),
