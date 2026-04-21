@@ -34,6 +34,7 @@ import { useAttachmentCounts } from "@/hooks/useAttachments";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
+import { DateField } from "@/components/DateField";
 import {
   getFilingMeta,
   isW2FilingType,
@@ -1199,7 +1200,7 @@ export default function Transactions() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
-                <Input type="date" value={incomeForm.date} onChange={(e) => setIncomeForm((f) => ({ ...f, date: e.target.value }))} />
+                <DateField value={incomeForm.date} onChange={(v) => setIncomeForm((f) => ({ ...f, date: v }))} />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Merchant / Payer</Label>
@@ -1475,7 +1476,7 @@ export default function Transactions() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
-                <Input type="date" value={expenseForm.date} onChange={(e) => setExpenseForm((f) => ({ ...f, date: e.target.value }))} />
+                <DateField value={expenseForm.date} onChange={(v) => setExpenseForm((f) => ({ ...f, date: v }))} />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Merchant / Name</Label>
