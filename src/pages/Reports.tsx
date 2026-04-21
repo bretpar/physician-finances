@@ -48,6 +48,7 @@ export default function Reports() {
   const { companies } = useCompanies();
   const currentYearForMileage = new Date().getFullYear();
   const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
+  const { data: hsaRows = [] } = useHsaContributions(currentYearForMileage);
 
   const VEHICLE_CATEGORY = "Car and truck expenses";
 
