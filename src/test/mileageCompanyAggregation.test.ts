@@ -40,8 +40,11 @@ describe("mileage company aggregation", () => {
     const aOnly = entries
       .filter((m) => m.company_id === COMPANY_A)
       .reduce((s, m) => s + Number(m.miles) * IRS_MILEAGE_RATE, 0);
-    const bImpactOfA = aOnly && COMPANY_A !== COMPANY_B ? 0 : aOnly;
-    expect(bImpactOfA).toBe(0);
+    const bOnly = entries
+      .filter((m) => m.company_id === COMPANY_B)
+      .reduce((s, m) => s + Number(m.miles) * IRS_MILEAGE_RATE, 0);
+    expect(aOnly).toBeCloseTo(150 * IRS_MILEAGE_RATE, 6);
+    expect(bOnly).toBeCloseTo(200 * IRS_MILEAGE_RATE, 6);
   });
 
   it("(2) unassigned mileage does not affect any per-company total", () => {
