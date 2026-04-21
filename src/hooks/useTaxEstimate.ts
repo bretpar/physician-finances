@@ -48,6 +48,7 @@ export function useTaxEstimate(): {
   const { data: retirementContribs, isLoading: retLoading } = useRetirementContributions();
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
+  const { data: hsaRows = [] } = useHsaContributions(currentYear);
   const { companies } = useCompanies();
 
   // ── Reconcile income_entries before any tax math ─────────────────────────
