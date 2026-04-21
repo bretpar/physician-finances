@@ -109,7 +109,7 @@ export function SectionCard({
               <span className="text-xs text-muted-foreground">{summary}</span>
             )}
             {isDirty && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning">
                 <AlertCircle className="h-3 w-3" /> Unsaved
               </span>
             )}
