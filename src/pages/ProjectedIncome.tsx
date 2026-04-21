@@ -444,7 +444,9 @@ export default function ProjectedIncome() {
       taxes_withheld: showField("taxes_withheld")
         ? num(form.taxes_withheld)
         : num(form.federal_withholding),
-      federal_withholding: showField("federal_withholding") ? num(form.federal_withholding) : 0,
+      // Canonical federal total (federal income tax + SS + Medicare).
+      // Stored in federal_withholding so the engine reads a single value.
+      federal_withholding: showField("federal_withholding") ? num(form.total_federal_payroll_taxes) : 0,
       state_withholding: showField("state_withholding") ? num(form.state_withholding) : 0,
       ss_withholding: showField("ss_withholding") ? num(form.ss_withholding) : 0,
       medicare_withholding: showField("medicare_withholding") ? num(form.medicare_withholding) : 0,
