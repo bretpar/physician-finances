@@ -111,6 +111,28 @@ export default function Accounts() {
     return new Date(d).toLocaleString();
   };
 
+  const formatRelative = (d: string | null) => {
+    if (!d) return "never";
+    const diffMs = Date.now() - new Date(d).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+
+  const isNeedsReauth = (item: any) =>
+    item.status === "needs_reauth" || item.status === "login_required" || item.status === "error";
+
+  const mostRecentSync = plaidItems.reduce<string | null>((acc, it) => {
+    const t = it.last_synced_at;
+    if (!t) return acc;
+    if (!acc || new Date(t) > new Date(acc)) return t;
+    return acc;
+  }, null);
+
   const getCompanyName = (companyId: string | null) => {
     if (!companyId) return null;
     return companies.find((c) => c.id === companyId)?.name || null;
