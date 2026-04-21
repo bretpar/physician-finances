@@ -1456,11 +1456,11 @@ function StreamTable({
         <TableHeader>
           <TableRow>
             <TableHead>Company</TableHead>
-            <TableHead>Frequency</TableHead>
-            <TableHead className="text-right">Gross / Pay</TableHead>
-            <TableHead className="text-right">Withholding</TableHead>
-            <TableHead className="text-right">401(k)</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead className="hidden sm:table-cell">Frequency</TableHead>
+            <TableHead className="text-right whitespace-nowrap">Gross / Pay</TableHead>
+            <TableHead className="text-right whitespace-nowrap hidden md:table-cell">Withholding</TableHead>
+            <TableHead className="text-right whitespace-nowrap hidden lg:table-cell">401(k)</TableHead>
+            <TableHead className="hidden sm:table-cell">Status</TableHead>
             <TableHead className="w-20"></TableHead>
           </TableRow>
         </TableHeader>
