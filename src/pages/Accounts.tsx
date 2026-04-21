@@ -292,33 +292,39 @@ export default function Accounts() {
             const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
             return (
               <div key={item.id} className="rounded-xl border border-border bg-card p-5 space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary shrink-0">
                       <Landmark className="h-5 w-5" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-card-foreground">{item.institution_name}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-card-foreground truncate">{item.institution_name}</p>
+                        {isNeedsReauth(item) ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Needs attention
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">Connected</Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Last synced: {formatDate(item.last_synced_at)}
+                        Last synced {formatRelative(item.last_synced_at)}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => syncMutation.mutate(item.id)}
-                      disabled={syncMutation.isPending}
-                      className="gap-1.5"
-                    >
-                      {syncMutation.isPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      )}
-                      Refresh
-                    </Button>
+                  <div className="flex gap-2 flex-wrap">
+                    {isNeedsReauth(item) && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleReconnect(item.id)}
+                        className="gap-1.5"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Reconnect
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
