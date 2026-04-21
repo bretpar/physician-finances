@@ -1123,8 +1123,8 @@ export default function Transactions() {
                       {tx.entity && (
                         <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{tx.entity}</span></div>
                       )}
-                      {tx.schedule_c_category && (
-                        <div className="flex justify-between gap-3"><span>Schedule C</span><span className="text-foreground text-right truncate">{tx.schedule_c_category}</span></div>
+                      {(tx as { schedule_c_category?: string | null }).schedule_c_category && (
+                        <div className="flex justify-between gap-3"><span>Schedule C</span><span className="text-foreground text-right truncate">{(tx as { schedule_c_category?: string | null }).schedule_c_category}</span></div>
                       )}
                       <div className="flex justify-between gap-3"><span>Source</span><span className="text-foreground text-right truncate">{source === "merged" ? "Linked (manual + bank)" : source}</span></div>
                       {tx.account_source && (
