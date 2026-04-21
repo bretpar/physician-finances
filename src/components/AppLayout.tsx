@@ -94,8 +94,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
         <header
-          className="fixed top-0 left-0 right-0 z-40 flex items-center gap-4 px-4 py-3 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6"
-          style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}
+          className="fixed top-0 left-0 right-0 z-40 flex items-center gap-4 px-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6 h-14 lg:h-14 box-content lg:box-border"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
           <button
             className="lg:hidden text-foreground"
@@ -109,10 +109,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </h2>
         </header>
         <div
-          className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 min-w-0 pt-[calc(env(safe-area-inset-top)+3.5rem+1rem)] lg:pt-6"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
+          className="flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6 lg:py-6 min-w-0"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top) + 3.5rem + 1rem)",
+            paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
+          }}
         >
-          {children}
+          <div className="lg:pt-0">{children}</div>
         </div>
       </main>
     </div>
