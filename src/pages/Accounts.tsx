@@ -177,6 +177,77 @@ export default function Accounts() {
     bulkApplyMutation.mutate({ accountId: editingAccount.id, companyName: name });
   };
 
+  // ── Refresh All: sync every healthy Plaid item for this user ──
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const handleRefreshAll = async () => {
+    const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
+    if (healthy.length === 0) {
+      toast.info("No healthy accounts to refresh");
+      return;
+    }
+    setRefreshingAll(true);
+    toast.message(`Refreshing ${healthy.length} account${healthy.length === 1 ? "" : "s"}…`);
+    let ok = 0;
+    let failed = 0;
+    await Promise.all(
+      healthy.map(async (it) => {
+        try {
+          await syncMutation.mutateAsync(it.id);
+          ok++;
+        } catch {
+          failed++;
+        }
+      })
+    );
+    setRefreshingAll(false);
+    if (failed === 0) toast.success("Refresh complete");
+    else toast.warning(`Refreshed ${ok}, ${failed} failed`);
+  };
+
+  // ── Auto-refresh on mount: trigger a background sync for healthy items ──
+  useEffect(() => {
+    if (isLoading) return;
+    const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
+    if (healthy.length === 0) return;
+    // Fire one combined sync (server iterates all of the user's active items)
+    syncMutation.mutate(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
+  // ── Reconnect via Plaid update mode ──
+  const handleReconnect = async (itemId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("plaid-create-link-token", {
+        body: { item_id: itemId, update_mode: true },
+      });
+      if (error || !data?.link_token) {
+        toast.error("Failed to start reconnect flow");
+        return;
+      }
+      if (!(window as any).Plaid) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Failed to load Plaid"));
+          document.head.appendChild(script);
+        });
+      }
+      const handler = (window as any).Plaid.create({
+        token: data.link_token,
+        onSuccess: () => {
+          toast.success("Connection restored");
+          syncMutation.mutate(itemId);
+        },
+        onExit: () => {},
+      });
+      handler.open();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to open reconnect flow");
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
