@@ -61,6 +61,15 @@ export function SectionCard({
 }: SectionCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [confirmCollapse, setConfirmCollapse] = useState(false);
+  const dirtyKey = useId();
+
+  // Broadcast dirty state to a top-level guard.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("settings:dirty", { detail: { key: dirtyKey, dirty: isDirty } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("settings:dirty", { detail: { key: dirtyKey, dirty: false } }));
+    };
+  }, [dirtyKey, isDirty]);
 
   const toggle = () => {
     if (!collapsible) return;
