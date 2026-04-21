@@ -1,8 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
   ArrowLeftRight,
+  ChevronDown,
   CreditCard,
   Receipt,
   type LucideIcon,
@@ -50,6 +51,8 @@ export interface LedgerRowProps {
   amountTone?: "positive" | "negative" | "neutral";
   badges?: LedgerRowBadge[];
   rightSlot?: ReactNode;
+  /** Secondary metadata revealed by tapping the expand chevron. Mobile-first. */
+  expandableContent?: ReactNode;
   onClick?: () => void;
   selected?: boolean;
   className?: string;
@@ -83,10 +86,12 @@ export function LedgerRow({
   amountTone,
   badges,
   rightSlot,
+  expandableContent,
   onClick,
   selected,
   className,
 }: LedgerRowProps) {
+  const [expanded, setExpanded] = useState(false);
   const Icon = icon ?? KIND_ICON[kind];
   const tone =
     amountTone ??
@@ -103,77 +108,111 @@ export function LedgerRow({
     amountPrefix ?? (tone === "positive" ? "+" : tone === "negative" ? "-" : "");
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       className={cn(
-        "w-full flex items-start gap-3 px-4 py-3.5 text-left transition-colors",
-        "hover:bg-muted/40 active:bg-muted/60",
+        "w-full",
         selected && "bg-primary/5",
         className,
       )}
     >
-      {/* Left: icon */}
-      <div
-        className={cn(
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-          KIND_ICON_CLASSES[kind],
-        )}
-      >
-        <Icon className="h-5 w-5" />
-      </div>
-
-      {/* Middle: details */}
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="text-[17px] font-semibold text-foreground leading-tight truncate">
-          {title}
-        </div>
-        {subtitle && (
-          <div className="text-[15px] text-muted-foreground leading-tight truncate">
-            {subtitle}
-          </div>
-        )}
-        {meta && (
-          <div className="text-[13px] text-muted-foreground/80 leading-tight truncate">
-            {meta}
-          </div>
-        )}
-        {(date || (badges && badges.length > 0)) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            {date && (
-              <span className="text-[12px] text-muted-foreground/70 tabular-nums">
-                {date}
-              </span>
-            )}
-            {badges?.map((b, i) => (
-              <span
-                key={`${b.label}-${i}`}
-                className={cn(
-                  "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none",
-                  TONE_CLASS[b.tone ?? "muted"],
-                )}
-              >
-                {b.label}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Right: amount */}
-      <div className="flex shrink-0 flex-col items-end gap-1 pl-2">
-        <span
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={onClick}
           className={cn(
-            "text-[17px] font-semibold tabular-nums leading-tight",
-            amountClass,
+            "min-w-0 flex-1 flex items-start gap-3 px-4 py-3.5 text-left transition-colors",
+            "hover:bg-muted/40 active:bg-muted/60",
           )}
         >
-          {prefix}
-          {fmtAmount(amount)}
-        </span>
-        {rightSlot}
+          {/* Left: icon */}
+          <div
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
+              KIND_ICON_CLASSES[kind],
+            )}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+
+          {/* Middle: details */}
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="text-[17px] font-semibold text-foreground leading-tight truncate">
+              {title}
+            </div>
+            {subtitle && (
+              <div className="text-[15px] text-muted-foreground leading-tight truncate">
+                {subtitle}
+              </div>
+            )}
+            {meta && (
+              <div className="text-[13px] text-muted-foreground/80 leading-tight truncate">
+                {meta}
+              </div>
+            )}
+            {(date || (badges && badges.length > 0)) && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {date && (
+                  <span className="text-[12px] text-muted-foreground/70 tabular-nums">
+                    {date}
+                  </span>
+                )}
+                {badges?.map((b, i) => (
+                  <span
+                    key={`${b.label}-${i}`}
+                    className={cn(
+                      "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none",
+                      TONE_CLASS[b.tone ?? "muted"],
+                    )}
+                  >
+                    {b.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right: amount */}
+          <div className="flex shrink-0 flex-col items-end gap-1 pl-2">
+            <span
+              className={cn(
+                "text-[17px] font-semibold tabular-nums leading-tight",
+                amountClass,
+              )}
+            >
+              {prefix}
+              {fmtAmount(amount)}
+            </span>
+            {rightSlot}
+          </div>
+        </button>
+
+        {expandableContent && (
+          <button
+            type="button"
+            aria-label={expanded ? "Hide details" : "Show details"}
+            aria-expanded={expanded}
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded((v) => !v);
+            }}
+            className="shrink-0 px-3 flex items-center justify-center text-muted-foreground hover:bg-muted/40 active:bg-muted/60 transition-colors"
+          >
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform",
+                expanded && "rotate-180",
+              )}
+            />
+          </button>
+        )}
       </div>
-    </button>
+
+      {expandableContent && expanded && (
+        <div className="px-4 pb-3 pl-[68px] text-[13px] text-muted-foreground space-y-1 bg-muted/20">
+          {expandableContent}
+        </div>
+      )}
+    </div>
   );
 }
 
