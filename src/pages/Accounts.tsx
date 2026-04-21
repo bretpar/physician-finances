@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Landmark, Plus, RefreshCw, Loader2, Unplug, CreditCard, Building2, Settings2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Landmark, Plus, RefreshCw, Loader2, Unplug, CreditCard, Building2, Settings2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -111,6 +111,28 @@ export default function Accounts() {
     return new Date(d).toLocaleString();
   };
 
+  const formatRelative = (d: string | null) => {
+    if (!d) return "never";
+    const diffMs = Date.now() - new Date(d).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
+
+  const isNeedsReauth = (item: any) =>
+    item.status === "needs_reauth" || item.status === "login_required" || item.status === "error";
+
+  const mostRecentSync: string | null = (plaidItems as any[]).reduce((acc: string | null, it: any) => {
+    const t = it.last_synced_at;
+    if (!t) return acc;
+    if (!acc || new Date(t) > new Date(acc)) return t;
+    return acc;
+  }, null as string | null);
+
   const getCompanyName = (companyId: string | null) => {
     if (!companyId) return null;
     return companies.find((c) => c.id === companyId)?.name || null;
@@ -155,14 +177,113 @@ export default function Accounts() {
     bulkApplyMutation.mutate({ accountId: editingAccount.id, companyName: name });
   };
 
+  // ── Refresh All: sync every healthy Plaid item for this user ──
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const handleRefreshAll = async () => {
+    const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
+    if (healthy.length === 0) {
+      toast.info("No healthy accounts to refresh");
+      return;
+    }
+    setRefreshingAll(true);
+    toast.message(`Refreshing ${healthy.length} account${healthy.length === 1 ? "" : "s"}…`);
+    let ok = 0;
+    let failed = 0;
+    await Promise.all(
+      healthy.map(async (it) => {
+        try {
+          await syncMutation.mutateAsync(it.id);
+          ok++;
+        } catch {
+          failed++;
+        }
+      })
+    );
+    setRefreshingAll(false);
+    if (failed === 0) toast.success("Refresh complete");
+    else toast.warning(`Refreshed ${ok}, ${failed} failed`);
+  };
+
+  // ── Auto-refresh on mount: trigger a background sync if it's been > 5 min ──
+  useEffect(() => {
+    if (isLoading) return;
+    const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
+    if (healthy.length === 0) return;
+    const stale = healthy.some((it) => {
+      if (!it.last_synced_at) return true;
+      return Date.now() - new Date(it.last_synced_at).getTime() > 5 * 60 * 1000;
+    });
+    if (!stale) return;
+    syncMutation.mutate(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
+  // ── Reconnect via Plaid update mode ──
+  const handleReconnect = async (itemId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("plaid-create-link-token", {
+        body: { item_id: itemId, update_mode: true },
+      });
+      if (error || !data?.link_token) {
+        toast.error("Failed to start reconnect flow");
+        return;
+      }
+      if (!(window as any).Plaid) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Failed to load Plaid"));
+          document.head.appendChild(script);
+        });
+      }
+      const handler = (window as any).Plaid.create({
+        token: data.link_token,
+        onSuccess: () => {
+          toast.success("Connection restored");
+          syncMutation.mutate(itemId);
+        },
+        onExit: () => {},
+      });
+      handler.open();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to open reconnect flow");
+    }
+  };
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-foreground">Bank Connections</h3>
-        <Button onClick={handleConnectBank} disabled={linkLoading} className="gap-2">
-          {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Connect Bank Account
-        </Button>
+    <div className="space-y-6 max-w-4xl mx-auto w-full min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold text-foreground">Bank Connections</h3>
+          {plaidItems.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Last synced {formatRelative(mostRecentSync)}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Button onClick={handleConnectBank} disabled={linkLoading} className="gap-2">
+            {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Connect Account
+          </Button>
+          {plaidItems.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleRefreshAll}
+              disabled={refreshingAll || syncMutation.isPending}
+              className="gap-2"
+            >
+              {refreshingAll || syncMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh All
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -175,33 +296,39 @@ export default function Accounts() {
             const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
             return (
               <div key={item.id} className="rounded-xl border border-border bg-card p-5 space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary shrink-0">
                       <Landmark className="h-5 w-5" />
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-card-foreground">{item.institution_name}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-card-foreground truncate">{item.institution_name}</p>
+                        {isNeedsReauth(item) ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Needs attention
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">Connected</Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Last synced: {formatDate(item.last_synced_at)}
+                        Last synced {formatRelative(item.last_synced_at)}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => syncMutation.mutate(item.id)}
-                      disabled={syncMutation.isPending}
-                      className="gap-1.5"
-                    >
-                      {syncMutation.isPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      )}
-                      Refresh
-                    </Button>
+                  <div className="flex gap-2 flex-wrap">
+                    {isNeedsReauth(item) && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleReconnect(item.id)}
+                        className="gap-1.5"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Reconnect
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
