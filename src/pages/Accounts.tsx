@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Landmark, Plus, RefreshCw, Loader2, Unplug, CreditCard, Building2, Settings2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Landmark, Plus, RefreshCw, Loader2, Unplug, CreditCard, Building2, Settings2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
