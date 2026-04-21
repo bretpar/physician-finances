@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,6 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,20 +15,19 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Plus, Trash2, Building2, Check, Landmark, RefreshCw, Loader2,
+  Plus, Trash2, Building2, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, HelpCircle, AlertTriangle, ChevronDown, ChevronRight,
+  Lock, ChevronDown, ChevronRight, Users, Wrench, UserCircle,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useTaxSettings, useUpdateTaxSettings, type WithholdingMethod } from "@/hooks/useTaxSettings";
+import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod } from "@/hooks/useTaxSettings";
 import {
   FILING_TYPES,
   TOGGLE_OPTIONS_BY_TYPE,
   resolveAdvancedVisibility,
   type FilingType,
-  type ToggleKey,
 } from "@/lib/filingTypes";
 import { ledgerForIncomeType, ledgerLabel } from "@/lib/ledgerRouting";
 import {
@@ -39,12 +37,15 @@ import {
   useDisconnectPlaidItem,
   useUpdatePlaidAccount,
   useBulkApplyAccountBusiness,
-  useToggleAccountSync,
   useReviewAccounts,
 } from "@/hooks/usePlaid";
 import { DuplicateCleanupCard } from "@/components/DuplicateCleanupCard";
 import { RestoreTombstonesCard } from "@/components/RestoreTombstonesCard";
 import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
+import { SectionCard } from "@/components/settings/SectionCard";
+import { useSectionDraft } from "@/hooks/useSectionDraft";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { cn } from "@/lib/utils";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -52,83 +53,799 @@ interface OrgMember { id: string; user_id: string; role: string; email?: string;
 
 const COMPANY_TYPES = FILING_TYPES.map((t) => ({ value: t.value, label: t.label }));
 
-const FILING_TYPE_BLURBS: Record<FilingType, string> = {
-  "1099_schedule_c": "Use for independent contractor or self-employed income. Taxes are usually not withheld, so the app will recommend how much to set aside.",
-  "k1_partnership": "Use for partnership income reported on a K-1. This may include partner deductions such as health insurance, retirement contributions, or other partner-level adjustments.",
-  "scorp_w2": "Use for wages paid to you through your S-Corp payroll. Tax withholding and payroll deductions are treated like a W-2 paycheck.",
-  "scorp_distribution": "Use for owner distributions from an S-Corp. These are usually not payroll wages and taxes are generally not withheld.",
-  "w2": "Use for employee wages from an employer. Taxes are usually withheld through payroll.",
-  "other": "Use when the income does not fit one of the standard categories. The app will show a simplified income form.",
-};
-
 const roleIcons = { owner: Crown, admin: Shield, member: User };
 const roleColors = { owner: "default", admin: "secondary", member: "outline" } as const;
 
-/* ─── Auto-save hook ─── */
-function useAutoSave<T>(value: T, onSave: (v: T) => void, delay = 1000) {
-  const [saved, setSaved] = useState(true);
-  useEffect(() => {
-    setSaved(false);
-    const timer = setTimeout(() => { onSave(value); setSaved(true); }, delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]); // eslint-disable-line react-hooks/exhaustive-deps
-  return saved;
-}
-
 function isValidEmail(email: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 
-/* ─── Main Component ─── */
-export default function Settings() {
-  const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany } = useCompanies();
-  const { organizationId, userRole, user } = useAuth();
-  const isAdminOrOwner = userRole === "owner" || userRole === "admin";
-  const { data: taxSettingsData } = useTaxSettings();
-  const updateTaxSettingsMutation = useUpdateTaxSettings();
-
-  /* Profile */
-  const [profile, setProfile] = useState<Profile>({ firstName: "", lastName: "", email: "" });
+/* ──────────────────────────────────────────────────────────── */
+/*  Profile section                                              */
+/* ──────────────────────────────────────────────────────────── */
+function ProfileSection({ justSavedFlag }: { justSavedFlag: (key: string) => boolean }) {
+  const { user } = useAuth();
+  const [source, setSource] = useState<Profile>({ firstName: "", lastName: "", email: "" });
   const [emailError, setEmailError] = useState("");
-  const profileSaved = useAutoSave(profile, () => {
-    if (profile.email && !isValidEmail(profile.email)) { setEmailError("Please enter a valid email address"); return; }
-    setEmailError("");
-    toast.success("Profile saved", { duration: 1500 });
+  const [savedTick, setSavedTick] = useState(false);
+
+  // Initial load
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setSource({
+        firstName: data?.first_name || "",
+        lastName: data?.last_name || "",
+        email: data?.email || user.email || "",
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const draft = useSectionDraft<Profile>({
+    source,
+    onSave: async (next) => {
+      if (next.email && !isValidEmail(next.email)) {
+        setEmailError("Please enter a valid email address");
+        throw new Error("invalid email");
+      }
+      setEmailError("");
+      if (!user) throw new Error("not signed in");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ first_name: next.firstName, last_name: next.lastName, email: next.email })
+        .eq("user_id", user.id);
+      if (error) {
+        toast.error(error.message);
+        throw error;
+      }
+      setSource(next);
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 2000);
+    },
   });
 
-  /* Tax Settings — driven entirely by taxSettingsData via auto-save mutations */
+  return (
+    <SectionCard
+      title="Profile"
+      icon={<UserCircle className="h-5 w-5" />}
+      description="Your name and login email."
+      isDirty={draft.isDirty}
+      isSaving={draft.isSaving}
+      justSaved={savedTick}
+      onSave={draft.save}
+      onCancel={draft.cancel}
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">First Name</Label>
+          <Input
+            value={draft.draft.firstName}
+            onChange={(e) => draft.patch({ firstName: e.target.value })}
+            placeholder="John"
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Last Name</Label>
+          <Input
+            value={draft.draft.lastName}
+            onChange={(e) => draft.patch({ lastName: e.target.value })}
+            placeholder="Smith"
+          />
+        </div>
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1.5 block">Email Address</Label>
+        <Input
+          type="email"
+          value={draft.draft.email}
+          onChange={(e) => { draft.patch({ email: e.target.value }); if (emailError) setEmailError(""); }}
+          placeholder="doctor@example.com"
+          className={emailError ? "border-destructive" : ""}
+        />
+        {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
+        <p className="text-xs text-muted-foreground mt-1">This will be your login identifier.</p>
+      </div>
+    </SectionCard>
+  );
+}
 
-  /* Companies */
+/* ──────────────────────────────────────────────────────────── */
+/*  Tax Withholding Method section                               */
+/* ──────────────────────────────────────────────────────────── */
+type WithholdingDraft = {
+  withholdingMethod: WithholdingMethod;
+  manualEffectiveTaxRate: number | null;
+};
+
+function TaxWithholdingSection() {
+  const { data } = useTaxSettings();
+  const updateMutation = useUpdateTaxSettings();
+  const [savedTick, setSavedTick] = useState(false);
+
+  const source: WithholdingDraft = useMemo(() => ({
+    withholdingMethod: data?.withholdingMethod || "dynamic_actual",
+    manualEffectiveTaxRate: data?.manualEffectiveTaxRate ?? 20,
+  }), [data?.withholdingMethod, data?.manualEffectiveTaxRate]);
+
+  const draft = useSectionDraft<WithholdingDraft>({
+    source,
+    onSave: async (next) => {
+      if (!data?.id) throw new Error("Tax settings not loaded");
+      await updateMutation.mutateAsync({
+        id: data.id,
+        withholdingMethod: next.withholdingMethod,
+        manualEffectiveTaxRate: next.withholdingMethod === "flat_estimate" ? next.manualEffectiveTaxRate : data.manualEffectiveTaxRate,
+      });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 2000);
+    },
+  });
+
+  return (
+    <SectionCard
+      title="Tax Withholding Method"
+      icon={<Calculator className="h-5 w-5" />}
+      description="How withholding recommendations are calculated across the app."
+      isDirty={draft.isDirty}
+      isSaving={draft.isSaving}
+      justSaved={savedTick}
+      onSave={draft.save}
+      onCancel={draft.cancel}
+    >
+      <RadioGroup
+        value={draft.draft.withholdingMethod}
+        onValueChange={(v) => draft.patch({ withholdingMethod: v as WithholdingMethod })}
+        className="space-y-3"
+      >
+        <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+          <RadioGroupItem value="flat_estimate" className="mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-card-foreground">Flat Estimate</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Use a fixed percentage for all withholding recommendations.</p>
+            {draft.draft.withholdingMethod === "flat_estimate" && (
+              <div className="mt-3 flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Rate (%)</Label>
+                <Input
+                  type="number" step="0.1" min="0" max="100"
+                  className="w-24 h-8"
+                  value={draft.draft.manualEffectiveTaxRate ?? 20}
+                  onChange={(e) => draft.patch({ manualEffectiveTaxRate: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+            )}
+          </div>
+        </label>
+        <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+          <RadioGroupItem value="dynamic_actual" className="mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Current Income</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Uses all actual income with real tax brackets.</p>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+          <RadioGroupItem value="dynamic_planner" className="mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Income Planner</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Includes projected future income for forward-looking estimation.</p>
+          </div>
+        </label>
+      </RadioGroup>
+    </SectionCard>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  Tax Profile section                                          */
+/* ──────────────────────────────────────────────────────────── */
+type TaxProfileDraft = Pick<TaxRates,
+  | "filingStatus" | "deductionType" | "itemizedDeductionAmount"
+  | "qualifyingChildrenCount" | "otherDependentsCount"
+  | "withholdingOverrideType" | "withholdingOverridePercent" | "withholdingOverrideAmount"
+  | "stateTaxEnabled" | "stateOfResidence" | "personalStateTaxMode"
+  | "personalStateTaxRate" | "personalStateTaxAnnualEstimate"
+  | "businessStateTaxEnabled" | "businessStateTaxRate"
+  | "businessStateTaxBase" | "businessStateTaxApplicationMode"
+>;
+
+function TaxProfileSection() {
+  const { data } = useTaxSettings();
+  const updateMutation = useUpdateTaxSettings();
+  const [savedTick, setSavedTick] = useState(false);
+
+  const source: TaxProfileDraft = useMemo(() => ({
+    filingStatus: data?.filingStatus || "single",
+    deductionType: data?.deductionType || "standard",
+    itemizedDeductionAmount: data?.itemizedDeductionAmount ?? 0,
+    qualifyingChildrenCount: data?.qualifyingChildrenCount ?? 0,
+    otherDependentsCount: data?.otherDependentsCount ?? 0,
+    withholdingOverrideType: data?.withholdingOverrideType || "none",
+    withholdingOverridePercent: data?.withholdingOverridePercent ?? null,
+    withholdingOverrideAmount: data?.withholdingOverrideAmount ?? null,
+    stateTaxEnabled: !!data?.stateTaxEnabled,
+    stateOfResidence: data?.stateOfResidence || "",
+    personalStateTaxMode: data?.personalStateTaxMode || "none",
+    personalStateTaxRate: data?.personalStateTaxRate ?? 0,
+    personalStateTaxAnnualEstimate: data?.personalStateTaxAnnualEstimate ?? 0,
+    businessStateTaxEnabled: !!data?.businessStateTaxEnabled,
+    businessStateTaxRate: data?.businessStateTaxRate ?? 0,
+    businessStateTaxBase: data?.businessStateTaxBase || "net_profit",
+    businessStateTaxApplicationMode: data?.businessStateTaxApplicationMode || "all_business",
+  }), [data]);
+
+  const draft = useSectionDraft<TaxProfileDraft>({
+    source,
+    onSave: async (next) => {
+      if (!data?.id) throw new Error("Tax settings not loaded");
+      await updateMutation.mutateAsync({ id: data.id, ...next });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 2000);
+    },
+  });
+
+  const d = draft.draft;
+  const set = draft.patch;
+
+  return (
+    <SectionCard
+      title="Tax Profile"
+      icon={<Calculator className="h-5 w-5" />}
+      description="Inputs that drive the predictive tax model."
+      isDirty={draft.isDirty}
+      isSaving={draft.isSaving}
+      justSaved={savedTick}
+      onSave={draft.save}
+      onCancel={draft.cancel}
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Filing Status</Label>
+          <Select value={d.filingStatus} onValueChange={(v) => set({ filingStatus: v as TaxRates["filingStatus"] })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">Single</SelectItem>
+              <SelectItem value="married_filing_jointly">Married Filing Jointly</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Deduction Type</Label>
+          <Select value={d.deductionType} onValueChange={(v) => set({ deductionType: v as TaxRates["deductionType"] })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="standard">Standard Deduction</SelectItem>
+              <SelectItem value="itemized">Itemized Deduction</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {d.deductionType === "itemized" && (
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Itemized Deduction Amount ($)</Label>
+          <Input
+            type="number" step="100" min="0"
+            value={d.itemizedDeductionAmount}
+            onChange={(e) => set({ itemizedDeductionAmount: Math.max(0, parseFloat(e.target.value) || 0) })}
+            placeholder="e.g. 35000"
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Qualifying Children</Label>
+          <Input
+            type="number" step="1" min="0"
+            value={d.qualifyingChildrenCount}
+            onChange={(e) => set({ qualifyingChildrenCount: Math.max(0, Math.floor(parseFloat(e.target.value) || 0)) })}
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Other Dependents</Label>
+          <Input
+            type="number" step="1" min="0"
+            value={d.otherDependentsCount}
+            onChange={(e) => set({ otherDependentsCount: Math.max(0, Math.floor(parseFloat(e.target.value) || 0)) })}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Optional Withholding Target</Label>
+          <p className="text-[11px] text-muted-foreground mb-2">Override the recommended set-aside output. Used for planning only.</p>
+          <Select value={d.withholdingOverrideType} onValueChange={(v) => set({ withholdingOverrideType: v as TaxRates["withholdingOverrideType"] })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No override (use recommendation)</SelectItem>
+              <SelectItem value="percent">Target withholding percent</SelectItem>
+              <SelectItem value="amount">Target extra dollar amount</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {d.withholdingOverrideType === "percent" && (
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Target Withholding %</Label>
+            <Input
+              type="number" step="0.5" min="0" max="100"
+              value={d.withholdingOverridePercent ?? ""}
+              onChange={(e) => {
+                const raw = parseFloat(e.target.value);
+                set({ withholdingOverridePercent: isNaN(raw) ? null : Math.min(100, Math.max(0, raw)) });
+              }}
+              placeholder="e.g. 25"
+            />
+          </div>
+        )}
+
+        {d.withholdingOverrideType === "amount" && (
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Target Extra Amount ($) per pay period</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={d.withholdingOverrideAmount ?? ""}
+              onChange={(e) => {
+                const raw = parseFloat(e.target.value);
+                set({ withholdingOverrideAmount: isNaN(raw) ? null : Math.max(0, raw) });
+              }}
+              placeholder="e.g. 500"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="pt-2 border-t border-border space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-card-foreground">Personal State Tax</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5">State income tax on personal income.</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Switch checked={d.stateTaxEnabled} onCheckedChange={(v) => set({ stateTaxEnabled: v })} />
+            <Label className="text-xs text-muted-foreground">Enable</Label>
+          </div>
+        </div>
+
+        {d.stateTaxEnabled && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">State of residence</Label>
+                <Input value={d.stateOfResidence} onChange={(e) => set({ stateOfResidence: e.target.value })} placeholder="e.g. WA, CA, TX" maxLength={32} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Personal state tax mode</Label>
+                <Select value={d.personalStateTaxMode} onValueChange={(v) => set({ personalStateTaxMode: v as TaxRates["personalStateTaxMode"] })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="flat_rate">Flat rate</SelectItem>
+                    <SelectItem value="annual_estimate">Annual estimate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {d.personalStateTaxMode === "flat_rate" && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Personal state tax rate (%)</Label>
+                <Input type="number" step="0.1" min="0" max="100" value={d.personalStateTaxRate} onChange={(e) => set({ personalStateTaxRate: parseFloat(e.target.value) || 0 })} />
+              </div>
+            )}
+            {d.personalStateTaxMode === "annual_estimate" && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Annual state tax estimate ($)</Label>
+                <Input type="number" step="100" min="0" value={d.personalStateTaxAnnualEstimate} onChange={(e) => set({ personalStateTaxAnnualEstimate: parseFloat(e.target.value) || 0 })} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="pt-2 border-t border-border space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-card-foreground">Business State Tax</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Applies only to business-type companies. Never applied to W-2 income.</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Switch checked={d.businessStateTaxEnabled} onCheckedChange={(v) => set({ businessStateTaxEnabled: v })} />
+            <Label className="text-xs text-muted-foreground">Enable</Label>
+          </div>
+        </div>
+
+        {d.businessStateTaxEnabled && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Rate (%)</Label>
+              <Input type="number" step="0.1" min="0" max="100" value={d.businessStateTaxRate} onChange={(e) => set({ businessStateTaxRate: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Tax base</Label>
+              <Select value={d.businessStateTaxBase} onValueChange={(v) => set({ businessStateTaxBase: v as TaxRates["businessStateTaxBase"] })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="net_profit">Net business profit</SelectItem>
+                  <SelectItem value="gross">Gross business income</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Apply to</Label>
+              <Select value={d.businessStateTaxApplicationMode} onValueChange={(v) => set({ businessStateTaxApplicationMode: v as TaxRates["businessStateTaxApplicationMode"] })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all_business">All business companies</SelectItem>
+                  <SelectItem value="selected">Selected companies only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {d.businessStateTaxApplicationMode === "selected" && (
+              <p className="text-[11px] text-muted-foreground sm:col-span-3">
+                Use each company's "Apply business state tax" toggle (in Companies → Advanced) to choose which ones are included.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  Companies section                                            */
+/* ──────────────────────────────────────────────────────────── */
+function CompaniesSection() {
+  const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany } = useCompanies();
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
-  function handleAddCompany() {
+
+  // Single page-wide draft keyed by company id, so each company gets local edit state.
+  const [drafts, setDrafts] = useState<Record<string, Partial<Company>>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState<Record<string, boolean>>({});
+  const [advancedOpenIds, setAdvancedOpenIds] = useState<Set<string>>(new Set());
+  const [confirmDiscardId, setConfirmDiscardId] = useState<string | null>(null);
+
+  const dirtyIds = Object.keys(drafts);
+  const anyDirty = dirtyIds.length > 0;
+
+  function setField<K extends keyof Company>(id: string, field: K, value: Company[K]) {
+    setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }));
+  }
+
+  function isDirty(id: string) { return id in drafts; }
+
+  function getValue<K extends keyof Company>(c: Company, field: K): Company[K] {
+    const d = drafts[c.id];
+    if (d && field in d) return d[field] as Company[K];
+    return c[field];
+  }
+
+  async function saveCompany(c: Company) {
+    if (!isDirty(c.id)) return;
+    setSavingId(c.id);
+    try {
+      await updateCompany(c.id, drafts[c.id]);
+      setDrafts((prev) => { const n = { ...prev }; delete n[c.id]; return n; });
+      setSavedFlash((p) => ({ ...p, [c.id]: true }));
+      setTimeout(() => setSavedFlash((p) => { const n = { ...p }; delete n[c.id]; return n; }), 2000);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save company");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  function cancelCompany(id: string) {
+    setDrafts((prev) => { const n = { ...prev }; delete n[id]; return n; });
+  }
+
+  function executeDeleteCompany() {
+    if (!deleteCompanyId) return;
+    cancelCompany(deleteCompanyId);
+    removeCompany(deleteCompanyId);
+    setDeleteCompanyId(null);
+    toast.success("Company deleted");
+  }
+
+  function handleAdd() {
     addCompany({
-      name: "",
-      nickname: "",
-      companyType: "1099_schedule_c",
-      includeInTax: true,
-      defaultSetasideMethod: "recommended",
-      defaultSetasidePct: null,
-      notes: "",
-      advancedFieldVisibility: {},
-      applyBusinessStateTax: true,
+      name: "", nickname: "", companyType: "1099_schedule_c", includeInTax: true,
+      defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
+      advancedFieldVisibility: {}, applyBusinessStateTax: true,
     });
   }
-  function executeDeleteCompany() { if (!deleteCompanyId) return; removeCompany(deleteCompanyId); setDeleteCompanyId(null); toast.success("Company deleted"); }
-  const [advancedOpenIds, setAdvancedOpenIds] = useState<Set<string>>(new Set());
-  const toggleAdvancedOpen = (id: string) =>
-    setAdvancedOpenIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
 
-  /* ─── Connected Accounts (Plaid) ─── */
+  function toggleAdvanced(id: string) {
+    setAdvancedOpenIds((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  return (
+    <>
+      <SectionCard
+        title="Companies"
+        icon={<Building2 className="h-5 w-5" />}
+        summary={`(${companies.length})`}
+        description="Set the filing type for each company."
+        headerAction={
+          <Button variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Add
+          </Button>
+        }
+        isDirty={anyDirty}
+        // Section-level save bar is hidden — each company has its own.
+        hideActionBar
+      >
+        {companies.length === 0 && (
+          <div className="text-center py-8">
+            <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No companies added yet.</p>
+            <Button onClick={handleAdd} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Add Company</Button>
+          </div>
+        )}
+
+        <TooltipProvider delayDuration={150}>
+          <div className="space-y-3">
+            {companies.map((company) => {
+              const incomeCount = incomeCountByCompanyName[company.name] || 0;
+              const filingTypeLocked = incomeCount > 0;
+              const advOpen = advancedOpenIds.has(company.id);
+              const toggleOptions = TOGGLE_OPTIONS_BY_TYPE[getValue(company, "companyType")];
+              const visibility = resolveAdvancedVisibility(
+                getValue(company, "companyType"),
+                getValue(company, "advancedFieldVisibility"),
+              );
+              const dirty = isDirty(company.id);
+              const saving = savingId === company.id;
+              const saved = !!savedFlash[company.id];
+
+              return (
+                <div key={company.id} className={cn(
+                  "border rounded-lg p-4 space-y-3 transition-colors",
+                  dirty ? "border-warning/40 bg-warning/5" : "border-border",
+                )}>
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px_auto] gap-3 items-end">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
+                      <Input
+                        value={getValue(company, "name") as string}
+                        onChange={(e) => setField(company.id, "name", e.target.value)}
+                        placeholder="e.g. Vituity"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Label className="text-xs text-muted-foreground">Filing type</Label>
+                        {filingTypeLocked && (
+                          <Tooltip>
+                            <TooltipTrigger asChild><Lock className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <p className="text-xs">Locked because income transactions exist for this company.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                      <Select
+                        value={getValue(company, "companyType") as string}
+                        onValueChange={(v) => setField(company.id, "companyType", v as FilingType)}
+                        disabled={filingTypeLocked}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {(() => {
+                        const bucket = ledgerForIncomeType(getValue(company, "companyType"));
+                        return (
+                          <p className="mt-1.5 text-[11px] text-muted-foreground">
+                            Ledger:{" "}
+                            <span className={bucket === "business" ? "text-primary font-medium" : "text-foreground font-medium"}>
+                              {ledgerLabel(bucket)}
+                            </span>
+                          </p>
+                        );
+                      })()}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        if (dirty) { setConfirmDiscardId(company.id); return; }
+                        setDeleteCompanyId(company.id);
+                      }}
+                      aria-label="Delete company"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <Collapsible open={advOpen} onOpenChange={() => toggleAdvanced(company.id)}>
+                    <CollapsibleTrigger asChild>
+                      <button type="button" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+                        {advOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        Advanced tax settings
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-3">
+                      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-5">
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-foreground">Show these fields when adding income</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
+                            {toggleOptions.map((opt) => (
+                              <label key={opt.key} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                                <Checkbox
+                                  checked={visibility[opt.key]}
+                                  onCheckedChange={(v) => {
+                                    const next = { ...(getValue(company, "advancedFieldVisibility") || {}), [opt.key]: !!v };
+                                    setField(company.id, "advancedFieldVisibility", next);
+                                  }}
+                                />
+                                <span>{opt.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Nickname (optional)</Label>
+                          <Input
+                            value={getValue(company, "nickname") as string}
+                            onChange={(e) => setField(company.id, "nickname", e.target.value)}
+                            placeholder="Short label"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-end">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Default tax set-aside method</Label>
+                            <Select
+                              value={getValue(company, "defaultSetasideMethod") as string}
+                              onValueChange={(v) => setField(company.id, "defaultSetasideMethod", v as Company["defaultSetasideMethod"])}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="recommended">Use app recommendation</SelectItem>
+                                <SelectItem value="flat_percentage">Flat percentage of gross</SelectItem>
+                                <SelectItem value="none">No automatic set-aside</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Default %</Label>
+                            <Input
+                              type="number" step="0.1" min="0" max="100"
+                              value={(getValue(company, "defaultSetasidePct") as number | null) ?? ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setField(company.id, "defaultSetasidePct", v === "" ? null : parseFloat(v));
+                              }}
+                              placeholder="e.g. 25"
+                              disabled={getValue(company, "defaultSetasideMethod") !== "flat_percentage"}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</Label>
+                          <Textarea
+                            value={getValue(company, "notes") as string}
+                            onChange={(e) => setField(company.id, "notes", e.target.value)}
+                            rows={2}
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={getValue(company, "includeInTax") as boolean}
+                            onCheckedChange={(v) => setField(company.id, "includeInTax", v)}
+                          />
+                          <Label className="text-xs text-muted-foreground">Include in tax projections</Label>
+                        </div>
+
+                        {ledgerForIncomeType(getValue(company, "companyType")) === "business" && (
+                          <div className="flex items-start gap-2 pt-1">
+                            <Switch
+                              checked={(getValue(company, "applyBusinessStateTax") as boolean) !== false}
+                              onCheckedChange={(v) => setField(company.id, "applyBusinessStateTax", v)}
+                            />
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Apply business state tax</Label>
+                              <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                                Used when business state tax is set to "Selected companies only".
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  {(dirty || saved) && (
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                      {saved && !dirty && (
+                        <span className="text-xs text-success mr-auto">Saved</span>
+                      )}
+                      {dirty && (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => cancelCompany(company.id)} disabled={saving}>Cancel</Button>
+                          <Button size="sm" onClick={() => saveCompany(company)} disabled={saving}>
+                            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                            Save Changes
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </TooltipProvider>
+      </SectionCard>
+
+      <AlertDialog open={!!deleteCompanyId} onOpenChange={(open) => !open && setDeleteCompanyId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Company</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove this company.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDeleteCompany} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDiscardId} onOpenChange={(open) => !open && setConfirmDiscardId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>This company has unsaved edits. Deleting it will discard them too.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmDiscardId) {
+                  cancelCompany(confirmDiscardId);
+                  setDeleteCompanyId(confirmDiscardId);
+                }
+                setConfirmDiscardId(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard & Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  Connected Accounts (Plaid) — redesigned                      */
+/* ──────────────────────────────────────────────────────────── */
+function ConnectedAccountsSection() {
+  const { companies } = useCompanies();
   const { data: plaidItems = [], isLoading: plaidItemsLoading } = usePlaidItems();
   const { data: plaidAccounts = [] } = usePlaidAccounts();
   const syncMutation = useSyncTransactions();
   const disconnectMutation = useDisconnectPlaidItem();
   const updateAccountMutation = useUpdatePlaidAccount();
   const bulkApplyMutation = useBulkApplyAccountBusiness();
-  const toggleSyncMutation = useToggleAccountSync();
   const reviewAccountsMutation = useReviewAccounts();
 
   const [linkLoading, setLinkLoading] = useState(false);
@@ -137,13 +854,20 @@ export default function Settings() {
   const [editRouting, setEditRouting] = useState<string>("needs_review");
   const [editMode, setEditMode] = useState<string>("unassigned");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
 
-  // Post-link review modal state
+  // Post-link review modal
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
   const [reviewInstitution, setReviewInstitution] = useState<string>("");
   const [reviewPrefs, setReviewPrefs] = useState<
     Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }>
   >({});
+
+  const totalAccounts = plaidAccounts.length;
+
+  const toggleExpand = (id: string) =>
+    setExpandedItems((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
@@ -168,22 +892,16 @@ export default function Settings() {
           if (exchangeError) { toast.error("Failed to connect account"); }
           else {
             toast.success("Bank account connected! Please review imported accounts.");
-            // Open review modal — refetch accounts first
             if (exchangeData?.item_db_id) {
               setReviewItemId(exchangeData.item_db_id);
               setReviewInstitution(exchangeData.institution_name || "Bank Account");
-              // Initialize review prefs after accounts load
               setTimeout(async () => {
                 const { data: newAccts } = await supabase
-                  .from("plaid_accounts")
-                  .select("*")
-                  .eq("plaid_item_id", exchangeData.item_db_id)
-                  .eq("is_active", true);
+                  .from("plaid_accounts").select("*")
+                  .eq("plaid_item_id", exchangeData.item_db_id).eq("is_active", true);
                 if (newAccts) {
                   const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }> = {};
-                  for (const a of newAccts) {
-                    prefs[a.id] = { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
-                  }
+                  for (const a of newAccts) prefs[a.id] = { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
                   setReviewPrefs(prefs);
                 }
               }, 500);
@@ -204,7 +922,17 @@ export default function Settings() {
 
   const formatDate = (d: string | null) => {
     if (!d) return "Never";
-    return new Date(d).toLocaleString();
+    const date = new Date(d);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return date.toLocaleDateString();
   };
 
   const getCompanyName = (companyId: string | null) => {
@@ -219,7 +947,7 @@ export default function Settings() {
     if (routing === "business") {
       if (mode === "single_business") {
         const name = getCompanyName(companyId);
-        return name ? `Business · ${name}` : "Business (no company)";
+        return name ? `Business · ${name}` : "Business";
       }
       if (mode === "shared") return "Business · Shared";
       return "Business";
@@ -241,6 +969,15 @@ export default function Settings() {
     setEditCompanyId(acct.default_company_id || "");
   };
 
+  const editAssignmentChanged = useMemo(() => {
+    if (!editingAccount) return false;
+    return (
+      editRouting !== (editingAccount.account_routing || "needs_review") ||
+      editMode !== (editingAccount.account_business_mode || "unassigned") ||
+      editCompanyId !== (editingAccount.default_company_id || "")
+    );
+  }, [editingAccount, editRouting, editMode, editCompanyId]);
+
   const handleSaveAffiliation = () => {
     if (!editingAccount) return;
     updateAccountMutation.mutate({
@@ -260,14 +997,8 @@ export default function Settings() {
 
   const handleSaveReview = async () => {
     if (!reviewItemId) return;
-    // Get the actual account rows for this item
-    const { data: accts } = await supabase
-      .from("plaid_accounts")
-      .select("id")
-      .eq("plaid_item_id", reviewItemId)
-      .eq("is_active", true);
+    const { data: accts } = await supabase.from("plaid_accounts").select("id").eq("plaid_item_id", reviewItemId).eq("is_active", true);
     if (!accts) return;
-
     const updates = accts.map((a) => {
       const pref = reviewPrefs[a.id] || { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
       const routing = pref.routing;
@@ -279,790 +1010,34 @@ export default function Settings() {
         account_routing: routing,
       };
     });
-
     reviewAccountsMutation.mutate(updates, {
       onSuccess: () => {
         setReviewItemId(null);
         setReviewPrefs({});
-        // Auto-sync after review
         syncMutation.mutate(reviewItemId!);
       },
     });
   };
 
-  const handleToggleSync = (accountId: string, enabled: boolean) => {
-    toggleSyncMutation.mutate({ id: accountId, sync_enabled: enabled });
-  };
-
-  /* ─── Team ─── */
-  const [members, setMembers] = useState<OrgMember[]>([]);
-  const [membersLoading, setMembersLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("member");
-  const [inviteFirstName, setInviteFirstName] = useState("");
-  const [inviteLastName, setInviteLastName] = useState("");
-  const [inviting, setInviting] = useState(false);
-  const [deleteMemId, setDeleteMemId] = useState<string | null>(null);
-
-  const loadMembers = useCallback(async () => {
-    if (!organizationId) return;
-    setMembersLoading(true);
-    const { data: memberships } = await supabase.from("organization_members").select("id, user_id, role").eq("organization_id", organizationId);
-    if (!memberships) { setMembersLoading(false); return; }
-    const userIds = memberships.map((m) => m.user_id);
-    const { data: profiles } = await supabase.from("profiles").select("user_id, email, first_name, last_name").in("user_id", userIds);
-    const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
-    setMembers(memberships.map((m) => ({ ...m, email: profileMap.get(m.user_id)?.email || "", first_name: profileMap.get(m.user_id)?.first_name || "", last_name: profileMap.get(m.user_id)?.last_name || "" })));
-    setMembersLoading(false);
-  }, [organizationId]);
-
-  useEffect(() => { loadMembers(); }, [loadMembers]);
-
-  async function handleInvite() {
-    if (!inviteEmail || !organizationId) return;
-    setInviting(true);
-    const { error } = await supabase.functions.invoke("invite-user", {
-      body: { email: inviteEmail, firstName: inviteFirstName, lastName: inviteLastName, organizationId, role: inviteRole },
-    });
-    setInviting(false);
-    if (error) { toast.error("Failed to invite user: " + error.message); }
-    else { toast.success(`Invite sent to ${inviteEmail}`); setShowInvite(false); setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteRole("member"); loadMembers(); }
-  }
-
-  async function handleRemoveMember() {
-    if (!deleteMemId) return;
-    const { error } = await supabase.from("organization_members").delete().eq("id", deleteMemId);
-    if (error) toast.error(error.message); else { toast.success("Member removed"); loadMembers(); }
-    setDeleteMemId(null);
-  }
-
-  async function handleRoleChange(memberId: string, newRole: string) {
-    const { error } = await supabase.from("organization_members").update({ role: newRole as "owner" | "admin" | "member" }).eq("id", memberId);
-    if (error) toast.error(error.message); else { toast.success("Role updated"); loadMembers(); }
-  }
-
   return (
-    <div className="space-y-8 max-w-3xl mx-auto">
-      {/* ─── Profile ─── */}
-      <section className="glass-card rounded-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-card-foreground">Profile</h3>
-          {profileSaved && profile.firstName && (
-            <span className="text-xs text-success flex items-center gap-1"><Check className="h-3 w-3" /> Saved</span>
-          )}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><Label className="text-xs text-muted-foreground mb-1.5 block">First Name</Label><Input value={profile.firstName} onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))} placeholder="John" /></div>
-          <div><Label className="text-xs text-muted-foreground mb-1.5 block">Last Name</Label><Input value={profile.lastName} onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))} placeholder="Smith" /></div>
-        </div>
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1.5 block">Email Address</Label>
-          <Input type="email" value={profile.email} onChange={(e) => { setProfile((p) => ({ ...p, email: e.target.value })); if (emailError) setEmailError(""); }} placeholder="doctor@example.com" className={emailError ? "border-destructive" : ""} />
-          {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
-          <p className="text-xs text-muted-foreground mt-1">This will be your login identifier</p>
-        </div>
-      </section>
-
-      {/* ─── Tax Withholding Method ─── */}
-      <section className="glass-card rounded-xl p-6 space-y-5">
-        <div className="flex items-center gap-2">
-          <Calculator className="h-4 w-4 text-primary" />
-          <h3 className="text-base font-semibold text-card-foreground">Tax Withholding Method</h3>
-        </div>
-        <p className="text-xs text-muted-foreground -mt-3">
-          Choose how withholding recommendations are calculated across the app. This applies to both Business Activity and Personal Income.
-        </p>
-
-        <RadioGroup
-          value={taxSettingsData?.withholdingMethod || "dynamic_actual"}
-          onValueChange={(v: string) => {
-            if (!taxSettingsData?.id) return;
-            updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, withholdingMethod: v as WithholdingMethod });
-          }}
-          className="space-y-3"
-        >
-          <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
-            <RadioGroupItem value="flat_estimate" className="mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-card-foreground">Flat Estimate</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Use a fixed percentage for all withholding recommendations.</p>
-              {(taxSettingsData?.withholdingMethod === "flat_estimate") && (
-                <div className="mt-3 flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">Rate (%)</Label>
-                  <Input type="number" step="0.1" min="0" max="100" className="w-24 h-8" value={taxSettingsData?.manualEffectiveTaxRate ?? 20} onChange={(e) => { if (!taxSettingsData?.id) return; updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, manualEffectiveTaxRate: parseFloat(e.target.value) || 0 }); }} />
-                </div>
-              )}
-            </div>
-          </label>
-          <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
-            <RadioGroupItem value="dynamic_actual" className="mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Current Income</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Uses all actual income entered across business, personal, and capital gains with real tax brackets.</p>
-            </div>
-          </label>
-          <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
-            <RadioGroupItem value="dynamic_planner" className="mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Income Planner</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Includes projected future income for forward-looking bracket estimation.</p>
-            </div>
-          </label>
-        </RadioGroup>
-      </section>
-
-      {/* ─── Tax Profile ─── */}
-      <section className="glass-card rounded-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-card-foreground">Tax Profile</h3>
-        </div>
-        <p className="text-xs text-muted-foreground -mt-3">
-          These inputs drive the predictive tax model. Paycheck-level deductions and withholdings come from your income transactions automatically.
-        </p>
-
-        {/* Filing Status + Deduction Type */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Filing Status</Label>
-            <Select
-              value={taxSettingsData?.filingStatus || "single"}
-              onValueChange={(v) => {
-                if (!taxSettingsData?.id) return;
-                updateTaxSettingsMutation.mutate({
-                  id: taxSettingsData.id,
-                  filingStatus: v as "single" | "married_filing_jointly",
-                });
-              }}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="single">Single</SelectItem>
-                <SelectItem value="married_filing_jointly">Married Filing Jointly</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">Affects bracket calculations.</p>
-          </div>
-
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Deduction Type</Label>
-            <Select
-              value={taxSettingsData?.deductionType || "standard"}
-              onValueChange={(v) => {
-                if (!taxSettingsData?.id) return;
-                updateTaxSettingsMutation.mutate({
-                  id: taxSettingsData.id,
-                  deductionType: v as "standard" | "itemized",
-                });
-              }}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard">Standard Deduction</SelectItem>
-                <SelectItem value="itemized">Itemized Deduction</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">Affects taxable income.</p>
-          </div>
-        </div>
-
-        {/* Itemized amount (conditional) */}
-        {taxSettingsData?.deductionType === "itemized" && (
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Itemized Deduction Amount ($)</Label>
-            <Input
-              type="number"
-              step="100"
-              min="0"
-              value={taxSettingsData?.itemizedDeductionAmount ?? 0}
-              onChange={(e) => {
-                if (!taxSettingsData?.id) return;
-                const v = Math.max(0, parseFloat(e.target.value) || 0);
-                updateTaxSettingsMutation.mutate({
-                  id: taxSettingsData.id,
-                  itemizedDeductionAmount: v,
-                });
-              }}
-              placeholder="e.g. 35000"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Total of mortgage interest, SALT (capped), charity, etc.</p>
-          </div>
-        )}
-
-        {/* Dependents */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Qualifying Children</Label>
-            <Input
-              type="number"
-              step="1"
-              min="0"
-              value={taxSettingsData?.qualifyingChildrenCount ?? 0}
-              onChange={(e) => {
-                if (!taxSettingsData?.id) return;
-                const v = Math.max(0, Math.floor(parseFloat(e.target.value) || 0));
-                updateTaxSettingsMutation.mutate({
-                  id: taxSettingsData.id,
-                  qualifyingChildrenCount: v,
-                });
-              }}
-            />
-            <p className="text-xs text-muted-foreground mt-1">$2,000 federal credit each (phases out above high income).</p>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Other Dependents</Label>
-            <Input
-              type="number"
-              step="1"
-              min="0"
-              value={taxSettingsData?.otherDependentsCount ?? 0}
-              onChange={(e) => {
-                if (!taxSettingsData?.id) return;
-                const v = Math.max(0, Math.floor(parseFloat(e.target.value) || 0));
-                updateTaxSettingsMutation.mutate({
-                  id: taxSettingsData.id,
-                  otherDependentsCount: v,
-                });
-              }}
-            />
-            <p className="text-xs text-muted-foreground mt-1">$500 federal credit each (phases out above high income).</p>
-          </div>
-        </div>
-
-        {/* Optional withholding override */}
-        <div className="space-y-3">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Optional Withholding Target</Label>
-            <p className="text-[11px] text-muted-foreground mb-2">Optional override for the recommended set-aside output. Used for planning only — does not change the underlying tax calculation.</p>
-            <Select
-              value={taxSettingsData?.withholdingOverrideType || "none"}
-              onValueChange={(v) => {
-                if (!taxSettingsData?.id) return;
-                updateTaxSettingsMutation.mutate({
-                  id: taxSettingsData.id,
-                  withholdingOverrideType: v as "none" | "percent" | "amount",
-                });
-              }}
-            >
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No override (use recommendation)</SelectItem>
-                <SelectItem value="percent">Target withholding percent</SelectItem>
-                <SelectItem value="amount">Target extra dollar amount</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {taxSettingsData?.withholdingOverrideType === "percent" && (
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Target Withholding %</Label>
-              <Input
-                type="number"
-                step="0.5"
-                min="0"
-                max="100"
-                value={taxSettingsData?.withholdingOverridePercent ?? ""}
-                onChange={(e) => {
-                  if (!taxSettingsData?.id) return;
-                  const raw = parseFloat(e.target.value);
-                  const v = isNaN(raw) ? null : Math.min(100, Math.max(0, raw));
-                  updateTaxSettingsMutation.mutate({
-                    id: taxSettingsData.id,
-                    withholdingOverridePercent: v,
-                  });
-                }}
-                placeholder="e.g. 25"
-              />
-            </div>
-          )}
-
-          {taxSettingsData?.withholdingOverrideType === "amount" && (
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Target Extra Amount ($) per pay period</Label>
-              <Input
-                type="number"
-                step="50"
-                min="0"
-                value={taxSettingsData?.withholdingOverrideAmount ?? ""}
-                onChange={(e) => {
-                  if (!taxSettingsData?.id) return;
-                  const raw = parseFloat(e.target.value);
-                  const v = isNaN(raw) ? null : Math.max(0, raw);
-                  updateTaxSettingsMutation.mutate({
-                    id: taxSettingsData.id,
-                    withholdingOverrideAmount: v,
-                  });
-                }}
-                placeholder="e.g. 500"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ─── Personal State Tax ─── */}
-        <div className="pt-2 border-t border-border space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="text-sm font-semibold text-card-foreground">Personal State Tax</h4>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                State income tax on personal (W-2 and non-business) income.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={!!taxSettingsData?.stateTaxEnabled}
-                onCheckedChange={(v) => {
-                  if (!taxSettingsData?.id) return;
-                  updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, stateTaxEnabled: v });
-                }}
-              />
-              <Label className="text-xs text-muted-foreground">Enable</Label>
-            </div>
-          </div>
-
-          {taxSettingsData?.stateTaxEnabled && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">State of residence</Label>
-                  <Input
-                    value={taxSettingsData?.stateOfResidence ?? ""}
-                    onChange={(e) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, stateOfResidence: e.target.value });
-                    }}
-                    placeholder="e.g. WA, CA, TX"
-                    maxLength={32}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Personal state tax mode</Label>
-                  <Select
-                    value={taxSettingsData?.personalStateTaxMode ?? "none"}
-                    onValueChange={(v) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, personalStateTaxMode: v as any });
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      <SelectItem value="flat_rate">Flat rate</SelectItem>
-                      <SelectItem value="annual_estimate">Annual estimate</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {taxSettingsData?.personalStateTaxMode === "flat_rate" && (
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Personal state tax rate (%)</Label>
-                  <Input
-                    type="number" step="0.1" min="0" max="100"
-                    value={taxSettingsData?.personalStateTaxRate ?? 0}
-                    onChange={(e) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, personalStateTaxRate: parseFloat(e.target.value) || 0 });
-                    }}
-                  />
-                </div>
-              )}
-
-              {taxSettingsData?.personalStateTaxMode === "annual_estimate" && (
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Annual state tax estimate ($)</Label>
-                  <Input
-                    type="number" step="100" min="0"
-                    value={taxSettingsData?.personalStateTaxAnnualEstimate ?? 0}
-                    onChange={(e) => {
-                      if (!taxSettingsData?.id) return;
-                      updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, personalStateTaxAnnualEstimate: parseFloat(e.target.value) || 0 });
-                    }}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* ─── Business State Tax (independent of Personal State Tax) ─── */}
-        <div className="pt-2 border-t border-border space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="text-sm font-semibold text-card-foreground">Business State Tax</h4>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Applies only to business-type companies (1099, K-1, S-Corp distributions). Never applied to W-2 income.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={!!taxSettingsData?.businessStateTaxEnabled}
-                onCheckedChange={(v) => {
-                  if (!taxSettingsData?.id) return;
-                  updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxEnabled: v });
-                }}
-              />
-              <Label className="text-xs text-muted-foreground">Enable</Label>
-            </div>
-          </div>
-
-          {taxSettingsData?.businessStateTaxEnabled && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Rate (%)</Label>
-                <Input
-                  type="number" step="0.1" min="0" max="100"
-                  value={taxSettingsData?.businessStateTaxRate ?? 0}
-                  onChange={(e) => {
-                    if (!taxSettingsData?.id) return;
-                    updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxRate: parseFloat(e.target.value) || 0 });
-                  }}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Tax base</Label>
-                <Select
-                  value={taxSettingsData?.businessStateTaxBase ?? "net_profit"}
-                  onValueChange={(v) => {
-                    if (!taxSettingsData?.id) return;
-                    updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxBase: v as any });
-                  }}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="net_profit">Net business profit</SelectItem>
-                    <SelectItem value="gross">Gross business income</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Apply to</Label>
-                <Select
-                  value={taxSettingsData?.businessStateTaxApplicationMode ?? "all_business"}
-                  onValueChange={(v) => {
-                    if (!taxSettingsData?.id) return;
-                    updateTaxSettingsMutation.mutate({ id: taxSettingsData.id, businessStateTaxApplicationMode: v as any });
-                  }}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all_business">All business companies</SelectItem>
-                    <SelectItem value="selected">Selected companies only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {taxSettingsData?.businessStateTaxApplicationMode === "selected" && (
-                <p className="text-[11px] text-muted-foreground sm:col-span-3">
-                  Use each company's "Apply business state tax" toggle (in Companies → Advanced tax settings) to choose which ones are included.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ─── Companies ─── */}
-      <section className="glass-card rounded-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-card-foreground">Companies</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Set the filing type for each company. Use Advanced tax settings to choose which optional fields appear when adding income.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleAddCompany} className="gap-1.5"><Plus className="h-4 w-4" /> Add Company</Button>
-        </div>
-
-        {companies.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">No companies added yet. Click "Add Company" to get started.</p>}
-
-        <TooltipProvider delayDuration={150}>
-          <div className="space-y-3">
-            {companies.map((company) => {
-              const incomeCount = incomeCountByCompanyName[company.name] || 0;
-              const filingTypeLocked = incomeCount > 0;
-              const filingMeta = FILING_TYPES.find((t) => t.value === company.companyType);
-              const advOpen = advancedOpenIds.has(company.id);
-              const toggleOptions = TOGGLE_OPTIONS_BY_TYPE[company.companyType];
-              const visibility = resolveAdvancedVisibility(
-                company.companyType,
-                company.advancedFieldVisibility,
-              );
-
-              return (
-                <div key={company.id} className="border border-border rounded-lg p-4 space-y-3">
-                  {/* Default visible: name + filing type + delete */}
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px_auto] gap-3 items-end">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
-                      <Input
-                        value={company.name}
-                        onChange={(e) => updateCompany(company.id, { name: e.target.value })}
-                        placeholder="e.g. Vituity"
-                      />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Label className="text-xs text-muted-foreground">Filing type</Label>
-                        {filingTypeLocked && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Lock className="h-3 w-3 text-muted-foreground" />
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs">
-                              <p className="text-xs">Locked because income transactions exist for this company. To change it, create a new company.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
-                      <Select
-                        value={company.companyType}
-                        onValueChange={(v) => updateCompany(company.id, { companyType: v as FilingType })}
-                        disabled={filingTypeLocked}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select filing type" /></SelectTrigger>
-                        <SelectContent>
-                          {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      {(() => {
-                        const bucket = ledgerForIncomeType(company.companyType);
-                        return (
-                          <p className="mt-1.5 text-[11px] text-muted-foreground">
-                            Ledger:{" "}
-                            <span className={bucket === "business" ? "text-primary font-medium" : "text-foreground font-medium"}>
-                              {ledgerLabel(bucket)}
-                            </span>
-                            <span className="ml-1 opacity-70">(auto from filing type)</span>
-                          </p>
-                        );
-                      })()}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10 text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeleteCompanyId(company.id)}
-                      aria-label="Delete company"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Advanced tax settings (collapsed by default) */}
-                  <Collapsible open={advOpen} onOpenChange={() => toggleAdvancedOpen(company.id)}>
-                    <CollapsibleTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1"
-                      >
-                        {advOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                        Advanced tax settings
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-3">
-                      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-5">
-                        {/* Show-these-fields toggles */}
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-foreground">Show these fields when adding income</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            Choose which optional fields appear when adding income for this company.
-                          </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
-                            {toggleOptions.map((opt) => {
-                              const checked = visibility[opt.key];
-                              return (
-                                <label
-                                  key={opt.key}
-                                  className="flex items-center gap-2 text-xs text-foreground cursor-pointer"
-                                >
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={(v) => {
-                                      const next = {
-                                        ...(company.advancedFieldVisibility || {}),
-                                        [opt.key]: !!v,
-                                      };
-                                      updateCompany(company.id, { advancedFieldVisibility: next });
-                                    }}
-                                  />
-                                  <span>{opt.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Nickname */}
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Nickname (optional)</Label>
-                          <Input
-                            value={company.nickname}
-                            onChange={(e) => updateCompany(company.id, { nickname: e.target.value })}
-                            placeholder="Short label"
-                          />
-                        </div>
-
-                        {/* Set-aside */}
-                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-end">
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-1.5 block">Default tax set-aside method</Label>
-                            <Select
-                              value={company.defaultSetasideMethod}
-                              onValueChange={(v) => updateCompany(company.id, { defaultSetasideMethod: v as any })}
-                            >
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="recommended">Use app recommendation</SelectItem>
-                                <SelectItem value="flat_percentage">Flat percentage of gross</SelectItem>
-                                <SelectItem value="none">No automatic set-aside</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-1.5 block">Default %</Label>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              max="100"
-                              value={company.defaultSetasidePct ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                updateCompany(company.id, { defaultSetasidePct: v === "" ? null : parseFloat(v) });
-                              }}
-                              placeholder="e.g. 25"
-                              disabled={company.defaultSetasideMethod !== "flat_percentage"}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Notes */}
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</Label>
-                          <Textarea
-                            value={company.notes}
-                            onChange={(e) => updateCompany(company.id, { notes: e.target.value })}
-                            placeholder="Anything to remember about this company"
-                            rows={2}
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={company.includeInTax}
-                            onCheckedChange={(checked) => updateCompany(company.id, { includeInTax: checked })}
-                          />
-                          <Label className="text-xs text-muted-foreground">Include in tax projections</Label>
-                        </div>
-
-                        {ledgerForIncomeType(company.companyType) === "business" && (
-                          <div className="flex items-start gap-2 pt-1">
-                            <Switch
-                              checked={company.applyBusinessStateTax !== false}
-                              onCheckedChange={(checked) => updateCompany(company.id, { applyBusinessStateTax: checked })}
-                            />
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Apply business state tax</Label>
-                              <p className="text-[11px] text-muted-foreground/80 mt-0.5">
-                                Only used when business state tax is enabled in Tax Profile and "Apply to" is set to "Selected companies only".
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-              );
-            })}
-          </div>
-        </TooltipProvider>
-      </section>
-
-      <Separator />
-
-      {/* ─── Connected Accounts (Plaid) — Full-featured ─── */}
-      <section className="glass-card rounded-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-card-foreground">Connected Accounts</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Manage linked bank and credit card accounts. Assign each to a business for auto-categorization.</p>
-          </div>
+    <>
+      <SectionCard
+        title="Connected Accounts"
+        icon={<Landmark className="h-5 w-5" />}
+        summary={plaidItems.length > 0 ? `(${plaidItems.length} institution${plaidItems.length !== 1 ? "s" : ""}, ${totalAccounts} account${totalAccounts !== 1 ? "s" : ""})` : ""}
+        description="Manage linked banks. Assign each account to a destination."
+        defaultOpen={false}
+        headerAction={
           <Button size="sm" onClick={handleConnectBank} disabled={linkLoading} className="gap-1.5">
             {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Connect Account
+            <span className="hidden sm:inline">Connect</span>
           </Button>
-        </div>
-
+        }
+        hideActionBar
+      >
         {plaidItemsLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : plaidItems.length > 0 ? (
-          <div className="space-y-4">
-            {plaidItems.map((item) => {
-              const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
-              return (
-                <div key={item.id} className="rounded-lg border border-border bg-card p-5 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary">
-                        <Landmark className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-card-foreground">{item.institution_name}</p>
-                        <p className="text-xs text-muted-foreground">Last synced: {formatDate(item.last_synced_at)}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => syncMutation.mutate(item.id)} disabled={syncMutation.isPending} className="gap-1.5">
-                        {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                        Refresh
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setDisconnectItemId(item.id)} className="gap-1.5 text-destructive hover:text-destructive">
-                        <Unplug className="h-3.5 w-3.5" /> Disconnect
-                      </Button>
-                    </div>
-                  </div>
-
-                  {accounts.length > 0 && (
-                    <div className="grid grid-cols-1 gap-3">
-                      {accounts.map((acct) => {
-                        const routing = (acct as any).account_routing || "needs_review";
-                        const mode = (acct as any).account_business_mode || "unassigned";
-                        const companyId = (acct as any).default_company_id || null;
-                        const isActive = routing === "business" || routing === "personal";
-                        return (
-                          <div key={acct.id} className={`flex items-center gap-3 rounded-lg border border-border p-3 ${isActive ? "bg-muted/30" : "bg-muted/10 opacity-60"}`}>
-                            <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-card-foreground truncate">{acct.account_name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
-                                {acct.account_mask ? ` ···${acct.account_mask}` : ""}
-                              </p>
-                            </div>
-                            <Badge variant={getModeColor(routing)} className="text-xs shrink-0">
-                              {getModeLabel(routing, mode, companyId)}
-                            </Badge>
-                            {acct.current_balance != null && (
-                              <Badge variant="secondary" className="text-xs font-mono shrink-0">
-                                ${Number(acct.current_balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                              </Badge>
-                            )}
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={() => openEditDialog(acct)}>
-                              <Settings2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : plaidItems.length === 0 ? (
           <div className="text-center py-8">
             <Landmark className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">Connect your bank accounts to automatically import transactions.</p>
@@ -1071,96 +1046,135 @@ export default function Settings() {
               Connect Your First Account
             </Button>
           </div>
-        )}
-      </section>
+        ) : (
+          <div className="space-y-3">
+            {plaidItems.map((item) => {
+              const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
+              const expanded = expandedItems.has(item.id);
+              const itemSyncing = syncingItemId === item.id && syncMutation.isPending;
+              return (
+                <div key={item.id} className="rounded-lg border border-border bg-card overflow-hidden">
+                  {/* Institution header — collapsed by default */}
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(item.id)}
+                    className="w-full flex items-center gap-3 p-4 text-left hover:bg-muted/30 transition-colors"
+                    aria-expanded={expanded}
+                  >
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-primary flex-shrink-0">
+                      <Landmark className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-card-foreground truncate">{item.institution_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {accounts.length} account{accounts.length !== 1 ? "s" : ""} · synced {formatDate(item.last_synced_at)}
+                      </p>
+                    </div>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform flex-shrink-0", expanded && "rotate-180")} />
+                  </button>
 
-      {/* ─── Team ─── */}
-      <section className="glass-card rounded-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-card-foreground">Team</h3>
-            <p className="text-xs text-muted-foreground">{members.length} member{members.length !== 1 ? "s" : ""}</p>
+                  {expanded && (
+                    <div className="border-t border-border bg-muted/10">
+                      {/* Action row — separated from header */}
+                      <div className="flex flex-wrap items-center gap-2 p-3 border-b border-border bg-card">
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => { setSyncingItemId(item.id); syncMutation.mutate(item.id, { onSettled: () => setSyncingItemId(null) }); }}
+                          disabled={itemSyncing}
+                          className="gap-1.5"
+                        >
+                          {itemSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                          Refresh All
+                        </Button>
+                        <Button
+                          variant="ghost" size="sm"
+                          onClick={() => setDisconnectItemId(item.id)}
+                          className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto"
+                        >
+                          <Unplug className="h-3.5 w-3.5" /> Disconnect
+                        </Button>
+                      </div>
+
+                      {accounts.length > 0 && (
+                        <div className="p-3 space-y-2">
+                          {accounts.map((acct) => {
+                            const routing = (acct as any).account_routing || "needs_review";
+                            const mode = (acct as any).account_business_mode || "unassigned";
+                            const companyId = (acct as any).default_company_id || null;
+                            const isActive = routing === "business" || routing === "personal";
+                            return (
+                              <div key={acct.id} className={cn(
+                                "rounded-lg border border-border bg-card p-3",
+                                !isActive && "opacity-70",
+                              )}>
+                                <div className="flex items-start gap-3">
+                                  <div className="text-muted-foreground mt-0.5 flex-shrink-0">{accountTypeIcon(acct.account_type)}</div>
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <p className="text-sm font-medium text-card-foreground truncate">{acct.account_name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
+                                      {acct.account_mask ? ` ···${acct.account_mask}` : ""}
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                      <Badge variant={getModeColor(routing)} className="text-[10px] h-5">
+                                        {getModeLabel(routing, mode, companyId)}
+                                      </Badge>
+                                      {acct.current_balance != null && (
+                                        <span className="text-[11px] font-mono text-muted-foreground">
+                                          ${Number(acct.current_balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost" size="sm"
+                                    className="h-8 w-8 p-0 flex-shrink-0"
+                                    onClick={() => openEditDialog(acct)}
+                                    aria-label="Edit assignment"
+                                  >
+                                    <Settings2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          {isAdminOrOwner && (
-            <Button size="sm" onClick={() => setShowInvite(true)} className="gap-1.5"><Plus className="h-4 w-4" /> Invite Member</Button>
-          )}
-        </div>
-        <div className="space-y-2">
-          {membersLoading ? (
-            <p className="text-sm text-muted-foreground text-center py-6">Loading…</p>
-          ) : members.map((member) => {
-            const Icon = roleIcons[member.role as keyof typeof roleIcons] || User;
-            return (
-              <Card key={member.id} className="shadow-none">
-                <CardContent className="flex items-center gap-4 py-3 px-4">
-                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center"><Icon className="h-4 w-4 text-muted-foreground" /></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-card-foreground">{member.first_name} {member.last_name}{member.user_id === user?.id && <span className="text-muted-foreground ml-1">(you)</span>}</p>
-                    <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isAdminOrOwner && member.user_id !== user?.id && member.role !== "owner" ? (
-                      <Select value={member.role} onValueChange={(v) => handleRoleChange(member.id, v)}>
-                        <SelectTrigger className="w-[100px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {userRole === "owner" && <SelectItem value="admin">Admin</SelectItem>}
-                          <SelectItem value="member">Member</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge variant={roleColors[member.role as keyof typeof roleColors] || "outline"} className="capitalize">{member.role}</Badge>
-                    )}
-                    {isAdminOrOwner && member.user_id !== user?.id && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteMemId(member.id)}><Trash2 className="h-4 w-4" /></Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
+        )}
+      </SectionCard>
 
-      {/* ─── Dialogs ─── */}
-      <AlertDialog open={!!deleteCompanyId} onOpenChange={(open) => !open && setDeleteCompanyId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Delete Company</AlertDialogTitle><AlertDialogDescription>This will permanently remove this company from your settings.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeleteCompany} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Disconnect account dialog */}
+      {/* Disconnect dialog */}
       <AlertDialog open={!!disconnectItemId} onOpenChange={() => setDisconnectItemId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect Bank Account?</AlertDialogTitle>
-            <AlertDialogDescription>This will deactivate the connection. Your previously imported transactions will be kept.</AlertDialogDescription>
+            <AlertDialogDescription>This deactivates the connection. Previously imported transactions are kept.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (disconnectItemId) disconnectMutation.mutate(disconnectItemId); setDisconnectItemId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Disconnect</AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (disconnectItemId) disconnectMutation.mutate(disconnectItemId); setDisconnectItemId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Disconnect
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Data Maintenance */}
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold text-foreground">Data Maintenance</h2>
-        <DuplicateCleanupCard />
-        <RestoreTombstonesCard />
-        <OrphanIncomeCleanupCard />
-      </section>
 
       {/* Edit account routing dialog */}
       <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Account Routing</DialogTitle>
-            <DialogDescription>Choose where transactions from this account should go.</DialogDescription>
+            <DialogTitle>Account Assignment</DialogTitle>
+            <DialogDescription>Choose where transactions from this account should be routed.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Transaction Destination</label>
+              <Label className="text-sm font-medium">Transaction Destination</Label>
               <Select value={editRouting} onValueChange={(v) => { setEditRouting(v); if (v !== "business") { setEditMode("unassigned"); setEditCompanyId(""); } }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1180,7 +1194,7 @@ export default function Settings() {
             {editRouting === "business" && (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Business Assignment</label>
+                  <Label className="text-sm font-medium">Business Assignment</Label>
                   <Select value={editMode} onValueChange={setEditMode}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -1192,7 +1206,7 @@ export default function Settings() {
                 </div>
                 {editMode === "single_business" && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Default Business</label>
+                    <Label className="text-sm font-medium">Default Business</Label>
                     <Select value={editCompanyId} onValueChange={setEditCompanyId}>
                       <SelectTrigger><SelectValue placeholder="Select a business..." /></SelectTrigger>
                       <SelectContent>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
@@ -1201,69 +1215,47 @@ export default function Settings() {
                 )}
                 {editMode === "single_business" && editCompanyId && (
                   <div className="rounded-lg border border-border bg-muted/50 p-3">
-                    <p className="text-xs text-muted-foreground mb-2">Optionally apply this business to existing unassigned imported transactions from this account.</p>
+                    <p className="text-xs text-muted-foreground mb-2">Apply this business to existing unassigned transactions from this account.</p>
                     <Button variant="outline" size="sm" onClick={handleBulkApply} disabled={bulkApplyMutation.isPending}>
-                      {bulkApplyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                      {bulkApplyMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                       Apply to Existing Transactions
                     </Button>
                   </div>
                 )}
               </>
             )}
+            {editAssignmentChanged && (
+              <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+                <p className="text-xs text-foreground">
+                  Changing this assignment may affect how imported transactions are categorized going forward.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingAccount(null)}>Cancel</Button>
-            <Button onClick={handleSaveAffiliation} disabled={updateAccountMutation.isPending || (editRouting === "business" && editMode === "single_business" && !editCompanyId)}>
-              {updateAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+            <Button
+              onClick={handleSaveAffiliation}
+              disabled={
+                updateAccountMutation.isPending ||
+                !editAssignmentChanged ||
+                (editRouting === "business" && editMode === "single_business" && !editCompanyId)
+              }
+            >
+              {updateAccountMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
               Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Invite team member dialog */}
-      <Dialog open={showInvite} onOpenChange={setShowInvite}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Invite Team Member</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>First Name</Label><Input value={inviteFirstName} onChange={(e) => setInviteFirstName(e.target.value)} /></div>
-              <div><Label>Last Name</Label><Input value={inviteLastName} onChange={(e) => setInviteLastName(e.target.value)} /></div>
-            </div>
-            <div>
-              <Label>Email *</Label>
-              <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
-              <p className="text-xs text-muted-foreground mt-1">An invite link will be sent to this email address.</p>
-            </div>
-            <div>
-              <Label>Role</Label>
-              <Select value={inviteRole} onValueChange={setInviteRole}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="admin">Admin</SelectItem><SelectItem value="member">Member</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
-              <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>{inviting ? "Sending…" : "Send Invite Link"}</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!deleteMemId} onOpenChange={(open) => !open && setDeleteMemId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Remove Team Member</AlertDialogTitle><AlertDialogDescription>This will remove this person from your organization. They will lose access to all data.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleRemoveMember} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction></AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Post-link account review dialog */}
+      {/* Post-link review dialog */}
       <Dialog open={!!reviewItemId} onOpenChange={(open) => { if (!open) { setReviewItemId(null); setReviewPrefs({}); } }}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Review Imported Accounts</DialogTitle>
             <DialogDescription>
-              {reviewInstitution} returned the accounts below. Choose where each account's transactions should go before syncing.
+              {reviewInstitution} returned the accounts below. Choose where each account's transactions should go.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -1280,15 +1272,15 @@ export default function Settings() {
                       <div className="flex items-center gap-3">
                         <div className="text-muted-foreground">{accountTypeIcon(acct.account_type)}</div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-card-foreground">{acct.account_name}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-sm font-medium text-card-foreground truncate">{acct.account_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
                             {acct.account_type}{acct.account_subtype ? ` · ${acct.account_subtype}` : ""}
                             {acct.account_mask ? ` ···${acct.account_mask}` : ""}
                           </p>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Route to:</label>
+                        <Label className="text-xs font-medium text-muted-foreground">Route to:</Label>
                         <Select value={routing} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, routing: v, mode: v !== "business" ? "unassigned" : pref.mode, companyId: v !== "business" ? "" : pref.companyId, sync_enabled: v === "business" || v === "personal" } }))}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -1326,12 +1318,216 @@ export default function Settings() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReviewItemId(null); setReviewPrefs({}); }}>Skip</Button>
             <Button onClick={handleSaveReview} disabled={reviewAccountsMutation.isPending}>
-              {reviewAccountsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              {reviewAccountsMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
               Save & Sync
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  Team section                                                 */
+/* ──────────────────────────────────────────────────────────── */
+function TeamSection() {
+  const { organizationId, userRole, user } = useAuth();
+  const isAdminOrOwner = userRole === "owner" || userRole === "admin";
+
+  const [members, setMembers] = useState<OrgMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [deleteMemId, setDeleteMemId] = useState<string | null>(null);
+
+  const loadMembers = useCallback(async () => {
+    if (!organizationId) return;
+    setMembersLoading(true);
+    const { data: memberships } = await supabase.from("organization_members").select("id, user_id, role").eq("organization_id", organizationId);
+    if (!memberships) { setMembersLoading(false); return; }
+    const userIds = memberships.map((m) => m.user_id);
+    const { data: profiles } = await supabase.from("profiles").select("user_id, email, first_name, last_name").in("user_id", userIds);
+    const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
+    setMembers(memberships.map((m) => ({ ...m, email: profileMap.get(m.user_id)?.email || "", first_name: profileMap.get(m.user_id)?.first_name || "", last_name: profileMap.get(m.user_id)?.last_name || "" })));
+    setMembersLoading(false);
+  }, [organizationId]);
+
+  useEffect(() => { loadMembers(); }, [loadMembers]);
+
+  async function handleInvite() {
+    if (!inviteEmail || !organizationId) return;
+    setInviting(true);
+    const { error } = await supabase.functions.invoke("invite-user", {
+      body: { email: inviteEmail, firstName: inviteFirstName, lastName: inviteLastName, organizationId, role: inviteRole },
+    });
+    setInviting(false);
+    if (error) toast.error("Failed to invite: " + error.message);
+    else { toast.success(`Invite sent to ${inviteEmail}`); setShowInvite(false); setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteRole("member"); loadMembers(); }
+  }
+
+  async function handleRemoveMember() {
+    if (!deleteMemId) return;
+    const { error } = await supabase.from("organization_members").delete().eq("id", deleteMemId);
+    if (error) toast.error(error.message); else { toast.success("Member removed"); loadMembers(); }
+    setDeleteMemId(null);
+  }
+
+  async function handleRoleChange(memberId: string, newRole: string) {
+    const { error } = await supabase.from("organization_members").update({ role: newRole as "owner" | "admin" | "member" }).eq("id", memberId);
+    if (error) toast.error(error.message); else { toast.success("Role updated"); loadMembers(); }
+  }
+
+  return (
+    <>
+      <SectionCard
+        title="Team"
+        icon={<Users className="h-5 w-5" />}
+        summary={`(${members.length} member${members.length !== 1 ? "s" : ""})`}
+        defaultOpen={false}
+        headerAction={
+          isAdminOrOwner && (
+            <Button size="sm" onClick={() => setShowInvite(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Invite</span>
+            </Button>
+          )
+        }
+        hideActionBar
+      >
+        <div className="space-y-2">
+          {membersLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading…</p>
+          ) : members.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No team members yet.</p>
+          ) : members.map((member) => {
+            const Icon = roleIcons[member.role as keyof typeof roleIcons] || User;
+            return (
+              <Card key={member.id} className="shadow-none">
+                <CardContent className="flex items-center gap-3 py-3 px-3 sm:px-4">
+                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-card-foreground truncate">
+                      {member.first_name} {member.last_name}
+                      {member.user_id === user?.id && <span className="text-muted-foreground ml-1">(you)</span>}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {isAdminOrOwner && member.user_id !== user?.id && member.role !== "owner" ? (
+                      <Select value={member.role} onValueChange={(v) => handleRoleChange(member.id, v)}>
+                        <SelectTrigger className="w-[100px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {userRole === "owner" && <SelectItem value="admin">Admin</SelectItem>}
+                          <SelectItem value="member">Member</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant={roleColors[member.role as keyof typeof roleColors] || "outline"} className="capitalize">{member.role}</Badge>
+                    )}
+                    {isAdminOrOwner && member.user_id !== user?.id && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteMemId(member.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      <Dialog open={showInvite} onOpenChange={setShowInvite}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Invite Team Member</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>First Name</Label><Input value={inviteFirstName} onChange={(e) => setInviteFirstName(e.target.value)} /></div>
+              <div><Label>Last Name</Label><Input value={inviteLastName} onChange={(e) => setInviteLastName(e.target.value)} /></div>
+            </div>
+            <div>
+              <Label>Email *</Label>
+              <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">An invite link will be sent to this email.</p>
+            </div>
+            <div>
+              <Label>Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="admin">Admin</SelectItem><SelectItem value="member">Member</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
+              <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>{inviting ? "Sending…" : "Send Invite"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteMemId} onOpenChange={(open) => !open && setDeleteMemId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Remove Team Member</AlertDialogTitle><AlertDialogDescription>This removes them from your organization.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveMember} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  Main Settings page                                           */
+/* ──────────────────────────────────────────────────────────── */
+export default function Settings() {
+  // Track dirty flags from the few sections that share global guard.
+  // We use a simple ref-based registry via window event since each section
+  // owns its own draft. For the beforeunload guard, we approximate by
+  // wiring a top-level dirty signal through context-less mechanism:
+  // each section sets a window-level flag.
+  const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { key: string; dirty: boolean };
+      setDirtyMap((m) => ({ ...m, [detail.key]: detail.dirty }));
+    };
+    window.addEventListener("settings:dirty" as any, handler);
+    return () => window.removeEventListener("settings:dirty" as any, handler);
+  }, []);
+  useUnsavedChangesGuard(Object.values(dirtyMap));
+
+  const justSavedFlag = (_key: string) => false; // reserved for future use
+
+  return (
+    <div className="space-y-4 max-w-3xl mx-auto pb-12">
+      <ProfileSection justSavedFlag={justSavedFlag} />
+      <TaxWithholdingSection />
+      <TaxProfileSection />
+      <CompaniesSection />
+      <ConnectedAccountsSection />
+      <TeamSection />
+
+      <SectionCard
+        title="Data Maintenance"
+        icon={<Wrench className="h-5 w-5" />}
+        description="Clean up duplicates, restore deleted items, repair orphan records."
+        defaultOpen={false}
+        hideActionBar
+      >
+        <div className="space-y-3">
+          <DuplicateCleanupCard />
+          <RestoreTombstonesCard />
+          <OrphanIncomeCleanupCard />
+        </div>
+      </SectionCard>
     </div>
   );
 }
