@@ -34,7 +34,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { organizationName, signOut, user } = useAuth();
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-foreground/40 lg:hidden"
@@ -43,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 bg-sidebar flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-[60] w-60 bg-sidebar flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -92,11 +92,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="flex items-center gap-4 px-4 py-3 border-b border-border bg-card lg:px-6">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
+        <header
+          className="fixed top-0 left-0 right-0 z-40 flex items-center gap-4 px-4 py-3 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6"
+          style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}
+        >
           <button
             className="lg:hidden text-foreground"
             onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -104,7 +108,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {navItems.find((i) => i.to === location.pathname)?.label ?? "Page"}
           </h2>
         </header>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 min-w-0">{children}</div>
+        <div
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 min-w-0 pt-[calc(env(safe-area-inset-top)+3.5rem+1rem)] lg:pt-6"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
+        >
+          {children}
+        </div>
       </main>
     </div>
   );
