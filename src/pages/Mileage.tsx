@@ -231,9 +231,10 @@ export default function Mileage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <Tabs defaultValue="mileage" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 max-w-xl">
           <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>
           <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>
+          <TabsTrigger value="hsa" className="gap-2"><HeartPulse className="h-4 w-4" /> HSA</TabsTrigger>
         </TabsList>
 
         {/* ─── MILEAGE TAB ──────────────────────────── */}
