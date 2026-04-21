@@ -36,7 +36,7 @@ interface HsaDraft {
 
 /** Companies eligible to host payroll-level HSA inputs. */
 function isPayrollEligibleCompany(c: Company): boolean {
-  const ft = normalizeFilingType(c.company_type);
+  const ft = normalizeFilingType(c.companyType);
   return ft === "w2" || ft === "scorp_w2" || ft === "k1_partnership";
 }
 
@@ -119,7 +119,7 @@ export function HsaSettingsSection() {
                   <SelectItem key={c.id} value={c.id}>
                     {c.name || c.nickname || "Untitled"}
                     <span className="text-muted-foreground ml-1.5">
-                      · {normalizeFilingType(c.company_type).replace(/_/g, " ")}
+                      · {normalizeFilingType(c.companyType).replace(/_/g, " ")}
                     </span>
                   </SelectItem>
                 ))}
