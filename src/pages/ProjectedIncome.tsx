@@ -1188,7 +1188,7 @@ export default function ProjectedIncome() {
                   )}
 
                   {/* Pre-tax deductions */}
-                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div className="space-y-1.5">
@@ -1204,6 +1204,14 @@ export default function ProjectedIncome() {
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.healthcare_deduction}
                             onChange={(e) => setField("healthcare_deduction", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("hsa_contribution") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">HSA contribution</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.hsa_contribution}
+                            onChange={(e) => setField("hsa_contribution", e.target.value)} />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (

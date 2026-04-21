@@ -751,7 +751,7 @@ export default function PersonalIncome() {
                   {/* Federal/state/SS/Medicare moved out into the
                       simplified TotalFederalTaxField above. */}
 
-                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div>
@@ -763,6 +763,12 @@ export default function PersonalIncome() {
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("hsa_contribution") && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">HSA Contribution</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (

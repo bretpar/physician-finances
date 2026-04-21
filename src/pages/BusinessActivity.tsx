@@ -1370,10 +1370,11 @@ export default function Transactions() {
                     </div>
                   )}
 
-                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">{normalizeFilingType(incomeForm.income_type) === "1099_schedule_c" ? "Solo 401(k) / retirement contribution" : "Retirement / 401(k)"}<LegacyNote field="retirement_401k" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
                       {showField("healthcare_deduction") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance<LegacyNote field="healthcare_deduction" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.healthcare_deduction} onChange={(e) => setIncomeForm((f) => ({ ...f, healthcare_deduction: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("hsa_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">HSA Contribution<LegacyNote field="hsa_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.hsa_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, hsa_contribution: e.target.value }))} placeholder="0.00" /></div>)}
                       {showField("pre_tax_deductions") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax<LegacyNote field="pre_tax_deductions" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
