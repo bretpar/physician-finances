@@ -503,6 +503,7 @@ export function generateProjectedPaychecks(
             taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
             preTaxDeductions: stream.pre_tax_deductions,
             healthcareDeduction: stream.healthcare_deduction || 0,
+            hsaContribution: stream.hsa_contribution || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
             isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
           });
@@ -514,6 +515,7 @@ export function generateProjectedPaychecks(
           rawPaychecks.push({
             date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
             healthcareDeduction: stream.healthcare_deduction || 0,
+            hsaContribution: stream.hsa_contribution || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
             isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
           });
@@ -542,6 +544,7 @@ export function generateProjectedPaychecks(
           taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
           preTaxDeductions: stream.pre_tax_deductions,
           healthcareDeduction: stream.healthcare_deduction || 0,
+            hsaContribution: stream.hsa_contribution || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
         });
@@ -553,6 +556,7 @@ export function generateProjectedPaychecks(
         rawPaychecks.push({
           date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
           healthcareDeduction: stream.healthcare_deduction || 0,
+            hsaContribution: stream.hsa_contribution || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
         });
@@ -588,7 +592,8 @@ export function generateProjectedPaychecks(
         taxesWithheld: bonus.taxes_withheld,
         retirement401k: 0,
         preTaxDeductions: 0,
-        ownerHealthcare: 0,
+        healthcareDeduction: 0,
+        hsaContribution: 0,
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
@@ -684,6 +689,7 @@ export function getProjectedTotals(
     retirement401k: 0,
     preTaxDeductions: 0,
     healthInsuranceDeduction: 0,
+    hsaContribution: 0,
     netIncome: 0,
     count: 0,
     w2Income: 0,
@@ -714,7 +720,8 @@ export function getProjectedTotals(
     acc.taxesWithheld += fed + st;
     acc.retirement401k += p.retirement401k;
     acc.preTaxDeductions += p.preTaxDeductions;
-    acc.healthInsuranceDeduction += p.ownerHealthcare || 0;
+    acc.healthInsuranceDeduction += p.healthcareDeduction || 0;
+    acc.hsaContribution += p.hsaContribution || 0;
     acc.netIncome += p.netAmount;
     acc.count += 1;
 
