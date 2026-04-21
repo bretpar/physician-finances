@@ -69,7 +69,7 @@ export function HsaSettingsSection() {
 
   const eligible = useMemo(() => companies.filter(isPayrollEligibleCompany), [companies]);
   const selectedCompany = companies.find((c) => c.id === d.hsaSourceCompanyId) || null;
-  const selectedCompanyType = selectedCompany ? normalizeFilingType(selectedCompany.company_type) : null;
+  const selectedCompanyType = selectedCompany ? normalizeFilingType(selectedCompany.companyType) : null;
 
   return (
     <SectionCard
