@@ -249,13 +249,37 @@ export default function Accounts() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-foreground">Bank Connections</h3>
-        <Button onClick={handleConnectBank} disabled={linkLoading} className="gap-2">
-          {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Connect Bank Account
-        </Button>
+    <div className="space-y-6 max-w-4xl mx-auto w-full min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold text-foreground">Bank Connections</h3>
+          {plaidItems.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Last synced {formatRelative(mostRecentSync)}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Button onClick={handleConnectBank} disabled={linkLoading} className="gap-2">
+            {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Connect Account
+          </Button>
+          {plaidItems.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleRefreshAll}
+              disabled={refreshingAll || syncMutation.isPending}
+              className="gap-2"
+            >
+              {refreshingAll || syncMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh All
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
