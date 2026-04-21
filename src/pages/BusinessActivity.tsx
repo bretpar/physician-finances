@@ -65,6 +65,7 @@ interface IncomeFormState {
   state_withholding: string;
   ss_withholding: string;
   medicare_withholding: string;
+  total_federal_payroll_taxes: string;
   pre_tax_deductions: string;
   retirement_401k: string;
   owner_healthcare: string;
@@ -85,6 +86,7 @@ const emptyIncomeForm: IncomeFormState = {
   state_withholding: "",
   ss_withholding: "",
   medicare_withholding: "",
+  total_federal_payroll_taxes: "",
   pre_tax_deductions: "",
   retirement_401k: "",
   owner_healthcare: "",
