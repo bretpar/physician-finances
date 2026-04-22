@@ -31,6 +31,7 @@ const fmt = (n: number) =>
 
 export default function QuarterlyTracker({ annualTaxLiability, withholding }: QuarterlyTrackerProps) {
   const q = getCurrentQuarter();
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   // ── Quarter math ──────────────────────────────────────────────────────────
   // Goal:        cumulative liability that should be covered by this quarter's
