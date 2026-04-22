@@ -120,23 +120,35 @@ export default function QuarterlyTracker({ annualTaxLiability, withholding }: Qu
 
         {/* Per-source breakdown */}
         <div className="rounded-lg border bg-card/50 divide-y divide-border">
-          <div className="px-3 py-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground">
-            <span>Tracked withholdings</span>
-            <span>YTD · counts now</span>
-          </div>
-          {rows.map((r) => (
-            <div key={r.label} className="px-3 py-2 flex items-center justify-between text-sm">
-              <span className={cn(r.ytd === 0 && "text-muted-foreground")}>{r.label}</span>
-              <span className="tabular-nums text-muted-foreground">
-                <span className={cn(r.ytd === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
-                  {fmt(r.ytd)}
-                </span>
-                <span className="mx-1">·</span>
-                <span>{fmt(r.allocated)}</span>
+        <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
+          <div className="rounded-lg border bg-card/50">
+            <CollapsibleTrigger className="w-full px-3 py-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
+              <span className="flex items-center gap-1.5">
+                <ChevronDown
+                  className={cn("h-3.5 w-3.5 transition-transform", breakdownOpen && "rotate-180")}
+                />
+                Tracked withholdings
               </span>
-            </div>
-          ))}
-        </div>
+              <span>YTD · counts now</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="divide-y divide-border border-t">
+                {rows.map((r) => (
+                  <div key={r.label} className="px-3 py-2 flex items-center justify-between text-sm">
+                    <span className={cn(r.ytd === 0 && "text-muted-foreground")}>{r.label}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      <span className={cn(r.ytd === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
+                        {fmt(r.ytd)}
+                      </span>
+                      <span className="mx-1">·</span>
+                      <span>{fmt(r.allocated)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
 
         <p className={cn("text-sm font-medium", toneStyles.text)}>💡 {toneStyles.msg}</p>
       </CardContent>
