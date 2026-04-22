@@ -904,9 +904,9 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* Bulk Actions Bar */}
+      {/* Bulk Actions Bar (desktop). On mobile we use the dedicated selection bar below. */}
       {selectedIds.size > 0 && (
-        <div className="sticky top-0 z-30 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 shadow-sm">
+        <div className="sticky top-0 z-30 hidden sm:flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 shadow-sm">
           <span className="text-sm font-medium text-foreground whitespace-nowrap">{selectedIds.size} selected</span>
           <div className="flex gap-2 flex-wrap flex-1">
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
