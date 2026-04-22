@@ -215,13 +215,14 @@ export default function Dashboard() {
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
-  // Mirror the tracker's math so the score stays consistent with what the user sees.
-  const totalWithholdingYTD = companyRows.reduce((s, c) => s + c.amount, 0);
-  const quarterTarget = Math.max(0, (annualTaxLiability * q.quarter) / 4);
-  const quarterSaved =
-    (totalWithholdingYTD * q.quarter) / 4 + quarterlyPayments;
-  const taxProgressPct = quarterTarget > 0 ? (quarterSaved / quarterTarget) * 100 : 100;
-  const remainingTaxThisQuarter = Math.max(0, quarterTarget - quarterSaved);
+  // Mirror the tracker's math (CURRENT QUARTER ONLY) so the score stays consistent.
+  const quarterGoal = Math.max(0, annualTaxLiability / 4);
+  const paidThisQuarter =
+    companyRows.reduce((s, c) => s + c.paid, 0) + quarterlyPayments;
+  const savedThisQuarter = companyRows.reduce((s, c) => s + c.saved, 0);
+  const progressThisQuarter = paidThisQuarter + savedThisQuarter;
+  const taxProgressPct = quarterGoal > 0 ? (progressThisQuarter / quarterGoal) * 100 : 100;
+  const remainingTaxThisQuarter = Math.max(0, quarterGoal - progressThisQuarter);
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
