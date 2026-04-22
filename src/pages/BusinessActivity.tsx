@@ -169,6 +169,29 @@ export default function Transactions() {
   const [bulkCategory, setBulkCategory] = useState("");
   const [showBulkCategory, setShowBulkCategory] = useState(false);
 
+  // Mobile linking selection mode (long-press on a row to enter).
+  // Caps selection at 2; tapping a 3rd row replaces the oldest selected.
+  const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
+  const [mobileSelectedOrder, setMobileSelectedOrder] = useState<string[]>([]);
+
+  const exitMobileSelection = () => {
+    setMobileSelectionMode(false);
+    setMobileSelectedOrder([]);
+  };
+
+  const toggleMobileSelect = (id: string) => {
+    setMobileSelectedOrder((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 2) return [prev[1], id]; // drop oldest
+      return [...prev, id];
+    });
+  };
+
+  const enterMobileSelectionWith = (id: string) => {
+    setMobileSelectionMode(true);
+    setMobileSelectedOrder((prev) => (prev.includes(id) ? prev : [...prev.slice(-1), id]));
+  };
+
   // Attachment counts per transaction (for paperclip badges)
   const { data: attachmentCounts } = useAttachmentCounts();
 
