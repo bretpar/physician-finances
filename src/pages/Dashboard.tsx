@@ -158,17 +158,36 @@ export default function Dashboard() {
     );
   }
 
-  const annualTaxLiability = estimate?.totalTaxLiability ?? 0;
+  // ── Choose annual liability based on the user's withholding method ────────
+  // - flat_estimate   → manual % × forecast (or actual fallback) total income
+  // - dynamic_planner → forecastEstimate.totalTaxLiability (actual + projected)
+  // - dynamic_actual  → actualEstimate.totalTaxLiability   (actual only) [default]
+  const method = rates?.withholdingMethod ?? "dynamic_actual";
+  const baseEstimate =
+    method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : actualEstimate;
+  let annualTaxLiability = baseEstimate?.totalTaxLiability ?? 0;
+  let methodLabel = "Dynamic (actual income)";
+  if (method === "dynamic_planner") {
+    methodLabel = "Dynamic (actual + projected)";
+  } else if (method === "flat_estimate") {
+    const ratePct = Number(rates?.manualEffectiveTaxRate ?? 0);
+    const incomeBase =
+      (forecastEstimate ?? actualEstimate)?.totalIncome ??
+      actualEstimate?.totalIncome ??
+      0;
+    annualTaxLiability = incomeBase * (ratePct / 100);
+    methodLabel = `Flat estimate (${ratePct}%)`;
+  }
+
   const greeting =
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
   // Mirror the tracker's math so the score stays consistent with what the user sees.
-  const totalWithholdingYTD =
-    withholding.personalW2 + withholding.businessW2 + withholding.k1 + withholding.scheduleC1099;
+  const totalWithholdingYTD = companyRows.reduce((s, c) => s + c.amount, 0);
   const quarterTarget = Math.max(0, (annualTaxLiability * q.quarter) / 4);
   const quarterSaved =
-    (totalWithholdingYTD * q.quarter) / 4 + withholding.quarterlyPayments;
+    (totalWithholdingYTD * q.quarter) / 4 + quarterlyPayments;
   const taxProgressPct = quarterTarget > 0 ? (quarterSaved / quarterTarget) * 100 : 100;
   const remainingTaxThisQuarter = Math.max(0, quarterTarget - quarterSaved);
 
@@ -188,7 +207,9 @@ export default function Dashboard() {
 
       <QuarterlyTracker
         annualTaxLiability={annualTaxLiability}
-        withholding={withholding}
+        companies={companyRows}
+        quarterlyPayments={quarterlyPayments}
+        methodLabel={methodLabel}
       />
 
       <FinancialScore
