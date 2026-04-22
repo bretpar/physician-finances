@@ -19,6 +19,7 @@ import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { getNextQuarterDeadline } from "@/lib/quarters";
 
 export type RecommendationStatus = "ahead" | "on_track" | "behind";
 export type RecommendationConfidence = "high" | "estimated" | "low";
@@ -65,15 +66,7 @@ interface RecommendationInput {
   preTaxDeductions: number;
 }
 
-function getNextQuarterDeadline(): { quarter: number; deadline: Date; quarterLabel: string } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  if (month < 3) return { quarter: 1, deadline: new Date(year, 3, 15), quarterLabel: "Q1 (Apr 15)" };
-  if (month < 5) return { quarter: 2, deadline: new Date(year, 5, 15), quarterLabel: "Q2 (Jun 15)" };
-  if (month < 8) return { quarter: 3, deadline: new Date(year, 8, 15), quarterLabel: "Q3 (Sep 15)" };
-  return { quarter: 4, deadline: new Date(year + 1, 0, 15), quarterLabel: "Q4 (Jan 15)" };
-}
+// getNextQuarterDeadline now lives in src/lib/quarters.ts (shared helper).
 
 export function useIncomeRecommendation() {
   const { actualEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
