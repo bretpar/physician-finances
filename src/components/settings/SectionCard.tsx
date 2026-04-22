@@ -26,7 +26,7 @@ interface SectionCardProps {
   headerAction?: ReactNode;
   /** Whether section is collapsible. Defaults true. */
   collapsible?: boolean;
-  /** Initial open state. Defaults true on desktop, controllable. */
+  /** Initial open state. Defaults false so sections start collapsed. */
   defaultOpen?: boolean;
   /** Whether the section currently has unsaved edits. */
   isDirty?: boolean;
@@ -50,7 +50,7 @@ export function SectionCard({
   description,
   headerAction,
   collapsible = true,
-  defaultOpen = true,
+  defaultOpen = false,
   isDirty = false,
   isSaving = false,
   justSaved = false,
