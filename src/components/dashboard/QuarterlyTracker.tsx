@@ -119,7 +119,6 @@ export default function QuarterlyTracker({ annualTaxLiability, withholding }: Qu
         </div>
 
         {/* Per-source breakdown */}
-        <div className="rounded-lg border bg-card/50 divide-y divide-border">
         <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
           <div className="rounded-lg border bg-card/50">
             <CollapsibleTrigger className="w-full px-3 py-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
