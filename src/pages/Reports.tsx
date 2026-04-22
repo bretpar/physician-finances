@@ -211,6 +211,11 @@ export default function Reports() {
     for (const [cat, amt] of Object.entries(plData.byCategory).sort((a, b) => a[0].localeCompare(b[0]))) {
       if (amt > 0) csv += `"${cat}",${amt}\n`;
     }
+    csv += `\nAbove-the-Line / Personal Deductions (informational; not in Net Profit)\n`;
+    csv += `HSA Contribution - Payroll (pre-tax),${plDeductions.hsaPayroll}\n`;
+    csv += `HSA Contribution - Individual (above-the-line),${plDeductions.hsaIndividual}\n`;
+    csv += `HSA Contribution - Total,${plDeductions.hsaTotal}\n`;
+    csv += `Healthcare Deduction (premiums/medical),${plDeductions.healthcare}\n`;
     downloadBlob(csv, "profit-loss-report.csv");
   }
 
@@ -223,6 +228,12 @@ export default function Reports() {
       csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
     }
     csv += `\nTotal Expenses,${taxData.totalExpenses}\nNet Profit/Loss,${taxData.netProfit}\n`;
+    csv += `\nABOVE-THE-LINE / PERSONAL DEDUCTIONS (separate from Schedule C)\n`;
+    csv += `Item,Amount\n`;
+    csv += `HSA Contribution - Payroll (pre-tax via W-2),${hsaSummary.payroll}\n`;
+    csv += `HSA Contribution - Individual (Form 8889),${hsaSummary.individual}\n`;
+    csv += `HSA Contribution - Total,${hsaSummary.total}\n`;
+    csv += `Healthcare Deduction (premiums/medical),${healthcareDeductionAnnual}\n`;
     downloadBlob(csv, `tax-summary-${taxYear}.csv`);
   }
 
