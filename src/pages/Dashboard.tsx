@@ -1,33 +1,83 @@
-import { TrendingUp, TrendingDown, DollarSign, PiggyBank, CheckCircle2, AlertTriangle, Wallet, Briefcase } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import StatCard from "@/components/StatCard";
-import RecentTransactions from "@/components/RecentTransactions";
+import { useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
-import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+import { useTaxPayments } from "@/hooks/useTaxPayments";
+import MoneyCards from "@/components/dashboard/MoneyCards";
+import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
+import FinancialScore from "@/components/dashboard/FinancialScore";
+import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
+import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
-  const { data: savings = [] } = useTaxSavings();
-  const { estimate } = useTaxEstimate();
+  const { data: payments = [] } = useTaxPayments();
+  const { estimate, isLoading: estLoading } = useTaxEstimate();
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
 
-  const fmt = (n: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+  const now = useMemo(() => new Date(), []);
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
 
-  if (txLoading || ratesLoading || incLoading || piLoading) {
+  // "+ this month" — sum of business income (transactions) + personal income entries dated in current month.
+  const earnedThisMonth = useMemo(() => {
+    const inMonth = (iso: string) => {
+      const d = new Date(iso);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    };
+    const business = (transactions || [])
+      .filter((t) => t.transaction_type === "income" && inMonth(t.transaction_date))
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    const personal = (personalEntries || [])
+      .filter((e) => inMonth(e.income_date))
+      .reduce((s, e) => s + Number(e.gross_amount || 0), 0);
+    return business + personal;
+  }, [transactions, personalEntries, currentMonth, currentYear]);
+
+  // Income consistency: months YTD with at least one income event.
+  const { monthsWithIncome, monthsElapsed } = useMemo(() => {
+    const elapsed = currentMonth + 1;
+    const seen = new Set<number>();
+    for (const t of transactions || []) {
+      if (t.transaction_type !== "income") continue;
+      const d = new Date(t.transaction_date);
+      if (d.getFullYear() === currentYear) seen.add(d.getMonth());
+    }
+    for (const e of personalEntries || []) {
+      const d = new Date(e.income_date);
+      if (d.getFullYear() === currentYear) seen.add(d.getMonth());
+    }
+    return { monthsWithIncome: seen.size, monthsElapsed: elapsed };
+  }, [transactions, personalEntries, currentMonth, currentYear]);
+
+  // Activity: transactions in the last 30 days.
+  const recentTxCount = useMemo(() => {
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return (transactions || []).filter((t) => new Date(t.transaction_date).getTime() >= cutoff).length;
+  }, [transactions]);
+
+  // Recent income for the confetti detector.
+  const recentIncome = useMemo(() => {
+    const fromTx = (transactions || [])
+      .filter((t) => t.transaction_type === "income")
+      .map((t) => ({ id: t.id, amount: Math.abs(t.amount), date: t.transaction_date }));
+    const fromPersonal = (personalEntries || []).map((e) => ({
+      id: e.id,
+      amount: Number(e.gross_amount || 0),
+      date: e.income_date,
+    }));
+    return [...fromTx, ...fromPersonal];
+  }, [transactions, personalEntries]);
+
+  if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground">Loading…</p>
@@ -35,87 +85,49 @@ export default function Dashboard() {
     );
   }
 
-  const totalSetAside = savings.reduce((s, e) => s + Number(e.amount), 0);
-  const estOwed = estimate?.totalTaxLiability ?? 0;
-  const withheld = estimate?.taxesAlreadyWithheld ?? 0;
-  const remaining = Math.max(0, estOwed - withheld);
-  const gap = totalSetAside - remaining;
-  const ok = gap >= 0;
-  const progressPct = remaining > 0 ? Math.min(100, (totalSetAside / remaining) * 100) : 100;
+  const annualTaxLiability = estimate?.totalTaxLiability ?? 0;
+  const totalWithheldYTD = estimate?.taxesAlreadyWithheld ?? 0;
+  const greeting =
+    user?.user_metadata?.first_name ||
+    (user?.email ? user.email.split("@")[0] : "back");
+
+  // For the financial score's tax-progress slice, use the same math as the tracker.
+  const q = getCurrentQuarter(now);
+  const quarterTarget = Math.max(0, (annualTaxLiability * q.quarter) / 4);
+  const quarterSaved = getQuarterPayments(payments, q.label) + (totalWithheldYTD * q.quarter) / 4;
+  const taxProgressPct = quarterTarget > 0 ? (quarterSaved / quarterTarget) * 100 : 100;
+  const remainingTaxThisQuarter = Math.max(0, quarterTarget - quarterSaved);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Key income breakdown */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Business Net Income" value={fmt(summary.businessNetIncome)} icon={Briefcase} variant="default" />
-        <StatCard label="Personal Income" value={fmt(summary.personalIncome)} icon={Wallet} variant="success" />
-        <StatCard label="Business Expenses" value={fmt(summary.businessExpenses)} icon={TrendingDown} variant="destructive" />
-        <StatCard label="Tax Already Withheld" value={fmt(summary.totalWithheld)} icon={PiggyBank} variant="warning" />
-      </div>
+    <div className="space-y-5 max-w-3xl mx-auto">
+      <header className="px-1">
+        <h1 className="text-xl font-semibold">Welcome back, {greeting}</h1>
+        <p className="text-sm text-muted-foreground">Here's your money at a glance.</p>
+      </header>
 
-      {/* Tax overview cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">AGI Estimate</p>
-            <p className="text-lg font-bold tabular-nums">{fmt(estimate?.agi ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Estimated Tax Owed</p>
-            <p className="text-lg font-bold tabular-nums text-destructive">{fmt(estOwed)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Tax Already Withheld</p>
-            <p className="text-lg font-bold tabular-nums text-emerald-600">{fmt(withheld)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-3 pb-2">
-            <p className="text-xs text-muted-foreground">Estimated Tax Gap</p>
-            <p className={cn("text-lg font-bold tabular-nums", remaining > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(remaining)}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <MoneyCards
+        totalEarnedYTD={summary.totalIncome}
+        earnedThisMonth={earnedThisMonth}
+        estimatedTax={annualTaxLiability}
+        userId={user?.id}
+      />
 
-      {/* Tax status */}
-      <Card className={cn("border-2", ok ? "border-green-500/30 bg-green-50/30 dark:bg-green-950/10" : "border-amber-400/30 bg-amber-50/30 dark:bg-amber-950/10")}>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            {ok ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : <AlertTriangle className="h-5 w-5 text-amber-600" />}
-            Tax Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Remaining Tax</p>
-              <p className="font-semibold">{fmt(remaining)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Saved So Far</p>
-              <p className="font-semibold">{fmt(totalSetAside)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Difference</p>
-              <p className={cn("font-semibold", ok ? "text-green-600" : "text-amber-600")}>{fmt(gap)}</p>
-            </div>
-          </div>
-          <Progress value={progressPct} className="h-2" />
-          <p className={cn("text-sm", ok ? "text-green-600" : "text-amber-600")}>
-            {ok ? "You're on track — enough saved for taxes." : `Save ${fmt(Math.abs(gap))} more to be on track.`}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => navigate("/taxes")}>
-            View Tax Details →
-          </Button>
-        </CardContent>
-      </Card>
+      <QuarterlyTracker
+        annualTaxLiability={annualTaxLiability}
+        totalWithheldYTD={totalWithheldYTD}
+        payments={payments}
+      />
 
-      {/* Recent transactions */}
-      <RecentTransactions transactions={transactions || []} />
+      <FinancialScore
+        taxProgressPct={taxProgressPct}
+        monthsWithIncome={monthsWithIncome}
+        monthsElapsed={monthsElapsed}
+        recentTxCount={recentTxCount}
+        remainingTaxThisQuarter={remainingTaxThisQuarter}
+        userId={user?.id}
+      />
+
+      <PaycheckConfetti userId={user?.id} recentIncome={recentIncome} />
     </div>
   );
 }
