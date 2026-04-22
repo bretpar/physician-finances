@@ -1,15 +1,15 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
   ArrowLeftRight,
+  Check,
   ChevronDown,
   CreditCard,
   Receipt,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 
 export type LedgerRowKind =
   | "income"
@@ -56,6 +56,12 @@ export interface LedgerRowProps {
   onClick?: () => void;
   selected?: boolean;
   className?: string;
+  /** When true, tapping the row toggles selection instead of firing onClick. */
+  selectionMode?: boolean;
+  /** Toggle selection (used in selection mode and from "Select for linking"). */
+  onToggleSelect?: () => void;
+  /** Long-press to enter selection mode (mobile). */
+  onLongPress?: () => void;
 }
 
 const fmtAmount = (n: number) =>
@@ -74,6 +80,8 @@ const TONE_CLASS: Record<NonNullable<LedgerRowBadge["tone"]>, string> = {
     "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400",
 };
 
+const LONG_PRESS_MS = 450;
+
 export function LedgerRow({
   kind = "expense",
   icon,
@@ -90,6 +98,9 @@ export function LedgerRow({
   onClick,
   selected,
   className,
+  selectionMode,
+  onToggleSelect,
+  onLongPress,
 }: LedgerRowProps) {
   const [expanded, setExpanded] = useState(false);
   const Icon = icon ?? KIND_ICON[kind];
@@ -107,32 +118,108 @@ export function LedgerRow({
   const prefix =
     amountPrefix ?? (tone === "positive" ? "+" : tone === "negative" ? "-" : "");
 
+  // Long-press detection (touch + mouse). Cancels on move/scroll.
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
+  const startPos = useRef<{ x: number; y: number } | null>(null);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handlePressStart = (x: number, y: number) => {
+    if (!onLongPress) return;
+    longPressFired.current = false;
+    startPos.current = { x, y };
+    clearLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      longPressFired.current = true;
+      onLongPress();
+    }, LONG_PRESS_MS);
+  };
+
+  const handlePressMove = (x: number, y: number) => {
+    if (!startPos.current) return;
+    const dx = Math.abs(x - startPos.current.x);
+    const dy = Math.abs(y - startPos.current.y);
+    if (dx > 8 || dy > 8) clearLongPress();
+  };
+
+  const handlePressEnd = () => {
+    clearLongPress();
+    startPos.current = null;
+  };
+
+  const handleClick = () => {
+    if (longPressFired.current) {
+      // The long-press handler already fired; suppress the click.
+      longPressFired.current = false;
+      return;
+    }
+    if (selectionMode && onToggleSelect) {
+      onToggleSelect();
+      return;
+    }
+    onClick?.();
+  };
+
   return (
     <div
       className={cn(
-        "w-full",
-        selected && "bg-primary/5",
+        "w-full transition-colors",
+        selected && "bg-primary/10 ring-1 ring-inset ring-primary/30",
         className,
       )}
     >
       <div className="flex items-stretch">
         <button
           type="button"
-          onClick={onClick}
+          onClick={handleClick}
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            if (t) handlePressStart(t.clientX, t.clientY);
+          }}
+          onTouchMove={(e) => {
+            const t = e.touches[0];
+            if (t) handlePressMove(t.clientX, t.clientY);
+          }}
+          onTouchEnd={handlePressEnd}
+          onTouchCancel={handlePressEnd}
+          onContextMenu={(e) => {
+            // Suppress the OS context menu after a long-press fires.
+            if (onLongPress) e.preventDefault();
+          }}
           className={cn(
-            "min-w-0 flex-1 flex items-start gap-3 px-4 py-3.5 text-left transition-colors",
+            "min-w-0 flex-1 flex items-start gap-3 px-4 py-3.5 text-left transition-colors select-none",
             "hover:bg-muted/40 active:bg-muted/60",
           )}
         >
-          {/* Left: icon */}
-          <div
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
-              KIND_ICON_CLASSES[kind],
-            )}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
+          {/* Left: icon OR selection indicator (in selection mode) */}
+          {selectionMode ? (
+            <div
+              className={cn(
+                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                selected
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-muted-foreground/30 bg-background text-transparent",
+              )}
+              aria-hidden
+            >
+              <Check className="h-5 w-5" />
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
+                KIND_ICON_CLASSES[kind],
+              )}
+            >
+              <Icon className="h-5 w-5" />
+            </div>
+          )}
 
           {/* Middle: details */}
           <div className="min-w-0 flex-1 space-y-1">
@@ -186,7 +273,7 @@ export function LedgerRow({
           </div>
         </button>
 
-        {expandableContent && (
+        {expandableContent && !selectionMode && (
           <button
             type="button"
             aria-label={expanded ? "Hide details" : "Show details"}
@@ -207,7 +294,7 @@ export function LedgerRow({
         )}
       </div>
 
-      {expandableContent && expanded && (
+      {expandableContent && expanded && !selectionMode && (
         <div className="px-4 pb-3 pl-[68px] text-[13px] text-muted-foreground space-y-1 bg-muted/20">
           {expandableContent}
         </div>
