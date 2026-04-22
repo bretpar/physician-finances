@@ -9,7 +9,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
 import MoneyCards from "@/components/dashboard/MoneyCards";
-import QuarterlyTracker, { type CompanyWithholdingRow } from "@/components/dashboard/QuarterlyTracker";
+import QuarterlyTracker, { type CompanyQuarterRow } from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
@@ -45,29 +45,45 @@ export default function Dashboard() {
     return business + personal;
   }, [transactions, personalEntries, currentMonth, currentYear]);
 
-  // ── Per-COMPANY withholding aggregation (W-2 + K-1 + 1099 grouped by company) ──
-  // Source of truth:
-  //   • Business income_entries (linked to a live transaction) → grouped by their
-  //     resolved company (source_id → companies, fallback to entry.company name).
-  //   • Personal income entries → grouped by their `company` field (employer name).
-  //   • Quarterly payments → only those tagged to the CURRENT quarter count.
-  //
-  // Withholding = federal_withholding + state_withholding.
+  // ── Per-COMPANY CURRENT-QUARTER paid vs saved ────────────────────────────
+  // Paid  = federal_withholding + state_withholding on income dated this quarter
+  // Saved = actual_withholding (transaction reserves) + additional_tax_reserve
+  //         on income dated this quarter (not yet submitted to IRS/state)
   const q = useMemo(() => getCurrentQuarter(now), [now]);
 
-  const companyRows: CompanyWithholdingRow[] = useMemo(() => {
+  // Quarter date range: start of quarter month → deadline date.
+  const quarterRange = useMemo(() => {
+    const year = now.getFullYear();
+    const startMonthByQ: Record<number, number> = { 1: 0, 2: 3, 3: 5, 4: 8 };
+    const start = new Date(year, startMonthByQ[q.quarter], 1);
+    // End is the deadline (exclusive next-day). Use deadline + 1 day as upper bound.
+    const end = new Date(q.deadline);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }, [now, q.quarter, q.deadline]);
+
+  const inQuarter = (iso: string) => {
+    const d = new Date(iso);
+    return d >= quarterRange.start && d < quarterRange.end;
+  };
+
+  const companyRows: CompanyQuarterRow[] = useMemo(() => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
-    const liveTxIds = new Set(
-      (transactions || []).filter((t) => t.transaction_type === "income").map((t) => t.id),
+    const liveTxById = new Map(
+      (transactions || [])
+        .filter((t) => t.transaction_type === "income")
+        .map((t) => [t.id, t] as const),
     );
 
-    // key → { label, amount }
-    const buckets = new Map<string, { label: string; amount: number }>();
-    const addTo = (key: string, label: string, amount: number) => {
-      if (amount <= 0) return;
-      const existing = buckets.get(key);
-      if (existing) existing.amount += amount;
-      else buckets.set(key, { label, amount });
+    // key → { label, paid, saved }
+    const buckets = new Map<string, { label: string; paid: number; saved: number }>();
+    const ensure = (key: string, label: string) => {
+      let row = buckets.get(key);
+      if (!row) {
+        row = { label, paid: 0, saved: 0 };
+        buckets.set(key, row);
+      }
+      return row;
     };
 
     const filingHint = (filing: string | undefined): string => {
@@ -77,12 +93,21 @@ export default function Dashboard() {
       return "";
     };
 
-    // Business entries → grouped by company id (fallback: entry.company name)
+    // Business income entries (linked to a live transaction) → bucket per company
     for (const e of incomeEntries || []) {
-      if (!e.linked_transaction_id || !liveTxIds.has(e.linked_transaction_id)) continue;
-      const wh =
-        Number((e as any).federal_withholding || 0) + Number((e as any).state_withholding || 0);
-      if (wh <= 0) continue;
+      if (!e.linked_transaction_id) continue;
+      const tx = liveTxById.get(e.linked_transaction_id);
+      if (!tx) continue;
+      // Filter by CURRENT quarter using the income date
+      if (!inQuarter(e.income_date)) continue;
+
+      const paid =
+        Number((e as any).federal_withholding || 0) +
+        Number((e as any).state_withholding || 0);
+      const saved =
+        Number((tx as any).actual_withholding || 0) +
+        Number((e as any).additional_tax_reserve || 0);
+      if (paid <= 0 && saved <= 0) continue;
 
       const company = (e as any).source_id ? companyById.get((e as any).source_id) : undefined;
       const filing = normalizeFilingType(e.income_type || company?.companyType);
@@ -90,25 +115,32 @@ export default function Dashboard() {
       const name = company?.name || e.company || "Unassigned";
       const key = company?.id || `name:${name.toLowerCase().trim()}`;
       const label = hint ? `${name} (${hint})` : name;
-      addTo(key, label, wh);
+      const row = ensure(key, label);
+      row.paid += paid;
+      row.saved += saved;
     }
 
-    // Personal entries → grouped by employer name (W-2)
+    // Personal income entries (W-2) → bucket per employer name
     for (const e of personalEntries || []) {
-      const wh =
+      if (!inQuarter(e.income_date)) continue;
+      const paid =
         Number(e.federal_withholding || 0) + Number((e as any).state_withholding || 0);
-      if (wh <= 0) continue;
+      const saved = Number((e as any).additional_tax_reserve || 0);
+      if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
       const key = `personal:${name.toLowerCase()}`;
-      addTo(key, `${name} (W-2)`, wh);
+      const row = ensure(key, `${name} (W-2)`);
+      row.paid += paid;
+      row.saved += saved;
     }
 
     return Array.from(buckets.entries()).map(([key, v]) => ({
       key,
       label: v.label,
-      amount: v.amount,
+      paid: v.paid,
+      saved: v.saved,
     }));
-  }, [incomeEntries, personalEntries, transactions, companies]);
+  }, [incomeEntries, personalEntries, transactions, companies, quarterRange]);
 
   const quarterlyPayments = useMemo(
     () => getQuarterPayments(payments, q.label),
