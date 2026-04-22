@@ -169,7 +169,7 @@ export default function Reports() {
     return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory };
   }, [transactions, taxCompany, taxYear, mileageByCompanyName]);
 
-  // ──── HSA summary (deductions/reporting) ────
+  // ──── HSA summary (deductions/reporting) — for Tax Summary (annual) ────
   const hsaSummary = useMemo(() => {
     const yearMatch = (d: string) => d?.startsWith(taxYear);
     const rows = hsaRows.filter((r) => yearMatch(r.contribution_date));
@@ -179,6 +179,28 @@ export default function Reports() {
     const deductible = payroll + individual;
     return { payroll, individual, total: payroll + individual, deductible };
   }, [hsaRows, taxYear]);
+
+  // Healthcare deductions (separate from HSA) for the tax year — sourced from income entries
+  const healthcareDeductionAnnual = useMemo(() => {
+    const yearStart = `${taxYear}-01-01`;
+    const yearEnd = `${taxYear}-12-31`;
+    return incomeEntries
+      .filter((e) => e.income_date >= yearStart && e.income_date <= yearEnd)
+      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
+  }, [incomeEntries, taxYear]);
+
+  // ──── HSA + Healthcare for the P&L date range ────
+  const plDeductions = useMemo(() => {
+    const inRange = (d: string) =>
+      (!dateRange.from || d >= dateRange.from) && (!dateRange.to || d <= dateRange.to);
+    const hsaRowsInRange = hsaRows.filter((r) => inRange(r.contribution_date));
+    const hsaPayroll = hsaRowsInRange.filter((r) => r.source_type === "payroll").reduce((s, r) => s + Number(r.amount), 0);
+    const hsaIndividual = hsaRowsInRange.filter((r) => r.source_type === "individual").reduce((s, r) => s + Number(r.amount), 0);
+    const healthcare = incomeEntries
+      .filter((e) => inRange(e.income_date))
+      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
+    return { hsaPayroll, hsaIndividual, hsaTotal: hsaPayroll + hsaIndividual, healthcare };
+  }, [hsaRows, incomeEntries, dateRange]);
 
   // ──── Export helpers ────
   function exportPLCSV() {
