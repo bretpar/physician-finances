@@ -6,52 +6,47 @@ import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
 import { getCurrentQuarter } from "@/lib/quarters";
 
-export interface WithholdingBreakdown {
-  /** W-2 withholdings from personal paychecks (user + partner) */
-  personalW2: number;
-  /** W-2 withholdings booked under a business (S-corp owner W-2) */
-  businessW2: number;
-  /** Withholdings reported on K-1 partnership distributions */
-  k1: number;
-  /** Withholdings reported on 1099 / Schedule C income */
-  scheduleC1099: number;
-  /** Quarterly estimated tax payments tagged to the CURRENT quarter */
-  quarterlyPayments: number;
+/** Per-company (or per-source) YTD withholding row. */
+export interface CompanyWithholdingRow {
+  /** Stable key (company id or synthetic key) */
+  key: string;
+  /** Display label — typically company name; can include a type hint in parens */
+  label: string;
+  /** YTD withholding amount in dollars */
+  amount: number;
 }
 
 interface QuarterlyTrackerProps {
-  /** Annual estimated total tax liability (federal + state + SE) */
+  /** Annual estimated total tax liability for the active withholding method */
   annualTaxLiability: number;
-  /** Per-source withholding split, all YTD-to-date */
-  withholding: WithholdingBreakdown;
+  /** YTD withholdings grouped by company (W-2, K-1, 1099 all aggregated per company) */
+  companies: CompanyWithholdingRow[];
+  /** Quarterly estimated payments tagged to the CURRENT quarter */
+  quarterlyPayments: number;
+  /** Label of the active withholding method, e.g. "Flat 22%" or "Dynamic (actual)" */
+  methodLabel?: string;
 }
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
-export default function QuarterlyTracker({ annualTaxLiability, withholding }: QuarterlyTrackerProps) {
+export default function QuarterlyTracker({
+  annualTaxLiability,
+  companies,
+  quarterlyPayments,
+  methodLabel,
+}: QuarterlyTrackerProps) {
   const q = getCurrentQuarter();
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   // ── Quarter math ──────────────────────────────────────────────────────────
-  // Goal:        cumulative liability that should be covered by this quarter's
-  //              deadline = annualTax × (quarter / 4).
-  // Withheld:    YTD federal+state withholdings spread proportionally across
-  //              the year — so by Q1 we expect 1/4 of annual withholdings,
-  //              by Q2 half, etc. (Withholdings are continuous; payments are not.)
-  // Payments:    quarterly estimated payments TAGGED to the current quarter
-  //              count in full — they were submitted specifically for it.
-  // Saved      = allocated withholdings + this-quarter payments.
-  // Remaining  = max(0, goal − saved).
-  const totalWithholdingYTD =
-    withholding.personalW2 +
-    withholding.businessW2 +
-    withholding.k1 +
-    withholding.scheduleC1099;
-
+  // Goal      = annualTax × (quarter / 4)  — cumulative liability through this quarter's deadline.
+  // Saved     = (YTD withholdings × quarter/4) + this-quarter estimated payments.
+  // Remaining = max(0, goal − saved).
+  const totalWithholdingYTD = companies.reduce((s, c) => s + c.amount, 0);
   const target = Math.max(0, (annualTaxLiability * q.quarter) / 4);
   const allocatedWithheld = (totalWithholdingYTD * q.quarter) / 4;
-  const saved = Math.max(0, allocatedWithheld + withholding.quarterlyPayments);
+  const saved = Math.max(0, allocatedWithheld + quarterlyPayments);
   const remaining = Math.max(0, target - saved);
 
   const pct = target > 0 ? Math.min(100, (saved / target) * 100) : 100;
@@ -66,14 +61,21 @@ export default function QuarterlyTracker({ annualTaxLiability, withholding }: Qu
 
   const { Icon } = toneStyles;
 
-  // Per-source rows — always show all five so users see the full picture.
-  // Allocated value (what counts toward this quarter's goal) shown next to gross YTD.
-  const rows: { label: string; ytd: number; allocated: number }[] = [
-    { label: "W-2 (personal)",          ytd: withholding.personalW2,        allocated: (withholding.personalW2 * q.quarter) / 4 },
-    { label: "W-2 (business / S-corp)", ytd: withholding.businessW2,        allocated: (withholding.businessW2 * q.quarter) / 4 },
-    { label: "K-1 distributions",       ytd: withholding.k1,                allocated: (withholding.k1 * q.quarter) / 4 },
-    { label: "1099 / Schedule C",       ytd: withholding.scheduleC1099,     allocated: (withholding.scheduleC1099 * q.quarter) / 4 },
-    { label: `${q.label} estimated payments`, ytd: withholding.quarterlyPayments, allocated: withholding.quarterlyPayments },
+  // Build breakdown rows: companies (sorted by amount desc) + estimated payments at end.
+  const sortedCompanies = [...companies].sort((a, b) => b.amount - a.amount);
+  const rows: { key: string; label: string; ytd: number; allocated: number }[] = [
+    ...sortedCompanies.map((c) => ({
+      key: c.key,
+      label: c.label,
+      ytd: c.amount,
+      allocated: (c.amount * q.quarter) / 4,
+    })),
+    {
+      key: "__quarterly_payments__",
+      label: `${q.label} estimated payments`,
+      ytd: quarterlyPayments,
+      allocated: quarterlyPayments,
+    },
   ];
 
   return (
@@ -86,6 +88,9 @@ export default function QuarterlyTracker({ annualTaxLiability, withholding }: Qu
           </CardTitle>
           <span className="text-xs text-muted-foreground">due {q.deadlineLabel}</span>
         </div>
+        {methodLabel && (
+          <p className="text-xs text-muted-foreground mt-1">Based on: {methodLabel}</p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -118,7 +123,7 @@ export default function QuarterlyTracker({ annualTaxLiability, withholding }: Qu
           </div>
         </div>
 
-        {/* Per-source breakdown */}
+        {/* Per-company breakdown */}
         <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
           <div className="rounded-lg border bg-card/50">
             <CollapsibleTrigger className="w-full px-3 py-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
@@ -126,24 +131,30 @@ export default function QuarterlyTracker({ annualTaxLiability, withholding }: Qu
                 <ChevronDown
                   className={cn("h-3.5 w-3.5 transition-transform", breakdownOpen && "rotate-180")}
                 />
-                Tracked withholdings
+                Tracked withholdings by company
               </span>
               <span>YTD · counts now</span>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="divide-y divide-border border-t">
-                {rows.map((r) => (
-                  <div key={r.label} className="px-3 py-2 flex items-center justify-between text-sm">
-                    <span className={cn(r.ytd === 0 && "text-muted-foreground")}>{r.label}</span>
-                    <span className="tabular-nums text-muted-foreground">
-                      <span className={cn(r.ytd === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
-                        {fmt(r.ytd)}
-                      </span>
-                      <span className="mx-1">·</span>
-                      <span>{fmt(r.allocated)}</span>
-                    </span>
+                {rows.length === 1 && rows[0].ytd === 0 ? (
+                  <div className="px-3 py-3 text-sm text-muted-foreground">
+                    No withholdings tracked yet for this year.
                   </div>
-                ))}
+                ) : (
+                  rows.map((r) => (
+                    <div key={r.key} className="px-3 py-2 flex items-center justify-between text-sm">
+                      <span className={cn(r.ytd === 0 && "text-muted-foreground")}>{r.label}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        <span className={cn(r.ytd === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
+                          {fmt(r.ytd)}
+                        </span>
+                        <span className="mx-1">·</span>
+                        <span>{fmt(r.allocated)}</span>
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </CollapsibleContent>
           </div>
