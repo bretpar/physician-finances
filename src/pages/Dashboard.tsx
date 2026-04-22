@@ -9,7 +9,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
 import MoneyCards from "@/components/dashboard/MoneyCards";
-import QuarterlyTracker, { type WithholdingBreakdown } from "@/components/dashboard/QuarterlyTracker";
+import QuarterlyTracker, { type CompanyWithholdingRow } from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: payments = [] } = useTaxPayments();
-  const { estimate, isLoading: estLoading } = useTaxEstimate();
+  const { actualEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { companies } = useCompanies();
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
 
@@ -45,55 +45,75 @@ export default function Dashboard() {
     return business + personal;
   }, [transactions, personalEntries, currentMonth, currentYear]);
 
-  // ── Per-source withholding split (W-2 personal / W-2 business / K-1 / 1099) ──
+  // ── Per-COMPANY withholding aggregation (W-2 + K-1 + 1099 grouped by company) ──
   // Source of truth:
-  //   • Business income_entries (linked to a live transaction) → bucketed by
-  //     the entry's filing type (or its company's filing type as fallback).
-  //   • Personal income entries → always personal-W-2 bucket (they're W-2-style
-  //     paychecks for the user/partner).
+  //   • Business income_entries (linked to a live transaction) → grouped by their
+  //     resolved company (source_id → companies, fallback to entry.company name).
+  //   • Personal income entries → grouped by their `company` field (employer name).
   //   • Quarterly payments → only those tagged to the CURRENT quarter count.
   //
-  // Withholding = federal_withholding + state_withholding (both fields exist on
-  // income_entries). This matches what flows into the tax engine.
+  // Withholding = federal_withholding + state_withholding.
   const q = useMemo(() => getCurrentQuarter(now), [now]);
-  const withholding: WithholdingBreakdown = useMemo(() => {
+
+  const companyRows: CompanyWithholdingRow[] = useMemo(() => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const liveTxIds = new Set(
       (transactions || []).filter((t) => t.transaction_type === "income").map((t) => t.id),
     );
 
-    let businessW2 = 0;
-    let k1 = 0;
-    let scheduleC1099 = 0;
+    // key → { label, amount }
+    const buckets = new Map<string, { label: string; amount: number }>();
+    const addTo = (key: string, label: string, amount: number) => {
+      if (amount <= 0) return;
+      const existing = buckets.get(key);
+      if (existing) existing.amount += amount;
+      else buckets.set(key, { label, amount });
+    };
 
+    const filingHint = (filing: string | undefined): string => {
+      if (filing === "scorp_w2" || filing === "w2") return "W-2";
+      if (filing === "k1_partnership") return "K-1";
+      if (filing === "1099_schedule_c") return "1099";
+      return "";
+    };
+
+    // Business entries → grouped by company id (fallback: entry.company name)
     for (const e of incomeEntries || []) {
-      // Only count business entries that are still tied to a live transaction —
-      // mirrors useTaxEstimate's reconciliation so we don't double-count orphans.
       if (!e.linked_transaction_id || !liveTxIds.has(e.linked_transaction_id)) continue;
-      const wh = Number((e as any).federal_withholding || 0) + Number((e as any).state_withholding || 0);
+      const wh =
+        Number((e as any).federal_withholding || 0) + Number((e as any).state_withholding || 0);
       if (wh <= 0) continue;
 
-      // Resolve filing type: prefer the entry's, fall back to its company.
       const company = (e as any).source_id ? companyById.get((e as any).source_id) : undefined;
       const filing = normalizeFilingType(e.income_type || company?.companyType);
-      if (filing === "scorp_w2" || filing === "w2") businessW2 += wh;
-      else if (filing === "k1_partnership") k1 += wh;
-      else if (filing === "1099_schedule_c") scheduleC1099 += wh;
-      // scorp_distribution and "other" are intentionally not bucketed — their
-      // withholdings (rare) flow through estimate but don't fit the W-2/K-1/1099
-      // grouping the user expects to see.
+      const hint = filingHint(filing);
+      const name = company?.name || e.company || "Unassigned";
+      const key = company?.id || `name:${name.toLowerCase().trim()}`;
+      const label = hint ? `${name} (${hint})` : name;
+      addTo(key, label, wh);
     }
 
-    const personalW2 = (personalEntries || []).reduce(
-      (s, e) =>
-        s + Number(e.federal_withholding || 0) + Number((e as any).state_withholding || 0),
-      0,
-    );
+    // Personal entries → grouped by employer name (W-2)
+    for (const e of personalEntries || []) {
+      const wh =
+        Number(e.federal_withholding || 0) + Number((e as any).state_withholding || 0);
+      if (wh <= 0) continue;
+      const name = (e.company || "Personal W-2").trim() || "Personal W-2";
+      const key = `personal:${name.toLowerCase()}`;
+      addTo(key, `${name} (W-2)`, wh);
+    }
 
-    const quarterlyPayments = getQuarterPayments(payments, q.label);
+    return Array.from(buckets.entries()).map(([key, v]) => ({
+      key,
+      label: v.label,
+      amount: v.amount,
+    }));
+  }, [incomeEntries, personalEntries, transactions, companies]);
 
-    return { personalW2, businessW2, k1, scheduleC1099, quarterlyPayments };
-  }, [incomeEntries, personalEntries, transactions, companies, payments, q.label]);
+  const quarterlyPayments = useMemo(
+    () => getQuarterPayments(payments, q.label),
+    [payments, q.label],
+  );
 
   // Income consistency: months YTD with at least one income event.
   const { monthsWithIncome, monthsElapsed } = useMemo(() => {
