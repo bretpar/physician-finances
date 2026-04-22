@@ -1165,6 +1165,8 @@ export default function Transactions() {
                   const deposited = Number(linked?.deposited_amount || 0);
                   const showDeposited = isIncomeTx && deposited > 0 && Math.abs(deposited - Math.abs(tx.amount)) > 0.5;
 
+                  const isMobileSelected = mobileSelectedOrder.includes(tx.id);
+
                   const expandableContent = (
                     <>
                       <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
@@ -1190,6 +1192,18 @@ export default function Transactions() {
                       {tx.notes && (
                         <div className="pt-1"><div className="text-muted-foreground/80 mb-0.5">Notes</div><div className="text-foreground whitespace-pre-wrap break-words">{tx.notes}</div></div>
                       )}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            enterMobileSelectionWith(tx.id);
+                          }}
+                        >
+                          <Link2 className="h-3 w-3" /> Select for linking
+                        </button>
+                      </div>
                     </>
                   );
 
@@ -1206,7 +1220,10 @@ export default function Transactions() {
                       amountPrefix={isIncomeTx ? "+" : isTransferTx ? "" : "-"}
                       badges={badges}
                       expandableContent={expandableContent}
-                      selected={selectedIds.has(tx.id)}
+                      selected={mobileSelectionMode ? isMobileSelected : selectedIds.has(tx.id)}
+                      selectionMode={mobileSelectionMode}
+                      onToggleSelect={() => toggleMobileSelect(tx.id)}
+                      onLongPress={() => enterMobileSelectionWith(tx.id)}
                       onClick={() => openEdit(tx)}
                     />
                   );
