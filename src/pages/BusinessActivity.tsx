@@ -984,17 +984,21 @@ export default function Transactions() {
 
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        {/* Mobile Select All */}
-        <div className="flex sm:hidden items-center gap-2 px-4 py-2 border-b border-border bg-muted/40">
-          <Checkbox
-            checked={selectedIds.size === filtered.length && filtered.length > 0 ? true : selectedIds.size > 0 ? "indeterminate" : false}
-            onCheckedChange={() => {
-              if (selectedIds.size === filtered.length) setSelectedIds(new Set());
-              else setSelectedIds(new Set(filtered.map((t) => t.id)));
-            }}
-          />
-          <span className="text-xs font-medium text-muted-foreground">Select All ({filtered.length})</span>
-        </div>
+        {/* Mobile Select All — only when actively in selection mode */}
+        {mobileSelectionMode && (
+          <div className="flex sm:hidden items-center justify-between gap-2 px-4 py-2 border-b border-border bg-primary/5">
+            <span className="text-xs font-medium text-foreground">
+              Selecting transactions to link
+            </span>
+            <button
+              type="button"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={exitMobileSelection}
+            >
+              Done
+            </button>
+          </div>
+        )}
         {/* Table header */}
         <div className="hidden sm:grid sm:grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide items-center">
           <Checkbox
