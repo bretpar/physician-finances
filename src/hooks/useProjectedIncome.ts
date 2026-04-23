@@ -475,6 +475,15 @@ export function generateProjectedPaychecks(
     }
   }
 
+  // Index planner conversions by stream_id + date so we can mark occurrences as "converted".
+  const convertedKeys = new Set<string>();
+  if (plannerConversions) {
+    for (const c of plannerConversions) {
+      if (c.status !== "converted") continue;
+      if (c.stream_id) convertedKeys.add(`${c.stream_id}:${c.occurrence_date}`);
+    }
+  }
+
   // Track which income entries have been used for matching
   const usedEntryIds = new Set<string>();
 
