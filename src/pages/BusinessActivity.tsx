@@ -8,8 +8,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
-import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
-import { RecommendationModal } from "@/components/RecommendationModal";
+import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { useSuggestedMatches, useLinkTransactions, useIgnoreMatch } from "@/hooks/useTransactionMatching";
 import SuggestedMatches from "@/components/SuggestedMatches";
@@ -230,10 +230,11 @@ export default function Transactions() {
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
-  // Recommendation modal (Modal 2) state
+  // Per-transaction tax-savings reminder state
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [savedEntryTitle, setSavedEntryTitle] = useState("");
-  const [currentRecommendation, setCurrentRecommendation] = useState<IncomeRecommendation | null>(null);
+  const [reminderRecommended, setReminderRecommended] = useState(0);
+  const [reminderActualSaved, setReminderActualSaved] = useState(0);
 
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
 
@@ -669,9 +670,20 @@ export default function Transactions() {
           }
           setPendingIncomeAttachments([]);
           if (showModal2 && rec) {
-            setSavedEntryTitle(incomeForm.name);
-            setCurrentRecommendation(rec);
-            setShowRecommendation(true);
+            // Per-transaction reminder: nudge only if saved < 90% of rec.
+            const recommended = Math.max(0, rec.baseTaxEstimate || 0);
+            const actualSaved =
+              taxWithheld +
+              num(incomeForm.state_withholding) +
+              num(incomeForm.ss_withholding) +
+              num(incomeForm.medicare_withholding) +
+              num(incomeForm.additional_tax_reserve);
+            if (recommended > 0 && actualSaved < recommended * 0.9) {
+              setSavedEntryTitle(incomeForm.name);
+              setReminderRecommended(recommended);
+              setReminderActualSaved(actualSaved);
+              setShowRecommendation(true);
+            }
           }
         },
       });
@@ -1894,24 +1906,26 @@ export default function Transactions() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Smart Recommendation Modal (Modal 2) */}
-      <RecommendationModal
+      {/* Per-transaction tax-savings reminder */}
+      <SimpleTaxReminderModal
         open={showRecommendation}
-        onClose={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
-        onApplyRecommendation={() => {
-          if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0 && incomeEntries?.length) {
+        onClose={() => setShowRecommendation(false)}
+        onApply={() => {
+          const additional = Math.max(0, reminderRecommended - reminderActualSaved);
+          if (additional > 0 && incomeEntries?.length) {
             const latestEntry = incomeEntries[0];
             if (latestEntry) {
+              const currentReserve = Number((latestEntry as any).additional_tax_reserve || 0);
               updateIncomeMutation.mutate({
                 id: latestEntry.id,
-                additional_tax_reserve: currentRecommendation.recommendedAdditionalReserve,
+                additional_tax_reserve: Math.round((currentReserve + additional) * 100) / 100,
               } as any);
             }
           }
           setShowRecommendation(false);
-          setCurrentRecommendation(null);
         }}
-        recommendation={currentRecommendation}
+        recommendedSavings={reminderRecommended}
+        actualSaved={reminderActualSaved}
         entryTitle={savedEntryTitle}
       />
 

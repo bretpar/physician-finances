@@ -26,8 +26,8 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
-import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
-import { RecommendationModal } from "@/components/RecommendationModal";
+import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
@@ -177,11 +177,12 @@ export default function PersonalIncome() {
   const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
   const uploadAttachments = useUploadAttachments();
 
-  // Modal 2 state
+  // Per-transaction tax-savings reminder state
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [savedEntryId, setSavedEntryId] = useState<string | null>(null);
   const [savedEntryTitle, setSavedEntryTitle] = useState("");
-  const [currentRecommendation, setCurrentRecommendation] = useState<IncomeRecommendation | null>(null);
+  const [reminderRecommended, setReminderRecommended] = useState(0);
+  const [reminderActualSaved, setReminderActualSaved] = useState(0);
 
   const isEditing = !!editingId;
   const setField = (key: keyof FormState, value: string) =>
@@ -430,9 +431,22 @@ export default function PersonalIncome() {
           setPendingAttachments([]);
           setShowForm(false);
           if (showModal2 && recommendation) {
-            setSavedEntryTitle(form.title);
-            setCurrentRecommendation(recommendation);
-            setShowRecommendation(true);
+            // Per-transaction reminder: compare amount saved on THIS entry
+            // against the per-transaction recommended savings (baseTaxEstimate).
+            const recommended = Math.max(0, recommendation.baseTaxEstimate || 0);
+            const actualSaved =
+              num(form.federal_withholding) +
+              num(form.state_withholding) +
+              num(form.ss_withholding) +
+              num(form.medicare_withholding) +
+              num(form.additional_tax_reserve);
+            // Only nudge when meaningfully behind (< 90% of recommended).
+            if (recommended > 0 && actualSaved < recommended * 0.9) {
+              setSavedEntryTitle(form.title);
+              setReminderRecommended(recommended);
+              setReminderActualSaved(actualSaved);
+              setShowRecommendation(true);
+            }
           }
         },
       });
@@ -440,17 +454,18 @@ export default function PersonalIncome() {
   }
 
   function applyRecommendation() {
-    if (currentRecommendation && currentRecommendation.recommendedAdditionalReserve > 0) {
+    const additional = Math.max(0, reminderRecommended - reminderActualSaved);
+    if (additional > 0) {
       const latestEntry = entries[0];
       if (latestEntry) {
+        const currentReserve = Number((latestEntry as any).additional_tax_reserve || 0);
         updateMutation.mutate({
           id: latestEntry.id,
-          additional_tax_reserve: currentRecommendation.recommendedAdditionalReserve,
+          additional_tax_reserve: Math.round((currentReserve + additional) * 100) / 100,
         } as any);
       }
     }
     setShowRecommendation(false);
-    setCurrentRecommendation(null);
   }
 
   function confirmDelete() {
@@ -931,12 +946,13 @@ export default function PersonalIncome() {
         onClose={() => setMobileViewerEntryId(null)}
       />
 
-      {/* Modal 2: Post-Save Smart Recommendation */}
-      <RecommendationModal
+      {/* Per-transaction tax-savings reminder */}
+      <SimpleTaxReminderModal
         open={showRecommendation}
-        onClose={() => { setShowRecommendation(false); setCurrentRecommendation(null); }}
-        onApplyRecommendation={applyRecommendation}
-        recommendation={currentRecommendation}
+        onClose={() => setShowRecommendation(false)}
+        onApply={applyRecommendation}
+        recommendedSavings={reminderRecommended}
+        actualSaved={reminderActualSaved}
         entryTitle={savedEntryTitle}
       />
 
