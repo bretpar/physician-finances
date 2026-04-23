@@ -230,7 +230,19 @@ export function useStreamOverrides() {
   });
 }
 
-/* ─── Mutations ─── */
+/** Fetch planner_conversions for the current user — used to mark planner occurrences as converted. */
+export function usePlannerConversions() {
+  return useQuery({
+    queryKey: ["planner_conversions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("planner_conversions")
+        .select("stream_id, bonus_event_id, occurrence_date, status");
+      if (error) throw error;
+      return (data || []) as PlannerConversionRef[];
+    },
+  });
+}
 export function useAddStream() {
   const qc = useQueryClient();
   return useMutation({
