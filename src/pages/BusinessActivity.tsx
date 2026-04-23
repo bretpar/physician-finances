@@ -11,7 +11,7 @@ import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendati
 import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { RecommendationModal } from "@/components/RecommendationModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
-import { useSuggestedMatches, useLinkTransactions } from "@/hooks/useTransactionMatching";
+import { useSuggestedMatches, useLinkTransactions, useIgnoreMatch } from "@/hooks/useTransactionMatching";
 import SuggestedMatches from "@/components/SuggestedMatches";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -198,6 +198,15 @@ export default function Transactions() {
 
   // Suggested matches (pass income entries for net-amount matching)
   const suggestions = useSuggestedMatches(transactions, incomeEntries);
+  const ignoreMutation = useIgnoreMatch();
+  // Index suggestions by manual transaction id so individual rows can show their best candidate.
+  const suggestionByManualId = useMemo(() => {
+    const m = new Map<string, typeof suggestions[number]>();
+    for (const s of suggestions) {
+      if (!m.has(s.manualTx.id)) m.set(s.manualTx.id, s);
+    }
+    return m;
+  }, [suggestions]);
 
   // ─── Income modal state ───
   const [showIncomeForm, setShowIncomeForm] = useState(false);
@@ -1079,10 +1088,11 @@ export default function Transactions() {
             const displayAmount = isIncomeTx ? Math.abs(tx.amount) : isTransferTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
+            const matchSuggestion = suggestionByManualId.get(tx.id);
 
             return (
+              <div key={tx.id}>
               <div
-                key={tx.id}
                 className={`grid grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
                   tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
                 } ${isSelected ? "bg-primary/5" : ""}`}
@@ -1167,6 +1177,41 @@ export default function Transactions() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+              {matchSuggestion && (
+                <div className="flex items-center gap-2 px-4 py-2 pl-[120px] bg-blue-50/60 dark:bg-blue-950/20 border-t border-blue-200/50 dark:border-blue-900/30 text-xs">
+                  <Link2 className="h-3 w-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span className="text-blue-900 dark:text-blue-200 truncate">
+                    Possible bank match:{" "}
+                    <span className="font-medium">{matchSuggestion.plaidTx.vendor || "Bank transaction"}</span>{" "}
+                    <span className="text-muted-foreground">
+                      · {fmt(Math.abs(matchSuggestion.plaidTx.amount))} ·{" "}
+                      {new Date(matchSuggestion.plaidTx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
+                      {matchSuggestion.confidenceLabel}
+                    </span>
+                  </span>
+                  <div className="ml-auto flex gap-1.5 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="h-6 text-[11px] px-2"
+                      disabled={linkMutation.isPending}
+                      onClick={() => linkMutation.mutate({ manualTxId: tx.id, plaidTxId: matchSuggestion.plaidTx.id, confidence: matchSuggestion.confidence })}
+                    >
+                      <Link2 className="h-3 w-3 mr-1" /> Link
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[11px] px-2"
+                      disabled={ignoreMutation.isPending}
+                      onClick={() => ignoreMutation.mutate({ manualTxId: tx.id, plaidTxId: matchSuggestion.plaidTx.id })}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </div>
             );
           })}
           {filtered.length === 0 && (
@@ -1207,6 +1252,7 @@ export default function Transactions() {
                   else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "muted" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
+                  const mobileMatchSuggestion = suggestionByManualId.get(tx.id);
 
                   // Secondary metadata (behind expand toggle)
                   const attCount = attachmentCounts?.get(tx.id) ?? 0;
@@ -1219,6 +1265,45 @@ export default function Transactions() {
 
                   const expandableContent = (
                     <>
+                      {mobileMatchSuggestion && (
+                        <div className="-mx-4 -mt-1 mb-2 px-4 py-2 bg-blue-50/60 dark:bg-blue-950/20 border-y border-blue-200/50 dark:border-blue-900/30 space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-[12px] text-blue-900 dark:text-blue-200">
+                            <Link2 className="h-3 w-3 shrink-0" />
+                            <span className="font-medium truncate">{mobileMatchSuggestion.plaidTx.vendor || "Bank transaction"}</span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {fmt(Math.abs(mobileMatchSuggestion.plaidTx.amount))} ·{" "}
+                            {new Date(mobileMatchSuggestion.plaidTx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
+                            {mobileMatchSuggestion.confidenceLabel}
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-7 text-[12px] px-3 flex-1"
+                              disabled={linkMutation.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                linkMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id, confidence: mobileMatchSuggestion.confidence });
+                              }}
+                            >
+                              <Link2 className="h-3 w-3 mr-1" /> Link
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[12px] px-3"
+                              disabled={ignoreMutation.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                ignoreMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id });
+                              }}
+                            >
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
                       {tx.entity && (
                         <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{tx.entity}</span></div>
