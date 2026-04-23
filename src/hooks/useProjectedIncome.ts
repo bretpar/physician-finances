@@ -460,6 +460,7 @@ export function generateProjectedPaychecks(
   bonuses: ProjectedBonusEvent[],
   incomeEntries?: MatchableIncomeEntry[],
   overrides?: ProjectedIncomeOverride[],
+  plannerConversions?: PlannerConversionRef[],
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
