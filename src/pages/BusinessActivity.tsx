@@ -11,7 +11,7 @@ import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendati
 import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { RecommendationModal } from "@/components/RecommendationModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
-import { useSuggestedMatches, useLinkTransactions } from "@/hooks/useTransactionMatching";
+import { useSuggestedMatches, useLinkTransactions, useIgnoreMatch } from "@/hooks/useTransactionMatching";
 import SuggestedMatches from "@/components/SuggestedMatches";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
