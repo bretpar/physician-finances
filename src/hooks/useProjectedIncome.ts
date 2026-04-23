@@ -78,7 +78,15 @@ export interface ProjectedIncomeOverride {
   updated_at: string;
 }
 
-export type ProjectedMatchStatus = "active" | "matched" | "past_due" | "skipped";
+export type ProjectedMatchStatus = "active" | "matched" | "past_due" | "skipped" | "converted";
+
+/** Minimal shape of planner_conversions used to tag occurrences. */
+export interface PlannerConversionRef {
+  stream_id: string | null;
+  bonus_event_id: string | null;
+  occurrence_date: string;
+  status: string;
+}
 
 export interface ProjectedPaycheck {
   date: string;
