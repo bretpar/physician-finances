@@ -204,11 +204,17 @@ export default function Transactions() {
   const [editingIncomeTxId, setEditingIncomeTxId] = useState<string | null>(null);
   const [editingIncomeEntryId, setEditingIncomeEntryId] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [pendingIncomeAttachments, setPendingIncomeAttachments] = useState<File[]>([]);
 
   // ─── Expense modal state ───
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>(emptyExpenseForm);
   const [editingExpenseTxId, setEditingExpenseTxId] = useState<string | null>(null);
+  const [pendingExpenseAttachments, setPendingExpenseAttachments] = useState<File[]>([]);
+
+  // Mobile in-ledger receipt viewer
+  const [mobileViewerTxId, setMobileViewerTxId] = useState<string | null>(null);
+  const uploadAttachments = useUploadAttachments();
 
   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
