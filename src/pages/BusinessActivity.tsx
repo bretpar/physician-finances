@@ -670,6 +670,7 @@ export default function Transactions() {
     setIncomeForm(emptyIncomeForm);
     setEditingIncomeTxId(null);
     setEditingIncomeEntryId(null);
+    setPendingIncomeAttachments([]);
   }
 
   // ─── Save Expense / Transfer ───
