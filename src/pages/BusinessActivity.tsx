@@ -1231,7 +1231,19 @@ export default function Transactions() {
                       {tx.notes && (
                         <div className="pt-1"><div className="text-muted-foreground/80 mb-0.5">Notes</div><div className="text-foreground whitespace-pre-wrap break-words">{tx.notes}</div></div>
                       )}
-                      <div className="pt-2">
+                      <div className="pt-2 flex flex-wrap gap-2">
+                        {attCount > 0 && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMobileViewerTxId(tx.id);
+                            }}
+                          >
+                            <Paperclip className="h-3 w-3" /> View Receipt{attCount > 1 ? `s (${attCount})` : ""}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
