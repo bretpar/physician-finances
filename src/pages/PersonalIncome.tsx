@@ -502,6 +502,35 @@ export default function PersonalIncome() {
         </CardContent></Card>
       </div>
 
+      {/* Filters */}
+      {(fromPlannerCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={filterReview === "needs_review" ? "default" : "outline"}
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setFilterReview(filterReview === "needs_review" ? "all" : "needs_review")}
+          >
+            Needs Review
+          </Button>
+          {fromPlannerCount > 0 && (
+            <Button
+              variant={filterPlanner === "from_planner" ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => setFilterPlanner(filterPlanner === "from_planner" ? "all" : "from_planner")}
+            >
+              From Planner ({fromPlannerCount})
+            </Button>
+          )}
+          {(filterReview !== "all" || filterPlanner !== "all") && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterReview("all"); setFilterPlanner("all"); }}>
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Entries table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="hidden sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
