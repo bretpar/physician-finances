@@ -638,6 +638,17 @@ export function generateProjectedPaychecks(
       continue;
     }
 
+    // Auto-converted by the planner → ledger bridge: tag as "converted" so the
+    // UI can show it as fulfilled and we don't double-count it as past_due/active.
+    if (convertedKeys.has(`${raw.streamId}:${raw.date}`)) {
+      paychecks.push({
+        ...raw,
+        netAmount: Math.max(0, net),
+        matchStatus: "converted",
+      });
+      continue;
+    }
+
     // Try to find a matching actual income entry
     const match = findMatchingIncome(
       { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType },
