@@ -243,6 +243,8 @@ export function usePlannerConversions() {
     },
   });
 }
+
+/* ─── Mutations ─── */
 export function useAddStream() {
   const qc = useQueryClient();
   return useMutation({
