@@ -677,6 +677,15 @@ export default function Transactions() {
     if (amount === 0) return;
     if (!expenseForm.is_transfer && !expenseForm.company) { toast.error("Please select a company"); return; }
 
+    const flushAttachmentsTo = (newTxId: string) => {
+      if (pendingExpenseAttachments.length === 0) return;
+      uploadAttachments.mutate({
+        transactionId: newTxId,
+        companyId: companies.find((c) => c.name === expenseForm.company)?.id || null,
+        files: pendingExpenseAttachments,
+      });
+    };
+
     if (expenseForm.is_transfer) {
       if (isEditingExpense) {
         updateMutation.mutate({
@@ -702,7 +711,12 @@ export default function Transactions() {
           transfer_subtype: expenseForm.transfer_subtype || null,
           entity: expenseForm.company || "Unassigned",
           excluded_from_reports: true,
-        } as any);
+        } as any, {
+          onSuccess: (data) => {
+            const id = (data as { id?: string } | undefined)?.id;
+            if (id) flushAttachmentsTo(id);
+          },
+        });
       }
     } else {
       if (isEditingExpense) {
@@ -726,13 +740,19 @@ export default function Transactions() {
           notes: expenseForm.notes,
           transaction_type: "expense",
           entity: expenseForm.company || "Unassigned",
-        } as any);
+        } as any, {
+          onSuccess: (data) => {
+            const id = (data as { id?: string } | undefined)?.id;
+            if (id) flushAttachmentsTo(id);
+          },
+        });
       }
     }
 
     setShowExpenseForm(false);
     setExpenseForm(emptyExpenseForm);
     setEditingExpenseTxId(null);
+    setPendingExpenseAttachments([]);
   }
 
   function confirmDelete(id: string) { setDeleteTxId(id); }
