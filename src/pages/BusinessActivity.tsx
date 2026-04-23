@@ -644,7 +644,17 @@ export default function Transactions() {
       const showModal2 = isFeatureEnabled("recommendation_modal");
 
       addIncomeMutation.mutate(payload, {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          // Flush any locally staged receipts to the new transaction.
+          const newTxId = (result as { transactionId?: string | null } | undefined)?.transactionId || null;
+          if (newTxId && pendingIncomeAttachments.length > 0) {
+            uploadAttachments.mutate({
+              transactionId: newTxId,
+              companyId: companies.find((c) => c.name === incomeForm.company)?.id || null,
+              files: pendingIncomeAttachments,
+            });
+          }
+          setPendingIncomeAttachments([]);
           if (showModal2 && rec) {
             setSavedEntryTitle(incomeForm.name);
             setCurrentRecommendation(rec);
