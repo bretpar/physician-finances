@@ -1715,6 +1715,8 @@ export default function Transactions() {
             <TransactionAttachments
               transactionId={editingExpenseTxId}
               companyId={companies.find((c) => c.name === expenseForm.company)?.id || null}
+              pendingFiles={editingExpenseTxId ? undefined : pendingExpenseAttachments}
+              onPendingFilesChange={editingExpenseTxId ? undefined : setPendingExpenseAttachments}
             />
 
             {/* Actions */}
