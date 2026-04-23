@@ -1265,6 +1265,45 @@ export default function Transactions() {
 
                   const expandableContent = (
                     <>
+                      {mobileMatchSuggestion && (
+                        <div className="-mx-4 -mt-1 mb-2 px-4 py-2 bg-blue-50/60 dark:bg-blue-950/20 border-y border-blue-200/50 dark:border-blue-900/30 space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-[12px] text-blue-900 dark:text-blue-200">
+                            <Link2 className="h-3 w-3 shrink-0" />
+                            <span className="font-medium truncate">{mobileMatchSuggestion.plaidTx.vendor || "Bank transaction"}</span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {fmt(Math.abs(mobileMatchSuggestion.plaidTx.amount))} ·{" "}
+                            {new Date(mobileMatchSuggestion.plaidTx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
+                            {mobileMatchSuggestion.confidenceLabel}
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-7 text-[12px] px-3 flex-1"
+                              disabled={linkMutation.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                linkMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id, confidence: mobileMatchSuggestion.confidence });
+                              }}
+                            >
+                              <Link2 className="h-3 w-3 mr-1" /> Link
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[12px] px-3"
+                              disabled={ignoreMutation.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                ignoreMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id });
+                              }}
+                            >
+                              Dismiss
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
                       {tx.entity && (
                         <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{tx.entity}</span></div>
