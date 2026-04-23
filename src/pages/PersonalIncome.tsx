@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -160,6 +160,9 @@ export default function PersonalIncome() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showSourceError, setShowSourceError] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
+  const uploadAttachments = useUploadAttachments();
 
   // Modal 2 state
   const [showRecommendation, setShowRecommendation] = useState(false);
