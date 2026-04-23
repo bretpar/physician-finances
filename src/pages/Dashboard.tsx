@@ -225,10 +225,10 @@ export default function Dashboard() {
   const remainingTaxThisQuarter = Math.max(0, quarterGoal - progressThisQuarter);
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
-      <header className="px-1">
-        <h1 className="text-xl font-semibold">Welcome back, {greeting}</h1>
-        <p className="text-sm text-muted-foreground">Here's your money at a glance.</p>
+    <div className="space-y-6 max-w-3xl mx-auto">
+      <header className="px-1 pb-1">
+        <h1 className="text-lg font-medium text-foreground/90">Welcome back, {greeting}</h1>
+        <p className="text-xs text-muted-foreground/80">Here's your money at a glance.</p>
       </header>
 
       <DashboardMetrics
