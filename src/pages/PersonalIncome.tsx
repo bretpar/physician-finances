@@ -26,7 +26,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
-import { useIncomeRecommendation, type IncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
