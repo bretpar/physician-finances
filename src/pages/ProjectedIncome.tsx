@@ -692,6 +692,7 @@ export default function ProjectedIncome() {
             const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
             const pastDueEntries = entries.filter((e) => e.matchStatus === "past_due");
             const skippedEntries = entries.filter((e) => e.matchStatus === "skipped");
+            const convertedEntries = entries.filter((e) => e.matchStatus === "converted");
             const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
             const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
             const isExpanded = expandedMonths.has(idx);
@@ -725,6 +726,11 @@ export default function ProjectedIncome() {
                       {matchedEntries.length > 0 && (
                         <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
                           {matchedEntries.length} matched
+                        </Badge>
+                      )}
+                      {convertedEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
+                          {convertedEntries.length} converted
                         </Badge>
                       )}
                       {pastDueEntries.length > 0 && (
@@ -773,10 +779,12 @@ export default function ProjectedIncome() {
                       const isPastDue = entry.matchStatus === "past_due";
                       const isSkipped = entry.matchStatus === "skipped";
                       const isActive = entry.matchStatus === "active";
+                      const isAutoConverted = entry.matchStatus === "converted";
 
-                      // Check if this skipped entry was converted (has "Converted to actual income" in override notes)
+                      // Check if this skipped entry was converted (legacy: existing override-based flow)
                       const override = overrideLookup.get(`${entry.streamId}:${entry.date}`);
-                      const isConverted = isSkipped && override?.notes?.includes("Converted to actual income");
+                      const isOverrideConverted = isSkipped && override?.notes?.includes("Converted to actual income");
+                      const isConverted = isAutoConverted || isOverrideConverted;
 
                       // Determine link destination for matched/converted entries
                       const _t = (entry.streamCompanyType || "").toLowerCase();
