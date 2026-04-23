@@ -878,6 +878,13 @@ export default function PersonalIncome() {
         </DialogContent>
       </Dialog>
 
+      {/* Mobile in-ledger receipt viewer */}
+      <MobileAttachmentViewer
+        transactionId={mobileViewerEntryId}
+        open={!!mobileViewerEntryId}
+        onClose={() => setMobileViewerEntryId(null)}
+      />
+
       {/* Modal 2: Post-Save Smart Recommendation */}
       <RecommendationModal
         open={showRecommendation}
