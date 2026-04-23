@@ -811,7 +811,7 @@ export default function ProjectedIncome() {
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <span className="text-xs text-muted-foreground w-12 shrink-0">{entry.date.slice(5)}</span>
-                            <span className={`text-sm font-medium truncate ${isSkipped || isMatched ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                            <span className={`text-sm font-medium truncate ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
                               {entry.label}
                             </span>
                             {entry.type === "bonus" && (
@@ -869,7 +869,7 @@ export default function ProjectedIncome() {
                                 <ExternalLink className="h-3 w-3" /> View in {viewLabel}
                               </Button>
                             )}
-                            <span className={`text-sm font-semibold ${isSkipped || isMatched ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
                             {/* Actions for active entries */}
