@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
-import { TransactionAttachments } from "@/components/TransactionAttachments";
-import { useAttachmentCounts } from "@/hooks/useAttachments";
+import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
+import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
