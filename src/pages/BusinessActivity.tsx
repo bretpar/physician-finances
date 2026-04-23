@@ -1088,6 +1088,7 @@ export default function Transactions() {
             const displayAmount = isIncomeTx ? Math.abs(tx.amount) : isTransferTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
+            const matchSuggestion = suggestionByManualId.get(tx.id);
 
             return (
               <div
