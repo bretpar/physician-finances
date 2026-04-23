@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "" },
@@ -32,6 +33,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { organizationName, signOut, user } = useAuth();
+
+  // Auto-convert planned income → ledger drafts (no-op if Settings toggle is OFF)
+  usePlannerConversionFallback();
 
   return (
     <div className="flex h-dvh overflow-hidden">
