@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -160,6 +160,9 @@ export default function PersonalIncome() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showSourceError, setShowSourceError] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
+  const uploadAttachments = useUploadAttachments();
 
   // Modal 2 state
   const [showRecommendation, setShowRecommendation] = useState(false);
@@ -228,6 +231,7 @@ export default function PersonalIncome() {
     setEditingId(null);
     setShowSourceError(false);
     setAdvancedOpen(false);
+    setPendingAttachments([]);
     setShowForm(true);
   }
 
@@ -275,6 +279,7 @@ export default function PersonalIncome() {
       Number((entry as any).additional_tax_reserve || 0) > 0 ||
       !!(entry.notes && entry.notes.trim())
     );
+    setPendingAttachments([]);
     setShowForm(true);
   }
 
@@ -400,7 +405,16 @@ export default function PersonalIncome() {
       });
     } else {
       addMutation.mutate(finalPayload as any, {
-        onSuccess: (_, __, context) => {
+        onSuccess: (result) => {
+          const newId = (result as { id?: string } | null)?.id || null;
+          if (newId && pendingAttachments.length > 0) {
+            uploadAttachments.mutate({
+              transactionId: newId,
+              companyId: payloadSourceId || null,
+              files: pendingAttachments,
+            });
+          }
+          setPendingAttachments([]);
           setShowForm(false);
           if (showModal2 && recommendation) {
             setSavedEntryTitle(form.title);
@@ -573,19 +587,34 @@ export default function PersonalIncome() {
                   if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
 
                   return (
-                    <LedgerRow
-                      key={entry.id}
-                      kind={isLoss ? "neutral" : "income"}
-                      title={entry.name || "(No payor)"}
-                      subtitle={typeLabel}
-                      meta={entry.company || null}
-                      date={dateStr}
-                      amount={Number(entry.gross_amount) || 0}
-                      amountTone={isLoss ? "negative" : "positive"}
-                      amountPrefix={isLoss ? "-" : "+"}
-                      badges={badges}
-                      onClick={() => openEdit(entry)}
-                    />
+                    <div key={entry.id}>
+                      <LedgerRow
+                        kind={isLoss ? "neutral" : "income"}
+                        title={entry.name || "(No payor)"}
+                        subtitle={typeLabel}
+                        meta={entry.company || null}
+                        date={dateStr}
+                        amount={Number(entry.gross_amount) || 0}
+                        amountTone={isLoss ? "negative" : "positive"}
+                        amountPrefix={isLoss ? "-" : "+"}
+                        badges={badges}
+                        onClick={() => openEdit(entry)}
+                      />
+                      {attCount > 0 && (
+                        <div className="px-4 pb-3 -mt-1">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMobileViewerEntryId(entry.id);
+                            }}
+                          >
+                            <Paperclip className="h-3 w-3" /> View Receipt{attCount > 1 ? `s (${attCount})` : ""}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -826,7 +855,11 @@ export default function PersonalIncome() {
             )}
 
             {/* Attachments */}
-            <TransactionAttachments transactionId={editingId} />
+            <TransactionAttachments
+              transactionId={editingId}
+              pendingFiles={editingId ? undefined : pendingAttachments}
+              onPendingFilesChange={editingId ? undefined : setPendingAttachments}
+            />
 
             <div className="flex justify-between">
               {isEditing ? (
@@ -844,6 +877,13 @@ export default function PersonalIncome() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Mobile in-ledger receipt viewer */}
+      <MobileAttachmentViewer
+        transactionId={mobileViewerEntryId}
+        open={!!mobileViewerEntryId}
+        onClose={() => setMobileViewerEntryId(null)}
+      />
 
       {/* Modal 2: Post-Save Smart Recommendation */}
       <RecommendationModal
