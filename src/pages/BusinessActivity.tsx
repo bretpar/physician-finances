@@ -1355,6 +1355,13 @@ export default function Transactions() {
       {/* Spacer so the last row isn't hidden behind the sticky mobile selection bar */}
       {mobileSelectionMode && <div className="sm:hidden h-20" aria-hidden />}
 
+      {/* Mobile in-ledger receipt viewer */}
+      <MobileAttachmentViewer
+        transactionId={mobileViewerTxId}
+        open={!!mobileViewerTxId}
+        onClose={() => setMobileViewerTxId(null)}
+      />
+
       {/* ═══════ ADD INCOME MODAL ═══════ */}
       <Dialog open={showIncomeForm} onOpenChange={(open) => { if (!open) { setShowIncomeForm(false); setEditingIncomeTxId(null); } }}>
         <DialogContent className="max-h-[85vh] overflow-y-auto max-w-lg" onOpenAutoFocus={(e) => e.preventDefault()}>
