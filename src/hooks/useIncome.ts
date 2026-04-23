@@ -118,6 +118,9 @@ export function useAddIncome() {
       } as any).select("id").single();
       if (error) throw error;
 
+      const transactionId = (txData as { id: string } | null)?.id || null;
+      const incomeEntryId = (entryData as { id: string } | null)?.id || null;
+
       // 3. Sync payroll HSA into hsa_contributions ledger
       const hsaAmount = Number((entry as any).hsa_contribution || 0);
       if (entryData?.id) {
