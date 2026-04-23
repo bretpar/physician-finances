@@ -587,19 +587,34 @@ export default function PersonalIncome() {
                   if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
 
                   return (
-                    <LedgerRow
-                      key={entry.id}
-                      kind={isLoss ? "neutral" : "income"}
-                      title={entry.name || "(No payor)"}
-                      subtitle={typeLabel}
-                      meta={entry.company || null}
-                      date={dateStr}
-                      amount={Number(entry.gross_amount) || 0}
-                      amountTone={isLoss ? "negative" : "positive"}
-                      amountPrefix={isLoss ? "-" : "+"}
-                      badges={badges}
-                      onClick={() => openEdit(entry)}
-                    />
+                    <div key={entry.id}>
+                      <LedgerRow
+                        kind={isLoss ? "neutral" : "income"}
+                        title={entry.name || "(No payor)"}
+                        subtitle={typeLabel}
+                        meta={entry.company || null}
+                        date={dateStr}
+                        amount={Number(entry.gross_amount) || 0}
+                        amountTone={isLoss ? "negative" : "positive"}
+                        amountPrefix={isLoss ? "-" : "+"}
+                        badges={badges}
+                        onClick={() => openEdit(entry)}
+                      />
+                      {attCount > 0 && (
+                        <div className="px-4 pb-3 -mt-1">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMobileViewerEntryId(entry.id);
+                            }}
+                          >
+                            <Paperclip className="h-3 w-3" /> View Receipt{attCount > 1 ? `s (${attCount})` : ""}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -840,7 +855,11 @@ export default function PersonalIncome() {
             )}
 
             {/* Attachments */}
-            <TransactionAttachments transactionId={editingId} />
+            <TransactionAttachments
+              transactionId={editingId}
+              pendingFiles={editingId ? undefined : pendingAttachments}
+              onPendingFilesChange={editingId ? undefined : setPendingAttachments}
+            />
 
             <div className="flex justify-between">
               {isEditing ? (
