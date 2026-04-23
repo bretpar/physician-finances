@@ -231,6 +231,7 @@ export default function PersonalIncome() {
     setEditingId(null);
     setShowSourceError(false);
     setAdvancedOpen(false);
+    setPendingAttachments([]);
     setShowForm(true);
   }
 
@@ -278,6 +279,7 @@ export default function PersonalIncome() {
       Number((entry as any).additional_tax_reserve || 0) > 0 ||
       !!(entry.notes && entry.notes.trim())
     );
+    setPendingAttachments([]);
     setShowForm(true);
   }
 
@@ -403,7 +405,16 @@ export default function PersonalIncome() {
       });
     } else {
       addMutation.mutate(finalPayload as any, {
-        onSuccess: (_, __, context) => {
+        onSuccess: (result) => {
+          const newId = (result as { id?: string } | null)?.id || null;
+          if (newId && pendingAttachments.length > 0) {
+            uploadAttachments.mutate({
+              transactionId: newId,
+              companyId: payloadSourceId || null,
+              files: pendingAttachments,
+            });
+          }
+          setPendingAttachments([]);
           setShowForm(false);
           if (showModal2 && recommendation) {
             setSavedEntryTitle(form.title);
