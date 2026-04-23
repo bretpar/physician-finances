@@ -41,6 +41,9 @@ export interface TaxRates {
   // ─── HSA ───
   hsaEnabled: boolean;
   hsaSourceCompanyId: string | null;
+  // ─── Forecasting Automation ───
+  /** Auto-convert future planned income into real ledger drafts on/after their date. */
+  autoConvertFutureIncomeToLedger: boolean;
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -70,6 +73,7 @@ const DEFAULT_RATES: TaxRates = {
   businessStateTaxCompanyIds: [],
   hsaEnabled: false,
   hsaSourceCompanyId: null,
+  autoConvertFutureIncomeToLedger: false,
 };
 
 export function useTaxSettings() {
@@ -112,6 +116,7 @@ export function useTaxSettings() {
         businessStateTaxCompanyIds: Array.isArray(d.business_state_tax_company_ids) ? (d.business_state_tax_company_ids as string[]) : [],
         hsaEnabled: !!d.hsa_enabled,
         hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
+        autoConvertFutureIncomeToLedger: !!d.auto_convert_future_income_to_ledger,
       } as TaxRates;
     },
   });
@@ -148,12 +153,14 @@ export function useUpdateTaxSettings() {
       if (rest.businessStateTaxCompanyIds !== undefined) payload.business_state_tax_company_ids = rest.businessStateTaxCompanyIds;
       if (rest.hsaEnabled !== undefined) payload.hsa_enabled = rest.hsaEnabled;
       if (rest.hsaSourceCompanyId !== undefined) payload.hsa_source_company_id = rest.hsaSourceCompanyId;
+      if (rest.autoConvertFutureIncomeToLedger !== undefined) payload.auto_convert_future_income_to_ledger = rest.autoConvertFutureIncomeToLedger;
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tax_settings"] });
+      qc.invalidateQueries({ queryKey: ["tax_settings", "auto_convert_flag"] });
       toast.success("Tax settings saved", { duration: 1500 });
     },
     onError: (e) => toast.error(e.message),

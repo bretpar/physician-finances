@@ -585,6 +585,10 @@ export default function PersonalIncome() {
                   if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
                   if (withheld > 0) badges.push({ label: `Withheld ${fmt(withheld)}`, tone: "muted" });
                   if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
+                  if ((entry as any).origin_type === "planner_converted") {
+                    badges.push({ label: "From Planner", tone: "info" });
+                    badges.push({ label: "Review", tone: "warning" });
+                  }
 
                   return (
                     <div key={entry.id}>

@@ -164,6 +164,8 @@ export type Database = {
           name: string
           notes: string | null
           organization_id: string | null
+          origin_planner_conversion_id: string | null
+          origin_type: string
           paycheck_amount: number
           pre_tax_deductions: number
           quarterly_adjustment_amount: number
@@ -205,6 +207,8 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string | null
+          origin_planner_conversion_id?: string | null
+          origin_type?: string
           paycheck_amount?: number
           pre_tax_deductions?: number
           quarterly_adjustment_amount?: number
@@ -246,6 +250,8 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string | null
+          origin_planner_conversion_id?: string | null
+          origin_type?: string
           paycheck_amount?: number
           pre_tax_deductions?: number
           quarterly_adjustment_amount?: number
@@ -269,6 +275,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "income_entries_origin_planner_conversion_id_fkey"
+            columns: ["origin_planner_conversion_id"]
+            isOneToOne: false
+            referencedRelation: "planner_conversions"
             referencedColumns: ["id"]
           },
         ]
@@ -679,6 +692,76 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_conversions: {
+        Row: {
+          bonus_event_id: string | null
+          created_at: string
+          id: string
+          income_entry_id: string | null
+          ledger_bucket: string
+          needs_review_reason: string | null
+          occurrence_date: string
+          organization_id: string | null
+          status: string
+          stream_id: string | null
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bonus_event_id?: string | null
+          created_at?: string
+          id?: string
+          income_entry_id?: string | null
+          ledger_bucket: string
+          needs_review_reason?: string | null
+          occurrence_date: string
+          organization_id?: string | null
+          status?: string
+          stream_id?: string | null
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bonus_event_id?: string | null
+          created_at?: string
+          id?: string
+          income_entry_id?: string | null
+          ledger_bucket?: string
+          needs_review_reason?: string | null
+          occurrence_date?: string
+          organization_id?: string | null
+          status?: string
+          stream_id?: string | null
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_conversions_bonus_event_id_fkey"
+            columns: ["bonus_event_id"]
+            isOneToOne: true
+            referencedRelation: "projected_bonus_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_conversions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_conversions_stream_id_fkey"
+            columns: ["stream_id"]
+            isOneToOne: false
+            referencedRelation: "projected_income_streams"
             referencedColumns: ["id"]
           },
         ]
@@ -1147,6 +1230,7 @@ export type Database = {
       }
       tax_settings: {
         Row: {
+          auto_convert_future_income_to_ledger: boolean
           business_state_tax_application_mode: string
           business_state_tax_base: string
           business_state_tax_company_ids: string[]
@@ -1180,6 +1264,7 @@ export type Database = {
           withholding_override_type: string
         }
         Insert: {
+          auto_convert_future_income_to_ledger?: boolean
           business_state_tax_application_mode?: string
           business_state_tax_base?: string
           business_state_tax_company_ids?: string[]
@@ -1213,6 +1298,7 @@ export type Database = {
           withholding_override_type?: string
         }
         Update: {
+          auto_convert_future_income_to_ledger?: boolean
           business_state_tax_application_mode?: string
           business_state_tax_base?: string
           business_state_tax_company_ids?: string[]
@@ -1467,6 +1553,8 @@ export type Database = {
           needs_review: boolean
           notes: string | null
           organization_id: string | null
+          origin_planner_conversion_id: string | null
+          origin_type: string
           parent_transaction_id: string | null
           plaid_transaction_ref: string | null
           receipt_url: string | null
@@ -1502,6 +1590,8 @@ export type Database = {
           needs_review?: boolean
           notes?: string | null
           organization_id?: string | null
+          origin_planner_conversion_id?: string | null
+          origin_type?: string
           parent_transaction_id?: string | null
           plaid_transaction_ref?: string | null
           receipt_url?: string | null
@@ -1537,6 +1627,8 @@ export type Database = {
           needs_review?: boolean
           notes?: string | null
           organization_id?: string | null
+          origin_planner_conversion_id?: string | null
+          origin_type?: string
           parent_transaction_id?: string | null
           plaid_transaction_ref?: string | null
           receipt_url?: string | null
@@ -1561,6 +1653,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_origin_planner_conversion_id_fkey"
+            columns: ["origin_planner_conversion_id"]
+            isOneToOne: false
+            referencedRelation: "planner_conversions"
             referencedColumns: ["id"]
           },
           {

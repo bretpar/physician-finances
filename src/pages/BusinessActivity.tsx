@@ -1196,6 +1196,7 @@ export default function Transactions() {
                   if (isTransferTx) badges.push({ label: transferLabel, tone: "info" });
                   else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "muted" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
+                  if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
 
                   // Secondary metadata (behind expand toggle)
                   const attCount = attachmentCounts?.get(tx.id) ?? 0;

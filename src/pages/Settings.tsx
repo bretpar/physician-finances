@@ -44,6 +44,7 @@ import { RestoreTombstonesCard } from "@/components/RestoreTombstonesCard";
 import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
+import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { cn } from "@/lib/utils";
@@ -1513,6 +1514,7 @@ export default function Settings() {
       <TaxWithholdingSection />
       <TaxProfileSection />
       <HsaSettingsSection />
+      <ForecastingAutomationSection />
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
