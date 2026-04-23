@@ -33,6 +33,7 @@ import {
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus,
   useAddOverride, useDeleteOverride,
+  usePlannerConversions,
   generateProjectedPaychecks, getProjectedTotals,
   isStreamExpired,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
@@ -195,6 +196,7 @@ export default function ProjectedIncome() {
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
   const { data: overrides } = useStreamOverrides();
+  const { data: plannerConversions } = usePlannerConversions();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: taxSettings } = useTaxSettings();
   const { forecastEstimate, forecastDebug } = useTaxEstimate();
@@ -248,8 +250,8 @@ export default function ProjectedIncome() {
 
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
-    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || []);
-  }, [streams, bonuses, incomeEntriesForMatching, overrides]);
+    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || []);
+  }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks), [projectedPaychecks]);
 
@@ -690,6 +692,7 @@ export default function ProjectedIncome() {
             const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
             const pastDueEntries = entries.filter((e) => e.matchStatus === "past_due");
             const skippedEntries = entries.filter((e) => e.matchStatus === "skipped");
+            const convertedEntries = entries.filter((e) => e.matchStatus === "converted");
             const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
             const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
             const isExpanded = expandedMonths.has(idx);
@@ -723,6 +726,11 @@ export default function ProjectedIncome() {
                       {matchedEntries.length > 0 && (
                         <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
                           {matchedEntries.length} matched
+                        </Badge>
+                      )}
+                      {convertedEntries.length > 0 && (
+                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
+                          {convertedEntries.length} converted
                         </Badge>
                       )}
                       {pastDueEntries.length > 0 && (
@@ -771,10 +779,12 @@ export default function ProjectedIncome() {
                       const isPastDue = entry.matchStatus === "past_due";
                       const isSkipped = entry.matchStatus === "skipped";
                       const isActive = entry.matchStatus === "active";
+                      const isAutoConverted = entry.matchStatus === "converted";
 
-                      // Check if this skipped entry was converted (has "Converted to actual income" in override notes)
+                      // Check if this skipped entry was converted (legacy: existing override-based flow)
                       const override = overrideLookup.get(`${entry.streamId}:${entry.date}`);
-                      const isConverted = isSkipped && override?.notes?.includes("Converted to actual income");
+                      const isOverrideConverted = isSkipped && override?.notes?.includes("Converted to actual income");
+                      const isConverted = isAutoConverted || isOverrideConverted;
 
                       // Determine link destination for matched/converted entries
                       const _t = (entry.streamCompanyType || "").toLowerCase();
@@ -801,7 +811,7 @@ export default function ProjectedIncome() {
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <span className="text-xs text-muted-foreground w-12 shrink-0">{entry.date.slice(5)}</span>
-                            <span className={`text-sm font-medium truncate ${isSkipped || isMatched ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                            <span className={`text-sm font-medium truncate ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
                               {entry.label}
                             </span>
                             {entry.type === "bonus" && (
@@ -859,7 +869,7 @@ export default function ProjectedIncome() {
                                 <ExternalLink className="h-3 w-3" /> View in {viewLabel}
                               </Button>
                             )}
-                            <span className={`text-sm font-semibold ${isSkipped || isMatched ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
                             {/* Actions for active entries */}

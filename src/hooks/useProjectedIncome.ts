@@ -78,7 +78,15 @@ export interface ProjectedIncomeOverride {
   updated_at: string;
 }
 
-export type ProjectedMatchStatus = "active" | "matched" | "past_due" | "skipped";
+export type ProjectedMatchStatus = "active" | "matched" | "past_due" | "skipped" | "converted";
+
+/** Minimal shape of planner_conversions used to tag occurrences. */
+export interface PlannerConversionRef {
+  stream_id: string | null;
+  bonus_event_id: string | null;
+  occurrence_date: string;
+  status: string;
+}
 
 export interface ProjectedPaycheck {
   date: string;
@@ -218,6 +226,20 @@ export function useStreamOverrides() {
         .order("override_date");
       if (error) throw error;
       return (data || []) as ProjectedIncomeOverride[];
+    },
+  });
+}
+
+/** Fetch planner_conversions for the current user — used to mark planner occurrences as converted. */
+export function usePlannerConversions() {
+  return useQuery({
+    queryKey: ["planner_conversions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("planner_conversions")
+        .select("stream_id, bonus_event_id, occurrence_date, status");
+      if (error) throw error;
+      return (data || []) as PlannerConversionRef[];
     },
   });
 }
@@ -452,6 +474,7 @@ export function generateProjectedPaychecks(
   bonuses: ProjectedBonusEvent[],
   incomeEntries?: MatchableIncomeEntry[],
   overrides?: ProjectedIncomeOverride[],
+  plannerConversions?: PlannerConversionRef[],
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
@@ -463,6 +486,15 @@ export function generateProjectedPaychecks(
   if (overrides) {
     for (const o of overrides) {
       overrideMap.set(`${o.stream_id}:${o.override_date}`, o);
+    }
+  }
+
+  // Index planner conversions by stream_id + date so we can mark occurrences as "converted".
+  const convertedKeys = new Set<string>();
+  if (plannerConversions) {
+    for (const c of plannerConversions) {
+      if (c.status !== "converted") continue;
+      if (c.stream_id) convertedKeys.add(`${c.stream_id}:${c.occurrence_date}`);
     }
   }
 
@@ -616,6 +648,17 @@ export function generateProjectedPaychecks(
         ...raw,
         netAmount: 0,
         matchStatus: "skipped",
+      });
+      continue;
+    }
+
+    // Auto-converted by the planner → ledger bridge: tag as "converted" so the
+    // UI can show it as fulfilled and we don't double-count it as past_due/active.
+    if (convertedKeys.has(`${raw.streamId}:${raw.date}`)) {
+      paychecks.push({
+        ...raw,
+        netAmount: Math.max(0, net),
+        matchStatus: "converted",
       });
       continue;
     }

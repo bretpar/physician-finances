@@ -142,8 +142,21 @@ const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown }
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
-  const { data: entries = [], isLoading } = usePersonalIncomeEntries();
+  const { data: rawEntries = [], isLoading } = usePersonalIncomeEntries();
   const { companies } = useCompanies();
+  const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
+  const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
+  const entries = useMemo(() => {
+    return rawEntries.filter((e: any) => {
+      if (filterReview === "needs_review" && !e.needs_review && e.origin_type !== "planner_converted") return false;
+      if (filterPlanner === "from_planner" && e.origin_type !== "planner_converted") return false;
+      return true;
+    });
+  }, [rawEntries, filterReview, filterPlanner]);
+  const fromPlannerCount = useMemo(
+    () => rawEntries.filter((e: any) => e.origin_type === "planner_converted").length,
+    [rawEntries],
+  );
   const addMutation = useAddPersonalIncome();
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
@@ -488,6 +501,35 @@ export default function PersonalIncome() {
           <p className="text-lg font-bold text-emerald-600">{fmt(totals.totalWithheld)}</p>
         </CardContent></Card>
       </div>
+
+      {/* Filters */}
+      {(fromPlannerCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={filterReview === "needs_review" ? "default" : "outline"}
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setFilterReview(filterReview === "needs_review" ? "all" : "needs_review")}
+          >
+            Needs Review
+          </Button>
+          {fromPlannerCount > 0 && (
+            <Button
+              variant={filterPlanner === "from_planner" ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => setFilterPlanner(filterPlanner === "from_planner" ? "all" : "from_planner")}
+            >
+              From Planner ({fromPlannerCount})
+            </Button>
+          )}
+          {(filterReview !== "all" || filterPlanner !== "all") && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterReview("all"); setFilterPlanner("all"); }}>
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Entries table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
