@@ -144,6 +144,8 @@ export function useAddIncome() {
           console.error("[useAddIncome] HSA sync failed", e);
         }
       }
+
+      return { transactionId, incomeEntryId };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
