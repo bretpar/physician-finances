@@ -198,7 +198,6 @@ export default function Transactions() {
 
   // Suggested matches (pass income entries for net-amount matching)
   const suggestions = useSuggestedMatches(transactions, incomeEntries);
-  const linkMutation = useLinkTransactions();
   const ignoreMutation = useIgnoreMatch();
   // Index suggestions by manual transaction id so individual rows can show their best candidate.
   const suggestionByManualId = useMemo(() => {
