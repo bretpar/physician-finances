@@ -142,8 +142,21 @@ const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown }
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
-  const { data: entries = [], isLoading } = usePersonalIncomeEntries();
+  const { data: rawEntries = [], isLoading } = usePersonalIncomeEntries();
   const { companies } = useCompanies();
+  const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
+  const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
+  const entries = useMemo(() => {
+    return rawEntries.filter((e: any) => {
+      if (filterReview === "needs_review" && !e.needs_review && e.origin_type !== "planner_converted") return false;
+      if (filterPlanner === "from_planner" && e.origin_type !== "planner_converted") return false;
+      return true;
+    });
+  }, [rawEntries, filterReview, filterPlanner]);
+  const fromPlannerCount = useMemo(
+    () => rawEntries.filter((e: any) => e.origin_type === "planner_converted").length,
+    [rawEntries],
+  );
   const addMutation = useAddPersonalIncome();
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
