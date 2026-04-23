@@ -377,6 +377,7 @@ export default function Transactions() {
     setEditingIncomeEntryId(null);
     setLinkedEntry(null);
     setAdvancedOpen(false);
+    setPendingIncomeAttachments([]);
     setShowIncomeForm(true);
   }
 
@@ -384,6 +385,7 @@ export default function Transactions() {
   function openAddExpense() {
     setExpenseForm(emptyExpenseForm);
     setEditingExpenseTxId(null);
+    setPendingExpenseAttachments([]);
     setShowExpenseForm(true);
   }
 
