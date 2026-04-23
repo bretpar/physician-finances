@@ -8,7 +8,7 @@ import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
-import MoneyCards from "@/components/dashboard/MoneyCards";
+import DashboardMetrics from "@/components/dashboard/DashboardMetrics";
 import QuarterlyTracker, { type CompanyQuarterRow } from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
@@ -231,11 +231,9 @@ export default function Dashboard() {
         <p className="text-sm text-muted-foreground">Here's your money at a glance.</p>
       </header>
 
-      <MoneyCards
-        totalEarnedYTD={summary.totalIncome}
-        earnedThisMonth={earnedThisMonth}
-        estimatedTax={annualTaxLiability}
-        userId={user?.id}
+      <DashboardMetrics
+        totalIncomeYTD={summary.totalIncome}
+        businessProfitYTD={summary.businessNetIncome}
       />
 
       <QuarterlyTracker
