@@ -101,7 +101,7 @@ export default function DashboardMetrics({
         <div className="flex items-center justify-end gap-2 mb-3">
           <Label
             htmlFor="projection-toggle"
-            className="text-xs text-muted-foreground cursor-pointer"
+            className="text-[11px] uppercase tracking-wider text-muted-foreground cursor-pointer"
           >
             Projection View
           </Label>
@@ -114,34 +114,49 @@ export default function DashboardMetrics({
         </div>
       )}
 
-      {/* Stacked metrics — minimal styling, large typography */}
+      {/* Stacked metrics — dominant numbers, soft containers, accent bars */}
       <div
         key={showProjection ? "proj" : "ytd"}
-        className="space-y-5 animate-fade-in"
+        className="space-y-3 animate-fade-in"
       >
-        {/* Primary metric */}
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-            {primaryLabel}
-          </p>
-          <p className="text-4xl sm:text-5xl font-bold tabular-nums tracking-tight text-foreground">
-            {fmt(primaryAnim)}
-          </p>
+        {/* Primary metric — Total / Expected Income */}
+        <div className="relative flex items-center gap-3 rounded-2xl bg-card px-4 py-4 sm:py-5 overflow-hidden">
+          <span
+            aria-hidden
+            className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-primary"
+          />
+          <div className="pl-2 min-w-0 flex-1">
+            <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-2">
+              {primaryLabel}
+            </p>
+            <p className="text-[34px] leading-none sm:text-5xl font-bold tabular-nums tracking-tight text-foreground">
+              {fmt(primaryAnim)}
+            </p>
+          </div>
         </div>
 
-        {/* Secondary metric */}
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-            {secondaryLabel}
-          </p>
-          <p
+        {/* Secondary metric — Business Profit */}
+        <div className="relative flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 sm:py-4 overflow-hidden">
+          <span
+            aria-hidden
             className={cn(
-              "text-2xl sm:text-3xl font-semibold tabular-nums tracking-tight",
-              secondaryValue < 0 ? "text-destructive" : "text-foreground",
+              "absolute left-0 top-3 bottom-3 w-1 rounded-r-full",
+              secondaryValue < 0 ? "bg-destructive" : "bg-success",
             )}
-          >
-            {fmt(secondaryAnim)}
-          </p>
+          />
+          <div className="pl-2 min-w-0 flex-1">
+            <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-2">
+              {secondaryLabel}
+            </p>
+            <p
+              className={cn(
+                "text-[26px] leading-none sm:text-[32px] font-semibold tabular-nums tracking-tight",
+                secondaryValue < 0 ? "text-destructive" : "text-foreground",
+              )}
+            >
+              {fmt(secondaryAnim)}
+            </p>
+          </div>
         </div>
       </div>
     </section>
