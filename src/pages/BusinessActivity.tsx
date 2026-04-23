@@ -159,6 +159,7 @@ export default function Transactions() {
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "plaid" | "merged">("all");
   const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
+  const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [hideLinkedDupes, setHideLinkedDupes] = useState(true);
@@ -331,6 +332,7 @@ export default function Transactions() {
       if (filterCompany !== "all" && (t.source_id || "") !== filterCompany) return false;
       if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
       if (filterReview === "needs_review" && !t.needs_review) return false;
+      if (filterPlanner === "from_planner" && (t as any).origin_type !== "planner_converted") return false;
       if (filterDateFrom && t.transaction_date < filterDateFrom) return false;
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
@@ -926,12 +928,20 @@ export default function Transactions() {
               Needs Review ({needsReviewCount})
             </Button>
           )}
+          <Button
+            variant={filterPlanner === "from_planner" ? "default" : "outline"}
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => setFilterPlanner(filterPlanner === "from_planner" ? "all" : "from_planner")}
+          >
+            From Planner
+          </Button>
           <div className="flex gap-2 items-center">
             <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="From" />
             <span className="text-xs text-muted-foreground">to</span>
             <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-8 text-xs w-[130px]" placeholder="To" />
-            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all" || filterReview !== "all") && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterReview("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
+            {(filterDateFrom || filterDateTo || filterCompany !== "all" || filterSource !== "all" || filterReview !== "all" || filterPlanner !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => { setFilterCompany("all"); setFilterSource("all"); setFilterReview("all"); setFilterPlanner("all"); setFilterDateFrom(""); setFilterDateTo(""); }}>
                 Clear
               </Button>
             )}
