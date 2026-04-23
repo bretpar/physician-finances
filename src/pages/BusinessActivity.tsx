@@ -1585,6 +1585,8 @@ export default function Transactions() {
             <TransactionAttachments
               transactionId={editingIncomeTxId}
               companyId={companies.find((c) => c.name === incomeForm.company)?.id || null}
+              pendingFiles={editingIncomeTxId ? undefined : pendingIncomeAttachments}
+              onPendingFilesChange={editingIncomeTxId ? undefined : setPendingIncomeAttachments}
             />
 
             {/* Actions */}
