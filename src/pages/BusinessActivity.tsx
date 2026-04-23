@@ -27,10 +27,10 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
-import { TransactionAttachments } from "@/components/TransactionAttachments";
+import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
 import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
-import { useAttachmentCounts } from "@/hooks/useAttachments";
+import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
@@ -204,11 +204,17 @@ export default function Transactions() {
   const [editingIncomeTxId, setEditingIncomeTxId] = useState<string | null>(null);
   const [editingIncomeEntryId, setEditingIncomeEntryId] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [pendingIncomeAttachments, setPendingIncomeAttachments] = useState<File[]>([]);
 
   // ─── Expense modal state ───
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>(emptyExpenseForm);
   const [editingExpenseTxId, setEditingExpenseTxId] = useState<string | null>(null);
+  const [pendingExpenseAttachments, setPendingExpenseAttachments] = useState<File[]>([]);
+
+  // Mobile in-ledger receipt viewer
+  const [mobileViewerTxId, setMobileViewerTxId] = useState<string | null>(null);
+  const uploadAttachments = useUploadAttachments();
 
   // Delete
   const [deleteTxId, setDeleteTxId] = useState<string | null>(null);
@@ -371,6 +377,7 @@ export default function Transactions() {
     setEditingIncomeEntryId(null);
     setLinkedEntry(null);
     setAdvancedOpen(false);
+    setPendingIncomeAttachments([]);
     setShowIncomeForm(true);
   }
 
@@ -378,6 +385,7 @@ export default function Transactions() {
   function openAddExpense() {
     setExpenseForm(emptyExpenseForm);
     setEditingExpenseTxId(null);
+    setPendingExpenseAttachments([]);
     setShowExpenseForm(true);
   }
 
@@ -638,7 +646,17 @@ export default function Transactions() {
       const showModal2 = isFeatureEnabled("recommendation_modal");
 
       addIncomeMutation.mutate(payload, {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          // Flush any locally staged receipts to the new transaction.
+          const newTxId = (result as { transactionId?: string | null } | undefined)?.transactionId || null;
+          if (newTxId && pendingIncomeAttachments.length > 0) {
+            uploadAttachments.mutate({
+              transactionId: newTxId,
+              companyId: companies.find((c) => c.name === incomeForm.company)?.id || null,
+              files: pendingIncomeAttachments,
+            });
+          }
+          setPendingIncomeAttachments([]);
           if (showModal2 && rec) {
             setSavedEntryTitle(incomeForm.name);
             setCurrentRecommendation(rec);
@@ -652,6 +670,7 @@ export default function Transactions() {
     setIncomeForm(emptyIncomeForm);
     setEditingIncomeTxId(null);
     setEditingIncomeEntryId(null);
+    setPendingIncomeAttachments([]);
   }
 
   // ─── Save Expense / Transfer ───
@@ -660,6 +679,15 @@ export default function Transactions() {
     const amount = num(expenseForm.amount);
     if (amount === 0) return;
     if (!expenseForm.is_transfer && !expenseForm.company) { toast.error("Please select a company"); return; }
+
+    const flushAttachmentsTo = (newTxId: string) => {
+      if (pendingExpenseAttachments.length === 0) return;
+      uploadAttachments.mutate({
+        transactionId: newTxId,
+        companyId: companies.find((c) => c.name === expenseForm.company)?.id || null,
+        files: pendingExpenseAttachments,
+      });
+    };
 
     if (expenseForm.is_transfer) {
       if (isEditingExpense) {
@@ -686,7 +714,12 @@ export default function Transactions() {
           transfer_subtype: expenseForm.transfer_subtype || null,
           entity: expenseForm.company || "Unassigned",
           excluded_from_reports: true,
-        } as any);
+        } as any, {
+          onSuccess: (data) => {
+            const id = (data as { id?: string } | undefined)?.id;
+            if (id) flushAttachmentsTo(id);
+          },
+        });
       }
     } else {
       if (isEditingExpense) {
@@ -710,13 +743,19 @@ export default function Transactions() {
           notes: expenseForm.notes,
           transaction_type: "expense",
           entity: expenseForm.company || "Unassigned",
-        } as any);
+        } as any, {
+          onSuccess: (data) => {
+            const id = (data as { id?: string } | undefined)?.id;
+            if (id) flushAttachmentsTo(id);
+          },
+        });
       }
     }
 
     setShowExpenseForm(false);
     setExpenseForm(emptyExpenseForm);
     setEditingExpenseTxId(null);
+    setPendingExpenseAttachments([]);
   }
 
   function confirmDelete(id: string) { setDeleteTxId(id); }
@@ -1192,7 +1231,19 @@ export default function Transactions() {
                       {tx.notes && (
                         <div className="pt-1"><div className="text-muted-foreground/80 mb-0.5">Notes</div><div className="text-foreground whitespace-pre-wrap break-words">{tx.notes}</div></div>
                       )}
-                      <div className="pt-2">
+                      <div className="pt-2 flex flex-wrap gap-2">
+                        {attCount > 0 && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMobileViewerTxId(tx.id);
+                            }}
+                          >
+                            <Paperclip className="h-3 w-3" /> View Receipt{attCount > 1 ? `s (${attCount})` : ""}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
@@ -1303,6 +1354,13 @@ export default function Transactions() {
 
       {/* Spacer so the last row isn't hidden behind the sticky mobile selection bar */}
       {mobileSelectionMode && <div className="sm:hidden h-20" aria-hidden />}
+
+      {/* Mobile in-ledger receipt viewer */}
+      <MobileAttachmentViewer
+        transactionId={mobileViewerTxId}
+        open={!!mobileViewerTxId}
+        onClose={() => setMobileViewerTxId(null)}
+      />
 
       {/* ═══════ ADD INCOME MODAL ═══════ */}
       <Dialog open={showIncomeForm} onOpenChange={(open) => { if (!open) { setShowIncomeForm(false); setEditingIncomeTxId(null); } }}>
@@ -1546,6 +1604,8 @@ export default function Transactions() {
             <TransactionAttachments
               transactionId={editingIncomeTxId}
               companyId={companies.find((c) => c.name === incomeForm.company)?.id || null}
+              pendingFiles={editingIncomeTxId ? undefined : pendingIncomeAttachments}
+              onPendingFilesChange={editingIncomeTxId ? undefined : setPendingIncomeAttachments}
             />
 
             {/* Actions */}
@@ -1674,6 +1734,8 @@ export default function Transactions() {
             <TransactionAttachments
               transactionId={editingExpenseTxId}
               companyId={companies.find((c) => c.name === expenseForm.company)?.id || null}
+              pendingFiles={editingExpenseTxId ? undefined : pendingExpenseAttachments}
+              onPendingFilesChange={editingExpenseTxId ? undefined : setPendingExpenseAttachments}
             />
 
             {/* Actions */}
