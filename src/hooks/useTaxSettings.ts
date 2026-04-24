@@ -29,6 +29,8 @@ export interface TaxRates {
   withholdingOverridePercent: number | null;
   withholdingOverrideAmount: number | null;
   // ─── State Tax ───
+  stateIncomeTaxEnabled: boolean;
+  /** Backwards-compatible alias for personal state income tax only. */
   stateTaxEnabled: boolean;
   stateOfResidence: string;
   personalStateTaxMode: PersonalStateTaxMode;
@@ -65,6 +67,7 @@ const DEFAULT_RATES: TaxRates = {
   withholdingOverrideType: "none",
   withholdingOverridePercent: null,
   withholdingOverrideAmount: null,
+  stateIncomeTaxEnabled: false,
   stateTaxEnabled: false,
   stateOfResidence: "",
   personalStateTaxMode: "none",
@@ -109,7 +112,8 @@ export function useTaxSettings() {
         withholdingOverrideType: (d.withholding_override_type as WithholdingOverrideType) || "none",
         withholdingOverridePercent: d.withholding_override_percent != null ? Number(d.withholding_override_percent) : null,
         withholdingOverrideAmount: d.withholding_override_amount != null ? Number(d.withholding_override_amount) : null,
-        stateTaxEnabled: !!d.state_tax_enabled,
+        stateIncomeTaxEnabled: !!(d.state_income_tax_enabled ?? d.state_tax_enabled),
+        stateTaxEnabled: !!(d.state_income_tax_enabled ?? d.state_tax_enabled),
         stateOfResidence: (d.state_of_residence as string) || "",
         personalStateTaxMode: (d.personal_state_tax_mode as PersonalStateTaxMode) || "none",
         personalStateTaxRate: Number(d.personal_state_tax_rate) || 0,
@@ -147,7 +151,14 @@ export function useUpdateTaxSettings() {
       if (rest.withholdingOverrideType !== undefined) payload.withholding_override_type = rest.withholdingOverrideType;
       if (rest.withholdingOverridePercent !== undefined) payload.withholding_override_percent = rest.withholdingOverridePercent;
       if (rest.withholdingOverrideAmount !== undefined) payload.withholding_override_amount = rest.withholdingOverrideAmount;
-      if (rest.stateTaxEnabled !== undefined) payload.state_tax_enabled = rest.stateTaxEnabled;
+      if (rest.stateIncomeTaxEnabled !== undefined) {
+        payload.state_income_tax_enabled = rest.stateIncomeTaxEnabled;
+        payload.state_tax_enabled = rest.stateIncomeTaxEnabled;
+      }
+      if (rest.stateTaxEnabled !== undefined) {
+        payload.state_income_tax_enabled = rest.stateTaxEnabled;
+        payload.state_tax_enabled = rest.stateTaxEnabled;
+      }
       if (rest.stateOfResidence !== undefined) payload.state_of_residence = rest.stateOfResidence;
       if (rest.personalStateTaxMode !== undefined) payload.personal_state_tax_mode = rest.personalStateTaxMode;
       if (rest.personalStateTaxRate !== undefined) payload.personal_state_tax_rate = rest.personalStateTaxRate;
