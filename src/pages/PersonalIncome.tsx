@@ -36,7 +36,7 @@ import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -265,18 +265,13 @@ export default function PersonalIncome() {
       Math.round(taxablePaycheckAmount * selectedEffectiveRate * 100) / 100;
 
     // Canonical "Total Federal Payroll Taxes" already withheld on this paycheck:
-    // federal income tax + Social Security + Medicare.
-    // Prefer the visible single-input field when present; otherwise derive via
-    // the shared helper so naming/legacy field shapes never drift.
-    const totalFromFormField = num(form.total_federal_payroll_taxes);
-    const totalFederalPayrollTaxes =
-      totalFromFormField > 0
-        ? totalFromFormField
-        : getTotalFederalPaid({
-            federal_withholding: num(form.federal_withholding),
-            ss_withholding: num(form.ss_withholding),
-            medicare_withholding: num(form.medicare_withholding),
-          });
+    // federal income tax + Social Security + Medicare. Single shared wrapper.
+    const totalFederalPayrollTaxes = getCanonicalTotalFederalPayrollTaxes({
+      total_federal_payroll_taxes: form.total_federal_payroll_taxes,
+      federal_withholding: num(form.federal_withholding),
+      ss_withholding: num(form.ss_withholding),
+      medicare_withholding: num(form.medicare_withholding),
+    });
 
     // Optionally subtract state withholding when state tax is enabled.
     const stateEnabled = !!taxSettings?.stateTaxEnabled;
@@ -328,15 +323,9 @@ export default function PersonalIncome() {
       state_withholding: String(entry.state_withholding),
       ss_withholding: String((entry as any).ss_withholding || 0),
       medicare_withholding: String((entry as any).medicare_withholding || 0),
-      // Prefer the canonical taxes_withheld total when present (new save shape);
-      // fall back to summing the components for legacy rows.
-      total_federal_payroll_taxes: String(
-        Number((entry as any).taxes_withheld || 0) > 0
-          ? Number((entry as any).taxes_withheld || 0)
-          : Number(entry.federal_withholding || 0) +
-            Number((entry as any).ss_withholding || 0) +
-            Number((entry as any).medicare_withholding || 0),
-      ),
+      // Canonical Total Federal Payroll Taxes (shared wrapper handles
+      // taxes_withheld → split-fields fallback for legacy rows).
+      total_federal_payroll_taxes: String(getCanonicalTotalFederalPayrollTaxes(entry as any)),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       healthcare_deduction: String((entry as any).healthcare_deduction || 0),

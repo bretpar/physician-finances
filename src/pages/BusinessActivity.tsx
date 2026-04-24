@@ -31,6 +31,7 @@ import { TransactionAttachments, MobileAttachmentViewer } from "@/components/Tra
 import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
+import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
@@ -423,15 +424,9 @@ export default function Transactions() {
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
         medicare_withholding: linked ? String((linked as any).medicare_withholding || 0) : "",
-        // Prefer canonical taxes_withheld total when populated; otherwise sum components.
+        // Canonical Total Federal Payroll Taxes (shared wrapper).
         total_federal_payroll_taxes: linked
-          ? String(
-              Number((linked as any).taxes_withheld || 0) > 0
-                ? Number((linked as any).taxes_withheld || 0)
-                : Number((linked as any).federal_withholding || 0) +
-                  Number((linked as any).ss_withholding || 0) +
-                  Number((linked as any).medicare_withholding || 0),
-            )
+          ? String(getCanonicalTotalFederalPayrollTaxes(linked as any))
           : "",
         actual_withholding: String((tx as any).actual_withholding || ""),
         additional_tax_reserve: linked ? String((linked as any).additional_tax_reserve || 0) : "0",

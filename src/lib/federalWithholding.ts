@@ -70,3 +70,35 @@ export function buildTotalFederalPayrollTaxes(parts: {
   };
   return n(parts.federal_withholding) + n(parts.ss_withholding) + n(parts.medicare_withholding);
 }
+
+/**
+ * Canonical reader for the Total Federal Payroll Taxes value used across
+ * forms, calculations, and display.
+ *
+ * Precedence:
+ *   1. The unified UI/form field `total_federal_payroll_taxes` if populated (>0).
+ *   2. Otherwise, fall back to `getTotalFederalPaid()` which handles
+ *      `taxes_withheld` (canonical DB total) and legacy split fields.
+ *
+ * Pass any object that may include some/all of these fields:
+ *   - total_federal_payroll_taxes (form-only)
+ *   - taxes_withheld (DB canonical)
+ *   - federal_withholding, ss_withholding, medicare_withholding (split)
+ *
+ * Use this everywhere you previously did:
+ *   `num(form.total_federal_payroll_taxes) > 0 ? ... : getTotalFederalPaid(...)`
+ */
+export interface CanonicalFederalFields extends WithholdingFields {
+  total_federal_payroll_taxes?: number | string | null;
+}
+
+export function getCanonicalTotalFederalPayrollTaxes(
+  source: CanonicalFederalFields | null | undefined,
+): number {
+  if (!source) return 0;
+  const raw = source.total_federal_payroll_taxes;
+  const formTotal = Number(raw ?? 0);
+  if (Number.isFinite(formTotal) && formTotal > 0) return formTotal;
+  return getTotalFederalPaid(source);
+}
+

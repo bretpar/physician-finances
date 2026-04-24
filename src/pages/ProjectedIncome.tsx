@@ -51,6 +51,7 @@ import {
 import { ledgerForIncomeType } from "@/lib/ledgerRouting";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
+import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -343,15 +344,8 @@ export default function ProjectedIncome() {
       state_withholding: String(s.state_withholding || 0),
       ss_withholding: String(s.ss_withholding || 0),
       medicare_withholding: String(s.medicare_withholding || 0),
-      // Prefer the canonical taxes_withheld total when populated (new save shape);
-      // fall back to summing components for legacy streams.
-      total_federal_payroll_taxes: String(
-        Number(s.taxes_withheld || 0) > 0
-          ? Number(s.taxes_withheld || 0)
-          : Number(s.federal_withholding || 0) +
-            Number(s.ss_withholding || 0) +
-            Number(s.medicare_withholding || 0),
-      ),
+      // Canonical Total Federal Payroll Taxes (shared wrapper).
+      total_federal_payroll_taxes: String(getCanonicalTotalFederalPayrollTaxes(s as any)),
       retirement_401k: String(s.retirement_401k),
       healthcare_deduction: String(s.healthcare_deduction || 0),
       hsa_contribution: String(s.hsa_contribution || 0),
