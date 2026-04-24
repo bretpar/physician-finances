@@ -26,6 +26,10 @@ interface QuarterlyTrackerProps {
   personalEntries: any[];
   transactions: any[];
   companies: { id: string; name: string; companyType?: string }[];
+  /** "even" = annual / 4. "dynamic" = share-based on actual + planned income in this quarter. */
+  quarterMethod?: "even" | "dynamic";
+  /** Projected paychecks (date + grossAmount). Used only when quarterMethod="dynamic". */
+  projectedPaychecks?: Array<{ date: string; grossAmount: number }>;
 }
 
 const fmt = (n: number) =>
@@ -92,6 +96,8 @@ export default function QuarterlyTracker({
   personalEntries,
   transactions,
   companies,
+  quarterMethod = "even",
+  projectedPaychecks = [],
 }: QuarterlyTrackerProps) {
   const initial = useMemo(() => currentOwningYear(), []);
   const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
@@ -173,7 +179,48 @@ export default function QuarterlyTracker({
     () => getQuarterPayments(payments, q.label as QuarterLabel, view.year),
     [payments, q.label, view.year],
   );
-  const quarterTarget = Math.max(0, annualTaxLiability / 4);
+
+  // Quarter target — either even (annual/4) or dynamic (share of annual liability
+  // proportional to this quarter's actual + planned gross income vs full-year).
+  const quarterTarget = useMemo(() => {
+    if (quarterMethod !== "dynamic") {
+      return Math.max(0, annualTaxLiability / 4);
+    }
+    const inWin = (iso: string) => {
+      const d = new Date(iso);
+      return d >= q.start && d < q.end;
+    };
+    // Actual income for the year (business + personal, by income_date)
+    const yearStart = new Date(view.year, 0, 1);
+    const yearEnd = new Date(view.year + 1, 0, 1);
+    const inYear = (iso: string) => {
+      const d = new Date(iso);
+      return d >= yearStart && d < yearEnd;
+    };
+    let qIncome = 0;
+    let yearIncome = 0;
+    for (const t of transactions || []) {
+      if (t.transaction_type !== "income") continue;
+      const amt = Math.abs(Number(t.amount) || 0);
+      if (inYear(t.transaction_date)) yearIncome += amt;
+      if (inWin(t.transaction_date)) qIncome += amt;
+    }
+    for (const e of personalEntries || []) {
+      const amt = Number(e.gross_amount || e.paycheck_amount || 0);
+      if (inYear(e.income_date)) yearIncome += amt;
+      if (inWin(e.income_date)) qIncome += amt;
+    }
+    // Add planned/projected paychecks (future occurrences)
+    for (const p of projectedPaychecks || []) {
+      const amt = Number(p.grossAmount || 0);
+      if (inYear(p.date)) yearIncome += amt;
+      if (inWin(p.date)) qIncome += amt;
+    }
+    if (yearIncome <= 0) return 0;
+    const share = qIncome / yearIncome;
+    return Math.max(0, annualTaxLiability * share);
+  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year]);
+
   const paidFromCompanies = companyRows.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
   const rawSavedThisQuarter = companyRows.reduce((s, c) => s + c.saved, 0);
