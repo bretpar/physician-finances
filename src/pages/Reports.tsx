@@ -253,7 +253,7 @@ export default function Reports() {
       const personalStateRate = pct(est.personalStateTax || 0);
       const businessStateRate = pct(est.businessStateTax || 0);
       const allInRate = est.effectiveRate.toFixed(2) + "%";
-      const stateEnabled = !!taxSettings?.stateTaxEnabled;
+      const stateEnabled = !!taxSettings?.stateIncomeTaxEnabled;
       const businessStateEnabled = !!taxSettings?.businessStateTaxEnabled;
       const basis = forecastEstimate ? "Current + Planned income" : "Current income (actuals)";
 
