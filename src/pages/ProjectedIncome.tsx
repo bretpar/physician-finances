@@ -1191,7 +1191,7 @@ export default function ProjectedIncome() {
                       }
                     />
                   )}
-                  {!!taxSettings?.stateTaxEnabled && showField("state_withholding") && (
+                  {!!taxSettings?.stateIncomeTaxEnabled && showField("state_withholding") && (
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">State tax withheld</Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00"

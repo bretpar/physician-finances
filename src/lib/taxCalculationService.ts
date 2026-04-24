@@ -84,6 +84,8 @@ export interface UnifiedTaxInput {
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
 
+  stateIncomeTaxEnabled?: boolean;
+  /** Backwards-compatible alias for personal state income tax only. */
   stateTaxEnabled?: boolean;
   personalStateTaxMode?: "none" | "flat_rate" | "annual_estimate";
   personalStateTaxRate?: number;
@@ -204,6 +206,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     withholdingOverrideType = "none",
     withholdingOverridePercent = null,
     withholdingOverrideAmount = null,
+    stateIncomeTaxEnabled,
     stateTaxEnabled = false,
     personalStateTaxMode = "none",
     personalStateTaxRate = 0,
@@ -253,6 +256,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const actualHealthInsuranceDeduction = ownerHealthcare;
   const healthInsuranceDeduction = actualHealthInsuranceDeduction + projHealthInsurance;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
+  const personalStateTaxableIncome = Math.max(0, personalW2 + personalNonW2Income + projW2 - personalPreTax - personalRetirement - projPreTax - projRetirement);
 
   // ── Credits against tax (explicit) ──
   const actualFederalWithheld = businessFederalWithheld + personalFederalWithheld;
@@ -264,10 +268,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const additionalTaxPaid = actualEstimatedPaymentsMade;
 
   const stateTaxInputs: StateTaxInputs = {
-    stateTaxEnabled,
+    stateIncomeTaxEnabled: stateIncomeTaxEnabled ?? stateTaxEnabled,
     personalStateTaxMode,
     personalStateTaxRate,
     personalStateTaxAnnualEstimate,
+    personalStateTaxableIncome,
     personalStateWithheld: actualStateWithheld + projStateWH,
     businessStateTaxEnabled,
     businessStateTaxRate,

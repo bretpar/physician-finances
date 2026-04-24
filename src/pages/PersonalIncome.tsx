@@ -171,7 +171,7 @@ export default function PersonalIncome() {
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
   const { actualEstimate, forecastEstimate } = useTaxEstimate();
-  const stateTaxEnabled = !!taxSettings?.stateTaxEnabled;
+  const stateIncomeTaxEnabled = !!taxSettings?.stateIncomeTaxEnabled;
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -285,7 +285,7 @@ export default function PersonalIncome() {
       medicare_withholding: num(form.medicare_withholding),
     });
 
-    const stateEnabled = !!taxSettings.stateTaxEnabled;
+    const stateEnabled = !!taxSettings.stateIncomeTaxEnabled;
     const stateAlreadyWithheld = stateEnabled ? num(form.state_withholding) : 0;
 
     const result = calculatePaycheckProfileSavings({
@@ -387,7 +387,7 @@ export default function PersonalIncome() {
     const fedIncomeTaxOnly = num(form.federal_withholding);
     const ssOnly = num(form.ss_withholding);
     const medicareOnly = num(form.medicare_withholding);
-    const stateW = stateTaxEnabled ? num(form.state_withholding) : 0;
+    const stateW = stateIncomeTaxEnabled ? num(form.state_withholding) : 0;
     const totalWithheld = totalFederal + stateW;
     const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
@@ -913,7 +913,7 @@ export default function PersonalIncome() {
               />
             )}
 
-            {stateTaxEnabled && showField("state_withholding") && (
+            {stateIncomeTaxEnabled && showField("state_withholding") && (
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">State tax withheld</Label>
                 <Input

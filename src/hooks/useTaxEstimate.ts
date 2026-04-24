@@ -374,7 +374,7 @@ export function useTaxEstimate(): {
       withholdingOverrideType: rates.withholdingOverrideType,
       withholdingOverridePercent: rates.withholdingOverridePercent,
       withholdingOverrideAmount: rates.withholdingOverrideAmount,
-      stateTaxEnabled: rates.stateTaxEnabled,
+      stateIncomeTaxEnabled: rates.stateIncomeTaxEnabled,
       personalStateTaxMode: rates.personalStateTaxMode,
       personalStateTaxRate: rates.personalStateTaxRate,
       personalStateTaxAnnualEstimate: rates.personalStateTaxAnnualEstimate,
