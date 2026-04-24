@@ -362,18 +362,17 @@ export default function QuarterlyTracker({
           {methodLabel ? ` · ${methodLabel}` : ""}
           {forceClosed ? " · debug: quarter forced closed" : ""}
         </p>
-        {/* Debug-only: force the SELECTED quarter to be treated as closed.
-            Hidden until the user opts in via localStorage so the UI stays clean. */}
-        {(forceClosed || debugFlags.forceQuarterClosed()) && (
-          <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground select-none">
-            <Switch
-              checked={forceClosed}
-              onCheckedChange={(v) => debugFlags.setForceQuarterClosed(!!v)}
-              aria-label="Force selected quarter closed (debug)"
-            />
-            <span>Force {q.label} {view.year} closed (debug)</span>
-          </label>
-        )}
+        {/* Debug: force the SELECTED quarter to be treated as closed so you can
+            verify end-of-quarter behavior (planned income → 0, past-quarter
+            messaging) without waiting for the deadline to pass. */}
+        <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground select-none">
+          <Switch
+            checked={forceClosed}
+            onCheckedChange={(v) => debugFlags.setForceQuarterClosed(!!v)}
+            aria-label="Force selected quarter closed (debug)"
+          />
+          <span>Force {q.label} {view.year} closed (debug)</span>
+        </label>
       </CardHeader>
       <CardContent className="space-y-3 pb-10">
         {/* Primary numbers — 2-up */}
