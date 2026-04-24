@@ -34,6 +34,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { DateField } from "@/components/DateField";
