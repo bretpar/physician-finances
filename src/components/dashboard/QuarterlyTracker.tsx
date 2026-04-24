@@ -112,6 +112,10 @@ export default function QuarterlyTracker({
 
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
+  // Debug: force the SELECTED quarter to behave as closed (planned income → 0,
+  // status uses past-quarter branch). Scoped to the currently-viewed quarter.
+  const forceClosed = useDebugFlag(debugFlags.forceQuarterClosed);
+
   // ── Build per-company rows for the SELECTED quarter window ──────────────
   const companyRows: CompanyQuarterRow[] = useMemo(() => {
     const inQuarter = (iso: string) => {
