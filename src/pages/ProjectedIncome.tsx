@@ -343,10 +343,14 @@ export default function ProjectedIncome() {
       state_withholding: String(s.state_withholding || 0),
       ss_withholding: String(s.ss_withholding || 0),
       medicare_withholding: String(s.medicare_withholding || 0),
+      // Prefer the canonical taxes_withheld total when populated (new save shape);
+      // fall back to summing components for legacy streams.
       total_federal_payroll_taxes: String(
-        Number(s.federal_withholding || 0) +
-        Number(s.ss_withholding || 0) +
-        Number(s.medicare_withholding || 0)
+        Number(s.taxes_withheld || 0) > 0
+          ? Number(s.taxes_withheld || 0)
+          : Number(s.federal_withholding || 0) +
+            Number(s.ss_withholding || 0) +
+            Number(s.medicare_withholding || 0),
       ),
       retirement_401k: String(s.retirement_401k),
       healthcare_deduction: String(s.healthcare_deduction || 0),
@@ -446,14 +450,19 @@ export default function ProjectedIncome() {
       start_date: form.start_date,
       end_date: isOneTime ? null : (form.end_date || null),
       paycheck_amount: num(form.paycheck_amount),
-      // Aggregate "taxes_withheld" stays as the catch-all for non-W-2 flows;
-      // for W-2 it's mirrored to federal_withholding so tax math still works.
-      taxes_withheld: showField("taxes_withheld")
-        ? num(form.taxes_withheld)
-        : num(form.federal_withholding),
-      // Canonical federal total (federal income tax + SS + Medicare).
-      // Stored in federal_withholding so the engine reads a single value.
-      federal_withholding: showField("federal_withholding") ? num(form.total_federal_payroll_taxes) : 0,
+      // CANONICAL: taxes_withheld = total federal payroll taxes
+      // (federal income tax + Social Security + Medicare). Read everywhere
+      // via getTotalFederalPaid(). For W-2 streams we mirror the form's
+      // total_federal_payroll_taxes here. For non-W-2 we keep the form's
+      // taxes_withheld field.
+      taxes_withheld: showField("federal_withholding")
+        ? num(form.total_federal_payroll_taxes)
+        : (showField("taxes_withheld")
+            ? num(form.taxes_withheld)
+            : num(form.federal_withholding)),
+      // federal_withholding = federal income tax COMPONENT only
+      // (NOT the combined total). Combined total lives in taxes_withheld.
+      federal_withholding: showField("federal_withholding") ? num(form.federal_withholding) : 0,
       state_withholding: showField("state_withholding") ? num(form.state_withholding) : 0,
       ss_withholding: showField("ss_withholding") ? num(form.ss_withholding) : 0,
       medicare_withholding: showField("medicare_withholding") ? num(form.medicare_withholding) : 0,

@@ -423,11 +423,14 @@ export default function Transactions() {
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
         medicare_withholding: linked ? String((linked as any).medicare_withholding || 0) : "",
+        // Prefer canonical taxes_withheld total when populated; otherwise sum components.
         total_federal_payroll_taxes: linked
           ? String(
-              Number((linked as any).federal_withholding || 0) +
-              Number((linked as any).ss_withholding || 0) +
-              Number((linked as any).medicare_withholding || 0)
+              Number((linked as any).taxes_withheld || 0) > 0
+                ? Number((linked as any).taxes_withheld || 0)
+                : Number((linked as any).federal_withholding || 0) +
+                  Number((linked as any).ss_withholding || 0) +
+                  Number((linked as any).medicare_withholding || 0),
             )
           : "",
         actual_withholding: String((tx as any).actual_withholding || ""),
@@ -484,15 +487,24 @@ export default function Transactions() {
       showField(key) ? current : (linkedEntry ? savedVal : current);
 
     const depositedAmt = preserve("net_received", num(incomeForm.net_received), linkedEntry?.deposited_amount || 0);
-    const taxWithheld = preserve("taxes_withheld", num(incomeForm.taxes_withheld), linkedEntry?.taxes_withheld || 0);
+    // Canonical "Total Federal Payroll Taxes" = federal income tax + SS + Medicare.
+    // For W-2 / S-Corp W-2 forms (where total_federal_payroll_taxes is shown),
+    // this is the source of truth and is stored in `taxes_withheld`.
+    // For non-W-2 forms (1099/K-1) the form's `taxes_withheld` field is shown
+    // and used directly.
+    const totalFederal = num(incomeForm.total_federal_payroll_taxes);
+    const isW2Form = showField("federal_withholding");
+    const taxWithheld = isW2Form
+      ? totalFederal
+      : preserve("taxes_withheld", num(incomeForm.taxes_withheld), linkedEntry?.taxes_withheld || 0);
     const preTaxDed = preserve("pre_tax_deductions", num(incomeForm.pre_tax_deductions), linkedEntry?.pre_tax_deductions || 0);
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
     const healthcare = preserve("healthcare_deduction", num(incomeForm.healthcare_deduction), (linkedEntry as any)?.healthcare_deduction || 0);
     const hsa = preserve("hsa_contribution", num(incomeForm.hsa_contribution), (linkedEntry as any)?.hsa_contribution || 0);
-    // Canonical federal total = federal income tax + SS + Medicare. Stored in
-    // federal_withholding so the tax engine reads a single value.
-    const totalFederal = num(incomeForm.total_federal_payroll_taxes);
-    const fedWH = preserve("federal_withholding", totalFederal, (linkedEntry as any)?.federal_withholding || 0);
+    // federal_withholding stores the federal income tax COMPONENT only
+    // (NOT the combined total). The combined total lives in taxes_withheld
+    // and is read everywhere via getTotalFederalPaid().
+    const fedWH = preserve("federal_withholding", num(incomeForm.federal_withholding), (linkedEntry as any)?.federal_withholding || 0);
     const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
     const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);

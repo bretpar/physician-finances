@@ -5,6 +5,7 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { toast } from "sonner";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import type { IncomeEntry } from "@/hooks/useIncome";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 export interface SuggestedMatch {
   manualTx: DbTransaction;
@@ -114,10 +115,19 @@ export function useSuggestedMatches(
           const linkedIncome = incomeByTxId.get(m.id);
           const deposited = Number(linkedIncome?.deposited_amount || 0);
           const gross = Number(linkedIncome?.paycheck_amount || mAmount);
-          const taxesWithheld = Number(linkedIncome?.taxes_withheld || 0);
+          // Canonical "Total Federal Payroll Taxes" via shared helper
+          // (federal income tax + Social Security + Medicare). State is
+          // intentionally separate.
+          const totalFederalPayroll = getTotalFederalPaid(linkedIncome as any);
+          const stateW = Number((linkedIncome as any)?.state_withholding || 0);
           const preTaxDed = Number(linkedIncome?.pre_tax_deductions || 0);
           const retirement = Number(linkedIncome?.retirement_401k || 0);
-          const calcNet = Math.max(0, gross - taxesWithheld - preTaxDed - retirement);
+          const healthcare = Number((linkedIncome as any)?.healthcare_deduction || 0);
+          const hsa = Number((linkedIncome as any)?.hsa_contribution || 0);
+          const calcNet = Math.max(
+            0,
+            gross - totalFederalPayroll - stateW - preTaxDed - retirement - healthcare - hsa,
+          );
 
           // Prefer deposited_amount when present
           if (deposited > 0) {

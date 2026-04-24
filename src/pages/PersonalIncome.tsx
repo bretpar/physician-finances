@@ -357,10 +357,14 @@ export default function PersonalIncome() {
       state_withholding: String(entry.state_withholding),
       ss_withholding: String((entry as any).ss_withholding || 0),
       medicare_withholding: String((entry as any).medicare_withholding || 0),
+      // Prefer the canonical taxes_withheld total when present (new save shape);
+      // fall back to summing the components for legacy rows.
       total_federal_payroll_taxes: String(
-        Number(entry.federal_withholding || 0) +
-        Number((entry as any).ss_withholding || 0) +
-        Number((entry as any).medicare_withholding || 0)
+        Number((entry as any).taxes_withheld || 0) > 0
+          ? Number((entry as any).taxes_withheld || 0)
+          : Number(entry.federal_withholding || 0) +
+            Number((entry as any).ss_withholding || 0) +
+            Number((entry as any).medicare_withholding || 0),
       ),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
@@ -393,8 +397,13 @@ export default function PersonalIncome() {
 
   function buildPayload() {
     const grossAmt = num(form.gross_amount);
-    // Single canonical federal total (auto-summed from breakdown when present).
+    // Canonical "Total Federal Payroll Taxes" — federal income tax + SS + Medicare.
+    // (Auto-summed from breakdown when present in the input.)
     const totalFederal = num(form.total_federal_payroll_taxes);
+    // Split components — preserved separately so reports / breakdowns stay accurate.
+    const fedIncomeTaxOnly = num(form.federal_withholding);
+    const ssOnly = num(form.ss_withholding);
+    const medicareOnly = num(form.medicare_withholding);
     const stateW = stateTaxEnabled ? num(form.state_withholding) : 0;
     const totalWithheld = totalFederal + stateW;
     const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction);
@@ -425,14 +434,17 @@ export default function PersonalIncome() {
         deposited_amount: netReceived,
         cost_basis: isStockType(form.income_type) ? num(form.cost_basis) : null,
         realized_gain_loss: isStockType(form.income_type) ? num(form.realized_gain_loss) : null,
-        // The canonical federal total (federal income tax + SS + Medicare).
-        // Stored in federal_withholding so the tax engine reads a single value.
-        federal_withholding: totalFederal,
+        // CANONICAL: taxes_withheld = total federal payroll taxes
+        // (federal income tax + Social Security + Medicare). This is the
+        // single value all read paths consume via getTotalFederalPaid().
         taxes_withheld: totalFederal,
+        // Federal income tax COMPONENT only (NOT the combined total).
+        // If the user only entered the single total field, store 0 here —
+        // getTotalFederalPaid() will fall back to taxes_withheld.
+        federal_withholding: fedIncomeTaxOnly,
+        ss_withholding: ssOnly,
+        medicare_withholding: medicareOnly,
         state_withholding: stateW,
-        // Preserve the breakdown for backward compat / reporting.
-        ss_withholding: num(form.ss_withholding),
-        medicare_withholding: num(form.medicare_withholding),
         retirement_401k: num(form.retirement_pretax),
         pre_tax_deductions: num(form.deductions_pre_tax),
         healthcare_deduction: num(form.healthcare_deduction),
