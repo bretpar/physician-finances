@@ -77,6 +77,7 @@ function getMismatches(a: TaxDebugBreakdown, b: TaxDebugBreakdown): FieldDef[] {
     const va = a[f.key];
     const vb = b[f.key];
     if (f.isBool) return va !== vb;
+    if (f.isText) return va !== vb;
     return Math.abs((va as number) - (vb as number)) > 0.01;
   });
 }
