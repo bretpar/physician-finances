@@ -330,25 +330,29 @@ export default function QuarterlyTracker({
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2 min-w-0">
             <Icon className={cn("h-5 w-5 shrink-0", toneStyles.accent)} />
-            <span className="truncate">Quarterly Tax Progress ({q.label} {view.year})</span>
+            <span className="truncate">{q.label} Tax Progress</span>
           </CardTitle>
           <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-1 truncate">
-          Pace toward the {q.deadlineLabel} tax deadline
-          {methodLabel ? ` · ${methodLabel}` : ""}
-        </p>
       </CardHeader>
-      <CardContent className="space-y-3 pb-10">
-        {/* Primary numbers — 2-up */}
-        <div className="grid grid-cols-2 gap-3">
+      <CardContent className="space-y-4 pb-10">
+        {/* Primary numbers — stack on mobile, 2-up on sm+ */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Paid + Saved QTD</p>
-            <p className="text-lg font-semibold tabular-nums text-foreground">{fmt(progressAmount)}</p>
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium">
+              Paid + Saved QTD
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground mt-0.5 whitespace-nowrap">
+              {fmt(progressAmount)}
+            </p>
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Suggested by today</p>
-            <p className={cn("text-lg font-semibold tabular-nums", toneStyles.accent)}>{fmt(expectedByNow)}</p>
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium">
+              Suggested by today
+            </p>
+            <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-0.5 whitespace-nowrap", toneStyles.accent)}>
+              {fmt(expectedByNow)}
+            </p>
           </div>
         </div>
 
