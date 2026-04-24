@@ -366,8 +366,6 @@ export default function PersonalIncome() {
             Number((entry as any).ss_withholding || 0) +
             Number((entry as any).medicare_withholding || 0),
       ),
-        Number((entry as any).medicare_withholding || 0)
-      ),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       healthcare_deduction: String((entry as any).healthcare_deduction || 0),
