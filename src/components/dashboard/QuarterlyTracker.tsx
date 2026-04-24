@@ -315,9 +315,15 @@ export default function QuarterlyTracker({
   const adjustedCompanyRows = sortedCompanies.map((c) => {
     const share = rawSavedThisQuarter > 0 ? c.saved / rawSavedThisQuarter : 0;
     const adjSaved = Math.max(0, c.saved - offset * share);
-    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved };
+    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved, sources: c.sources };
   });
-  const rows = [
+  const rows: Array<{
+    key: string;
+    label: string;
+    paid: number;
+    saved: number;
+    sources?: Partial<Record<FederalWithholdingSource, number>>;
+  }> = [
     ...adjustedCompanyRows,
     {
       key: "__quarterly_payments__",
@@ -421,12 +427,26 @@ export default function QuarterlyTracker({
                 ) : (
                   rows.map((r) => {
                     const empty = r.paid === 0 && r.saved === 0;
+                    const showSrc = debugFlags.withholdingSource() && r.sources;
+                    const srcSummary = showSrc
+                      ? Object.entries(r.sources!)
+                          .filter(([, n]) => (n ?? 0) > 0)
+                          .map(([s, n]) => `${federalSourceLabel(s as FederalWithholdingSource)}×${n}`)
+                          .join(", ")
+                      : "";
                     return (
                       <div
                         key={r.key}
                         className="px-3 py-2 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 text-sm"
                       >
-                        <span className={cn("truncate", empty && "text-muted-foreground")}>{r.label}</span>
+                        <span className={cn("truncate flex flex-col min-w-0", empty && "text-muted-foreground")}>
+                          <span className="truncate">{r.label}</span>
+                          {showSrc && srcSummary && (
+                            <span className="text-[10px] text-muted-foreground truncate">
+                              src: {srcSummary}
+                            </span>
+                          )}
+                        </span>
                         <span className={cn("tabular-nums text-right w-16", r.paid === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
                           {fmt(r.paid)}
                         </span>
