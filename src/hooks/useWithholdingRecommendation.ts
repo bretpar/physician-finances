@@ -177,11 +177,6 @@ export function useWithholdingRecommendation() {
       const countedCreditsTotal = debug.countedCreditsTotal;
       const annualRemainingTax = debug.remainingTaxDue; // = max(0, liability − credits)
 
-      // Remaining pay periods → used to spread the uncovered remainder. Falls
-      // back to 1 so we never divide by zero. This is the employer-agnostic
-      // way of answering "how much MORE should be withheld on this check?"
-      const remainingPayPeriods = Math.max(1, Number((estimate as any).remainingPayPeriods) || 1);
-
       // ── W-2 path: annual-remaining-tax distribution ─────────────────────
       if (isW2) {
         const paycheckTarget = netTaxableForEntry * (selectedProfile.federalProfileRate / 100);
