@@ -169,6 +169,7 @@ export default function PersonalIncome() {
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
+  const { actualEstimate, forecastEstimate } = useTaxEstimate();
   const stateTaxEnabled = !!taxSettings?.stateTaxEnabled;
 
   const [showForm, setShowForm] = useState(false);
