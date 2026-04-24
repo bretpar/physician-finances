@@ -258,9 +258,8 @@ export default function PersonalIncome() {
     if (grossAmount <= 0 || !taxSettings) return null;
 
     // 1. Resolve effective rate via the shared bucket-aware selector.
-    //    Personal Income card → personal bucket: federal + employee SS +
-    //    employee Medicare (W-2 only) + personal state (if enabled).
-    //    Never includes SE / B&O / business state.
+    //    Personal Income card → federal income tax profile rate only.
+    //    Payroll and state withholdings reduce the recommendation below.
     const rateSel = getSavingsRateForIncomeBucket({
       incomeBucket: "personal",
       incomeType: form.income_type,
