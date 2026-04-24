@@ -65,6 +65,15 @@ export interface SavingsRateResult {
   label: string;
 }
 
+export type WithholdingProfileRateSource = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
+
+export interface WithholdingProfileRateResult {
+  methodUsed: WithholdingProfileRateSource;
+  federalProfileRate: number;
+  source: WithholdingProfileRateSource;
+  label: string;
+}
+
 const ZERO_COMPONENTS = {
   federal: 0,
   employeeSocialSecurity: 0,
@@ -74,13 +83,48 @@ const ZERO_COMPONENTS = {
   businessState: 0,
 };
 
-/** Personal state income tax % only when personal state income tax is enabled and a flat rate
- *  is configured. (annual_estimate mode is dollar-based, not a rate, so it
- *  doesn't fold into a per-paycheck percentage.) */
-function getPersonalStateRate(s: SavingsRateSettingsLike): number {
-  if (!(s?.stateIncomeTaxEnabled ?? s?.stateTaxEnabled)) return 0;
-  if (s.personalStateTaxMode !== "flat_rate") return 0;
-  return Math.max(0, Number(s.personalStateTaxRate || 0));
+const roundRate = (n: number) => Math.round(Math.max(0, Number(n) || 0) * 100) / 100;
+
+function dynamicFederalProfileRate(estimate: TaxEstimate | null | undefined): number {
+  const federalTaxAfterCredits = Math.max(0, Number(estimate?.federalTax || 0));
+  const taxableIncome = Math.max(0, Number(estimate?.taxableIncome || 0));
+  if (taxableIncome <= 0) return 0;
+  return roundRate((federalTaxAfterCredits / taxableIncome) * 100);
+}
+
+export function getSelectedWithholdingProfileRate(input: {
+  taxSettings: SavingsRateSettingsLike | null | undefined;
+  actualEstimate: TaxEstimate | null | undefined;
+  forecastEstimate: TaxEstimate | null | undefined;
+}): WithholdingProfileRateResult {
+  const settings = input.taxSettings ?? {};
+  const method = (settings.withholdingMethod || "dynamic_actual") as WithholdingProfileRateSource;
+
+  if (method === "flat_estimate") {
+    const federalProfileRate = roundRate(settings.manualEffectiveTaxRate ?? 0);
+    return {
+      methodUsed: "flat_estimate",
+      federalProfileRate,
+      source: "flat_estimate",
+      label: `Flat ${federalProfileRate.toFixed(1)}% federal estimate`,
+    };
+  }
+
+  if (method === "dynamic_planner") {
+    return {
+      methodUsed: "dynamic_planner",
+      federalProfileRate: dynamicFederalProfileRate(input.forecastEstimate),
+      source: "dynamic_planner",
+      label: "Based on actual + planned income",
+    };
+  }
+
+  return {
+    methodUsed: "dynamic_actual",
+    federalProfileRate: dynamicFederalProfileRate(input.actualEstimate),
+    source: "dynamic_actual",
+    label: "Based on combined actual income",
+  };
 }
 
 /** Business state / B&O rate. Independent from the personal state income switch. */
@@ -111,26 +155,23 @@ export function getSavingsRateForIncomeBucket(
 ): SavingsRateResult {
   const { incomeBucket, incomeType, taxSettings } = input;
   const settings = taxSettings ?? {};
-  const method = (settings.withholdingMethod || "dynamic_actual") as SavingsRateResult["method"];
+  const profile = getSelectedWithholdingProfileRate({
+    taxSettings: settings,
+    actualEstimate: input.actualEstimate,
+    forecastEstimate: input.forecastEstimate,
+  });
+  const method = profile.methodUsed;
   const selectedEstimate = method === "dynamic_planner" ? input.forecastEstimate : input.actualEstimate;
 
-  // ── Federal portion (varies by method) ─────────────────────────────────
-  let federal = 0;
-  if (method === "flat_estimate") {
-    federal = Math.max(0, Number(settings.manualEffectiveTaxRate ?? 0));
-  } else if (method === "dynamic_planner") {
-    federal = Math.max(0, Number(input.forecastEstimate?.federalEffectiveRate ?? 0));
-  } else {
-    federal = Math.max(0, Number(input.actualEstimate?.federalEffectiveRate ?? 0));
-  }
+  // ── Federal portion (shared selected withholding profile rate) ──────────
+  const federal = profile.federalProfileRate;
 
   const components = { ...ZERO_COMPONENTS, federal };
 
   if (incomeBucket === "personal") {
-    // Personal paycheck guide — federal + personal state income tax only.
+    // Personal paycheck guide — selected federal profile rate only.
     // Employee SS/Medicare reduce the recommendation as withheld credits;
-    // business state tax and SE never apply here.
-    components.personalState = getPersonalStateRate(settings);
+    // state taxes, business state tax, and SE never apply here.
   } else {
     // Business / pass-through reserve target — federal + SE + business state.
     // No employee-side payroll (the payer didn't withhold any).
@@ -148,17 +189,10 @@ export function getSavingsRateForIncomeBucket(
     components.personalState +
     components.businessState;
 
-  const label =
-    method === "flat_estimate"
-      ? `Flat ${federal.toFixed(1)}% federal estimate`
-      : method === "dynamic_planner"
-      ? "Based on actual + planned income"
-      : "Based on combined actual income";
-
   return {
     rate: Math.round(rate * 100) / 100,
     components,
     method,
-    label,
+    label: profile.label,
   };
 }

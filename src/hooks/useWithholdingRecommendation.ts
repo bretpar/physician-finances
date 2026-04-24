@@ -23,7 +23,7 @@ import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isW2FilingType } from "@/lib/filingTypes";
-import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
+import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 export interface WithholdingInput {
   grossIncome: number;
@@ -106,6 +106,11 @@ export function useWithholdingRecommendation() {
 
       const isW2 = isW2FilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
+      const selectedProfile = getSelectedWithholdingProfileRate({
+        taxSettings: settings,
+        actualEstimate,
+        forecastEstimate,
+      });
 
       // Net taxable income for this entry
       const netTaxableForEntry = Math.max(0, grossIncome - retirement401k - preTaxDeductions);
@@ -136,7 +141,7 @@ export function useWithholdingRecommendation() {
           effectiveRate: flatRate,
           isManualMode: true,
           isOverWithheld: rec < 0,
-          methodLabel: `Flat ${flatRate}% estimate`,
+          methodLabel: rateSel.label,
           annualTaxLiability: 0,
           countedCreditsTotal: 0,
           annualRemainingTax: 0,
@@ -172,32 +177,10 @@ export function useWithholdingRecommendation() {
       const countedCreditsTotal = debug.countedCreditsTotal;
       const annualRemainingTax = debug.remainingTaxDue; // = max(0, liability − credits)
 
-      // Remaining pay periods → used to spread the uncovered remainder. Falls
-      // back to 1 so we never divide by zero. This is the employer-agnostic
-      // way of answering "how much MORE should be withheld on this check?"
-      const remainingPayPeriods = Math.max(1, Number((estimate as any).remainingPayPeriods) || 1);
-
       // ── W-2 path: annual-remaining-tax distribution ─────────────────────
       if (isW2) {
-        // If annual tax is already fully covered (by actual + projected W/H +
-        // estimated payments), no additional set-aside is needed on this
-        // paycheck. We surface this as 0 (or negative, if the user intended
-        // to express the overage — see below).
-        let recommendedWithholding = 0;
-        if (annualRemainingTax > 0) {
-          const perPeriodShortfall = annualRemainingTax / remainingPayPeriods;
-          // The user's employer is already withholding `taxesAlreadyWithheld`
-          // on this check. Only recommend the SHORTFALL beyond that.
-          recommendedWithholding = perPeriodShortfall - taxesAlreadyWithheld;
-        } else {
-          // Over-withheld case: surface as negative so UI can say
-          // "you are set aside ≈$X over". Only negative when this specific
-          // paycheck's own withholding exceeds its proportional share (0
-          // of remaining), i.e. any withholding on this check is "extra".
-          recommendedWithholding = -taxesAlreadyWithheld;
-        }
-
-        recommendedWithholding = Math.round(recommendedWithholding * 100) / 100;
+        const paycheckTarget = netTaxableForEntry * (selectedProfile.federalProfileRate / 100);
+        const recommendedWithholding = Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100;
 
         return {
           recommendedWithholding,
@@ -206,7 +189,7 @@ export function useWithholdingRecommendation() {
           estimatedAnnualTax: annualTaxLiability,
           taxesAlreadyCovered: countedCreditsTotal,
           estimatedRemainingTax: annualRemainingTax,
-          effectiveRate: estimate.federalEffectiveRate,
+          effectiveRate: selectedProfile.federalProfileRate,
           isManualMode: false,
           isOverWithheld: recommendedWithholding <= 0,
           methodLabel,
@@ -219,7 +202,7 @@ export function useWithholdingRecommendation() {
           actualStateWithheld: debug.actualStateWithheld,
           estimatedPaymentsMade: debug.estimatedPaymentsMade,
           taxSavingsSetAside: debug.taxSavingsSetAside,
-          recommendationBasis: "annual_remaining_tax",
+          recommendationBasis: "per_entry_rate",
         };
       }
 

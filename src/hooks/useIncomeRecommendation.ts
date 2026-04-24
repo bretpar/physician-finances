@@ -16,10 +16,10 @@ import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
-import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
-import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { isW2FilingType } from "@/lib/filingTypes";
 import { getNextQuarterDeadline } from "@/lib/quarters";
+import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 export type RecommendationStatus = "ahead" | "on_track" | "behind";
 export type RecommendationConfidence = "high" | "estimated" | "low";
@@ -135,8 +135,8 @@ export function useIncomeRecommendation() {
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
-      const isSelfEmployed = isSelfEmployedFilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
+      const profile = getSelectedWithholdingProfileRate({ taxSettings: settings, actualEstimate, forecastEstimate });
 
       // Net taxable for this entry
       const netTaxable = Math.max(0, grossIncome - retirement401k - preTaxDeductions);
@@ -147,22 +147,29 @@ export function useIncomeRecommendation() {
       let methodLabel: string;
 
       if (withholdingMethod === "flat_estimate") {
-        const flatRate = settings.manualEffectiveTaxRate ?? 20;
-        baseTaxEstimate = netTaxable * (flatRate / 100);
-        if (isSelfEmployed) {
-          baseTaxEstimate += netTaxable * SE_INCOME_FACTOR * SE_TAX_RATE;
-        }
-        effectiveRate = flatRate;
-        methodLabel = `Flat ${flatRate}% estimate`;
+        const rateSel = getSavingsRateForIncomeBucket({
+          incomeBucket: isW2 ? "personal" : "business",
+          incomeType,
+          taxSettings: settings,
+          actualEstimate,
+          forecastEstimate,
+        });
+        baseTaxEstimate = netTaxable * (rateSel.rate / 100);
+        effectiveRate = rateSel.rate;
+        methodLabel = rateSel.label;
       } else {
         const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : actualEstimate;
         if (!estimate) return null;
-        const rateToUse = isW2 ? estimate.federalEffectiveRate : estimate.effectiveRate;
+        const rateToUse = getSavingsRateForIncomeBucket({
+          incomeBucket: isW2 ? "personal" : "business",
+          incomeType,
+          taxSettings: settings,
+          actualEstimate,
+          forecastEstimate,
+        }).rate;
         baseTaxEstimate = netTaxable * (rateToUse / 100);
         effectiveRate = rateToUse;
-        methodLabel = withholdingMethod === "dynamic_planner"
-          ? "Based on actual + planned income"
-          : "Based on combined actual income";
+        methodLabel = profile.label;
       }
 
       baseTaxEstimate = Math.round(baseTaxEstimate * 100) / 100;

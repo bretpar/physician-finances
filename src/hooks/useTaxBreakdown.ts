@@ -42,6 +42,7 @@ import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import {
   ORDINARY_BRACKETS_2025,
   calcBracketTax,
@@ -573,7 +574,12 @@ export function useTaxBreakdown(
       }
     }
 
-    const effectiveRate = totalGrossIncome > 0 ? totalEstimatedTax / totalGrossIncome : 0;
+    const profile = getSelectedWithholdingProfileRate({
+      taxSettings: settings,
+      actualEstimate,
+      forecastEstimate,
+    });
+    const effectiveRate = profile.federalProfileRate / 100;
     const marginalRate = getMarginalRate(taxableOrdinaryIncome, ordBrackets);
 
     // Withholding override → annual target (planning layer only)

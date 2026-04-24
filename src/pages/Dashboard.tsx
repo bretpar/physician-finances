@@ -17,7 +17,7 @@ import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
-import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
+import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -214,21 +214,29 @@ export default function Dashboard() {
   const method = rates?.withholdingMethod ?? "dynamic_actual";
   const baseEstimate =
     method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : actualEstimate;
-  let annualTaxLiability = baseEstimate?.totalTaxLiability ?? 0;
-  let methodLabel = "Dynamic (actual income)";
-  let effectiveTaxRate = baseEstimate?.effectiveRate ?? 0;
-  if (method === "dynamic_planner") {
-    methodLabel = "Dynamic (actual + projected)";
-  } else if (method === "flat_estimate") {
-    const ratePct = Number(rates?.manualEffectiveTaxRate ?? 0);
-    const incomeBase =
-      (forecastEstimate ?? actualEstimate)?.totalIncome ??
-      actualEstimate?.totalIncome ??
-      0;
-    annualTaxLiability = incomeBase * (ratePct / 100);
-    methodLabel = `Flat estimate (${ratePct}%)`;
-    effectiveTaxRate = ratePct;
-  }
+  const profile = getSelectedWithholdingProfileRate({ taxSettings: rates, actualEstimate, forecastEstimate });
+  const personalRate = getSavingsRateForIncomeBucket({
+    incomeBucket: "personal",
+    incomeType: "W2",
+    taxSettings: rates,
+    actualEstimate,
+    forecastEstimate,
+  }).rate;
+  const businessRate = getSavingsRateForIncomeBucket({
+    incomeBucket: "business",
+    incomeType: "1099",
+    taxSettings: rates,
+    actualEstimate,
+    forecastEstimate,
+  }).rate;
+  const businessProfitBase = Math.max(0, Number(baseEstimate?.netBusinessProfit || 0));
+  const personalIncomeBase = Math.max(
+    0,
+    Number(baseEstimate?.totalReturnIncomeBeforeAdjustments || baseEstimate?.totalIncome || 0) - businessProfitBase,
+  );
+  const annualTaxLiability = (personalIncomeBase * (personalRate / 100)) + (businessProfitBase * (businessRate / 100));
+  const methodLabel = profile.label;
+  const effectiveTaxRate = profile.federalProfileRate;
 
   const greeting =
     user?.user_metadata?.first_name ||
@@ -266,20 +274,8 @@ export default function Dashboard() {
         companies={companies}
         quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
         projectedPaychecks={projectedPaychecks}
-        personalBucketRate={getSavingsRateForIncomeBucket({
-          incomeBucket: "personal",
-          incomeType: "W2",
-          taxSettings: rates,
-          actualEstimate,
-          forecastEstimate,
-        }).rate}
-        businessBucketRate={getSavingsRateForIncomeBucket({
-          incomeBucket: "business",
-          incomeType: "1099",
-          taxSettings: rates,
-          actualEstimate,
-          forecastEstimate,
-        }).rate}
+        personalBucketRate={personalRate}
+        businessBucketRate={businessRate}
         effectiveTaxRate={effectiveTaxRate}
       />
 

@@ -285,15 +285,12 @@ export default function PersonalIncome() {
       medicare_withholding: num(form.medicare_withholding),
     });
 
-    const stateEnabled = !!taxSettings.stateIncomeTaxEnabled;
-    const stateAlreadyWithheld = stateEnabled ? num(form.state_withholding) : 0;
-
     const result = calculatePaycheckProfileSavings({
       grossPaycheckIncome: grossAmount,
       eligiblePreTaxDeductions: eligibleDeductions,
       selectedProfileEffectiveTaxRate: effectiveRate,
       totalFederalPayrollTaxes,
-      stateWithholdingIfEnabled: stateAlreadyWithheld,
+      stateWithholdingIfEnabled: 0,
     });
 
     const methodLabel =

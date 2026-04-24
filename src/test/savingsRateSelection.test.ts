@@ -1,11 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
+import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 const estimate = {
   federalEffectiveRate: 17,
+  federalTax: 11100,
+  taxableIncome: 100000,
   totalIncome: 100000,
   seTax: { total: 1500 },
 } as any;
+
+const forecastEstimate = {
+  federalEffectiveRate: 19,
+  federalTax: 17300,
+  taxableIncome: 100000,
+  totalIncome: 140000,
+  seTax: { total: 1500 },
+} as any;
+
+describe("getSelectedWithholdingProfileRate", () => {
+  it("uses the flat estimate as the shared federal profile rate", () => {
+    const result = getSelectedWithholdingProfileRate({
+      taxSettings: { withholdingMethod: "flat_estimate", manualEffectiveTaxRate: 20 },
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+
+    expect(result.source).toBe("flat_estimate");
+    expect(result.federalProfileRate).toBe(20);
+  });
+
+  it("uses actual federal tax after credits divided by actual taxable income", () => {
+    const result = getSelectedWithholdingProfileRate({
+      taxSettings: { withholdingMethod: "dynamic_actual" },
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+
+    expect(result.source).toBe("dynamic_actual");
+    expect(result.federalProfileRate).toBe(11.1);
+  });
+
+  it("uses forecast federal tax after credits divided by forecast taxable income", () => {
+    const result = getSelectedWithholdingProfileRate({
+      taxSettings: { withholdingMethod: "dynamic_planner" },
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+
+    expect(result.source).toBe("dynamic_planner");
+    expect(result.federalProfileRate).toBe(17.3);
+  });
+});
 
 describe("getSavingsRateForIncomeBucket state tax selection", () => {
   it("includes business state/B&O without requiring personal state income tax", () => {
@@ -20,14 +65,14 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
         businessStateTaxApplicationMode: "all_business",
       },
       actualEstimate: estimate,
-      forecastEstimate: estimate,
+      forecastEstimate,
       companyId: "company-a",
       applyBusinessStateTax: true,
     });
 
     expect(result.components.personalState).toBe(0);
     expect(result.components.businessState).toBe(1.5);
-    expect(result.rate).toBeCloseTo(20, 2);
+    expect(result.rate).toBeCloseTo(14.1, 2);
   });
 
   it("excludes business state/B&O when selected-company rules do not include the company", () => {
@@ -42,13 +87,13 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
         businessStateTaxCompanyIds: ["company-a"],
       },
       actualEstimate: estimate,
-      forecastEstimate: estimate,
+      forecastEstimate,
       companyId: "company-b",
       applyBusinessStateTax: true,
     });
 
     expect(result.components.businessState).toBe(0);
-    expect(result.rate).toBeCloseTo(18.5, 2);
+    expect(result.rate).toBeCloseTo(12.6, 2);
   });
 
   it("keeps personal income free of business state/B&O", () => {
@@ -62,11 +107,39 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
         businessStateTaxRate: 1.5,
       },
       actualEstimate: estimate,
-      forecastEstimate: estimate,
+      forecastEstimate,
     });
 
     expect(result.components.businessState).toBe(0);
     expect(result.components.selfEmployment).toBe(0);
-    expect(result.rate).toBe(17);
+    expect(result.rate).toBe(11.1);
+  });
+
+  it("uses the same selected federal profile rate for personal and business before add-ons", () => {
+    const settings = {
+      withholdingMethod: "flat_estimate",
+      manualEffectiveTaxRate: 20,
+      businessStateTaxEnabled: true,
+      businessStateTaxRate: 1.5,
+    };
+    const personal = getSavingsRateForIncomeBucket({
+      incomeBucket: "personal",
+      incomeType: "w2",
+      taxSettings: settings,
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+    const business = getSavingsRateForIncomeBucket({
+      incomeBucket: "business",
+      incomeType: "1099_schedule_c",
+      taxSettings: settings,
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+
+    expect(personal.components.federal).toBe(20);
+    expect(business.components.federal).toBe(20);
+    expect(personal.components.businessState).toBe(0);
+    expect(business.components.businessState).toBe(1.5);
   });
 });
