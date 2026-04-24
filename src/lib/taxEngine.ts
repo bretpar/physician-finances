@@ -270,7 +270,7 @@ export function calculateDependentCredits(
 }
 
 export interface StateTaxInputs {
-  /** Master switch — if false, both personal & business state tax are 0. */
+  /** Personal state income tax switch. Business state tax is controlled separately. */
   stateTaxEnabled?: boolean;
   /** Personal state tax mode: 'none' | 'flat_rate' | 'annual_estimate'. */
   personalStateTaxMode?: "none" | "flat_rate" | "annual_estimate";
@@ -326,7 +326,7 @@ export function calculateBusinessStateTax(args: {
 }): { tax: number; withheld: number } {
   const { inputs } = args;
   const withheld = Math.max(0, inputs.businessStateWithheld || 0);
-  if (!inputs.stateTaxEnabled || !inputs.businessStateTaxEnabled) return { tax: 0, withheld };
+  if (!inputs.businessStateTaxEnabled) return { tax: 0, withheld };
   const rate = (inputs.businessStateTaxRate || 0) / 100;
   if (rate <= 0) return { tax: 0, withheld };
   const gross = Math.max(0, inputs.eligibleBusinessGross || 0);

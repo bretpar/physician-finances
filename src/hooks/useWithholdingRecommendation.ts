@@ -22,8 +22,8 @@
 import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
-import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { isW2FilingType } from "@/lib/filingTypes";
+import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
 
 export interface WithholdingInput {
   grossIncome: number;
@@ -32,6 +32,8 @@ export interface WithholdingInput {
   retirement401k: number;
   preTaxDeductions: number;
   alreadyIncludedInEstimate?: boolean;
+  companyId?: string | null;
+  applyBusinessStateTax?: boolean | null;
 }
 
 export interface WithholdingRecommendation {
@@ -96,12 +98,13 @@ export function useWithholdingRecommendation() {
         retirement401k,
         preTaxDeductions,
         alreadyIncludedInEstimate = false,
+        companyId,
+        applyBusinessStateTax,
       } = input;
 
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
-      const isSelfEmployed = isSelfEmployedFilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
 
       // Net taxable income for this entry
@@ -109,13 +112,17 @@ export function useWithholdingRecommendation() {
 
       // FLAT ESTIMATE MODE
       if (withholdingMethod === "flat_estimate") {
-        const flatRate = settings.manualEffectiveTaxRate ?? 20;
-        let taxOnEntry = netTaxableForEntry * (flatRate / 100);
-
-        // Add SE tax only for true self-employed (1099/K-1, NOT S-Corp distributions)
-        if (isSelfEmployed) {
-          taxOnEntry += netTaxableForEntry * SE_INCOME_FACTOR * SE_TAX_RATE;
-        }
+        const rateSel = getSavingsRateForIncomeBucket({
+          incomeBucket: isW2 ? "personal" : "business",
+          incomeType,
+          taxSettings: settings,
+          actualEstimate,
+          forecastEstimate,
+          companyId,
+          applyBusinessStateTax,
+        });
+        const flatRate = rateSel.rate;
+        const taxOnEntry = netTaxableForEntry * (flatRate / 100);
 
         const rec = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
 
@@ -221,7 +228,15 @@ export function useWithholdingRecommendation() {
       // set-aside style recommendation is still appropriate. Use the blended
       // rate (federal + SE + state business) for this entry, then subtract
       // any withholding already applied to THIS paycheck. Floor at 0.
-      const rateToUse = estimate.effectiveRate;
+      const rateToUse = getSavingsRateForIncomeBucket({
+        incomeBucket: "business",
+        incomeType,
+        taxSettings: settings,
+        actualEstimate,
+        forecastEstimate,
+        companyId,
+        applyBusinessStateTax,
+      }).rate;
       const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
       const raw = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
       const recommendedWithholding = Math.max(0, raw);
