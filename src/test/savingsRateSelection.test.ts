@@ -29,7 +29,7 @@ describe("getSelectedWithholdingProfileRate", () => {
     expect(result.federalProfileRate).toBe(20);
   });
 
-  it("uses actual federal tax after credits divided by actual taxable income", () => {
+  it("uses forecast federal tax after credits divided by forecast taxable income for dynamic_actual", () => {
     const result = getSelectedWithholdingProfileRate({
       taxSettings: { withholdingMethod: "dynamic_actual" },
       actualEstimate: estimate,
@@ -37,7 +37,7 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("dynamic_actual");
-    expect(result.federalProfileRate).toBe(11.1);
+    expect(result.federalProfileRate).toBe(17.3);
   });
 
   it("uses forecast federal tax after credits divided by forecast taxable income", () => {
@@ -72,7 +72,8 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
 
     expect(result.components.personalState).toBe(0);
     expect(result.components.businessState).toBe(1.5);
-    expect(result.rate).toBeCloseTo(14.1, 2);
+    expect(result.components.federal).toBe(17.3);
+    expect(result.rate).toBeCloseTo(20.3, 2);
   });
 
   it("excludes business state/B&O when selected-company rules do not include the company", () => {
@@ -93,7 +94,8 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
     });
 
     expect(result.components.businessState).toBe(0);
-    expect(result.rate).toBeCloseTo(12.6, 2);
+    expect(result.components.federal).toBe(17.3);
+    expect(result.rate).toBeCloseTo(18.8, 2);
   });
 
   it("keeps personal income free of business state/B&O", () => {
@@ -112,7 +114,8 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
 
     expect(result.components.businessState).toBe(0);
     expect(result.components.selfEmployment).toBe(0);
-    expect(result.rate).toBe(11.1);
+    expect(result.components.federal).toBe(17.3);
+    expect(result.rate).toBe(17.3);
   });
 
   it("uses the same selected federal profile rate for personal and business before add-ons", () => {
@@ -141,6 +144,37 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
     expect(business.components.federal).toBe(20);
     expect(personal.components.businessState).toBe(0);
     expect(business.components.businessState).toBe(1.5);
+  });
+
+  it("uses the same forecast federal profile rate in both dynamic modes before business add-ons", () => {
+    const dynamicActualPersonal = getSavingsRateForIncomeBucket({
+      incomeBucket: "personal",
+      incomeType: "w2",
+      taxSettings: { withholdingMethod: "dynamic_actual", businessStateTaxEnabled: true, businessStateTaxRate: 1.5 },
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+    const dynamicActualBusiness = getSavingsRateForIncomeBucket({
+      incomeBucket: "business",
+      incomeType: "1099_schedule_c",
+      taxSettings: { withholdingMethod: "dynamic_actual", businessStateTaxEnabled: true, businessStateTaxRate: 1.5 },
+      actualEstimate: estimate,
+      forecastEstimate,
+      applyBusinessStateTax: true,
+    });
+    const dynamicPlannerPersonal = getSavingsRateForIncomeBucket({
+      incomeBucket: "personal",
+      incomeType: "w2",
+      taxSettings: { withholdingMethod: "dynamic_planner", businessStateTaxEnabled: true, businessStateTaxRate: 1.5 },
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+
+    expect(dynamicActualPersonal.components.federal).toBe(17.3);
+    expect(dynamicActualBusiness.components.federal).toBe(17.3);
+    expect(dynamicPlannerPersonal.components.federal).toBe(17.3);
+    expect(dynamicActualBusiness.components.selfEmployment).toBe(1.5);
+    expect(dynamicActualBusiness.components.businessState).toBe(1.5);
   });
 
   it("acceptance: personal paycheck target uses the shared federal profile rate while business adds only SE and B&O", () => {
