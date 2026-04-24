@@ -1,14 +1,55 @@
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { Info, CheckCircle2, MinusCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
 
 interface Props {
   rate: number;
 }
 
-function InfoBody() {
+function StateInclusionHint({
+  personalOn,
+  businessOn,
+}: {
+  personalOn: boolean;
+  businessOn: boolean;
+}) {
+  const anyOn = personalOn || businessOn;
+  const Icon = anyOn ? CheckCircle2 : MinusCircle;
+  const tone = anyOn
+    ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+    : "border-muted-foreground/20 bg-muted/40 text-muted-foreground";
+
+  let label: string;
+  if (personalOn && businessOn) label = "State taxes are included (personal + business)";
+  else if (personalOn) label = "State taxes are included (personal only)";
+  else if (businessOn) label = "State taxes are included (business only)";
+  else label = "State taxes are not included";
+
+  return (
+    <div className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs ${tone}`}>
+      <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <div className="leading-snug">
+        <span className="font-medium">{label}</span>
+        {!anyOn && (
+          <span className="block text-[11px] opacity-80 mt-0.5">
+            Enable state taxes in Settings to include them in this rate.
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InfoBody({
+  personalOn,
+  businessOn,
+}: {
+  personalOn: boolean;
+  businessOn: boolean;
+}) {
   return (
     <div className="space-y-3 text-sm">
       <p className="text-foreground">
@@ -21,6 +62,7 @@ function InfoBody() {
         <li>Additional self-employment tax burden (1099 / K-1 income)</li>
         <li>State taxes (if enabled)</li>
       </ul>
+      <StateInclusionHint personalOn={personalOn} businessOn={businessOn} />
       <p className="text-xs text-muted-foreground pt-1">
         Based on your current + planned income
       </p>
@@ -31,6 +73,10 @@ function InfoBody() {
 export function RecommendedSetAsideInfo({ rate }: Props) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
+  const { data: taxSettings } = useTaxSettings();
+
+  const personalOn = !!taxSettings?.stateTaxEnabled;
+  const businessOn = !!taxSettings?.businessStateTaxEnabled;
 
   const triggerBtn = (
     <button
@@ -65,7 +111,7 @@ export function RecommendedSetAsideInfo({ rate }: Props) {
           <DialogHeader>
             <DialogTitle>How this is calculated</DialogTitle>
           </DialogHeader>
-          <InfoBody />
+          <InfoBody personalOn={personalOn} businessOn={businessOn} />
         </DialogContent>
       </Dialog>
     </>
