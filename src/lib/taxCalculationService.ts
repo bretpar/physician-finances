@@ -256,6 +256,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const actualHealthInsuranceDeduction = ownerHealthcare;
   const healthInsuranceDeduction = actualHealthInsuranceDeduction + projHealthInsurance;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
+  const personalStateTaxableIncome = Math.max(0, personalW2 + personalNonW2Income + projW2 - personalPreTax - personalRetirement - projPreTax - projRetirement);
 
   // ── Credits against tax (explicit) ──
   const actualFederalWithheld = businessFederalWithheld + personalFederalWithheld;
@@ -271,6 +272,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     personalStateTaxMode,
     personalStateTaxRate,
     personalStateTaxAnnualEstimate,
+    personalStateTaxableIncome,
     personalStateWithheld: actualStateWithheld + projStateWH,
     businessStateTaxEnabled,
     businessStateTaxRate,
