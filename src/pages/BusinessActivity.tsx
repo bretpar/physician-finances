@@ -1569,12 +1569,15 @@ export default function Transactions() {
 
             {/* Recommended to Set Aside */}
             {grossIncome > 0 && recommendation && !recommendation.isOverWithheld && recommendedWithholding > 0 && (
-              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between">
-                <div>
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
-                  <p className="text-[11px] text-muted-foreground">{recommendation.methodLabel} · {recommendation.effectiveRate.toFixed(1)}% effective rate</p>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    Based on your total tax rate ({recommendation.effectiveRate.toFixed(1)}%){" "}
+                    <RecommendedSetAsideInfo rate={recommendation.effectiveRate} />
+                  </p>
                 </div>
-                <span className="text-lg font-bold text-primary">{fmt(recommendedWithholding)}</span>
+                <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(recommendedWithholding)}</span>
               </div>
             )}
             {grossIncome > 0 && recommendation && recommendation.isOverWithheld && (
