@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
 import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
+import { normalizeFilingType } from "@/lib/filingTypes";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -17,10 +18,14 @@ export interface CompanyQuarterRow {
 
 interface QuarterlyTrackerProps {
   annualTaxLiability: number;
-  companies: CompanyQuarterRow[];
   /** All tax payments — filtered internally by the displayed quarter + year. */
   payments: TaxPayment[];
   methodLabel?: string;
+  /** Raw inputs — filtered by the displayed quarter window inside the tracker. */
+  incomeEntries: any[];
+  personalEntries: any[];
+  transactions: any[];
+  companies: { id: string; name: string; companyType?: string }[];
 }
 
 const fmt = (n: number) =>
@@ -33,30 +38,34 @@ const Q_META: Record<1 | 2 | 3 | 4, { label: string; deadlineLabel: string }> = 
   4: { label: "Q4", deadlineLabel: "Jan 15" },
 };
 
-/** Build a quarter info object for an arbitrary (year, quarter) pair. */
+/** Build a quarter info object for an arbitrary (year, quarter) pair.
+ *  `year` is the *owning* tax year (e.g. Q4 2026 has its deadline on Jan 15 2027).
+ *  Window aligns with IRS estimated-tax periods:
+ *    Q1: Jan 1  – Apr 15
+ *    Q2: Apr 16 – Jun 15
+ *    Q3: Jun 16 – Sep 15
+ *    Q4: Sep 16 – Jan 15 (next yr)
+ */
 function buildQuarter(year: number, quarter: 1 | 2 | 3 | 4) {
   const meta = Q_META[quarter];
   let deadline: Date;
   let start: Date;
-  let end: Date;
   if (quarter === 1) {
     deadline = new Date(year, 3, 15);
-    start = new Date(year - 1, 0, 16);
-    end = deadline;
+    start = new Date(year, 0, 1);
   } else if (quarter === 2) {
     deadline = new Date(year, 5, 15);
     start = new Date(year, 3, 16);
-    end = deadline;
   } else if (quarter === 3) {
     deadline = new Date(year, 8, 15);
     start = new Date(year, 5, 16);
-    end = deadline;
   } else {
-    // Q4 deadline is Jan 15 of *next* year; window starts Sep 16 of `year`
     deadline = new Date(year + 1, 0, 15);
     start = new Date(year, 8, 16);
-    end = deadline;
   }
+  // exclusive upper bound = deadline + 1 day
+  const end = new Date(deadline);
+  end.setDate(end.getDate() + 1);
   return { quarter, year, label: meta.label, deadlineLabel: meta.deadlineLabel, deadline, start, end };
 }
 
@@ -68,44 +77,106 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
   return { year: y, quarter: q as 1 | 2 | 3 | 4 };
 }
 
+/** Owning year of the current real-world quarter (Q4 owns the start year, not deadline year). */
+function currentOwningYear(): { year: number; quarter: 1 | 2 | 3 | 4 } {
+  const cur = getCurrentQuarter();
+  const owningYear = cur.quarter === 4 ? cur.deadline.getFullYear() - 1 : cur.deadline.getFullYear();
+  return { year: owningYear, quarter: cur.quarter as 1 | 2 | 3 | 4 };
+}
+
 export default function QuarterlyTracker({
   annualTaxLiability,
-  companies,
   payments,
   methodLabel,
+  incomeEntries,
+  personalEntries,
+  transactions,
+  companies,
 }: QuarterlyTrackerProps) {
-  const current = getCurrentQuarter();
-  const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>({
-    year: current.deadline.getFullYear() - (current.quarter === 4 ? 0 : 0),
-    // Q4 deadline is in next year; we want the "owning" year. Use start year.
-    quarter: current.quarter,
-  });
-  // Recompute owning year from current quarter: window-start year.
-  // For Q4, current.deadline is Jan 15 next year, window starts Sep 16 prior — initial view should reflect that.
-  const initialOwningYear = useMemo(() => {
-    if (current.quarter === 4) return current.deadline.getFullYear() - 1;
-    return current.deadline.getFullYear();
-  }, [current]);
-  // If state still has stale year from initial render, normalize once via memo:
-  const activeYear = view.year === current.deadline.getFullYear() && current.quarter === 4 ? initialOwningYear : view.year;
+  const initial = useMemo(() => currentOwningYear(), []);
+  const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
 
-  const q = buildQuarter(activeYear, view.quarter);
-  const isCurrentQuarter = q.quarter === current.quarter && q.deadline.getTime() === current.deadline.getTime();
+  const q = useMemo(() => buildQuarter(view.year, view.quarter), [view]);
+  const isCurrentQuarter = view.quarter === initial.quarter && view.year === initial.year;
 
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
+  // ── Build per-company rows for the SELECTED quarter window ──────────────
+  const companyRows: CompanyQuarterRow[] = useMemo(() => {
+    const inQuarter = (iso: string) => {
+      const d = new Date(iso);
+      return d >= q.start && d < q.end;
+    };
+    const companyById = new Map(companies.map((c) => [c.id, c] as const));
+    const liveTxById = new Map(
+      (transactions || [])
+        .filter((t: any) => t.transaction_type === "income")
+        .map((t: any) => [t.id, t] as const),
+    );
+
+    const buckets = new Map<string, { label: string; paid: number; saved: number }>();
+    const ensure = (key: string, label: string) => {
+      let row = buckets.get(key);
+      if (!row) {
+        row = { label, paid: 0, saved: 0 };
+        buckets.set(key, row);
+      }
+      return row;
+    };
+    const filingHint = (filing: string | undefined): string => {
+      if (filing === "scorp_w2" || filing === "w2") return "W-2";
+      if (filing === "k1_partnership") return "K-1";
+      if (filing === "1099_schedule_c") return "1099";
+      return "";
+    };
+
+    for (const e of incomeEntries || []) {
+      if (!e.linked_transaction_id) continue;
+      const tx = liveTxById.get(e.linked_transaction_id);
+      if (!tx) continue;
+      if (!inQuarter(e.income_date)) continue;
+      const paid = Number(e.federal_withholding || 0);
+      const saved =
+        Number((tx as any).actual_withholding || 0) +
+        Number(e.additional_tax_reserve || 0);
+      if (paid <= 0 && saved <= 0) continue;
+      const company = e.source_id ? companyById.get(e.source_id) : undefined;
+      const filing = normalizeFilingType(e.income_type || company?.companyType);
+      const hint = filingHint(filing);
+      const name = company?.name || e.company || "Unassigned";
+      const key = company?.id || `name:${name.toLowerCase().trim()}`;
+      const label = hint ? `${name} (${hint})` : name;
+      const row = ensure(key, label);
+      row.paid += paid;
+      row.saved += saved;
+    }
+
+    for (const e of personalEntries || []) {
+      if (!inQuarter(e.income_date)) continue;
+      const paid = Number(e.federal_withholding || 0);
+      const saved = Number(e.additional_tax_reserve || 0);
+      if (paid <= 0 && saved <= 0) continue;
+      const name = (e.company || "Personal W-2").trim() || "Personal W-2";
+      const key = `personal:${name.toLowerCase()}`;
+      const row = ensure(key, `${name} (W-2)`);
+      row.paid += paid;
+      row.saved += saved;
+    }
+
+    return Array.from(buckets.entries()).map(([key, v]) => ({
+      key, label: v.label, paid: v.paid, saved: v.saved,
+    }));
+  }, [incomeEntries, personalEntries, transactions, companies, q.start, q.end]);
+
   // ── Quarter math ──────────────────────────────────────────────────────────
-  // Estimated tax payments for THIS displayed quarter+year.
   const quarterlyPayments = useMemo(
-    () => getQuarterPayments(payments, q.label as QuarterLabel, activeYear),
-    [payments, q.label, activeYear],
+    () => getQuarterPayments(payments, q.label as QuarterLabel, view.year),
+    [payments, q.label, view.year],
   );
   const quarterTarget = Math.max(0, annualTaxLiability / 4);
-  const paidFromCompanies = companies.reduce((s, c) => s + c.paid, 0);
+  const paidFromCompanies = companyRows.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
-  const rawSavedThisQuarter = companies.reduce((s, c) => s + c.saved, 0);
-  // Estimated payments submitted to IRS reduce the saved reserve (those dollars
-  // have moved from "saved" to "paid"). Floor at 0 so saved never goes negative.
+  const rawSavedThisQuarter = companyRows.reduce((s, c) => s + c.saved, 0);
   const savedThisQuarter = Math.max(0, rawSavedThisQuarter - quarterlyPayments);
   const progressAmount = paidThisQuarter + savedThisQuarter;
   const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
@@ -113,8 +184,11 @@ export default function QuarterlyTracker({
   // ── Pace math (vs today's expected, not full target) ──────────────────────
   const now = new Date();
   const totalDays = Math.max(1, (q.end.getTime() - q.start.getTime()) / 86400000);
-  const elapsedDays = Math.max(0, (now.getTime() - q.start.getTime()) / 86400000);
+  const elapsedDays = (now.getTime() - q.start.getTime()) / 86400000;
+  // Future quarter → 0 progress; past quarter → 100%
   const quarterProgress = Math.max(0, Math.min(1, elapsedDays / totalDays));
+  const isFutureQuarter = now < q.start;
+  const isPastQuarter = now >= q.end;
   const expectedByNow = quarterTarget * quarterProgress;
   const paceDiff = progressAmount - expectedByNow;
   const tolerance = Math.max(expectedByNow * 0.1, 250);
@@ -125,6 +199,14 @@ export default function QuarterlyTracker({
   if (quarterTarget === 0) {
     tone = "ok";
     message = "No estimated tax target this quarter.";
+  } else if (isFutureQuarter) {
+    tone = "soft";
+    message = `${q.label} hasn't started yet — nothing due today.`;
+  } else if (isPastQuarter) {
+    tone = progressAmount + tolerance >= quarterTarget ? "ok" : "behind";
+    message = progressAmount + tolerance >= quarterTarget
+      ? `${q.label} complete.`
+      : `${q.label} ended ${fmt(Math.max(0, quarterTarget - progressAmount))} short.`;
   } else if (quarterProgress < 0.1) {
     tone = "soft";
     message = expectedByNow > 0 && progressAmount < expectedByNow - tolerance
@@ -160,10 +242,9 @@ export default function QuarterlyTracker({
   const animSavedPct = useCountUp(savedPct, 1100);
   const animExpectedPct = useCountUp(expectedPct, 1100);
 
-  // Prorate the estimated-payment offset across companies by their saved share,
-  // so per-row "Saved" doesn't double-count dollars that were submitted to IRS.
+  // Prorate the estimated-payment offset across companies by their saved share.
   const offset = Math.min(rawSavedThisQuarter, quarterlyPayments);
-  const sortedCompanies = [...companies].sort((a, b) => (b.paid + b.saved) - (a.paid + a.saved));
+  const sortedCompanies = [...companyRows].sort((a, b) => (b.paid + b.saved) - (a.paid + a.saved));
   const adjustedCompanyRows = sortedCompanies.map((c) => {
     const share = rawSavedThisQuarter > 0 ? c.saved / rawSavedThisQuarter : 0;
     const adjSaved = Math.max(0, c.saved - offset * share);
@@ -180,14 +261,8 @@ export default function QuarterlyTracker({
   ];
   const hasAny = rows.some((r) => r.paid > 0 || r.saved > 0);
 
-  const goPrev = () => {
-    const next = stepQuarter(activeYear, view.quarter, -1);
-    setView(next);
-  };
-  const goNext = () => {
-    const next = stepQuarter(activeYear, view.quarter, 1);
-    setView(next);
-  };
+  const goPrev = () => setView(stepQuarter(view.year, view.quarter, -1));
+  const goNext = () => setView(stepQuarter(view.year, view.quarter, 1));
 
   return (
     <Card className={cn("border-2 transition-colors relative", toneStyles.ring)}>
@@ -195,7 +270,7 @@ export default function QuarterlyTracker({
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2 min-w-0">
             <Icon className={cn("h-5 w-5 shrink-0", toneStyles.accent)} />
-            <span className="truncate">Quarterly Tax Progress ({q.label})</span>
+            <span className="truncate">Quarterly Tax Progress ({q.label} {view.year})</span>
           </CardTitle>
           <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
         </div>
@@ -274,7 +349,7 @@ export default function QuarterlyTracker({
               <div className="divide-y divide-border border-t">
                 {!hasAny ? (
                   <div className="px-3 py-3 text-sm text-muted-foreground">
-                    Nothing tracked yet for {q.label}.
+                    Nothing tracked yet for {q.label} {view.year}.
                   </div>
                 ) : (
                   rows.map((r) => {
@@ -316,7 +391,7 @@ export default function QuarterlyTracker({
             <ChevronLeft className="h-4 w-4" />
           </button>
           {!isCurrentQuarter && (
-            <span className="text-[10px] tabular-nums px-1">{q.label} {activeYear}</span>
+            <span className="text-[10px] tabular-nums px-1">{q.label} {view.year}</span>
           )}
           <button
             type="button"

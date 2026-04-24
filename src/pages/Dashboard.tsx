@@ -9,7 +9,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
 import DashboardMetrics from "@/components/dashboard/DashboardMetrics";
-import QuarterlyTracker, { type CompanyQuarterRow } from "@/components/dashboard/QuarterlyTracker";
+import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
@@ -67,7 +67,7 @@ export default function Dashboard() {
     return d >= quarterRange.start && d < quarterRange.end;
   };
 
-  const companyRows: CompanyQuarterRow[] = useMemo(() => {
+  const companyRows = useMemo(() => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const liveTxById = new Map(
       (transactions || [])
@@ -240,9 +240,12 @@ export default function Dashboard() {
 
       <QuarterlyTracker
         annualTaxLiability={annualTaxLiability}
-        companies={companyRows}
         payments={payments}
         methodLabel={methodLabel}
+        incomeEntries={incomeEntries || []}
+        personalEntries={personalEntries || []}
+        transactions={transactions || []}
+        companies={companies}
       />
 
       <FinancialScore
