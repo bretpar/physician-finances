@@ -426,6 +426,12 @@ export default function QuarterlyTracker({
         <p className="text-[11px] text-muted-foreground italic">
           Saved amounts are not yet submitted tax payments.
         </p>
+        {quarterMethod === "dynamic" && (
+          <p className="text-[11px] text-muted-foreground">
+            This quarter target is based on current + planned income for this
+            quarter and may change as income changes.
+          </p>
+        )}
 
         {/* Quarter navigation affordance */}
         <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
