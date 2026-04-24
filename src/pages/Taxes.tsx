@@ -81,6 +81,8 @@ export default function Taxes() {
 
   // Use the unified debug breakdown as the source of truth so UI matches engine.
   const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
+  const totalReturnIncome = e?.totalReturnIncomeBeforeAdjustments ?? 0;
+  const overviewEffectiveRate = totalReturnIncome > 0 ? (estimatedOwed / totalReturnIncome) * 100 : 0;
   const actualFedWH = debug?.actualFederalWithheld ?? 0;
   const actualStateWH = debug?.actualStateWithheld ?? 0;
   const projFedWH = debug?.projectedFederalWithheld ?? 0;
@@ -192,6 +194,15 @@ export default function Taxes() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Effective Tax Rate</p>
+            <p className="text-xl font-bold tabular-nums text-primary">{overviewEffectiveRate.toFixed(1)}%</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {taxMode === "forecast" ? "Includes planned income" : "Actual income only"}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Gross Business Income</p>
             <p className="text-xl font-bold tabular-nums">{fmt(e?.grossBusinessIncome ?? 0)}</p>
           </CardContent>
@@ -211,7 +222,7 @@ export default function Taxes() {
         <Card>
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Total Return Income</p>
-            <p className="text-xl font-bold tabular-nums">{fmt(e?.totalReturnIncomeBeforeAdjustments ?? 0)}</p>
+            <p className="text-xl font-bold tabular-nums">{fmt(totalReturnIncome)}</p>
           </CardContent>
         </Card>
         <Card>
