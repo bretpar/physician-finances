@@ -745,16 +745,16 @@ export function getProjectedTotals(
     const stream = streamById.get(p.streamId);
     const bucket = classifyStreamType(stream?.company_type ?? p.streamCompanyType);
 
-    // Per-stream split (W-2 paychecks usually carry federal_withholding/state_withholding fields)
-    let fed = Number(stream?.federal_withholding || 0);
+    // Canonical "Total Federal Payroll Taxes" via shared helper. Treats
+    // taxes_withheld as the total when populated, else sums the components.
+    // For projected streams written under the new shape, taxes_withheld is
+    // the canonical total (federal income tax + SS + Medicare).
+    let fed = getTotalFederalPaid(stream as any);
     let st = Number(stream?.state_withholding || 0);
-    // Bonuses & legacy streams use only the aggregate p.taxesWithheld.
+    // Bonuses & legacy streams without per-stream withholdings fall back to
+    // the per-paycheck aggregate.
     if (fed === 0 && st === 0) {
-      // Treat aggregate as federal — state withholding only applies when explicitly tagged.
       fed = p.taxesWithheld;
-    } else {
-      // Scale per-paycheck stream values: stream stores per-paycheck amounts already.
-      // No scaling needed — they're applied per occurrence.
     }
 
     acc.grossIncome += p.grossAmount;
