@@ -241,6 +241,48 @@ export default function Reports() {
     csv += `HSA Contribution - Individual (Form 8889),${hsaSummary.individual}\n`;
     csv += `HSA Contribution - Total,${hsaSummary.total}\n`;
     csv += `Healthcare Deduction (premiums/medical),${healthcareDeductionAnnual}\n`;
+
+    // ── Tax Rate Breakdown (only meaningful for the current tax year) ──
+    const isCurrentYear = Number(taxYear) === currentYear;
+    const est = forecastEstimate ?? actualEstimate;
+    if (isCurrentYear && est && est.totalIncome > 0) {
+      const totalIncome = est.totalIncome;
+      const pct = (n: number) => ((n / totalIncome) * 100).toFixed(2) + "%";
+      const fedRate = pct(est.federalTax);
+      const seRate = pct(est.seTax?.total || 0);
+      const personalStateRate = pct(est.personalStateTax || 0);
+      const businessStateRate = pct(est.businessStateTax || 0);
+      const allInRate = est.effectiveRate.toFixed(2) + "%";
+      const stateEnabled = !!taxSettings?.stateTaxEnabled;
+      const businessStateEnabled = !!taxSettings?.businessStateTaxEnabled;
+      const basis = forecastEstimate ? "Current + Planned income" : "Current income (actuals)";
+
+      csv += `\nTAX RATE BREAKDOWN (for CPA reference)\n`;
+      csv += `Basis,${basis}\n`;
+      csv += `Total Income (basis for rates),${totalIncome.toFixed(2)}\n`;
+      csv += `Component,Tax Amount,Effective Rate (% of total income)\n`;
+      csv += `Federal Income Tax,${est.federalTax.toFixed(2)},${fedRate}\n`;
+      csv += `Self-Employment Tax (SS + Medicare),${(est.seTax?.total || 0).toFixed(2)},${seRate}\n`;
+      if (stateEnabled) {
+        csv += `Personal State Income Tax,${(est.personalStateTax || 0).toFixed(2)},${personalStateRate}\n`;
+      } else {
+        csv += `Personal State Income Tax,Not enabled,-\n`;
+      }
+      if (businessStateEnabled) {
+        const baseLabel = taxSettings?.businessStateTaxBase === "net" ? "net business profit" : "gross business income";
+        csv += `Business State Tax (${baseLabel} @ ${taxSettings?.businessStateTaxRate?.toFixed(2)}%),${(est.businessStateTax || 0).toFixed(2)},${businessStateRate}\n`;
+      } else {
+        csv += `Business State Tax,Not enabled,-\n`;
+      }
+      csv += `Total Tax Liability,${est.totalTaxLiability.toFixed(2)},${allInRate}\n`;
+      csv += `\nMarginal Federal Bracket,${(est.marginalRate * 100).toFixed(1)}%\n`;
+      csv += `All-In Effective Tax Rate,${allInRate}\n`;
+      csv += `Note,Rates above are computed as (component tax / total income) using the same engine that drives in-app savings recommendations.\n`;
+    } else {
+      csv += `\nTAX RATE BREAKDOWN\n`;
+      csv += `Note,Rate breakdown is only generated for the current tax year (${currentYear}).\n`;
+    }
+
     downloadBlob(csv, `tax-summary-${taxYear}.csv`);
   }
 
