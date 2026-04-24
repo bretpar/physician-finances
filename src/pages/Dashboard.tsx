@@ -15,6 +15,7 @@ import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -113,10 +114,10 @@ export default function Dashboard() {
       // Filter by CURRENT quarter using the income date
       if (!inQuarter(e.income_date)) continue;
 
-      // `federal_withholding` is the canonical "Total Federal Payroll Taxes"
-      // (federal income tax + SS + Medicare). State is tracked separately and
-      // is intentionally NOT included in quarterly federal progress.
-      const paid = Number((e as any).federal_withholding || 0);
+      // Canonical "Total Federal Payroll Taxes" via shared helper. Handles
+      // taxes_withheld, federal_withholding, and split SS/Medicare records.
+      // State withholding is intentionally NOT included (federal-only here).
+      const paid = getTotalFederalPaid(e as any);
       const saved =
         Number((tx as any).actual_withholding || 0) +
         Number((e as any).additional_tax_reserve || 0);
@@ -137,7 +138,7 @@ export default function Dashboard() {
     for (const e of personalEntries || []) {
       if (!inQuarter(e.income_date)) continue;
       // Federal-only at this time (state tracked separately).
-      const paid = Number(e.federal_withholding || 0);
+      const paid = getTotalFederalPaid(e as any);
       const saved = Number((e as any).additional_tax_reserve || 0);
       if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
