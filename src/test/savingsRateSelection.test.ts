@@ -4,16 +4,22 @@ import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from
 const estimate = {
   federalEffectiveRate: 17,
   federalTax: 11100,
+  personalStateTax: 0,
+  totalTaxLiability: 12600,
   taxableIncome: 100000,
   totalIncome: 100000,
+  totalReturnIncomeBeforeAdjustments: 100000,
   seTax: { total: 1500 },
 } as any;
 
 const forecastEstimate = {
   federalEffectiveRate: 19,
   federalTax: 17300,
+  personalStateTax: 700,
+  totalTaxLiability: 21600,
   taxableIncome: 100000,
   totalIncome: 140000,
+  totalReturnIncomeBeforeAdjustments: 140000,
   seTax: { total: 1500 },
 } as any;
 
@@ -29,7 +35,7 @@ describe("getSelectedWithholdingProfileRate", () => {
     expect(result.federalProfileRate).toBe(20);
   });
 
-  it("uses forecast federal tax after credits divided by forecast taxable income for dynamic_actual", () => {
+  it("uses forecast ordinary income tax divided by total return income for dynamic_actual", () => {
     const result = getSelectedWithholdingProfileRate({
       taxSettings: { withholdingMethod: "dynamic_actual" },
       actualEstimate: estimate,
@@ -37,10 +43,11 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("dynamic_actual");
-    expect(result.federalProfileRate).toBe(17.3);
+    expect(result.federalProfileRate).toBe(12.86);
+    expect(result.canonicalEffectiveTaxRate).toBe(15.43);
   });
 
-  it("uses forecast federal tax after credits divided by forecast taxable income", () => {
+  it("uses forecast ordinary income tax divided by total return income for dynamic_planner", () => {
     const result = getSelectedWithholdingProfileRate({
       taxSettings: { withholdingMethod: "dynamic_planner" },
       actualEstimate: estimate,
@@ -48,7 +55,8 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("dynamic_planner");
-    expect(result.federalProfileRate).toBe(17.3);
+    expect(result.federalProfileRate).toBe(12.86);
+    expect(result.canonicalEffectiveTaxRate).toBe(15.43);
   });
 });
 
