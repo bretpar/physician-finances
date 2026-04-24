@@ -81,7 +81,7 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
     expect(result.components.personalState).toBe(0);
     expect(result.components.businessState).toBe(1.5);
     expect(result.components.federal).toBe(12.86);
-    expect(result.rate).toBeCloseTo(15.86, 2);
+    expect(result.rate).toBeCloseTo(28.49, 2);
   });
 
   it("excludes business state/B&O when selected-company rules do not include the company", () => {
@@ -103,7 +103,7 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
 
     expect(result.components.businessState).toBe(0);
     expect(result.components.federal).toBe(12.86);
-    expect(result.rate).toBeCloseTo(14.36, 2);
+    expect(result.rate).toBeCloseTo(26.99, 2);
   });
 
   it("keeps personal income free of business state/B&O", () => {
@@ -181,7 +181,7 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
     expect(dynamicActualPersonal.components.federal).toBe(12.86);
     expect(dynamicActualBusiness.components.federal).toBe(12.86);
     expect(dynamicPlannerPersonal.components.federal).toBe(12.86);
-    expect(dynamicActualBusiness.components.selfEmployment).toBe(1.5);
+    expect(dynamicActualBusiness.components.selfEmployment).toBeCloseTo(14.13, 2);
     expect(dynamicActualBusiness.components.businessState).toBe(1.5);
   });
 
@@ -237,9 +237,9 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
     expect(business.components.employeeSocialSecurity).toBe(0);
     expect(business.components.employeeMedicare).toBe(0);
     expect(business.components.personalState).toBe(0);
-    expect(business.components.selfEmployment).toBe(1.5);
+    expect(business.components.selfEmployment).toBeCloseTo(14.13, 2);
     expect(business.components.businessState).toBe(1.5);
-    expect(business.rate).toBe(23);
-    expect(businessTarget).toBe(230);
+    expect(business.rate).toBeCloseTo(35.63, 2);
+    expect(businessTarget).toBeCloseTo(356.3, 1);
   });
 });
