@@ -36,7 +36,7 @@ import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -323,15 +323,9 @@ export default function PersonalIncome() {
       state_withholding: String(entry.state_withholding),
       ss_withholding: String((entry as any).ss_withholding || 0),
       medicare_withholding: String((entry as any).medicare_withholding || 0),
-      // Prefer the canonical taxes_withheld total when present (new save shape);
-      // fall back to summing the components for legacy rows.
-      total_federal_payroll_taxes: String(
-        Number((entry as any).taxes_withheld || 0) > 0
-          ? Number((entry as any).taxes_withheld || 0)
-          : Number(entry.federal_withholding || 0) +
-            Number((entry as any).ss_withholding || 0) +
-            Number((entry as any).medicare_withholding || 0),
-      ),
+      // Canonical Total Federal Payroll Taxes (shared wrapper handles
+      // taxes_withheld → split-fields fallback for legacy rows).
+      total_federal_payroll_taxes: String(getCanonicalTotalFederalPayrollTaxes(entry as any)),
       retirement_pretax: String(entry.retirement_401k),
       deductions_pre_tax: String(entry.pre_tax_deductions),
       healthcare_deduction: String((entry as any).healthcare_deduction || 0),
