@@ -1751,6 +1751,10 @@ export type Database = {
         Args: { _item_id: string; _token: string }
         Returns: undefined
       }
+      update_planner_cron_secret: {
+        Args: { _value: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "owner" | "admin" | "member"
