@@ -85,11 +85,12 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
   return { year: y, quarter: q as 1 | 2 | 3 | 4 };
 }
 
-/** Owning year of the current real-world quarter (Q4 owns the start year, not deadline year). */
+/** Calendar-quarter owning year/quarter for "today". */
 function currentOwningYear(): { year: number; quarter: 1 | 2 | 3 | 4 } {
-  const cur = getCurrentQuarter();
-  const owningYear = cur.quarter === 4 ? cur.deadline.getFullYear() - 1 : cur.deadline.getFullYear();
-  return { year: owningYear, quarter: cur.quarter as 1 | 2 | 3 | 4 };
+  const now = new Date();
+  const month = now.getMonth(); // 0-11
+  const quarter = (Math.floor(month / 3) + 1) as 1 | 2 | 3 | 4;
+  return { year: now.getFullYear(), quarter };
 }
 
 export default function QuarterlyTracker({
