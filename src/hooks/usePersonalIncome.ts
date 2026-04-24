@@ -18,6 +18,7 @@ export interface PersonalIncomeEntry {
   income_date: string;
   gross_amount: number;
   paycheck_amount: number;
+  deposited_amount: number;
   cost_basis: number | null;
   realized_gain_loss: number | null;
   federal_withholding: number;
@@ -81,6 +82,7 @@ export function useAddPersonalIncome() {
         income_date: entry.income_date || new Date().toISOString().split("T")[0],
         gross_amount: entry.gross_amount || 0,
         paycheck_amount: entry.paycheck_amount || entry.gross_amount || 0,
+        deposited_amount: entry.deposited_amount ?? entry.paycheck_amount ?? entry.gross_amount ?? 0,
         cost_basis: entry.cost_basis ?? null,
         realized_gain_loss: entry.realized_gain_loss ?? null,
         federal_withholding: entry.federal_withholding || 0,
