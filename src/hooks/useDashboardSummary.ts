@@ -4,6 +4,7 @@ import type { TaxRates } from "@/hooks/useTaxSettings";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 
 export interface DashboardSummary {
   businessIncome: number;
@@ -34,8 +35,10 @@ export function useDashboardSummary(
     };
     if (!rates) return empty;
 
-    // Business income and expenses from transactions
-    const txs = transactions || [];
+    // Business income and expenses from transactions.
+    // CANONICAL RULE: personal / excluded / transfer rows are NEVER counted
+    // toward business totals. See src/lib/businessExclusion.ts.
+    const txs = (transactions || []).filter((t) => !isExcludedFromBusiness(t as any));
     const businessIncome = txs
       .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -58,7 +61,7 @@ export function useDashboardSummary(
     const w2Withheld = personal
       .reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
 
-    // Business withholding from transactions
+    // Business withholding from transactions (already excluded above).
     const txWithheld = txs
       .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
