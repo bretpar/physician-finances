@@ -103,7 +103,10 @@ export default function QuarterlyTracker({
   const quarterTarget = Math.max(0, annualTaxLiability / 4);
   const paidFromCompanies = companies.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
-  const savedThisQuarter = companies.reduce((s, c) => s + c.saved, 0);
+  const rawSavedThisQuarter = companies.reduce((s, c) => s + c.saved, 0);
+  // Estimated payments submitted to IRS reduce the saved reserve (those dollars
+  // have moved from "saved" to "paid"). Floor at 0 so saved never goes negative.
+  const savedThisQuarter = Math.max(0, rawSavedThisQuarter - quarterlyPayments);
   const progressAmount = paidThisQuarter + savedThisQuarter;
   const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
 
