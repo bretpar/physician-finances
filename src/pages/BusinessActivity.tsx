@@ -32,6 +32,7 @@ import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
@@ -815,10 +816,13 @@ export default function Transactions() {
   const { data: ytdMileage = [] } = useMileageYTD(new Date().getFullYear());
 
   const summaryStats = useMemo(() => {
-    const revenue = filtered
+    // CANONICAL EXCLUSION: personal / excluded / transfer rows never count
+    // toward business revenue or deductible business expense.
+    const businessFiltered = filtered.filter((t) => !isExcludedFromBusiness(t as any));
+    const revenue = businessFiltered
       .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
-    const txExpenses = filtered
+    const txExpenses = businessFiltered
       .filter((t) => t.transaction_type === "expense")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
 

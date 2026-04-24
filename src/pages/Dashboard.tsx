@@ -16,6 +16,7 @@ import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -50,7 +51,7 @@ export default function Dashboard() {
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     };
     const business = (transactions || [])
-      .filter((t) => t.transaction_type === "income" && inMonth(t.transaction_date))
+      .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any) && inMonth(t.transaction_date))
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const personal = (personalEntries || [])
       .filter((e) => inMonth(e.income_date))
@@ -84,7 +85,7 @@ export default function Dashboard() {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const liveTxById = new Map(
       (transactions || [])
-        .filter((t) => t.transaction_type === "income")
+        .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
         .map((t) => [t.id, t] as const),
     );
 
@@ -167,6 +168,7 @@ export default function Dashboard() {
     const seen = new Set<number>();
     for (const t of transactions || []) {
       if (t.transaction_type !== "income") continue;
+      if (isExcludedFromBusiness(t as any)) continue;
       const d = new Date(t.transaction_date);
       if (d.getFullYear() === currentYear) seen.add(d.getMonth());
     }
@@ -186,7 +188,7 @@ export default function Dashboard() {
   // Recent income for the confetti detector.
   const recentIncome = useMemo(() => {
     const fromTx = (transactions || [])
-      .filter((t) => t.transaction_type === "income")
+      .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
       .map((t) => ({ id: t.id, amount: Math.abs(t.amount), date: t.transaction_date }));
     const fromPersonal = (personalEntries || []).map((e) => ({
       id: e.id,
