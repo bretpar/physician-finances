@@ -27,6 +27,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import TaxDebugPanel from "@/components/TaxDebugPanel";
 import { useTaxSavings, useAddTaxSaving, useUpdateTaxSaving, useDeleteTaxSaving } from "@/hooks/useTaxSavings";
 import { useTaxPayments, useAddTaxPayment, useUpdateTaxPayment, useDeleteTaxPayment } from "@/hooks/useTaxPayments";
+import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -41,7 +42,7 @@ const QUARTERS = [
 
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualDebug, forecastDebug } = useTaxEstimate();
+  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, forecastEstimate, actualDebug, forecastDebug } = useTaxEstimate();
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
 
@@ -82,7 +83,11 @@ export default function Taxes() {
   // Use the unified debug breakdown as the source of truth so UI matches engine.
   const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
   const totalReturnIncome = e?.totalReturnIncomeBeforeAdjustments ?? 0;
-  const overviewEffectiveRate = totalReturnIncome > 0 ? (estimatedOwed / totalReturnIncome) * 100 : 0;
+  const overviewEffectiveRate = getSelectedWithholdingProfileRate({
+    taxSettings: rates,
+    actualEstimate,
+    forecastEstimate,
+  }).federalProfileRate;
   const actualFedWH = debug?.actualFederalWithheld ?? 0;
   const actualStateWH = debug?.actualStateWithheld ?? 0;
   const projFedWH = debug?.projectedFederalWithheld ?? 0;
