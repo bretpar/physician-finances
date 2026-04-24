@@ -65,6 +65,15 @@ export interface SavingsRateResult {
   label: string;
 }
 
+export type WithholdingProfileRateSource = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
+
+export interface WithholdingProfileRateResult {
+  methodUsed: WithholdingProfileRateSource;
+  federalProfileRate: number;
+  source: WithholdingProfileRateSource;
+  label: string;
+}
+
 const ZERO_COMPONENTS = {
   federal: 0,
   employeeSocialSecurity: 0,
@@ -73,6 +82,50 @@ const ZERO_COMPONENTS = {
   personalState: 0,
   businessState: 0,
 };
+
+const roundRate = (n: number) => Math.round(Math.max(0, Number(n) || 0) * 100) / 100;
+
+function dynamicFederalProfileRate(estimate: TaxEstimate | null | undefined): number {
+  const federalTaxAfterCredits = Math.max(0, Number(estimate?.federalTax || 0));
+  const taxableIncome = Math.max(0, Number(estimate?.taxableIncome || 0));
+  if (taxableIncome <= 0) return 0;
+  return roundRate((federalTaxAfterCredits / taxableIncome) * 100);
+}
+
+export function getSelectedWithholdingProfileRate(input: {
+  taxSettings: SavingsRateSettingsLike | null | undefined;
+  actualEstimate: TaxEstimate | null | undefined;
+  forecastEstimate: TaxEstimate | null | undefined;
+}): WithholdingProfileRateResult {
+  const settings = input.taxSettings ?? {};
+  const method = (settings.withholdingMethod || "dynamic_actual") as WithholdingProfileRateSource;
+
+  if (method === "flat_estimate") {
+    const federalProfileRate = roundRate(settings.manualEffectiveTaxRate ?? 0);
+    return {
+      methodUsed: "flat_estimate",
+      federalProfileRate,
+      source: "flat_estimate",
+      label: `Flat ${federalProfileRate.toFixed(1)}% federal estimate`,
+    };
+  }
+
+  if (method === "dynamic_planner") {
+    return {
+      methodUsed: "dynamic_planner",
+      federalProfileRate: dynamicFederalProfileRate(input.forecastEstimate),
+      source: "dynamic_planner",
+      label: "Based on actual + planned income",
+    };
+  }
+
+  return {
+    methodUsed: "dynamic_actual",
+    federalProfileRate: dynamicFederalProfileRate(input.actualEstimate),
+    source: "dynamic_actual",
+    label: "Based on combined actual income",
+  };
+}
 
 /** Personal state income tax % only when personal state income tax is enabled and a flat rate
  *  is configured. (annual_estimate mode is dollar-based, not a rate, so it
