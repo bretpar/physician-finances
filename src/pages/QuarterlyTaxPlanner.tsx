@@ -50,7 +50,8 @@ export default function QuarterlyTaxPlanner() {
   // Form
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [amount, setAmount] = useState("");
-  const [quarter, setQuarter] = useState("Q1");
+  const [appliedQuarter, setAppliedQuarter] = useState("Q1");
+  const [appliedTaxYear, setAppliedTaxYear] = useState<number>(currentYear);
   const [notes, setNotes] = useState("");
 
   const totalEstTax = estimate?.totalTaxLiability ?? 0;
@@ -60,7 +61,7 @@ export default function QuarterlyTaxPlanner() {
   const totalCovered = (estimate?.taxesAlreadyWithheld ?? 0) + totalPaid;
   const stillOwed = Math.max(0, totalEstTax - totalCovered);
 
-  // Per-quarter calculations
+  // Per-quarter calculations — attribute by applied_quarter + applied_tax_year (current tax year).
   const now = new Date();
   const quarterData = useMemo(() => {
     const remainingQs = QUARTERS.filter((q) => isAfter(q.due, now) || q.due.toDateString() === now.toDateString());
@@ -68,7 +69,9 @@ export default function QuarterlyTaxPlanner() {
     const suggestedPerQ = stillOwed / remainingCount;
 
     return QUARTERS.map((q) => {
-      const qPayments = payments.filter((p) => p.quarter === q.key);
+      const qPayments = payments.filter(
+        (p) => (p.applied_quarter || p.quarter) === q.key && p.applied_tax_year === currentYear,
+      );
       const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
       const recommended = suggestedPerQ;
       const remainingDue = Math.max(0, recommended - paidAmount);
@@ -90,16 +93,26 @@ export default function QuarterlyTaxPlanner() {
   const resetForm = () => {
     setPaymentDate(new Date());
     setAmount("");
-    setQuarter("Q1");
+    setAppliedQuarter("Q1");
+    setAppliedTaxYear(currentYear);
     setNotes("");
     setEditId(null);
   };
 
-  const openEditPayment = (p: { id: string; payment_date: string; amount: number; quarter: string; notes: string | null }) => {
+  const openEditPayment = (p: {
+    id: string;
+    payment_date: string;
+    amount: number;
+    quarter: string;
+    applied_quarter?: string;
+    applied_tax_year?: number;
+    notes: string | null;
+  }) => {
     setEditId(p.id);
     setPaymentDate(new Date(p.payment_date + "T00:00:00"));
     setAmount(String(p.amount));
-    setQuarter(p.quarter);
+    setAppliedQuarter(p.applied_quarter || p.quarter || "Q1");
+    setAppliedTaxYear(p.applied_tax_year ?? new Date(p.payment_date + "T00:00:00").getFullYear());
     setNotes(p.notes || "");
     setOpen(true);
   };
@@ -110,7 +123,9 @@ export default function QuarterlyTaxPlanner() {
     const payload = {
       payment_date: format(paymentDate, "yyyy-MM-dd"),
       amount: amt,
-      quarter,
+      quarter: appliedQuarter,
+      applied_quarter: appliedQuarter,
+      applied_tax_year: appliedTaxYear,
       notes,
     };
     if (editId) {
