@@ -954,29 +954,43 @@ export default function PersonalIncome() {
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Per-paycheck suggested extra reserve (NOT annual-based) */}
-            {grossAmount > 0 && paycheckReserve && (
-              <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                <div className="flex items-baseline justify-between">
-                  <p className="text-xs font-semibold text-muted-foreground">Estimated Tax Reserve</p>
-                  <p
-                    className={`text-base font-bold tabular-nums ${
-                      paycheckReserve.recommendedExtraSavings > 0
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-emerald-600 dark:text-emerald-400"
-                    }`}
-                  >
-                    {fmt(paycheckReserve.recommendedExtraSavings)}
+            {/* Per-paycheck withholding guide — uses the global withholding
+                method from Settings via useWithholdingRecommendation. */}
+            {grossAmount > 0 && paycheckGuide && (() => {
+              const rec = paycheckGuide.recommendedWithholding;
+              const isUnder = rec > 0;
+              const isOver = rec < 0;
+              const label = isUnder
+                ? "Suggested extra withholding"
+                : isOver
+                ? "Over-withheld"
+                : "On track";
+              const helper = isUnder
+                ? "Consider saving this additional amount from this paycheck."
+                : isOver
+                ? "Payroll withholding appears to exceed this paycheck's recommended amount."
+                : "Payroll withholding appears to match this paycheck's recommendation.";
+              const display = isOver ? fmt(Math.abs(rec)) : fmt(rec);
+              const valueClass = isUnder
+                ? "text-destructive"
+                : "text-emerald-600 dark:text-emerald-400";
+              return (
+                <div className="rounded-md border border-border p-3 space-y-1 bg-background">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground">Paycheck withholding guide</p>
+                    <p className={`text-base font-bold tabular-nums ${valueClass}`}>{display}</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    <span className="font-medium">{label}.</span> {helper}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Based on your selected withholding method in Settings
+                    {paycheckGuide.methodLabel ? ` — ${paycheckGuide.methodLabel}.` : "."}
                   </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Suggested extra amount to save from this paycheck after payroll taxes already withheld.
-                </p>
-                <p className="text-[10px] text-muted-foreground italic">
-                  Based on your selected effective tax rate in Settings.
-                </p>
-              </div>
-            )}
+              );
+            })()}
+
 
             {/* Attachments */}
             <TransactionAttachments
