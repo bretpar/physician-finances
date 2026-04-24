@@ -75,8 +75,18 @@ export function RecommendedSetAsideInfo({ rate }: Props) {
   const [open, setOpen] = useState(false);
   const { data: taxSettings } = useTaxSettings();
 
-  const personalOn = !!taxSettings?.stateTaxEnabled;
-  const businessOn = !!taxSettings?.businessStateTaxEnabled;
+  const personalRate = Number(taxSettings?.personalStateTaxRate || 0);
+  const personalEstimate = Number(taxSettings?.personalStateTaxAnnualEstimate || 0);
+  const businessRate = Number(taxSettings?.businessStateTaxRate || 0);
+
+  // "Included" means toggle is ON *and* it actually contributes (rate > 0 or, for
+  // personal, a flat annual estimate is set). A toggle alone with 0% is misleading.
+  const personalOn = !!taxSettings?.stateTaxEnabled && (personalRate > 0 || personalEstimate > 0);
+  const businessOn = !!taxSettings?.businessStateTaxEnabled && businessRate > 0;
+
+  // Toggle on but no rate set — surface this as a warning instead of "included".
+  const personalToggledNoRate = !!taxSettings?.stateTaxEnabled && !personalOn;
+  const businessToggledNoRate = !!taxSettings?.businessStateTaxEnabled && !businessOn;
 
   const triggerBtn = (
     <button
