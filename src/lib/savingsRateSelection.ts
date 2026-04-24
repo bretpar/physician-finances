@@ -5,8 +5,8 @@
  * aside?" — split cleanly by income bucket so Personal Income and Business
  * Income never pull from the wrong rate.
  *
- *   Personal bucket = federal income tax + employee SS + employee Medicare
- *                     + personal state income tax (if enabled)
+ *   Personal bucket = federal income tax only. Payroll/state withholdings are
+ *                     credits against the recommendation, not rate add-ons.
  *                     ⛔ never B&O / business state / SE add-on
  *
  *   Business bucket = federal income tax + SE tax (or pass-through payroll add-on)
@@ -18,15 +18,10 @@
  * separation is consistent regardless of which method the user picked.
  */
 import type { TaxEstimate } from "@/lib/taxEngine";
-import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
-import { isW2FilingType } from "@/lib/filingTypes";
+import { SE_TAX_RATE, SE_INCOME_FACTOR, type TaxEstimate } from "@/lib/taxEngine";
+import { isSelfEmployedFilingType } from "@/lib/filingTypes";
 
 export type IncomeBucket = "personal" | "business";
-
-// Employee-side payroll tax rates (FICA). These are the *additions* on top of
-// the federal income tax rate for a W-2 paycheck guide.
-const EMPLOYEE_SS_RATE = 6.2;     // %
-const EMPLOYEE_MEDICARE_RATE = 1.45; // %
 
 export interface SavingsRateSettingsLike {
   withholdingMethod?: string | null;
@@ -36,6 +31,8 @@ export interface SavingsRateSettingsLike {
   personalStateTaxRate?: number | null;
   businessStateTaxEnabled?: boolean | null;
   businessStateTaxRate?: number | null;
+  businessStateTaxApplicationMode?: "all_business" | "selected" | string | null;
+  businessStateTaxCompanyIds?: string[] | null;
 }
 
 export interface SavingsRateInput {
@@ -45,6 +42,8 @@ export interface SavingsRateInput {
   taxSettings: SavingsRateSettingsLike | null | undefined;
   actualEstimate: TaxEstimate | null | undefined;
   forecastEstimate: TaxEstimate | null | undefined;
+  companyId?: string | null;
+  applyBusinessStateTax?: boolean | null;
 }
 
 export interface SavingsRateResult {
@@ -83,9 +82,14 @@ function getPersonalStateRate(s: SavingsRateSettingsLike): number {
   return Math.max(0, Number(s.personalStateTaxRate || 0));
 }
 
-/** Business state / B&O rate, only when both master + business switches are on. */
-function getBusinessStateRate(s: SavingsRateSettingsLike): number {
-  if (!s?.stateTaxEnabled || !s?.businessStateTaxEnabled) return 0;
+/** Business state / B&O rate. Independent from the personal state income switch. */
+function getBusinessStateRate(s: SavingsRateSettingsLike, input: SavingsRateInput): number {
+  if (!s?.businessStateTaxEnabled) return 0;
+  if (input.applyBusinessStateTax === false) return 0;
+  if (s.businessStateTaxApplicationMode === "selected") {
+    if (!input.companyId) return 0;
+    if (!s.businessStateTaxCompanyIds?.includes(input.companyId)) return 0;
+  }
   return Math.max(0, Number(s.businessStateTaxRate || 0));
 }
 
@@ -94,13 +98,20 @@ function getBusinessStateRate(s: SavingsRateSettingsLike): number {
  *  for 1099/K-1/Schedule-C income. */
 const SE_EFFECTIVE_RATE_PCT = SE_TAX_RATE * SE_INCOME_FACTOR * 100; // ≈ 14.13
 
+function getSelfEmploymentRate(estimate: TaxEstimate | null | undefined): number {
+  const totalIncome = Math.max(0, Number(estimate?.totalIncome || 0));
+  const seTax = Math.max(0, Number(estimate?.seTax?.total || 0));
+  if (totalIncome > 0 && seTax > 0) return (seTax / totalIncome) * 100;
+  return SE_EFFECTIVE_RATE_PCT;
+}
+
 export function getSavingsRateForIncomeBucket(
   input: SavingsRateInput,
 ): SavingsRateResult {
   const { incomeBucket, incomeType, taxSettings } = input;
   const settings = taxSettings ?? {};
   const method = (settings.withholdingMethod || "dynamic_actual") as SavingsRateResult["method"];
-  const isW2 = incomeType ? isW2FilingType(incomeType) : incomeBucket === "personal";
+  const selectedEstimate = method === "dynamic_planner" ? input.forecastEstimate : input.actualEstimate;
 
   // ── Federal portion (varies by method) ─────────────────────────────────
   let federal = 0;
@@ -115,18 +126,16 @@ export function getSavingsRateForIncomeBucket(
   const components = { ...ZERO_COMPONENTS, federal };
 
   if (incomeBucket === "personal") {
-    // Personal paycheck guide — employee-side payroll taxes for W-2 checks
-    // plus personal state income tax. NEVER includes SE / B&O / business state.
-    if (isW2) {
-      components.employeeSocialSecurity = EMPLOYEE_SS_RATE;
-      components.employeeMedicare = EMPLOYEE_MEDICARE_RATE;
-    }
-    components.personalState = getPersonalStateRate(settings);
+    // Personal paycheck guide — federal income tax profile rate only.
+    // Employee SS/Medicare and personal state withholding reduce the final
+    // recommendation as withheld credits; they are NOT rate add-ons here.
   } else {
     // Business / pass-through reserve target — federal + SE + business state.
     // No employee-side payroll (the payer didn't withhold any).
-    components.selfEmployment = SE_EFFECTIVE_RATE_PCT;
-    components.businessState = getBusinessStateRate(settings);
+    if (!incomeType || isSelfEmployedFilingType(incomeType)) {
+      components.selfEmployment = getSelfEmploymentRate(selectedEstimate);
+    }
+    components.businessState = getBusinessStateRate(settings, input);
   }
 
   const rate =
