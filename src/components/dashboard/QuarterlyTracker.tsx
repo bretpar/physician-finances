@@ -44,33 +44,36 @@ const Q_META: Record<1 | 2 | 3 | 4, { label: string; deadlineLabel: string }> = 
 };
 
 /** Build a quarter info object for an arbitrary (year, quarter) pair.
- *  `year` is the *owning* tax year (e.g. Q4 2026 has its deadline on Jan 15 2027).
- *  Window aligns with IRS estimated-tax periods:
- *    Q1: Jan 1  – Apr 15
- *    Q2: Apr 16 – Jun 15
- *    Q3: Jun 16 – Sep 15
- *    Q4: Sep 16 – Jan 15 (next yr)
+ *  Windows are standard *calendar* quarters:
+ *    Q1: Jan 1 – Mar 31
+ *    Q2: Apr 1 – Jun 30
+ *    Q3: Jul 1 – Sep 30
+ *    Q4: Oct 1 – Dec 31
+ *  The `deadline` field still reflects the IRS estimated-tax due date for that
+ *  quarter (used for display only), but all date filtering uses [start, end).
  */
 function buildQuarter(year: number, quarter: 1 | 2 | 3 | 4) {
   const meta = Q_META[quarter];
-  let deadline: Date;
   let start: Date;
+  let end: Date; // exclusive
+  let deadline: Date;
   if (quarter === 1) {
-    deadline = new Date(year, 3, 15);
     start = new Date(year, 0, 1);
+    end = new Date(year, 3, 1);
+    deadline = new Date(year, 3, 15);
   } else if (quarter === 2) {
+    start = new Date(year, 3, 1);
+    end = new Date(year, 6, 1);
     deadline = new Date(year, 5, 15);
-    start = new Date(year, 3, 16);
   } else if (quarter === 3) {
+    start = new Date(year, 6, 1);
+    end = new Date(year, 9, 1);
     deadline = new Date(year, 8, 15);
-    start = new Date(year, 5, 16);
   } else {
+    start = new Date(year, 9, 1);
+    end = new Date(year + 1, 0, 1);
     deadline = new Date(year + 1, 0, 15);
-    start = new Date(year, 8, 16);
   }
-  // exclusive upper bound = deadline + 1 day
-  const end = new Date(deadline);
-  end.setDate(end.getDate() + 1);
   return { quarter, year, label: meta.label, deadlineLabel: meta.deadlineLabel, deadline, start, end };
 }
 
@@ -82,11 +85,12 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
   return { year: y, quarter: q as 1 | 2 | 3 | 4 };
 }
 
-/** Owning year of the current real-world quarter (Q4 owns the start year, not deadline year). */
+/** Calendar-quarter owning year/quarter for "today". */
 function currentOwningYear(): { year: number; quarter: 1 | 2 | 3 | 4 } {
-  const cur = getCurrentQuarter();
-  const owningYear = cur.quarter === 4 ? cur.deadline.getFullYear() - 1 : cur.deadline.getFullYear();
-  return { year: owningYear, quarter: cur.quarter as 1 | 2 | 3 | 4 };
+  const now = new Date();
+  const month = now.getMonth(); // 0-11
+  const quarter = (Math.floor(month / 3) + 1) as 1 | 2 | 3 | 4;
+  return { year: now.getFullYear(), quarter };
 }
 
 export default function QuarterlyTracker({
