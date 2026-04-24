@@ -1068,6 +1068,12 @@ export default function PersonalIncome() {
                     Payroll withholding appears to cover this paycheck's estimated tax need.
                   </p>
                 )}
+                <p className="text-[10px] text-muted-foreground">
+                  Rates used: Federal {paycheckReserve.federalRatePct.toFixed(2)}%
+                  {paycheckReserve.stateEnabled
+                    ? ` · State ${paycheckReserve.stateRatePct.toFixed(2)}%`
+                    : " · State disabled"}
+                </p>
                 <p className="text-[10px] text-muted-foreground italic">
                   Withholding method controlled in Settings
                 </p>
