@@ -5,8 +5,8 @@
  * aside?" — split cleanly by income bucket so Personal Income and Business
  * Income never pull from the wrong rate.
  *
- *   Personal bucket = federal income tax only. Payroll/state withholdings are
- *                     credits against the recommendation, not rate add-ons.
+ *   Personal bucket = federal income tax + personal state income tax only.
+ *                     Payroll withholdings are credits against the recommendation.
  *                     ⛔ never B&O / business state / SE add-on
  *
  *   Business bucket = federal income tax + SE tax (or pass-through payroll add-on)
@@ -25,6 +25,8 @@ export type IncomeBucket = "personal" | "business";
 export interface SavingsRateSettingsLike {
   withholdingMethod?: string | null;
   manualEffectiveTaxRate?: number | null;
+  stateIncomeTaxEnabled?: boolean | null;
+  /** Backwards-compatible alias for personal state income tax only. */
   stateTaxEnabled?: boolean | null;
   personalStateTaxMode?: "none" | "flat_rate" | "annual_estimate" | string | null;
   personalStateTaxRate?: number | null;
@@ -72,11 +74,11 @@ const ZERO_COMPONENTS = {
   businessState: 0,
 };
 
-/** Personal state income tax % only when state tax is enabled and a flat rate
+/** Personal state income tax % only when personal state income tax is enabled and a flat rate
  *  is configured. (annual_estimate mode is dollar-based, not a rate, so it
  *  doesn't fold into a per-paycheck percentage.) */
 function getPersonalStateRate(s: SavingsRateSettingsLike): number {
-  if (!s?.stateTaxEnabled) return 0;
+  if (!(s?.stateIncomeTaxEnabled ?? s?.stateTaxEnabled)) return 0;
   if (s.personalStateTaxMode !== "flat_rate") return 0;
   return Math.max(0, Number(s.personalStateTaxRate || 0));
 }
@@ -125,9 +127,10 @@ export function getSavingsRateForIncomeBucket(
   const components = { ...ZERO_COMPONENTS, federal };
 
   if (incomeBucket === "personal") {
-    // Personal paycheck guide — federal income tax profile rate only.
-    // Employee SS/Medicare and personal state withholding reduce the final
-    // recommendation as withheld credits; they are NOT rate add-ons here.
+    // Personal paycheck guide — federal + personal state income tax only.
+    // Employee SS/Medicare reduce the recommendation as withheld credits;
+    // business state tax and SE never apply here.
+    components.personalState = getPersonalStateRate(settings);
   } else {
     // Business / pass-through reserve target — federal + SE + business state.
     // No employee-side payroll (the payer didn't withhold any).
