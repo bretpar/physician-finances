@@ -982,38 +982,43 @@ export default function PersonalIncome() {
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Per-paycheck withholding guide — uses the global withholding
-                method from Settings via useWithholdingRecommendation. */}
-            {grossAmount > 0 && paycheckGuide && (() => {
-              const rec = paycheckGuide.recommendedWithholding;
-              const isUnder = rec > 0;
-              const isOver = rec < 0;
+            {/* Per-paycheck profile-based savings guide — uses the SELECTED
+                tax profile effective rate (NOT annual remaining tax). */}
+            {grossAmount > 0 && paycheckSavings && (() => {
+              const diff = paycheckSavings.withholdingDifference;
+              const status = paycheckSavings.status;
+              const isUnder = status === "under_withheld";
+              const isOver = status === "over_withheld";
               const label = isUnder
-                ? "Suggested extra withholding"
+                ? "Save more"
                 : isOver
                 ? "Over-withheld"
                 : "On track";
               const helper = isUnder
-                ? "Consider saving this additional amount from this paycheck."
+                ? "Based on your selected tax profile, this paycheck is under-saved by this amount."
                 : isOver
-                ? "Payroll withholding appears to exceed this paycheck's recommended amount."
-                : "Payroll withholding appears to match this paycheck's recommendation.";
-              const display = isOver ? fmt(Math.abs(rec)) : fmt(rec);
+                ? "Payroll withholding appears to exceed this paycheck's profile-based savings target."
+                : "Payroll withholding appears to match this paycheck's profile-based savings target.";
+              const display = isUnder
+                ? `Save ${fmt(diff)} more`
+                : isOver
+                ? `Over-withheld by ${fmt(Math.abs(diff))}`
+                : "On track";
               const valueClass = isUnder
                 ? "text-destructive"
                 : "text-emerald-600 dark:text-emerald-400";
               return (
                 <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-xs font-semibold text-muted-foreground">Paycheck withholding guide</p>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Paycheck tax savings guide</p>
                     <p className={`text-base font-bold tabular-nums ${valueClass}`}>{display}</p>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     <span className="font-medium">{label}.</span> {helper}
                   </p>
                   <p className="text-[10px] text-muted-foreground italic">
-                    Based on your selected withholding method in Settings
-                    {paycheckGuide.methodLabel ? ` — ${paycheckGuide.methodLabel}.` : "."}
+                    Based on your selected tax profile effective rate
+                    {paycheckSavings.methodLabel ? ` — ${paycheckSavings.methodLabel}.` : "."}
                   </p>
                 </div>
               );
