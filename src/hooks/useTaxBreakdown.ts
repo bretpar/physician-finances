@@ -40,6 +40,7 @@ import {
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import {
   ORDINARY_BRACKETS_2025,
   calcBracketTax,
@@ -274,8 +275,10 @@ export function useTaxBreakdown(
         agg.preTax += Number(e.pre_tax_deductions) || 0;
         agg.retirement += Number(e.retirement_401k) || 0;
         agg.healthcare += Number((e as any).healthcare_deduction) || 0;
-        agg.withheld += Number(e.taxes_withheld) || 0;
-        agg.federalWithheld += Number((e as any).federal_withholding) || 0;
+        // Canonical federal total via shared helper (handles taxes_withheld,
+        // legacy federal_withholding-only rows, and split SS/Medicare).
+        agg.withheld += getTotalFederalPaid(e as any);
+        agg.federalWithheld += getTotalFederalPaid(e as any);
         agg.stateWithheld += Number((e as any).state_withholding) || 0;
       } else if (mode === "forecast") {
         const gross = Number(e.paycheck_amount) || 0;
