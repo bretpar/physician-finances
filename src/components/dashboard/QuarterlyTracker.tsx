@@ -106,6 +106,7 @@ export default function QuarterlyTracker({
   companies,
   quarterMethod = "even",
   projectedPaychecks = [],
+  effectiveTaxRate,
 }: QuarterlyTrackerProps) {
   const initial = useMemo(() => currentOwningYear(), []);
   const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
