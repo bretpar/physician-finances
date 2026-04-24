@@ -235,16 +235,21 @@ export default function QuarterlyTracker({
       if (inYear(e.income_date)) yearIncome += amt;
       if (inWin(e.income_date)) qIncome += amt;
     }
-    // Add planned/projected paychecks (future occurrences)
+    // Add planned/projected paychecks (future occurrences). When the debug
+    // "force quarter closed" flag is on, treat planned income for the SELECTED
+    // quarter as $0 so the target reflects only realized income — same as a
+    // truly closed quarter would. Other quarters still get their planned share.
     for (const p of projectedPaychecks || []) {
       const amt = Number(p.grossAmount || 0);
       if (inYear(p.date)) yearIncome += amt;
-      if (inWin(p.date)) qIncome += amt;
+      if (inWin(p.date)) {
+        if (!forceClosed) qIncome += amt;
+      }
     }
     if (yearIncome <= 0) return 0;
     const share = qIncome / yearIncome;
     return Math.max(0, annualTaxLiability * share);
-  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year]);
+  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year, forceClosed]);
 
   const paidFromCompanies = companyRows.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
