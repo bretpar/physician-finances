@@ -1743,16 +1743,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      install_planner_cron_job: {
+        Args: { _secret: string }
+        Returns: undefined
+      }
       is_org_admin_or_owner: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
       store_plaid_token_in_vault: {
         Args: { _item_id: string; _token: string }
-        Returns: undefined
-      }
-      update_planner_cron_secret: {
-        Args: { _value: string }
         Returns: undefined
       }
     }
