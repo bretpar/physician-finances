@@ -142,4 +142,62 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
     expect(personal.components.businessState).toBe(0);
     expect(business.components.businessState).toBe(1.5);
   });
+
+  it("acceptance: personal paycheck target uses the shared federal profile rate while business adds only SE and B&O", () => {
+    const taxSettings = {
+      withholdingMethod: "flat_estimate",
+      manualEffectiveTaxRate: 20,
+      stateTaxEnabled: false,
+      stateIncomeTaxEnabled: false,
+      businessStateTaxEnabled: true,
+      businessStateTaxRate: 1.5,
+      businessStateTaxApplicationMode: "all_business",
+    };
+    const taxablePaycheckAmount = 1_000;
+    const totalFederalPayrollTaxesAlreadyWithheld = 150;
+    const taxableBusinessIncome = 1_000;
+
+    const profile = getSelectedWithholdingProfileRate({
+      taxSettings,
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+    const personal = getSavingsRateForIncomeBucket({
+      incomeBucket: "personal",
+      incomeType: "w2",
+      taxSettings,
+      actualEstimate: estimate,
+      forecastEstimate,
+    });
+    const business = getSavingsRateForIncomeBucket({
+      incomeBucket: "business",
+      incomeType: "1099_schedule_c",
+      taxSettings,
+      actualEstimate: estimate,
+      forecastEstimate,
+      applyBusinessStateTax: true,
+    });
+
+    const paycheckTarget = taxablePaycheckAmount * (personal.components.federal / 100);
+    const recommendedExtraSavings = paycheckTarget - totalFederalPayrollTaxesAlreadyWithheld;
+    const businessTarget = taxableBusinessIncome * (business.rate / 100);
+
+    expect(profile.federalProfileRate).toBe(20);
+    expect(personal.components.federal).toBe(profile.federalProfileRate);
+    expect(personal.components.employeeSocialSecurity).toBe(0);
+    expect(personal.components.employeeMedicare).toBe(0);
+    expect(personal.components.selfEmployment).toBe(0);
+    expect(personal.components.businessState).toBe(0);
+    expect(paycheckTarget).toBe(200);
+    expect(recommendedExtraSavings).toBe(50);
+
+    expect(business.components.federal).toBe(profile.federalProfileRate);
+    expect(business.components.employeeSocialSecurity).toBe(0);
+    expect(business.components.employeeMedicare).toBe(0);
+    expect(business.components.personalState).toBe(0);
+    expect(business.components.selfEmployment).toBe(1.5);
+    expect(business.components.businessState).toBe(1.5);
+    expect(business.rate).toBe(23);
+    expect(businessTarget).toBe(230);
+  });
 });
