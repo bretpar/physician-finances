@@ -8,6 +8,7 @@ import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import DashboardMetrics from "@/components/dashboard/DashboardMetrics";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
@@ -24,7 +25,18 @@ export default function Dashboard() {
   const { data: payments = [] } = useTaxPayments();
   const { actualEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { companies } = useCompanies();
+  const { data: streams } = useProjectedStreams();
+  const { data: bonuses } = useProjectedBonuses();
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
+
+  const projectedPaychecks = useMemo(
+    () =>
+      generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries).map((p) => ({
+        date: p.date,
+        grossAmount: Number(p.grossAmount || 0),
+      })),
+    [streams, bonuses, incomeEntries],
+  );
 
   const now = useMemo(() => new Date(), []);
   const currentMonth = now.getMonth();
@@ -246,6 +258,8 @@ export default function Dashboard() {
         personalEntries={personalEntries || []}
         transactions={transactions || []}
         companies={companies}
+        quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
+        projectedPaychecks={projectedPaychecks}
       />
 
       <FinancialScore
