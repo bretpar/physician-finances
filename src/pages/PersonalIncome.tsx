@@ -245,27 +245,17 @@ export default function PersonalIncome() {
     });
   }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, getWithholdingRec, isEditing]);
 
-  // ── Per-paycheck reserve calculation (simple, settings-driven) ──────────
-  // One number: how much extra to save from THIS paycheck for taxes.
-  // Uses ONLY the user-selected effective tax rate from Settings.
-  const paycheckReserve = useMemo(() => {
+  // ── Per-paycheck withholding guide ──────────────────────────────────────
+  // Source of truth: useWithholdingRecommendation. It respects the global
+  // withholding method (flat_estimate / dynamic_actual / dynamic_planner)
+  // selected in Settings and uses the canonical Total Federal Payroll Taxes
+  // value (federal income tax + SS + Medicare) for taxesAlreadyWithheld.
+  const paycheckGuide = useMemo(() => {
     if (grossAmount <= 0) return null;
 
-    const gross = grossAmount;
-    const retirement = num(form.retirement_pretax);
-    const healthcare = num(form.healthcare_deduction);
-    const otherPretax = num(form.deductions_pre_tax);
-    const hsa = num(form.hsa_contribution);
-    const eligibleDeductions = retirement + healthcare + otherPretax + hsa;
-    const taxablePaycheckAmount = Math.max(0, gross - eligibleDeductions);
+    const incType = isW2Type(form.income_type) ? "W2" : "1099";
 
-    // User-selected effective tax rate from Settings.
-    const selectedEffectiveRate = (taxSettings?.manualEffectiveTaxRate ?? 0) / 100;
-    const estimatedTaxTarget =
-      Math.round(taxablePaycheckAmount * selectedEffectiveRate * 100) / 100;
-
-    // Canonical "Total Federal Payroll Taxes" already withheld on this paycheck:
-    // federal income tax + Social Security + Medicare. Single shared wrapper.
+    // Canonical total federal payroll taxes (no double-counting of split fields).
     const totalFederalPayrollTaxes = getCanonicalTotalFederalPayrollTaxes({
       total_federal_payroll_taxes: form.total_federal_payroll_taxes,
       federal_withholding: num(form.federal_withholding),
@@ -273,20 +263,22 @@ export default function PersonalIncome() {
       medicare_withholding: num(form.medicare_withholding),
     });
 
-    // Optionally subtract state withholding when state tax is enabled.
     const stateEnabled = !!taxSettings?.stateTaxEnabled;
     const stateAlreadyWithheld = stateEnabled ? num(form.state_withholding) : 0;
 
-    const recommendedExtraSavings = Math.max(
-      0,
-      Math.round(
-        (estimatedTaxTarget - totalFederalPayrollTaxes - stateAlreadyWithheld) * 100,
-      ) / 100,
-    );
+    const hsa = num(form.hsa_contribution);
 
-    return { recommendedExtraSavings };
+    return getWithholdingRec({
+      grossIncome: grossAmount,
+      incomeType: incType,
+      taxesAlreadyWithheld: totalFederalPayrollTaxes + stateAlreadyWithheld,
+      retirement401k: num(form.retirement_pretax),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + hsa,
+      alreadyIncludedInEstimate: isEditing,
+    });
   }, [
     grossAmount,
+    form.income_type,
     form.retirement_pretax,
     form.healthcare_deduction,
     form.deductions_pre_tax,
@@ -297,6 +289,8 @@ export default function PersonalIncome() {
     form.total_federal_payroll_taxes,
     form.state_withholding,
     taxSettings,
+    getWithholdingRec,
+    isEditing,
   ]);
 
 
@@ -960,29 +954,43 @@ export default function PersonalIncome() {
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Per-paycheck suggested extra reserve (NOT annual-based) */}
-            {grossAmount > 0 && paycheckReserve && (
-              <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                <div className="flex items-baseline justify-between">
-                  <p className="text-xs font-semibold text-muted-foreground">Estimated Tax Reserve</p>
-                  <p
-                    className={`text-base font-bold tabular-nums ${
-                      paycheckReserve.recommendedExtraSavings > 0
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-emerald-600 dark:text-emerald-400"
-                    }`}
-                  >
-                    {fmt(paycheckReserve.recommendedExtraSavings)}
+            {/* Per-paycheck withholding guide — uses the global withholding
+                method from Settings via useWithholdingRecommendation. */}
+            {grossAmount > 0 && paycheckGuide && (() => {
+              const rec = paycheckGuide.recommendedWithholding;
+              const isUnder = rec > 0;
+              const isOver = rec < 0;
+              const label = isUnder
+                ? "Suggested extra withholding"
+                : isOver
+                ? "Over-withheld"
+                : "On track";
+              const helper = isUnder
+                ? "Consider saving this additional amount from this paycheck."
+                : isOver
+                ? "Payroll withholding appears to exceed this paycheck's recommended amount."
+                : "Payroll withholding appears to match this paycheck's recommendation.";
+              const display = isOver ? fmt(Math.abs(rec)) : fmt(rec);
+              const valueClass = isUnder
+                ? "text-destructive"
+                : "text-emerald-600 dark:text-emerald-400";
+              return (
+                <div className="rounded-md border border-border p-3 space-y-1 bg-background">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground">Paycheck withholding guide</p>
+                    <p className={`text-base font-bold tabular-nums ${valueClass}`}>{display}</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    <span className="font-medium">{label}.</span> {helper}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Based on your selected withholding method in Settings
+                    {paycheckGuide.methodLabel ? ` — ${paycheckGuide.methodLabel}.` : "."}
                   </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Suggested extra amount to save from this paycheck after payroll taxes already withheld.
-                </p>
-                <p className="text-[10px] text-muted-foreground italic">
-                  Based on your selected effective tax rate in Settings.
-                </p>
-              </div>
-            )}
+              );
+            })()}
+
 
             {/* Attachments */}
             <TransactionAttachments
