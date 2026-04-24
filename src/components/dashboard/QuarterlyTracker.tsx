@@ -8,7 +8,8 @@ import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid, getTotalFederalPaidDetail, federalSourceLabel, type FederalWithholdingSource } from "@/lib/federalWithholding";
-import { debugFlags } from "@/lib/debugFlags";
+import { debugFlags, useDebugFlag } from "@/lib/debugFlags";
+import { Switch } from "@/components/ui/switch";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -110,6 +111,10 @@ export default function QuarterlyTracker({
   const isCurrentQuarter = view.quarter === initial.quarter && view.year === initial.year;
 
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+
+  // Debug: force the SELECTED quarter to behave as closed (planned income → 0,
+  // status uses past-quarter branch). Scoped to the currently-viewed quarter.
+  const forceClosed = useDebugFlag(debugFlags.forceQuarterClosed);
 
   // ── Build per-company rows for the SELECTED quarter window ──────────────
   const companyRows: CompanyQuarterRow[] = useMemo(() => {
@@ -230,16 +235,21 @@ export default function QuarterlyTracker({
       if (inYear(e.income_date)) yearIncome += amt;
       if (inWin(e.income_date)) qIncome += amt;
     }
-    // Add planned/projected paychecks (future occurrences)
+    // Add planned/projected paychecks (future occurrences). When the debug
+    // "force quarter closed" flag is on, treat planned income for the SELECTED
+    // quarter as $0 so the target reflects only realized income — same as a
+    // truly closed quarter would. Other quarters still get their planned share.
     for (const p of projectedPaychecks || []) {
       const amt = Number(p.grossAmount || 0);
       if (inYear(p.date)) yearIncome += amt;
-      if (inWin(p.date)) qIncome += amt;
+      if (inWin(p.date)) {
+        if (!forceClosed) qIncome += amt;
+      }
     }
     if (yearIncome <= 0) return 0;
     const share = qIncome / yearIncome;
     return Math.max(0, annualTaxLiability * share);
-  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year]);
+  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year, forceClosed]);
 
   const paidFromCompanies = companyRows.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
@@ -254,8 +264,8 @@ export default function QuarterlyTracker({
   const elapsedDays = (now.getTime() - q.start.getTime()) / 86400000;
   // Future quarter → 0 progress; past quarter → 100%
   const quarterProgress = Math.max(0, Math.min(1, elapsedDays / totalDays));
-  const isFutureQuarter = now < q.start;
-  const isPastQuarter = now >= q.end;
+  const isFutureQuarter = !forceClosed && now < q.start;
+  const isPastQuarter = forceClosed || now >= q.end;
   const expectedByNow = quarterTarget * quarterProgress;
   const paceDiff = progressAmount - expectedByNow;
   const tolerance = Math.max(expectedByNow * 0.1, 250);
@@ -350,7 +360,19 @@ export default function QuarterlyTracker({
         <p className="text-xs text-muted-foreground mt-1 truncate">
           Pace toward the {q.deadlineLabel} tax deadline
           {methodLabel ? ` · ${methodLabel}` : ""}
+          {forceClosed ? " · debug: quarter forced closed" : ""}
         </p>
+        {/* Debug: force the SELECTED quarter to be treated as closed so you can
+            verify end-of-quarter behavior (planned income → 0, past-quarter
+            messaging) without waiting for the deadline to pass. */}
+        <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground select-none">
+          <Switch
+            checked={forceClosed}
+            onCheckedChange={(v) => debugFlags.setForceQuarterClosed(!!v)}
+            aria-label="Force selected quarter closed (debug)"
+          />
+          <span>Force {q.label} {view.year} closed (debug)</span>
+        </label>
       </CardHeader>
       <CardContent className="space-y-3 pb-10">
         {/* Primary numbers — 2-up */}
