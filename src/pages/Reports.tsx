@@ -269,7 +269,7 @@ export default function Reports() {
         csv += `Personal State Income Tax,Not enabled,-\n`;
       }
       if (businessStateEnabled) {
-        const baseLabel = taxSettings?.businessStateTaxBase === "net" ? "net business profit" : "gross business income";
+        const baseLabel = taxSettings?.businessStateTaxBase === "net_profit" ? "net business profit" : "gross business income";
         csv += `Business State Tax (${baseLabel} @ ${taxSettings?.businessStateTaxRate?.toFixed(2)}%),${(est.businessStateTax || 0).toFixed(2)},${businessStateRate}\n`;
       } else {
         csv += `Business State Tax,Not enabled,-\n`;
