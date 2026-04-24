@@ -245,6 +245,95 @@ export default function PersonalIncome() {
     });
   }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, getWithholdingRec, isEditing]);
 
+  // ── Per-paycheck reserve calculation (NOT annual-based) ─────────────────
+  // Computes the EXTRA federal+state reserve needed for THIS specific paycheck
+  // after eligible pre-tax deductions and payroll withholding already applied.
+  // Federal/state withholdings are NOT deductions; they are taxes already paid.
+  const { actualEstimate } = useTaxEstimate();
+  const paycheckReserve = useMemo(() => {
+    if (grossAmount <= 0) return null;
+
+    const gross = grossAmount;
+    const retirement = num(form.retirement_pretax);
+    const healthcare = num(form.healthcare_deduction);
+    const otherPretax = num(form.deductions_pre_tax);
+    const hsa = num(form.hsa_contribution);
+    const eligibleDeductions = retirement + healthcare + otherPretax + hsa;
+    const taxablePaycheckAmount = Math.max(0, gross - eligibleDeductions);
+
+    const isW2 = isW2Type(form.income_type);
+    // Federal effective rate: use unified estimate's federalEffectiveRate for W-2;
+    // for non-W2 use the blended rate (federal + SE) — net of state.
+    const flatMode = taxSettings?.withholdingMethod === "flat_estimate";
+    let federalRate = 0;
+    if (flatMode) {
+      federalRate = (taxSettings?.manualEffectiveTaxRate ?? 20) / 100;
+    } else if (actualEstimate) {
+      federalRate = isW2
+        ? (actualEstimate.federalEffectiveRate || 0) / 100
+        : (actualEstimate.effectiveRate || 0) / 100;
+    }
+
+    // State effective rate from settings (personal flat-rate mode only).
+    const stateMode = taxSettings?.personalStateTaxMode || "none";
+    const stateRate =
+      stateMode === "flat_rate" ? (taxSettings?.personalStateTaxRate || 0) / 100 : 0;
+    const stateEnabled = !!taxSettings?.stateTaxEnabled && stateRate > 0;
+
+    const federalEstimatedTaxNeed =
+      Math.round(taxablePaycheckAmount * federalRate * 100) / 100;
+    const stateEstimatedTaxNeed = stateEnabled
+      ? Math.round(taxablePaycheckAmount * stateRate * 100) / 100
+      : 0;
+
+    const federalAlreadyWithheld =
+      num(form.federal_withholding) +
+      num(form.ss_withholding) +
+      num(form.medicare_withholding);
+    const stateAlreadyWithheld = stateEnabled ? num(form.state_withholding) : 0;
+
+    const additionalFederalReserve = Math.max(
+      0,
+      Math.round((federalEstimatedTaxNeed - federalAlreadyWithheld) * 100) / 100,
+    );
+    const additionalStateReserve = Math.max(
+      0,
+      Math.round((stateEstimatedTaxNeed - stateAlreadyWithheld) * 100) / 100,
+    );
+    const totalSuggestedExtraReserve =
+      Math.round((additionalFederalReserve + additionalStateReserve) * 100) / 100;
+
+    return {
+      gross,
+      eligibleDeductions: Math.round(eligibleDeductions * 100) / 100,
+      taxablePaycheckAmount: Math.round(taxablePaycheckAmount * 100) / 100,
+      federalEstimatedTaxNeed,
+      federalAlreadyWithheld: Math.round(federalAlreadyWithheld * 100) / 100,
+      additionalFederalReserve,
+      stateEstimatedTaxNeed,
+      stateAlreadyWithheld: Math.round(stateAlreadyWithheld * 100) / 100,
+      additionalStateReserve,
+      totalSuggestedExtraReserve,
+      stateEnabled,
+      federalRatePct: federalRate * 100,
+      stateRatePct: stateRate * 100,
+    };
+  }, [
+    grossAmount,
+    form.income_type,
+    form.retirement_pretax,
+    form.healthcare_deduction,
+    form.deductions_pre_tax,
+    form.hsa_contribution,
+    form.federal_withholding,
+    form.ss_withholding,
+    form.medicare_withholding,
+    form.state_withholding,
+    actualEstimate,
+    taxSettings,
+  ]);
+
+
   function openAdd() {
     setForm(emptyForm);
     setEditingId(null);
