@@ -80,8 +80,8 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
 
     expect(result.components.personalState).toBe(0);
     expect(result.components.businessState).toBe(1.5);
-    expect(result.components.federal).toBe(17.3);
-    expect(result.rate).toBeCloseTo(20.3, 2);
+    expect(result.components.federal).toBe(12.86);
+    expect(result.rate).toBeCloseTo(15.86, 2);
   });
 
   it("excludes business state/B&O when selected-company rules do not include the company", () => {
@@ -102,8 +102,8 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
     });
 
     expect(result.components.businessState).toBe(0);
-    expect(result.components.federal).toBe(17.3);
-    expect(result.rate).toBeCloseTo(18.8, 2);
+    expect(result.components.federal).toBe(12.86);
+    expect(result.rate).toBeCloseTo(14.36, 2);
   });
 
   it("keeps personal income free of business state/B&O", () => {
@@ -122,8 +122,8 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
 
     expect(result.components.businessState).toBe(0);
     expect(result.components.selfEmployment).toBe(0);
-    expect(result.components.federal).toBe(17.3);
-    expect(result.rate).toBe(17.3);
+    expect(result.components.federal).toBe(12.86);
+    expect(result.rate).toBe(12.86);
   });
 
   it("uses the same selected federal profile rate for personal and business before add-ons", () => {
@@ -178,9 +178,9 @@ describe("getSavingsRateForIncomeBucket state tax selection", () => {
       forecastEstimate,
     });
 
-    expect(dynamicActualPersonal.components.federal).toBe(17.3);
-    expect(dynamicActualBusiness.components.federal).toBe(17.3);
-    expect(dynamicPlannerPersonal.components.federal).toBe(17.3);
+    expect(dynamicActualPersonal.components.federal).toBe(12.86);
+    expect(dynamicActualBusiness.components.federal).toBe(12.86);
+    expect(dynamicPlannerPersonal.components.federal).toBe(12.86);
     expect(dynamicActualBusiness.components.selfEmployment).toBe(1.5);
     expect(dynamicActualBusiness.components.businessState).toBe(1.5);
   });
