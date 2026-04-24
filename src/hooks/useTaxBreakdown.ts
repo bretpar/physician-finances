@@ -41,6 +41,7 @@ import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import {
   ORDINARY_BRACKETS_2025,
   calcBracketTax,
@@ -331,7 +332,9 @@ export function useTaxBreakdown(
     for (const tx of txs) {
       if (!matchCompany(tx.entity)) continue;
       const txType = (tx as any).transaction_type as string;
-      if (txType === "transfer" || (tx as any).excluded_from_reports) continue;
+      // CANONICAL exclusion: covers transfer, excluded_from_reports, and
+      // Personal-category rows. See src/lib/businessExclusion.ts.
+      if (isExcludedFromBusiness(tx as any)) continue;
 
       if (txType === "expense") {
         const company = tx.entity || "Unassigned";
