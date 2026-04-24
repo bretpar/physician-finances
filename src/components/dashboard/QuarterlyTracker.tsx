@@ -8,7 +8,8 @@ import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid, getTotalFederalPaidDetail, federalSourceLabel, type FederalWithholdingSource } from "@/lib/federalWithholding";
-import { debugFlags } from "@/lib/debugFlags";
+import { debugFlags, useDebugFlag } from "@/lib/debugFlags";
+import { Switch } from "@/components/ui/switch";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
