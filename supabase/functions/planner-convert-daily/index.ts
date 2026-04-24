@@ -170,6 +170,19 @@ function generateOccurrences(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Authenticate via shared CRON secret. Without this, anyone could trigger
+  // financial-data writes for every opted-in user.
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const provided =
+    req.headers.get("x-cron-secret") ||
+    (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!cronSecret || provided !== cronSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(url, serviceKey);
@@ -180,7 +193,8 @@ Deno.serve(async (req) => {
     .select("user_id, organization_id")
     .eq("auto_convert_future_income_to_ledger", true);
   if (settingsErr) {
-    return new Response(JSON.stringify({ error: settingsErr.message }), {
+    console.error("planner-convert-daily settings error", settingsErr);
+    return new Response(JSON.stringify({ error: "Internal error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -352,7 +366,20 @@ Deno.serve(async (req) => {
     summary.push(userStats);
   }
 
-  return new Response(JSON.stringify({ ok: true, ran_at: new Date().toISOString(), users: summary }), {
+  const totals = summary.reduce(
+    (acc, s: any) => {
+      acc.users += 1;
+      acc.attempted += s.attempted || 0;
+      acc.converted += s.converted || 0;
+      acc.duplicate_skipped += s.duplicate_skipped || 0;
+      acc.errors += s.errors || 0;
+      return acc;
+    },
+    { users: 0, attempted: 0, converted: 0, duplicate_skipped: 0, errors: 0 },
+  );
+  console.log("planner-convert-daily totals", totals);
+
+  return new Response(JSON.stringify({ ok: true }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
