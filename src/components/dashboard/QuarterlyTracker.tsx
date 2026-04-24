@@ -160,10 +160,17 @@ export default function QuarterlyTracker({
   const animSavedPct = useCountUp(savedPct, 1100);
   const animExpectedPct = useCountUp(expectedPct, 1100);
 
-  // Breakdown rows
+  // Prorate the estimated-payment offset across companies by their saved share,
+  // so per-row "Saved" doesn't double-count dollars that were submitted to IRS.
+  const offset = Math.min(rawSavedThisQuarter, quarterlyPayments);
   const sortedCompanies = [...companies].sort((a, b) => (b.paid + b.saved) - (a.paid + a.saved));
+  const adjustedCompanyRows = sortedCompanies.map((c) => {
+    const share = rawSavedThisQuarter > 0 ? c.saved / rawSavedThisQuarter : 0;
+    const adjSaved = Math.max(0, c.saved - offset * share);
+    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved };
+  });
   const rows = [
-    ...sortedCompanies.map((c) => ({ key: c.key, label: c.label, paid: c.paid, saved: c.saved })),
+    ...adjustedCompanyRows,
     {
       key: "__quarterly_payments__",
       label: `${q.label} estimated payments`,
