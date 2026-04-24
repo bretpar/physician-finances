@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import type { Company } from "@/contexts/CompanyContext";
-
-const PERSONAL_CATEGORY = "Personal";
+import { isExcludedFromBusiness, PERSONAL_CATEGORY } from "@/lib/businessExclusion";
 
 export interface ExpenseSummary {
   totalBusinessExpenses: number;
@@ -23,10 +22,19 @@ export function useExpenseSummary(transactions: DbTransaction[], companies?: Com
     const now = new Date();
     const thisMonth = now.getMonth();
     const thisYear = now.getFullYear();
-    const expenses = transactions.filter(isExpense);
+    const allExpenses = transactions.filter(isExpense);
+    // Personal-bucket figure intentionally still surfaces personal-category
+    // and explicitly excluded rows so the "Personal Expenses" widget can
+    // report them. All BUSINESS aggregations below operate on `expenses`,
+    // which strips anything `isExcludedFromBusiness` flags.
+    const expenses = allExpenses.filter((t) => !isExcludedFromBusiness(t as any));
 
     const totalBusinessExpenses = expenses.filter((t) => t.category !== PERSONAL_CATEGORY).reduce((s, t) => s + Math.abs(t.amount), 0);
-    const totalPersonalExpenses = expenses.filter((t) => t.category === PERSONAL_CATEGORY).reduce((s, t) => s + Math.abs(t.amount), 0);
+    // Personal expenses widget: count both Personal-category rows AND any
+    // explicitly excluded expense rows, since both represent non-business spend.
+    const totalPersonalExpenses = allExpenses
+      .filter((t) => t.category === PERSONAL_CATEGORY || isExcludedFromBusiness(t as any))
+      .reduce((s, t) => s + Math.abs(t.amount), 0);
     const uncategorizedTotal = expenses.filter((t) => t.category === "Uncategorized").reduce((s, t) => s + Math.abs(t.amount), 0);
     const deductibleTotal = expenses.filter((t) => t.category !== PERSONAL_CATEGORY && t.category !== "Uncategorized").reduce((s, t) => s + Math.abs(t.amount), 0);
     const unassignedTotal = expenses.filter((t) => t.entity === "Unassigned").reduce((s, t) => s + Math.abs(t.amount), 0);

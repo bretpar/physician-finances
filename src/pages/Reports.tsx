@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, FileText, Building2 } from "lucide-react";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -84,9 +85,11 @@ export default function Reports() {
 
   // ──── P&L Computation ────
   const plData = useMemo(() => {
+    // CANONICAL: drop personal / excluded / transfer rows from BOTH the
+    // income and expense sides so exported P&L reflects business activity.
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
-      if ((t as any).excluded_from_reports) return false;
+      if (isExcludedFromBusiness(t as any)) return false;
       if (plCompany !== "all" && t.entity !== plCompany) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
@@ -95,7 +98,7 @@ export default function Reports() {
 
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
-      if ((t as any).excluded_from_reports) return false;
+      if (isExcludedFromBusiness(t as any)) return false;
       if (plCompany !== "all" && t.entity !== plCompany) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
@@ -134,14 +137,14 @@ export default function Reports() {
 
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
-      if ((t as any).excluded_from_reports) return false;
+      if (isExcludedFromBusiness(t as any)) return false;
       if (taxCompany !== "all" && t.entity !== taxCompany) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });
 
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
-      if ((t as any).excluded_from_reports) return false;
+      if (isExcludedFromBusiness(t as any)) return false;
       if (taxCompany !== "all" && t.entity !== taxCompany) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });

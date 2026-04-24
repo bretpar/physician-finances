@@ -17,6 +17,7 @@ import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 import { aggregateByCategory } from "@/lib/incomeClassification";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -155,6 +156,9 @@ export function useTaxEstimate(): {
 
     for (const t of txs) {
       if (t.transaction_type !== "income") continue;
+      // CANONICAL EXCLUSION RULE: personal / excluded / transfer rows MUST
+      // NOT contribute to taxable business income. See businessExclusion.ts.
+      if (isExcludedFromBusiness(t as any)) continue;
       // Resolve filing type: prefer companies.companyType via source_id, else fall back to tx.company_type
       const company = (t.source_id && companyById.get(t.source_id)) ||
         (t.entity && companyByName.get(t.entity.toLowerCase().trim()));
@@ -184,7 +188,11 @@ export function useTaxEstimate(): {
     // Enrichment from income_entries — but ONLY for entries linked to a live
     // active transaction. This prevents stale/orphaned income_entries from
     // contributing federal_withholding, retirement, etc.
-    const liveTxIds = new Set(txs.filter((t) => t.transaction_type === "income").map((t) => t.id));
+    const liveTxIds = new Set(
+      txs
+        .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
+        .map((t) => t.id),
+    );
     const linkedEntries = (reconciledIncomeEntries || []).filter(
       (e) => e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id),
     );
@@ -269,17 +277,18 @@ export function useTaxEstimate(): {
       .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
     const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses);
 
-    // Business expenses
+    // Business expenses — apply canonical exclusion rule (also drops
+    // Personal-category and excluded_from_reports rows).
     const businessExpenses = (transactions || [])
-      .filter((t) => t.transaction_type === "expense" && t.category !== "Personal" && t.entity !== "Unassigned")
+      .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
 
     const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
     const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
 
-    // User reserves (NOT taxes paid)
+    // User reserves (NOT taxes paid) — exclude personal/excluded rows.
     const txActualWithholding = (transactions || [])
-      .filter((t) => t.transaction_type === "income")
+      .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
       .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
 
     // Remaining pay periods

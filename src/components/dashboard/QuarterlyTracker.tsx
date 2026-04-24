@@ -8,6 +8,7 @@ import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -121,7 +122,7 @@ export default function QuarterlyTracker({
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const liveTxById = new Map(
       (transactions || [])
-        .filter((t: any) => t.transaction_type === "income")
+        .filter((t: any) => t.transaction_type === "income" && !isExcludedFromBusiness(t))
         .map((t: any) => [t.id, t] as const),
     );
 
