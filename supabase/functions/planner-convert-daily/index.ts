@@ -366,7 +366,20 @@ Deno.serve(async (req) => {
     summary.push(userStats);
   }
 
-  return new Response(JSON.stringify({ ok: true, ran_at: new Date().toISOString(), users: summary }), {
+  const totals = summary.reduce(
+    (acc, s: any) => {
+      acc.users += 1;
+      acc.attempted += s.attempted || 0;
+      acc.converted += s.converted || 0;
+      acc.duplicate_skipped += s.duplicate_skipped || 0;
+      acc.errors += s.errors || 0;
+      return acc;
+    },
+    { users: 0, attempted: 0, converted: 0, duplicate_skipped: 0, errors: 0 },
+  );
+  console.log("planner-convert-daily totals", totals);
+
+  return new Response(JSON.stringify({ ok: true }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
