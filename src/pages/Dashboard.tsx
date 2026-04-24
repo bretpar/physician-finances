@@ -240,9 +240,12 @@ export default function Dashboard() {
 
       <QuarterlyTracker
         annualTaxLiability={annualTaxLiability}
-        companies={companyRows}
         payments={payments}
         methodLabel={methodLabel}
+        incomeEntries={incomeEntries || []}
+        personalEntries={personalEntries || []}
+        transactions={transactions || []}
+        companies={companies}
       />
 
       <FinancialScore
