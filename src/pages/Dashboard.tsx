@@ -67,7 +67,7 @@ export default function Dashboard() {
     return d >= quarterRange.start && d < quarterRange.end;
   };
 
-  const companyRows: CompanyQuarterRow[] = useMemo(() => {
+  const companyRows = useMemo(() => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const liveTxById = new Map(
       (transactions || [])
