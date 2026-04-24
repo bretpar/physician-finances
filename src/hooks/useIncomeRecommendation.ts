@@ -16,7 +16,6 @@ import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
-import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 import { getNextQuarterDeadline } from "@/lib/quarters";
