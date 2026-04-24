@@ -17,7 +17,7 @@ import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { isFeatureEnabled } from "@/lib/featureFlags";
-import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { isW2FilingType } from "@/lib/filingTypes";
 import { getNextQuarterDeadline } from "@/lib/quarters";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
@@ -135,7 +135,6 @@ export function useIncomeRecommendation() {
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
-      const isSelfEmployed = isSelfEmployedFilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
       const profile = getSelectedWithholdingProfileRate({ taxSettings: settings, actualEstimate, forecastEstimate });
 
