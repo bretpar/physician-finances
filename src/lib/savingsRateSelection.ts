@@ -115,15 +115,15 @@ export function getSelectedWithholdingProfileRate(input: {
       methodUsed: "dynamic_planner",
       federalProfileRate: dynamicFederalProfileRate(input.forecastEstimate),
       source: "dynamic_planner",
-      label: "Based on actual + planned income",
+      label: "Based on actual + future income",
     };
   }
 
   return {
     methodUsed: "dynamic_actual",
-    federalProfileRate: dynamicFederalProfileRate(input.actualEstimate),
+    federalProfileRate: dynamicFederalProfileRate(input.forecastEstimate),
     source: "dynamic_actual",
-    label: "Based on combined actual income",
+    label: "Based on actual + future income",
   };
 }
 
