@@ -440,15 +440,13 @@ export default function QuarterlyTracker({
           </div>
         </Collapsible>
 
-        <p className="text-[11px] text-muted-foreground italic">
-          Saved amounts are not yet submitted tax payments.
+        {/* Single footer line — quarterly target context + effective tax rate */}
+        <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+          Quarterly target based on Current + Planned income
+          {typeof effectiveTaxRate === "number" && Number.isFinite(effectiveTaxRate) && (
+            <> · Effective Tax Rate: <span className="text-foreground/80 font-medium tabular-nums">{effectiveTaxRate.toFixed(1)}%</span></>
+          )}
         </p>
-        {quarterMethod === "dynamic" && (
-          <p className="text-[11px] text-muted-foreground">
-            This quarter target is based on current + planned income for this
-            quarter and may change as income changes.
-          </p>
-        )}
 
         {/* Quarter navigation affordance */}
         <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
