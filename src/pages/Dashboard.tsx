@@ -266,6 +266,20 @@ export default function Dashboard() {
         companies={companies}
         quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
         projectedPaychecks={projectedPaychecks}
+        personalBucketRate={getSavingsRateForIncomeBucket({
+          incomeBucket: "personal",
+          incomeType: "W2",
+          taxSettings: rates,
+          actualEstimate,
+          forecastEstimate,
+        }).rate}
+        businessBucketRate={getSavingsRateForIncomeBucket({
+          incomeBucket: "business",
+          incomeType: "1099",
+          taxSettings: rates,
+          actualEstimate,
+          forecastEstimate,
+        }).rate}
         effectiveTaxRate={effectiveTaxRate}
       />
 
