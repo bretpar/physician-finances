@@ -50,7 +50,8 @@ export default function QuarterlyTaxPlanner() {
   // Form
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [amount, setAmount] = useState("");
-  const [quarter, setQuarter] = useState("Q1");
+  const [appliedQuarter, setAppliedQuarter] = useState("Q1");
+  const [appliedTaxYear, setAppliedTaxYear] = useState<number>(currentYear);
   const [notes, setNotes] = useState("");
 
   const totalEstTax = estimate?.totalTaxLiability ?? 0;
@@ -60,7 +61,7 @@ export default function QuarterlyTaxPlanner() {
   const totalCovered = (estimate?.taxesAlreadyWithheld ?? 0) + totalPaid;
   const stillOwed = Math.max(0, totalEstTax - totalCovered);
 
-  // Per-quarter calculations
+  // Per-quarter calculations — attribute by applied_quarter + applied_tax_year (current tax year).
   const now = new Date();
   const quarterData = useMemo(() => {
     const remainingQs = QUARTERS.filter((q) => isAfter(q.due, now) || q.due.toDateString() === now.toDateString());
@@ -68,7 +69,9 @@ export default function QuarterlyTaxPlanner() {
     const suggestedPerQ = stillOwed / remainingCount;
 
     return QUARTERS.map((q) => {
-      const qPayments = payments.filter((p) => p.quarter === q.key);
+      const qPayments = payments.filter(
+        (p) => (p.applied_quarter || p.quarter) === q.key && p.applied_tax_year === currentYear,
+      );
       const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
       const recommended = suggestedPerQ;
       const remainingDue = Math.max(0, recommended - paidAmount);
@@ -90,16 +93,26 @@ export default function QuarterlyTaxPlanner() {
   const resetForm = () => {
     setPaymentDate(new Date());
     setAmount("");
-    setQuarter("Q1");
+    setAppliedQuarter("Q1");
+    setAppliedTaxYear(currentYear);
     setNotes("");
     setEditId(null);
   };
 
-  const openEditPayment = (p: { id: string; payment_date: string; amount: number; quarter: string; notes: string | null }) => {
+  const openEditPayment = (p: {
+    id: string;
+    payment_date: string;
+    amount: number;
+    quarter: string;
+    applied_quarter?: string;
+    applied_tax_year?: number;
+    notes: string | null;
+  }) => {
     setEditId(p.id);
     setPaymentDate(new Date(p.payment_date + "T00:00:00"));
     setAmount(String(p.amount));
-    setQuarter(p.quarter);
+    setAppliedQuarter(p.applied_quarter || p.quarter || "Q1");
+    setAppliedTaxYear(p.applied_tax_year ?? new Date(p.payment_date + "T00:00:00").getFullYear());
     setNotes(p.notes || "");
     setOpen(true);
   };
@@ -110,7 +123,9 @@ export default function QuarterlyTaxPlanner() {
     const payload = {
       payment_date: format(paymentDate, "yyyy-MM-dd"),
       amount: amt,
-      quarter,
+      quarter: appliedQuarter,
+      applied_quarter: appliedQuarter,
+      applied_tax_year: appliedTaxYear,
       notes,
     };
     if (editId) {
@@ -276,7 +291,7 @@ export default function QuarterlyTaxPlanner() {
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => { resetForm(); setQuarter(q.key); setOpen(true); }}
+                onClick={() => { resetForm(); setAppliedQuarter(q.key); setAppliedTaxYear(currentYear); setOpen(true); }}
               >
                 <Plus className="h-3 w-3 mr-1" /> Log Payment
               </Button>
@@ -303,8 +318,8 @@ export default function QuarterlyTaxPlanner() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Quarter</TableHead>
+                <TableHead>Payment date</TableHead>
+                <TableHead>Applied to</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead className="w-[80px]" />
@@ -319,7 +334,9 @@ export default function QuarterlyTaxPlanner() {
                 payments.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell>{format(new Date(p.payment_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                    <TableCell>{p.quarter}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {(p.applied_quarter || p.quarter)} {p.applied_tax_year ?? new Date(p.payment_date + "T00:00:00").getFullYear()}
+                    </TableCell>
                     <TableCell className="text-right font-medium">{fmt(Number(p.amount))}</TableCell>
                     <TableCell className="text-muted-foreground max-w-[200px] truncate">{p.notes}</TableCell>
                     <TableCell>
@@ -361,17 +378,33 @@ export default function QuarterlyTaxPlanner() {
               <Label>Amount *</Label>
               <Input type="number" min="0" step="0.01" value={amount} onChange={(ev) => setAmount(ev.target.value)} placeholder="0.00" />
             </div>
-            <div>
-              <Label>Quarter *</Label>
-              <Select value={quarter} onValueChange={setQuarter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {QUARTERS.map((q) => (
-                    <SelectItem key={q.key} value={q.key}>{q.label} — Due {q.dueLabel}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Apply to quarter *</Label>
+                <Select value={appliedQuarter} onValueChange={setAppliedQuarter}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {QUARTERS.map((q) => (
+                      <SelectItem key={q.key} value={q.key}>{q.label} — Due {q.dueLabel}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Tax year *</Label>
+                <Select value={String(appliedTaxYear)} onValueChange={(v) => setAppliedTaxYear(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Payment date and applied quarter can differ — e.g. a payment made Apr 7, 2026 can be applied to Q1 2026.
+            </p>
             <div>
               <Label>Notes (optional)</Label>
               <Input value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="e.g. IRS Direct Pay confirmation" />

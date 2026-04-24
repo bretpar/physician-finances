@@ -1143,6 +1143,8 @@ export type Database = {
       tax_payments: {
         Row: {
           amount: number
+          applied_quarter: string
+          applied_tax_year: number
           created_at: string
           id: string
           notes: string | null
@@ -1154,6 +1156,8 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          applied_quarter?: string
+          applied_tax_year?: number
           created_at?: string
           id?: string
           notes?: string | null
@@ -1165,6 +1169,8 @@ export type Database = {
         }
         Update: {
           amount?: number
+          applied_quarter?: string
+          applied_tax_year?: number
           created_at?: string
           id?: string
           notes?: string | null

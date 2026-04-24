@@ -143,8 +143,8 @@ export default function Dashboard() {
   }, [incomeEntries, personalEntries, transactions, companies, quarterRange]);
 
   const quarterlyPayments = useMemo(
-    () => getQuarterPayments(payments, q.label),
-    [payments, q.label],
+    () => getQuarterPayments(payments, q.label, currentYear),
+    [payments, q.label, currentYear],
   );
 
   // Income consistency: months YTD with at least one income event.
@@ -239,7 +239,7 @@ export default function Dashboard() {
       <QuarterlyTracker
         annualTaxLiability={annualTaxLiability}
         companies={companyRows}
-        quarterlyPayments={quarterlyPayments}
+        payments={payments}
         methodLabel={methodLabel}
       />
 

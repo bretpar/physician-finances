@@ -41,13 +41,30 @@ function mk(q: QuarterNumber, deadline: Date, deadlineLabel: string): QuarterInf
   return { quarter: q, label, deadline, longLabel: `${label} (${deadlineLabel})`, deadlineLabel };
 }
 
-/** Sum the amounts of tax_payments rows whose `quarter` matches the given label. */
-export function getQuarterPayments<T extends { quarter: string; amount: number | string }>(
-  payments: T[] | undefined,
-  quarter: QuarterLabel,
-): number {
+/**
+ * Sum the amounts of tax_payments rows whose applied tax quarter (and optionally
+ * applied tax year) match. Falls back to legacy `quarter` field when
+ * `applied_quarter` isn't present on the row.
+ */
+export function getQuarterPayments<
+  T extends {
+    quarter?: string;
+    applied_quarter?: string;
+    applied_tax_year?: number;
+    payment_date?: string;
+    amount: number | string;
+  },
+>(payments: T[] | undefined, quarter: QuarterLabel, taxYear?: number): number {
   if (!payments) return 0;
   return payments
-    .filter((p) => (p.quarter || "").toUpperCase() === quarter)
+    .filter((p) => {
+      const q = (p.applied_quarter || p.quarter || "").toUpperCase();
+      if (q !== quarter) return false;
+      if (taxYear == null) return true;
+      const y =
+        p.applied_tax_year ??
+        (p.payment_date ? new Date(p.payment_date + "T00:00:00").getFullYear() : undefined);
+      return y === taxYear;
+    })
     .reduce((s, p) => s + Number(p.amount || 0), 0);
 }

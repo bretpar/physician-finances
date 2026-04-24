@@ -4,7 +4,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CheckCircle2, Sparkles, Compass, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
-import { getCurrentQuarter } from "@/lib/quarters";
+import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/quarters";
+import type { TaxPayment } from "@/hooks/useTaxPayments";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -17,7 +18,8 @@ export interface CompanyQuarterRow {
 interface QuarterlyTrackerProps {
   annualTaxLiability: number;
   companies: CompanyQuarterRow[];
-  quarterlyPayments: number;
+  /** All tax payments — filtered internally by the displayed quarter + year. */
+  payments: TaxPayment[];
   methodLabel?: string;
 }
 
@@ -69,7 +71,7 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
 export default function QuarterlyTracker({
   annualTaxLiability,
   companies,
-  quarterlyPayments,
+  payments,
   methodLabel,
 }: QuarterlyTrackerProps) {
   const current = getCurrentQuarter();
@@ -93,6 +95,11 @@ export default function QuarterlyTracker({
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   // ── Quarter math ──────────────────────────────────────────────────────────
+  // Estimated tax payments for THIS displayed quarter+year.
+  const quarterlyPayments = useMemo(
+    () => getQuarterPayments(payments, q.label as QuarterLabel, activeYear),
+    [payments, q.label, activeYear],
+  );
   const quarterTarget = Math.max(0, annualTaxLiability / 4);
   const paidFromCompanies = companies.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
