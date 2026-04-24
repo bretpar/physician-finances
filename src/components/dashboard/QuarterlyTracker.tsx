@@ -264,8 +264,8 @@ export default function QuarterlyTracker({
   const elapsedDays = (now.getTime() - q.start.getTime()) / 86400000;
   // Future quarter → 0 progress; past quarter → 100%
   const quarterProgress = Math.max(0, Math.min(1, elapsedDays / totalDays));
-  const isFutureQuarter = now < q.start;
-  const isPastQuarter = now >= q.end;
+  const isFutureQuarter = !forceClosed && now < q.start;
+  const isPastQuarter = forceClosed || now >= q.end;
   const expectedByNow = quarterTarget * quarterProgress;
   const paceDiff = progressAmount - expectedByNow;
   const tolerance = Math.max(expectedByNow * 0.1, 250);
