@@ -32,7 +32,11 @@ interface QuarterlyTrackerProps {
   quarterMethod?: "even" | "dynamic";
   /** Projected paychecks (date + grossAmount). Used only when quarterMethod="dynamic". */
   projectedPaychecks?: Array<{ date: string; grossAmount: number }>;
-  /** Effective tax rate (percent, 0–100) from the tax engine. Shown in the footer line. */
+  /** Personal-bucket withholding target rate (percent, 0–100). Footer display. */
+  personalBucketRate?: number;
+  /** Business-bucket reserve target rate (percent, 0–100). Footer display. */
+  businessBucketRate?: number;
+  /** @deprecated kept for backward-compat; use personal/business rates instead. */
   effectiveTaxRate?: number;
 }
 
