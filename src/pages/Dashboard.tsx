@@ -265,6 +265,7 @@ export default function Dashboard() {
         companies={companies}
         quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
         projectedPaychecks={projectedPaychecks}
+        effectiveTaxRate={effectiveTaxRate}
       />
 
       <FinancialScore
