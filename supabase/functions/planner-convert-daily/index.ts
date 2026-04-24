@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
     summary.push(userStats);
   }
 
-  const totals = summary.reduce(
+  const totals = summary.reduce<{ users: number; attempted: number; converted: number; duplicate_skipped: number; errors: number }>(
     (acc, s: any) => {
       acc.users += 1;
       acc.attempted += s.attempted || 0;
