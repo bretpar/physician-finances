@@ -3,6 +3,7 @@ import type { DbTransaction } from "@/hooks/useTransactions";
 import type { TaxRates } from "@/hooks/useTaxSettings";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 export interface DashboardSummary {
   businessIncome: number;
