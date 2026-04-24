@@ -588,7 +588,10 @@ export default function PersonalIncome() {
                   {isLoss ? "-" : "+"}{fmt(Math.abs(Number(entry.gross_amount)))}
                 </span>
                 <span className="text-sm tabular-nums text-right text-muted-foreground">
-                  {Number(entry.federal_withholding) > 0 ? fmt(Number(entry.federal_withholding)) : "—"}
+                  {(() => {
+                    const withheld = getTotalFederalPaid(entry as any);
+                    return withheld > 0 ? fmt(withheld) : "—";
+                  })()}
                 </span>
                 <span className="text-sm tabular-nums text-right text-muted-foreground flex items-center justify-end gap-1">
                   {reserve > 0 ? (
