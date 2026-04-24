@@ -52,6 +52,8 @@ export default function Reports() {
   const currentYearForMileage = new Date().getFullYear();
   const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
   const { data: hsaRows = [] } = useHsaContributions(currentYearForMileage);
+  const { actualEstimate, forecastEstimate } = useTaxEstimate();
+  const { data: taxSettings } = useTaxSettings();
 
   const VEHICLE_CATEGORY = "Car and truck expenses";
 
