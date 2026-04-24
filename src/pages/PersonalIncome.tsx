@@ -264,11 +264,19 @@ export default function PersonalIncome() {
     const estimatedTaxTarget =
       Math.round(taxablePaycheckAmount * selectedEffectiveRate * 100) / 100;
 
-    // Total federal payroll taxes already withheld on this paycheck.
+    // Canonical "Total Federal Payroll Taxes" already withheld on this paycheck:
+    // federal income tax + Social Security + Medicare.
+    // Prefer the visible single-input field when present; otherwise derive via
+    // the shared helper so naming/legacy field shapes never drift.
+    const totalFromFormField = num(form.total_federal_payroll_taxes);
     const totalFederalPayrollTaxes =
-      num(form.federal_withholding) +
-      num(form.ss_withholding) +
-      num(form.medicare_withholding);
+      totalFromFormField > 0
+        ? totalFromFormField
+        : getTotalFederalPaid({
+            federal_withholding: num(form.federal_withholding),
+            ss_withholding: num(form.ss_withholding),
+            medicare_withholding: num(form.medicare_withholding),
+          });
 
     // Optionally subtract state withholding when state tax is enabled.
     const stateEnabled = !!taxSettings?.stateTaxEnabled;
@@ -291,6 +299,7 @@ export default function PersonalIncome() {
     form.federal_withholding,
     form.ss_withholding,
     form.medicare_withholding,
+    form.total_federal_payroll_taxes,
     form.state_withholding,
     taxSettings,
   ]);
