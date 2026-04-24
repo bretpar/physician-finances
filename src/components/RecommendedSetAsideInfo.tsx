@@ -136,7 +136,12 @@ export function RecommendedSetAsideInfo({ rate }: Props) {
           <DialogHeader>
             <DialogTitle>How this is calculated</DialogTitle>
           </DialogHeader>
-          <InfoBody personalOn={personalOn} businessOn={businessOn} />
+          <InfoBody
+            personalOn={personalOn}
+            businessOn={businessOn}
+            personalToggledNoRate={personalToggledNoRate}
+            businessToggledNoRate={businessToggledNoRate}
+          />
         </DialogContent>
       </Dialog>
     </>
