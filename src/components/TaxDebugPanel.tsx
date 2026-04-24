@@ -62,7 +62,7 @@ const FIELDS: FieldDef[] = [
 
 function formatValue(val: unknown, isBool?: boolean): string {
   if (isBool) return val ? "Yes" : "No";
-  if (typeof val === "string") return val.replaceAll("_", " ");
+  if (typeof val === "string") return val.replace(/_/g, " ");
   return fmt(val as number);
 }
 
