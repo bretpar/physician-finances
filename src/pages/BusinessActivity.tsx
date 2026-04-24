@@ -31,6 +31,7 @@ import { TransactionAttachments, MobileAttachmentViewer } from "@/components/Tra
 import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
+import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";

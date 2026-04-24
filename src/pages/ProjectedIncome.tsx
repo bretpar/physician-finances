@@ -51,6 +51,7 @@ import {
 import { ledgerForIncomeType } from "@/lib/ledgerRouting";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
+import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
