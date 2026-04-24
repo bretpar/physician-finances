@@ -193,7 +193,8 @@ Deno.serve(async (req) => {
     .select("user_id, organization_id")
     .eq("auto_convert_future_income_to_ledger", true);
   if (settingsErr) {
-    return new Response(JSON.stringify({ error: settingsErr.message }), {
+    console.error("planner-convert-daily settings error", settingsErr);
+    return new Response(JSON.stringify({ error: "Internal error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
