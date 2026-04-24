@@ -4,8 +4,13 @@
 // enabled and runs the same logic as the on-demand client fallback, server-side
 // using the service role key. Idempotent: the planner_conversions unique
 // constraints prevent double-conversion if cron fires more than once per day.
-import { createClient } from "npm:@supabase/supabase-js@2.95.0";
-import { corsHeaders } from "npm:@supabase/supabase-js@2.95.0/cors";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-cron-secret",
+};
 
 interface Stream {
   id: string;
@@ -366,7 +371,7 @@ Deno.serve(async (req) => {
     summary.push(userStats);
   }
 
-  const totals = summary.reduce(
+  const totals = summary.reduce<{ users: number; attempted: number; converted: number; duplicate_skipped: number; errors: number }>(
     (acc, s: any) => {
       acc.users += 1;
       acc.attempted += s.attempted || 0;
