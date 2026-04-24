@@ -215,6 +215,7 @@ export default function Dashboard() {
     method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : actualEstimate;
   let annualTaxLiability = baseEstimate?.totalTaxLiability ?? 0;
   let methodLabel = "Dynamic (actual income)";
+  let effectiveTaxRate = baseEstimate?.effectiveRate ?? 0;
   if (method === "dynamic_planner") {
     methodLabel = "Dynamic (actual + projected)";
   } else if (method === "flat_estimate") {
@@ -225,6 +226,7 @@ export default function Dashboard() {
       0;
     annualTaxLiability = incomeBase * (ratePct / 100);
     methodLabel = `Flat estimate (${ratePct}%)`;
+    effectiveTaxRate = ratePct;
   }
 
   const greeting =
