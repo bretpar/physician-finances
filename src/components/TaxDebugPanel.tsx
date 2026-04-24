@@ -17,14 +17,17 @@ interface Props {
   compareLabel?: string;
 }
 
-type FieldDef = { key: keyof TaxDebugBreakdown; label: string; isBool?: boolean };
+type FieldDef = { key: keyof TaxDebugBreakdown; label: string; isBool?: boolean; isText?: boolean; isPercent?: boolean };
 
 const FIELDS: FieldDef[] = [
   { key: "includeProjectedIncome", label: "Projected income included?", isBool: true },
+  { key: "filingStatus", label: "Filing status", isText: true },
   { key: "grossBusinessIncome", label: "Gross business income" },
   { key: "businessExpenses", label: "− Business expenses" },
   { key: "netBusinessProfit", label: "= Net business profit" },
   { key: "w2Income", label: "+ W-2 income" },
+  { key: "w2PreTaxDeductions", label: "− W-2 pre-tax deductions" },
+  { key: "w2TaxableIncomeBase", label: "= W-2 taxable income base" },
   { key: "otherIncome", label: "+ Other income" },
   { key: "totalReturnIncomeBeforeAdjustments", label: "= Total return income" },
   { key: "preTaxDeductions", label: "− Pre-tax deductions" },
@@ -36,8 +39,11 @@ const FIELDS: FieldDef[] = [
   { key: "totalTaxableIncome", label: "= Taxable income" },
   { key: "federalIncomeTax", label: "Federal income tax" },
   { key: "selfEmploymentTax", label: "+ Self-employment tax" },
-  { key: "stateTax", label: "+ State tax" },
+  { key: "personalStateTax", label: "+ Personal state income tax" },
+  { key: "businessStateTax", label: "+ Business state tax" },
+  { key: "stateTax", label: "+ Total state tax" },
   { key: "totalEstimatedTax", label: "= Total estimated tax" },
+  { key: "canonicalEffectiveTaxRate", label: "Canonical effective tax rate", isPercent: true },
   { key: "federalTaxBeforeCredits", label: "  (Federal before credits)" },
   { key: "taxCredits", label: "  (Child/Dependent credits)" },
   // ── Credits against tax (explicit) ──
@@ -56,6 +62,7 @@ const FIELDS: FieldDef[] = [
 
 function formatValue(val: unknown, isBool?: boolean): string {
   if (isBool) return val ? "Yes" : "No";
+  if (typeof val === "string") return val.replaceAll("_", " ");
   return fmt(val as number);
 }
 
