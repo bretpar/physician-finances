@@ -156,14 +156,11 @@ export function useWithholdingRecommendation() {
       }
 
       // DYNAMIC MODES: pick the right unified estimate + debug
-      const usePlanner = withholdingMethod === "dynamic_planner";
-      const estimate = usePlanner ? forecastEstimate : actualEstimate;
-      const debug = usePlanner ? forecastDebug : actualDebug;
+      const estimate = forecastEstimate;
+      const debug = forecastDebug;
       if (!estimate || !debug) return null;
 
-      const methodLabel = usePlanner
-        ? "Based on actual + planned income"
-        : "Based on combined actual income";
+      const methodLabel = selectedProfile.label;
 
       // ── Unified "annual remaining tax" view ─────────────────────────────
       // debug.countedCreditsTotal already includes:
