@@ -69,7 +69,10 @@ export type WithholdingProfileRateSource = "flat_estimate" | "dynamic_actual" | 
 
 export interface WithholdingProfileRateResult {
   methodUsed: WithholdingProfileRateSource;
+  /** Dynamic ordinary-income recommendation base: federal + personal state income tax ÷ total return income. */
   federalProfileRate: number;
+  /** All-inclusive display rate: total estimated annual tax ÷ total return income. */
+  canonicalEffectiveTaxRate: number;
   source: WithholdingProfileRateSource;
   label: string;
 }
@@ -85,11 +88,22 @@ const ZERO_COMPONENTS = {
 
 const roundRate = (n: number) => Math.round(Math.max(0, Number(n) || 0) * 100) / 100;
 
-function dynamicFederalProfileRate(estimate: TaxEstimate | null | undefined): number {
-  const federalTaxAfterCredits = Math.max(0, Number(estimate?.federalTax || 0));
-  const taxableIncome = Math.max(0, Number(estimate?.taxableIncome || 0));
-  if (taxableIncome <= 0) return 0;
-  return roundRate((federalTaxAfterCredits / taxableIncome) * 100);
+function totalReturnIncome(estimate: TaxEstimate | null | undefined): number {
+  return Math.max(0, Number(estimate?.totalReturnIncomeBeforeAdjustments || estimate?.totalIncome || 0));
+}
+
+function dynamicOrdinaryIncomeProfileRate(estimate: TaxEstimate | null | undefined): number {
+  const ordinaryIncomeTax = Math.max(0, Number(estimate?.federalTax || 0) + Number(estimate?.personalStateTax || 0));
+  const income = totalReturnIncome(estimate);
+  if (income <= 0) return 0;
+  return roundRate((ordinaryIncomeTax / income) * 100);
+}
+
+function canonicalEffectiveTaxRate(estimate: TaxEstimate | null | undefined): number {
+  const totalTax = Math.max(0, Number(estimate?.totalTaxLiability || 0));
+  const income = totalReturnIncome(estimate);
+  if (income <= 0) return 0;
+  return roundRate((totalTax / income) * 100);
 }
 
 export function getSelectedWithholdingProfileRate(input: {
@@ -105,15 +119,21 @@ export function getSelectedWithholdingProfileRate(input: {
     return {
       methodUsed: "flat_estimate",
       federalProfileRate,
+      canonicalEffectiveTaxRate: federalProfileRate,
       source: "flat_estimate",
       label: `Flat ${federalProfileRate.toFixed(1)}% federal estimate`,
     };
   }
 
+  const dynamicEstimate = input.forecastEstimate;
+  const federalProfileRate = dynamicOrdinaryIncomeProfileRate(dynamicEstimate);
+  const allInclusiveRate = canonicalEffectiveTaxRate(dynamicEstimate);
+
   if (method === "dynamic_planner") {
     return {
       methodUsed: "dynamic_planner",
-      federalProfileRate: dynamicFederalProfileRate(input.forecastEstimate),
+      federalProfileRate,
+      canonicalEffectiveTaxRate: allInclusiveRate,
       source: "dynamic_planner",
       label: "Based on actual + future income",
     };
@@ -121,7 +141,8 @@ export function getSelectedWithholdingProfileRate(input: {
 
   return {
     methodUsed: "dynamic_actual",
-    federalProfileRate: dynamicFederalProfileRate(input.forecastEstimate),
+    federalProfileRate,
+    canonicalEffectiveTaxRate: allInclusiveRate,
     source: "dynamic_actual",
     label: "Based on actual + future income",
   };
@@ -161,7 +182,7 @@ export function getSavingsRateForIncomeBucket(
     forecastEstimate: input.forecastEstimate,
   });
   const method = profile.methodUsed;
-  const selectedEstimate = method === "dynamic_planner" ? input.forecastEstimate : input.actualEstimate;
+  const selectedEstimate = method === "flat_estimate" ? input.actualEstimate : input.forecastEstimate;
 
   // ── Federal portion (shared selected withholding profile rate) ──────────
   const federal = profile.federalProfileRate;
