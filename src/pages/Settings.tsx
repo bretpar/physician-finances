@@ -22,7 +22,8 @@ import {
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod } from "@/hooks/useTaxSettings";
+import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod, type QuarterlyTrackerMethod } from "@/hooks/useTaxSettings";
+import { isPremiumFeature } from "@/lib/featureFlags";
 import {
   FILING_TYPES,
   TOGGLE_OPTIONS_BY_TYPE,
@@ -243,7 +244,91 @@ function TaxWithholdingSection() {
 }
 
 /* ──────────────────────────────────────────────────────────── */
-/*  Tax Profile section                                          */
+/*  Quarterly Tax Tracker Method section                         */
+/* ──────────────────────────────────────────────────────────── */
+type QuarterlyTrackerDraft = { quarterlyTrackerMethod: QuarterlyTrackerMethod };
+
+function QuarterlyTrackerMethodSection() {
+  const { data } = useTaxSettings();
+  const updateMutation = useUpdateTaxSettings();
+  const [savedTick, setSavedTick] = useState(false);
+  // Future-gated: dynamic mode is built premium-ready. Today it's unlocked.
+  const dynamicLocked = false; // flip to !isFeatureEnabled("quarterly_dynamic_tracker") later
+  const showPremiumBadge = isPremiumFeature("dynamic_tax_recalc");
+
+  const source: QuarterlyTrackerDraft = useMemo(
+    () => ({ quarterlyTrackerMethod: data?.quarterlyTrackerMethod || "even" }),
+    [data?.quarterlyTrackerMethod],
+  );
+
+  const draft = useSectionDraft<QuarterlyTrackerDraft>({
+    source,
+    onSave: async (next) => {
+      if (!data?.id) throw new Error("Tax settings not loaded");
+      await updateMutation.mutateAsync({
+        id: data.id,
+        ...(next as any),
+      });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 2000);
+    },
+  });
+
+  return (
+    <SectionCard
+      title="Quarterly Tax Tracker Method"
+      icon={<Calculator className="h-5 w-5" />}
+      description="How the dashboard's Quarterly Tax Progress card calculates each quarter's target."
+      isDirty={draft.isDirty}
+      isSaving={draft.isSaving}
+      justSaved={savedTick}
+      onSave={draft.save}
+      onCancel={draft.cancel}
+    >
+      <RadioGroup
+        value={draft.draft.quarterlyTrackerMethod}
+        onValueChange={(v) => draft.patch({ quarterlyTrackerMethod: v as QuarterlyTrackerMethod })}
+        className="space-y-3"
+      >
+        <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+          <RadioGroupItem value="even" className="mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-card-foreground">Even quarter allocation</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Each quarter target = total estimated annual tax ÷ 4. Simple and predictable.
+            </p>
+          </div>
+        </label>
+        <label
+          className={cn(
+            "flex items-start gap-3 rounded-lg border border-border p-4 transition-colors",
+            dynamicLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-muted/30",
+          )}
+        >
+          <RadioGroupItem value="dynamic" className="mt-0.5" disabled={dynamicLocked} />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-card-foreground">Dynamic quarter allocation</p>
+              {showPremiumBadge && (
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Premium</Badge>
+              )}
+              {dynamicLocked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Quarter target is based on actual income earned plus planned income for that
+              quarter. Better fit for uneven income across the year.
+            </p>
+            {dynamicLocked && (
+              <Button type="button" size="sm" variant="outline" className="mt-2 h-7 text-xs">
+                Upgrade to unlock
+              </Button>
+            )}
+          </div>
+        </label>
+      </RadioGroup>
+    </SectionCard>
+  );
+}
 /* ──────────────────────────────────────────────────────────── */
 type TaxProfileDraft = Pick<TaxRates,
   | "filingStatus" | "deductionType" | "itemizedDeductionAmount"
@@ -1512,6 +1597,7 @@ export default function Settings() {
     <div className="space-y-4 max-w-3xl mx-auto pb-12">
       <ProfileSection justSavedFlag={justSavedFlag} />
       <TaxWithholdingSection />
+      <QuarterlyTrackerMethodSection />
       <TaxProfileSection />
       <HsaSettingsSection />
       <ForecastingAutomationSection />
