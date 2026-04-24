@@ -83,6 +83,8 @@ export interface UnifiedTaxInput {
   withholdingOverrideType?: "none" | "percent" | "amount";
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
+  withholdingMethod?: string | null;
+  manualEffectiveTaxRate?: number | null;
 
   stateIncomeTaxEnabled?: boolean;
   /** Backwards-compatible alias for personal state income tax only. */
@@ -140,6 +142,11 @@ export interface TaxDebugBreakdown {
   stateTax: number;
   totalEstimatedTax: number;
   canonicalEffectiveTaxRate: number;
+  taxOverviewRateSource: string;
+  advancedBreakdownRateSource: string;
+  personalRecommendationsRateSource: string;
+  businessRecommendationsRateSource: string;
+  flatManualWithholdingActive: boolean;
   estimatedAnnualTax: number;     // alias of totalEstimatedTax
   federalTaxBeforeCredits: number;
   taxCredits: number;
@@ -210,6 +217,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     withholdingOverrideType = "none",
     withholdingOverridePercent = null,
     withholdingOverrideAmount = null,
+    withholdingMethod = "dynamic_actual",
+    manualEffectiveTaxRate = null,
     stateIncomeTaxEnabled,
     stateTaxEnabled = false,
     personalStateTaxMode = "none",
@@ -363,6 +372,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     stateTax: estimate.stateTax,
     totalEstimatedTax: estimate.totalTaxLiability,
     canonicalEffectiveTaxRate: estimate.effectiveRate,
+    taxOverviewRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : "Canonical actual + planned total estimated tax ÷ total return income",
+    advancedBreakdownRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : "Canonical actual + planned total estimated tax ÷ total return income",
+    personalRecommendationsRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : "Canonical ordinary income rate from actual + planned income",
+    businessRecommendationsRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}% + business add-ons` : "Canonical ordinary income rate + SE/pass-through + business tax add-ons",
+    flatManualWithholdingActive: withholdingMethod === "flat_estimate",
     estimatedAnnualTax: estimate.totalTaxLiability,
     federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
     taxCredits: estimate.taxCredits,
