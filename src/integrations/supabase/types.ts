@@ -1260,6 +1260,7 @@ export type Database = {
           quarterly_tracker_method: string
           ss_wage_cap: number
           standard_deduction_override: number | null
+          state_income_tax_enabled: boolean
           state_of_residence: string
           state_tax_enabled: boolean
           tax_mode: string
@@ -1295,6 +1296,7 @@ export type Database = {
           quarterly_tracker_method?: string
           ss_wage_cap?: number
           standard_deduction_override?: number | null
+          state_income_tax_enabled?: boolean
           state_of_residence?: string
           state_tax_enabled?: boolean
           tax_mode?: string
@@ -1330,6 +1332,7 @@ export type Database = {
           quarterly_tracker_method?: string
           ss_wage_cap?: number
           standard_deduction_override?: number | null
+          state_income_tax_enabled?: boolean
           state_of_residence?: string
           state_tax_enabled?: boolean
           tax_mode?: string
