@@ -124,14 +124,23 @@ export default function QuarterlyTracker({
         .map((t: any) => [t.id, t] as const),
     );
 
-    const buckets = new Map<string, { label: string; paid: number; saved: number }>();
-    const ensure = (key: string, label: string) => {
+    type Bucket = {
+      label: string;
+      paid: number;
+      saved: number;
+      sources: Partial<Record<FederalWithholdingSource, number>>;
+    };
+    const buckets = new Map<string, Bucket>();
+    const ensure = (key: string, label: string): Bucket => {
       let row = buckets.get(key);
       if (!row) {
-        row = { label, paid: 0, saved: 0 };
+        row = { label, paid: 0, saved: 0, sources: {} };
         buckets.set(key, row);
       }
       return row;
+    };
+    const tallySource = (row: Bucket, src: FederalWithholdingSource) => {
+      row.sources[src] = (row.sources[src] ?? 0) + 1;
     };
     const filingHint = (filing: string | undefined): string => {
       if (filing === "scorp_w2" || filing === "w2") return "W-2";
@@ -148,7 +157,8 @@ export default function QuarterlyTracker({
       // not the projected/planner date. Once the quarter ends, only actual
       // entries within the window contribute.
       if (!inQuarter(e.income_date)) continue;
-      const paid = getTotalFederalPaid(e);
+      const fedDetail = getTotalFederalPaidDetail(e);
+      const paid = fedDetail.total;
       const saved =
         Number((tx as any).actual_withholding || 0) +
         Number(e.additional_tax_reserve || 0);
@@ -162,12 +172,13 @@ export default function QuarterlyTracker({
       const row = ensure(key, label);
       row.paid += paid;
       row.saved += saved;
+      if (paid > 0) tallySource(row, fedDetail.source);
     }
 
     for (const e of personalEntries || []) {
       if (!inQuarter(e.income_date)) continue;
-      // Federal-only canonical total via shared helper (handles legacy rows).
-      const paid = getTotalFederalPaid(e);
+      const fedDetail = getTotalFederalPaidDetail(e);
+      const paid = fedDetail.total;
       const saved = Number(e.additional_tax_reserve || 0);
       if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
@@ -175,10 +186,11 @@ export default function QuarterlyTracker({
       const row = ensure(key, `${name} (W-2)`);
       row.paid += paid;
       row.saved += saved;
+      if (paid > 0) tallySource(row, fedDetail.source);
     }
 
     return Array.from(buckets.entries()).map(([key, v]) => ({
-      key, label: v.label, paid: v.paid, saved: v.saved,
+      key, label: v.label, paid: v.paid, saved: v.saved, sources: v.sources,
     }));
   }, [incomeEntries, personalEntries, transactions, companies, q.start, q.end]);
 
