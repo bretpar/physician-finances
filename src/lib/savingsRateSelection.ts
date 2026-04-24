@@ -127,15 +127,6 @@ export function getSelectedWithholdingProfileRate(input: {
   };
 }
 
-/** Personal state income tax % only when personal state income tax is enabled and a flat rate
- *  is configured. (annual_estimate mode is dollar-based, not a rate, so it
- *  doesn't fold into a per-paycheck percentage.) */
-function getPersonalStateRate(s: SavingsRateSettingsLike): number {
-  if (!(s?.stateIncomeTaxEnabled ?? s?.stateTaxEnabled)) return 0;
-  if (s.personalStateTaxMode !== "flat_rate") return 0;
-  return Math.max(0, Number(s.personalStateTaxRate || 0));
-}
-
 /** Business state / B&O rate. Independent from the personal state income switch. */
 function getBusinessStateRate(s: SavingsRateSettingsLike, input: SavingsRateInput): number {
   if (!s?.businessStateTaxEnabled) return 0;
@@ -178,10 +169,9 @@ export function getSavingsRateForIncomeBucket(
   const components = { ...ZERO_COMPONENTS, federal };
 
   if (incomeBucket === "personal") {
-    // Personal paycheck guide — federal + personal state income tax only.
+    // Personal paycheck guide — selected federal profile rate only.
     // Employee SS/Medicare reduce the recommendation as withheld credits;
-    // business state tax and SE never apply here.
-    components.personalState = getPersonalStateRate(settings);
+    // state taxes, business state tax, and SE never apply here.
   } else {
     // Business / pass-through reserve target — federal + SE + business state.
     // No employee-side payroll (the payer didn't withhold any).
