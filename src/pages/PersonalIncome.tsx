@@ -299,6 +299,7 @@ export default function PersonalIncome() {
     form.federal_withholding,
     form.ss_withholding,
     form.medicare_withholding,
+    form.total_federal_payroll_taxes,
     form.state_withholding,
     taxSettings,
   ]);
