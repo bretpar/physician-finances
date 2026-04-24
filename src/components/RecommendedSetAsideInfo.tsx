@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Info, CheckCircle2, MinusCircle } from "lucide-react";
+import { Info, CheckCircle2, MinusCircle, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
