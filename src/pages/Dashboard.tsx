@@ -102,11 +102,9 @@ export default function Dashboard() {
       if (!inQuarter(e.income_date)) continue;
 
       // `federal_withholding` is the canonical "Total Federal Payroll Taxes"
-      // (federal income tax + SS + Medicare). SS/Medicare are stored separately
-      // only for reporting — do NOT add them again or we'll double-count.
-      const paid =
-        Number((e as any).federal_withholding || 0) +
-        Number((e as any).state_withholding || 0);
+      // (federal income tax + SS + Medicare). State is tracked separately and
+      // is intentionally NOT included in quarterly federal progress.
+      const paid = Number((e as any).federal_withholding || 0);
       const saved =
         Number((tx as any).actual_withholding || 0) +
         Number((e as any).additional_tax_reserve || 0);
@@ -126,10 +124,8 @@ export default function Dashboard() {
     // Personal income entries (W-2) → bucket per employer name
     for (const e of personalEntries || []) {
       if (!inQuarter(e.income_date)) continue;
-      // `federal_withholding` already represents Total Federal Payroll Taxes.
-      const paid =
-        Number(e.federal_withholding || 0) +
-        Number((e as any).state_withholding || 0);
+      // Federal-only at this time (state tracked separately).
+      const paid = Number(e.federal_withholding || 0);
       const saved = Number((e as any).additional_tax_reserve || 0);
       if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
