@@ -37,6 +37,8 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
+import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -167,6 +169,7 @@ export default function PersonalIncome() {
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
+  const { actualEstimate, forecastEstimate } = useTaxEstimate();
   const stateTaxEnabled = !!taxSettings?.stateTaxEnabled;
 
   const [showForm, setShowForm] = useState(false);
@@ -245,17 +248,35 @@ export default function PersonalIncome() {
     });
   }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, getWithholdingRec, isEditing]);
 
-  // ── Per-paycheck withholding guide ──────────────────────────────────────
-  // Source of truth: useWithholdingRecommendation. It respects the global
-  // withholding method (flat_estimate / dynamic_actual / dynamic_planner)
-  // selected in Settings and uses the canonical Total Federal Payroll Taxes
-  // value (federal income tax + SS + Medicare) for taxesAlreadyWithheld.
-  const paycheckGuide = useMemo(() => {
-    if (grossAmount <= 0) return null;
+  // ── Per-paycheck profile-based savings guide ────────────────────────────
+  // Simple paycheck-only calculation: uses the user's selected tax profile
+  // effective rate (NOT annual remaining tax / quarterly catch-up). Lives in
+  // calculatePaycheckProfileSavings so the math stays consistent and isolated
+  // from the annual recommendation engine in useWithholdingRecommendation.
+  const paycheckSavings = useMemo(() => {
+    if (grossAmount <= 0 || !taxSettings) return null;
 
-    const incType = isW2Type(form.income_type) ? "W2" : "1099";
+    // 1. Resolve effective rate from the SELECTED tax profile / withholding
+    //    method. Manual rate only when explicitly chosen; otherwise the
+    //    federal effective rate from the matching unified estimate.
+    const method = taxSettings.withholdingMethod || "dynamic_actual";
+    let effectiveRate = 0;
+    if (method === "flat_estimate") {
+      effectiveRate = Number(taxSettings.manualEffectiveTaxRate ?? 0);
+    } else if (method === "dynamic_planner") {
+      effectiveRate = Number(forecastEstimate?.federalEffectiveRate ?? 0);
+    } else {
+      effectiveRate = Number(actualEstimate?.federalEffectiveRate ?? 0);
+    }
 
-    // Canonical total federal payroll taxes (no double-counting of split fields).
+    // 2. Eligible pre-tax deductions for this paycheck.
+    const eligibleDeductions =
+      num(form.retirement_pretax) +
+      num(form.deductions_pre_tax) +
+      num(form.healthcare_deduction) +
+      num(form.hsa_contribution);
+
+    // 3. Canonical Total Federal Payroll Taxes (no double-count of splits).
     const totalFederalPayrollTaxes = getCanonicalTotalFederalPayrollTaxes({
       total_federal_payroll_taxes: form.total_federal_payroll_taxes,
       federal_withholding: num(form.federal_withholding),
@@ -263,19 +284,25 @@ export default function PersonalIncome() {
       medicare_withholding: num(form.medicare_withholding),
     });
 
-    const stateEnabled = !!taxSettings?.stateTaxEnabled;
+    const stateEnabled = !!taxSettings.stateTaxEnabled;
     const stateAlreadyWithheld = stateEnabled ? num(form.state_withholding) : 0;
 
-    const hsa = num(form.hsa_contribution);
-
-    return getWithholdingRec({
-      grossIncome: grossAmount,
-      incomeType: incType,
-      taxesAlreadyWithheld: totalFederalPayrollTaxes + stateAlreadyWithheld,
-      retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + hsa,
-      alreadyIncludedInEstimate: isEditing,
+    const result = calculatePaycheckProfileSavings({
+      grossPaycheckIncome: grossAmount,
+      eligiblePreTaxDeductions: eligibleDeductions,
+      selectedProfileEffectiveTaxRate: effectiveRate,
+      totalFederalPayrollTaxes,
+      stateWithholdingIfEnabled: stateAlreadyWithheld,
     });
+
+    const methodLabel =
+      method === "flat_estimate"
+        ? `Flat ${effectiveRate.toFixed(1)}% estimate`
+        : method === "dynamic_planner"
+        ? "Based on actual + planned income"
+        : "Based on combined actual income";
+
+    return { ...result, methodLabel };
   }, [
     grossAmount,
     form.income_type,
@@ -289,9 +316,10 @@ export default function PersonalIncome() {
     form.total_federal_payroll_taxes,
     form.state_withholding,
     taxSettings,
-    getWithholdingRec,
-    isEditing,
+    actualEstimate,
+    forecastEstimate,
   ]);
+
 
 
   function openAdd() {
@@ -954,38 +982,43 @@ export default function PersonalIncome() {
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Per-paycheck withholding guide — uses the global withholding
-                method from Settings via useWithholdingRecommendation. */}
-            {grossAmount > 0 && paycheckGuide && (() => {
-              const rec = paycheckGuide.recommendedWithholding;
-              const isUnder = rec > 0;
-              const isOver = rec < 0;
+            {/* Per-paycheck profile-based savings guide — uses the SELECTED
+                tax profile effective rate (NOT annual remaining tax). */}
+            {grossAmount > 0 && paycheckSavings && (() => {
+              const diff = paycheckSavings.withholdingDifference;
+              const status = paycheckSavings.status;
+              const isUnder = status === "under_withheld";
+              const isOver = status === "over_withheld";
               const label = isUnder
-                ? "Suggested extra withholding"
+                ? "Save more"
                 : isOver
                 ? "Over-withheld"
                 : "On track";
               const helper = isUnder
-                ? "Consider saving this additional amount from this paycheck."
+                ? "Based on your selected tax profile, this paycheck is under-saved by this amount."
                 : isOver
-                ? "Payroll withholding appears to exceed this paycheck's recommended amount."
-                : "Payroll withholding appears to match this paycheck's recommendation.";
-              const display = isOver ? fmt(Math.abs(rec)) : fmt(rec);
+                ? "Payroll withholding appears to exceed this paycheck's profile-based savings target."
+                : "Payroll withholding appears to match this paycheck's profile-based savings target.";
+              const display = isUnder
+                ? `Save ${fmt(diff)} more`
+                : isOver
+                ? `Over-withheld by ${fmt(Math.abs(diff))}`
+                : "On track";
               const valueClass = isUnder
                 ? "text-destructive"
                 : "text-emerald-600 dark:text-emerald-400";
               return (
                 <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-xs font-semibold text-muted-foreground">Paycheck withholding guide</p>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Paycheck tax savings guide</p>
                     <p className={`text-base font-bold tabular-nums ${valueClass}`}>{display}</p>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     <span className="font-medium">{label}.</span> {helper}
                   </p>
                   <p className="text-[10px] text-muted-foreground italic">
-                    Based on your selected withholding method in Settings
-                    {paycheckGuide.methodLabel ? ` — ${paycheckGuide.methodLabel}.` : "."}
+                    Based on your selected tax profile effective rate
+                    {paycheckSavings.methodLabel ? ` — ${paycheckSavings.methodLabel}.` : "."}
                   </p>
                 </div>
               );
