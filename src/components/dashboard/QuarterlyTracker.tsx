@@ -71,7 +71,7 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
 export default function QuarterlyTracker({
   annualTaxLiability,
   companies,
-  quarterlyPayments,
+  payments,
   methodLabel,
 }: QuarterlyTrackerProps) {
   const current = getCurrentQuarter();
@@ -95,6 +95,11 @@ export default function QuarterlyTracker({
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   // ── Quarter math ──────────────────────────────────────────────────────────
+  // Estimated tax payments for THIS displayed quarter+year.
+  const quarterlyPayments = useMemo(
+    () => getQuarterPayments(payments, q.label as QuarterLabel, activeYear),
+    [payments, q.label, activeYear],
+  );
   const quarterTarget = Math.max(0, annualTaxLiability / 4);
   const paidFromCompanies = companies.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
