@@ -17,6 +17,7 @@ import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
 
 export default function Dashboard() {
   const { user } = useAuth();
