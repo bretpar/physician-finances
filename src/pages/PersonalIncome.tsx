@@ -988,26 +988,86 @@ export default function PersonalIncome() {
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Base estimate preview at bottom of Modal 1 */}
-            {grossAmount > 0 && baseRecommendation && (
-              <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                <p className="text-xs font-semibold text-muted-foreground">Estimated Tax Reserve</p>
-                {baseRecommendation.isOverWithheld ? (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                    Employer over-withheld by <strong>{fmt(Math.abs(baseRecommendation.recommendedWithholding))}</strong>
+            {/* Per-paycheck suggested extra reserve (NOT annual-based) */}
+            {grossAmount > 0 && paycheckReserve && (
+              <div className="rounded-md border border-border p-3 space-y-2 bg-background">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground">Suggested extra reserve</p>
+                  <p
+                    className={`text-base font-bold tabular-nums ${
+                      paycheckReserve.totalSuggestedExtraReserve > 0
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    }`}
+                  >
+                    {fmt(paycheckReserve.totalSuggestedExtraReserve)}
                   </p>
-                ) : baseRecommendation.recommendedWithholding > 0 ? (
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
-                    Estimated additional tax reserve: <strong>{fmt(baseRecommendation.recommendedWithholding)}</strong>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Estimated extra amount to set aside after paycheck deductions and payroll withholding.
+                </p>
+
+                {/* Breakdown */}
+                <div className="rounded border border-border/60 bg-muted/30 p-2 space-y-1 text-[11px] tabular-nums">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Gross paycheck</span>
+                    <span>{fmt(paycheckReserve.gross)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Eligible deductions</span>
+                    <span>−{fmt(paycheckReserve.eligibleDeductions)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium border-t border-border/60 pt-1">
+                    <span>Taxable amount used for estimate</span>
+                    <span>{fmt(paycheckReserve.taxablePaycheckAmount)}</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-border/60">
+                    <span className="text-muted-foreground">
+                      Federal estimated tax need ({paycheckReserve.federalRatePct.toFixed(1)}%)
+                    </span>
+                    <span>{fmt(paycheckReserve.federalEstimatedTaxNeed)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Federal already withheld</span>
+                    <span>−{fmt(paycheckReserve.federalAlreadyWithheld)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium">
+                    <span>Suggested extra federal reserve</span>
+                    <span>{fmt(paycheckReserve.additionalFederalReserve)}</span>
+                  </div>
+                  {paycheckReserve.stateEnabled && (
+                    <>
+                      <div className="flex justify-between pt-1 border-t border-border/60">
+                        <span className="text-muted-foreground">
+                          State estimated tax need ({paycheckReserve.stateRatePct.toFixed(1)}%)
+                        </span>
+                        <span>{fmt(paycheckReserve.stateEstimatedTaxNeed)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">State already withheld</span>
+                        <span>−{fmt(paycheckReserve.stateAlreadyWithheld)}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Suggested extra state reserve</span>
+                        <span>{fmt(paycheckReserve.additionalStateReserve)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between font-semibold border-t border-border pt-1">
+                    <span>Total suggested extra reserve</span>
+                    <span>{fmt(paycheckReserve.totalSuggestedExtraReserve)}</span>
+                  </div>
+                </div>
+
+                {paycheckReserve.totalSuggestedExtraReserve > 0 ? (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Consider setting aside this additional amount for taxes.
                   </p>
                 ) : (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                    Your withholding covers the estimated tax for this paycheck.
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                    Payroll withholding appears to cover this paycheck's estimated tax need.
                   </p>
                 )}
-                <p className="text-[11px] text-muted-foreground">
-                  {baseRecommendation.methodLabel} · {baseRecommendation.effectiveRate.toFixed(1)}% effective rate
-                </p>
                 <p className="text-[10px] text-muted-foreground italic">
                   Withholding method controlled in Settings
                 </p>
