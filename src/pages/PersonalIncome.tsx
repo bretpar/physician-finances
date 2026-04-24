@@ -38,6 +38,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
+import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const fmt = (n: number) =>
