@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export type WithholdingMethod = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
+export type QuarterlyTrackerMethod = "even" | "dynamic";
 export type DeductionType = "standard" | "itemized";
 export type WithholdingOverrideType = "none" | "percent" | "amount";
 export type PersonalStateTaxMode = "none" | "flat_rate" | "annual_estimate";
@@ -44,6 +45,9 @@ export interface TaxRates {
   // ─── Forecasting Automation ───
   /** Auto-convert future planned income into real ledger drafts on/after their date. */
   autoConvertFutureIncomeToLedger: boolean;
+  // ─── Quarterly Tax Tracker ───
+  /** How the dashboard Quarterly Tax Progress card computes each quarter's target. */
+  quarterlyTrackerMethod: QuarterlyTrackerMethod;
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -74,6 +78,7 @@ const DEFAULT_RATES: TaxRates = {
   hsaEnabled: false,
   hsaSourceCompanyId: null,
   autoConvertFutureIncomeToLedger: false,
+  quarterlyTrackerMethod: "even",
 };
 
 export function useTaxSettings() {
@@ -117,6 +122,7 @@ export function useTaxSettings() {
         hsaEnabled: !!d.hsa_enabled,
         hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
         autoConvertFutureIncomeToLedger: !!d.auto_convert_future_income_to_ledger,
+        quarterlyTrackerMethod: (d.quarterly_tracker_method as QuarterlyTrackerMethod) || "even",
       } as TaxRates;
     },
   });
@@ -154,6 +160,7 @@ export function useUpdateTaxSettings() {
       if (rest.hsaEnabled !== undefined) payload.hsa_enabled = rest.hsaEnabled;
       if (rest.hsaSourceCompanyId !== undefined) payload.hsa_source_company_id = rest.hsaSourceCompanyId;
       if (rest.autoConvertFutureIncomeToLedger !== undefined) payload.auto_convert_future_income_to_ledger = rest.autoConvertFutureIncomeToLedger;
+      if ((rest as any).quarterlyTrackerMethod !== undefined) payload.quarterly_tracker_method = (rest as any).quarterlyTrackerMethod;
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
