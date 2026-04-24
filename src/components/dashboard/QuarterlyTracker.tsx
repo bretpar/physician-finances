@@ -7,7 +7,8 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getTotalFederalPaid, getTotalFederalPaidDetail, federalSourceLabel, type FederalWithholdingSource } from "@/lib/federalWithholding";
+import { debugFlags } from "@/lib/debugFlags";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -15,6 +16,8 @@ export interface CompanyQuarterRow {
   label: string;
   paid: number;
   saved: number;
+  /** Debug-only: which fields powered the `paid` total (counts per source). */
+  sources?: Partial<Record<FederalWithholdingSource, number>>;
 }
 
 interface QuarterlyTrackerProps {
@@ -121,14 +124,23 @@ export default function QuarterlyTracker({
         .map((t: any) => [t.id, t] as const),
     );
 
-    const buckets = new Map<string, { label: string; paid: number; saved: number }>();
-    const ensure = (key: string, label: string) => {
+    type Bucket = {
+      label: string;
+      paid: number;
+      saved: number;
+      sources: Partial<Record<FederalWithholdingSource, number>>;
+    };
+    const buckets = new Map<string, Bucket>();
+    const ensure = (key: string, label: string): Bucket => {
       let row = buckets.get(key);
       if (!row) {
-        row = { label, paid: 0, saved: 0 };
+        row = { label, paid: 0, saved: 0, sources: {} };
         buckets.set(key, row);
       }
       return row;
+    };
+    const tallySource = (row: Bucket, src: FederalWithholdingSource) => {
+      row.sources[src] = (row.sources[src] ?? 0) + 1;
     };
     const filingHint = (filing: string | undefined): string => {
       if (filing === "scorp_w2" || filing === "w2") return "W-2";
@@ -145,7 +157,8 @@ export default function QuarterlyTracker({
       // not the projected/planner date. Once the quarter ends, only actual
       // entries within the window contribute.
       if (!inQuarter(e.income_date)) continue;
-      const paid = getTotalFederalPaid(e);
+      const fedDetail = getTotalFederalPaidDetail(e);
+      const paid = fedDetail.total;
       const saved =
         Number((tx as any).actual_withholding || 0) +
         Number(e.additional_tax_reserve || 0);
@@ -159,12 +172,13 @@ export default function QuarterlyTracker({
       const row = ensure(key, label);
       row.paid += paid;
       row.saved += saved;
+      if (paid > 0) tallySource(row, fedDetail.source);
     }
 
     for (const e of personalEntries || []) {
       if (!inQuarter(e.income_date)) continue;
-      // Federal-only canonical total via shared helper (handles legacy rows).
-      const paid = getTotalFederalPaid(e);
+      const fedDetail = getTotalFederalPaidDetail(e);
+      const paid = fedDetail.total;
       const saved = Number(e.additional_tax_reserve || 0);
       if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
@@ -172,10 +186,11 @@ export default function QuarterlyTracker({
       const row = ensure(key, `${name} (W-2)`);
       row.paid += paid;
       row.saved += saved;
+      if (paid > 0) tallySource(row, fedDetail.source);
     }
 
     return Array.from(buckets.entries()).map(([key, v]) => ({
-      key, label: v.label, paid: v.paid, saved: v.saved,
+      key, label: v.label, paid: v.paid, saved: v.saved, sources: v.sources,
     }));
   }, [incomeEntries, personalEntries, transactions, companies, q.start, q.end]);
 
@@ -300,9 +315,15 @@ export default function QuarterlyTracker({
   const adjustedCompanyRows = sortedCompanies.map((c) => {
     const share = rawSavedThisQuarter > 0 ? c.saved / rawSavedThisQuarter : 0;
     const adjSaved = Math.max(0, c.saved - offset * share);
-    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved };
+    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved, sources: c.sources };
   });
-  const rows = [
+  const rows: Array<{
+    key: string;
+    label: string;
+    paid: number;
+    saved: number;
+    sources?: Partial<Record<FederalWithholdingSource, number>>;
+  }> = [
     ...adjustedCompanyRows,
     {
       key: "__quarterly_payments__",
@@ -406,12 +427,26 @@ export default function QuarterlyTracker({
                 ) : (
                   rows.map((r) => {
                     const empty = r.paid === 0 && r.saved === 0;
+                    const showSrc = debugFlags.withholdingSource() && r.sources;
+                    const srcSummary = showSrc
+                      ? Object.entries(r.sources!)
+                          .filter(([, n]) => (n ?? 0) > 0)
+                          .map(([s, n]) => `${federalSourceLabel(s as FederalWithholdingSource)}×${n}`)
+                          .join(", ")
+                      : "";
                     return (
                       <div
                         key={r.key}
                         className="px-3 py-2 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 text-sm"
                       >
-                        <span className={cn("truncate", empty && "text-muted-foreground")}>{r.label}</span>
+                        <span className={cn("truncate flex flex-col min-w-0", empty && "text-muted-foreground")}>
+                          <span className="truncate">{r.label}</span>
+                          {showSrc && srcSummary && (
+                            <span className="text-[10px] text-muted-foreground truncate">
+                              src: {srcSummary}
+                            </span>
+                          )}
+                        </span>
                         <span className={cn("tabular-nums text-right w-16", r.paid === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
                           {fmt(r.paid)}
                         </span>
