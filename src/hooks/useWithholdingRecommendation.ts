@@ -23,7 +23,7 @@ import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isW2FilingType } from "@/lib/filingTypes";
-import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
+import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 export interface WithholdingInput {
   grossIncome: number;
@@ -106,6 +106,11 @@ export function useWithholdingRecommendation() {
 
       const isW2 = isW2FilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
+      const selectedProfile = getSelectedWithholdingProfileRate({
+        taxSettings: settings,
+        actualEstimate,
+        forecastEstimate,
+      });
 
       // Net taxable income for this entry
       const netTaxableForEntry = Math.max(0, grossIncome - retirement401k - preTaxDeductions);
@@ -136,7 +141,7 @@ export function useWithholdingRecommendation() {
           effectiveRate: flatRate,
           isManualMode: true,
           isOverWithheld: rec < 0,
-          methodLabel: `Flat ${flatRate}% estimate`,
+          methodLabel: rateSel.label,
           annualTaxLiability: 0,
           countedCreditsTotal: 0,
           annualRemainingTax: 0,
@@ -206,7 +211,7 @@ export function useWithholdingRecommendation() {
           estimatedAnnualTax: annualTaxLiability,
           taxesAlreadyCovered: countedCreditsTotal,
           estimatedRemainingTax: annualRemainingTax,
-          effectiveRate: estimate.federalEffectiveRate,
+          effectiveRate: selectedProfile.federalProfileRate,
           isManualMode: false,
           isOverWithheld: recommendedWithholding <= 0,
           methodLabel,
