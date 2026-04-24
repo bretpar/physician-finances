@@ -17,7 +17,6 @@
  * dynamic_planner) all flow through the same selection logic so the bucket
  * separation is consistent regardless of which method the user picked.
  */
-import type { TaxEstimate } from "@/lib/taxEngine";
 import { SE_TAX_RATE, SE_INCOME_FACTOR, type TaxEstimate } from "@/lib/taxEngine";
 import { isSelfEmployedFilingType } from "@/lib/filingTypes";
 
