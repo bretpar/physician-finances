@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Info, CheckCircle2, MinusCircle } from "lucide-react";
+import { Info, CheckCircle2, MinusCircle, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,23 +9,39 @@ interface Props {
   rate: number;
 }
 
+interface HintProps {
+  personalOn: boolean;
+  businessOn: boolean;
+  personalToggledNoRate: boolean;
+  businessToggledNoRate: boolean;
+}
+
 function StateInclusionHint({
   personalOn,
   businessOn,
-}: {
-  personalOn: boolean;
-  businessOn: boolean;
-}) {
+  personalToggledNoRate,
+  businessToggledNoRate,
+}: HintProps) {
   const anyOn = personalOn || businessOn;
-  const Icon = anyOn ? CheckCircle2 : MinusCircle;
-  const tone = anyOn
-    ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-    : "border-muted-foreground/20 bg-muted/40 text-muted-foreground";
+  const anyToggledNoRate = personalToggledNoRate || businessToggledNoRate;
+
+  let tone: string;
+  let Icon = MinusCircle;
+  if (anyOn) {
+    tone = "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400";
+    Icon = CheckCircle2;
+  } else if (anyToggledNoRate) {
+    tone = "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400";
+    Icon = AlertTriangle;
+  } else {
+    tone = "border-muted-foreground/20 bg-muted/40 text-muted-foreground";
+  }
 
   let label: string;
   if (personalOn && businessOn) label = "State taxes are included (personal + business)";
   else if (personalOn) label = "State taxes are included (personal only)";
   else if (businessOn) label = "State taxes are included (business only)";
+  else if (anyToggledNoRate) label = "State tax is enabled but rate is 0% — not contributing";
   else label = "State taxes are not included";
 
   return (
@@ -33,9 +49,14 @@ function StateInclusionHint({
       <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0" />
       <div className="leading-snug">
         <span className="font-medium">{label}</span>
-        {!anyOn && (
+        {!anyOn && !anyToggledNoRate && (
           <span className="block text-[11px] opacity-80 mt-0.5">
             Enable state taxes in Settings to include them in this rate.
+          </span>
+        )}
+        {anyToggledNoRate && (
+          <span className="block text-[11px] opacity-80 mt-0.5">
+            Set a rate &gt; 0% in Settings → Tax Settings to include it.
           </span>
         )}
       </div>
@@ -43,13 +64,7 @@ function StateInclusionHint({
   );
 }
 
-function InfoBody({
-  personalOn,
-  businessOn,
-}: {
-  personalOn: boolean;
-  businessOn: boolean;
-}) {
+function InfoBody(props: HintProps) {
   return (
     <div className="space-y-3 text-sm">
       <p className="text-foreground">
@@ -62,7 +77,7 @@ function InfoBody({
         <li>Additional self-employment tax burden (1099 / K-1 income)</li>
         <li>State taxes (if enabled)</li>
       </ul>
-      <StateInclusionHint personalOn={personalOn} businessOn={businessOn} />
+      <StateInclusionHint {...props} />
       <p className="text-xs text-muted-foreground pt-1">
         Based on your current + planned income
       </p>
@@ -75,8 +90,18 @@ export function RecommendedSetAsideInfo({ rate }: Props) {
   const [open, setOpen] = useState(false);
   const { data: taxSettings } = useTaxSettings();
 
-  const personalOn = !!taxSettings?.stateTaxEnabled;
-  const businessOn = !!taxSettings?.businessStateTaxEnabled;
+  const personalRate = Number(taxSettings?.personalStateTaxRate || 0);
+  const personalEstimate = Number(taxSettings?.personalStateTaxAnnualEstimate || 0);
+  const businessRate = Number(taxSettings?.businessStateTaxRate || 0);
+
+  // "Included" means toggle is ON *and* it actually contributes (rate > 0 or, for
+  // personal, a flat annual estimate is set). A toggle alone with 0% is misleading.
+  const personalOn = !!taxSettings?.stateTaxEnabled && (personalRate > 0 || personalEstimate > 0);
+  const businessOn = !!taxSettings?.businessStateTaxEnabled && businessRate > 0;
+
+  // Toggle on but no rate set — surface this as a warning instead of "included".
+  const personalToggledNoRate = !!taxSettings?.stateTaxEnabled && !personalOn;
+  const businessToggledNoRate = !!taxSettings?.businessStateTaxEnabled && !businessOn;
 
   const triggerBtn = (
     <button
@@ -111,7 +136,12 @@ export function RecommendedSetAsideInfo({ rate }: Props) {
           <DialogHeader>
             <DialogTitle>How this is calculated</DialogTitle>
           </DialogHeader>
-          <InfoBody personalOn={personalOn} businessOn={businessOn} />
+          <InfoBody
+            personalOn={personalOn}
+            businessOn={businessOn}
+            personalToggledNoRate={personalToggledNoRate}
+            businessToggledNoRate={businessToggledNoRate}
+          />
         </DialogContent>
       </Dialog>
     </>
