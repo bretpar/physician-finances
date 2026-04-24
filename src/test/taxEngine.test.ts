@@ -246,3 +246,23 @@ describe("Effective rate", () => {
     expect(result.effectiveRate).toBe(0);
   });
 });
+
+describe("Business state tax independence", () => {
+  it("applies business state/B&O when personal state income tax is disabled", () => {
+    const result = estimate({
+      totalIncome: 100000,
+      seIncome: 100000,
+      stateTaxInputs: {
+        stateIncomeTaxEnabled: false,
+        businessStateTaxEnabled: true,
+        businessStateTaxRate: 1.5,
+        businessStateTaxBase: "gross",
+        eligibleBusinessGross: 100000,
+      },
+    });
+
+    expect(result.personalStateTax).toBe(0);
+    expect(result.businessStateTax).toBeCloseTo(1500, 2);
+    expect(result.totalTaxLiability).toBeCloseTo(result.federalTax + result.seTax.total + 1500, 2);
+  });
+});
