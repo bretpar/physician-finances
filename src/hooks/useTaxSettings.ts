@@ -153,7 +153,6 @@ export function useUpdateTaxSettings() {
       if (rest.withholdingOverrideAmount !== undefined) payload.withholding_override_amount = rest.withholdingOverrideAmount;
       if (rest.stateIncomeTaxEnabled !== undefined) {
         payload.state_income_tax_enabled = rest.stateIncomeTaxEnabled;
-        payload.state_tax_enabled = rest.stateIncomeTaxEnabled;
       }
       if (rest.stateTaxEnabled !== undefined) {
         payload.state_income_tax_enabled = rest.stateTaxEnabled;
