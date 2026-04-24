@@ -103,7 +103,9 @@ export default function Dashboard() {
 
       const paid =
         Number((e as any).federal_withholding || 0) +
-        Number((e as any).state_withholding || 0);
+        Number((e as any).state_withholding || 0) +
+        Number((e as any).ss_withholding || 0) +
+        Number((e as any).medicare_withholding || 0);
       const saved =
         Number((tx as any).actual_withholding || 0) +
         Number((e as any).additional_tax_reserve || 0);
@@ -124,7 +126,10 @@ export default function Dashboard() {
     for (const e of personalEntries || []) {
       if (!inQuarter(e.income_date)) continue;
       const paid =
-        Number(e.federal_withholding || 0) + Number((e as any).state_withholding || 0);
+        Number(e.federal_withholding || 0) +
+        Number((e as any).state_withholding || 0) +
+        Number((e as any).ss_withholding || 0) +
+        Number((e as any).medicare_withholding || 0);
       const saved = Number((e as any).additional_tax_reserve || 0);
       if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
