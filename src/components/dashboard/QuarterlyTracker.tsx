@@ -7,9 +7,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
-import { getTotalFederalPaid, getTotalFederalPaidDetail, federalSourceLabel, type FederalWithholdingSource } from "@/lib/federalWithholding";
-import { debugFlags, useDebugFlag } from "@/lib/debugFlags";
-import { Switch } from "@/components/ui/switch";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -17,8 +15,6 @@ export interface CompanyQuarterRow {
   label: string;
   paid: number;
   saved: number;
-  /** Debug-only: which fields powered the `paid` total (counts per source). */
-  sources?: Partial<Record<FederalWithholdingSource, number>>;
 }
 
 interface QuarterlyTrackerProps {
@@ -112,10 +108,6 @@ export default function QuarterlyTracker({
 
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
-  // Debug: force the SELECTED quarter to behave as closed (planned income → 0,
-  // status uses past-quarter branch). Scoped to the currently-viewed quarter.
-  const forceClosed = useDebugFlag(debugFlags.forceQuarterClosed);
-
   // ── Build per-company rows for the SELECTED quarter window ──────────────
   const companyRows: CompanyQuarterRow[] = useMemo(() => {
     const inQuarter = (iso: string) => {
@@ -129,23 +121,14 @@ export default function QuarterlyTracker({
         .map((t: any) => [t.id, t] as const),
     );
 
-    type Bucket = {
-      label: string;
-      paid: number;
-      saved: number;
-      sources: Partial<Record<FederalWithholdingSource, number>>;
-    };
-    const buckets = new Map<string, Bucket>();
-    const ensure = (key: string, label: string): Bucket => {
+    const buckets = new Map<string, { label: string; paid: number; saved: number }>();
+    const ensure = (key: string, label: string) => {
       let row = buckets.get(key);
       if (!row) {
-        row = { label, paid: 0, saved: 0, sources: {} };
+        row = { label, paid: 0, saved: 0 };
         buckets.set(key, row);
       }
       return row;
-    };
-    const tallySource = (row: Bucket, src: FederalWithholdingSource) => {
-      row.sources[src] = (row.sources[src] ?? 0) + 1;
     };
     const filingHint = (filing: string | undefined): string => {
       if (filing === "scorp_w2" || filing === "w2") return "W-2";
@@ -162,8 +145,7 @@ export default function QuarterlyTracker({
       // not the projected/planner date. Once the quarter ends, only actual
       // entries within the window contribute.
       if (!inQuarter(e.income_date)) continue;
-      const fedDetail = getTotalFederalPaidDetail(e);
-      const paid = fedDetail.total;
+      const paid = getTotalFederalPaid(e);
       const saved =
         Number((tx as any).actual_withholding || 0) +
         Number(e.additional_tax_reserve || 0);
@@ -177,13 +159,12 @@ export default function QuarterlyTracker({
       const row = ensure(key, label);
       row.paid += paid;
       row.saved += saved;
-      if (paid > 0) tallySource(row, fedDetail.source);
     }
 
     for (const e of personalEntries || []) {
       if (!inQuarter(e.income_date)) continue;
-      const fedDetail = getTotalFederalPaidDetail(e);
-      const paid = fedDetail.total;
+      // Federal-only canonical total via shared helper (handles legacy rows).
+      const paid = getTotalFederalPaid(e);
       const saved = Number(e.additional_tax_reserve || 0);
       if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
@@ -191,11 +172,10 @@ export default function QuarterlyTracker({
       const row = ensure(key, `${name} (W-2)`);
       row.paid += paid;
       row.saved += saved;
-      if (paid > 0) tallySource(row, fedDetail.source);
     }
 
     return Array.from(buckets.entries()).map(([key, v]) => ({
-      key, label: v.label, paid: v.paid, saved: v.saved, sources: v.sources,
+      key, label: v.label, paid: v.paid, saved: v.saved,
     }));
   }, [incomeEntries, personalEntries, transactions, companies, q.start, q.end]);
 
@@ -235,21 +215,16 @@ export default function QuarterlyTracker({
       if (inYear(e.income_date)) yearIncome += amt;
       if (inWin(e.income_date)) qIncome += amt;
     }
-    // Add planned/projected paychecks (future occurrences). When the debug
-    // "force quarter closed" flag is on, treat planned income for the SELECTED
-    // quarter as $0 so the target reflects only realized income — same as a
-    // truly closed quarter would. Other quarters still get their planned share.
+    // Add planned/projected paychecks (future occurrences)
     for (const p of projectedPaychecks || []) {
       const amt = Number(p.grossAmount || 0);
       if (inYear(p.date)) yearIncome += amt;
-      if (inWin(p.date)) {
-        if (!forceClosed) qIncome += amt;
-      }
+      if (inWin(p.date)) qIncome += amt;
     }
     if (yearIncome <= 0) return 0;
     const share = qIncome / yearIncome;
     return Math.max(0, annualTaxLiability * share);
-  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year, forceClosed]);
+  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year]);
 
   const paidFromCompanies = companyRows.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
@@ -264,8 +239,8 @@ export default function QuarterlyTracker({
   const elapsedDays = (now.getTime() - q.start.getTime()) / 86400000;
   // Future quarter → 0 progress; past quarter → 100%
   const quarterProgress = Math.max(0, Math.min(1, elapsedDays / totalDays));
-  const isFutureQuarter = !forceClosed && now < q.start;
-  const isPastQuarter = forceClosed || now >= q.end;
+  const isFutureQuarter = now < q.start;
+  const isPastQuarter = now >= q.end;
   const expectedByNow = quarterTarget * quarterProgress;
   const paceDiff = progressAmount - expectedByNow;
   const tolerance = Math.max(expectedByNow * 0.1, 250);
@@ -325,15 +300,9 @@ export default function QuarterlyTracker({
   const adjustedCompanyRows = sortedCompanies.map((c) => {
     const share = rawSavedThisQuarter > 0 ? c.saved / rawSavedThisQuarter : 0;
     const adjSaved = Math.max(0, c.saved - offset * share);
-    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved, sources: c.sources };
+    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved };
   });
-  const rows: Array<{
-    key: string;
-    label: string;
-    paid: number;
-    saved: number;
-    sources?: Partial<Record<FederalWithholdingSource, number>>;
-  }> = [
+  const rows = [
     ...adjustedCompanyRows,
     {
       key: "__quarterly_payments__",
@@ -360,19 +329,7 @@ export default function QuarterlyTracker({
         <p className="text-xs text-muted-foreground mt-1 truncate">
           Pace toward the {q.deadlineLabel} tax deadline
           {methodLabel ? ` · ${methodLabel}` : ""}
-          {forceClosed ? " · debug: quarter forced closed" : ""}
         </p>
-        {/* Debug: force the SELECTED quarter to be treated as closed so you can
-            verify end-of-quarter behavior (planned income → 0, past-quarter
-            messaging) without waiting for the deadline to pass. */}
-        <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground select-none">
-          <Switch
-            checked={forceClosed}
-            onCheckedChange={(v) => debugFlags.setForceQuarterClosed(!!v)}
-            aria-label="Force selected quarter closed (debug)"
-          />
-          <span>Force {q.label} {view.year} closed (debug)</span>
-        </label>
       </CardHeader>
       <CardContent className="space-y-3 pb-10">
         {/* Primary numbers — 2-up */}
@@ -449,26 +406,12 @@ export default function QuarterlyTracker({
                 ) : (
                   rows.map((r) => {
                     const empty = r.paid === 0 && r.saved === 0;
-                    const showSrc = debugFlags.withholdingSource() && r.sources;
-                    const srcSummary = showSrc
-                      ? Object.entries(r.sources!)
-                          .filter(([, n]) => (n ?? 0) > 0)
-                          .map(([s, n]) => `${federalSourceLabel(s as FederalWithholdingSource)}×${n}`)
-                          .join(", ")
-                      : "";
                     return (
                       <div
                         key={r.key}
                         className="px-3 py-2 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 text-sm"
                       >
-                        <span className={cn("truncate flex flex-col min-w-0", empty && "text-muted-foreground")}>
-                          <span className="truncate">{r.label}</span>
-                          {showSrc && srcSummary && (
-                            <span className="text-[10px] text-muted-foreground truncate">
-                              src: {srcSummary}
-                            </span>
-                          )}
-                        </span>
+                        <span className={cn("truncate", empty && "text-muted-foreground")}>{r.label}</span>
                         <span className={cn("tabular-nums text-right w-16", r.paid === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
                           {fmt(r.paid)}
                         </span>

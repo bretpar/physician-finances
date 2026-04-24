@@ -35,8 +35,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
-import { getTotalFederalPaid, getTotalFederalPaidDetail, federalSourceLabel } from "@/lib/federalWithholding";
-import { debugFlags } from "@/lib/debugFlags";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -638,8 +637,7 @@ export default function PersonalIncome() {
                   const isLoss = uiType === "loss";
                   // Use the same canonical federal total the dashboard tracker
                   // shows so the ledger and Quarterly Tax Progress agree.
-                  const fedDetail = getTotalFederalPaidDetail(entry as any);
-                  const withheld = fedDetail.total;
+                  const withheld = getTotalFederalPaid(entry as any);
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = new Date(entry.income_date + "T00:00:00").toLocaleDateString(
                     "en-US",
@@ -649,9 +647,6 @@ export default function PersonalIncome() {
                   const attCount = attachmentCounts?.get(entry.id) ?? 0;
                   if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
                   if (withheld > 0) badges.push({ label: `Withheld ${fmt(withheld)}`, tone: "muted" });
-                  if (debugFlags.withholdingSource() && fedDetail.source !== "none") {
-                    badges.push({ label: `src: ${federalSourceLabel(fedDetail.source)}`, tone: "info" });
-                  }
                   if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
                   if ((entry as any).origin_type === "planner_converted") {
                     badges.push({ label: "From Planner", tone: "info" });

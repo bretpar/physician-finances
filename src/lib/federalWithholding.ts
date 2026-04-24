@@ -23,43 +23,15 @@ export interface WithholdingFields {
   medicare_withholding?: number | null;
 }
 
-export type FederalWithholdingSource =
-  | "taxes_withheld"
-  | "federal_withholding"
-  | "components_sum"
-  | "none";
-
-export interface FederalWithholdingDetail {
-  total: number;
-  source: FederalWithholdingSource;
-}
-
-export function getTotalFederalPaidDetail(
-  entry: WithholdingFields | null | undefined,
-): FederalWithholdingDetail {
-  if (!entry) return { total: 0, source: "none" };
+export function getTotalFederalPaid(entry: WithholdingFields | null | undefined): number {
+  if (!entry) return 0;
   const taxesWithheld = Number(entry.taxes_withheld || 0);
   const fed = Number(entry.federal_withholding || 0);
   const ss = Number(entry.ss_withholding || 0);
   const medicare = Number(entry.medicare_withholding || 0);
 
-  if (taxesWithheld > 0) return { total: taxesWithheld, source: "taxes_withheld" };
-  if (fed > 0 && fed >= ss + medicare) return { total: fed, source: "federal_withholding" };
-  const sum = fed + ss + medicare;
-  if (sum > 0) return { total: sum, source: "components_sum" };
-  return { total: 0, source: "none" };
-}
-
-export function getTotalFederalPaid(entry: WithholdingFields | null | undefined): number {
-  return getTotalFederalPaidDetail(entry).total;
-}
-
-/** Short human-readable label for the debug UI. */
-export function federalSourceLabel(source: FederalWithholdingSource): string {
-  switch (source) {
-    case "taxes_withheld": return "taxes_withheld";
-    case "federal_withholding": return "federal_withholding";
-    case "components_sum": return "fed + SS + Medicare";
-    case "none": return "none";
-  }
+  if (taxesWithheld > 0) return taxesWithheld;
+  // If the canonical fed field already includes SS+Medicare, don't double-count.
+  if (fed >= ss + medicare) return fed;
+  return fed + ss + medicare;
 }
