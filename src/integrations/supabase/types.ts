@@ -1257,6 +1257,7 @@ export type Database = {
           personal_state_tax_mode: string
           personal_state_tax_rate: number
           qualifying_children_count: number
+          quarterly_tracker_method: string
           ss_wage_cap: number
           standard_deduction_override: number | null
           state_of_residence: string
@@ -1291,6 +1292,7 @@ export type Database = {
           personal_state_tax_mode?: string
           personal_state_tax_rate?: number
           qualifying_children_count?: number
+          quarterly_tracker_method?: string
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_of_residence?: string
@@ -1325,6 +1327,7 @@ export type Database = {
           personal_state_tax_mode?: string
           personal_state_tax_rate?: number
           qualifying_children_count?: number
+          quarterly_tracker_method?: string
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_of_residence?: string
