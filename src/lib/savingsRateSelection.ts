@@ -164,10 +164,7 @@ function getBusinessStateRate(s: SavingsRateSettingsLike, input: SavingsRateInpu
  *  for 1099/K-1/Schedule-C income. */
 const SE_EFFECTIVE_RATE_PCT = SE_TAX_RATE * SE_INCOME_FACTOR * 100; // ≈ 14.13
 
-function getSelfEmploymentRate(estimate: TaxEstimate | null | undefined): number {
-  const totalIncome = Math.max(0, Number(estimate?.totalIncome || 0));
-  const seTax = Math.max(0, Number(estimate?.seTax?.total || 0));
-  if (totalIncome > 0 && seTax > 0) return (seTax / totalIncome) * 100;
+function getSelfEmploymentRate(): number {
   return SE_EFFECTIVE_RATE_PCT;
 }
 
@@ -197,7 +194,7 @@ export function getSavingsRateForIncomeBucket(
     // Business / pass-through reserve target — federal + SE + business state.
     // No employee-side payroll (the payer didn't withhold any).
     if (!incomeType || isSelfEmployedFilingType(incomeType)) {
-      components.selfEmployment = getSelfEmploymentRate(selectedEstimate);
+      components.selfEmployment = getSelfEmploymentRate();
     }
     components.businessState = getBusinessStateRate(settings, input);
   }
