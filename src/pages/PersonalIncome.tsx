@@ -635,7 +635,9 @@ export default function PersonalIncome() {
                     INCOME_TYPES.find((t) => t.value === uiType)?.label ||
                     uiType;
                   const isLoss = uiType === "loss";
-                  const withheld = Number(entry.federal_withholding) || 0;
+                  // Use the same canonical federal total the dashboard tracker
+                  // shows so the ledger and Quarterly Tax Progress agree.
+                  const withheld = getTotalFederalPaid(entry as any);
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = new Date(entry.income_date + "T00:00:00").toLocaleDateString(
                     "en-US",
