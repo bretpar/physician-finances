@@ -38,6 +38,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
+import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const fmt = (n: number) =>
@@ -256,18 +257,19 @@ export default function PersonalIncome() {
   const paycheckSavings = useMemo(() => {
     if (grossAmount <= 0 || !taxSettings) return null;
 
-    // 1. Resolve effective rate from the SELECTED tax profile / withholding
-    //    method. Manual rate only when explicitly chosen; otherwise the
-    //    federal effective rate from the matching unified estimate.
-    const method = taxSettings.withholdingMethod || "dynamic_actual";
-    let effectiveRate = 0;
-    if (method === "flat_estimate") {
-      effectiveRate = Number(taxSettings.manualEffectiveTaxRate ?? 0);
-    } else if (method === "dynamic_planner") {
-      effectiveRate = Number(forecastEstimate?.federalEffectiveRate ?? 0);
-    } else {
-      effectiveRate = Number(actualEstimate?.federalEffectiveRate ?? 0);
-    }
+    // 1. Resolve effective rate via the shared bucket-aware selector.
+    //    Personal Income card → personal bucket: federal + employee SS +
+    //    employee Medicare (W-2 only) + personal state (if enabled).
+    //    Never includes SE / B&O / business state.
+    const rateSel = getSavingsRateForIncomeBucket({
+      incomeBucket: "personal",
+      incomeType: form.income_type,
+      taxSettings,
+      actualEstimate,
+      forecastEstimate,
+    });
+    const method = rateSel.method;
+    const effectiveRate = rateSel.rate;
 
     // 2. Eligible pre-tax deductions for this paycheck.
     const eligibleDeductions =
