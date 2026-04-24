@@ -32,6 +32,8 @@ interface QuarterlyTrackerProps {
   quarterMethod?: "even" | "dynamic";
   /** Projected paychecks (date + grossAmount). Used only when quarterMethod="dynamic". */
   projectedPaychecks?: Array<{ date: string; grossAmount: number }>;
+  /** Effective tax rate (percent, 0–100) from the tax engine. Shown in the footer line. */
+  effectiveTaxRate?: number;
 }
 
 const fmt = (n: number) =>
@@ -104,6 +106,7 @@ export default function QuarterlyTracker({
   companies,
   quarterMethod = "even",
   projectedPaychecks = [],
+  effectiveTaxRate,
 }: QuarterlyTrackerProps) {
   const initial = useMemo(() => currentOwningYear(), []);
   const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
@@ -327,25 +330,29 @@ export default function QuarterlyTracker({
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2 min-w-0">
             <Icon className={cn("h-5 w-5 shrink-0", toneStyles.accent)} />
-            <span className="truncate">Quarterly Tax Progress ({q.label} {view.year})</span>
+            <span className="truncate">{q.label} Tax Progress</span>
           </CardTitle>
           <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-1 truncate">
-          Pace toward the {q.deadlineLabel} tax deadline
-          {methodLabel ? ` · ${methodLabel}` : ""}
-        </p>
       </CardHeader>
-      <CardContent className="space-y-3 pb-10">
-        {/* Primary numbers — 2-up */}
-        <div className="grid grid-cols-2 gap-3">
+      <CardContent className="space-y-4 pb-10">
+        {/* Primary numbers — stack on mobile, 2-up on sm+ */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Paid + Saved QTD</p>
-            <p className="text-lg font-semibold tabular-nums text-foreground">{fmt(progressAmount)}</p>
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium">
+              Paid + Saved QTD
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground mt-0.5 whitespace-nowrap">
+              {fmt(progressAmount)}
+            </p>
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Suggested by today</p>
-            <p className={cn("text-lg font-semibold tabular-nums", toneStyles.accent)}>{fmt(expectedByNow)}</p>
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium">
+              Suggested by today
+            </p>
+            <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-0.5 whitespace-nowrap", toneStyles.accent)}>
+              {fmt(expectedByNow)}
+            </p>
           </div>
         </div>
 
@@ -433,15 +440,13 @@ export default function QuarterlyTracker({
           </div>
         </Collapsible>
 
-        <p className="text-[11px] text-muted-foreground italic">
-          Saved amounts are not yet submitted tax payments.
+        {/* Single footer line — quarterly target context + effective tax rate */}
+        <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+          Quarterly target based on Current + Planned income
+          {typeof effectiveTaxRate === "number" && Number.isFinite(effectiveTaxRate) && (
+            <> · Effective Tax Rate: <span className="text-foreground/80 font-medium tabular-nums">{effectiveTaxRate.toFixed(1)}%</span></>
+          )}
         </p>
-        {quarterMethod === "dynamic" && (
-          <p className="text-[11px] text-muted-foreground">
-            This quarter target is based on current + planned income for this
-            quarter and may change as income changes.
-          </p>
-        )}
 
         {/* Quarter navigation affordance */}
         <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
