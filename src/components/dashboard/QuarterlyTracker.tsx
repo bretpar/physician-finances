@@ -7,7 +7,8 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getTotalFederalPaid, getTotalFederalPaidDetail, federalSourceLabel, type FederalWithholdingSource } from "@/lib/federalWithholding";
+import { debugFlags } from "@/lib/debugFlags";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -15,6 +16,8 @@ export interface CompanyQuarterRow {
   label: string;
   paid: number;
   saved: number;
+  /** Debug-only: which fields powered the `paid` total (counts per source). */
+  sources?: Partial<Record<FederalWithholdingSource, number>>;
 }
 
 interface QuarterlyTrackerProps {
