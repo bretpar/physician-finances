@@ -83,11 +83,14 @@ export default function Taxes() {
   // Use the unified debug breakdown as the source of truth so UI matches engine.
   const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
   const totalReturnIncome = e?.totalReturnIncomeBeforeAdjustments ?? 0;
-  const overviewEffectiveRate = getSelectedWithholdingProfileRate({
+  const overviewProfile = getSelectedWithholdingProfileRate({
     taxSettings: rates,
     actualEstimate,
     forecastEstimate,
-  }).federalProfileRate;
+  });
+  const overviewEffectiveRate = rates?.withholdingMethod === "flat_estimate"
+    ? overviewProfile.federalProfileRate
+    : overviewProfile.canonicalEffectiveTaxRate;
   const actualFedWH = debug?.actualFederalWithheld ?? 0;
   const actualStateWH = debug?.actualStateWithheld ?? 0;
   const projFedWH = debug?.projectedFederalWithheld ?? 0;
@@ -430,7 +433,7 @@ export default function Taxes() {
                   <span className={remainingTax > 0 ? "text-amber-600" : "text-emerald-600"}>{fmt(remainingTax)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground pt-1">
-                  <span>Effective Rate: {(e.effectiveRate ?? 0).toFixed(1)}%</span>
+                  <span>Effective Rate: {overviewEffectiveRate.toFixed(1)}%</span>
                   <span>Marginal Rate: {(e.marginalRate ?? 0).toFixed(1)}%</span>
                 </div>
               </CardContent>

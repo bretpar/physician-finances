@@ -17,14 +17,17 @@ interface Props {
   compareLabel?: string;
 }
 
-type FieldDef = { key: keyof TaxDebugBreakdown; label: string; isBool?: boolean };
+type FieldDef = { key: keyof TaxDebugBreakdown; label: string; isBool?: boolean; isText?: boolean; isPercent?: boolean };
 
 const FIELDS: FieldDef[] = [
   { key: "includeProjectedIncome", label: "Projected income included?", isBool: true },
+  { key: "filingStatus", label: "Filing status", isText: true },
   { key: "grossBusinessIncome", label: "Gross business income" },
   { key: "businessExpenses", label: "− Business expenses" },
   { key: "netBusinessProfit", label: "= Net business profit" },
   { key: "w2Income", label: "+ W-2 income" },
+  { key: "w2PreTaxDeductions", label: "− W-2 pre-tax deductions" },
+  { key: "w2TaxableIncomeBase", label: "= W-2 taxable income base" },
   { key: "otherIncome", label: "+ Other income" },
   { key: "totalReturnIncomeBeforeAdjustments", label: "= Total return income" },
   { key: "preTaxDeductions", label: "− Pre-tax deductions" },
@@ -36,8 +39,16 @@ const FIELDS: FieldDef[] = [
   { key: "totalTaxableIncome", label: "= Taxable income" },
   { key: "federalIncomeTax", label: "Federal income tax" },
   { key: "selfEmploymentTax", label: "+ Self-employment tax" },
-  { key: "stateTax", label: "+ State tax" },
+  { key: "personalStateTax", label: "+ Personal state income tax" },
+  { key: "businessStateTax", label: "+ Business state tax" },
+  { key: "stateTax", label: "+ Total state tax" },
   { key: "totalEstimatedTax", label: "= Total estimated tax" },
+  { key: "canonicalEffectiveTaxRate", label: "Canonical effective tax rate", isPercent: true },
+  { key: "taxOverviewRateSource", label: "Tax Overview rate source", isText: true },
+  { key: "advancedBreakdownRateSource", label: "Advanced Breakdown rate source", isText: true },
+  { key: "personalRecommendationsRateSource", label: "Personal recommendations rate source", isText: true },
+  { key: "businessRecommendationsRateSource", label: "Business recommendations rate source", isText: true },
+  { key: "flatManualWithholdingActive", label: "Flat/manual withholding active?", isBool: true },
   { key: "federalTaxBeforeCredits", label: "  (Federal before credits)" },
   { key: "taxCredits", label: "  (Child/Dependent credits)" },
   // ── Credits against tax (explicit) ──
@@ -54,8 +65,10 @@ const FIELDS: FieldDef[] = [
   { key: "targetSetAside", label: "User-target set-aside (override)" },
 ];
 
-function formatValue(val: unknown, isBool?: boolean): string {
+function formatValue(val: unknown, isBool?: boolean, isPercent?: boolean): string {
   if (isBool) return val ? "Yes" : "No";
+  if (typeof val === "string") return val.replace(/_/g, " ");
+  if (isPercent) return `${Number(val || 0).toFixed(2)}%`;
   return fmt(val as number);
 }
 
@@ -64,6 +77,7 @@ function getMismatches(a: TaxDebugBreakdown, b: TaxDebugBreakdown): FieldDef[] {
     const va = a[f.key];
     const vb = b[f.key];
     if (f.isBool) return va !== vb;
+    if (f.isText) return va !== vb;
     return Math.abs((va as number) - (vb as number)) > 0.01;
   });
 }
@@ -71,7 +85,7 @@ function getMismatches(a: TaxDebugBreakdown, b: TaxDebugBreakdown): FieldDef[] {
 export default function TaxDebugPanel({ debug, label = "Tax Calculation Debug", compareDebug, compareLabel = "Income Planner" }: Props) {
   const [open, setOpen] = useState(false);
 
-  const rows: [string, string][] = FIELDS.map((f) => [f.label, formatValue(debug[f.key], f.isBool)]);
+  const rows: [string, string][] = FIELDS.map((f) => [f.label, formatValue(debug[f.key], f.isBool, f.isPercent)]);
 
   const mismatches = compareDebug ? getMismatches(debug, compareDebug) : [];
   const isConsistent = compareDebug ? mismatches.length === 0 : null;
@@ -129,8 +143,8 @@ export default function TaxDebugPanel({ debug, label = "Tax Calculation Debug", 
                     <div key={f.key} className="flex justify-between text-xs font-mono">
                       <span className="text-amber-600 dark:text-amber-400">{f.label}</span>
                       <span className="flex gap-6">
-                        <span className="w-24 text-right font-medium">{formatValue(debug[f.key], f.isBool)}</span>
-                        <span className="w-24 text-right font-medium">{formatValue(compareDebug[f.key], f.isBool)}</span>
+                        <span className="w-24 text-right font-medium">{formatValue(debug[f.key], f.isBool, f.isPercent)}</span>
+                        <span className="w-24 text-right font-medium">{formatValue(compareDebug[f.key], f.isBool, f.isPercent)}</span>
                       </span>
                     </div>
                   ))}

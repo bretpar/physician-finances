@@ -452,8 +452,8 @@ export function calculateFullEstimate(params: {
   const quarterlyEstimate = remainingLiability / remainingQuarters;
 
   // Rates
-  const effectiveRate = calculateEffectiveRate(totalTaxLiability, totalIncome);
-  const federalEffectiveRate = calculateEffectiveRate(federalTax, totalIncome);
+  const effectiveRate = calculateEffectiveRate(totalTaxLiability, totalReturnIncomeBeforeAdjustments);
+  const federalEffectiveRate = calculateEffectiveRate(federalTax, totalReturnIncomeBeforeAdjustments);
   const marginalRate = getMarginalRate(taxableIncome, brackets);
 
   // Safe harbor (legacy compat)

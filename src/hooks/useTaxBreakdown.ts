@@ -579,7 +579,7 @@ export function useTaxBreakdown(
       actualEstimate,
       forecastEstimate,
     });
-    const effectiveRate = profile.federalProfileRate / 100;
+    const effectiveRate = ((settings?.withholdingMethod === "flat_estimate" ? profile.federalProfileRate : profile.canonicalEffectiveTaxRate) || 0) / 100;
     const marginalRate = getMarginalRate(taxableOrdinaryIncome, ordBrackets);
 
     // Withholding override → annual target (planning layer only)
