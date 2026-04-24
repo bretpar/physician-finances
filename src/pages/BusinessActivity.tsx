@@ -367,6 +367,10 @@ export default function Transactions() {
   // --- Smart withholding recommendation engine ---
   const { getRecommendation } = useWithholdingRecommendation();
   const grossIncome = num(incomeForm.gross_amount);
+  const selectedIncomeCompany = useMemo(
+    () => companies.find((c) => c.name === incomeForm.company),
+    [companies, incomeForm.company],
+  );
   const recommendation = useMemo(() => {
     if (grossIncome <= 0) return null;
     return getRecommendation({
@@ -376,8 +380,10 @@ export default function Transactions() {
       retirement401k: num(incomeForm.retirement_401k),
       preTaxDeductions: num(incomeForm.pre_tax_deductions),
       alreadyIncludedInEstimate: isEditingIncome,
+      companyId: selectedIncomeCompany?.id ?? null,
+      applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
     });
-  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, getRecommendation, isEditingIncome]);
+  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, getRecommendation, isEditingIncome, selectedIncomeCompany]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   const calculatedNet = useMemo(() => {
