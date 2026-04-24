@@ -12,12 +12,22 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // Caller must know CRON_SECRET to invoke this bootstrap.
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const provided =
-    req.headers.get("x-cron-secret") ||
-    (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!cronSecret || provided !== cronSecret) {
+  // This bootstrap reads its own copy of the value from edge env.
+  // Authentication: the caller must be the signed-in app user with a valid JWT.
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const authHeader = req.headers.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const userClient = createClient(url, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: userData, error: userErr } = await userClient.auth.getUser();
+  if (userErr || !userData?.user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
