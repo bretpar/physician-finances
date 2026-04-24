@@ -4,7 +4,7 @@
 // enabled and runs the same logic as the on-demand client fallback, server-side
 // using the service role key. Idempotent: the planner_conversions unique
 // constraints prevent double-conversion if cron fires more than once per day.
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
