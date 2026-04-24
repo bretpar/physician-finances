@@ -3,6 +3,7 @@ import type { DbTransaction } from "@/hooks/useTransactions";
 import type { TaxRates } from "@/hooks/useTaxSettings";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 export interface DashboardSummary {
   businessIncome: number;
@@ -52,8 +53,10 @@ export function useDashboardSummary(
     const w2Income = personal
       .filter((e) => e.income_type === "w2_user" || e.income_type === "w2_partner")
       .reduce((s, e) => s + Number(e.gross_amount), 0);
+    // Canonical "Total Federal Payroll Taxes" via shared helper.
+    // Federal-only: federal income tax + Social Security + Medicare.
     const w2Withheld = personal
-      .reduce((s, e) => s + Number(e.federal_withholding || 0), 0);
+      .reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
 
     // Business withholding from transactions
     const txWithheld = txs

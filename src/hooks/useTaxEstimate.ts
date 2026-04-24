@@ -16,6 +16,7 @@ import { isFeatureEnabled } from "@/lib/featureFlags";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 import { aggregateByCategory } from "@/lib/incomeClassification";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -188,7 +189,7 @@ export function useTaxEstimate(): {
       (e) => e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id),
     );
 
-    const businessFederalWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).federal_withholding || 0), 0);
+    const businessFederalWithheld = linkedEntries.reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
     const businessStateWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
     // Pre-tax = `pre_tax_deductions` field + payroll HSA on the same paycheck.
     // Payroll HSA is captured on income_entries.hsa_contribution and treated
@@ -237,7 +238,7 @@ export function useTaxEstimate(): {
     const personalRental = buckets.rental;
     const personalLosses = buckets.loss;
     const personalFederalWithheld = personal
-      .reduce((s, e) => s + Number(e.federal_withholding || 0), 0);
+      .reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
     const personalStateWithheld = personal
       .reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
     // Personal pre-tax = pre_tax_deductions field + payroll HSA on personal
