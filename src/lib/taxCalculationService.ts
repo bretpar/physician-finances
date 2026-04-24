@@ -106,6 +106,7 @@ export interface UnifiedTaxResult {
 
 export interface TaxDebugBreakdown {
   includeProjectedIncome: boolean;
+  filingStatus: "single" | "married_filing_jointly";
   actualIncome: number;
   projectedIncome: number;
   totalGrossIncome: number;
@@ -114,6 +115,8 @@ export interface TaxDebugBreakdown {
   businessExpenses: number;
   netBusinessProfit: number;
   w2Income: number;
+  w2PreTaxDeductions: number;
+  w2TaxableIncomeBase: number;
   otherIncome: number;
   totalReturnIncomeBeforeAdjustments: number;
   preTaxDeductions: number;
@@ -136,6 +139,7 @@ export interface TaxDebugBreakdown {
   selfEmploymentTax: number;
   stateTax: number;
   totalEstimatedTax: number;
+  canonicalEffectiveTaxRate: number;
   estimatedAnnualTax: number;     // alias of totalEstimatedTax
   federalTaxBeforeCredits: number;
   taxCredits: number;
@@ -253,6 +257,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
   // Actual healthcare always counts; projected healthcare only when includeProjectedIncome=true.
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
+  const w2PreTaxDeductions = businessPreTax + personalPreTax + projPreTax;
+  const w2TaxableIncomeBase = Math.max(0, w2Income - w2PreTaxDeductions);
   const actualHealthInsuranceDeduction = ownerHealthcare;
   const healthInsuranceDeduction = actualHealthInsuranceDeduction + projHealthInsurance;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
@@ -329,6 +335,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
 
   const debug: TaxDebugBreakdown = {
     includeProjectedIncome,
+    filingStatus,
     actualIncome,
     projectedIncome: projIncome,
     totalGrossIncome: totalIncome,
@@ -336,6 +343,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     businessExpenses: estimate.businessExpenses,
     netBusinessProfit: estimate.netBusinessProfit,
     w2Income: estimate.w2Income,
+    w2PreTaxDeductions,
+    w2TaxableIncomeBase,
     otherIncome: estimate.otherIncome,
     totalReturnIncomeBeforeAdjustments: estimate.totalReturnIncomeBeforeAdjustments,
     preTaxDeductions: combinedPreTax,
@@ -353,6 +362,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     selfEmploymentTax: estimate.seTax.total,
     stateTax: estimate.stateTax,
     totalEstimatedTax: estimate.totalTaxLiability,
+    canonicalEffectiveTaxRate: estimate.effectiveRate,
     estimatedAnnualTax: estimate.totalTaxLiability,
     federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
     taxCredits: estimate.taxCredits,
