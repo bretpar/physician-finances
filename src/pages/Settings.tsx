@@ -334,7 +334,7 @@ type TaxProfileDraft = Pick<TaxRates,
   | "filingStatus" | "deductionType" | "itemizedDeductionAmount"
   | "qualifyingChildrenCount" | "otherDependentsCount"
   | "withholdingOverrideType" | "withholdingOverridePercent" | "withholdingOverrideAmount"
-  | "stateTaxEnabled" | "stateOfResidence" | "personalStateTaxMode"
+  | "stateIncomeTaxEnabled" | "stateOfResidence" | "personalStateTaxMode"
   | "personalStateTaxRate" | "personalStateTaxAnnualEstimate"
   | "businessStateTaxEnabled" | "businessStateTaxRate"
   | "businessStateTaxBase" | "businessStateTaxApplicationMode"
@@ -354,7 +354,7 @@ function TaxProfileSection() {
     withholdingOverrideType: data?.withholdingOverrideType || "none",
     withholdingOverridePercent: data?.withholdingOverridePercent ?? null,
     withholdingOverrideAmount: data?.withholdingOverrideAmount ?? null,
-    stateTaxEnabled: !!data?.stateTaxEnabled,
+    stateIncomeTaxEnabled: !!data?.stateIncomeTaxEnabled,
     stateOfResidence: data?.stateOfResidence || "",
     personalStateTaxMode: data?.personalStateTaxMode || "none",
     personalStateTaxRate: data?.personalStateTaxRate ?? 0,
@@ -491,16 +491,16 @@ function TaxProfileSection() {
       <div className="pt-2 border-t border-border space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h4 className="text-sm font-semibold text-card-foreground">Personal State Tax</h4>
-            <p className="text-[11px] text-muted-foreground mt-0.5">State income tax on personal income.</p>
+            <h4 className="text-sm font-semibold text-card-foreground">Personal State Income Tax</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5">State income tax on personal income only.</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Switch checked={d.stateTaxEnabled} onCheckedChange={(v) => set({ stateTaxEnabled: v })} />
+            <Switch checked={d.stateIncomeTaxEnabled} onCheckedChange={(v) => set({ stateIncomeTaxEnabled: v })} />
             <Label className="text-xs text-muted-foreground">Enable</Label>
           </div>
         </div>
 
-        {d.stateTaxEnabled && (
+        {d.stateIncomeTaxEnabled && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -538,8 +538,8 @@ function TaxProfileSection() {
       <div className="pt-2 border-t border-border space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h4 className="text-sm font-semibold text-card-foreground">Business State Tax</h4>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Applies only to business-type companies. Never applied to W-2 income.</p>
+            <h4 className="text-sm font-semibold text-card-foreground">Business State Tax (B&O / Franchise / Gross Receipts)</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Some states (like Washington) have no personal income tax but do have business taxes.</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <Switch checked={d.businessStateTaxEnabled} onCheckedChange={(v) => set({ businessStateTaxEnabled: v })} />
