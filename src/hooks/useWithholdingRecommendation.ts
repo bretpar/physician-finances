@@ -184,25 +184,8 @@ export function useWithholdingRecommendation() {
 
       // ── W-2 path: annual-remaining-tax distribution ─────────────────────
       if (isW2) {
-        // If annual tax is already fully covered (by actual + projected W/H +
-        // estimated payments), no additional set-aside is needed on this
-        // paycheck. We surface this as 0 (or negative, if the user intended
-        // to express the overage — see below).
-        let recommendedWithholding = 0;
-        if (annualRemainingTax > 0) {
-          const perPeriodShortfall = annualRemainingTax / remainingPayPeriods;
-          // The user's employer is already withholding `taxesAlreadyWithheld`
-          // on this check. Only recommend the SHORTFALL beyond that.
-          recommendedWithholding = perPeriodShortfall - taxesAlreadyWithheld;
-        } else {
-          // Over-withheld case: surface as negative so UI can say
-          // "you are set aside ≈$X over". Only negative when this specific
-          // paycheck's own withholding exceeds its proportional share (0
-          // of remaining), i.e. any withholding on this check is "extra".
-          recommendedWithholding = -taxesAlreadyWithheld;
-        }
-
-        recommendedWithholding = Math.round(recommendedWithholding * 100) / 100;
+        const paycheckTarget = netTaxableForEntry * (selectedProfile.federalProfileRate / 100);
+        const recommendedWithholding = Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100;
 
         return {
           recommendedWithholding,
@@ -224,7 +207,7 @@ export function useWithholdingRecommendation() {
           actualStateWithheld: debug.actualStateWithheld,
           estimatedPaymentsMade: debug.estimatedPaymentsMade,
           taxSavingsSetAside: debug.taxSavingsSetAside,
-          recommendationBasis: "annual_remaining_tax",
+          recommendationBasis: "per_entry_rate",
         };
       }
 
