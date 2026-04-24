@@ -164,18 +164,16 @@ export function getSavingsRateForIncomeBucket(
 ): SavingsRateResult {
   const { incomeBucket, incomeType, taxSettings } = input;
   const settings = taxSettings ?? {};
-  const method = (settings.withholdingMethod || "dynamic_actual") as SavingsRateResult["method"];
+  const profile = getSelectedWithholdingProfileRate({
+    taxSettings: settings,
+    actualEstimate: input.actualEstimate,
+    forecastEstimate: input.forecastEstimate,
+  });
+  const method = profile.methodUsed;
   const selectedEstimate = method === "dynamic_planner" ? input.forecastEstimate : input.actualEstimate;
 
-  // ── Federal portion (varies by method) ─────────────────────────────────
-  let federal = 0;
-  if (method === "flat_estimate") {
-    federal = Math.max(0, Number(settings.manualEffectiveTaxRate ?? 0));
-  } else if (method === "dynamic_planner") {
-    federal = Math.max(0, Number(input.forecastEstimate?.federalEffectiveRate ?? 0));
-  } else {
-    federal = Math.max(0, Number(input.actualEstimate?.federalEffectiveRate ?? 0));
-  }
+  // ── Federal portion (shared selected withholding profile rate) ──────────
+  const federal = profile.federalProfileRate;
 
   const components = { ...ZERO_COMPONENTS, federal };
 
@@ -201,17 +199,10 @@ export function getSavingsRateForIncomeBucket(
     components.personalState +
     components.businessState;
 
-  const label =
-    method === "flat_estimate"
-      ? `Flat ${federal.toFixed(1)}% federal estimate`
-      : method === "dynamic_planner"
-      ? "Based on actual + planned income"
-      : "Based on combined actual income";
-
   return {
     rate: Math.round(rate * 100) / 100,
     components,
     method,
-    label,
+    label: profile.label,
   };
 }
