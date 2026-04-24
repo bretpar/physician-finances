@@ -34,6 +34,7 @@ import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources
 import { useCompanies } from "@/contexts/CompanyContext";
 import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
@@ -243,6 +244,95 @@ export default function PersonalIncome() {
       alreadyIncludedInEstimate: isEditing,
     });
   }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, getWithholdingRec, isEditing]);
+
+  // ── Per-paycheck reserve calculation (NOT annual-based) ─────────────────
+  // Computes the EXTRA federal+state reserve needed for THIS specific paycheck
+  // after eligible pre-tax deductions and payroll withholding already applied.
+  // Federal/state withholdings are NOT deductions; they are taxes already paid.
+  const { actualEstimate } = useTaxEstimate();
+  const paycheckReserve = useMemo(() => {
+    if (grossAmount <= 0) return null;
+
+    const gross = grossAmount;
+    const retirement = num(form.retirement_pretax);
+    const healthcare = num(form.healthcare_deduction);
+    const otherPretax = num(form.deductions_pre_tax);
+    const hsa = num(form.hsa_contribution);
+    const eligibleDeductions = retirement + healthcare + otherPretax + hsa;
+    const taxablePaycheckAmount = Math.max(0, gross - eligibleDeductions);
+
+    const isW2 = isW2Type(form.income_type);
+    // Federal effective rate: use unified estimate's federalEffectiveRate for W-2;
+    // for non-W2 use the blended rate (federal + SE) — net of state.
+    const flatMode = taxSettings?.withholdingMethod === "flat_estimate";
+    let federalRate = 0;
+    if (flatMode) {
+      federalRate = (taxSettings?.manualEffectiveTaxRate ?? 20) / 100;
+    } else if (actualEstimate) {
+      federalRate = isW2
+        ? (actualEstimate.federalEffectiveRate || 0) / 100
+        : (actualEstimate.effectiveRate || 0) / 100;
+    }
+
+    // State effective rate from settings (personal flat-rate mode only).
+    const stateMode = taxSettings?.personalStateTaxMode || "none";
+    const stateRate =
+      stateMode === "flat_rate" ? (taxSettings?.personalStateTaxRate || 0) / 100 : 0;
+    const stateEnabled = !!taxSettings?.stateTaxEnabled && stateRate > 0;
+
+    const federalEstimatedTaxNeed =
+      Math.round(taxablePaycheckAmount * federalRate * 100) / 100;
+    const stateEstimatedTaxNeed = stateEnabled
+      ? Math.round(taxablePaycheckAmount * stateRate * 100) / 100
+      : 0;
+
+    const federalAlreadyWithheld =
+      num(form.federal_withholding) +
+      num(form.ss_withholding) +
+      num(form.medicare_withholding);
+    const stateAlreadyWithheld = stateEnabled ? num(form.state_withholding) : 0;
+
+    const additionalFederalReserve = Math.max(
+      0,
+      Math.round((federalEstimatedTaxNeed - federalAlreadyWithheld) * 100) / 100,
+    );
+    const additionalStateReserve = Math.max(
+      0,
+      Math.round((stateEstimatedTaxNeed - stateAlreadyWithheld) * 100) / 100,
+    );
+    const totalSuggestedExtraReserve =
+      Math.round((additionalFederalReserve + additionalStateReserve) * 100) / 100;
+
+    return {
+      gross,
+      eligibleDeductions: Math.round(eligibleDeductions * 100) / 100,
+      taxablePaycheckAmount: Math.round(taxablePaycheckAmount * 100) / 100,
+      federalEstimatedTaxNeed,
+      federalAlreadyWithheld: Math.round(federalAlreadyWithheld * 100) / 100,
+      additionalFederalReserve,
+      stateEstimatedTaxNeed,
+      stateAlreadyWithheld: Math.round(stateAlreadyWithheld * 100) / 100,
+      additionalStateReserve,
+      totalSuggestedExtraReserve,
+      stateEnabled,
+      federalRatePct: federalRate * 100,
+      stateRatePct: stateRate * 100,
+    };
+  }, [
+    grossAmount,
+    form.income_type,
+    form.retirement_pretax,
+    form.healthcare_deduction,
+    form.deductions_pre_tax,
+    form.hsa_contribution,
+    form.federal_withholding,
+    form.ss_withholding,
+    form.medicare_withholding,
+    form.state_withholding,
+    actualEstimate,
+    taxSettings,
+  ]);
+
 
   function openAdd() {
     setForm(emptyForm);
@@ -898,26 +988,86 @@ export default function PersonalIncome() {
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Base estimate preview at bottom of Modal 1 */}
-            {grossAmount > 0 && baseRecommendation && (
-              <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                <p className="text-xs font-semibold text-muted-foreground">Estimated Tax Reserve</p>
-                {baseRecommendation.isOverWithheld ? (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                    Employer over-withheld by <strong>{fmt(Math.abs(baseRecommendation.recommendedWithholding))}</strong>
+            {/* Per-paycheck suggested extra reserve (NOT annual-based) */}
+            {grossAmount > 0 && paycheckReserve && (
+              <div className="rounded-md border border-border p-3 space-y-2 bg-background">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground">Suggested extra reserve</p>
+                  <p
+                    className={`text-base font-bold tabular-nums ${
+                      paycheckReserve.totalSuggestedExtraReserve > 0
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    }`}
+                  >
+                    {fmt(paycheckReserve.totalSuggestedExtraReserve)}
                   </p>
-                ) : baseRecommendation.recommendedWithholding > 0 ? (
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
-                    Estimated additional tax reserve: <strong>{fmt(baseRecommendation.recommendedWithholding)}</strong>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Estimated extra amount to set aside after paycheck deductions and payroll withholding.
+                </p>
+
+                {/* Breakdown */}
+                <div className="rounded border border-border/60 bg-muted/30 p-2 space-y-1 text-[11px] tabular-nums">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Gross paycheck</span>
+                    <span>{fmt(paycheckReserve.gross)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Eligible deductions</span>
+                    <span>−{fmt(paycheckReserve.eligibleDeductions)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium border-t border-border/60 pt-1">
+                    <span>Taxable amount used for estimate</span>
+                    <span>{fmt(paycheckReserve.taxablePaycheckAmount)}</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-border/60">
+                    <span className="text-muted-foreground">
+                      Federal estimated tax need ({paycheckReserve.federalRatePct.toFixed(1)}%)
+                    </span>
+                    <span>{fmt(paycheckReserve.federalEstimatedTaxNeed)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Federal already withheld</span>
+                    <span>−{fmt(paycheckReserve.federalAlreadyWithheld)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium">
+                    <span>Suggested extra federal reserve</span>
+                    <span>{fmt(paycheckReserve.additionalFederalReserve)}</span>
+                  </div>
+                  {paycheckReserve.stateEnabled && (
+                    <>
+                      <div className="flex justify-between pt-1 border-t border-border/60">
+                        <span className="text-muted-foreground">
+                          State estimated tax need ({paycheckReserve.stateRatePct.toFixed(1)}%)
+                        </span>
+                        <span>{fmt(paycheckReserve.stateEstimatedTaxNeed)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">State already withheld</span>
+                        <span>−{fmt(paycheckReserve.stateAlreadyWithheld)}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Suggested extra state reserve</span>
+                        <span>{fmt(paycheckReserve.additionalStateReserve)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between font-semibold border-t border-border pt-1">
+                    <span>Total suggested extra reserve</span>
+                    <span>{fmt(paycheckReserve.totalSuggestedExtraReserve)}</span>
+                  </div>
+                </div>
+
+                {paycheckReserve.totalSuggestedExtraReserve > 0 ? (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Consider setting aside this additional amount for taxes.
                   </p>
                 ) : (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                    Your withholding covers the estimated tax for this paycheck.
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                    Payroll withholding appears to cover this paycheck's estimated tax need.
                   </p>
                 )}
-                <p className="text-[11px] text-muted-foreground">
-                  {baseRecommendation.methodLabel} · {baseRecommendation.effectiveRate.toFixed(1)}% effective rate
-                </p>
                 <p className="text-[10px] text-muted-foreground italic">
                   Withholding method controlled in Settings
                 </p>
