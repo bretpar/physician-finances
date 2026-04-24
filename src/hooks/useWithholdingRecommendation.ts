@@ -22,8 +22,7 @@
 import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { SE_TAX_RATE, SE_INCOME_FACTOR } from "@/lib/taxEngine";
-import { isW2FilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { isW2FilingType } from "@/lib/filingTypes";
 import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
 
 export interface WithholdingInput {
@@ -106,7 +105,6 @@ export function useWithholdingRecommendation() {
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
-      const isSelfEmployed = isSelfEmployedFilingType(incomeType);
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
 
       // Net taxable income for this entry
