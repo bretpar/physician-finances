@@ -989,37 +989,49 @@ export default function PersonalIncome() {
               const status = paycheckSavings.status;
               const isUnder = status === "under_withheld";
               const isOver = status === "over_withheld";
-              const label = isUnder
-                ? "Save more"
-                : isOver
-                ? "Over-withheld"
-                : "On track";
-              const helper = isUnder
-                ? "Based on your selected tax profile, this paycheck is under-saved by this amount."
-                : isOver
-                ? "Payroll withholding appears to exceed this paycheck's profile-based savings target."
-                : "Payroll withholding appears to match this paycheck's profile-based savings target.";
-              const display = isUnder
-                ? `Save ${fmt(diff)} more`
-                : isOver
-                ? `Over-withheld by ${fmt(Math.abs(diff))}`
-                : "On track";
-              const valueClass = isUnder
-                ? "text-destructive"
-                : "text-emerald-600 dark:text-emerald-400";
+              const absAmount = Math.round(Math.abs(diff));
+              const amountDisplay = `$${absAmount.toLocaleString()}`;
+              const ratePct = paycheckSavings.effectiveRateUsed;
+              const rateDisplay = `${ratePct.toFixed(1)}%`;
+
+              const primary = isOver
+                ? `You're ahead by ${amountDisplay}`
+                : isUnder
+                ? `Save ${amountDisplay} more this paycheck`
+                : "You're on track";
+              const secondary = isOver
+                ? `No additional savings needed this paycheck • Based on effective tax rate of ${rateDisplay}`
+                : isUnder
+                ? `To stay on track • Based on effective tax rate of ${rateDisplay}`
+                : `Withholding matches your target • Based on effective tax rate of ${rateDisplay}`;
+              const rightLabel = isOver ? "Over-withheld" : isUnder ? "Under-saving" : "On track";
+              const rightColor = isOver
+                ? "text-emerald-600 dark:text-emerald-400"
+                : isUnder
+                ? "text-orange-600 dark:text-orange-400"
+                : "text-muted-foreground";
+
               return (
-                <div className="rounded-md border border-border p-3 space-y-1 bg-background">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-xs font-semibold text-muted-foreground">Paycheck tax savings guide</p>
-                    <p className={`text-base font-bold tabular-nums ${valueClass}`}>{display}</p>
+                <div className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground">Paycheck tax savings guide</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-base sm:text-lg font-semibold text-foreground leading-snug">
+                        {primary}
+                      </p>
+                      <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+                        {secondary}
+                      </p>
+                    </div>
+                    <div className="flex sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0.5 shrink-0">
+                      <p className={`text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap ${rightColor}`}>
+                        {amountDisplay}
+                      </p>
+                      <p className={`text-[10px] sm:text-xs font-medium uppercase tracking-wide ${rightColor} opacity-80`}>
+                        {rightLabel}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    <span className="font-medium">{label}.</span> {helper}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground italic">
-                    Based on your selected tax profile effective rate
-                    {paycheckSavings.methodLabel ? ` — ${paycheckSavings.methodLabel}.` : "."}
-                  </p>
                 </div>
               );
             })()}
