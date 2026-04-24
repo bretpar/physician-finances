@@ -32,7 +32,11 @@ interface QuarterlyTrackerProps {
   quarterMethod?: "even" | "dynamic";
   /** Projected paychecks (date + grossAmount). Used only when quarterMethod="dynamic". */
   projectedPaychecks?: Array<{ date: string; grossAmount: number }>;
-  /** Effective tax rate (percent, 0–100) from the tax engine. Shown in the footer line. */
+  /** Personal-bucket withholding target rate (percent, 0–100). Footer display. */
+  personalBucketRate?: number;
+  /** Business-bucket reserve target rate (percent, 0–100). Footer display. */
+  businessBucketRate?: number;
+  /** @deprecated kept for backward-compat; use personal/business rates instead. */
   effectiveTaxRate?: number;
 }
 
@@ -106,6 +110,8 @@ export default function QuarterlyTracker({
   companies,
   quarterMethod = "even",
   projectedPaychecks = [],
+  personalBucketRate,
+  businessBucketRate,
   effectiveTaxRate,
 }: QuarterlyTrackerProps) {
   const initial = useMemo(() => currentOwningYear(), []);
@@ -440,12 +446,24 @@ export default function QuarterlyTracker({
           </div>
         </Collapsible>
 
-        {/* Single footer line — quarterly target context + effective tax rate */}
+        {/* Single footer line — quarterly target context + bucket-aware rates */}
         <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
           Quarterly target based on Current + Planned income
-          {typeof effectiveTaxRate === "number" && Number.isFinite(effectiveTaxRate) && (
+          {(typeof personalBucketRate === "number" && Number.isFinite(personalBucketRate)) ||
+          (typeof businessBucketRate === "number" && Number.isFinite(businessBucketRate)) ? (
+            <>
+              {" "}· Personal:{" "}
+              <span className="text-foreground/80 font-medium tabular-nums">
+                {(personalBucketRate ?? 0).toFixed(1)}%
+              </span>{" "}
+              · Business:{" "}
+              <span className="text-foreground/80 font-medium tabular-nums">
+                {(businessBucketRate ?? 0).toFixed(1)}%
+              </span>
+            </>
+          ) : typeof effectiveTaxRate === "number" && Number.isFinite(effectiveTaxRate) ? (
             <> · Effective Tax Rate: <span className="text-foreground/80 font-medium tabular-nums">{effectiveTaxRate.toFixed(1)}%</span></>
-          )}
+          ) : null}
         </p>
 
         {/* Quarter navigation affordance */}

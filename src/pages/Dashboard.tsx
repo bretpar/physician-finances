@@ -17,6 +17,7 @@ import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -265,6 +266,20 @@ export default function Dashboard() {
         companies={companies}
         quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
         projectedPaychecks={projectedPaychecks}
+        personalBucketRate={getSavingsRateForIncomeBucket({
+          incomeBucket: "personal",
+          incomeType: "W2",
+          taxSettings: rates,
+          actualEstimate,
+          forecastEstimate,
+        }).rate}
+        businessBucketRate={getSavingsRateForIncomeBucket({
+          incomeBucket: "business",
+          incomeType: "1099",
+          taxSettings: rates,
+          actualEstimate,
+          forecastEstimate,
+        }).rate}
         effectiveTaxRate={effectiveTaxRate}
       />
 
