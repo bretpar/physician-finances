@@ -107,7 +107,7 @@ export function RecommendedSetAsideInfo({ rate }: Props) {
   const personalEstimate = Number(taxSettings?.personalStateTaxAnnualEstimate || 0);
   const businessRate = Number(taxSettings?.businessStateTaxRate || 0);
 
-  const personalEnabled = !!taxSettings?.stateTaxEnabled;
+  const personalEnabled = !!taxSettings?.stateIncomeTaxEnabled;
   const businessEnabled = !!taxSettings?.businessStateTaxEnabled;
 
   const personalContributes = personalRate > 0 || personalEstimate > 0;
