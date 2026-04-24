@@ -280,6 +280,8 @@ export interface StateTaxInputs {
   personalStateTaxRate?: number;
   /** Personal annual state tax estimate ($). Used when mode='annual_estimate'. */
   personalStateTaxAnnualEstimate?: number;
+  /** Personal-only taxable base so business profit is never taxed as personal state income. */
+  personalStateTaxableIncome?: number;
   /** Withholding already paid to state on personal income. */
   personalStateWithheld?: number;
   /** Business state tax: enabled + rate (percent). */
@@ -310,7 +312,8 @@ export function calculatePersonalStateTax(args: {
   if (inputs.stateIncomeTaxEnabled ?? inputs.stateTaxEnabled) {
     let gross = 0;
     if (inputs.personalStateTaxMode === "flat_rate") {
-      gross = Math.max(0, taxableIncome) * ((inputs.personalStateTaxRate || 0) / 100);
+      const base = inputs.personalStateTaxableIncome ?? taxableIncome;
+      gross = Math.max(0, base) * ((inputs.personalStateTaxRate || 0) / 100);
     } else if (inputs.personalStateTaxMode === "annual_estimate") {
       gross = Math.max(0, inputs.personalStateTaxAnnualEstimate || 0);
     }
