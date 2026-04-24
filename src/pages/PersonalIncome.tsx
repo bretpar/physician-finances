@@ -248,17 +248,35 @@ export default function PersonalIncome() {
     });
   }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, getWithholdingRec, isEditing]);
 
-  // ── Per-paycheck withholding guide ──────────────────────────────────────
-  // Source of truth: useWithholdingRecommendation. It respects the global
-  // withholding method (flat_estimate / dynamic_actual / dynamic_planner)
-  // selected in Settings and uses the canonical Total Federal Payroll Taxes
-  // value (federal income tax + SS + Medicare) for taxesAlreadyWithheld.
-  const paycheckGuide = useMemo(() => {
-    if (grossAmount <= 0) return null;
+  // ── Per-paycheck profile-based savings guide ────────────────────────────
+  // Simple paycheck-only calculation: uses the user's selected tax profile
+  // effective rate (NOT annual remaining tax / quarterly catch-up). Lives in
+  // calculatePaycheckProfileSavings so the math stays consistent and isolated
+  // from the annual recommendation engine in useWithholdingRecommendation.
+  const paycheckSavings = useMemo(() => {
+    if (grossAmount <= 0 || !taxSettings) return null;
 
-    const incType = isW2Type(form.income_type) ? "W2" : "1099";
+    // 1. Resolve effective rate from the SELECTED tax profile / withholding
+    //    method. Manual rate only when explicitly chosen; otherwise the
+    //    federal effective rate from the matching unified estimate.
+    const method = taxSettings.withholdingMethod || "dynamic_actual";
+    let effectiveRate = 0;
+    if (method === "flat_estimate") {
+      effectiveRate = Number(taxSettings.manualEffectiveTaxRate ?? 0);
+    } else if (method === "dynamic_planner") {
+      effectiveRate = Number(forecastEstimate?.federalEffectiveRate ?? 0);
+    } else {
+      effectiveRate = Number(actualEstimate?.federalEffectiveRate ?? 0);
+    }
 
-    // Canonical total federal payroll taxes (no double-counting of split fields).
+    // 2. Eligible pre-tax deductions for this paycheck.
+    const eligibleDeductions =
+      num(form.retirement_pretax) +
+      num(form.deductions_pre_tax) +
+      num(form.healthcare_deduction) +
+      num(form.hsa_contribution);
+
+    // 3. Canonical Total Federal Payroll Taxes (no double-count of splits).
     const totalFederalPayrollTaxes = getCanonicalTotalFederalPayrollTaxes({
       total_federal_payroll_taxes: form.total_federal_payroll_taxes,
       federal_withholding: num(form.federal_withholding),
@@ -266,19 +284,25 @@ export default function PersonalIncome() {
       medicare_withholding: num(form.medicare_withholding),
     });
 
-    const stateEnabled = !!taxSettings?.stateTaxEnabled;
+    const stateEnabled = !!taxSettings.stateTaxEnabled;
     const stateAlreadyWithheld = stateEnabled ? num(form.state_withholding) : 0;
 
-    const hsa = num(form.hsa_contribution);
-
-    return getWithholdingRec({
-      grossIncome: grossAmount,
-      incomeType: incType,
-      taxesAlreadyWithheld: totalFederalPayrollTaxes + stateAlreadyWithheld,
-      retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + hsa,
-      alreadyIncludedInEstimate: isEditing,
+    const result = calculatePaycheckProfileSavings({
+      grossPaycheckIncome: grossAmount,
+      eligiblePreTaxDeductions: eligibleDeductions,
+      selectedProfileEffectiveTaxRate: effectiveRate,
+      totalFederalPayrollTaxes,
+      stateWithholdingIfEnabled: stateAlreadyWithheld,
     });
+
+    const methodLabel =
+      method === "flat_estimate"
+        ? `Flat ${effectiveRate.toFixed(1)}% estimate`
+        : method === "dynamic_planner"
+        ? "Based on actual + planned income"
+        : "Based on combined actual income";
+
+    return { ...result, methodLabel };
   }, [
     grossAmount,
     form.income_type,
@@ -292,9 +316,10 @@ export default function PersonalIncome() {
     form.total_federal_payroll_taxes,
     form.state_withholding,
     taxSettings,
-    getWithholdingRec,
-    isEditing,
+    actualEstimate,
+    forecastEstimate,
   ]);
+
 
 
   function openAdd() {
