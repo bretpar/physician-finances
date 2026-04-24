@@ -1614,7 +1614,7 @@ export default function Transactions() {
               />
             )}
 
-            {!!taxSettings?.stateTaxEnabled && showField("state_withholding") && (
+            {!!taxSettings?.businessStateTaxEnabled && showField("state_withholding") && (
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">State tax withheld</Label>
                 <Input
