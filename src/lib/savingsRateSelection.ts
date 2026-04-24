@@ -179,7 +179,6 @@ export function getSavingsRateForIncomeBucket(
     forecastEstimate: input.forecastEstimate,
   });
   const method = profile.methodUsed;
-  const selectedEstimate = method === "flat_estimate" ? input.actualEstimate : input.forecastEstimate;
 
   // ── Federal portion (shared selected withholding profile rate) ──────────
   const federal = profile.federalProfileRate;
