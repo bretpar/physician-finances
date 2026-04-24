@@ -9,7 +9,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
 import DashboardMetrics from "@/components/dashboard/DashboardMetrics";
-import QuarterlyTracker, { type CompanyQuarterRow } from "@/components/dashboard/QuarterlyTracker";
+import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
