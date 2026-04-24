@@ -35,6 +35,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -212,7 +213,10 @@ export default function PersonalIncome() {
     return entries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);
-        const withheld = Number(e.federal_withholding) + Number(e.state_withholding);
+        // Federal total via shared helper + state (kept here so the summary
+        // card still reflects "all taxes withheld"); the dashboard tracker is
+        // federal-only.
+        const withheld = getTotalFederalPaid(e as any) + Number(e.state_withholding || 0);
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
           totalWithheld: acc.totalWithheld + withheld,
@@ -631,7 +635,9 @@ export default function PersonalIncome() {
                     INCOME_TYPES.find((t) => t.value === uiType)?.label ||
                     uiType;
                   const isLoss = uiType === "loss";
-                  const withheld = Number(entry.federal_withholding) || 0;
+                  // Use the same canonical federal total the dashboard tracker
+                  // shows so the ledger and Quarterly Tax Progress agree.
+                  const withheld = getTotalFederalPaid(entry as any);
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = new Date(entry.income_date + "T00:00:00").toLocaleDateString(
                     "en-US",

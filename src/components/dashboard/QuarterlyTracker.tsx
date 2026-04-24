@@ -7,6 +7,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -140,8 +141,11 @@ export default function QuarterlyTracker({
       if (!e.linked_transaction_id) continue;
       const tx = liveTxById.get(e.linked_transaction_id);
       if (!tx) continue;
+      // Business income is bucketed by the LEDGER ENTRY DATE (income_date),
+      // not the projected/planner date. Once the quarter ends, only actual
+      // entries within the window contribute.
       if (!inQuarter(e.income_date)) continue;
-      const paid = Number(e.federal_withholding || 0);
+      const paid = getTotalFederalPaid(e);
       const saved =
         Number((tx as any).actual_withholding || 0) +
         Number(e.additional_tax_reserve || 0);
@@ -159,7 +163,8 @@ export default function QuarterlyTracker({
 
     for (const e of personalEntries || []) {
       if (!inQuarter(e.income_date)) continue;
-      const paid = Number(e.federal_withholding || 0);
+      // Federal-only canonical total via shared helper (handles legacy rows).
+      const paid = getTotalFederalPaid(e);
       const saved = Number(e.additional_tax_reserve || 0);
       if (paid <= 0 && saved <= 0) continue;
       const name = (e.company || "Personal W-2").trim() || "Personal W-2";
