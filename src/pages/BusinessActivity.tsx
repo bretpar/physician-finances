@@ -423,11 +423,14 @@ export default function Transactions() {
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
         medicare_withholding: linked ? String((linked as any).medicare_withholding || 0) : "",
+        // Prefer canonical taxes_withheld total when populated; otherwise sum components.
         total_federal_payroll_taxes: linked
           ? String(
-              Number((linked as any).federal_withholding || 0) +
-              Number((linked as any).ss_withholding || 0) +
-              Number((linked as any).medicare_withholding || 0)
+              Number((linked as any).taxes_withheld || 0) > 0
+                ? Number((linked as any).taxes_withheld || 0)
+                : Number((linked as any).federal_withholding || 0) +
+                  Number((linked as any).ss_withholding || 0) +
+                  Number((linked as any).medicare_withholding || 0),
             )
           : "",
         actual_withholding: String((tx as any).actual_withholding || ""),
