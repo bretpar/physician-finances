@@ -28,6 +28,7 @@ import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from
 export interface WithholdingInput {
   grossIncome: number;
   incomeType: string; // 'W2' | '1099' | 'K1'
+  incomeBucket?: "personal" | "business";
   taxesAlreadyWithheld: number;
   retirement401k: number;
   preTaxDeductions: number;
@@ -94,6 +95,7 @@ export function useWithholdingRecommendation() {
       const {
         grossIncome,
         incomeType,
+        incomeBucket,
         taxesAlreadyWithheld,
         retirement401k,
         preTaxDeductions,
@@ -105,6 +107,7 @@ export function useWithholdingRecommendation() {
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
+      const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
       const selectedProfile = getSelectedWithholdingProfileRate({
         taxSettings: settings,
@@ -118,7 +121,7 @@ export function useWithholdingRecommendation() {
       // FLAT ESTIMATE MODE
       if (withholdingMethod === "flat_estimate") {
         const rateSel = getSavingsRateForIncomeBucket({
-          incomeBucket: isW2 ? "personal" : "business",
+          incomeBucket: resolvedBucket,
           incomeType,
           taxSettings: settings,
           actualEstimate,
@@ -175,8 +178,15 @@ export function useWithholdingRecommendation() {
       const annualRemainingTax = debug.remainingTaxDue; // = max(0, liability − credits)
 
       // ── W-2 path: annual-remaining-tax distribution ─────────────────────
-      if (isW2) {
-        const paycheckTarget = netTaxableForEntry * (selectedProfile.federalProfileRate / 100);
+      if (resolvedBucket === "personal" || isW2) {
+        const rateSelection = getSavingsRateForIncomeBucket({
+          incomeBucket: "personal",
+          incomeType,
+          taxSettings: settings,
+          actualEstimate,
+          forecastEstimate,
+        });
+        const paycheckTarget = netTaxableForEntry * (rateSelection.rate / 100);
         const recommendedWithholding = Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100;
 
         return {
@@ -186,7 +196,7 @@ export function useWithholdingRecommendation() {
           estimatedAnnualTax: annualTaxLiability,
           taxesAlreadyCovered: countedCreditsTotal,
           estimatedRemainingTax: annualRemainingTax,
-          effectiveRate: selectedProfile.federalProfileRate,
+          effectiveRate: rateSelection.rate,
           isManualMode: false,
           isOverWithheld: recommendedWithholding <= 0,
           methodLabel,
