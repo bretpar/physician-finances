@@ -176,7 +176,14 @@ export function useWithholdingRecommendation() {
 
       // ── W-2 path: annual-remaining-tax distribution ─────────────────────
       if (isW2) {
-        const paycheckTarget = netTaxableForEntry * (selectedProfile.federalProfileRate / 100);
+        const rateSelection = getSavingsRateForIncomeBucket({
+          incomeBucket: "personal",
+          incomeType,
+          taxSettings: settings,
+          actualEstimate,
+          forecastEstimate,
+        });
+        const paycheckTarget = netTaxableForEntry * (rateSelection.rate / 100);
         const recommendedWithholding = Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100;
 
         return {
@@ -186,7 +193,7 @@ export function useWithholdingRecommendation() {
           estimatedAnnualTax: annualTaxLiability,
           taxesAlreadyCovered: countedCreditsTotal,
           estimatedRemainingTax: annualRemainingTax,
-          effectiveRate: selectedProfile.federalProfileRate,
+          effectiveRate: rateSelection.rate,
           isManualMode: false,
           isOverWithheld: recommendedWithholding <= 0,
           methodLabel,
