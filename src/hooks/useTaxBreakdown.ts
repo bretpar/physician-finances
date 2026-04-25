@@ -234,6 +234,7 @@ export function useTaxBreakdown(
 
     // ── Per-company source aggregation (display only, no tax math) ──
     interface CompanyAgg {
+      companyId: string | null;
       name: string;
       filingType: FilingType;
       actualGross: number;
@@ -249,15 +250,16 @@ export function useTaxBreakdown(
     }
     const companyAgg = new Map<string, CompanyAgg>();
 
-    const ensureAgg = (name: string, ft: FilingType): CompanyAgg => {
-      const key = `${name}::${ft}`;
+    const ensureAgg = (name: string, ft: FilingType, companyId: string | null = null): CompanyAgg => {
+      const key = companyId || `${name}::${ft}`;
       const existing = companyAgg.get(key) ?? {
-        name, filingType: ft,
+        companyId, name, filingType: ft,
         actualGross: 0, plannedGross: 0,
         preTax: 0, retirement: 0, healthcare: 0,
         withheld: 0, stateWithheld: 0, federalWithheld: 0,
         plannedPreTax: 0, plannedRetirement: 0,
       };
+      existing.companyId = existing.companyId || companyId;
       companyAgg.set(key, existing);
       return existing;
     };
@@ -269,8 +271,9 @@ export function useTaxBreakdown(
       if (!matchCompany(e.company)) continue;
       const status = ((e as any).status ?? "received") as string;
       const isReceived = status === "received";
-      const ft = normalizeFilingType(e.income_type);
-      const agg = ensureAgg(e.company || "Unassigned", ft);
+      const company = (e as any).source_id ? companies.find((c) => c.id === (e as any).source_id) : undefined;
+      const ft = normalizeFilingType(company?.companyType || e.income_type);
+      const agg = ensureAgg(company?.name || e.company || "Unassigned", ft, company?.id || (e as any).source_id || null);
 
       if (isReceived) {
         agg.actualGross += Number(e.paycheck_amount) || 0;
@@ -306,7 +309,7 @@ export function useTaxBreakdown(
         const ft = normalizeFilingType(stream?.company_type || "1099");
         const companyName = stream?.company || company || "Planned";
         if (!matchCompany(companyName)) continue;
-        const agg = ensureAgg(companyName, ft);
+        const agg = ensureAgg(companyName, ft, (stream as any)?.source_id || null);
         agg.plannedGross += p.grossAmount;
         agg.plannedPreTax += p.preTaxDeductions;
         agg.plannedRetirement += p.retirement401k;
