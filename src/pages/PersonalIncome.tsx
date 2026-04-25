@@ -1039,6 +1039,7 @@ export default function PersonalIncome() {
                       </p>
                       <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
                         {secondary}
+                        <RecommendedSetAsideInfo rate={ratePct} breakdown={paycheckSavings.rateBreakdown} />
                       </p>
                     </div>
                     <div className="flex sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0.5 shrink-0">
