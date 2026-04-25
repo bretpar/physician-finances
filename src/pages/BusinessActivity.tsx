@@ -370,7 +370,7 @@ export default function Transactions() {
   const companyFilterOptions = useMemo(() => {
     return companies
       .filter((c) => !isW2FilingType(c.companyType))
-      .map((c) => ({ id: c.id, name: c.name }))
+      .map((c) => ({ id: c.id, name: c.name, companyType: c.companyType }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [companies]);
 
@@ -754,7 +754,7 @@ export default function Transactions() {
     if (!expenseForm.name.trim() || !expenseForm.date) return;
     const amount = num(expenseForm.amount);
     if (amount === 0) return;
-    if (!expenseForm.is_transfer && !expenseForm.company) { toast.error("Please select a company"); return; }
+    if (!expenseForm.is_transfer && !selectedExpenseCompany) { toast.error("Please select a company"); return; }
 
     const flushAttachmentsTo = (newTxId: string) => {
       if (pendingExpenseAttachments.length === 0) return;
@@ -1058,7 +1058,9 @@ export default function Transactions() {
               <Trash2 className="h-3 w-3" /> Delete
             </Button>
             <Select value={bulkCompany} onValueChange={(v) => {
-              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { entity: v, needs_review: false } as any });
+              const company = companyById.get(v);
+              if (!company) return;
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { entity: company.name, source_id: company.id, company_type: company.companyType, needs_review: false } as any });
               setBulkCompany("");
               setSelectedIds(new Set());
             }}>
