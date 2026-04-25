@@ -341,6 +341,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // holds and state withholding never gets "double-counted" by being implicit
   // in state tax due AND added to countedCreditsTotal.
   const remainingTaxDue = Math.max(0, estimate.totalTaxLiability - countedCreditsTotal);
+  const scopeLabel = includeProjectedIncome ? "actual + planned" : "actual only";
 
   const debug: TaxDebugBreakdown = {
     includeProjectedIncome,
@@ -372,10 +373,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     stateTax: estimate.stateTax,
     totalEstimatedTax: estimate.totalTaxLiability,
     canonicalEffectiveTaxRate: estimate.effectiveRate,
-    taxOverviewRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : "Canonical actual + planned total estimated tax ÷ total return income",
-    advancedBreakdownRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : "Canonical actual + planned total estimated tax ÷ total return income",
-    personalRecommendationsRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : "Canonical ordinary income rate from actual + planned income",
-    businessRecommendationsRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}% + business add-ons` : "Canonical ordinary income rate + SE/pass-through + business tax add-ons",
+    taxOverviewRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : `Canonical ${scopeLabel} total estimated tax ÷ total return income`,
+    advancedBreakdownRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : `Canonical ${scopeLabel} total estimated tax ÷ total return income`,
+    personalRecommendationsRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}%` : `Canonical ${scopeLabel} effective rate`,
+    businessRecommendationsRateSource: withholdingMethod === "flat_estimate" ? `Flat/manual ${manualEffectiveTaxRate ?? 0}% + business add-ons` : `Canonical ${scopeLabel} federal rate + SE/pass-through + business tax add-ons`,
     flatManualWithholdingActive: withholdingMethod === "flat_estimate",
     estimatedAnnualTax: estimate.totalTaxLiability,
     federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
