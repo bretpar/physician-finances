@@ -139,6 +139,7 @@ export function useTaxEstimate(): {
     let grossW2Business = 0; // scorp_w2, w2 booked under a business
     let grossOtherBusiness = 0; // scorp_distribution, other
     const seEligibleByTx = new Map<string, number>();
+    let seEligibleExpenses = 0;
 
     const seEligibleTxIds = new Set<string>();
     const businessStateEligibleByTx = new Map<string, number>();
@@ -192,6 +193,17 @@ export function useTaxEstimate(): {
       }
     }
 
+    for (const t of txs) {
+      if (t.transaction_type !== "expense") continue;
+      if (isExcludedFromBusiness(t as any) || t.entity === "Unassigned") continue;
+      const company = (t.source_id && companyById.get(t.source_id)) ||
+        (t.entity && companyByName.get(t.entity.toLowerCase().trim()));
+      const filing = normalizeFilingType(company?.companyType || t.company_type);
+      if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false) {
+        seEligibleExpenses += Math.abs(Number(t.amount) || 0);
+      }
+    }
+
     // Enrichment from income_entries — but ONLY for entries linked to a live
     // active transaction. This prevents stale/orphaned income_entries from
     // contributing federal_withholding, retirement, etc.
@@ -234,6 +246,7 @@ export function useTaxEstimate(): {
       ownerHealthcare,
       businessStateEligibleGross,
       seEligibleGross,
+      seEligibleExpenses,
     };
     };
 
