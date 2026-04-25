@@ -86,11 +86,11 @@ export default function Taxes() {
   const overviewProfile = getSelectedWithholdingProfileRate({
     taxSettings: rates,
     actualEstimate,
-    forecastEstimate,
+    forecastEstimate: taxMode === "actual" ? actualEstimate : forecastEstimate,
   });
   const overviewEffectiveRate = rates?.withholdingMethod === "flat_estimate"
     ? overviewProfile.federalProfileRate
-    : overviewProfile.canonicalEffectiveTaxRate;
+    : e?.effectiveRate ?? overviewProfile.canonicalEffectiveTaxRate;
   const actualFedWH = debug?.actualFederalWithheld ?? 0;
   const actualStateWH = debug?.actualStateWithheld ?? 0;
   const projFedWH = debug?.projectedFederalWithheld ?? 0;
