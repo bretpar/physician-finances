@@ -82,6 +82,7 @@ export function useAddIncome() {
         notes: entry.notes || "",
         entity: entry.company || "Unassigned",
         company_type: entry.income_type || "1099_schedule_c",
+        source_id: (entry as any).source_id || null,
         transaction_type: "income",
         // (transactions.company_type accepts free text — keep the descriptive
         // filing type here for tax routing; only income_entries.income_type is
