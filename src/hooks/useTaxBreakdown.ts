@@ -428,7 +428,8 @@ export function useTaxBreakdown(
           taxableWages,
         });
       } else if (kind === "business") {
-        const exp = expensesByCompany.get(agg.name);
+        const companyId = agg.companyId ?? companies.find((c) => c.name === agg.name && c.companyType === agg.filingType)?.id ?? null;
+        const exp = companyId ? expensesByCompany.get(companyId) : undefined;
         const expenses = exp?.total ?? 0;
         const profit = totalGross - expenses;
         const actualProfit = agg.actualGross - expenses;
@@ -443,7 +444,6 @@ export function useTaxBreakdown(
               .map(([category, v]) => ({ category, total: v.total, count: v.count }))
               .sort((a, b) => b.total - a.total)
           : [];
-        const companyId = companies.find((c) => c.name === agg.name)?.id ?? null;
         sources.push({
           kind: "business",
           companyId, companyName: agg.name,
