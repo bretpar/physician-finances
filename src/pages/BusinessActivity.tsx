@@ -1581,7 +1581,7 @@ export default function Transactions() {
                   <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
                   <p className="text-[11px] text-muted-foreground leading-snug">
                     Based on your total tax rate ({recommendation.effectiveRate.toFixed(1)}%){" "}
-                    <RecommendedSetAsideInfo rate={recommendation.effectiveRate} />
+                    <RecommendedSetAsideInfo rate={recommendation.effectiveRate} breakdown={recommendation.rateBreakdown} />
                   </p>
                 </div>
                 <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(recommendedWithholding)}</span>
