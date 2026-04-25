@@ -194,7 +194,10 @@ export interface TaxDebugBreakdown {
 
 export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxResult {
   const {
-    businessIncome, seEligibleBusinessIncome, seEligibleBusinessExpenses = businessExpenses, seEligibleMileageDeduction = mileageDeduction, businessW2,
+    businessIncome, seEligibleBusinessIncome,
+    seEligibleBusinessExpenses: seEligibleBusinessExpensesParam,
+    seEligibleMileageDeduction: seEligibleMileageDeductionParam,
+    businessW2,
     businessFederalWithheld, businessStateWithheld,
     businessPreTax, businessRetirement,
     ownerHealthcare,
@@ -234,6 +237,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
 
   // ── Actual income ──
   const actualIncome = businessIncome + businessW2 + personalIncome + netStockGain;
+  const seEligibleBusinessExpenses = seEligibleBusinessExpensesParam ?? businessExpenses;
+  const seEligibleMileageDeduction = seEligibleMileageDeductionParam ?? mileageDeduction;
 
   // ── Projected additions, classified by tax bucket ──
   const projW2 = includeProjectedIncome ? projectedW2Income : 0;
