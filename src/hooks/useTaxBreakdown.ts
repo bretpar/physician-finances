@@ -341,14 +341,18 @@ export function useTaxBreakdown(
       if (isExcludedFromBusiness(tx as any)) continue;
 
       if (txType === "expense") {
-        const company = tx.entity || "Unassigned";
-        const knownCompany = companies.find((c) => c.name === company);
+        const knownCompany = tx.source_id
+          ? companies.find((c) => c.id === tx.source_id)
+          : companies.filter((c) => c.name === tx.entity).length === 1
+            ? companies.find((c) => c.name === tx.entity)
+            : undefined;
         if (!knownCompany) continue;
+        const key = knownCompany.id;
         const amt = Math.abs(Number(tx.amount) || 0);
         const cat: ScheduleCCategory =
           ((tx as any).schedule_c_category as ScheduleCCategory) ||
           mapToScheduleC(tx.category);
-        const agg = expensesByCompany.get(company) ?? {
+        const agg = expensesByCompany.get(key) ?? {
           total: 0, byCategory: new Map(), txCount: 0,
         };
         agg.total += amt;
@@ -357,7 +361,7 @@ export function useTaxBreakdown(
         catAgg.total += amt;
         catAgg.count += 1;
         agg.byCategory.set(cat, catAgg);
-        expensesByCompany.set(company, agg);
+        expensesByCompany.set(key, agg);
       } else if (txType === "capital_gain" || txType === "stock") {
         const amt = Number(tx.amount) || 0;
         const isLong = /long[-\s]?term|ltcg/i.test((tx.notes || "") + " " + (tx.category || ""));
@@ -379,7 +383,7 @@ export function useTaxBreakdown(
       if (!matchCompany(company.name)) continue;
       const dollars = Number(m.miles) * IRS_MILEAGE_RATE;
       if (dollars <= 0) continue;
-      const agg = expensesByCompany.get(company.name) ?? {
+      const agg = expensesByCompany.get(company.id) ?? {
         total: 0, byCategory: new Map(), txCount: 0,
       };
       agg.total += dollars;
@@ -387,7 +391,7 @@ export function useTaxBreakdown(
       catAgg.total += dollars;
       catAgg.count += 1;
       agg.byCategory.set("car_truck", catAgg);
-      expensesByCompany.set(company.name, agg);
+      expensesByCompany.set(company.id, agg);
     }
     const sources: IncomeSourceBreakdown[] = [];
     let totalBusinessRevenue = 0;
