@@ -1782,7 +1782,7 @@ export default function Transactions() {
             {/* Attachments */}
             <TransactionAttachments
               transactionId={editingIncomeTxId}
-              companyId={companies.find((c) => c.name === incomeForm.company)?.id || null}
+              companyId={selectedIncomeCompany?.id || null}
               pendingFiles={editingIncomeTxId ? undefined : pendingIncomeAttachments}
               onPendingFilesChange={editingIncomeTxId ? undefined : setPendingIncomeAttachments}
             />
@@ -1912,7 +1912,7 @@ export default function Transactions() {
             {/* Attachments */}
             <TransactionAttachments
               transactionId={editingExpenseTxId}
-              companyId={companies.find((c) => c.name === expenseForm.company)?.id || null}
+              companyId={selectedExpenseCompany?.id || null}
               pendingFiles={editingExpenseTxId ? undefined : pendingExpenseAttachments}
               onPendingFilesChange={editingExpenseTxId ? undefined : setPendingExpenseAttachments}
             />
