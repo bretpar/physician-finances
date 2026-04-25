@@ -52,6 +52,7 @@ export function useTaxEstimate(): {
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
   const { data: hsaRows = [] } = useHsaContributions(currentYear);
   const { companies } = useCompanies();
+  const todayStr = new Date().toISOString().split("T")[0];
 
   // ── Reconcile income_entries before any tax math ─────────────────────────
   // Two failure modes we defend against:
@@ -129,8 +130,8 @@ export function useTaxEstimate(): {
   // transactions, providing per-paycheck withholding / retirement / pre-tax
   // / healthcare_deduction values. Income_entries with no live linked transaction
   // contribute nothing — they cannot inflate gross above what the ledger shows.
-  const canonicalBusiness = useMemo(() => {
-    const txs = transactions || [];
+  const scopedTaxData = useMemo(() => {
+    const makeCanonicalBusiness = (txs: typeof transactions, incomeRows: typeof reconciledIncomeEntries) => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const companyByName = new Map(companies.map((c) => [c.name.toLowerCase().trim(), c] as const));
 
@@ -193,7 +194,7 @@ export function useTaxEstimate(): {
         .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
         .map((t) => t.id),
     );
-    const linkedEntries = (reconciledIncomeEntries || []).filter(
+    const linkedEntries = (incomeRows || []).filter(
       (e) => e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id),
     );
 
@@ -226,7 +227,34 @@ export function useTaxEstimate(): {
       ownerHealthcare,
       businessStateEligibleGross,
     };
-  }, [transactions, reconciledIncomeEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds]);
+    };
+
+    const allTxs = transactions || [];
+    const actualTxs = allTxs.filter((t) => t.transaction_date <= todayStr);
+    const allIncomeRows = reconciledIncomeEntries || [];
+    const actualIncomeRows = allIncomeRows.filter((e) => e.income_date <= todayStr);
+    const allPersonalRows = personalEntries || [];
+    const actualPersonalRows = allPersonalRows.filter((e) => e.income_date <= todayStr);
+    const allStockRows = stockTxs || [];
+    const actualStockRows = allStockRows.filter((s) => s.sale_date <= todayStr);
+
+    return {
+      actualOnlyTaxInputs: {
+        transactions: actualTxs,
+        incomeEntries: actualIncomeRows,
+        personalEntries: actualPersonalRows,
+        stockTransactions: actualStockRows,
+        canonicalBusiness: makeCanonicalBusiness(actualTxs, actualIncomeRows),
+      },
+      includePlannedTaxInputs: {
+        transactions: allTxs,
+        incomeEntries: allIncomeRows,
+        personalEntries: allPersonalRows,
+        stockTransactions: allStockRows,
+        canonicalBusiness: makeCanonicalBusiness(allTxs, allIncomeRows),
+      },
+    };
+  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr]);
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
 
