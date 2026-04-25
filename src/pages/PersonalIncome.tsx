@@ -238,10 +238,10 @@ export default function PersonalIncome() {
   const grossAmount = num(form.gross_amount);
   const baseRecommendation = useMemo(() => {
     if (grossAmount <= 0) return null;
-    const incType = isW2Type(form.income_type) ? "W2" : "1099";
     return getWithholdingRec({
       grossIncome: grossAmount,
-      incomeType: incType,
+      incomeType: isW2Type(form.income_type) ? "w2" : form.income_type,
+      incomeBucket: "personal",
       taxesAlreadyWithheld: num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding),
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction),
@@ -396,6 +396,7 @@ export default function PersonalIncome() {
     const rec = getIncomeRec({
       grossIncome: grossAmt,
       incomeType: form.income_type,
+      incomeBucket: "personal",
       federalWithheld: totalFederal,
       stateWithheld: stateW,
       retirement401k: num(form.retirement_pretax),
