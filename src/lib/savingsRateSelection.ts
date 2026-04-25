@@ -119,7 +119,7 @@ function isSETaxableIncome(input: SavingsRateInput): boolean {
   return false;
 }
 
-export function getBaseRateForIncomeType(input: SavingsRateInput): Pick<SavingsRateResult, "components" | "method" | "label" | "rate"> {
+export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateResult {
   const { incomeBucket, incomeType, taxSettings } = input;
   const settings = taxSettings ?? {};
   const profile = getSelectedWithholdingProfileRate({
