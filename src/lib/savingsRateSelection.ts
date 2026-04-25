@@ -63,6 +63,7 @@ export interface SavingsRateResult {
   };
   /** Which method drove the federal portion. */
   method: "flat_estimate" | "dynamic_actual" | "dynamic_planner";
+  baseRateSource: "manualEffectiveTaxRate" | "federalEffectiveRate" | "effectiveRate";
   /** Human label for UI. */
   label: string;
 }
@@ -118,7 +119,7 @@ function isSETaxableIncome(input: SavingsRateInput): boolean {
   return false;
 }
 
-export function getBaseRateForIncomeType(input: SavingsRateInput): Pick<SavingsRateResult, "components" | "method" | "label" | "rate"> {
+export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateResult {
   const { incomeBucket, incomeType, taxSettings } = input;
   const settings = taxSettings ?? {};
   const profile = getSelectedWithholdingProfileRate({
@@ -134,6 +135,11 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): Pick<SavingsR
     : useAllInclusiveBase
       ? profile.canonicalEffectiveTaxRate
       : profile.federalProfileRate;
+  const baseRateSource = method === "flat_estimate"
+    ? "manualEffectiveTaxRate"
+    : useAllInclusiveBase
+      ? "effectiveRate"
+      : "federalEffectiveRate";
 
   const components = { ...ZERO_COMPONENTS, federal: baseRate };
   if (incomeBucket === "business" && !useAllInclusiveBase) {
@@ -150,7 +156,7 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): Pick<SavingsR
     components.businessState,
   );
 
-  return { rate, components, method, label: profile.label };
+  return { rate, components, method, baseRateSource, label: profile.label };
 }
 
 export function getSelectedWithholdingProfileRate(input: {

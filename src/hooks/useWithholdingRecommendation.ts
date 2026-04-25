@@ -23,7 +23,7 @@ import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isW2FilingType } from "@/lib/filingTypes";
-import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 
 export interface WithholdingInput {
   grossIncome: number;
@@ -58,6 +58,7 @@ export interface WithholdingRecommendation {
   isOverWithheld: boolean;
   /** Label describing which method is used */
   methodLabel: string;
+  rateBreakdown?: SavingsRateResult;
   // ── Transparency fields (see spec §6) ──
   annualTaxLiability: number;
   countedCreditsTotal: number;
@@ -145,6 +146,7 @@ export function useWithholdingRecommendation() {
           isManualMode: true,
           isOverWithheld: rec < 0,
           methodLabel: rateSel.label,
+          rateBreakdown: rateSel,
           annualTaxLiability: 0,
           countedCreditsTotal: 0,
           annualRemainingTax: 0,
@@ -200,6 +202,7 @@ export function useWithholdingRecommendation() {
           isManualMode: false,
           isOverWithheld: recommendedWithholding <= 0,
           methodLabel,
+          rateBreakdown: rateSelection,
           annualTaxLiability,
           countedCreditsTotal,
           annualRemainingTax,
@@ -218,7 +221,7 @@ export function useWithholdingRecommendation() {
       // set-aside style recommendation is still appropriate. Use the blended
       // rate (federal + SE + state business) for this entry, then subtract
       // any withholding already applied to THIS paycheck. Floor at 0.
-      const rateToUse = getSavingsRateForIncomeBucket({
+      const rateSelection = getSavingsRateForIncomeBucket({
         incomeBucket: "business",
         incomeType,
         taxSettings: settings,
@@ -226,7 +229,8 @@ export function useWithholdingRecommendation() {
         forecastEstimate,
         companyId,
         applyBusinessStateTax,
-      }).rate;
+      });
+      const rateToUse = rateSelection.rate;
       const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
       const raw = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
       const recommendedWithholding = Math.max(0, raw);
@@ -242,6 +246,7 @@ export function useWithholdingRecommendation() {
         isManualMode: false,
         isOverWithheld: false,
         methodLabel,
+        rateBreakdown: rateSelection,
         annualTaxLiability,
         countedCreditsTotal,
         annualRemainingTax,

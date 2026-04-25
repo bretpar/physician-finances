@@ -28,6 +28,7 @@ import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
+import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
@@ -38,7 +39,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
-import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const fmt = (n: number) =>
@@ -302,7 +303,22 @@ export default function PersonalIncome() {
         ? "Based on actual + future income"
         : "Based on actual + future income";
 
-    return { ...result, methodLabel };
+    const rateBreakdown: SavingsRateResult = {
+      rate: effectiveRate,
+      components: {
+        federal: effectiveRate,
+        employeeSocialSecurity: 0,
+        employeeMedicare: 0,
+        selfEmployment: 0,
+        personalState: 0,
+        businessState: 0,
+      },
+      method,
+      baseRateSource: method === "flat_estimate" ? "manualEffectiveTaxRate" : "effectiveRate",
+      label: methodLabel,
+    };
+
+    return { ...result, methodLabel, rateBreakdown };
   }, [
     grossAmount,
     form.income_type,
@@ -1023,6 +1039,7 @@ export default function PersonalIncome() {
                       </p>
                       <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
                         {secondary}
+                        <RecommendedSetAsideInfo rate={ratePct} breakdown={paycheckSavings.rateBreakdown} />
                       </p>
                     </div>
                     <div className="flex sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0.5 shrink-0">

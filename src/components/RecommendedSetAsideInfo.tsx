@@ -4,9 +4,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import type { SavingsRateResult } from "@/lib/savingsRateSelection";
 
 interface Props {
   rate: number;
+  breakdown?: SavingsRateResult | null;
 }
 
 type LineStatus = "included" | "no-rate" | "off";
@@ -53,13 +55,21 @@ function StateLine({ label, status, detail }: LineProps) {
 
 interface BodyProps {
   rate: number;
+  breakdown?: SavingsRateResult | null;
   personalStatus: LineStatus;
   businessStatus: LineStatus;
   personalDetail?: string;
   businessDetail?: string;
 }
 
-function InfoBody({ rate, personalStatus, businessStatus, personalDetail, businessDetail }: BodyProps) {
+function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail }: BodyProps) {
+  const sourceLabel = breakdown?.baseRateSource === "federalEffectiveRate"
+    ? "federalEffectiveRate"
+    : breakdown?.baseRateSource === "effectiveRate"
+      ? "effectiveRate"
+      : "manualEffectiveTaxRate";
+  const components = breakdown?.components;
+
   return (
     <div className="space-y-4 text-sm">
       <div className="rounded-lg border bg-muted/40 px-4 py-3">
@@ -79,6 +89,19 @@ function InfoBody({ rate, personalStatus, businessStatus, personalDetail, busine
       </ul>
 
       <div className="space-y-2">
+        {breakdown && (
+          <div className="rounded-md border bg-background px-3 py-2 text-xs text-foreground">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium">Base rate source</span>
+              <span className="font-mono text-muted-foreground">{sourceLabel}</span>
+            </div>
+            <div className="mt-2 space-y-1 text-muted-foreground">
+              <div className="flex justify-between gap-3"><span>Federal base</span><span>{(components?.federal ?? 0).toFixed(2)}%</span></div>
+              <div className="flex justify-between gap-3"><span>Self-employment tax</span><span>{(components?.selfEmployment ?? 0) > 0 ? `Added ${(components?.selfEmployment ?? 0).toFixed(2)}%` : "Not added"}</span></div>
+              <div className="flex justify-between gap-3"><span>Business state/B&amp;O</span><span>{(components?.businessState ?? 0) > 0 ? `Added ${(components?.businessState ?? 0).toFixed(2)}%` : "Not added"}</span></div>
+            </div>
+          </div>
+        )}
         <StateLine
           label="Personal state income tax"
           status={personalStatus}
@@ -98,7 +121,7 @@ function InfoBody({ rate, personalStatus, businessStatus, personalDetail, busine
   );
 }
 
-export function RecommendedSetAsideInfo({ rate }: Props) {
+export function RecommendedSetAsideInfo({ rate, breakdown }: Props) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const { data: taxSettings } = useTaxSettings();
@@ -176,6 +199,7 @@ export function RecommendedSetAsideInfo({ rate }: Props) {
           </DialogHeader>
           <InfoBody
             rate={rate}
+            breakdown={breakdown}
             personalStatus={personalStatus}
             businessStatus={businessStatus}
             personalDetail={personalDetail}
