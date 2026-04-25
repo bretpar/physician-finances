@@ -218,45 +218,5 @@ function getSelfEmploymentRate(): number {
 export function getSavingsRateForIncomeBucket(
   input: SavingsRateInput,
 ): SavingsRateResult {
-  const { incomeBucket, incomeType, taxSettings } = input;
-  const settings = taxSettings ?? {};
-  const profile = getSelectedWithholdingProfileRate({
-    taxSettings: settings,
-    actualEstimate: input.actualEstimate,
-    forecastEstimate: input.forecastEstimate,
-  });
-  const method = profile.methodUsed;
-
-  // ── Federal portion (shared selected withholding profile rate) ──────────
-  const federal = profile.federalProfileRate;
-
-  const components = { ...ZERO_COMPONENTS, federal };
-
-  if (incomeBucket === "personal") {
-    // Personal paycheck guide — selected federal profile rate only.
-    // Employee SS/Medicare reduce the recommendation as withheld credits;
-    // state taxes, business state tax, and SE never apply here.
-  } else {
-    // Business / pass-through reserve target — federal + SE + business state.
-    // No employee-side payroll (the payer didn't withhold any).
-    if (!incomeType || isSelfEmployedFilingType(incomeType)) {
-      components.selfEmployment = getSelfEmploymentRate();
-    }
-    components.businessState = getBusinessStateRate(settings, input);
-  }
-
-  const rate =
-    components.federal +
-    components.employeeSocialSecurity +
-    components.employeeMedicare +
-    components.selfEmployment +
-    components.personalState +
-    components.businessState;
-
-  return {
-    rate: Math.round(rate * 100) / 100,
-    components,
-    method,
-    label: profile.label,
-  };
+  return getBaseRateForIncomeType(input);
 }
