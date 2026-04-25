@@ -117,7 +117,7 @@ function isSETaxableIncome(input: SavingsRateInput): boolean {
   if (input.isSelfEmploymentTaxable != null) return !!input.isSelfEmploymentTaxable;
   const filing = normalizeFilingType(input.incomeType);
   if (filing === "1099_schedule_c") return true;
-  if (filing === "k1_partnership") return false;
+  if (filing === "k1_partnership") return true;
   return false;
 }
 
