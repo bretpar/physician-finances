@@ -227,6 +227,7 @@ export default function Dashboard() {
     taxSettings: rates,
     actualEstimate,
     forecastEstimate,
+    includeSETaxInRecommendation: true,
   }).rate;
   const businessProfitBase = Math.max(0, Number(baseEstimate?.netBusinessProfit || 0));
   const personalIncomeBase = Math.max(
