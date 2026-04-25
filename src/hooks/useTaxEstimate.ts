@@ -343,10 +343,13 @@ export function useTaxEstimate(): {
       const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
       const totalBG = canonicalBusiness.totalBusinessGross || 0;
       const eligibleRatio = totalBG > 0 ? businessStateEligibleGross / totalBG : 0;
+      const seEligibleRatio = totalBG > 0 ? (canonicalBusiness.seEligibleGross || 0) / totalBG : 0;
 
       return {
         businessIncome,
         seEligibleBusinessIncome,
+        seEligibleBusinessExpenses: businessExpenses * seEligibleRatio,
+        seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
         businessFederalWithheld,
         businessStateWithheld,
