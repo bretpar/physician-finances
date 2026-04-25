@@ -258,173 +258,158 @@ export function useTaxEstimate(): {
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
 
-  // Build shared base input once
-  const baseInput = useMemo(() => {
+  const scopedBaseInputs = useMemo(() => {
     if (!rates || !reconciledIncomeEntries) return null;
-    const incomeEntriesClean = reconciledIncomeEntries;
 
-    const personal = personalEntries || [];
+    const buildInput = (
+      scope: typeof scopedTaxData.actualOnlyTaxInputs,
+      incomeScope: "actualOnly" | "actualPlusPlanned",
+    ): Omit<UnifiedTaxInput, "includeProjectedIncome"> => {
+      const incomeEntriesClean = scope.incomeEntries;
+      const personal = scope.personalEntries;
 
-    // Personal income breakdown — resilient classifier (handles canonical +
-    // legacy + missing subtype). Never drops a row; falls back to "ordinary".
-    const buckets = aggregateByCategory(personal);
-    const personalW2 = buckets.w2;
-    const personalOrdinary = buckets.ordinary;
-    const personalCapGains = buckets.capital_gains;
-    const personalRental = buckets.rental;
-    const personalLosses = buckets.loss;
-    const personalFederalWithheld = personal
-      .reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
-    const personalStateWithheld = personal
-      .reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
-    // Personal pre-tax = pre_tax_deductions field + payroll HSA on personal
-    // paychecks + manual individual HSA contributions (above-the-line). HSA
-    // rows of source_type='payroll' are EXCLUDED to prevent double counting
-    // with the per-paycheck hsa_contribution field above.
-    const individualHsaTotal = (hsaRows || [])
-      .filter((r) => r.source_type === "individual")
-      .reduce((s, r) => s + Number(r.amount || 0), 0);
-    const personalPreTax = personal
-      .reduce(
+      const buckets = aggregateByCategory(personal);
+      const personalW2 = buckets.w2;
+      const personalOrdinary = buckets.ordinary;
+      const personalCapGains = buckets.capital_gains;
+      const personalRental = buckets.rental;
+      const personalLosses = buckets.loss;
+      const personalFederalWithheld = personal.reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
+      const personalStateWithheld = personal.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
+      const scopedHsaRows = (hsaRows || []).filter((r) =>
+        r.source_type === "individual" && (incomeScope === "actualPlusPlanned" || r.contribution_date <= todayStr),
+      );
+      const individualHsaTotal = scopedHsaRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+      const personalPreTax = personal.reduce(
         (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
         0,
       ) + individualHsaTotal;
-    const personalRetirement = personal
-      .reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
+      const personalRetirement = personal.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
-    const totalPersonalIncome = personalW2 + personalOrdinary + personalCapGains + personalRental - personalLosses;
-    // Personal non-W2 portion → flows into "other income" line on the return.
-    const personalNonW2Income = Math.max(0, personalOrdinary + personalCapGains + personalRental - personalLosses);
+      const totalPersonalIncome = personalW2 + personalOrdinary + personalCapGains + personalRental - personalLosses;
+      const personalNonW2Income = Math.max(0, personalOrdinary + personalCapGains + personalRental - personalLosses);
 
-    // Stock gains
-    const stockGains = (stockTxs || [])
-      .filter((s) => Number(s.gain_loss) > 0)
-      .reduce((sum, s) => sum + Number(s.gain_loss), 0);
-    const stockLosses = (stockTxs || [])
-      .filter((s) => Number(s.gain_loss) < 0)
-      .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
-    const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses);
+      const stockGains = scope.stockTransactions
+        .filter((s) => Number(s.gain_loss) > 0)
+        .reduce((sum, s) => sum + Number(s.gain_loss), 0);
+      const stockLosses = scope.stockTransactions
+        .filter((s) => Number(s.gain_loss) < 0)
+        .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
+      const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses);
 
-    // Business expenses — apply canonical exclusion rule (also drops
-    // Personal-category and excluded_from_reports rows).
-    const businessExpenses = (transactions || [])
-      .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
-      .reduce((s, t) => s + Math.abs(t.amount), 0);
+      const businessExpenses = scope.transactions
+        .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
+        .reduce((s, t) => s + Math.abs(t.amount), 0);
 
-    const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
-    const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
+      const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
+      const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
 
-    // User reserves (NOT taxes paid) — exclude personal/excluded rows.
-    const txActualWithholding = (transactions || [])
-      .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
-      .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
+      const txActualWithholding = scope.transactions
+        .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
+        .reduce((s, t) => s + Number(t.actual_withholding || 0), 0);
 
-    // Remaining pay periods
-    const now = new Date();
-    const monthsRemaining = 12 - now.getMonth();
-    const receivedEntries = incomeEntriesClean.filter((e) => e.status === "received");
-    const avgEntriesPerMonth = receivedEntries.length > 0
-      ? receivedEntries.length / (now.getMonth() + 1)
-      : 1;
-    const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
+      const now = new Date();
+      const monthsRemaining = 12 - now.getMonth();
+      const receivedEntries = incomeEntriesClean.filter((e) => e.status === "received");
+      const avgEntriesPerMonth = receivedEntries.length > 0 ? receivedEntries.length / (now.getMonth() + 1) : 1;
+      const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
 
-    const quarterlyPaid = taxPayments.reduce((s, p) => s + Number(p.amount), 0);
-    const savingsTotal = taxSavings.reduce((s, e) => s + Number(e.amount), 0);
+      const quarterlyPaid = taxPayments
+        .filter((p) => incomeScope === "actualPlusPlanned" || p.payment_date <= todayStr)
+        .reduce((s, p) => s + Number(p.amount), 0);
+      const savingsTotal = taxSavings
+        .filter((e) => incomeScope === "actualPlusPlanned" || e.savings_date <= todayStr)
+        .reduce((s, e) => s + Number(e.amount), 0);
 
-    // Projected totals (bucketed by W-2 / SE / other; fed/state withholding split)
-    const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
-    const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+      const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
+      const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+      const canonicalBusiness = scope.canonicalBusiness;
+      const businessIncome = canonicalBusiness.grossSE;
+      const seEligibleBusinessIncome = canonicalBusiness.grossSE;
+      const businessW2 = canonicalBusiness.grossW2Business;
+      const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
+      const businessStateWithheld = canonicalBusiness.businessStateWithheld;
+      const businessPreTax = canonicalBusiness.businessPreTax;
+      const businessRetirement = canonicalBusiness.businessRetirement;
+      const ownerHealthcare = canonicalBusiness.ownerHealthcare;
+      const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
+      const totalBG = canonicalBusiness.totalBusinessGross || 0;
+      const eligibleRatio = totalBG > 0 ? businessStateEligibleGross / totalBG : 0;
 
-    // ── BUSINESS INCOME: derived from canonical transactions, not income_entries ──
-    // This is the single source of truth that the Business Ledger also reads.
-    // (See `canonicalBusiness` above.) income_entries only enriches this with
-    // per-paycheck withholding/retirement/owner-healthcare values.
-    const businessIncome = canonicalBusiness.grossSE;
-    const seEligibleBusinessIncome = canonicalBusiness.grossSE;
-    const businessW2 = canonicalBusiness.grossW2Business;
-    const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
-    const businessStateWithheld = canonicalBusiness.businessStateWithheld;
-    const businessPreTax = canonicalBusiness.businessPreTax;
-    const businessRetirement = canonicalBusiness.businessRetirement;
-    const ownerHealthcare = canonicalBusiness.ownerHealthcare;
-    const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
-
-    const totalBG = canonicalBusiness.totalBusinessGross || 0;
-    const eligibleRatio = totalBG > 0 ? businessStateEligibleGross / totalBG : 0;
-    const businessStateEligibleExpenses = businessExpenses * eligibleRatio;
-    const businessStateEligibleMileage = mileageDeduction * eligibleRatio;
-    const businessStateEligibleOwnerAdjustments = (ownerHealthcare + businessRetirement) * eligibleRatio;
+      return {
+        businessIncome,
+        seEligibleBusinessIncome,
+        businessW2,
+        businessFederalWithheld,
+        businessStateWithheld,
+        businessPreTax,
+        businessRetirement,
+        ownerHealthcare,
+        businessStateEligibleGross,
+        businessStateEligibleExpenses: businessExpenses * eligibleRatio,
+        businessStateEligibleMileage: mileageDeduction * eligibleRatio,
+        businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
+        personalIncome: totalPersonalIncome,
+        personalW2,
+        personalNonW2Income,
+        personalFederalWithheld,
+        personalStateWithheld,
+        personalPreTax,
+        personalRetirement,
+        netStockGain,
+        businessExpenses,
+        mileageDeduction,
+        annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,
+        txActualWithholding,
+        actualEstimatedPaymentsMade: quarterlyPaid,
+        taxSavingsSetAside: savingsTotal,
+        remainingPayPeriods,
+        projectedW2Income: projTotals.w2Income,
+        projectedSEIncome: projTotals.seIncome,
+        projectedOtherIncome: projTotals.otherIncome,
+        projectedFederalWithheld: projTotals.federalWithheld,
+        projectedStateWithheld: projTotals.stateWithheld,
+        projectedPreTax: projTotals.preTaxDeductions,
+        projectedRetirement: projTotals.retirement401k,
+        projectedHealthInsuranceDeduction: projTotals.healthInsuranceDeduction,
+        filingStatus: rates.filingStatus as "single" | "married_filing_jointly",
+        lastYearTax: rates.lastYearTax,
+        standardDeductionOverride: rates.standardDeductionOverride,
+        ssWageCap: rates.ssWageCap,
+        deductionType: rates.deductionType,
+        itemizedDeductionAmount: rates.itemizedDeductionAmount,
+        qualifyingChildrenCount: rates.qualifyingChildrenCount,
+        otherDependentsCount: rates.otherDependentsCount,
+        withholdingOverrideType: rates.withholdingOverrideType,
+        withholdingOverridePercent: rates.withholdingOverridePercent,
+        withholdingOverrideAmount: rates.withholdingOverrideAmount,
+        withholdingMethod: rates.withholdingMethod,
+        manualEffectiveTaxRate: rates.manualEffectiveTaxRate,
+        stateIncomeTaxEnabled: rates.stateIncomeTaxEnabled,
+        personalStateTaxMode: rates.personalStateTaxMode,
+        personalStateTaxRate: rates.personalStateTaxRate,
+        personalStateTaxAnnualEstimate: rates.personalStateTaxAnnualEstimate,
+        businessStateTaxEnabled: rates.businessStateTaxEnabled,
+        businessStateTaxRate: rates.businessStateTaxRate,
+        businessStateTaxBase: rates.businessStateTaxBase,
+      };
+    };
 
     return {
-      businessIncome,
-      seEligibleBusinessIncome,
-      businessW2,
-      businessFederalWithheld,
-      businessStateWithheld,
-      businessPreTax,
-      businessRetirement,
-      ownerHealthcare,
-      businessStateEligibleGross,
-      businessStateEligibleExpenses,
-      businessStateEligibleMileage,
-      businessStateEligibleOwnerAdjustments,
-      personalIncome: totalPersonalIncome,
-      personalW2,
-      personalNonW2Income,
-      personalFederalWithheld,
-      personalStateWithheld,
-      personalPreTax,
-      personalRetirement,
-      netStockGain,
-      businessExpenses,
-      mileageDeduction,
-      annualizedRetirement: annualizedRetirement.total,
-      txActualWithholding,
-      actualEstimatedPaymentsMade: quarterlyPaid,
-      taxSavingsSetAside: savingsTotal,
-      remainingPayPeriods,
-      projectedW2Income: projTotals.w2Income,
-      projectedSEIncome: projTotals.seIncome,
-      projectedOtherIncome: projTotals.otherIncome,
-      projectedFederalWithheld: projTotals.federalWithheld,
-      projectedStateWithheld: projTotals.stateWithheld,
-      projectedPreTax: projTotals.preTaxDeductions,
-      projectedRetirement: projTotals.retirement401k,
-      projectedHealthInsuranceDeduction: projTotals.healthInsuranceDeduction,
-      filingStatus: rates.filingStatus as "single" | "married_filing_jointly",
-      lastYearTax: rates.lastYearTax,
-      standardDeductionOverride: rates.standardDeductionOverride,
-      ssWageCap: rates.ssWageCap,
-      deductionType: rates.deductionType,
-      itemizedDeductionAmount: rates.itemizedDeductionAmount,
-      qualifyingChildrenCount: rates.qualifyingChildrenCount,
-      otherDependentsCount: rates.otherDependentsCount,
-      withholdingOverrideType: rates.withholdingOverrideType,
-      withholdingOverridePercent: rates.withholdingOverridePercent,
-      withholdingOverrideAmount: rates.withholdingOverrideAmount,
-      withholdingMethod: rates.withholdingMethod,
-      manualEffectiveTaxRate: rates.manualEffectiveTaxRate,
-      stateIncomeTaxEnabled: rates.stateIncomeTaxEnabled,
-      personalStateTaxMode: rates.personalStateTaxMode,
-      personalStateTaxRate: rates.personalStateTaxRate,
-      personalStateTaxAnnualEstimate: rates.personalStateTaxAnnualEstimate,
-      businessStateTaxEnabled: rates.businessStateTaxEnabled,
-      businessStateTaxRate: rates.businessStateTaxRate,
-      businessStateTaxBase: rates.businessStateTaxBase,
+      actualOnlyTaxInputs: buildInput(scopedTaxData.actualOnlyTaxInputs, "actualOnly"),
+      includePlannedTaxInputs: buildInput(scopedTaxData.includePlannedTaxInputs, "actualPlusPlanned"),
     };
-  }, [reconciledIncomeEntries, personalEntries, canonicalBusiness, transactions, rates, mileageEntries, stockTxs, streams, bonuses, annualizedRetirement, taxPayments, taxSavings, companies, hsaRows]);
+  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, annualizedRetirement]);
 
-  // Actual estimate (no projected income)
   const actualResult = useMemo(() => {
-    if (!baseInput) return null;
-    return computeUnifiedTaxEstimate({ ...baseInput, includeProjectedIncome: false });
-  }, [baseInput]);
+    if (!scopedBaseInputs) return null;
+    return computeUnifiedTaxEstimate({ ...scopedBaseInputs.actualOnlyTaxInputs, includeProjectedIncome: false });
+  }, [scopedBaseInputs]);
 
-  // Forecast estimate (with projected income)
   const forecastResult = useMemo(() => {
-    if (!baseInput) return null;
-    return computeUnifiedTaxEstimate({ ...baseInput, includeProjectedIncome: true });
-  }, [baseInput]);
+    if (!scopedBaseInputs) return null;
+    return computeUnifiedTaxEstimate({ ...scopedBaseInputs.includePlannedTaxInputs, includeProjectedIncome: true });
+  }, [scopedBaseInputs]);
 
   const actualEstimate = actualResult?.estimate ?? null;
   const forecastEstimate = forecastResult?.estimate ?? null;
