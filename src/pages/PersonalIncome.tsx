@@ -38,7 +38,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
-import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
+import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const fmt = (n: number) =>
@@ -257,18 +257,20 @@ export default function PersonalIncome() {
   const paycheckSavings = useMemo(() => {
     if (grossAmount <= 0 || !taxSettings) return null;
 
-    // 1. Resolve effective rate via the shared bucket-aware selector.
-    //    Personal Income card → federal income tax profile rate only.
-    //    Payroll and state withholdings reduce the recommendation below.
-    const rateSel = getSavingsRateForIncomeBucket({
-      incomeBucket: "personal",
-      incomeType: form.income_type,
+    // 1. Resolve the selected withholding profile directly for W-2 paychecks.
+    //    Flat mode uses the manual rate; dynamic modes use the same all-inclusive
+    //    canonical effective rate shown on the Tax page. Business income keeps
+    //    using the bucket-aware selector elsewhere so SE/B&O add-ons stay separate.
+    const selectedProfile = getSelectedWithholdingProfileRate({
       taxSettings,
       actualEstimate,
       forecastEstimate,
     });
-    const method = rateSel.method;
-    const effectiveRate = rateSel.rate;
+    const method = selectedProfile.methodUsed;
+    const effectiveRate =
+      method === "flat_estimate"
+        ? selectedProfile.federalProfileRate
+        : selectedProfile.canonicalEffectiveTaxRate;
 
     // 2. Eligible pre-tax deductions for this paycheck.
     const eligibleDeductions =
@@ -290,15 +292,15 @@ export default function PersonalIncome() {
       eligiblePreTaxDeductions: eligibleDeductions,
       selectedProfileEffectiveTaxRate: effectiveRate,
       totalFederalPayrollTaxes,
-      stateWithholdingIfEnabled: 0,
+      stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
     });
 
     const methodLabel =
       method === "flat_estimate"
         ? `Flat ${effectiveRate.toFixed(1)}% estimate`
         : method === "dynamic_planner"
-        ? "Based on actual + planned income"
-        : "Based on combined actual income";
+        ? "Based on actual + future income"
+        : "Based on actual + future income";
 
     return { ...result, methodLabel };
   }, [
@@ -313,6 +315,7 @@ export default function PersonalIncome() {
     form.medicare_withholding,
     form.total_federal_payroll_taxes,
     form.state_withholding,
+    stateIncomeTaxEnabled,
     taxSettings,
     actualEstimate,
     forecastEstimate,
