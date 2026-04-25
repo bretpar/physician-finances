@@ -382,8 +382,8 @@ export function calculateFullEstimate(params: {
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome,
-    seBusinessDeductions = businessDeductions,
-    seMileageDeduction = mileageDeduction,
+    seBusinessDeductions: seBusinessDeductionsParam,
+    seMileageDeduction: seMileageDeductionParam,
     grossBusinessIncome: grossBusinessIncomeParam,
     otherIncome: otherIncomeParam,
     preTaxDeductions, retirement401k,
@@ -403,6 +403,8 @@ export function calculateFullEstimate(params: {
   // Default backward-compat: if caller didn't separate, treat seIncome as both
   // gross business and SE-eligible. otherIncome defaults to whatever's left of
   // totalIncome after w2 + business.
+  const seBusinessDeductions = seBusinessDeductionsParam ?? businessDeductions;
+  const seMileageDeduction = seMileageDeductionParam ?? mileageDeduction;
   const grossBusinessIncome = grossBusinessIncomeParam ?? seIncome;
   const otherIncome = otherIncomeParam ?? Math.max(0, totalIncome - w2Income - grossBusinessIncome);
 
