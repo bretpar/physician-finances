@@ -18,7 +18,7 @@
  * separation is consistent regardless of which method the user picked.
  */
 import { SE_TAX_RATE, SE_INCOME_FACTOR, type TaxEstimate } from "@/lib/taxEngine";
-import { isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { isW2FilingType, normalizeFilingType } from "@/lib/filingTypes";
 
 export type IncomeBucket = "personal" | "business";
 
@@ -45,6 +45,8 @@ export interface SavingsRateInput {
   forecastEstimate: TaxEstimate | null | undefined;
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
+  /** Explicit override for K-1 guaranteed payments or other SE-taxable edge cases. */
+  isSelfEmploymentTaxable?: boolean | null;
 }
 
 export interface SavingsRateResult {
@@ -93,6 +95,7 @@ function totalReturnIncome(estimate: TaxEstimate | null | undefined): number {
 }
 
 function dynamicOrdinaryIncomeProfileRate(estimate: TaxEstimate | null | undefined): number {
+  if (estimate?.federalEffectiveRate != null) return roundRate(estimate.federalEffectiveRate);
   const ordinaryIncomeTax = Math.max(0, Number(estimate?.federalTax || 0) + Number(estimate?.personalStateTax || 0));
   const income = totalReturnIncome(estimate);
   if (income <= 0) return 0;
@@ -100,10 +103,54 @@ function dynamicOrdinaryIncomeProfileRate(estimate: TaxEstimate | null | undefin
 }
 
 function canonicalEffectiveTaxRate(estimate: TaxEstimate | null | undefined): number {
+  if (estimate?.effectiveRate != null) return roundRate(estimate.effectiveRate);
   const totalTax = Math.max(0, Number(estimate?.totalTaxLiability || 0));
   const income = totalReturnIncome(estimate);
   if (income <= 0) return 0;
   return roundRate((totalTax / income) * 100);
+}
+
+function isSETaxableIncome(input: SavingsRateInput): boolean {
+  if (input.isSelfEmploymentTaxable != null) return !!input.isSelfEmploymentTaxable;
+  const filing = normalizeFilingType(input.incomeType);
+  if (filing === "1099_schedule_c") return true;
+  if (filing === "k1_partnership") return false;
+  return false;
+}
+
+export function getBaseRateForIncomeType(input: SavingsRateInput): Pick<SavingsRateResult, "components" | "method" | "label" | "rate"> {
+  const { incomeBucket, incomeType, taxSettings } = input;
+  const settings = taxSettings ?? {};
+  const profile = getSelectedWithholdingProfileRate({
+    taxSettings: settings,
+    actualEstimate: input.actualEstimate,
+    forecastEstimate: input.forecastEstimate,
+  });
+  const method = profile.methodUsed;
+  const filing = normalizeFilingType(incomeType);
+  const useAllInclusiveBase = incomeBucket === "personal" || isW2FilingType(filing);
+  const baseRate = method === "flat_estimate"
+    ? profile.federalProfileRate
+    : useAllInclusiveBase
+      ? profile.canonicalEffectiveTaxRate
+      : profile.federalProfileRate;
+
+  const components = { ...ZERO_COMPONENTS, federal: baseRate };
+  if (incomeBucket === "business" && !useAllInclusiveBase) {
+    if (isSETaxableIncome(input)) components.selfEmployment = getSelfEmploymentRate();
+    components.businessState = getBusinessStateRate(settings, input);
+  }
+
+  const rate = roundRate(
+    components.federal +
+    components.employeeSocialSecurity +
+    components.employeeMedicare +
+    components.selfEmployment +
+    components.personalState +
+    components.businessState,
+  );
+
+  return { rate, components, method, label: profile.label };
 }
 
 export function getSelectedWithholdingProfileRate(input: {
