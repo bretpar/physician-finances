@@ -234,6 +234,7 @@ export function useTaxBreakdown(
 
     // ── Per-company source aggregation (display only, no tax math) ──
     interface CompanyAgg {
+      companyId: string | null;
       name: string;
       filingType: FilingType;
       actualGross: number;
@@ -249,15 +250,16 @@ export function useTaxBreakdown(
     }
     const companyAgg = new Map<string, CompanyAgg>();
 
-    const ensureAgg = (name: string, ft: FilingType): CompanyAgg => {
-      const key = `${name}::${ft}`;
+    const ensureAgg = (name: string, ft: FilingType, companyId: string | null = null): CompanyAgg => {
+      const key = companyId || `${name}::${ft}`;
       const existing = companyAgg.get(key) ?? {
-        name, filingType: ft,
+        companyId, name, filingType: ft,
         actualGross: 0, plannedGross: 0,
         preTax: 0, retirement: 0, healthcare: 0,
         withheld: 0, stateWithheld: 0, federalWithheld: 0,
         plannedPreTax: 0, plannedRetirement: 0,
       };
+      existing.companyId = existing.companyId || companyId;
       companyAgg.set(key, existing);
       return existing;
     };
@@ -269,8 +271,9 @@ export function useTaxBreakdown(
       if (!matchCompany(e.company)) continue;
       const status = ((e as any).status ?? "received") as string;
       const isReceived = status === "received";
-      const ft = normalizeFilingType(e.income_type);
-      const agg = ensureAgg(e.company || "Unassigned", ft);
+      const company = (e as any).source_id ? companies.find((c) => c.id === (e as any).source_id) : undefined;
+      const ft = normalizeFilingType(company?.companyType || e.income_type);
+      const agg = ensureAgg(company?.name || e.company || "Unassigned", ft, company?.id || (e as any).source_id || null);
 
       if (isReceived) {
         agg.actualGross += Number(e.paycheck_amount) || 0;
@@ -306,7 +309,7 @@ export function useTaxBreakdown(
         const ft = normalizeFilingType(stream?.company_type || "1099");
         const companyName = stream?.company || company || "Planned";
         if (!matchCompany(companyName)) continue;
-        const agg = ensureAgg(companyName, ft);
+        const agg = ensureAgg(companyName, ft, (stream as any)?.source_id || null);
         agg.plannedGross += p.grossAmount;
         agg.plannedPreTax += p.preTaxDeductions;
         agg.plannedRetirement += p.retirement401k;
@@ -338,14 +341,18 @@ export function useTaxBreakdown(
       if (isExcludedFromBusiness(tx as any)) continue;
 
       if (txType === "expense") {
-        const company = tx.entity || "Unassigned";
-        const knownCompany = companies.find((c) => c.name === company);
+        const knownCompany = tx.source_id
+          ? companies.find((c) => c.id === tx.source_id)
+          : companies.filter((c) => c.name === tx.entity).length === 1
+            ? companies.find((c) => c.name === tx.entity)
+            : undefined;
         if (!knownCompany) continue;
+        const key = knownCompany.id;
         const amt = Math.abs(Number(tx.amount) || 0);
         const cat: ScheduleCCategory =
           ((tx as any).schedule_c_category as ScheduleCCategory) ||
           mapToScheduleC(tx.category);
-        const agg = expensesByCompany.get(company) ?? {
+        const agg = expensesByCompany.get(key) ?? {
           total: 0, byCategory: new Map(), txCount: 0,
         };
         agg.total += amt;
@@ -354,7 +361,7 @@ export function useTaxBreakdown(
         catAgg.total += amt;
         catAgg.count += 1;
         agg.byCategory.set(cat, catAgg);
-        expensesByCompany.set(company, agg);
+        expensesByCompany.set(key, agg);
       } else if (txType === "capital_gain" || txType === "stock") {
         const amt = Number(tx.amount) || 0;
         const isLong = /long[-\s]?term|ltcg/i.test((tx.notes || "") + " " + (tx.category || ""));
@@ -376,7 +383,7 @@ export function useTaxBreakdown(
       if (!matchCompany(company.name)) continue;
       const dollars = Number(m.miles) * IRS_MILEAGE_RATE;
       if (dollars <= 0) continue;
-      const agg = expensesByCompany.get(company.name) ?? {
+      const agg = expensesByCompany.get(company.id) ?? {
         total: 0, byCategory: new Map(), txCount: 0,
       };
       agg.total += dollars;
@@ -384,7 +391,7 @@ export function useTaxBreakdown(
       catAgg.total += dollars;
       catAgg.count += 1;
       agg.byCategory.set("car_truck", catAgg);
-      expensesByCompany.set(company.name, agg);
+      expensesByCompany.set(company.id, agg);
     }
     const sources: IncomeSourceBreakdown[] = [];
     let totalBusinessRevenue = 0;
@@ -421,7 +428,8 @@ export function useTaxBreakdown(
           taxableWages,
         });
       } else if (kind === "business") {
-        const exp = expensesByCompany.get(agg.name);
+        const companyId = agg.companyId ?? companies.find((c) => c.name === agg.name && c.companyType === agg.filingType)?.id ?? null;
+        const exp = companyId ? expensesByCompany.get(companyId) : undefined;
         const expenses = exp?.total ?? 0;
         const profit = totalGross - expenses;
         const actualProfit = agg.actualGross - expenses;
@@ -436,7 +444,6 @@ export function useTaxBreakdown(
               .map(([category, v]) => ({ category, total: v.total, count: v.count }))
               .sort((a, b) => b.total - a.total)
           : [];
-        const companyId = companies.find((c) => c.name === agg.name)?.id ?? null;
         sources.push({
           kind: "business",
           companyId, companyName: agg.name,

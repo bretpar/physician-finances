@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
 import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, useBulkDeleteTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
@@ -252,15 +252,25 @@ export default function Transactions() {
    */
   const [linkedEntry, setLinkedEntry] = useState<IncomeEntry | null>(null);
 
-  // Business Activity: only show non-W2 companies (1099, K-1, S-Corp, Other)
-  const allCompanyNames = useMemo(() => {
-    return [...new Set(
-      companies.filter((c) => !isW2FilingType(c.companyType)).map((c) => c.name)
-    )].sort();
-  }, [companies]);
+  // Business Activity: use companies.id as the canonical business/entity selector.
+  const businessCompanies = useMemo(() =>
+    companies.filter((c) => !isW2FilingType(c.companyType)),
+  [companies]);
 
-  const getCompanyType = (name: string): FilingType =>
-    normalizeFilingType(companies.find((c) => c.name === name)?.companyType);
+  const companyById = useMemo(() =>
+    new Map(companies.map((c) => [c.id, c] as const)),
+  [companies]);
+
+  const getCompanyByFormValue = (value: string) => {
+    if (!value) return undefined;
+    const byId = companyById.get(value);
+    if (byId) return byId;
+    const matches = companies.filter((c) => c.name === value);
+    return matches.length === 1 ? matches[0] : undefined;
+  };
+
+  const getCompanyType = (value: string): FilingType =>
+    normalizeFilingType(getCompanyByFormValue(value)?.companyType);
 
   /**
    * Resolved per-company toggle visibility for the currently-selected
@@ -268,7 +278,7 @@ export default function Transactions() {
    * Falls back to filing-type defaults if the company has no saved overrides.
    */
   const visibleFields = useMemo<Record<ToggleKey, boolean>>(() => {
-    const company = companies.find((c) => c.name === incomeForm.company);
+    const company = getCompanyByFormValue(incomeForm.company);
     const filingType = normalizeFilingType(
       incomeForm.income_type || company?.companyType || "1099_schedule_c"
     );
@@ -360,7 +370,7 @@ export default function Transactions() {
   const companyFilterOptions = useMemo(() => {
     return companies
       .filter((c) => !isW2FilingType(c.companyType))
-      .map((c) => ({ id: c.id, name: c.name }))
+      .map((c) => ({ id: c.id, name: c.name, companyType: c.companyType }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [companies]);
 
@@ -368,9 +378,32 @@ export default function Transactions() {
   const { getRecommendation } = useWithholdingRecommendation();
   const grossIncome = num(incomeForm.gross_amount);
   const selectedIncomeCompany = useMemo(
-    () => companies.find((c) => c.name === incomeForm.company),
+    () => getCompanyByFormValue(incomeForm.company),
     [companies, incomeForm.company],
   );
+  const selectedExpenseCompany = useMemo(
+    () => getCompanyByFormValue(expenseForm.company),
+    [companies, expenseForm.company],
+  );
+
+  useEffect(() => {
+    const ambiguousLegacyExpenseIds = transactions
+      .filter((t) =>
+        t.transaction_type === "expense" &&
+        !t.source_id &&
+        t.entity &&
+        t.entity !== "Unassigned" &&
+        companies.filter((c) => c.name === t.entity).length > 1 &&
+        !t.needs_review
+      )
+      .map((t) => t.id);
+    if (ambiguousLegacyExpenseIds.length > 0) {
+      bulkUpdateMutation.mutate({
+        ids: ambiguousLegacyExpenseIds,
+        updates: { needs_review: true } as any,
+      });
+    }
+  }, [transactions, companies, bulkUpdateMutation]);
   const recommendation = useMemo(() => {
     if (grossIncome <= 0) return null;
     return getRecommendation({
@@ -419,7 +452,7 @@ export default function Transactions() {
       setIncomeForm({
         date: tx.transaction_date,
         name: tx.vendor,
-        company: linked?.company || tx.entity || "",
+        company: (linked as any)?.source_id || tx.source_id || linked?.company || tx.entity || "",
         income_type: normalizeFilingType(linked?.income_type || tx.company_type || "1099_schedule_c"),
         gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
         net_received: linked && linked.deposited_amount ? String(linked.deposited_amount) : "",
@@ -461,7 +494,7 @@ export default function Transactions() {
       setExpenseForm({
         date: tx.transaction_date,
         name: tx.vendor,
-        company: tx.entity || "",
+        company: tx.source_id || (companies.filter((c) => c.name === tx.entity).length === 1 ? companies.find((c) => c.name === tx.entity)?.id || "" : ""),
         amount: String(Math.abs(tx.amount)),
         category: tx.category,
         schedule_c_category: (tx as any).schedule_c_category || "",
@@ -511,7 +544,8 @@ export default function Transactions() {
     const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
     const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
-    const companyType = incomeForm.income_type || getCompanyType(incomeForm.company);
+    const companyName = selectedIncomeCompany?.name || incomeForm.company || "Unassigned";
+    const companyType = incomeForm.income_type || selectedIncomeCompany?.companyType || getCompanyType(incomeForm.company);
 
     // Gross income is the source of truth for revenue/tax totals.
     // Deposited (net) amount is stored separately on income_entries for matching/cashflow.
@@ -534,8 +568,9 @@ export default function Transactions() {
         vendor: incomeForm.name,
         amount: txAmount,
         category: "Income",
-        entity: incomeForm.company || "Unassigned",
+        entity: companyName,
         company_type: companyType,
+        source_id: selectedIncomeCompany?.id || null,
         notes: incomeForm.notes,
         actual_withholding: num(incomeForm.actual_withholding),
         withholding_saved: num(incomeForm.actual_withholding) > 0,
@@ -558,7 +593,8 @@ export default function Transactions() {
             updateIncomeMutation.mutate({
               id: editingIncomeEntryId,
               name: incomeForm.name,
-              company: incomeForm.company,
+              company: companyName,
+              source_id: selectedIncomeCompany?.id || null,
               income_type: companyType,
               income_date: incomeForm.date,
               paycheck_amount: paycheckAmt,
@@ -590,7 +626,8 @@ export default function Transactions() {
                   user_id: user.id,
                   organization_id: orgId,
                   name: incomeForm.name,
-                  company: incomeForm.company,
+                  company: companyName,
+              source_id: selectedIncomeCompany?.id || null,
                   income_type: toCanonicalIncomeType(companyType),
                   income_date: incomeForm.date,
                   paycheck_amount: paycheckAmt,
@@ -648,7 +685,8 @@ export default function Transactions() {
 
       const payload: Partial<IncomeEntry> = {
         name: incomeForm.name,
-        company: incomeForm.company,
+        company: companyName,
+        source_id: selectedIncomeCompany?.id || null,
         income_type: companyType,
         income_date: incomeForm.date,
         paycheck_amount: paycheckAmt,
@@ -679,7 +717,7 @@ export default function Transactions() {
           if (newTxId && pendingIncomeAttachments.length > 0) {
             uploadAttachments.mutate({
               transactionId: newTxId,
-              companyId: companies.find((c) => c.name === incomeForm.company)?.id || null,
+              companyId: selectedIncomeCompany?.id || null,
               files: pendingIncomeAttachments,
             });
           }
@@ -716,13 +754,13 @@ export default function Transactions() {
     if (!expenseForm.name.trim() || !expenseForm.date) return;
     const amount = num(expenseForm.amount);
     if (amount === 0) return;
-    if (!expenseForm.is_transfer && !expenseForm.company) { toast.error("Please select a company"); return; }
+    if (!expenseForm.is_transfer && !selectedExpenseCompany) { toast.error("Please select a company"); return; }
 
     const flushAttachmentsTo = (newTxId: string) => {
       if (pendingExpenseAttachments.length === 0) return;
       uploadAttachments.mutate({
         transactionId: newTxId,
-        companyId: companies.find((c) => c.name === expenseForm.company)?.id || null,
+        companyId: selectedExpenseCompany?.id || null,
         files: pendingExpenseAttachments,
       });
     };
@@ -738,7 +776,9 @@ export default function Transactions() {
           notes: expenseForm.notes,
           transaction_type: "transfer",
           transfer_subtype: expenseForm.transfer_subtype || null,
-          entity: expenseForm.company || "Unassigned",
+          entity: selectedExpenseCompany?.name || "Unassigned",
+          source_id: selectedExpenseCompany?.id || null,
+          company_type: selectedExpenseCompany?.companyType || "",
           excluded_from_reports: true,
         } as any);
       } else {
@@ -750,7 +790,9 @@ export default function Transactions() {
           notes: expenseForm.notes,
           transaction_type: "transfer",
           transfer_subtype: expenseForm.transfer_subtype || null,
-          entity: expenseForm.company || "Unassigned",
+          entity: selectedExpenseCompany?.name || "Unassigned",
+          source_id: selectedExpenseCompany?.id || null,
+          company_type: selectedExpenseCompany?.companyType || "",
           excluded_from_reports: true,
         } as any, {
           onSuccess: (data) => {
@@ -769,7 +811,10 @@ export default function Transactions() {
           category: expenseForm.category,
           schedule_c_category: expenseForm.schedule_c_category || null,
           notes: expenseForm.notes,
-          entity: expenseForm.company || "Unassigned",
+          entity: selectedExpenseCompany?.name || "Unassigned",
+          source_id: selectedExpenseCompany?.id || null,
+          company_type: selectedExpenseCompany?.companyType || "",
+          needs_review: false,
         } as any);
       } else {
         addMutation.mutate({
@@ -780,7 +825,10 @@ export default function Transactions() {
           schedule_c_category: expenseForm.schedule_c_category || null,
           notes: expenseForm.notes,
           transaction_type: "expense",
-          entity: expenseForm.company || "Unassigned",
+          entity: selectedExpenseCompany?.name || "Unassigned",
+          source_id: selectedExpenseCompany?.id || null,
+          company_type: selectedExpenseCompany?.companyType || "",
+          needs_review: false,
         } as any, {
           onSuccess: (data) => {
             const id = (data as { id?: string } | undefined)?.id;
@@ -1010,7 +1058,9 @@ export default function Transactions() {
               <Trash2 className="h-3 w-3" /> Delete
             </Button>
             <Select value={bulkCompany} onValueChange={(v) => {
-              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { entity: v, needs_review: false } as any });
+              const company = companyById.get(v);
+              if (!company) return;
+              bulkUpdateMutation.mutate({ ids: [...selectedIds], updates: { entity: company.name, source_id: company.id, company_type: company.companyType, needs_review: false } as any });
               setBulkCompany("");
               setSelectedIds(new Set());
             }}>
@@ -1018,8 +1068,8 @@ export default function Transactions() {
                 <SelectValue placeholder="Assign Company" />
               </SelectTrigger>
               <SelectContent>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                {businessCompanies.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name} ({getFilingMeta(c.companyType).shortLabel})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1554,8 +1604,8 @@ export default function Transactions() {
                     )}
                   </SelectTrigger>
                   <SelectContent>
-                    {allCompanyNames.map((c) => (
-                      <SelectItem key={c} value={c}>{c} ({getCompanyType(c)})</SelectItem>
+                    {businessCompanies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name} ({getFilingMeta(c.companyType).shortLabel})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1732,7 +1782,7 @@ export default function Transactions() {
             {/* Attachments */}
             <TransactionAttachments
               transactionId={editingIncomeTxId}
-              companyId={companies.find((c) => c.name === incomeForm.company)?.id || null}
+              companyId={selectedIncomeCompany?.id || null}
               pendingFiles={editingIncomeTxId ? undefined : pendingIncomeAttachments}
               onPendingFilesChange={editingIncomeTxId ? undefined : setPendingIncomeAttachments}
             />
@@ -1802,8 +1852,8 @@ export default function Transactions() {
                   <SelectTrigger><SelectValue placeholder={expenseForm.is_transfer ? "None" : "Select company"} /></SelectTrigger>
                   <SelectContent>
                     {expenseForm.is_transfer && <SelectItem value="Unassigned">None</SelectItem>}
-                    {companies.map((c) => (
-                      <SelectItem key={c.id} value={c.name}>{c.name} ({c.companyType})</SelectItem>
+                    {businessCompanies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name} ({getFilingMeta(c.companyType).shortLabel})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1862,7 +1912,7 @@ export default function Transactions() {
             {/* Attachments */}
             <TransactionAttachments
               transactionId={editingExpenseTxId}
-              companyId={companies.find((c) => c.name === expenseForm.company)?.id || null}
+              companyId={selectedExpenseCompany?.id || null}
               pendingFiles={editingExpenseTxId ? undefined : pendingExpenseAttachments}
               onPendingFilesChange={editingExpenseTxId ? undefined : setPendingExpenseAttachments}
             />

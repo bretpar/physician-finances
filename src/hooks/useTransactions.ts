@@ -148,6 +148,11 @@ export function useAddTransaction() {
         notes: tx.notes || "",
         entity: tx.entity || "Unassigned",
         company_type: tx.company_type || "",
+        source_id: tx.source_id || null,
+        schedule_c_category: (tx as any).schedule_c_category || null,
+        needs_review: tx.needs_review ?? false,
+        excluded_from_reports: tx.excluded_from_reports ?? false,
+        transfer_subtype: tx.transfer_subtype || null,
         transaction_type: (tx.transaction_type as string) || "expense",
       }).select("id").single();
       if (error) throw error;
