@@ -71,7 +71,7 @@ export type WithholdingProfileRateSource = "flat_estimate" | "dynamic_actual" | 
 
 export interface WithholdingProfileRateResult {
   methodUsed: WithholdingProfileRateSource;
-  /** Dynamic ordinary-income recommendation base: federal + personal state income tax ÷ total return income. */
+  /** Dynamic business recommendation base: federal income tax only ÷ total return income. */
   federalProfileRate: number;
   /** All-inclusive display rate: total estimated annual tax ÷ total return income. */
   canonicalEffectiveTaxRate: number;
