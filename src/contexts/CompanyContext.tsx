@@ -26,6 +26,8 @@ export interface Company {
   advancedFieldVisibility: Partial<Record<ToggleKey, boolean>>;
   /** Apply business state tax (set in Tax Profile) to this specific company. Default true. */
   applyBusinessStateTax: boolean;
+  /** Include self-employment tax in per-entry savings recommendations. Default true. */
+  includeSETaxInRecommendation: boolean;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
@@ -76,6 +78,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         advancedFieldVisibility:
           (c.advanced_field_visibility as Partial<Record<ToggleKey, boolean>>) || {},
         applyBusinessStateTax: c.apply_business_state_tax !== false,
+        includeSETaxInRecommendation: c.include_se_tax_in_recommendation !== false,
       }))
     );
     setLoading(false);
@@ -113,6 +116,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       notes: company.notes,
       advanced_field_visibility: company.advancedFieldVisibility ?? {},
       apply_business_state_tax: company.applyBusinessStateTax ?? true,
+      include_se_tax_in_recommendation: company.includeSETaxInRecommendation ?? true,
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
@@ -130,6 +134,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
     if (updates.advancedFieldVisibility !== undefined) dbUpdates.advanced_field_visibility = updates.advancedFieldVisibility;
     if (updates.applyBusinessStateTax !== undefined) dbUpdates.apply_business_state_tax = updates.applyBusinessStateTax;
+    if (updates.includeSETaxInRecommendation !== undefined) dbUpdates.include_se_tax_in_recommendation = updates.includeSETaxInRecommendation;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
