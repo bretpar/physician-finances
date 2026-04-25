@@ -104,6 +104,35 @@ describe("Unified tax engine — credits, double-counting, mode parity", () => {
     expect(withProjected.debug.federalWithheld).toBe(20000); // 12k actual + 8k projected
   });
 
+  it("keeps Actual Only and Include Planned Income rates independently scoped", () => {
+    const actual = computeUnifiedTaxEstimate({
+      ...baseInput,
+      includeProjectedIncome: false,
+      projectedW2Income: 120000,
+      projectedFederalWithheld: 25000,
+      projectedPreTax: 10000,
+      projectedRetirement: 15000,
+      projectedHealthInsuranceDeduction: 3000,
+    });
+    const planned = computeUnifiedTaxEstimate({
+      ...baseInput,
+      includeProjectedIncome: true,
+      projectedW2Income: 120000,
+      projectedFederalWithheld: 25000,
+      projectedPreTax: 10000,
+      projectedRetirement: 15000,
+      projectedHealthInsuranceDeduction: 3000,
+    });
+
+    expect(actual.debug.projectedIncome).toBe(0);
+    expect(actual.debug.projectedFederalWithheld).toBe(0);
+    expect(actual.debug.projectedHealthInsuranceDeduction).toBe(0);
+    expect(actual.debug.agi).not.toBe(planned.debug.agi);
+    expect(actual.debug.canonicalEffectiveTaxRate).not.toBe(planned.debug.canonicalEffectiveTaxRate);
+    expect(actual.debug.taxOverviewRateSource).toContain("actual only");
+    expect(planned.debug.taxOverviewRateSource).toContain("actual + planned");
+  });
+
   it("identity: federalIncomeTax == max(0, before − credits)", () => {
     const r = computeUnifiedTaxEstimate({ ...baseInput, qualifyingChildrenCount: 1, otherDependentsCount: 1 });
     expect(r.debug.federalIncomeTax).toBe(
