@@ -645,7 +645,7 @@ function CompaniesSection() {
     addCompany({
       name: "", nickname: "", companyType: "1099_schedule_c", includeInTax: true,
       defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
-      advancedFieldVisibility: {}, applyBusinessStateTax: true,
+      advancedFieldVisibility: {}, applyBusinessStateTax: true, includeSETaxInRecommendation: true,
     });
   }
 
@@ -842,16 +842,30 @@ function CompaniesSection() {
                         </div>
 
                         {ledgerForIncomeType(getValue(company, "companyType")) === "business" && (
-                          <div className="flex items-start gap-2 pt-1">
-                            <Switch
-                              checked={(getValue(company, "applyBusinessStateTax") as boolean) !== false}
-                              onCheckedChange={(v) => setField(company.id, "applyBusinessStateTax", v)}
-                            />
-                            <div>
-                              <Label className="text-xs text-muted-foreground">Apply business state tax</Label>
-                              <p className="text-[11px] text-muted-foreground/80 mt-0.5">
-                                Used when business state tax is set to "Selected companies only".
-                              </p>
+                          <div className="space-y-4 pt-1">
+                            <div className="flex items-start gap-2">
+                              <Switch
+                                checked={(getValue(company, "includeSETaxInRecommendation") as boolean) !== false}
+                                onCheckedChange={(v) => setField(company.id, "includeSETaxInRecommendation", v)}
+                              />
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Add self-employment tax to savings recommendation</Label>
+                                <p className="text-[11px] text-muted-foreground/80 mt-0.5 max-w-2xl">
+                                  Turn this on if this company’s income should include self-employment tax in the recommended savings amount. Turn off for income where Social Security/Medicare is already handled, such as W-2 payroll, or for K-1/S-Corp income that is not subject to SE tax.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <Switch
+                                checked={(getValue(company, "applyBusinessStateTax") as boolean) !== false}
+                                onCheckedChange={(v) => setField(company.id, "applyBusinessStateTax", v)}
+                              />
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Apply business state tax</Label>
+                                <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                                  Used when business state tax is set to "Selected companies only".
+                                </p>
+                              </div>
                             </div>
                           </div>
                         )}
