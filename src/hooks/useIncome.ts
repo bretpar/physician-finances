@@ -24,6 +24,7 @@ export interface IncomeEntry {
   notes: string | null;
   status: IncomeStatus;
   linked_transaction_id: string | null;
+  source_id: string | null;
   created_at: string;
   updated_at: string;
 }
