@@ -35,6 +35,7 @@ export interface WithholdingInput {
   alreadyIncludedInEstimate?: boolean;
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
+  includeSETaxInRecommendation?: boolean | null;
 }
 
 export interface WithholdingRecommendation {
@@ -103,6 +104,7 @@ export function useWithholdingRecommendation() {
         alreadyIncludedInEstimate = false,
         companyId,
         applyBusinessStateTax,
+        includeSETaxInRecommendation,
       } = input;
 
       if (!settings || grossIncome <= 0) return null;
@@ -129,6 +131,7 @@ export function useWithholdingRecommendation() {
           forecastEstimate,
           companyId,
           applyBusinessStateTax,
+          includeSETaxInRecommendation,
         });
         const flatRate = rateSel.rate;
         const taxOnEntry = netTaxableForEntry * (flatRate / 100);
@@ -229,6 +232,7 @@ export function useWithholdingRecommendation() {
         forecastEstimate,
         companyId,
         applyBusinessStateTax,
+        includeSETaxInRecommendation,
       });
       const rateToUse = rateSelection.rate;
       const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
