@@ -65,6 +65,9 @@ interface RecommendationInput {
   stateWithheld: number;
   retirement401k: number;
   preTaxDeductions: number;
+  companyId?: string | null;
+  applyBusinessStateTax?: boolean | null;
+  includeSETaxInRecommendation?: boolean | null;
 }
 
 // getNextQuarterDeadline now lives in src/lib/quarters.ts (shared helper).
@@ -131,7 +134,7 @@ export function useIncomeRecommendation() {
 
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
-      const { grossIncome, incomeType, incomeBucket, federalWithheld, stateWithheld, retirement401k, preTaxDeductions } = input;
+      const { grossIncome, incomeType, incomeBucket, federalWithheld, stateWithheld, retirement401k, preTaxDeductions, companyId, applyBusinessStateTax, includeSETaxInRecommendation } = input;
 
       if (!settings || grossIncome <= 0) return null;
 
@@ -155,6 +158,9 @@ export function useIncomeRecommendation() {
           taxSettings: settings,
           actualEstimate,
           forecastEstimate,
+          companyId,
+          applyBusinessStateTax,
+          includeSETaxInRecommendation,
         });
         baseTaxEstimate = netTaxable * (rateSel.rate / 100);
         effectiveRate = rateSel.rate;
@@ -168,6 +174,9 @@ export function useIncomeRecommendation() {
           taxSettings: settings,
           actualEstimate,
           forecastEstimate,
+          companyId,
+          applyBusinessStateTax,
+          includeSETaxInRecommendation,
         }).rate;
         baseTaxEstimate = netTaxable * (rateToUse / 100);
         effectiveRate = rateToUse;
