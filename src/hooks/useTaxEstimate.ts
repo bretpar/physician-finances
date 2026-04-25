@@ -135,9 +135,11 @@ export function useTaxEstimate(): {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const companyByName = new Map(companies.map((c) => [c.name.toLowerCase().trim(), c] as const));
 
-    let grossSE = 0;        // 1099 + K-1 (subject to SE tax)
+    let grossSE = 0;        // companies with SE toggle enabled
     let grossW2Business = 0; // scorp_w2, w2 booked under a business
     let grossOtherBusiness = 0; // scorp_distribution, other
+    const seEligibleByTx = new Map<string, number>();
+    let seEligibleExpenses = 0;
 
     const seEligibleTxIds = new Set<string>();
     const businessStateEligibleByTx = new Map<string, number>();
@@ -168,8 +170,13 @@ export function useTaxEstimate(): {
       const amt = Math.abs(Number(t.amount) || 0);
 
       if (filing === "1099_schedule_c" || filing === "k1_partnership") {
-        grossSE += amt;
-        seEligibleTxIds.add(t.id);
+        if (company?.includeSETaxInRecommendation !== false) {
+          grossSE += amt;
+          seEligibleTxIds.add(t.id);
+          seEligibleByTx.set(t.id, amt);
+        } else {
+          grossOtherBusiness += amt;
+        }
       } else if (filing === "scorp_w2" || filing === "w2") {
         grossW2Business += amt;
       } else {
@@ -183,6 +190,17 @@ export function useTaxEstimate(): {
           ? eligibleCompanyIds.has(company.id)
           : eligibleCompanyNames.has((t.entity || "").toLowerCase().trim());
         if (eligible) businessStateEligibleByTx.set(t.id, amt);
+      }
+    }
+
+    for (const t of txs) {
+      if (t.transaction_type !== "expense") continue;
+      if (isExcludedFromBusiness(t as any) || t.entity === "Unassigned") continue;
+      const company = (t.source_id && companyById.get(t.source_id)) ||
+        (t.entity && companyByName.get(t.entity.toLowerCase().trim()));
+      const filing = normalizeFilingType(company?.companyType || t.company_type);
+      if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false) {
+        seEligibleExpenses += Math.abs(Number(t.amount) || 0);
       }
     }
 
@@ -214,6 +232,7 @@ export function useTaxEstimate(): {
       .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
 
     const businessStateEligibleGross = Array.from(businessStateEligibleByTx.values()).reduce((s, v) => s + v, 0);
+    const seEligibleGross = Array.from(seEligibleByTx.values()).reduce((s, v) => s + v, 0);
 
     return {
       grossSE,
@@ -226,6 +245,8 @@ export function useTaxEstimate(): {
       businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
+      seEligibleGross,
+      seEligibleExpenses,
     };
     };
 
@@ -324,7 +345,7 @@ export function useTaxEstimate(): {
       const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
       const canonicalBusiness = scope.canonicalBusiness;
-      const businessIncome = canonicalBusiness.grossSE;
+      const businessIncome = canonicalBusiness.grossSE + canonicalBusiness.grossOtherBusiness;
       const seEligibleBusinessIncome = canonicalBusiness.grossSE;
       const businessW2 = canonicalBusiness.grossW2Business;
       const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
@@ -335,10 +356,24 @@ export function useTaxEstimate(): {
       const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
       const totalBG = canonicalBusiness.totalBusinessGross || 0;
       const eligibleRatio = totalBG > 0 ? businessStateEligibleGross / totalBG : 0;
+      const seEligibleRatio = totalBG > 0 ? (canonicalBusiness.seEligibleGross || 0) / totalBG : 0;
+      const companyById = new Map(companies.map((c) => [c.id, c] as const));
+      const streamById = new Map((streams || []).map((s) => [s.id, s] as const));
+      const projectedSEIncome = projectedPaychecks.reduce((sum, p) => {
+        if (p.matchStatus !== "active") return sum;
+        const stream = streamById.get(p.streamId);
+        const company = stream?.source_id ? companyById.get(stream.source_id) : undefined;
+        const filing = normalizeFilingType(company?.companyType || stream?.company_type || p.streamCompanyType);
+        return (filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false
+          ? sum + p.grossAmount
+          : sum;
+      }, 0);
 
       return {
         businessIncome,
         seEligibleBusinessIncome,
+        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses,
+        seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
         businessFederalWithheld,
         businessStateWithheld,
@@ -365,8 +400,8 @@ export function useTaxEstimate(): {
         taxSavingsSetAside: savingsTotal,
         remainingPayPeriods,
         projectedW2Income: projTotals.w2Income,
-        projectedSEIncome: projTotals.seIncome,
-        projectedOtherIncome: projTotals.otherIncome,
+        projectedSEIncome,
+        projectedOtherIncome: projTotals.otherIncome + Math.max(0, projTotals.seIncome - projectedSEIncome),
         projectedFederalWithheld: projTotals.federalWithheld,
         projectedStateWithheld: projTotals.stateWithheld,
         projectedPreTax: projTotals.preTaxDeductions,
@@ -399,7 +434,7 @@ export function useTaxEstimate(): {
       actualOnlyTaxInputs: buildInput(scopedTaxData.actualOnlyTaxInputs, "actualOnly"),
       includePlannedTaxInputs: buildInput(scopedTaxData.includePlannedTaxInputs, "actualPlusPlanned"),
     };
-  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, annualizedRetirement]);
+  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, companies, annualizedRetirement]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;

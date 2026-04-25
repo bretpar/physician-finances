@@ -352,6 +352,10 @@ export function calculateFullEstimate(params: {
   w2Income: number;
   /** True SE income (Schedule C + K-1 partnership active earnings) used for SE tax base. */
   seIncome: number;
+  /** Expenses assigned to SE-taxable companies. Defaults to all business deductions for backwards compatibility. */
+  seBusinessDeductions?: number;
+  /** Mileage assigned to SE-taxable companies. Defaults to all mileage deductions for backwards compatibility. */
+  seMileageDeduction?: number;
   /** All business gross receipts (SE + S-Corp distributions, etc.) — display only. */
   grossBusinessIncome?: number;
   /** Other taxable income that is not W-2 and not business (cap gains, dividends, rental…). */
@@ -378,6 +382,8 @@ export function calculateFullEstimate(params: {
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome,
+    seBusinessDeductions: seBusinessDeductionsParam,
+    seMileageDeduction: seMileageDeductionParam,
     grossBusinessIncome: grossBusinessIncomeParam,
     otherIncome: otherIncomeParam,
     preTaxDeductions, retirement401k,
@@ -397,11 +403,13 @@ export function calculateFullEstimate(params: {
   // Default backward-compat: if caller didn't separate, treat seIncome as both
   // gross business and SE-eligible. otherIncome defaults to whatever's left of
   // totalIncome after w2 + business.
+  const seBusinessDeductions = seBusinessDeductionsParam ?? businessDeductions;
+  const seMileageDeduction = seMileageDeductionParam ?? mileageDeduction;
   const grossBusinessIncome = grossBusinessIncomeParam ?? seIncome;
   const otherIncome = otherIncomeParam ?? Math.max(0, totalIncome - w2Income - grossBusinessIncome);
 
   // SE tax — only on TRUE self-employment net income
-  const netSEIncome = seIncome - businessDeductions - mileageDeduction;
+  const netSEIncome = seIncome - seBusinessDeductions - seMileageDeduction;
   const seTax = calculateSETax(netSEIncome, filingStatus, ssWageCap, w2Income);
 
   // Net business profit (display) — uses gross business income (all biz) minus

@@ -227,13 +227,9 @@ export default function Dashboard() {
     taxSettings: rates,
     actualEstimate,
     forecastEstimate,
+    includeSETaxInRecommendation: true,
   }).rate;
-  const businessProfitBase = Math.max(0, Number(baseEstimate?.netBusinessProfit || 0));
-  const personalIncomeBase = Math.max(
-    0,
-    Number(baseEstimate?.totalReturnIncomeBeforeAdjustments || baseEstimate?.totalIncome || 0) - businessProfitBase,
-  );
-  const annualTaxLiability = (personalIncomeBase * (personalRate / 100)) + (businessProfitBase * (businessRate / 100));
+  const annualTaxLiability = Math.max(0, Number(baseEstimate?.totalTaxLiability || 0));
   const methodLabel = profile.label;
   const effectiveTaxRate = method === "flat_estimate" ? profile.federalProfileRate : profile.canonicalEffectiveTaxRate;
 

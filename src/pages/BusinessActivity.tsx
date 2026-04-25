@@ -415,6 +415,7 @@ export default function Transactions() {
       alreadyIncludedInEstimate: isEditingIncome,
       companyId: selectedIncomeCompany?.id ?? null,
       applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
+      includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
     });
   }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, getRecommendation, isEditingIncome, selectedIncomeCompany]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
@@ -588,6 +589,9 @@ export default function Transactions() {
             stateWithheld: 0,
             retirement401k: retirement,
             preTaxDeductions: preTaxDed,
+            companyId: selectedIncomeCompany?.id ?? null,
+            applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
+            includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
           });
           if (editingIncomeEntryId) {
             updateIncomeMutation.mutate({
@@ -681,6 +685,9 @@ export default function Transactions() {
         stateWithheld: 0,
         retirement401k: retirement,
         preTaxDeductions: preTaxDed,
+        companyId: selectedIncomeCompany?.id ?? null,
+        applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
+        includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
       });
 
       const payload: Partial<IncomeEntry> = {

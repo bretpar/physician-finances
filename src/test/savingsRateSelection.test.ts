@@ -118,8 +118,8 @@ describe("getSavingsRateForIncomeBucket", () => {
     expect(result.rate).toBe(17);
   });
 
-  it("K-1 does not automatically add SE unless marked SE-taxable", () => {
-    const passiveK1 = getSavingsRateForIncomeBucket({
+  it("K-1 defaults to SE tax unless the company toggle is off", () => {
+    const defaultK1 = getSavingsRateForIncomeBucket({
       incomeBucket: "business",
       incomeType: "k1_partnership",
       taxSettings: dynamicSettings,
@@ -127,22 +127,22 @@ describe("getSavingsRateForIncomeBucket", () => {
       forecastEstimate,
       applyBusinessStateTax: true,
     });
-    const seTaxableK1 = getSavingsRateForIncomeBucket({
+    const toggleOffK1 = getSavingsRateForIncomeBucket({
       incomeBucket: "business",
       incomeType: "k1_partnership",
       taxSettings: dynamicSettings,
       actualEstimate,
       forecastEstimate,
       applyBusinessStateTax: true,
-      isSelfEmploymentTaxable: true,
+      includeSETaxInRecommendation: false,
     });
 
-    expect(passiveK1.components.federal).toBe(12.4);
-    expect(passiveK1.components.selfEmployment).toBe(0);
-    expect(passiveK1.components.businessState).toBe(1.5);
-    expect(passiveK1.rate).toBe(13.9);
-    expect(seTaxableK1.components.selfEmployment).toBeCloseTo(14.13, 2);
-    expect(seTaxableK1.rate).toBeCloseTo(28.03, 2);
+    expect(defaultK1.components.federal).toBe(12.4);
+    expect(defaultK1.components.selfEmployment).toBeCloseTo(14.13, 2);
+    expect(defaultK1.components.businessState).toBe(1.5);
+    expect(defaultK1.rate).toBeCloseTo(28.03, 2);
+    expect(toggleOffK1.components.selfEmployment).toBe(0);
+    expect(toggleOffK1.rate).toBe(13.9);
   });
 
   it("S-corp distribution never adds SE tax", () => {

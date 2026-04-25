@@ -24,6 +24,7 @@ export type Database = {
           default_setaside_pct: number | null
           id: string
           include_in_tax: boolean
+          include_se_tax_in_recommendation: boolean
           name: string
           nickname: string
           notes: string
@@ -41,6 +42,7 @@ export type Database = {
           default_setaside_pct?: number | null
           id?: string
           include_in_tax?: boolean
+          include_se_tax_in_recommendation?: boolean
           name?: string
           nickname?: string
           notes?: string
@@ -58,6 +60,7 @@ export type Database = {
           default_setaside_pct?: number | null
           id?: string
           include_in_tax?: boolean
+          include_se_tax_in_recommendation?: boolean
           name?: string
           nickname?: string
           notes?: string

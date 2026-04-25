@@ -45,6 +45,7 @@ export interface SavingsRateInput {
   forecastEstimate: TaxEstimate | null | undefined;
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
+  includeSETaxInRecommendation?: boolean | null;
   /** Explicit override for K-1 guaranteed payments or other SE-taxable edge cases. */
   isSelfEmploymentTaxable?: boolean | null;
 }
@@ -112,10 +113,11 @@ function canonicalEffectiveTaxRate(estimate: TaxEstimate | null | undefined): nu
 }
 
 function isSETaxableIncome(input: SavingsRateInput): boolean {
+  if (input.includeSETaxInRecommendation === false) return false;
   if (input.isSelfEmploymentTaxable != null) return !!input.isSelfEmploymentTaxable;
   const filing = normalizeFilingType(input.incomeType);
   if (filing === "1099_schedule_c") return true;
-  if (filing === "k1_partnership") return false;
+  if (filing === "k1_partnership") return true;
   return false;
 }
 
