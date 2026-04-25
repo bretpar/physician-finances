@@ -332,7 +332,7 @@ export function useTaxEstimate(): {
       const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
       const canonicalBusiness = scope.canonicalBusiness;
-      const businessIncome = canonicalBusiness.grossSE;
+      const businessIncome = canonicalBusiness.grossSE + canonicalBusiness.grossOtherBusiness;
       const seEligibleBusinessIncome = canonicalBusiness.grossSE;
       const businessW2 = canonicalBusiness.grossW2Business;
       const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
@@ -344,6 +344,17 @@ export function useTaxEstimate(): {
       const totalBG = canonicalBusiness.totalBusinessGross || 0;
       const eligibleRatio = totalBG > 0 ? businessStateEligibleGross / totalBG : 0;
       const seEligibleRatio = totalBG > 0 ? (canonicalBusiness.seEligibleGross || 0) / totalBG : 0;
+      const companyById = new Map(companies.map((c) => [c.id, c] as const));
+      const streamById = new Map((streams || []).map((s) => [s.id, s] as const));
+      const projectedSEIncome = projectedPaychecks.reduce((sum, p) => {
+        if (p.matchStatus !== "active") return sum;
+        const stream = streamById.get(p.streamId);
+        const company = stream?.source_id ? companyById.get(stream.source_id) : undefined;
+        const filing = normalizeFilingType(company?.companyType || stream?.company_type || p.streamCompanyType);
+        return (filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false
+          ? sum + p.grossAmount
+          : sum;
+      }, 0);
 
       return {
         businessIncome,
@@ -376,8 +387,8 @@ export function useTaxEstimate(): {
         taxSavingsSetAside: savingsTotal,
         remainingPayPeriods,
         projectedW2Income: projTotals.w2Income,
-        projectedSEIncome: projTotals.seIncome,
-        projectedOtherIncome: projTotals.otherIncome,
+        projectedSEIncome,
+        projectedOtherIncome: projTotals.otherIncome + Math.max(0, projTotals.seIncome - projectedSEIncome),
         projectedFederalWithheld: projTotals.federalWithheld,
         projectedStateWithheld: projTotals.stateWithheld,
         projectedPreTax: projTotals.preTaxDeductions,
