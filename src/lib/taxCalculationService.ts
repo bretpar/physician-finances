@@ -20,6 +20,8 @@ export interface UnifiedTaxInput {
   businessIncome: number;
   /** Subset of businessIncome that is true SE earnings (Schedule C + K-1 partnership). */
   seEligibleBusinessIncome: number;
+  seEligibleBusinessExpenses?: number;
+  seEligibleMileageDeduction?: number;
   businessW2: number;
   /** Federal withholding actually withheld from business/1099 income to date. */
   businessFederalWithheld: number;
@@ -192,7 +194,7 @@ export interface TaxDebugBreakdown {
 
 export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxResult {
   const {
-    businessIncome, seEligibleBusinessIncome, businessW2,
+    businessIncome, seEligibleBusinessIncome, seEligibleBusinessExpenses = businessExpenses, seEligibleMileageDeduction = mileageDeduction, businessW2,
     businessFederalWithheld, businessStateWithheld,
     businessPreTax, businessRetirement,
     ownerHealthcare,
@@ -303,6 +305,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     totalIncome,
     w2Income,
     seIncome,
+    seBusinessDeductions: seEligibleBusinessExpenses,
+    seMileageDeduction: seEligibleMileageDeduction,
     grossBusinessIncome,
     otherIncome,
     preTaxDeductions: combinedPreTax + healthInsuranceDeduction,
