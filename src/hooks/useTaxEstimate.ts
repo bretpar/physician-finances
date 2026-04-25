@@ -135,9 +135,10 @@ export function useTaxEstimate(): {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const companyByName = new Map(companies.map((c) => [c.name.toLowerCase().trim(), c] as const));
 
-    let grossSE = 0;        // 1099 + K-1 (subject to SE tax)
+    let grossSE = 0;        // companies with SE toggle enabled
     let grossW2Business = 0; // scorp_w2, w2 booked under a business
     let grossOtherBusiness = 0; // scorp_distribution, other
+    const seEligibleByTx = new Map<string, number>();
 
     const seEligibleTxIds = new Set<string>();
     const businessStateEligibleByTx = new Map<string, number>();
@@ -168,8 +169,13 @@ export function useTaxEstimate(): {
       const amt = Math.abs(Number(t.amount) || 0);
 
       if (filing === "1099_schedule_c" || filing === "k1_partnership") {
-        grossSE += amt;
-        seEligibleTxIds.add(t.id);
+        if (company?.includeSETaxInRecommendation !== false) {
+          grossSE += amt;
+          seEligibleTxIds.add(t.id);
+          seEligibleByTx.set(t.id, amt);
+        } else {
+          grossOtherBusiness += amt;
+        }
       } else if (filing === "scorp_w2" || filing === "w2") {
         grossW2Business += amt;
       } else {
@@ -214,6 +220,7 @@ export function useTaxEstimate(): {
       .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
 
     const businessStateEligibleGross = Array.from(businessStateEligibleByTx.values()).reduce((s, v) => s + v, 0);
+    const seEligibleGross = Array.from(seEligibleByTx.values()).reduce((s, v) => s + v, 0);
 
     return {
       grossSE,
@@ -226,6 +233,7 @@ export function useTaxEstimate(): {
       businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
+      seEligibleGross,
     };
     };
 
