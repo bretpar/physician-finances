@@ -366,6 +366,26 @@ export default function Transactions() {
     transactions.filter((t) => t.needs_review).length
   , [transactions]);
 
+  const legacyExpenseReviewQueue = useMemo(() =>
+    transactions.filter((t) =>
+      t.transaction_type === "expense" &&
+      !t.source_id &&
+      !t.excluded_from_reports
+    ),
+  [transactions]);
+
+  const assignLegacyExpense = (transactionId: string, companyId: string) => {
+    const company = companyById.get(companyId);
+    if (!company) return;
+    updateMutation.mutate({
+      id: transactionId,
+      entity: company.name,
+      source_id: company.id,
+      company_type: company.companyType,
+      needs_review: false,
+    } as any);
+  };
+
   // Company filter: list non-W2 companies by id (canonical) with name as label.
   const companyFilterOptions = useMemo(() => {
     return companies
@@ -1126,6 +1146,46 @@ export default function Transactions() {
 
       {/* Suggested Matches */}
       <SuggestedMatches suggestions={suggestions} />
+
+      {legacyExpenseReviewQueue.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex flex-col gap-1 border-b border-border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-card-foreground">Needs Review: assign legacy expenses</h2>
+              <p className="text-xs text-muted-foreground">
+                These expenses do not have a company ID yet. Assign each one to the exact entity/tax type.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit text-xs">{legacyExpenseReviewQueue.length} item{legacyExpenseReviewQueue.length === 1 ? "" : "s"}</Badge>
+          </div>
+          <div className="divide-y divide-border">
+            {legacyExpenseReviewQueue.map((tx) => (
+              <div key={tx.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[90px_1fr_110px_260px] sm:items-center">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-card-foreground">{tx.vendor || "Legacy expense"}</p>
+                  <p className="truncate text-xs text-muted-foreground">Current label: {tx.entity || "Unassigned"}</p>
+                </div>
+                <span className="text-sm font-semibold text-card-foreground tabular-nums sm:text-right">-{fmt(Math.abs(tx.amount))}</span>
+                <Select onValueChange={(companyId) => assignLegacyExpense(tx.id, companyId)} disabled={updateMutation.isPending}>
+                  <SelectTrigger className="h-9 w-full text-xs">
+                    <SelectValue placeholder="Assign entity / tax type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businessCompanies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name} — {getFilingMeta(company.companyType).shortLabel}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
