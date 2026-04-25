@@ -60,6 +60,7 @@ export interface IncomeRecommendation {
 interface RecommendationInput {
   grossIncome: number;
   incomeType: string;
+  incomeBucket?: "personal" | "business";
   federalWithheld: number;
   stateWithheld: number;
   retirement401k: number;
@@ -130,11 +131,12 @@ export function useIncomeRecommendation() {
 
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
-      const { grossIncome, incomeType, federalWithheld, stateWithheld, retirement401k, preTaxDeductions } = input;
+      const { grossIncome, incomeType, incomeBucket, federalWithheld, stateWithheld, retirement401k, preTaxDeductions } = input;
 
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
+      const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
       const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
       const profile = getSelectedWithholdingProfileRate({ taxSettings: settings, actualEstimate, forecastEstimate });
 
@@ -148,7 +150,7 @@ export function useIncomeRecommendation() {
 
       if (withholdingMethod === "flat_estimate") {
         const rateSel = getSavingsRateForIncomeBucket({
-          incomeBucket: isW2 ? "personal" : "business",
+          incomeBucket: resolvedBucket,
           incomeType,
           taxSettings: settings,
           actualEstimate,
@@ -161,7 +163,7 @@ export function useIncomeRecommendation() {
         const estimate = forecastEstimate;
         if (!estimate) return null;
         const rateToUse = getSavingsRateForIncomeBucket({
-          incomeBucket: isW2 ? "personal" : "business",
+          incomeBucket: resolvedBucket,
           incomeType,
           taxSettings: settings,
           actualEstimate,
