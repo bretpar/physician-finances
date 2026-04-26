@@ -63,6 +63,12 @@ function isInterestIncomeTransaction(tx: Pick<DbTransaction, "transaction_type" 
   return /\binterest\b/.test(text);
 }
 
+function isUnassignedOrAutoAssignedInterest(tx: DbTransaction): boolean {
+  if (!isInterestIncomeTransaction(tx)) return false;
+  if (!tx.source_id) return true;
+  return (tx.source_type || "manual") === "plaid" && !tx.user_edited;
+}
+
 /* ───── Income Form State ───── */
 interface IncomeFormState {
   date: string;
@@ -389,8 +395,7 @@ export default function Transactions() {
 
   const unassignedInterestReviewQueue = useMemo(() =>
     transactions.filter((t) =>
-      isInterestIncomeTransaction(t) &&
-      !t.source_id &&
+      isUnassignedOrAutoAssignedInterest(t) &&
       !t.excluded_from_reports
     ),
   [transactions]);
@@ -939,7 +944,7 @@ export default function Transactions() {
     const businessFiltered = filtered.filter((t) =>
       !isExcludedFromBusiness(t as any) &&
       !!t.source_id &&
-      !isInterestIncomeTransaction(t)
+      !isUnassignedOrAutoAssignedInterest(t)
     );
     const revenue = businessFiltered
       .filter((t) => t.transaction_type === "income")
