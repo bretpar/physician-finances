@@ -111,7 +111,7 @@ export function useWithholdingRecommendation() {
 
       const isW2 = isW2FilingType(incomeType);
       const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
-      const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
+      const withholdingMethod = settings.withholdingMethod || "dynamic_planner";
       const selectedProfile = getSelectedWithholdingProfileRate({
         taxSettings: settings,
         actualEstimate,

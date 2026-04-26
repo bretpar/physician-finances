@@ -140,7 +140,7 @@ export function useIncomeRecommendation() {
 
       const isW2 = isW2FilingType(incomeType);
       const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
-      const withholdingMethod = settings.withholdingMethod || "dynamic_actual";
+      const withholdingMethod = settings.withholdingMethod || "dynamic_planner";
       const profile = getSelectedWithholdingProfileRate({ taxSettings: settings, actualEstimate, forecastEstimate });
 
       // Net taxable for this entry

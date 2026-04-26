@@ -172,7 +172,7 @@ function TaxWithholdingSection() {
   const [savedTick, setSavedTick] = useState(false);
 
   const source: WithholdingDraft = useMemo(() => ({
-    withholdingMethod: data?.withholdingMethod || "dynamic_actual",
+    withholdingMethod: data?.withholdingMethod || "dynamic_planner",
     manualEffectiveTaxRate: data?.manualEffectiveTaxRate ?? 20,
   }), [data?.withholdingMethod, data?.manualEffectiveTaxRate]);
 
