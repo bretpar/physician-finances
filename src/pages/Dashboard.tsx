@@ -117,15 +117,20 @@ export default function Dashboard() {
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
-  // Mirror the tracker's math (CURRENT QUARTER ONLY) so the score stays consistent.
-  const quarterGoal = Math.max(0, annualTaxLiability / 4);
-  const paidThisQuarter =
-    companyRows.reduce((s, c) => s + c.paid, 0) + quarterlyPayments;
-  const rawSavedThisQuarter = companyRows.reduce((s, c) => s + c.saved, 0);
-  const savedThisQuarter = Math.max(0, rawSavedThisQuarter - quarterlyPayments);
-  const progressThisQuarter = paidThisQuarter + savedThisQuarter;
-  const taxProgressPct = quarterGoal > 0 ? (progressThisQuarter / quarterGoal) * 100 : 100;
-  const remainingTaxThisQuarter = Math.max(0, quarterGoal - progressThisQuarter);
+  const quarterlyEstimator = useQuarterlyEstimator({
+    annualTaxLiability,
+    payments,
+    incomeEntries: incomeEntries || [],
+    personalEntries: personalEntries || [],
+    transactions: transactions || [],
+    companies,
+    quarterMethod: rates?.quarterlyTrackerMethod ?? "even",
+    projectedPaychecks,
+  });
+  const taxProgressPct = quarterlyEstimator.quarterTarget > 0
+    ? (quarterlyEstimator.progressAmount / quarterlyEstimator.quarterTarget) * 100
+    : 100;
+  const remainingTaxThisQuarter = quarterlyEstimator.remainingThisQuarter;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
