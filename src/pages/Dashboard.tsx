@@ -157,6 +157,7 @@ export default function Dashboard() {
         personalBucketRate={personalRate}
         businessBucketRate={businessRate}
         effectiveTaxRate={effectiveTaxRate}
+        showQuarterNavigation={false}
       />
 
       <FinancialScore
