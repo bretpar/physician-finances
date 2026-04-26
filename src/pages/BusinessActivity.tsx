@@ -944,6 +944,7 @@ export default function Transactions() {
     const businessFiltered = filtered.filter((t) =>
       !isExcludedFromBusiness(t as any) &&
       !!t.source_id &&
+      companyById.has(t.source_id) &&
       !isUnassignedOrAutoAssignedInterest(t)
     );
     const revenue = businessFiltered
@@ -966,10 +967,15 @@ export default function Transactions() {
     const expenses = txExpenses + mileageDed;
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
     const ownerDeds = (incomeEntries || [])
-      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
+      .filter((e) =>
+        normalizeFilingType(e.income_type) === "k1_partnership" &&
+        !!e.source_id &&
+        companyById.has(e.source_id) &&
+        (filterCompany === "all" || e.source_id === filterCompany)
+      )
       .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
     return { revenue, expenses, txExpenses, mileageDeduction: mileageDed, profit: revenue - expenses, ownerDeductions: ownerDeds };
-  }, [filtered, incomeEntries, ytdMileage, filterCompany]);
+  }, [filtered, incomeEntries, ytdMileage, filterCompany, companyById]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
