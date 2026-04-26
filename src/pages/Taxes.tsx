@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format, isPast, isAfter } from "date-fns";
 import {
-  DollarSign, CheckCircle2, AlertTriangle,
+  CheckCircle2, AlertTriangle, Info,
   Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import TaxBreakdown from "@/components/tax-breakdown/TaxBreakdown";
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -73,6 +74,7 @@ export default function Taxes() {
 
   const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
 
   const isLoading = ratesLoading || estLoading;
 
@@ -82,6 +84,7 @@ export default function Taxes() {
 
   // Use the unified debug breakdown as the source of truth so UI matches engine.
   const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
+  const totalGrossIncome = e?.totalIncome ?? ((e?.w2Income ?? 0) + (e?.grossBusinessIncome ?? 0) + (e?.otherIncome ?? 0));
   const totalReturnIncome = e?.totalReturnIncomeBeforeAdjustments ?? 0;
   const overviewProfile = getSelectedWithholdingProfileRate({
     taxSettings: rates,
@@ -111,17 +114,36 @@ export default function Taxes() {
     const remainingCount = Math.max(1, remainingQs.length);
     const suggestedPerQ = remainingTax / remainingCount;
 
-    return QUARTERS.map((q) => {
+    return QUARTERS.map((q, index) => {
       const qPayments = payments.filter((p) => p.quarter === q.key);
       const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
-      const recommended = suggestedPerQ;
+      const savedAmount = savings
+        .filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index)
+        .reduce((s, sv) => s + Number(sv.amount), 0);
+      const recommended = estimatedOwed > 0 ? estimatedOwed / 4 : suggestedPerQ;
       const remainingDue = Math.max(0, recommended - paidAmount);
-      let status: "paid" | "upcoming" | "overdue" = "upcoming";
+      const progress = recommended > 0 ? Math.min(100, (paidAmount / recommended) * 100) : 100;
+      let status: "paid" | "on_track" | "partial" | "attention" = "on_track";
       if (paidAmount >= recommended && recommended > 0) status = "paid";
-      else if (isPast(q.due) && paidAmount < recommended) status = "overdue";
-      return { ...q, paidAmount, recommended, remainingDue, status };
+      else if (isPast(q.due) && paidAmount < recommended) status = "attention";
+      else if (paidAmount > 0) status = "partial";
+      const quarterShare = 0.25;
+      return {
+        ...q,
+        paidAmount,
+        savedAmount,
+        recommended,
+        remainingDue,
+        progress,
+        status,
+        federalPortion: (debug?.federalIncomeTax ?? e?.federalTax ?? 0) * quarterShare,
+        statePortion: (debug?.stateTax ?? e?.stateTax ?? 0) * quarterShare,
+        businessPortion: (debug?.selfEmploymentTax ?? e?.seTax.total ?? 0) * quarterShare,
+        incomeIncluded: totalGrossIncome * quarterShare,
+        deductionsIncluded: ((e?.totalIncome ?? 0) - (e?.taxableIncome ?? 0)) * quarterShare,
+      };
     });
-  }, [payments, remainingTax, now]);
+  }, [payments, savings, remainingTax, estimatedOwed, debug, e, totalGrossIncome, now]);
 
   const nextDue = quarterData.find((q) => q.status === "upcoming" || q.status === "overdue");
 
