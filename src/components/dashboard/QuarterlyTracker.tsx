@@ -43,6 +43,8 @@ interface QuarterlyTrackerProps {
   showCompanyBreakdown?: boolean;
   showFooter?: boolean;
   showTaxOverviewCta?: boolean;
+  showQuarterNavigation?: boolean;
+  linkDeadlineToTaxOverview?: boolean;
 }
 
 const fmt = (n: number) =>
@@ -123,6 +125,8 @@ export default function QuarterlyTracker({
   showCompanyBreakdown = true,
   showFooter = true,
   showTaxOverviewCta = false,
+  showQuarterNavigation = true,
+  linkDeadlineToTaxOverview = false,
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
   const initial = useMemo(() => currentOwningYear(), []);
@@ -350,10 +354,20 @@ export default function QuarterlyTracker({
             <Icon className={cn("h-5 w-5 shrink-0", toneStyles.accent)} />
             <span className="truncate">{q.label} Tax Progress</span>
           </CardTitle>
-          <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
+          {linkDeadlineToTaxOverview ? (
+            <button
+              type="button"
+              onClick={() => navigate("/taxes#quarterly-estimator")}
+              className="shrink-0 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
+            >
+              due {q.deadlineLabel}
+            </button>
+          ) : (
+            <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
+          )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 pb-10">
+      <CardContent className={cn("space-y-4", showQuarterNavigation ? "pb-10" : "pb-4")}>
         {/* Primary numbers */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="min-w-0">
@@ -494,7 +508,7 @@ export default function QuarterlyTracker({
         </p>}
 
         {/* Quarter navigation affordance */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
+        {showQuarterNavigation && <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
           <button
             type="button"
             onClick={goPrev}
@@ -514,7 +528,7 @@ export default function QuarterlyTracker({
           >
             <ChevronRight className="h-4 w-4" />
           </button>
-        </div>
+        </div>}
       </CardContent>
     </Card>
   );
