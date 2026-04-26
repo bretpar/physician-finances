@@ -10,6 +10,7 @@ import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
+import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
@@ -18,6 +19,7 @@ import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes
 import { aggregateByCategory } from "@/lib/incomeClassification";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -51,6 +53,7 @@ export function useTaxEstimate(): {
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
   const { data: hsaRows = [] } = useHsaContributions(currentYear);
+  const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
   const { companies } = useCompanies();
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -277,7 +280,7 @@ export function useTaxEstimate(): {
     };
   }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr]);
 
-  const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
+  const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading || hoLoading;
 
   const scopedBaseInputs = useMemo(() => {
     if (!rates || !reconciledIncomeEntries) return null;
@@ -321,6 +324,22 @@ export function useTaxEstimate(): {
       const businessExpenses = scope.transactions
         .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
         .reduce((s, t) => s + Math.abs(t.amount), 0);
+      const homeOfficeByCompany = getIncludedHomeOfficeByCompany(homeOfficeDeductions);
+      const homeOfficeDeduction = getIncludedHomeOfficeTotal(homeOfficeDeductions);
+      let seEligibleHomeOfficeDeduction = 0;
+      let businessStateEligibleHomeOfficeDeduction = 0;
+      for (const [companyId, amount] of homeOfficeByCompany.entries()) {
+        const company = companies.find((c) => c.id === companyId);
+        const filing = normalizeFilingType(company?.companyType);
+        if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false) {
+          seEligibleHomeOfficeDeduction += amount;
+        }
+        if (company && (filing === "1099_schedule_c" || filing === "k1_partnership" || filing === "scorp_distribution")) {
+          const eligible = company.applyBusinessStateTax !== false
+            && (rates.businessStateTaxApplicationMode !== "selected" || rates.businessStateTaxCompanyIds.includes(company.id));
+          if (eligible) businessStateEligibleHomeOfficeDeduction += amount;
+        }
+      }
 
       const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
       const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
@@ -372,7 +391,7 @@ export function useTaxEstimate(): {
       return {
         businessIncome,
         seEligibleBusinessIncome,
-        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses,
+        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction,
         seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
         businessFederalWithheld,
@@ -381,7 +400,7 @@ export function useTaxEstimate(): {
         businessRetirement,
         ownerHealthcare,
         businessStateEligibleGross,
-        businessStateEligibleExpenses: businessExpenses * eligibleRatio,
+        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction,
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
         personalIncome: totalPersonalIncome,
@@ -392,7 +411,7 @@ export function useTaxEstimate(): {
         personalPreTax,
         personalRetirement,
         netStockGain,
-        businessExpenses,
+        businessExpenses: businessExpenses + homeOfficeDeduction,
         mileageDeduction,
         annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,
         txActualWithholding,
@@ -434,7 +453,7 @@ export function useTaxEstimate(): {
       actualOnlyTaxInputs: buildInput(scopedTaxData.actualOnlyTaxInputs, "actualOnly"),
       includePlannedTaxInputs: buildInput(scopedTaxData.includePlannedTaxInputs, "actualPlusPlanned"),
     };
-  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, companies, annualizedRetirement]);
+  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, companies, annualizedRetirement, homeOfficeDeductions]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;

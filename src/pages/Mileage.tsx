@@ -10,10 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet, HeartPulse } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info, Wallet } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { useTransactions } from "@/hooks/useTransactions";
 import { HsaSettingsSection, HsaLedgerSection } from "@/components/settings/HsaSection";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
+import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
@@ -21,6 +25,8 @@ import {
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { normalizeFilingType } from "@/lib/filingTypes";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -36,6 +42,24 @@ interface ContribForm {
   apply_to_withholding: boolean;
   notes: string;
 }
+
+interface HomeOfficeForm {
+  companyId: string;
+  includeInTaxCalculation: boolean;
+  method: HomeOfficeMethod;
+  squareFeet: string;
+  priorYearAmount: string;
+  taxYear: string;
+}
+
+const emptyHomeOfficeForm = (): HomeOfficeForm => ({
+  companyId: "",
+  includeInTaxCalculation: false,
+  method: "simplified_square_footage",
+  squareFeet: "",
+  priorYearAmount: "",
+  taxYear: String(new Date().getFullYear()),
+});
 
 const emptyContribForm: ContribForm = {
   account_type: "401k",
@@ -85,6 +109,11 @@ export default function Mileage() {
 
   // ─── Income-linked retirement data ────────────
   const { data: incomeEntries } = useIncomeEntries();
+  const { data: transactions = [] } = useTransactions();
+  const currentYear = now.getFullYear();
+  const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(currentYear);
+  const saveHomeOffice = useSaveHomeOfficeDeduction();
+  const deleteHomeOffice = useDeleteHomeOfficeDeduction();
   const paycheckLinked = useMemo(() => {
     if (!incomeEntries) return { entries: [], total: 0 };
     const entries = incomeEntries.filter((e) => Number(e.retirement_401k) > 0);
@@ -96,6 +125,10 @@ export default function Mileage() {
   const [contribEditId, setContribEditId] = useState<string | null>(null);
   const [showContribForm, setShowContribForm] = useState(false);
   const [contribDeleteId, setContribDeleteId] = useState<string | null>(null);
+  const [homeOfficeForm, setHomeOfficeForm] = useState<HomeOfficeForm>(emptyHomeOfficeForm);
+  const [homeOfficeEditId, setHomeOfficeEditId] = useState<string | null>(null);
+  const [showHomeOfficeForm, setShowHomeOfficeForm] = useState(false);
+  const [homeOfficeDeleteId, setHomeOfficeDeleteId] = useState<string | null>(null);
 
   // ─── Mileage helpers ──────────────────────────
   const monthTotalMiles = useMemo(() => monthEntries.reduce((s, e) => s + Number(e.miles), 0), [monthEntries]);
@@ -114,6 +147,32 @@ export default function Mileage() {
     companies.forEach((c) => set.add(c.name));
     return Array.from(set).filter(Boolean).sort();
   }, [ytdEntries, companies]);
+
+  const businessCompanies = useMemo(
+    () => companies.filter((c) => ["1099_schedule_c", "k1_partnership", "scorp_distribution"].includes(normalizeFilingType(c.companyType))),
+    [companies],
+  );
+
+  const availableProfitByCompany = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of businessCompanies) map.set(c.id, 0);
+    for (const tx of transactions) {
+      if (isExcludedFromBusiness(tx as any) || !tx.source_id) continue;
+      if (!map.has(tx.source_id)) continue;
+      const amount = Math.abs(Number(tx.amount) || 0);
+      map.set(tx.source_id, (map.get(tx.source_id) || 0) + (tx.transaction_type === "income" ? amount : tx.transaction_type === "expense" ? -amount : 0));
+    }
+    for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - Number(e.miles) * IRS_MILEAGE_RATE);
+    return map;
+  }, [businessCompanies, transactions, ytdEntries]);
+
+  const homeOfficePreview = useMemo(() => calculateHomeOfficeAmounts({
+    method: homeOfficeForm.method,
+    squareFeet: num(homeOfficeForm.squareFeet),
+    priorYearAmount: num(homeOfficeForm.priorYearAmount),
+    includeInTaxCalculation: homeOfficeForm.includeInTaxCalculation,
+    availableBusinessProfit: availableProfitByCompany.get(homeOfficeForm.companyId) || 0,
+  }), [homeOfficeForm, availableProfitByCompany]);
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
 
@@ -225,14 +284,58 @@ export default function Mileage() {
     setContribDeleteId(null);
   }
 
+  function resetHomeOfficeForm() {
+    setHomeOfficeForm(emptyHomeOfficeForm());
+    setHomeOfficeEditId(null);
+    setShowHomeOfficeForm(false);
+  }
+
+  function startEditHomeOffice(deduction: HomeOfficeDeduction) {
+    setHomeOfficeForm({
+      companyId: deduction.company_id || "",
+      includeInTaxCalculation: deduction.include_in_tax_calculation,
+      method: deduction.method,
+      squareFeet: deduction.square_feet == null ? "" : String(deduction.square_feet),
+      priorYearAmount: deduction.prior_year_amount == null ? "" : String(deduction.prior_year_amount),
+      taxYear: String(deduction.tax_year),
+    });
+    setHomeOfficeEditId(deduction.id);
+    setShowHomeOfficeForm(true);
+  }
+
+  function handleHomeOfficeSubmit() {
+    if (homeOfficeForm.includeInTaxCalculation && !homeOfficeForm.companyId) return;
+    if (homeOfficeForm.method === "simplified_square_footage" && num(homeOfficeForm.squareFeet) <= 0) return;
+    if (homeOfficeForm.method === "prior_year_estimate" && num(homeOfficeForm.priorYearAmount) < 0) return;
+    saveHomeOffice.mutate({
+      id: homeOfficeEditId || undefined,
+      company_id: homeOfficeForm.companyId || null,
+      include_in_tax_calculation: homeOfficeForm.includeInTaxCalculation,
+      method: homeOfficeForm.method,
+      square_feet: homeOfficeForm.method === "simplified_square_footage" ? num(homeOfficeForm.squareFeet) : null,
+      prior_year_amount: homeOfficeForm.method === "prior_year_estimate" ? num(homeOfficeForm.priorYearAmount) : null,
+      calculated_amount: homeOfficePreview.calculatedAmount,
+      allowed_amount: homeOfficePreview.allowedAmount,
+      unused_capped_amount: homeOfficePreview.unusedCappedAmount,
+      tax_year: Number(homeOfficeForm.taxYear) || currentYear,
+    }, { onSuccess: resetHomeOfficeForm });
+  }
+
+  function handleDeleteHomeOffice() {
+    if (!homeOfficeDeleteId) return;
+    deleteHomeOffice.mutate(homeOfficeDeleteId);
+    setHomeOfficeDeleteId(null);
+  }
+
   const getAccountLabel = (v: string) => ACCOUNT_TYPES.find((a) => a.value === v)?.label || v;
   const getFreqLabel = (v: string) => FREQUENCIES.find((f) => f.value === v)?.label || v;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <Tabs defaultValue="mileage" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-xl">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
           <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>
+          <TabsTrigger value="home-office" className="gap-2"><Home className="h-4 w-4" /> Home Office</TabsTrigger>
           <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>
           <TabsTrigger value="hsa" className="gap-2"><HeartPulse className="h-4 w-4" /> HSA</TabsTrigger>
         </TabsList>
@@ -323,6 +426,60 @@ export default function Mileage() {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        {/* ─── HOME OFFICE TAB ───────────────────── */}
+        <TabsContent value="home-office" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  Home Office
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild><Info className="h-4 w-4 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Home office deductions are generally for business use of your home. The simplified method estimates the deduction using square footage. You can also use last year’s deduction as an estimate for planning.</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </CardTitle>
+                <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2"><Plus className="h-4 w-4" /> Add Deduction</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {homeOfficeDeductions.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">No home office deductions saved.</div>
+              ) : homeOfficeDeductions.map((d) => {
+                const company = companies.find((c) => c.id === d.company_id);
+                const filing = normalizeFilingType(company?.companyType);
+                const trackedForReview = d.include_in_tax_calculation && filing === "k1_partnership";
+                const status = !d.include_in_tax_calculation ? "Not included" : trackedForReview ? "Tracked for review" : "Included";
+                return (
+                  <div key={d.id} className="rounded-lg border border-border p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-foreground">{company?.name || "No company selected"}</p>
+                          <Badge variant={d.include_in_tax_calculation ? "default" : "secondary"}>{status}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{d.method === "simplified_square_footage" ? "Simplified square footage method" : "Prior-year estimate"} • {d.tax_year}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditHomeOffice(d)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setHomeOfficeDeleteId(d.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                      <div><p className="text-xs text-muted-foreground">Selected company</p><p className="font-medium text-foreground">{company?.name || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Calculated deduction</p><p className="font-medium text-foreground tabular-nums">{fmt(Number(d.calculated_amount))}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Amount used in tax calculation</p><p className="font-medium text-foreground tabular-nums">{fmt(Number(d.allowed_amount))}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Tax calculation status</p><p className="font-medium text-foreground">{status}</p></div>
+                    </div>
+                    {Number(d.unused_capped_amount) > 0 && <p className="text-xs text-muted-foreground">Only {fmt(Number(d.allowed_amount))} of this deduction was used because the deduction cannot exceed the available business profit.</p>}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ─── RETIREMENT TAB ─────────────────────── */}
@@ -595,6 +752,54 @@ export default function Mileage() {
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Delete Mileage Entry</AlertDialogTitle><AlertDialogDescription>This will permanently remove this mileage entry.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteMileage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={showHomeOfficeForm} onOpenChange={(open) => !open && resetHomeOfficeForm()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>{homeOfficeEditId ? "Edit Home Office Deduction" : "Add Home Office Deduction"}</DialogTitle></DialogHeader>
+          <div className="space-y-5">
+            <div className="flex items-start gap-3 rounded-lg border border-border p-3">
+              <Switch checked={homeOfficeForm.includeInTaxCalculation} onCheckedChange={(v) => setHomeOfficeForm((p) => ({ ...p, includeInTaxCalculation: v }))} />
+              <div><Label>Include in tax calculation</Label><p className="text-xs text-muted-foreground">Turn on to include this deduction in your estimated tax calculation.</p></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Associated company {homeOfficeForm.includeInTaxCalculation ? "*" : ""}</Label>
+                <Select value={homeOfficeForm.companyId} onValueChange={(v) => setHomeOfficeForm((p) => ({ ...p, companyId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select a business" /></SelectTrigger>
+                  <SelectContent>{businessCompanies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} — {c.companyType}</SelectItem>)}</SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Choose which business this home office deduction belongs to.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tax year</Label>
+                <Input type="number" value={homeOfficeForm.taxYear} onChange={(e) => setHomeOfficeForm((p) => ({ ...p, taxYear: e.target.value }))} />
+              </div>
+            </div>
+            <RadioGroup value={homeOfficeForm.method} onValueChange={(v) => setHomeOfficeForm((p) => ({ ...p, method: v as HomeOfficeMethod }))} className="grid gap-3 sm:grid-cols-2">
+              <Label className="flex items-start gap-3 rounded-lg border border-border p-3"><RadioGroupItem value="simplified_square_footage" /> <span><span className="block">Simplified square footage method</span><span className="block text-xs font-normal text-muted-foreground">Current IRS simplified method is $5 per square foot, up to 300 square feet.</span></span></Label>
+              <Label className="flex items-start gap-3 rounded-lg border border-border p-3"><RadioGroupItem value="prior_year_estimate" /> <span><span className="block">Use prior-year estimate</span><span className="block text-xs font-normal text-muted-foreground">Use last year’s home office deduction as a planning estimate for this year.</span></span></Label>
+            </RadioGroup>
+            {homeOfficeForm.method === "simplified_square_footage" ? (
+              <div className="space-y-1.5"><Label>Home office square footage</Label><Input type="number" min="0" step="1" value={homeOfficeForm.squareFeet} onChange={(e) => setHomeOfficeForm((p) => ({ ...p, squareFeet: e.target.value }))} />{homeOfficePreview.isSquareFootageCapped && <p className="text-xs text-muted-foreground">The simplified method is capped at 300 square feet, so only 300 sq ft is used for this estimate.</p>}</div>
+            ) : (
+              <div className="space-y-1.5"><Label>Prior-year home office deduction amount</Label><Input type="number" min="0" step="0.01" value={homeOfficeForm.priorYearAmount} onChange={(e) => setHomeOfficeForm((p) => ({ ...p, priorYearAmount: e.target.value }))} /></div>
+            )}
+            <div className="rounded-lg bg-muted/40 p-4 space-y-2">
+              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Estimated deduction</span><span className="font-bold text-foreground tabular-nums">{fmt(homeOfficePreview.calculatedAmount)}</span></div>
+              {homeOfficePreview.allowedAmount !== homeOfficePreview.calculatedAmount && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount used in tax calculation</span><span className="font-semibold text-foreground tabular-nums">{fmt(homeOfficePreview.allowedAmount)}</span></div>}
+              {homeOfficeForm.includeInTaxCalculation && homeOfficePreview.allowedAmount === 0 && <p className="text-xs text-muted-foreground">This deduction is saved, but it is not currently reducing taxes because this company does not have available business profit.</p>}
+            </div>
+            <DialogFooter><Button variant="outline" onClick={resetHomeOfficeForm}>Cancel</Button><Button onClick={handleHomeOfficeSubmit}>Save Deduction</Button></DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!homeOfficeDeleteId} onOpenChange={(open) => !open && setHomeOfficeDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete Home Office Deduction</AlertDialogTitle><AlertDialogDescription>This will remove this home office deduction from the Deductions tab and tax calculations.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteHomeOffice} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 

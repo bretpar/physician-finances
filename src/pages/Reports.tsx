@@ -4,6 +4,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
+import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { mapLegacyCategory, EXPENSE_CATEGORIES } from "@/components/ExpenseCategoryCombobox";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, FileText, Building2 } from "lucide-react";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { HOME_OFFICE_REPORT_LABEL } from "@/lib/homeOfficeDeduction";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -56,6 +58,7 @@ export default function Reports() {
   const { data: taxSettings } = useTaxSettings();
 
   const VEHICLE_CATEGORY = "Car and truck expenses";
+  const HOME_OFFICE_CATEGORY = HOME_OFFICE_REPORT_LABEL;
 
   // Resolve a mileage entry to a company NAME (Reports filters by entity name).
   // Entries with no company_id are skipped — they never count toward any company total.
@@ -81,6 +84,7 @@ export default function Reports() {
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState(String(currentYear));
   const [taxCompany, setTaxCompany] = useState("all");
+  const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(Number(taxYear));
 
   const dateRange = useMemo(() => {
     if (quickRange === "custom") return { from: customFrom, to: customTo };
@@ -119,8 +123,6 @@ export default function Reports() {
     } else {
       mileageDed = mileageByCompanyName.get(plCompany) || 0;
     }
-    const totalExpenses = txExpenseTotal + mileageDed;
-
     // Category breakdown — fold mileage into "Car and truck expenses"
     const byCategory: Record<string, number> = {};
     for (const t of expenseTxs) {
@@ -130,9 +132,15 @@ export default function Reports() {
     if (mileageDed > 0) {
       byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
     }
+    const homeOfficeDed = homeOfficeDeductions
+      .filter((d) => d.include_in_tax_calculation && d.status === "active")
+      .filter((d) => plCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === plCompany)
+      .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
+    if (homeOfficeDed > 0) byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
-    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
-  }, [transactions, plCompany, dateRange, mileageByCompanyName]);
+    const totalExpenses = txExpenseTotal + mileageDed + homeOfficeDed;
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, homeOfficeDeduction: homeOfficeDed, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
+  }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
 
   // ──── Annual Tax Summary Computation ────
   const taxData = useMemo(() => {
@@ -163,7 +171,11 @@ export default function Reports() {
     } else {
       mileageDed = mileageByCompanyName.get(taxCompany) || 0;
     }
-    const totalExpenses = txExpenseTotal + mileageDed;
+    const homeOfficeDed = homeOfficeDeductions
+      .filter((d) => d.include_in_tax_calculation && d.status === "active")
+      .filter((d) => taxCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === taxCompany)
+      .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
+    const totalExpenses = txExpenseTotal + mileageDed + homeOfficeDed;
 
     const byCategory: Record<string, number> = {};
     for (const cat of EXPENSE_CATEGORIES) byCategory[cat] = 0;
@@ -172,9 +184,10 @@ export default function Reports() {
       byCategory[cat] = (byCategory[cat] || 0) + Math.abs(t.amount);
     }
     byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
+    byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
-    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory };
-  }, [transactions, taxCompany, taxYear, mileageByCompanyName]);
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, homeOfficeDeduction: homeOfficeDed, netProfit: grossIncome - totalExpenses, byCategory };
+  }, [transactions, taxCompany, taxYear, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
 
   // ──── HSA summary (deductions/reporting) — for Tax Summary (annual) ────
   const hsaSummary = useMemo(() => {
@@ -233,6 +246,9 @@ export default function Reports() {
     csv += `EXPENSES\nCategory,Annual Total\n`;
     for (const cat of EXPENSE_CATEGORIES) {
       csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
+    }
+    if (taxData.homeOfficeDeduction > 0) {
+      csv += `"${HOME_OFFICE_REPORT_LABEL}",${taxData.homeOfficeDeduction}\n`;
     }
     csv += `\nTotal Expenses,${taxData.totalExpenses}\nNet Profit/Loss,${taxData.netProfit}\n`;
     csv += `\nABOVE-THE-LINE / PERSONAL DEDUCTIONS (separate from Schedule C)\n`;
@@ -474,6 +490,12 @@ export default function Reports() {
                     </div>
                   );
                 })}
+                {taxData.homeOfficeDeduction > 0 && (
+                  <div className="flex justify-between px-6 py-2">
+                    <span className="text-sm text-foreground">Business use of home / Home office deduction</span>
+                    <span className="text-sm tabular-nums text-foreground">{fmt(taxData.homeOfficeDeduction)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
