@@ -394,6 +394,18 @@ export default function Taxes() {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="mx-1 space-y-4 border-x border-b border-border px-4 pb-4 pt-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">Export this quarter’s CPA-ready summary and activity.</p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => exportQuarterCsv(q, statusLabel)} className="gap-2">
+                          <Download className="h-4 w-4" /> CSV
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => exportQuarterPdf(q, statusLabel)} className="gap-2">
+                          <Download className="h-4 w-4" /> PDF
+                        </Button>
+                      </div>
+                    </div>
+
                     <div className="grid gap-3 sm:grid-cols-4">
                       <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Estimated due</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.recommended)}</p></div>
                       <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Paid</p><p className="mt-1 font-semibold tabular-nums text-primary">{fmt(q.paidAmount)}</p></div>
