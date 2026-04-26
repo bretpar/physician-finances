@@ -363,7 +363,7 @@ export default function QuarterlyTracker({
               Due {q.deadlineLabel}
             </button>
           ) : (
-            <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
+            <span className="text-xs text-muted-foreground shrink-0">Due {q.deadlineLabel}</span>
           )}
         </div>
       </CardHeader>
