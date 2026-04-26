@@ -1352,7 +1352,7 @@ export default function Transactions() {
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground truncate">
-                  {tx.entity || "Unassigned"}
+                  {getTransactionCompanyLabel(tx)}
                 </span>
                 <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>
                   {isIncomeTx ? "+" : isTransferTx ? "" : ""}{fmt(displayAmount)}
@@ -1528,9 +1528,7 @@ export default function Transactions() {
                         </div>
                       )}
                       <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
-                      {tx.entity && (
-                        <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{tx.entity}</span></div>
-                      )}
+                      <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{getTransactionCompanyLabel(tx)}</span></div>
                       {(tx as { schedule_c_category?: string | null }).schedule_c_category && (
                         <div className="flex justify-between gap-3"><span>Schedule C</span><span className="text-foreground text-right truncate">{(tx as { schedule_c_category?: string | null }).schedule_c_category}</span></div>
                       )}
