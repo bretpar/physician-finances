@@ -41,6 +41,17 @@ export default function TaxBreakdown({ filterCompanyName }: Props) {
           )}
           <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
             <button
+              onClick={() => setMode("forecast")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                mode === "forecast"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Include Planned Income
+            </button>
+            <button
               onClick={() => setMode("actual")}
               className={cn(
                 "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
@@ -50,17 +61,6 @@ export default function TaxBreakdown({ filterCompanyName }: Props) {
               )}
             >
               Actual Only
-            </button>
-            <button
-              onClick={() => setMode("forecast")}
-              className={cn(
-                "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
-                mode === "forecast"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Actual + Planned
             </button>
           </div>
         </div>
