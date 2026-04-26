@@ -358,7 +358,7 @@ export default function QuarterlyTracker({
             <button
               type="button"
               onClick={() => navigate("/taxes#quarterly-estimator")}
-              className="shrink-0 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+              className="shrink-0 text-xs text-muted-foreground underline underline-offset-4 transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground active:translate-y-0 active:scale-95"
             >
               Due {q.deadlineLabel}
             </button>
