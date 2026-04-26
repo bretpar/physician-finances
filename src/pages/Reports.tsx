@@ -247,6 +247,9 @@ export default function Reports() {
     for (const cat of EXPENSE_CATEGORIES) {
       csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
     }
+    if (taxData.homeOfficeDeduction > 0) {
+      csv += `"${HOME_OFFICE_REPORT_LABEL}",${taxData.homeOfficeDeduction}\n`;
+    }
     csv += `\nTotal Expenses,${taxData.totalExpenses}\nNet Profit/Loss,${taxData.netProfit}\n`;
     csv += `\nABOVE-THE-LINE / PERSONAL DEDUCTIONS (separate from Schedule C)\n`;
     csv += `Item,Amount\n`;
