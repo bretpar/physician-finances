@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { format, isPast, isAfter } from "date-fns";
 import {
   CheckCircle2, AlertTriangle, Info,
-  Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown,
+  Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown, Download,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,61 @@ import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+const csvCell = (value: string | number | null | undefined) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const pdfText = (value: string) => value.replace(/[\\()]/g, "\\$&").replace(/[\r\n]+/g, " ");
+
+const createSimplePdfBlob = (title: string, lines: string[]) => {
+  const pageLines = 38;
+  const pages = Array.from({ length: Math.max(1, Math.ceil(lines.length / pageLines)) }, (_, pageIndex) => lines.slice(pageIndex * pageLines, (pageIndex + 1) * pageLines));
+  const fontObjectId = 3 + pages.length * 2;
+  const objects: string[] = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+  ];
+
+  pages.forEach((page, i) => {
+    const pageId = 3 + i * 2;
+    const contentId = pageId + 1;
+    const contentLines = [
+      "BT /F1 16 Tf 50 760 Td 18 TL",
+      `(${pdfText(title)}${pages.length > 1 ? ` - Page ${i + 1}` : ""}) Tj`,
+      "T* /F1 10 Tf 13 TL",
+      ...page.map((line) => `(${pdfText(line)}) Tj T*`),
+      "ET",
+    ].join("\n");
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    objects.push(`<< /Length ${contentLines.length} >>\nstream\n${contentLines}\nendstream`);
+  });
+
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([pdf], { type: "application/pdf" });
+};
 
 const currentYear = new Date().getFullYear();
 const QUARTERS = [
@@ -165,6 +220,64 @@ export default function Taxes() {
     }
   };
 
+  const getQuarterExportRows = (q: (typeof quarterData)[number], statusLabel: string) => [
+    ["Section", "Item", "Date", "Amount", "Notes"],
+    ["Summary", "Quarter", "", q.label, `Due ${q.dueLabel}`],
+    ["Summary", "Status", "", statusLabel, ""],
+    ["Summary", "Estimated due", "", q.recommended, ""],
+    ["Summary", "Paid", "", q.paidAmount, ""],
+    ["Summary", "Saved", "", q.savedAmount, ""],
+    ["Summary", "Remaining after saved", "", q.remainingAfterSaved, ""],
+    ["Breakdown", "Federal tax portion", "", q.federalPortion, ""],
+    ...(rates?.stateTaxEnabled ? [["Breakdown", "State tax portion", "", q.statePortion, ""]] : []),
+    ...(q.businessPortion > 0 ? [["Breakdown", "Self-employment/business portion", "", q.businessPortion, ""]] : []),
+    ["Income and deductions", "Income included", "", q.incomeIncluded, taxMode === "forecast" ? "Includes planned income where available" : "Actual income only"],
+    ["Income and deductions", "Deductions included", "", Math.max(0, q.deductionsIncluded), taxMode === "forecast" ? "Includes planned deductions where available" : "Actual deductions only"],
+    ...q.qPayments.map((p) => ["Activity", "Payment", p.payment_date, Number(p.amount), p.notes ?? ""]),
+    ...q.qSavings.map((sv) => ["Activity", `Saved - ${sv.source}`, sv.savings_date, Number(sv.amount), sv.notes ?? ""]),
+  ];
+
+  const exportQuarterCsv = (q: (typeof quarterData)[number], statusLabel: string) => {
+    const rows = getQuarterExportRows(q, statusLabel);
+    const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `tax-summary-${currentYear}-${q.key}.csv`);
+  };
+
+  const exportQuarterPdf = (q: (typeof quarterData)[number], statusLabel: string) => {
+    const activityLines = q.qPayments.length === 0 && q.qSavings.length === 0
+      ? ["No payments or savings have been logged for this quarter yet."]
+      : [
+          ...q.qPayments.map((p) => `Payment | ${format(new Date(p.payment_date + "T00:00:00"), "MMM d, yyyy")} | ${fmt(Number(p.amount))}${p.notes ? ` | ${p.notes}` : ""}`),
+          ...q.qSavings.map((sv) => `Saved (${sv.source}) | ${format(new Date(sv.savings_date + "T00:00:00"), "MMM d, yyyy")} | ${fmt(Number(sv.amount))}${sv.notes ? ` | ${sv.notes}` : ""}`),
+        ];
+
+    const lines = [
+      `Quarter: ${q.label} (${currentYear})`,
+      `Due date: ${q.dueLabel}`,
+      `Mode: ${taxMode === "forecast" ? "Actual income + planned income" : "Actual income only"}`,
+      `Status: ${statusLabel}`,
+      "",
+      "Summary",
+      `Estimated due: ${fmt(q.recommended)}`,
+      `Paid: ${fmt(q.paidAmount)}`,
+      `Saved: ${fmt(q.savedAmount)}`,
+      `Remaining after saved: ${fmt(q.remainingAfterSaved)}`,
+      "",
+      "Tax breakdown",
+      `Federal tax portion: ${fmt(q.federalPortion)}`,
+      ...(rates?.stateTaxEnabled ? [`State tax portion: ${fmt(q.statePortion)}`] : []),
+      ...(q.businessPortion > 0 ? [`Self-employment/business portion: ${fmt(q.businessPortion)}`] : []),
+      "",
+      "Income and deductions",
+      `Income included: ${fmt(q.incomeIncluded)}`,
+      `Deductions included: ${fmt(Math.max(0, q.deductionsIncluded))}`,
+      "",
+      "Quarter activity",
+      ...activityLines,
+    ];
+    downloadBlob(createSimplePdfBlob(`${q.label} Tax Summary`, lines), `tax-summary-${currentYear}-${q.key}.pdf`);
+  };
+
   if (isLoading) {
     return <div className="flex items-center justify-center py-20"><p className="text-muted-foreground">Loading…</p></div>;
   }
@@ -281,6 +394,18 @@ export default function Taxes() {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="mx-1 space-y-4 border-x border-b border-border px-4 pb-4 pt-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">Export this quarter’s CPA-ready summary and activity.</p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => exportQuarterCsv(q, statusLabel)} className="gap-2">
+                          <Download className="h-4 w-4" /> CSV
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => exportQuarterPdf(q, statusLabel)} className="gap-2">
+                          <Download className="h-4 w-4" /> PDF
+                        </Button>
+                      </div>
+                    </div>
+
                     <div className="grid gap-3 sm:grid-cols-4">
                       <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Estimated due</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.recommended)}</p></div>
                       <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Paid</p><p className="mt-1 font-semibold tabular-nums text-primary">{fmt(q.paidAmount)}</p></div>
