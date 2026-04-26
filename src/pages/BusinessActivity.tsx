@@ -1084,8 +1084,63 @@ export default function Transactions() {
             ))}
           </div>
         </div>
-        {/* Company + date range filters */}
-        <div className="flex flex-col sm:flex-row gap-2 flex-wrap items-center">
+        {/* Mobile advanced filters */}
+        <div className="sm:hidden space-y-2">
+          <Button variant="outline" size="sm" className="h-9 w-full justify-between text-xs" onClick={() => setShowMobileFilters((v) => !v)}>
+            <span>{activeFilterCount > 0 ? `Filters · ${activeFilterCount} active` : "Filters · All companies · All sources"}</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${showMobileFilters ? "rotate-180" : ""}`} />
+          </Button>
+          {activeFilterCount > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {filterCompany !== "all" && <Badge variant="secondary" className="gap-1 text-[11px]">{companyById.get(filterCompany)?.name || "Company"}<button onClick={() => setFilterCompany("all")} className="ml-0.5">×</button></Badge>}
+              {filterSource !== "all" && <Badge variant="secondary" className="gap-1 text-[11px]">{filterSource === "plaid" ? "Imported" : filterSource === "merged" ? "Linked" : "Manual"}<button onClick={() => setFilterSource("all")} className="ml-0.5">×</button></Badge>}
+              {filterReview !== "all" && <Badge variant="secondary" className="gap-1 text-[11px]">Needs Review<button onClick={() => setFilterReview("all")} className="ml-0.5">×</button></Badge>}
+              {filterPlanner !== "all" && <Badge variant="secondary" className="gap-1 text-[11px]">From Planner<button onClick={() => setFilterPlanner("all")} className="ml-0.5">×</button></Badge>}
+              {(filterDateFrom || filterDateTo) && <Badge variant="secondary" className="gap-1 text-[11px]">{filterDateFrom || "Start"}–{filterDateTo || "End"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }} className="ml-0.5">×</button></Badge>}
+              {hideLinkedDupes && <Badge variant="secondary" className="gap-1 text-[11px]">Hide duplicates<button onClick={() => setHideLinkedDupes(false)} className="ml-0.5">×</button></Badge>}
+            </div>
+          )}
+          {showMobileFilters && (
+            <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+              <Select value={filterCompany} onValueChange={setFilterCompany}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="All Companies" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Companies</SelectItem>
+                  {companyFilterOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filterSource} onValueChange={(v) => setFilterSource(v as any)}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="All Sources" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="plaid">Imported</SelectItem>
+                  <SelectItem value="merged">Linked</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+                <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9 text-xs" />
+                <span className="text-xs text-muted-foreground">to</span>
+                <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9 text-xs" />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="mobile-from-planner" className="text-xs text-muted-foreground">From Planner</Label>
+                <Switch checked={filterPlanner === "from_planner"} onCheckedChange={(v) => setFilterPlanner(v ? "from_planner" : "all")} id="mobile-from-planner" />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="mobile-hide-dupes" className="text-xs text-muted-foreground">Hide linked duplicates</Label>
+                <Switch checked={hideLinkedDupes} onCheckedChange={setHideLinkedDupes} id="mobile-hide-dupes" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" className="flex-1" onClick={clearAdvancedFilters}>Clear</Button>
+                <Button size="sm" className="flex-1" onClick={() => setShowMobileFilters(false)}>Apply</Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop company + date range filters */}
+        <div className="hidden sm:flex flex-col sm:flex-row gap-2 flex-wrap items-center">
           <Select value={filterCompany} onValueChange={setFilterCompany}>
             <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs">
               <SelectValue placeholder="All Companies" />
