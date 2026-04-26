@@ -37,11 +37,25 @@ import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
+const paymentYear = new Date().getFullYear();
+const PAYMENT_QUARTERS = [
+  { key: "Q1", label: "Q1", dueLabel: "Apr 15" },
+  { key: "Q2", label: "Q2", dueLabel: "Jun 15" },
+  { key: "Q3", label: "Q3", dueLabel: "Sep 15" },
+  { key: "Q4", label: "Q4", dueLabel: "Jan 15" },
+];
+
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, forecastEstimate, actualDebug, forecastDebug } = useTaxEstimate();
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
+  const { data: transactions, isLoading: txLoading } = useTransactions();
+  const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
+  const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
+  const { companies } = useCompanies();
+  const { data: streams } = useProjectedStreams();
+  const { data: bonuses } = useProjectedBonuses();
 
   const addSaving = useAddTaxSaving();
   const updateSaving = useUpdateTaxSaving();
@@ -70,9 +84,8 @@ export default function Taxes() {
 
   const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
 
-  const isLoading = ratesLoading || estLoading;
+  const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading;
 
   const e = estimate;
   const debug = taxMode === "actual" ? actualDebug : forecastDebug;
@@ -92,48 +105,33 @@ export default function Taxes() {
   const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
   const totalCovered = debug?.countedCreditsTotal ?? 0;
   const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
-
-  const now = new Date();
-
-  // Quarterly data
-  const quarterData = useMemo(() => {
-    const remainingQs = QUARTERS.filter((q) => isAfter(q.due, now) || q.due.toDateString() === now.toDateString());
-    const remainingCount = Math.max(1, remainingQs.length);
-    const suggestedPerQ = remainingTax / remainingCount;
-
-    return QUARTERS.map((q, index) => {
-      const qPayments = payments.filter((p) => p.quarter === q.key);
-      const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
-      const qSavings = savings.filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index);
-      const savedAmount = qSavings.reduce((s, sv) => s + Number(sv.amount), 0);
-      const recommended = estimatedOwed > 0 ? estimatedOwed / 4 : suggestedPerQ;
-      const remainingDue = Math.max(0, recommended - paidAmount);
-      const remainingAfterSaved = Math.max(0, recommended - paidAmount - savedAmount);
-      const progress = recommended > 0 ? Math.min(100, (paidAmount / recommended) * 100) : 100;
-      let status: "paid" | "on_track" | "partial" | "attention" = "on_track";
-      if (paidAmount >= recommended && recommended > 0) status = "paid";
-      else if (isPast(q.due) && paidAmount < recommended) status = "attention";
-      else if (paidAmount > 0) status = "partial";
-      const quarterShare = 0.25;
-      return {
-        ...q,
-        paidAmount,
-        qPayments,
-        savedAmount,
-        qSavings,
-        recommended,
-        remainingDue,
-        remainingAfterSaved,
-        progress,
-        status,
-        federalPortion: (debug?.federalIncomeTax ?? e?.federalTax ?? 0) * quarterShare,
-        statePortion: (debug?.stateTax ?? e?.stateTax ?? 0) * quarterShare,
-        businessPortion: (debug?.selfEmploymentTax ?? e?.seTax.total ?? 0) * quarterShare,
-        incomeIncluded: totalGrossIncome * quarterShare,
-        deductionsIncluded: ((e?.totalIncome ?? 0) - (e?.taxableIncome ?? 0)) * quarterShare,
-      };
-    });
-  }, [payments, savings, remainingTax, estimatedOwed, debug, e, totalGrossIncome, now]);
+  const projectedPaychecks = useMemo(
+    () =>
+      generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries).map((p) => ({
+        date: p.date,
+        grossAmount: Number(p.grossAmount || 0),
+      })),
+    [streams, bonuses, incomeEntries],
+  );
+  const method = rates?.withholdingMethod ?? "dynamic_actual";
+  const trackerEstimate = method === "flat_estimate" ? actualEstimate : (forecastEstimate ?? actualEstimate);
+  const personalRate = getSavingsRateForIncomeBucket({
+    incomeBucket: "personal",
+    incomeType: "W2",
+    taxSettings: rates,
+    actualEstimate,
+    forecastEstimate,
+  }).rate;
+  const businessRate = getSavingsRateForIncomeBucket({
+    incomeBucket: "business",
+    incomeType: "1099",
+    taxSettings: rates,
+    actualEstimate,
+    forecastEstimate,
+    includeSETaxInRecommendation: true,
+  }).rate;
+  const annualTaxLiability = Math.max(0, Number(trackerEstimate?.totalTaxLiability || 0));
+  const trackerEffectiveTaxRate = method === "flat_estimate" ? overviewProfile.federalProfileRate : overviewProfile.canonicalEffectiveTaxRate;
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
   const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
