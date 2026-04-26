@@ -167,7 +167,7 @@ export function getSelectedWithholdingProfileRate(input: {
   forecastEstimate: TaxEstimate | null | undefined;
 }): WithholdingProfileRateResult {
   const settings = input.taxSettings ?? {};
-  const method = (settings.withholdingMethod || "dynamic_actual") as WithholdingProfileRateSource;
+  const method = (settings.withholdingMethod || "dynamic_planner") as WithholdingProfileRateSource;
 
   if (method === "flat_estimate") {
     const federalProfileRate = roundRate(settings.manualEffectiveTaxRate ?? 0);
