@@ -280,7 +280,7 @@ export function useTaxEstimate(): {
     };
   }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr]);
 
-  const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading;
+  const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading || hoLoading;
 
   const scopedBaseInputs = useMemo(() => {
     if (!rates || !reconciledIncomeEntries) return null;
