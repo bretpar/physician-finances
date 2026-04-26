@@ -29,6 +29,8 @@ interface QuarterlyTrackerProps {
   businessBucketRate?: number;
   /** @deprecated kept for backward-compat; use personal/business rates instead. */
   effectiveTaxRate?: number;
+  /** Hide quarter switching for compact/current-quarter-only placements like Dashboard. */
+  showQuarterNavigation?: boolean;
 }
 
 const fmt = (n: number) =>
@@ -47,6 +49,7 @@ export default function QuarterlyTracker({
   personalBucketRate,
   businessBucketRate,
   effectiveTaxRate,
+  showQuarterNavigation = true,
 }: QuarterlyTrackerProps) {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const {
@@ -229,6 +232,7 @@ export default function QuarterlyTracker({
         </p>
 
         {/* Quarter navigation affordance */}
+        {showQuarterNavigation && (
         <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
           <button
             type="button"
@@ -250,6 +254,7 @@ export default function QuarterlyTracker({
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
+        )}
       </CardContent>
     </Card>
   );
