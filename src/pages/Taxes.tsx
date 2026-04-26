@@ -158,64 +158,6 @@ export default function Taxes() {
     }
   };
 
-  const getQuarterExportRows = (q: (typeof quarterData)[number], statusLabel: string) => [
-    ["Section", "Item", "Date", "Amount", "Notes"],
-    ["Summary", "Quarter", "", q.label, `Due ${q.dueLabel}`],
-    ["Summary", "Status", "", statusLabel, ""],
-    ["Summary", "Estimated due", "", q.recommended, ""],
-    ["Summary", "Paid", "", q.paidAmount, ""],
-    ["Summary", "Saved", "", q.savedAmount, ""],
-    ["Summary", "Remaining after saved", "", q.remainingAfterSaved, ""],
-    ["Breakdown", "Federal tax portion", "", q.federalPortion, ""],
-    ...(rates?.stateTaxEnabled ? [["Breakdown", "State tax portion", "", q.statePortion, ""]] : []),
-    ...(q.businessPortion > 0 ? [["Breakdown", "Self-employment/business portion", "", q.businessPortion, ""]] : []),
-    ["Income and deductions", "Income included", "", q.incomeIncluded, taxMode === "forecast" ? "Includes planned income where available" : "Actual income only"],
-    ["Income and deductions", "Deductions included", "", Math.max(0, q.deductionsIncluded), taxMode === "forecast" ? "Includes planned deductions where available" : "Actual deductions only"],
-    ...q.qPayments.map((p) => ["Activity", "Payment", p.payment_date, Number(p.amount), p.notes ?? ""]),
-    ...q.qSavings.map((sv) => ["Activity", `Saved - ${sv.source}`, sv.savings_date, Number(sv.amount), sv.notes ?? ""]),
-  ];
-
-  const exportQuarterCsv = (q: (typeof quarterData)[number], statusLabel: string) => {
-    const rows = getQuarterExportRows(q, statusLabel);
-    const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
-    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `tax-summary-${currentYear}-${q.key}.csv`);
-  };
-
-  const exportQuarterPdf = (q: (typeof quarterData)[number], statusLabel: string) => {
-    const activityLines = q.qPayments.length === 0 && q.qSavings.length === 0
-      ? ["No payments or savings have been logged for this quarter yet."]
-      : [
-          ...q.qPayments.map((p) => `Payment | ${format(new Date(p.payment_date + "T00:00:00"), "MMM d, yyyy")} | ${fmt(Number(p.amount))}${p.notes ? ` | ${p.notes}` : ""}`),
-          ...q.qSavings.map((sv) => `Saved (${sv.source}) | ${format(new Date(sv.savings_date + "T00:00:00"), "MMM d, yyyy")} | ${fmt(Number(sv.amount))}${sv.notes ? ` | ${sv.notes}` : ""}`),
-        ];
-
-    const lines = [
-      `Quarter: ${q.label} (${currentYear})`,
-      `Due date: ${q.dueLabel}`,
-      `Mode: ${taxMode === "forecast" ? "Actual income + planned income" : "Actual income only"}`,
-      `Status: ${statusLabel}`,
-      "",
-      "Summary",
-      `Estimated due: ${fmt(q.recommended)}`,
-      `Paid: ${fmt(q.paidAmount)}`,
-      `Saved: ${fmt(q.savedAmount)}`,
-      `Remaining after saved: ${fmt(q.remainingAfterSaved)}`,
-      "",
-      "Tax breakdown",
-      `Federal tax portion: ${fmt(q.federalPortion)}`,
-      ...(rates?.stateTaxEnabled ? [`State tax portion: ${fmt(q.statePortion)}`] : []),
-      ...(q.businessPortion > 0 ? [`Self-employment/business portion: ${fmt(q.businessPortion)}`] : []),
-      "",
-      "Income and deductions",
-      `Income included: ${fmt(q.incomeIncluded)}`,
-      `Deductions included: ${fmt(Math.max(0, q.deductionsIncluded))}`,
-      "",
-      "Quarter activity",
-      ...activityLines,
-    ];
-    downloadBlob(createSimplePdfBlob(`${q.label} Tax Summary`, lines), `tax-summary-${currentYear}-${q.key}.pdf`);
-  };
-
   if (isLoading) {
     return <div className="flex items-center justify-center py-20"><p className="text-muted-foreground">Loading…</p></div>;
   }
