@@ -52,6 +52,7 @@ const pdfText = (value: string) => value.replace(/[\\()]/g, "\\$&").replace(/[\r
 const createSimplePdfBlob = (title: string, lines: string[]) => {
   const pageLines = 38;
   const pages = Array.from({ length: Math.max(1, Math.ceil(lines.length / pageLines)) }, (_, pageIndex) => lines.slice(pageIndex * pageLines, (pageIndex + 1) * pageLines));
+  const fontObjectId = 3 + pages.length * 2;
   const objects: string[] = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`,
@@ -62,12 +63,12 @@ const createSimplePdfBlob = (title: string, lines: string[]) => {
     const contentId = pageId + 1;
     const contentLines = [
       "BT /F1 16 Tf 50 760 Td 18 TL",
-      `(${pdfText(title)}${pages.length > 1 ? ` — Page ${i + 1}` : ""}) Tj`,
+      `(${pdfText(title)}${pages.length > 1 ? ` - Page ${i + 1}` : ""}) Tj`,
       "T* /F1 10 Tf 13 TL",
       ...page.map((line) => `(${pdfText(line)}) Tj T*`),
       "ET",
     ].join("\n");
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${objects.length + 3} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentId} 0 R >>`);
     objects.push(`<< /Length ${contentLines.length} >>\nstream\n${contentLines}\nendstream`);
   });
 
