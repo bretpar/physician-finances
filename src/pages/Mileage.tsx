@@ -428,6 +428,60 @@ export default function Mileage() {
           </div>
         </TabsContent>
 
+        {/* ─── HOME OFFICE TAB ───────────────────── */}
+        <TabsContent value="home-office" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  Home Office
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild><Info className="h-4 w-4 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Home office deductions are generally for business use of your home. The simplified method estimates the deduction using square footage. You can also use last year’s deduction as an estimate for planning.</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </CardTitle>
+                <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2"><Plus className="h-4 w-4" /> Add Deduction</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {homeOfficeDeductions.length === 0 ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">No home office deductions saved.</div>
+              ) : homeOfficeDeductions.map((d) => {
+                const company = companies.find((c) => c.id === d.company_id);
+                const filing = normalizeFilingType(company?.companyType);
+                const trackedForReview = d.include_in_tax_calculation && filing === "k1_partnership";
+                const status = !d.include_in_tax_calculation ? "Not included" : trackedForReview ? "Tracked for review" : "Included";
+                return (
+                  <div key={d.id} className="rounded-lg border border-border p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-foreground">{company?.name || "No company selected"}</p>
+                          <Badge variant={d.include_in_tax_calculation ? "default" : "secondary"}>{status}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{d.method === "simplified_square_footage" ? "Simplified square footage method" : "Prior-year estimate"} • {d.tax_year}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditHomeOffice(d)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setHomeOfficeDeleteId(d.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                      <div><p className="text-xs text-muted-foreground">Selected company</p><p className="font-medium text-foreground">{company?.name || "—"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Calculated deduction</p><p className="font-medium text-foreground tabular-nums">{fmt(Number(d.calculated_amount))}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Amount used in tax calculation</p><p className="font-medium text-foreground tabular-nums">{fmt(Number(d.allowed_amount))}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Tax calculation status</p><p className="font-medium text-foreground">{status}</p></div>
+                    </div>
+                    {Number(d.unused_capped_amount) > 0 && <p className="text-xs text-muted-foreground">Only {fmt(Number(d.allowed_amount))} of this deduction was used because the deduction cannot exceed the available business profit.</p>}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ─── RETIREMENT TAB ─────────────────────── */}
         <TabsContent value="retirement" className="space-y-6 mt-6">
           {/* Summary cards — include both standalone + paycheck-linked */}
