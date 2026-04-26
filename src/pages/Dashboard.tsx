@@ -274,7 +274,9 @@ export default function Dashboard() {
         effectiveTaxRate={effectiveTaxRate}
         showCompanyBreakdown={false}
         showFooter={false}
-        showTaxOverviewCta
+        showTaxOverviewCta={false}
+        showQuarterNavigation={false}
+        linkDeadlineToTaxOverview
       />
 
       <FinancialScore
