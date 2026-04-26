@@ -123,8 +123,6 @@ export default function Reports() {
     } else {
       mileageDed = mileageByCompanyName.get(plCompany) || 0;
     }
-    const totalExpenses = txExpenseTotal + mileageDed;
-
     // Category breakdown — fold mileage into "Car and truck expenses"
     const byCategory: Record<string, number> = {};
     for (const t of expenseTxs) {
