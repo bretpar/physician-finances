@@ -210,7 +210,7 @@ export default function Dashboard() {
   // ── Choose annual liability based on the user's withholding method ────────
   // - flat_estimate → manual % × actual income base
   // - dynamic_*     → forecast/canonical actual + planned tax profile
-  const method = rates?.withholdingMethod ?? "dynamic_actual";
+  const method = rates?.withholdingMethod ?? "dynamic_planner";
   const baseEstimate =
     method === "flat_estimate" ? actualEstimate : (forecastEstimate ?? actualEstimate);
   const profile = getSelectedWithholdingProfileRate({ taxSettings: rates, actualEstimate, forecastEstimate });

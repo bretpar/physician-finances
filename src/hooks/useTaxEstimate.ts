@@ -33,7 +33,7 @@ export function useTaxEstimate(): {
   actualDebug: TaxDebugBreakdown | null;
   forecastDebug: TaxDebugBreakdown | null;
 } {
-  const [taxMode, setTaxModeRaw] = useState<TaxMode>("actual");
+  const [taxMode, setTaxModeRaw] = useState<TaxMode>("forecast");
 
   const setTaxMode = useCallback((mode: TaxMode) => {
     if (mode === "forecast" && !isFeatureEnabled("forecast_mode")) return;

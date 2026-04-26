@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function TaxBreakdown({ filterCompanyName }: Props) {
-  const [mode, setMode] = useState<TaxBreakdownMode>("actual");
+  const [mode, setMode] = useState<TaxBreakdownMode>("forecast");
   const data = useTaxBreakdown(filterCompanyName, mode);
 
   if (data.isLoading) {

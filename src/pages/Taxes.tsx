@@ -113,7 +113,7 @@ export default function Taxes() {
       })),
     [streams, bonuses, incomeEntries],
   );
-  const method = rates?.withholdingMethod ?? "dynamic_actual";
+  const method = rates?.withholdingMethod ?? "dynamic_planner";
   const trackerEstimate = method === "flat_estimate" ? actualEstimate : (forecastEstimate ?? actualEstimate);
   const personalRate = getSavingsRateForIncomeBucket({
     incomeBucket: "personal",
