@@ -179,6 +179,7 @@ export default function Transactions() {
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [hideLinkedDupes, setHideLinkedDupes] = useState(true);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -432,6 +433,25 @@ export default function Transactions() {
       .map((c) => ({ id: c.id, name: c.name, companyType: c.companyType }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [companies]);
+
+  const activeFilterCount = useMemo(() => [
+    filterCompany !== "all",
+    filterSource !== "all",
+    filterReview !== "all",
+    filterPlanner !== "all",
+    !!filterDateFrom || !!filterDateTo,
+    hideLinkedDupes,
+  ].filter(Boolean).length, [filterCompany, filterSource, filterReview, filterPlanner, filterDateFrom, filterDateTo, hideLinkedDupes]);
+
+  const clearAdvancedFilters = () => {
+    setFilterCompany("all");
+    setFilterSource("all");
+    setFilterReview("all");
+    setFilterPlanner("all");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+    setHideLinkedDupes(false);
+  };
 
   // --- Smart withholding recommendation engine ---
   const { getRecommendation } = useWithholdingRecommendation();
