@@ -30,6 +30,7 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+const num = (v: string) => parseFloat(v) || 0;
 
 // ─── Retirement Contribution Form ───────────────────────────
 interface ContribForm {
@@ -231,8 +232,6 @@ export default function Mileage() {
   }
 
   // ─── Retirement helpers ───────────────────────
-  const num = (v: string) => parseFloat(v) || 0;
-
   const setContribField = (key: keyof ContribForm, value: string | boolean) =>
     setContribForm((p) => ({ ...p, [key]: value }));
 
