@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { format, isPast, isAfter } from "date-fns";
 import {
   CheckCircle2, AlertTriangle, Info,
-  Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown,
+  Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown, Download,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,60 @@ import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+const csvCell = (value: string | number | null | undefined) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const pdfText = (value: string) => value.replace(/[\\()]/g, "\\$&").replace(/[\r\n]+/g, " ");
+
+const createSimplePdfBlob = (title: string, lines: string[]) => {
+  const pageLines = 38;
+  const pages = Array.from({ length: Math.max(1, Math.ceil(lines.length / pageLines)) }, (_, pageIndex) => lines.slice(pageIndex * pageLines, (pageIndex + 1) * pageLines));
+  const objects: string[] = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+  ];
+
+  pages.forEach((page, i) => {
+    const pageId = 3 + i * 2;
+    const contentId = pageId + 1;
+    const contentLines = [
+      "BT /F1 16 Tf 50 760 Td 18 TL",
+      `(${pdfText(title)}${pages.length > 1 ? ` — Page ${i + 1}` : ""}) Tj`,
+      "T* /F1 10 Tf 13 TL",
+      ...page.map((line) => `(${pdfText(line)}) Tj T*`),
+      "ET",
+    ].join("\n");
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${objects.length + 3} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    objects.push(`<< /Length ${contentLines.length} >>\nstream\n${contentLines}\nendstream`);
+  });
+
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([pdf], { type: "application/pdf" });
+};
 
 const currentYear = new Date().getFullYear();
 const QUARTERS = [
