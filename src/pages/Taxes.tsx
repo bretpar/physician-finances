@@ -171,7 +171,7 @@ export default function Taxes() {
         </TabsList>
 
         <TabsContent value="breakdown" className="mt-0">
-          <TaxBreakdown mode={taxMode} onModeChange={setTaxMode} />
+          <TaxBreakdown />
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6 mt-0">

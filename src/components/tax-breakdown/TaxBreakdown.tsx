@@ -9,14 +9,10 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   filterCompanyName?: string;
-  mode?: TaxBreakdownMode;
-  onModeChange?: (mode: TaxBreakdownMode) => void;
 }
 
-export default function TaxBreakdown({ filterCompanyName, mode: controlledMode, onModeChange }: Props) {
-  const [internalMode, setInternalMode] = useState<TaxBreakdownMode>("forecast");
-  const mode = controlledMode ?? internalMode;
-  const setMode = onModeChange ?? setInternalMode;
+export default function TaxBreakdown({ filterCompanyName }: Props) {
+  const [mode, setMode] = useState<TaxBreakdownMode>("forecast");
   const data = useTaxBreakdown(filterCompanyName, mode);
 
   if (data.isLoading) {

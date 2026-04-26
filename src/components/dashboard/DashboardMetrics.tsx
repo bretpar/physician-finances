@@ -47,7 +47,6 @@ export default function DashboardMetrics({
 }: DashboardMetricsProps) {
   const isPremium = isFeatureEnabled("premium_visibility");
   const [projection, setProjection] = useState(true);
-  const showProjection = isPremium && projection;
 
   // ── Pull the EXACT same inputs Income Planner uses ──────────────────────
   const { data: incomeEntries } = useIncomeEntries();
@@ -86,10 +85,10 @@ export default function DashboardMetrics({
   const expectedAnnualIncome = actualYTD.income + projectedTotals.grossIncome;
   const projectedBusinessProfit = forecastDebug?.netBusinessProfit ?? 0;
 
-  const primaryValue = showProjection ? expectedAnnualIncome : totalIncomeYTD;
-  const secondaryValue = showProjection ? projectedBusinessProfit : businessProfitYTD;
-  const primaryLabel = showProjection ? "Expected Annual Income" : "Total Income (YTD)";
-  const secondaryLabel = showProjection ? "Projected Business Profit" : "Business Profit (YTD)";
+  const primaryValue = projection ? expectedAnnualIncome : totalIncomeYTD;
+  const secondaryValue = projection ? projectedBusinessProfit : businessProfitYTD;
+  const primaryLabel = projection ? "Expected Annual Income" : "Total Income (YTD)";
+  const secondaryLabel = projection ? "Projected Business Profit" : "Business Profit (YTD)";
 
   const primaryAnim = useCountUp(primaryValue);
   const secondaryAnim = useCountUp(secondaryValue);
@@ -116,7 +115,7 @@ export default function DashboardMetrics({
 
       {/* Stacked metrics — dominant numbers, soft containers, accent bars */}
       <div
-        key={showProjection ? "proj" : "ytd"}
+        key={projection ? "proj" : "ytd"}
         className="space-y-3 animate-fade-in"
       >
         {/* Primary metric — Total / Expected Income */}
