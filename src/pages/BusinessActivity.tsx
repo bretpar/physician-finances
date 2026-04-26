@@ -1732,7 +1732,7 @@ export default function Transactions() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select company" />
+                    <SelectValue placeholder={isEditingIncome ? "Unassigned" : "Select company"} />
                     {isEditingIncome && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1745,11 +1745,17 @@ export default function Transactions() {
                     )}
                   </SelectTrigger>
                   <SelectContent>
+                    {incomeForm.company === UNASSIGNED_COMPANY_VALUE && (
+                      <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned</SelectItem>
+                    )}
                     {businessCompanies.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name} ({getFilingMeta(c.companyType).shortLabel})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {isEditingIncome && !selectedIncomeCompany && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
+                )}
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Amount *</Label>
