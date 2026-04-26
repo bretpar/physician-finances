@@ -284,6 +284,49 @@ export default function Mileage() {
     setContribDeleteId(null);
   }
 
+  function resetHomeOfficeForm() {
+    setHomeOfficeForm(emptyHomeOfficeForm());
+    setHomeOfficeEditId(null);
+    setShowHomeOfficeForm(false);
+  }
+
+  function startEditHomeOffice(deduction: HomeOfficeDeduction) {
+    setHomeOfficeForm({
+      companyId: deduction.company_id || "",
+      includeInTaxCalculation: deduction.include_in_tax_calculation,
+      method: deduction.method,
+      squareFeet: deduction.square_feet == null ? "" : String(deduction.square_feet),
+      priorYearAmount: deduction.prior_year_amount == null ? "" : String(deduction.prior_year_amount),
+      taxYear: String(deduction.tax_year),
+    });
+    setHomeOfficeEditId(deduction.id);
+    setShowHomeOfficeForm(true);
+  }
+
+  function handleHomeOfficeSubmit() {
+    if (homeOfficeForm.includeInTaxCalculation && !homeOfficeForm.companyId) return;
+    if (homeOfficeForm.method === "simplified_square_footage" && num(homeOfficeForm.squareFeet) <= 0) return;
+    if (homeOfficeForm.method === "prior_year_estimate" && num(homeOfficeForm.priorYearAmount) < 0) return;
+    saveHomeOffice.mutate({
+      id: homeOfficeEditId || undefined,
+      company_id: homeOfficeForm.companyId || null,
+      include_in_tax_calculation: homeOfficeForm.includeInTaxCalculation,
+      method: homeOfficeForm.method,
+      square_feet: homeOfficeForm.method === "simplified_square_footage" ? num(homeOfficeForm.squareFeet) : null,
+      prior_year_amount: homeOfficeForm.method === "prior_year_estimate" ? num(homeOfficeForm.priorYearAmount) : null,
+      calculated_amount: homeOfficePreview.calculatedAmount,
+      allowed_amount: homeOfficePreview.allowedAmount,
+      unused_capped_amount: homeOfficePreview.unusedCappedAmount,
+      tax_year: Number(homeOfficeForm.taxYear) || currentYear,
+    }, { onSuccess: resetHomeOfficeForm });
+  }
+
+  function handleDeleteHomeOffice() {
+    if (!homeOfficeDeleteId) return;
+    deleteHomeOffice.mutate(homeOfficeDeleteId);
+    setHomeOfficeDeleteId(null);
+  }
+
   const getAccountLabel = (v: string) => ACCOUNT_TYPES.find((a) => a.value === v)?.label || v;
   const getFreqLabel = (v: string) => FREQUENCIES.find((f) => f.value === v)?.label || v;
 
