@@ -352,20 +352,20 @@ export default function QuarterlyTracker({
       </CardHeader>
       <CardContent className="space-y-4 pb-10">
         {/* Primary numbers */}
-        <div className="space-y-2.5">
-          <div className="flex min-w-0 items-baseline justify-between gap-3">
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium shrink-0">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
               Paid + Saved QTD
             </p>
-            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground whitespace-nowrap text-right">
+            <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums text-foreground whitespace-nowrap">
               {fmt(progressAmount)}
             </p>
           </div>
-          <div className="flex min-w-0 items-baseline justify-between gap-3">
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium shrink-0">
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
               Suggested by today
             </p>
-            <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap text-right", toneStyles.accent)}>
+            <p className={cn("mt-1 text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap", toneStyles.accent)}>
               {fmt(expectedByNow)}
             </p>
           </div>
