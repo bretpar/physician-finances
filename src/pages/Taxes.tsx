@@ -352,7 +352,7 @@ export default function Taxes() {
               <CardContent className="pt-4 pb-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Federal tax before credits</span><span className="font-medium">{fmt(debug.federalTaxBeforeCredits)}</span></div>
                 {debug.taxCredits > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>Child &amp; dependent credits</span><span>−{fmt(debug.taxCredits)}</span></div>
+                  <div className="flex justify-between text-primary"><span>Child &amp; dependent credits</span><span>−{fmt(debug.taxCredits)}</span></div>
                 )}
                 <div className="flex justify-between"><span className="text-muted-foreground">Federal tax after credits</span><span className="font-medium">{fmt(debug.federalIncomeTax)}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(debug.selfEmploymentTax)}</span></div>
@@ -363,17 +363,17 @@ export default function Taxes() {
                   <span>Total Estimated Tax</span><span>{fmt(debug.totalEstimatedTax)}</span>
                 </div>
                 {debug.federalWithheld > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>Federal withholding paid</span><span>−{fmt(debug.federalWithheld)}</span></div>
+                  <div className="flex justify-between text-primary"><span>Federal withholding paid</span><span>−{fmt(debug.federalWithheld)}</span></div>
                 )}
                 {debug.stateWithheld > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>State withholding paid</span><span>−{fmt(debug.stateWithheld)}</span></div>
+                  <div className="flex justify-between text-primary"><span>State withholding paid</span><span>−{fmt(debug.stateWithheld)}</span></div>
                 )}
                 {estPaymentsMade > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
+                  <div className="flex justify-between text-primary"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
                 )}
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
                   <span>Remaining tax due</span>
-                  <span className={remainingTax > 0 ? "text-amber-600" : "text-emerald-600"}>{fmt(remainingTax)}</span>
+                  <span className={remainingTax > 0 ? "text-destructive" : "text-primary"}>{fmt(remainingTax)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground pt-1">
                   <span>Effective Rate: {overviewEffectiveRate.toFixed(1)}%</span>
