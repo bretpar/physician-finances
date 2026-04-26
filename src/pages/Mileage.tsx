@@ -148,6 +148,32 @@ export default function Mileage() {
     return Array.from(set).filter(Boolean).sort();
   }, [ytdEntries, companies]);
 
+  const businessCompanies = useMemo(
+    () => companies.filter((c) => ["1099_schedule_c", "k1_partnership", "scorp_distribution"].includes(normalizeFilingType(c.companyType))),
+    [companies],
+  );
+
+  const availableProfitByCompany = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of businessCompanies) map.set(c.id, 0);
+    for (const tx of transactions) {
+      if (isExcludedFromBusiness(tx as any) || !tx.source_id) continue;
+      if (!map.has(tx.source_id)) continue;
+      const amount = Math.abs(Number(tx.amount) || 0);
+      map.set(tx.source_id, (map.get(tx.source_id) || 0) + (tx.transaction_type === "income" ? amount : tx.transaction_type === "expense" ? -amount : 0));
+    }
+    for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - Number(e.miles) * IRS_MILEAGE_RATE);
+    return map;
+  }, [businessCompanies, transactions, ytdEntries]);
+
+  const homeOfficePreview = useMemo(() => calculateHomeOfficeAmounts({
+    method: homeOfficeForm.method,
+    squareFeet: num(homeOfficeForm.squareFeet),
+    priorYearAmount: num(homeOfficeForm.priorYearAmount),
+    includeInTaxCalculation: homeOfficeForm.includeInTaxCalculation,
+    availableBusinessProfit: availableProfitByCompany.get(homeOfficeForm.companyId) || 0,
+  }), [homeOfficeForm, availableProfitByCompany]);
+
   const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
 
   function handleAddMileage() {
