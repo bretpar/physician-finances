@@ -10,6 +10,7 @@ import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
+import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
@@ -18,6 +19,7 @@ import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes
 import { aggregateByCategory } from "@/lib/incomeClassification";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -51,6 +53,7 @@ export function useTaxEstimate(): {
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
   const { data: hsaRows = [] } = useHsaContributions(currentYear);
+  const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
   const { companies } = useCompanies();
   const todayStr = new Date().toISOString().split("T")[0];
 
