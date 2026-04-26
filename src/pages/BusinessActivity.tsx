@@ -1217,7 +1217,7 @@ export default function Transactions() {
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-card-foreground">{tx.vendor || "Legacy expense"}</p>
-                  <p className="truncate text-xs text-muted-foreground">Current label: {tx.entity || "Unassigned"}</p>
+                  <p className="truncate text-xs text-muted-foreground">Current label: {getTransactionCompanyLabel(tx)}</p>
                 </div>
                 <span className="text-sm font-semibold text-card-foreground tabular-nums sm:text-right">-{fmt(Math.abs(tx.amount))}</span>
                 <Select onValueChange={(companyId) => assignLegacyExpense(tx.id, companyId)} disabled={updateMutation.isPending}>
