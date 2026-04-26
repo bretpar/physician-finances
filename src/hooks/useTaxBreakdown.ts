@@ -497,7 +497,7 @@ export function useTaxBreakdown(
 
     // ── ENGINE-DRIVEN TOTALS (single source of truth) ──
     // If the engine isn't ready yet, return zeroed loading state.
-    const isLoading = sLoading || tLoading || iLoading || stLoading || bLoading || oLoading || estLoading;
+    const isLoading = sLoading || tLoading || iLoading || stLoading || bLoading || oLoading || estLoading || hoLoading;
     const standardDeduction = settings?.standardDeductionOverride ?? 0;
     const itemizedDeduction = Number(settings?.itemizedDeductionAmount) || 0;
 
@@ -663,7 +663,7 @@ export function useTaxBreakdown(
       targetAnnualWithholding,
       isLoading,
     };
-  }, [settings, txs, incomes, companies, streams, bonuses, overrides, mileageEntries, filterCompanyName, mode,
-      sLoading, tLoading, iLoading, stLoading, bLoading, oLoading, estLoading,
+  }, [settings, txs, incomes, companies, streams, bonuses, overrides, mileageEntries, homeOfficeDeductions, filterCompanyName, mode,
+      sLoading, tLoading, iLoading, stLoading, bLoading, oLoading, estLoading, hoLoading,
       actualDebug, forecastDebug, actualEstimate, forecastEstimate]);
 }
