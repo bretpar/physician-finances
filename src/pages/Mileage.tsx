@@ -755,6 +755,54 @@ export default function Mileage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={showHomeOfficeForm} onOpenChange={(open) => !open && resetHomeOfficeForm()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>{homeOfficeEditId ? "Edit Home Office Deduction" : "Add Home Office Deduction"}</DialogTitle></DialogHeader>
+          <div className="space-y-5">
+            <div className="flex items-start gap-3 rounded-lg border border-border p-3">
+              <Switch checked={homeOfficeForm.includeInTaxCalculation} onCheckedChange={(v) => setHomeOfficeForm((p) => ({ ...p, includeInTaxCalculation: v }))} />
+              <div><Label>Include in tax calculation</Label><p className="text-xs text-muted-foreground">Turn on to include this deduction in your estimated tax calculation.</p></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Associated company {homeOfficeForm.includeInTaxCalculation ? "*" : ""}</Label>
+                <Select value={homeOfficeForm.companyId} onValueChange={(v) => setHomeOfficeForm((p) => ({ ...p, companyId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select a business" /></SelectTrigger>
+                  <SelectContent>{businessCompanies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} — {c.companyType}</SelectItem>)}</SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Choose which business this home office deduction belongs to.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tax year</Label>
+                <Input type="number" value={homeOfficeForm.taxYear} onChange={(e) => setHomeOfficeForm((p) => ({ ...p, taxYear: e.target.value }))} />
+              </div>
+            </div>
+            <RadioGroup value={homeOfficeForm.method} onValueChange={(v) => setHomeOfficeForm((p) => ({ ...p, method: v as HomeOfficeMethod }))} className="grid gap-3 sm:grid-cols-2">
+              <Label className="flex items-start gap-3 rounded-lg border border-border p-3"><RadioGroupItem value="simplified_square_footage" /> <span><span className="block">Simplified square footage method</span><span className="block text-xs font-normal text-muted-foreground">Current IRS simplified method is $5 per square foot, up to 300 square feet.</span></span></Label>
+              <Label className="flex items-start gap-3 rounded-lg border border-border p-3"><RadioGroupItem value="prior_year_estimate" /> <span><span className="block">Use prior-year estimate</span><span className="block text-xs font-normal text-muted-foreground">Use last year’s home office deduction as a planning estimate for this year.</span></span></Label>
+            </RadioGroup>
+            {homeOfficeForm.method === "simplified_square_footage" ? (
+              <div className="space-y-1.5"><Label>Home office square footage</Label><Input type="number" min="0" step="1" value={homeOfficeForm.squareFeet} onChange={(e) => setHomeOfficeForm((p) => ({ ...p, squareFeet: e.target.value }))} />{homeOfficePreview.isSquareFootageCapped && <p className="text-xs text-muted-foreground">The simplified method is capped at 300 square feet, so only 300 sq ft is used for this estimate.</p>}</div>
+            ) : (
+              <div className="space-y-1.5"><Label>Prior-year home office deduction amount</Label><Input type="number" min="0" step="0.01" value={homeOfficeForm.priorYearAmount} onChange={(e) => setHomeOfficeForm((p) => ({ ...p, priorYearAmount: e.target.value }))} /></div>
+            )}
+            <div className="rounded-lg bg-muted/40 p-4 space-y-2">
+              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Estimated deduction</span><span className="font-bold text-foreground tabular-nums">{fmt(homeOfficePreview.calculatedAmount)}</span></div>
+              {homeOfficePreview.allowedAmount !== homeOfficePreview.calculatedAmount && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount used in tax calculation</span><span className="font-semibold text-foreground tabular-nums">{fmt(homeOfficePreview.allowedAmount)}</span></div>}
+              {homeOfficeForm.includeInTaxCalculation && homeOfficePreview.allowedAmount === 0 && <p className="text-xs text-muted-foreground">This deduction is saved, but it is not currently reducing taxes because this company does not have available business profit.</p>}
+            </div>
+            <DialogFooter><Button variant="outline" onClick={resetHomeOfficeForm}>Cancel</Button><Button onClick={handleHomeOfficeSubmit}>Save Deduction</Button></DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!homeOfficeDeleteId} onOpenChange={(open) => !open && setHomeOfficeDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Delete Home Office Deduction</AlertDialogTitle><AlertDialogDescription>This will remove this home office deduction from the Deductions tab and tax calculations.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteHomeOffice} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* ─── RETIREMENT DELETE ────────────────────── */}
       <AlertDialog open={!!contribDeleteId} onOpenChange={(open) => !open && setContribDeleteId(null)}>
         <AlertDialogContent>
