@@ -4,19 +4,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CheckCircle2, Sparkles, Compass, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
-import { getCurrentQuarter, getQuarterPayments, type QuarterLabel } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
-import { normalizeFilingType } from "@/lib/filingTypes";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
-import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { useQuarterlyEstimator, type CompanyQuarterRow } from "@/hooks/useQuarterlyEstimator";
 
-/** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
-export interface CompanyQuarterRow {
-  key: string;
-  label: string;
-  paid: number;
-  saved: number;
-}
+export type { CompanyQuarterRow };
 
 interface QuarterlyTrackerProps {
   annualTaxLiability: number;
