@@ -1718,9 +1718,9 @@ export default function Transactions() {
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
                 <Select
                   value={incomeForm.company}
-                  disabled={isEditingIncome}
+                  disabled={!canEditIncomeCompany}
                   onValueChange={(v) => {
-                    if (isEditingIncome) return;
+                    if (!canEditIncomeCompany) return;
                     // Switching company → reset advanced fields so incompatible
                     // unsaved values don't leak across filing types.
                     setIncomeForm((f) => ({
@@ -1744,7 +1744,7 @@ export default function Transactions() {
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={isEditingIncome ? "Unassigned" : "Select company"} />
-                    {isEditingIncome && (
+                    {isEditingIncome && !canEditIncomeCompany && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Lock className="h-3 w-3 ml-1 text-muted-foreground inline-block" />
@@ -1764,7 +1764,7 @@ export default function Transactions() {
                     ))}
                   </SelectContent>
                 </Select>
-                {isEditingIncome && !selectedIncomeCompany && (
+                {incomeNeedsCompanyReview && (
                   <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
                 )}
               </div>
