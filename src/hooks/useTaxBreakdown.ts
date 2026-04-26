@@ -39,6 +39,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -211,6 +212,7 @@ export function useTaxBreakdown(
   const { data: overrides = [], isLoading: oLoading } = useStreamOverrides();
   const currentYear = new Date().getFullYear();
   const { data: mileageEntries = [] } = useMileageYTD(currentYear);
+  const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
 
   // 🎯 SINGLE SOURCE OF TRUTH for all totals
   const {
@@ -391,6 +393,20 @@ export function useTaxBreakdown(
       catAgg.total += dollars;
       catAgg.count += 1;
       agg.byCategory.set("car_truck", catAgg);
+      expensesByCompany.set(company.id, agg);
+    }
+    for (const deduction of homeOfficeDeductions) {
+      if (!deduction.company_id || !deduction.include_in_tax_calculation || deduction.status !== "active") continue;
+      const company = companies.find((c) => c.id === deduction.company_id);
+      if (!company || !matchCompany(company.name)) continue;
+      const dollars = Math.max(0, Number(deduction.allowed_amount || 0));
+      if (dollars <= 0) continue;
+      const agg = expensesByCompany.get(company.id) ?? { total: 0, byCategory: new Map(), txCount: 0 };
+      agg.total += dollars;
+      const catAgg = agg.byCategory.get("office") ?? { total: 0, count: 0 };
+      catAgg.total += dollars;
+      catAgg.count += 1;
+      agg.byCategory.set("office", catAgg);
       expensesByCompany.set(company.id, agg);
     }
     const sources: IncomeSourceBreakdown[] = [];
