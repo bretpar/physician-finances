@@ -145,8 +145,6 @@ export default function Taxes() {
     });
   }, [payments, savings, remainingTax, estimatedOwed, debug, e, totalGrossIncome, now]);
 
-  const nextDue = quarterData.find((q) => q.status === "upcoming" || q.status === "overdue");
-
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
   const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
 
