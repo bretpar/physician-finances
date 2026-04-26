@@ -48,6 +48,8 @@ interface QuarterlyTrackerProps {
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
+const clampPct = (value: number) => Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+
 const Q_META: Record<1 | 2 | 3 | 4, { label: string; deadlineLabel: string }> = {
   1: { label: "Q1", deadlineLabel: "Apr 15" },
   2: { label: "Q2", deadlineLabel: "Jun 15" },
@@ -310,12 +312,13 @@ export default function QuarterlyTracker({
   const { Icon } = toneStyles;
 
   // Bar percentages — capped at quarter target.
-  const paidPct = quarterTarget > 0 ? Math.min(100, (paidThisQuarter / quarterTarget) * 100) : 0;
-  const savedPct = Math.max(0, Math.min(100 - paidPct, quarterTarget > 0 ? (savedThisQuarter / quarterTarget) * 100 : 0));
-  const expectedPct = quarterTarget > 0 ? Math.min(100, quarterProgress * 100) : 0;
-  const animPaidPct = useCountUp(paidPct, 1100);
-  const animSavedPct = useCountUp(savedPct, 1100);
-  const animExpectedPct = useCountUp(expectedPct, 1100);
+  const paidPct = clampPct(quarterTarget > 0 ? (paidThisQuarter / quarterTarget) * 100 : 0);
+  const savedPct = Math.min(100 - paidPct, clampPct(quarterTarget > 0 ? (savedThisQuarter / quarterTarget) * 100 : 0));
+  const expectedPct = clampPct(quarterTarget > 0 ? quarterProgress * 100 : 0);
+  const animPaidPct = clampPct(useCountUp(paidPct, 1100));
+  const animSavedPct = Math.min(100 - animPaidPct, clampPct(useCountUp(savedPct, 1100)));
+  const animExpectedPct = clampPct(useCountUp(expectedPct, 1100));
+  const showTodayMarker = !isFutureQuarter && !isPastQuarter && expectedPct > 0 && expectedPct < 100;
 
   // Prorate the estimated-payment offset across companies by their saved share.
   const offset = Math.min(rawSavedThisQuarter, quarterlyPayments);
@@ -382,7 +385,7 @@ export default function QuarterlyTracker({
               className="h-full bg-primary/40 transition-[width] duration-700 ease-out"
               style={{ width: `${animSavedPct}%` }}
             />
-            {expectedPct > 0 && expectedPct < 100 && (
+            {showTodayMarker && (
               <div
                 className="absolute top-[-2px] bottom-[-2px] w-0.5 bg-foreground/70 rounded-sm transition-[left] duration-700 ease-out"
                 style={{ left: `${animExpectedPct}%` }}
