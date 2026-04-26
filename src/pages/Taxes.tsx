@@ -182,17 +182,6 @@ export default function Taxes() {
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
           <button
-            onClick={() => setTaxMode("actual")}
-            className={cn(
-              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-              taxMode === "actual"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Actual Only
-          </button>
-          <button
             onClick={() => setTaxMode("forecast")}
             className={cn(
               "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
@@ -202,6 +191,17 @@ export default function Taxes() {
             )}
           >
             Include Planned Income
+          </button>
+          <button
+            onClick={() => setTaxMode("actual")}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              taxMode === "actual"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Actual Only
           </button>
         </div>
       </div>
