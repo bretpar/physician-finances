@@ -1698,6 +1698,17 @@ export default function Transactions() {
           </DialogHeader>
           <TooltipProvider delayDuration={150}>
           <div className="space-y-4">
+            {incomeNeedsCompanyReview && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-100">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="font-medium">Review Needed</p>
+                    <p className="mt-0.5 text-xs">This income is unassigned and excluded from business totals. Select a company below to confirm it is business income.</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
               <div>
