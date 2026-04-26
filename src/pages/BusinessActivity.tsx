@@ -387,6 +387,14 @@ export default function Transactions() {
     ),
   [transactions]);
 
+  const unassignedInterestReviewQueue = useMemo(() =>
+    transactions.filter((t) =>
+      isInterestIncomeTransaction(t) &&
+      !t.source_id &&
+      !t.excluded_from_reports
+    ),
+  [transactions]);
+
   const assignLegacyExpense = (transactionId: string, companyId: string) => {
     const company = companyById.get(companyId);
     if (!company) return;
@@ -396,6 +404,18 @@ export default function Transactions() {
       source_id: company.id,
       company_type: company.companyType,
       needs_review: false,
+    } as any);
+  };
+
+  const markInterestIncomeForReview = (transactionId: string) => {
+    updateMutation.mutate({
+      id: transactionId,
+      entity: "Unassigned",
+      source_id: null,
+      company_type: "other_income",
+      category: "Interest Income",
+      needs_review: true,
+      excluded_from_reports: true,
     } as any);
   };
 
@@ -916,7 +936,11 @@ export default function Transactions() {
   const summaryStats = useMemo(() => {
     // CANONICAL EXCLUSION: personal / excluded / transfer rows never count
     // toward business revenue or deductible business expense.
-    const businessFiltered = filtered.filter((t) => !isExcludedFromBusiness(t as any));
+    const businessFiltered = filtered.filter((t) =>
+      !isExcludedFromBusiness(t as any) &&
+      !!t.source_id &&
+      !isInterestIncomeTransaction(t)
+    );
     const revenue = businessFiltered
       .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
