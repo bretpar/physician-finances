@@ -229,6 +229,7 @@ export default function Transactions() {
   const [incomeForm, setIncomeForm] = useState<IncomeFormState>(emptyIncomeForm);
   const [editingIncomeTxId, setEditingIncomeTxId] = useState<string | null>(null);
   const [editingIncomeEntryId, setEditingIncomeEntryId] = useState<string | null>(null);
+  const [editingIncomeWasUnassigned, setEditingIncomeWasUnassigned] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingIncomeAttachments, setPendingIncomeAttachments] = useState<File[]>([]);
 
@@ -443,6 +444,8 @@ export default function Transactions() {
     () => getCompanyByFormValue(expenseForm.company),
     [companies, expenseForm.company],
   );
+  const incomeNeedsCompanyReview = isEditingIncome && editingIncomeWasUnassigned && !selectedIncomeCompany;
+  const canEditIncomeCompany = !isEditingIncome || editingIncomeWasUnassigned;
 
   useEffect(() => {
     const ambiguousLegacyExpenseIds = transactions
@@ -488,6 +491,7 @@ export default function Transactions() {
     setIncomeForm(emptyIncomeForm);
     setEditingIncomeTxId(null);
     setEditingIncomeEntryId(null);
+    setEditingIncomeWasUnassigned(false);
     setLinkedEntry(null);
     setAdvancedOpen(false);
     setPendingIncomeAttachments([]);
@@ -534,6 +538,7 @@ export default function Transactions() {
       });
       setEditingIncomeTxId(tx.id);
       setEditingIncomeEntryId(linked?.id || null);
+      setEditingIncomeWasUnassigned(!((linked as any)?.source_id || tx.source_id));
       setLinkedEntry(linked || null);
       // Auto-expand Advanced when any saved advanced value exists
       const hasAdvanced =
@@ -605,6 +610,7 @@ export default function Transactions() {
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
     const companyName = selectedIncomeCompany?.name || "Unassigned";
     const companyType = selectedIncomeCompany?.companyType || incomeForm.income_type || getCompanyType(incomeForm.company);
+    const isUnassignedReviewedIncome = isEditingIncome && editingIncomeWasUnassigned && !selectedIncomeCompany;
     const isUnassignedInterestIncome = !selectedIncomeCompany && /\binterest\b/i.test(`${incomeForm.name} ${incomeForm.notes}`);
 
     // Gross income is the source of truth for revenue/tax totals.
@@ -631,8 +637,8 @@ export default function Transactions() {
         entity: companyName,
         company_type: companyType,
         source_id: selectedIncomeCompany?.id || null,
-        needs_review: isUnassignedInterestIncome,
-        excluded_from_reports: isUnassignedInterestIncome ? true : (oldTx?.excluded_from_reports ?? false),
+        needs_review: isUnassignedReviewedIncome || isUnassignedInterestIncome,
+        excluded_from_reports: selectedIncomeCompany ? false : (isUnassignedReviewedIncome || isUnassignedInterestIncome ? true : (oldTx?.excluded_from_reports ?? false)),
         notes: incomeForm.notes,
         actual_withholding: num(incomeForm.actual_withholding),
         withholding_saved: num(incomeForm.actual_withholding) > 0,
@@ -1693,6 +1699,17 @@ export default function Transactions() {
           </DialogHeader>
           <TooltipProvider delayDuration={150}>
           <div className="space-y-4">
+            {incomeNeedsCompanyReview && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-100">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="font-medium">Review Needed</p>
+                    <p className="mt-0.5 text-xs">This income is unassigned and excluded from business totals. Select a company below to confirm it is business income.</p>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -1713,9 +1730,9 @@ export default function Transactions() {
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Company</Label>
                 <Select
                   value={incomeForm.company}
-                  disabled={isEditingIncome}
+                  disabled={!canEditIncomeCompany}
                   onValueChange={(v) => {
-                    if (isEditingIncome) return;
+                    if (!canEditIncomeCompany) return;
                     // Switching company → reset advanced fields so incompatible
                     // unsaved values don't leak across filing types.
                     setIncomeForm((f) => ({
@@ -1739,7 +1756,7 @@ export default function Transactions() {
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={isEditingIncome ? "Unassigned" : "Select company"} />
-                    {isEditingIncome && (
+                    {isEditingIncome && !canEditIncomeCompany && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Lock className="h-3 w-3 ml-1 text-muted-foreground inline-block" />
@@ -1759,7 +1776,7 @@ export default function Transactions() {
                     ))}
                   </SelectContent>
                 </Select>
-                {isEditingIncome && !selectedIncomeCompany && (
+                {incomeNeedsCompanyReview && (
                   <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
                 )}
               </div>
