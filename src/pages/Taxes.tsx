@@ -501,7 +501,7 @@ export default function Taxes() {
               <Select value={paymentQuarter} onValueChange={setPaymentQuarter}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {QUARTERS.map((q) => <SelectItem key={q.key} value={q.key}>{q.label} — Due {q.dueLabel}</SelectItem>)}
+                  {PAYMENT_QUARTERS.map((q) => <SelectItem key={q.key} value={q.key}>{q.label} — Due {q.dueLabel}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
