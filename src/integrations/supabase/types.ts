@@ -79,6 +79,63 @@ export type Database = {
           },
         ]
       }
+      home_office_deductions: {
+        Row: {
+          allowed_amount: number
+          calculated_amount: number
+          company_id: string | null
+          created_at: string
+          deduction_type: string
+          id: string
+          include_in_tax_calculation: boolean
+          method: string
+          organization_id: string | null
+          prior_year_amount: number | null
+          square_feet: number | null
+          status: string
+          tax_year: number
+          unused_capped_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_amount?: number
+          calculated_amount?: number
+          company_id?: string | null
+          created_at?: string
+          deduction_type?: string
+          id?: string
+          include_in_tax_calculation?: boolean
+          method?: string
+          organization_id?: string | null
+          prior_year_amount?: number | null
+          square_feet?: number | null
+          status?: string
+          tax_year?: number
+          unused_capped_amount?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_amount?: number
+          calculated_amount?: number
+          company_id?: string | null
+          created_at?: string
+          deduction_type?: string
+          id?: string
+          include_in_tax_calculation?: boolean
+          method?: string
+          organization_id?: string | null
+          prior_year_amount?: number | null
+          square_feet?: number | null
+          status?: string
+          tax_year?: number
+          unused_capped_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       hsa_contributions: {
         Row: {
           amount: number
