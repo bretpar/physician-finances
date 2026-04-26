@@ -354,10 +354,20 @@ export default function QuarterlyTracker({
             <Icon className={cn("h-5 w-5 shrink-0", toneStyles.accent)} />
             <span className="truncate">{q.label} Tax Progress</span>
           </CardTitle>
-          <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
+          {linkDeadlineToTaxOverview ? (
+            <button
+              type="button"
+              onClick={() => navigate("/taxes#quarterly-estimator")}
+              className="shrink-0 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
+            >
+              due {q.deadlineLabel}
+            </button>
+          ) : (
+            <span className="text-xs text-muted-foreground shrink-0">due {q.deadlineLabel}</span>
+          )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 pb-10">
+      <CardContent className={cn("space-y-4", showQuarterNavigation ? "pb-10" : "pb-4")}>
         {/* Primary numbers */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="min-w-0">
