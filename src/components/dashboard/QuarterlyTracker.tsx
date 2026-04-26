@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CheckCircle2, Sparkles, Compass, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,6 +40,9 @@ interface QuarterlyTrackerProps {
   businessBucketRate?: number;
   /** @deprecated kept for backward-compat; use personal/business rates instead. */
   effectiveTaxRate?: number;
+  showCompanyBreakdown?: boolean;
+  showFooter?: boolean;
+  showTaxOverviewCta?: boolean;
 }
 
 const fmt = (n: number) =>
@@ -113,7 +118,11 @@ export default function QuarterlyTracker({
   personalBucketRate,
   businessBucketRate,
   effectiveTaxRate,
+  showCompanyBreakdown = true,
+  showFooter = true,
+  showTaxOverviewCta = false,
 }: QuarterlyTrackerProps) {
+  const navigate = useNavigate();
   const initial = useMemo(() => currentOwningYear(), []);
   const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
 
