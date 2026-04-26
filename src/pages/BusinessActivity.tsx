@@ -229,6 +229,7 @@ export default function Transactions() {
   const [incomeForm, setIncomeForm] = useState<IncomeFormState>(emptyIncomeForm);
   const [editingIncomeTxId, setEditingIncomeTxId] = useState<string | null>(null);
   const [editingIncomeEntryId, setEditingIncomeEntryId] = useState<string | null>(null);
+  const [editingIncomeWasUnassigned, setEditingIncomeWasUnassigned] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingIncomeAttachments, setPendingIncomeAttachments] = useState<File[]>([]);
 
@@ -488,6 +489,7 @@ export default function Transactions() {
     setIncomeForm(emptyIncomeForm);
     setEditingIncomeTxId(null);
     setEditingIncomeEntryId(null);
+    setEditingIncomeWasUnassigned(false);
     setLinkedEntry(null);
     setAdvancedOpen(false);
     setPendingIncomeAttachments([]);
@@ -534,6 +536,7 @@ export default function Transactions() {
       });
       setEditingIncomeTxId(tx.id);
       setEditingIncomeEntryId(linked?.id || null);
+      setEditingIncomeWasUnassigned(!((linked as any)?.source_id || tx.source_id));
       setLinkedEntry(linked || null);
       // Auto-expand Advanced when any saved advanced value exists
       const hasAdvanced =
