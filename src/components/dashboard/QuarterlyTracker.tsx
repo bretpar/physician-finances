@@ -351,21 +351,21 @@ export default function QuarterlyTracker({
         </div>
       </CardHeader>
       <CardContent className="space-y-4 pb-10">
-        {/* Primary numbers — stack on mobile, 2-up on sm+ */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div>
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium">
+        {/* Primary numbers */}
+        <div className="space-y-2.5">
+          <div className="flex min-w-0 items-baseline justify-between gap-3">
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium shrink-0">
               Paid + Saved QTD
             </p>
-            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground mt-0.5 whitespace-nowrap">
+            <p className="text-2xl sm:text-3xl font-bold tabular-nums text-foreground whitespace-nowrap text-right">
               {fmt(progressAmount)}
             </p>
           </div>
-          <div>
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium">
+          <div className="flex min-w-0 items-baseline justify-between gap-3">
+            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium shrink-0">
               Suggested by today
             </p>
-            <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-0.5 whitespace-nowrap", toneStyles.accent)}>
+            <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap text-right", toneStyles.accent)}>
               {fmt(expectedByNow)}
             </p>
           </div>
