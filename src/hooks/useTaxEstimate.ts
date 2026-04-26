@@ -324,6 +324,22 @@ export function useTaxEstimate(): {
       const businessExpenses = scope.transactions
         .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
         .reduce((s, t) => s + Math.abs(t.amount), 0);
+      const homeOfficeByCompany = getIncludedHomeOfficeByCompany(homeOfficeDeductions);
+      const homeOfficeDeduction = getIncludedHomeOfficeTotal(homeOfficeDeductions);
+      let seEligibleHomeOfficeDeduction = 0;
+      let businessStateEligibleHomeOfficeDeduction = 0;
+      for (const [companyId, amount] of homeOfficeByCompany.entries()) {
+        const company = companies.find((c) => c.id === companyId);
+        const filing = normalizeFilingType(company?.companyType);
+        if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false) {
+          seEligibleHomeOfficeDeduction += amount;
+        }
+        if (company && (filing === "1099_schedule_c" || filing === "k1_partnership" || filing === "scorp_distribution")) {
+          const eligible = company.applyBusinessStateTax !== false
+            && (rates.businessStateTaxApplicationMode !== "selected" || rates.businessStateTaxCompanyIds.includes(company.id));
+          if (eligible) businessStateEligibleHomeOfficeDeduction += amount;
+        }
+      }
 
       const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
       const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
@@ -375,7 +391,7 @@ export function useTaxEstimate(): {
       return {
         businessIncome,
         seEligibleBusinessIncome,
-        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses,
+        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction,
         seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
         businessFederalWithheld,
@@ -384,7 +400,7 @@ export function useTaxEstimate(): {
         businessRetirement,
         ownerHealthcare,
         businessStateEligibleGross,
-        businessStateEligibleExpenses: businessExpenses * eligibleRatio,
+        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction,
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
         personalIncome: totalPersonalIncome,
@@ -395,7 +411,7 @@ export function useTaxEstimate(): {
         personalPreTax,
         personalRetirement,
         netStockGain,
-        businessExpenses,
+        businessExpenses: businessExpenses + homeOfficeDeduction,
         mileageDeduction,
         annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,
         txActualWithholding,
