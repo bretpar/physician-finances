@@ -54,7 +54,6 @@ export default function Reports() {
   const currentYearForMileage = new Date().getFullYear();
   const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
   const { data: hsaRows = [] } = useHsaContributions(currentYearForMileage);
-  const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(Number(taxYear));
   const { actualEstimate, forecastEstimate } = useTaxEstimate();
   const { data: taxSettings } = useTaxSettings();
 
@@ -85,6 +84,7 @@ export default function Reports() {
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState(String(currentYear));
   const [taxCompany, setTaxCompany] = useState("all");
+  const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(Number(taxYear));
 
   const dateRange = useMemo(() => {
     if (quickRange === "custom") return { from: customFrom, to: customTo };
