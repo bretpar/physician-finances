@@ -10,10 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Download, Pencil, Car, PiggyBank, Wallet, HeartPulse } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { useTransactions } from "@/hooks/useTransactions";
 import { HsaSettingsSection, HsaLedgerSection } from "@/components/settings/HsaSection";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
+import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
@@ -21,6 +25,8 @@ import {
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { normalizeFilingType } from "@/lib/filingTypes";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -36,6 +42,24 @@ interface ContribForm {
   apply_to_withholding: boolean;
   notes: string;
 }
+
+interface HomeOfficeForm {
+  companyId: string;
+  includeInTaxCalculation: boolean;
+  method: HomeOfficeMethod;
+  squareFeet: string;
+  priorYearAmount: string;
+  taxYear: string;
+}
+
+const emptyHomeOfficeForm = (): HomeOfficeForm => ({
+  companyId: "",
+  includeInTaxCalculation: false,
+  method: "simplified_square_footage",
+  squareFeet: "",
+  priorYearAmount: "",
+  taxYear: String(new Date().getFullYear()),
+});
 
 const emptyContribForm: ContribForm = {
   account_type: "401k",
