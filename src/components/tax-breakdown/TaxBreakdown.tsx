@@ -49,7 +49,7 @@ export default function TaxBreakdown({ filterCompanyName }: Props) {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              Include Planned Income
+              Planned Income
             </button>
             <button
               onClick={() => setMode("actual")}
