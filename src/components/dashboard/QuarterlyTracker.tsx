@@ -43,6 +43,8 @@ interface QuarterlyTrackerProps {
   showCompanyBreakdown?: boolean;
   showFooter?: boolean;
   showTaxOverviewCta?: boolean;
+  showQuarterNavigation?: boolean;
+  linkDeadlineToTaxOverview?: boolean;
 }
 
 const fmt = (n: number) =>
@@ -123,6 +125,8 @@ export default function QuarterlyTracker({
   showCompanyBreakdown = true,
   showFooter = true,
   showTaxOverviewCta = false,
+  showQuarterNavigation = true,
+  linkDeadlineToTaxOverview = false,
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
   const initial = useMemo(() => currentOwningYear(), []);
