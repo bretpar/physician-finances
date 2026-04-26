@@ -190,7 +190,7 @@ export default function Taxes() {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            Include Planned Income
+            Planned Income
           </button>
           <button
             onClick={() => setTaxMode("actual")}
