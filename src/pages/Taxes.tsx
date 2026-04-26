@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -108,11 +109,11 @@ export default function Taxes() {
     return QUARTERS.map((q, index) => {
       const qPayments = payments.filter((p) => p.quarter === q.key);
       const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
-      const savedAmount = savings
-        .filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index)
-        .reduce((s, sv) => s + Number(sv.amount), 0);
+      const qSavings = savings.filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index);
+      const savedAmount = qSavings.reduce((s, sv) => s + Number(sv.amount), 0);
       const recommended = estimatedOwed > 0 ? estimatedOwed / 4 : suggestedPerQ;
       const remainingDue = Math.max(0, recommended - paidAmount);
+      const remainingAfterSaved = Math.max(0, recommended - paidAmount - savedAmount);
       const progress = recommended > 0 ? Math.min(100, (paidAmount / recommended) * 100) : 100;
       let status: "paid" | "on_track" | "partial" | "attention" = "on_track";
       if (paidAmount >= recommended && recommended > 0) status = "paid";
@@ -122,9 +123,12 @@ export default function Taxes() {
       return {
         ...q,
         paidAmount,
+        qPayments,
         savedAmount,
+        qSavings,
         recommended,
         remainingDue,
+        remainingAfterSaved,
         progress,
         status,
         federalPortion: (debug?.federalIncomeTax ?? e?.federalTax ?? 0) * quarterShare,
