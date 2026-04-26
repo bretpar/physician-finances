@@ -508,7 +508,7 @@ export default function QuarterlyTracker({
         </p>}
 
         {/* Quarter navigation affordance */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
+        {showQuarterNavigation && <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
           <button
             type="button"
             onClick={goPrev}
@@ -528,7 +528,7 @@ export default function QuarterlyTracker({
           >
             <ChevronRight className="h-4 w-4" />
           </button>
-        </div>
+        </div>}
       </CardContent>
     </Card>
   );
