@@ -55,7 +55,7 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
           Show calculation details
           {showPlanned && (
             <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
-              Actual + Planned
+              Planned Income
             </Badge>
           )}
         </CardTitle>
