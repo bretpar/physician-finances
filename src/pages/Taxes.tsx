@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -108,11 +109,11 @@ export default function Taxes() {
     return QUARTERS.map((q, index) => {
       const qPayments = payments.filter((p) => p.quarter === q.key);
       const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
-      const savedAmount = savings
-        .filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index)
-        .reduce((s, sv) => s + Number(sv.amount), 0);
+      const qSavings = savings.filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index);
+      const savedAmount = qSavings.reduce((s, sv) => s + Number(sv.amount), 0);
       const recommended = estimatedOwed > 0 ? estimatedOwed / 4 : suggestedPerQ;
       const remainingDue = Math.max(0, recommended - paidAmount);
+      const remainingAfterSaved = Math.max(0, recommended - paidAmount - savedAmount);
       const progress = recommended > 0 ? Math.min(100, (paidAmount / recommended) * 100) : 100;
       let status: "paid" | "on_track" | "partial" | "attention" = "on_track";
       if (paidAmount >= recommended && recommended > 0) status = "paid";
@@ -122,9 +123,12 @@ export default function Taxes() {
       return {
         ...q,
         paidAmount,
+        qPayments,
         savedAmount,
+        qSavings,
         recommended,
         remainingDue,
+        remainingAfterSaved,
         progress,
         status,
         federalPortion: (debug?.federalIncomeTax ?? e?.federalTax ?? 0) * quarterShare,
@@ -276,20 +280,54 @@ export default function Taxes() {
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <div className="mx-1 border-x border-b border-border px-4 pb-4 pt-3 text-sm">
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Estimated tax due</span><span className="font-medium tabular-nums">{fmt(q.recommended)}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Amount paid</span><span className="font-medium tabular-nums">{fmt(q.paidAmount)}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Amount saved</span><span className="font-medium tabular-nums">{fmt(q.savedAmount)}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Remaining estimate</span><span className="font-medium tabular-nums">{fmt(q.remainingDue)}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Suggested extra savings</span><span className="font-medium tabular-nums">{fmt(Math.max(0, q.remainingDue - q.savedAmount))}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Federal portion</span><span className="font-medium tabular-nums">{fmt(q.federalPortion)}</span></div>
-                      {rates?.stateTaxEnabled && <div className="flex justify-between gap-3"><span className="text-muted-foreground">State portion</span><span className="font-medium tabular-nums">{fmt(q.statePortion)}</span></div>}
-                      {q.businessPortion > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Self-employment/business portion</span><span className="font-medium tabular-nums">{fmt(q.businessPortion)}</span></div>}
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Income included</span><span className="font-medium tabular-nums">{fmt(q.incomeIncluded)}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Deductions included</span><span className="font-medium tabular-nums">{fmt(Math.max(0, q.deductionsIncluded))}</span></div>
+                  <div className="mx-1 space-y-4 border-x border-b border-border px-4 pb-4 pt-3 text-sm">
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Estimated due</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.recommended)}</p></div>
+                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Paid</p><p className="mt-1 font-semibold tabular-nums text-primary">{fmt(q.paidAmount)}</p></div>
+                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.savedAmount)}</p></div>
+                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Still to cover</p><p className="mt-1 font-semibold tabular-nums text-destructive">{fmt(q.remainingAfterSaved)}</p></div>
                     </div>
-                    {taxMode === "forecast" && <p className="mt-3 text-xs text-muted-foreground">Includes planned income and planned deductions where available.</p>}
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-foreground">Tax breakdown</h4>
+                          <Badge variant="secondary">{statusLabel}</Badge>
+                        </div>
+                        <div className="space-y-2 rounded-md border border-border p-3">
+                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Federal tax portion</span><span className="font-medium tabular-nums">{fmt(q.federalPortion)}</span></div>
+                          {rates?.stateTaxEnabled && <div className="flex justify-between gap-3"><span className="text-muted-foreground">State tax portion</span><span className="font-medium tabular-nums">{fmt(q.statePortion)}</span></div>}
+                          {q.businessPortion > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Self-employment/business portion</span><span className="font-medium tabular-nums">{fmt(q.businessPortion)}</span></div>}
+                          <div className="border-t border-border pt-2 flex justify-between gap-3 font-semibold"><span>Estimated total</span><span className="tabular-nums">{fmt(q.recommended)}</span></div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-foreground">Income and deductions</h4>
+                        <div className="space-y-2 rounded-md border border-border p-3">
+                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Income included</span><span className="font-medium tabular-nums">{fmt(q.incomeIncluded)}</span></div>
+                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Deductions included</span><span className="font-medium tabular-nums">{fmt(Math.max(0, q.deductionsIncluded))}</span></div>
+                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Payments logged</span><span className="font-medium tabular-nums">{q.qPayments.length}</span></div>
+                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Savings entries logged</span><span className="font-medium tabular-nums">{q.qSavings.length}</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border border-border p-3">
+                      <h4 className="mb-2 font-medium text-foreground">Quarter activity</h4>
+                      <div className="space-y-2">
+                        {q.qPayments.length === 0 && q.qSavings.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No payments or savings have been logged for this quarter yet.</p>
+                        ) : (
+                          <>
+                            {q.qPayments.map((p) => <div key={p.id} className="flex justify-between gap-3 text-xs"><span className="text-muted-foreground">Payment · {format(new Date(p.payment_date + "T00:00:00"), "MMM d")}</span><span className="font-medium tabular-nums">{fmt(Number(p.amount))}</span></div>)}
+                            {q.qSavings.map((sv) => <div key={sv.id} className="flex justify-between gap-3 text-xs"><span className="text-muted-foreground">Saved · {format(new Date(sv.savings_date + "T00:00:00"), "MMM d")}</span><span className="font-medium tabular-nums">{fmt(Number(sv.amount))}</span></div>)}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {taxMode === "forecast" && <p className="text-xs text-muted-foreground">Includes planned income and planned deductions where available.</p>}
                   </div>
                 </CollapsibleContent>
               </Collapsible>
