@@ -4,6 +4,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
+import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { mapLegacyCategory, EXPENSE_CATEGORIES } from "@/components/ExpenseCategoryCombobox";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, FileText, Building2 } from "lucide-react";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { HOME_OFFICE_REPORT_LABEL } from "@/lib/homeOfficeDeduction";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -52,10 +54,12 @@ export default function Reports() {
   const currentYearForMileage = new Date().getFullYear();
   const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
   const { data: hsaRows = [] } = useHsaContributions(currentYearForMileage);
+  const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(Number(taxYear));
   const { actualEstimate, forecastEstimate } = useTaxEstimate();
   const { data: taxSettings } = useTaxSettings();
 
   const VEHICLE_CATEGORY = "Car and truck expenses";
+  const HOME_OFFICE_CATEGORY = HOME_OFFICE_REPORT_LABEL;
 
   // Resolve a mileage entry to a company NAME (Reports filters by entity name).
   // Entries with no company_id are skipped — they never count toward any company total.
