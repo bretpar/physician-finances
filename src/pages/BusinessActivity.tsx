@@ -610,6 +610,7 @@ export default function Transactions() {
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
     const companyName = selectedIncomeCompany?.name || "Unassigned";
     const companyType = selectedIncomeCompany?.companyType || incomeForm.income_type || getCompanyType(incomeForm.company);
+    const isUnassignedReviewedIncome = isEditingIncome && editingIncomeWasUnassigned && !selectedIncomeCompany;
     const isUnassignedInterestIncome = !selectedIncomeCompany && /\binterest\b/i.test(`${incomeForm.name} ${incomeForm.notes}`);
 
     // Gross income is the source of truth for revenue/tax totals.
@@ -636,8 +637,8 @@ export default function Transactions() {
         entity: companyName,
         company_type: companyType,
         source_id: selectedIncomeCompany?.id || null,
-        needs_review: isUnassignedInterestIncome,
-        excluded_from_reports: isUnassignedInterestIncome ? true : (oldTx?.excluded_from_reports ?? false),
+        needs_review: isUnassignedReviewedIncome || isUnassignedInterestIncome,
+        excluded_from_reports: selectedIncomeCompany ? false : (isUnassignedReviewedIncome || isUnassignedInterestIncome ? true : (oldTx?.excluded_from_reports ?? false)),
         notes: incomeForm.notes,
         actual_withholding: num(incomeForm.actual_withholding),
         withholding_saved: num(incomeForm.actual_withholding) > 0,
