@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format, isPast, isAfter } from "date-fns";
 import {
-  DollarSign, CheckCircle2, AlertTriangle,
+  CheckCircle2, AlertTriangle, Info,
   Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import TaxBreakdown from "@/components/tax-breakdown/TaxBreakdown";
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -73,6 +74,7 @@ export default function Taxes() {
 
   const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
 
   const isLoading = ratesLoading || estLoading;
 
@@ -82,7 +84,7 @@ export default function Taxes() {
 
   // Use the unified debug breakdown as the source of truth so UI matches engine.
   const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
-  const totalReturnIncome = e?.totalReturnIncomeBeforeAdjustments ?? 0;
+  const totalGrossIncome = e?.totalIncome ?? ((e?.w2Income ?? 0) + (e?.grossBusinessIncome ?? 0) + (e?.otherIncome ?? 0));
   const overviewProfile = getSelectedWithholdingProfileRate({
     taxSettings: rates,
     actualEstimate,
@@ -91,19 +93,11 @@ export default function Taxes() {
   const overviewEffectiveRate = rates?.withholdingMethod === "flat_estimate"
     ? overviewProfile.federalProfileRate
     : e?.effectiveRate ?? overviewProfile.canonicalEffectiveTaxRate;
-  const actualFedWH = debug?.actualFederalWithheld ?? 0;
-  const actualStateWH = debug?.actualStateWithheld ?? 0;
-  const projFedWH = debug?.projectedFederalWithheld ?? 0;
-  const projStateWH = debug?.projectedStateWithheld ?? 0;
-  const futureW2WH = projFedWH + projStateWH;
   const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
   const totalCovered = debug?.countedCreditsTotal ?? 0;
   const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
 
   const now = new Date();
-  const monthsLeft = Math.max(1, 12 - now.getMonth());
-  const monthlyGuidance = remainingTax > 0 ? remainingTax / monthsLeft : 0;
-  const progressPct = estimatedOwed > 0 ? Math.min(100, (totalCovered / estimatedOwed) * 100) : 100;
 
   // Quarterly data
   const quarterData = useMemo(() => {
@@ -111,19 +105,36 @@ export default function Taxes() {
     const remainingCount = Math.max(1, remainingQs.length);
     const suggestedPerQ = remainingTax / remainingCount;
 
-    return QUARTERS.map((q) => {
+    return QUARTERS.map((q, index) => {
       const qPayments = payments.filter((p) => p.quarter === q.key);
       const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
-      const recommended = suggestedPerQ;
+      const savedAmount = savings
+        .filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index)
+        .reduce((s, sv) => s + Number(sv.amount), 0);
+      const recommended = estimatedOwed > 0 ? estimatedOwed / 4 : suggestedPerQ;
       const remainingDue = Math.max(0, recommended - paidAmount);
-      let status: "paid" | "upcoming" | "overdue" = "upcoming";
+      const progress = recommended > 0 ? Math.min(100, (paidAmount / recommended) * 100) : 100;
+      let status: "paid" | "on_track" | "partial" | "attention" = "on_track";
       if (paidAmount >= recommended && recommended > 0) status = "paid";
-      else if (isPast(q.due) && paidAmount < recommended) status = "overdue";
-      return { ...q, paidAmount, recommended, remainingDue, status };
+      else if (isPast(q.due) && paidAmount < recommended) status = "attention";
+      else if (paidAmount > 0) status = "partial";
+      const quarterShare = 0.25;
+      return {
+        ...q,
+        paidAmount,
+        savedAmount,
+        recommended,
+        remainingDue,
+        progress,
+        status,
+        federalPortion: (debug?.federalIncomeTax ?? e?.federalTax ?? 0) * quarterShare,
+        statePortion: (debug?.stateTax ?? e?.stateTax ?? 0) * quarterShare,
+        businessPortion: (debug?.selfEmploymentTax ?? e?.seTax.total ?? 0) * quarterShare,
+        incomeIncluded: totalGrossIncome * quarterShare,
+        deductionsIncluded: ((e?.totalIncome ?? 0) - (e?.taxableIncome ?? 0)) * quarterShare,
+      };
     });
-  }, [payments, remainingTax, now]);
-
-  const nextDue = quarterData.find((q) => q.status === "upcoming" || q.status === "overdue");
+  }, [payments, savings, remainingTax, estimatedOwed, debug, e, totalGrossIncome, now]);
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
   const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
@@ -198,162 +209,94 @@ export default function Taxes() {
         </div>
       </div>
 
-      {/* ── 8 IRS-flow Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Effective Tax Rate</p>
-            <p className="text-xl font-bold tabular-nums text-primary">{overviewEffectiveRate.toFixed(1)}%</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {taxMode === "forecast" ? "Includes planned income" : "Actual income only"}
-            </p>
+          <CardContent className="p-5">
+            <p className="text-sm font-medium text-muted-foreground">Total Gross Income</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(totalGrossIncome)}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Before deductions</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Gross Business Income</p>
-            <p className="text-xl font-bold tabular-nums">{fmt(e?.grossBusinessIncome ?? 0)}</p>
+          <CardContent className="p-5">
+            <p className="text-sm font-medium text-muted-foreground">Total Taxable Income</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(e?.taxableIncome ?? 0)}</p>
+            <p className="mt-2 text-xs text-muted-foreground">After eligible deductions</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Business Expenses</p>
-            <p className="text-xl font-bold tabular-nums">−{fmt(e?.businessExpenses ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Net Business Profit</p>
-            <p className="text-xl font-bold tabular-nums">{fmt(e?.netBusinessProfit ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Total Return Income</p>
-            <p className="text-xl font-bold tabular-nums">{fmt(totalReturnIncome)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Taxable Income</p>
-            <p className="text-xl font-bold tabular-nums">{fmt(e?.taxableIncome ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Total Estimated Tax</p>
-            <p className="text-xl font-bold tabular-nums text-destructive">{fmt(estimatedOwed)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Taxes Already Withheld/Paid</p>
-            <p className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{fmt(totalCovered)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Remaining Tax To Cover</p>
-            <p className={cn("text-xl font-bold tabular-nums", remainingTax > 0 ? "text-amber-600" : "text-emerald-600")}>{fmt(remainingTax)}</p>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">Effective Tax Rate</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    This is the effective tax rate used to estimate extra tax savings needed from W-2 paychecks. Business income may also have additional self-employment or business taxes calculated separately.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-primary">{overviewEffectiveRate.toFixed(1)}%</p>
+            <p className="mt-2 text-xs text-muted-foreground">Used for W-2 savings guidance</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* ── Progress ── */}
       <Card>
-        <CardContent className="pt-4 pb-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Taxes covered so far</span>
-            <span className="font-medium">{Math.round(progressPct)}%</span>
-          </div>
-          <Progress value={progressPct} className="h-3" />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{fmt(totalCovered)} covered</span>
-            <span>{fmt(estimatedOwed)} estimated total</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Credits Against Tax ── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Credits Against Tax</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Quarterly Tax Progress</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Federal withholding already paid</span>
-            <span className="font-medium tabular-nums">{fmt(actualFedWH)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">State withholding already paid</span>
-            <span className="font-medium tabular-nums">{fmt(actualStateWH)}</span>
-          </div>
-          {taxMode === "forecast" && futureW2WH > 0 && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Future W-2 withholding projected</span>
-              <span className="font-medium tabular-nums">{fmt(futureW2WH)}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Estimated tax payments made</span>
-            <span className="font-medium tabular-nums">{fmt(estPaymentsMade)}</span>
-          </div>
-          <div className="border-t border-border pt-2 flex justify-between font-semibold">
-            <span>Total counted credits</span>
-            <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(totalCovered)}</span>
-          </div>
-          <div className="flex justify-between italic text-muted-foreground">
-            <span>Savings set aside (not counted)</span>
-            <span className="tabular-nums">{fmt(totalSetAside)}</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground italic pt-1">
-            Savings set aside is shown for planning only and is not treated as a submitted tax payment.
-          </p>
-          <div className="border-t border-border pt-2 flex justify-between font-semibold">
-            <span>Total tax liability</span>
-            <span className="tabular-nums">{fmt(estimatedOwed)}</span>
-          </div>
-          <div className="flex justify-between font-semibold">
-            <span>Remaining estimated tax due</span>
-            <span className={cn("tabular-nums", remainingTax > 0 ? "text-amber-600" : "text-emerald-600")}>
-              {fmt(remainingTax)}
-            </span>
-          </div>
-          {remainingTax > 0 && (
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Per remaining quarter (~{Math.max(1, 4 - Math.floor(now.getMonth() / 3))})</span>
-              <span className="tabular-nums">{fmt(remainingTax / Math.max(1, 4 - Math.floor(now.getMonth() / 3)))}</span>
-            </div>
-          )}
+        <CardContent className="space-y-3">
+          {quarterData.map((q) => {
+            const isOpen = expandedQuarter === q.key;
+            const statusLabel = q.status === "paid" ? "Paid" : q.status === "attention" ? "Needs attention" : q.status === "partial" ? "Partially paid" : "On track";
+            return (
+              <Collapsible key={q.key} open={isOpen} onOpenChange={(open) => setExpandedQuarter(open ? q.key : null)}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full rounded-lg border border-border p-4 text-left transition-colors hover:bg-muted/40">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        {q.status === "paid" ? <CheckCircle2 className="h-5 w-5 text-primary" /> : q.status === "attention" ? <AlertTriangle className="h-5 w-5 text-destructive" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
+                        <div>
+                          <p className="font-semibold text-foreground">{q.label}</p>
+                          <p className="text-xs text-muted-foreground">Due {q.dueLabel}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-foreground">{statusLabel}</p>
+                        <p className="text-xs text-muted-foreground">{fmt(q.paidAmount)} paid of {fmt(q.recommended)} estimated</p>
+                      </div>
+                    </div>
+                    <Progress value={q.progress} className="mt-3 h-2" />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mx-1 border-x border-b border-border px-4 pb-4 pt-3 text-sm">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Estimated tax due</span><span className="font-medium tabular-nums">{fmt(q.recommended)}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Amount paid</span><span className="font-medium tabular-nums">{fmt(q.paidAmount)}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Amount saved</span><span className="font-medium tabular-nums">{fmt(q.savedAmount)}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Remaining estimate</span><span className="font-medium tabular-nums">{fmt(q.remainingDue)}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Suggested extra savings</span><span className="font-medium tabular-nums">{fmt(Math.max(0, q.remainingDue - q.savedAmount))}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Federal portion</span><span className="font-medium tabular-nums">{fmt(q.federalPortion)}</span></div>
+                      {rates?.stateTaxEnabled && <div className="flex justify-between gap-3"><span className="text-muted-foreground">State portion</span><span className="font-medium tabular-nums">{fmt(q.statePortion)}</span></div>}
+                      {q.businessPortion > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Self-employment/business portion</span><span className="font-medium tabular-nums">{fmt(q.businessPortion)}</span></div>}
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Income included</span><span className="font-medium tabular-nums">{fmt(q.incomeIncluded)}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Deductions included</span><span className="font-medium tabular-nums">{fmt(Math.max(0, q.deductionsIncluded))}</span></div>
+                    </div>
+                    {taxMode === "forecast" && <p className="mt-3 text-xs text-muted-foreground">Includes planned income and planned deductions where available.</p>}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
         </CardContent>
       </Card>
-
-      {/* ── Quarterly Overview ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {quarterData.map((q) => (
-          <Card key={q.key} className={cn("border",
-            q.status === "paid" && "border-emerald-500/30",
-            q.status === "overdue" && "border-amber-400/30",
-          )}>
-            <CardContent className="pt-3 pb-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="font-bold">{q.label}</span>
-                {q.status === "paid" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> :
-                 q.status === "overdue" ? <AlertTriangle className="h-4 w-4 text-amber-600" /> :
-                 <Clock className="h-4 w-4 text-muted-foreground" />}
-              </div>
-              <p className="text-xs text-muted-foreground">Due {q.dueLabel}</p>
-              <div className="text-sm">
-                <span className="text-muted-foreground">Paid: </span>
-                <span className="font-medium">{fmt(q.paidAmount)}</span>
-              </div>
-              {q.remainingDue > 0 && (
-                <p className="text-xs text-amber-600">Remaining: {fmt(q.remainingDue)}</p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
       {/* ── Actions ── */}
       <div className="flex gap-3 flex-wrap">
@@ -409,7 +352,7 @@ export default function Taxes() {
               <CardContent className="pt-4 pb-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Federal tax before credits</span><span className="font-medium">{fmt(debug.federalTaxBeforeCredits)}</span></div>
                 {debug.taxCredits > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>Child &amp; dependent credits</span><span>−{fmt(debug.taxCredits)}</span></div>
+                  <div className="flex justify-between text-primary"><span>Child &amp; dependent credits</span><span>−{fmt(debug.taxCredits)}</span></div>
                 )}
                 <div className="flex justify-between"><span className="text-muted-foreground">Federal tax after credits</span><span className="font-medium">{fmt(debug.federalIncomeTax)}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(debug.selfEmploymentTax)}</span></div>
@@ -420,17 +363,17 @@ export default function Taxes() {
                   <span>Total Estimated Tax</span><span>{fmt(debug.totalEstimatedTax)}</span>
                 </div>
                 {debug.federalWithheld > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>Federal withholding paid</span><span>−{fmt(debug.federalWithheld)}</span></div>
+                  <div className="flex justify-between text-primary"><span>Federal withholding paid</span><span>−{fmt(debug.federalWithheld)}</span></div>
                 )}
                 {debug.stateWithheld > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>State withholding paid</span><span>−{fmt(debug.stateWithheld)}</span></div>
+                  <div className="flex justify-between text-primary"><span>State withholding paid</span><span>−{fmt(debug.stateWithheld)}</span></div>
                 )}
                 {estPaymentsMade > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
+                  <div className="flex justify-between text-primary"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
                 )}
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
                   <span>Remaining tax due</span>
-                  <span className={remainingTax > 0 ? "text-amber-600" : "text-emerald-600"}>{fmt(remainingTax)}</span>
+                  <span className={remainingTax > 0 ? "text-destructive" : "text-primary"}>{fmt(remainingTax)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground pt-1">
                   <span>Effective Rate: {overviewEffectiveRate.toFixed(1)}%</span>
