@@ -444,6 +444,8 @@ export default function Transactions() {
     () => getCompanyByFormValue(expenseForm.company),
     [companies, expenseForm.company],
   );
+  const incomeNeedsCompanyReview = isEditingIncome && editingIncomeWasUnassigned && !selectedIncomeCompany;
+  const canEditIncomeCompany = !isEditingIncome || editingIncomeWasUnassigned;
 
   useEffect(() => {
     const ambiguousLegacyExpenseIds = transactions
