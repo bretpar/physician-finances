@@ -1,16 +1,13 @@
 import { useState, useMemo } from "react";
-import { format, isPast, isAfter } from "date-fns";
+import { format } from "date-fns";
 import {
-  CheckCircle2, AlertTriangle, Info,
-  Plus, Pencil, Trash2, CalendarIcon, ExternalLink, Clock, ChevronDown, Download,
+  Info, Plus, Pencil, Trash2, CalendarIcon, ExternalLink, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
@@ -29,72 +26,23 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import TaxDebugPanel from "@/components/TaxDebugPanel";
 import { useTaxSavings, useAddTaxSaving, useUpdateTaxSaving, useDeleteTaxSaving } from "@/hooks/useTaxSavings";
 import { useTaxPayments, useAddTaxPayment, useUpdateTaxPayment, useDeleteTaxPayment } from "@/hooks/useTaxPayments";
-import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { useTransactions } from "@/hooks/useTransactions";
+import { useIncomeEntries } from "@/hooks/useIncome";
+import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
+import { useCompanies } from "@/contexts/CompanyContext";
+import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
+import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
+import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
-const csvCell = (value: string | number | null | undefined) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-
-const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
-const pdfText = (value: string) => value.replace(/[\\()]/g, "\\$&").replace(/[\r\n]+/g, " ");
-
-const createSimplePdfBlob = (title: string, lines: string[]) => {
-  const pageLines = 38;
-  const pages = Array.from({ length: Math.max(1, Math.ceil(lines.length / pageLines)) }, (_, pageIndex) => lines.slice(pageIndex * pageLines, (pageIndex + 1) * pageLines));
-  const fontObjectId = 3 + pages.length * 2;
-  const objects: string[] = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`,
-  ];
-
-  pages.forEach((page, i) => {
-    const pageId = 3 + i * 2;
-    const contentId = pageId + 1;
-    const contentLines = [
-      "BT /F1 16 Tf 50 760 Td 18 TL",
-      `(${pdfText(title)}${pages.length > 1 ? ` - Page ${i + 1}` : ""}) Tj`,
-      "T* /F1 10 Tf 13 TL",
-      ...page.map((line) => `(${pdfText(line)}) Tj T*`),
-      "ET",
-    ].join("\n");
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentId} 0 R >>`);
-    objects.push(`<< /Length ${contentLines.length} >>\nstream\n${contentLines}\nendstream`);
-  });
-
-  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xrefOffset = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.slice(1).forEach((offset) => {
-    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  return new Blob([pdf], { type: "application/pdf" });
-};
-
-const currentYear = new Date().getFullYear();
-const QUARTERS = [
-  { key: "Q1", label: "Q1", due: new Date(currentYear, 3, 15), dueLabel: `Apr 15` },
-  { key: "Q2", label: "Q2", due: new Date(currentYear, 5, 15), dueLabel: `Jun 15` },
-  { key: "Q3", label: "Q3", due: new Date(currentYear, 8, 15), dueLabel: `Sep 15` },
-  { key: "Q4", label: "Q4", due: new Date(currentYear + 1, 0, 15), dueLabel: `Jan 15` },
+const paymentYear = new Date().getFullYear();
+const PAYMENT_QUARTERS = [
+  { key: "Q1", label: "Q1", dueLabel: "Apr 15" },
+  { key: "Q2", label: "Q2", dueLabel: "Jun 15" },
+  { key: "Q3", label: "Q3", dueLabel: "Sep 15" },
+  { key: "Q4", label: "Q4", dueLabel: "Jan 15" },
 ];
 
 export default function Taxes() {
@@ -102,6 +50,12 @@ export default function Taxes() {
   const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, forecastEstimate, actualDebug, forecastDebug } = useTaxEstimate();
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
+  const { data: transactions, isLoading: txLoading } = useTransactions();
+  const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
+  const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
+  const { companies } = useCompanies();
+  const { data: streams } = useProjectedStreams();
+  const { data: bonuses } = useProjectedBonuses();
 
   const addSaving = useAddTaxSaving();
   const updateSaving = useUpdateTaxSaving();
@@ -130,9 +84,8 @@ export default function Taxes() {
 
   const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
 
-  const isLoading = ratesLoading || estLoading;
+  const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading;
 
   const e = estimate;
   const debug = taxMode === "actual" ? actualDebug : forecastDebug;
@@ -152,48 +105,33 @@ export default function Taxes() {
   const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
   const totalCovered = debug?.countedCreditsTotal ?? 0;
   const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
-
-  const now = new Date();
-
-  // Quarterly data
-  const quarterData = useMemo(() => {
-    const remainingQs = QUARTERS.filter((q) => isAfter(q.due, now) || q.due.toDateString() === now.toDateString());
-    const remainingCount = Math.max(1, remainingQs.length);
-    const suggestedPerQ = remainingTax / remainingCount;
-
-    return QUARTERS.map((q, index) => {
-      const qPayments = payments.filter((p) => p.quarter === q.key);
-      const paidAmount = qPayments.reduce((s, p) => s + Number(p.amount), 0);
-      const qSavings = savings.filter((sv) => Math.floor(new Date(sv.savings_date + "T00:00:00").getMonth() / 3) === index);
-      const savedAmount = qSavings.reduce((s, sv) => s + Number(sv.amount), 0);
-      const recommended = estimatedOwed > 0 ? estimatedOwed / 4 : suggestedPerQ;
-      const remainingDue = Math.max(0, recommended - paidAmount);
-      const remainingAfterSaved = Math.max(0, recommended - paidAmount - savedAmount);
-      const progress = recommended > 0 ? Math.min(100, (paidAmount / recommended) * 100) : 100;
-      let status: "paid" | "on_track" | "partial" | "attention" = "on_track";
-      if (paidAmount >= recommended && recommended > 0) status = "paid";
-      else if (isPast(q.due) && paidAmount < recommended) status = "attention";
-      else if (paidAmount > 0) status = "partial";
-      const quarterShare = 0.25;
-      return {
-        ...q,
-        paidAmount,
-        qPayments,
-        savedAmount,
-        qSavings,
-        recommended,
-        remainingDue,
-        remainingAfterSaved,
-        progress,
-        status,
-        federalPortion: (debug?.federalIncomeTax ?? e?.federalTax ?? 0) * quarterShare,
-        statePortion: (debug?.stateTax ?? e?.stateTax ?? 0) * quarterShare,
-        businessPortion: (debug?.selfEmploymentTax ?? e?.seTax.total ?? 0) * quarterShare,
-        incomeIncluded: totalGrossIncome * quarterShare,
-        deductionsIncluded: ((e?.totalIncome ?? 0) - (e?.taxableIncome ?? 0)) * quarterShare,
-      };
-    });
-  }, [payments, savings, remainingTax, estimatedOwed, debug, e, totalGrossIncome, now]);
+  const projectedPaychecks = useMemo(
+    () =>
+      generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries).map((p) => ({
+        date: p.date,
+        grossAmount: Number(p.grossAmount || 0),
+      })),
+    [streams, bonuses, incomeEntries],
+  );
+  const method = rates?.withholdingMethod ?? "dynamic_actual";
+  const trackerEstimate = method === "flat_estimate" ? actualEstimate : (forecastEstimate ?? actualEstimate);
+  const personalRate = getSavingsRateForIncomeBucket({
+    incomeBucket: "personal",
+    incomeType: "W2",
+    taxSettings: rates,
+    actualEstimate,
+    forecastEstimate,
+  }).rate;
+  const businessRate = getSavingsRateForIncomeBucket({
+    incomeBucket: "business",
+    incomeType: "1099",
+    taxSettings: rates,
+    actualEstimate,
+    forecastEstimate,
+    includeSETaxInRecommendation: true,
+  }).rate;
+  const annualTaxLiability = Math.max(0, Number(trackerEstimate?.totalTaxLiability || 0));
+  const trackerEffectiveTaxRate = method === "flat_estimate" ? overviewProfile.federalProfileRate : overviewProfile.canonicalEffectiveTaxRate;
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
   const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
@@ -218,64 +156,6 @@ export default function Taxes() {
     } else {
       addPayment.mutate(payload, { onSuccess: () => { setPaymentOpen(false); resetPaymentForm(); } });
     }
-  };
-
-  const getQuarterExportRows = (q: (typeof quarterData)[number], statusLabel: string) => [
-    ["Section", "Item", "Date", "Amount", "Notes"],
-    ["Summary", "Quarter", "", q.label, `Due ${q.dueLabel}`],
-    ["Summary", "Status", "", statusLabel, ""],
-    ["Summary", "Estimated due", "", q.recommended, ""],
-    ["Summary", "Paid", "", q.paidAmount, ""],
-    ["Summary", "Saved", "", q.savedAmount, ""],
-    ["Summary", "Remaining after saved", "", q.remainingAfterSaved, ""],
-    ["Breakdown", "Federal tax portion", "", q.federalPortion, ""],
-    ...(rates?.stateTaxEnabled ? [["Breakdown", "State tax portion", "", q.statePortion, ""]] : []),
-    ...(q.businessPortion > 0 ? [["Breakdown", "Self-employment/business portion", "", q.businessPortion, ""]] : []),
-    ["Income and deductions", "Income included", "", q.incomeIncluded, taxMode === "forecast" ? "Includes planned income where available" : "Actual income only"],
-    ["Income and deductions", "Deductions included", "", Math.max(0, q.deductionsIncluded), taxMode === "forecast" ? "Includes planned deductions where available" : "Actual deductions only"],
-    ...q.qPayments.map((p) => ["Activity", "Payment", p.payment_date, Number(p.amount), p.notes ?? ""]),
-    ...q.qSavings.map((sv) => ["Activity", `Saved - ${sv.source}`, sv.savings_date, Number(sv.amount), sv.notes ?? ""]),
-  ];
-
-  const exportQuarterCsv = (q: (typeof quarterData)[number], statusLabel: string) => {
-    const rows = getQuarterExportRows(q, statusLabel);
-    const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
-    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `tax-summary-${currentYear}-${q.key}.csv`);
-  };
-
-  const exportQuarterPdf = (q: (typeof quarterData)[number], statusLabel: string) => {
-    const activityLines = q.qPayments.length === 0 && q.qSavings.length === 0
-      ? ["No payments or savings have been logged for this quarter yet."]
-      : [
-          ...q.qPayments.map((p) => `Payment | ${format(new Date(p.payment_date + "T00:00:00"), "MMM d, yyyy")} | ${fmt(Number(p.amount))}${p.notes ? ` | ${p.notes}` : ""}`),
-          ...q.qSavings.map((sv) => `Saved (${sv.source}) | ${format(new Date(sv.savings_date + "T00:00:00"), "MMM d, yyyy")} | ${fmt(Number(sv.amount))}${sv.notes ? ` | ${sv.notes}` : ""}`),
-        ];
-
-    const lines = [
-      `Quarter: ${q.label} (${currentYear})`,
-      `Due date: ${q.dueLabel}`,
-      `Mode: ${taxMode === "forecast" ? "Actual income + planned income" : "Actual income only"}`,
-      `Status: ${statusLabel}`,
-      "",
-      "Summary",
-      `Estimated due: ${fmt(q.recommended)}`,
-      `Paid: ${fmt(q.paidAmount)}`,
-      `Saved: ${fmt(q.savedAmount)}`,
-      `Remaining after saved: ${fmt(q.remainingAfterSaved)}`,
-      "",
-      "Tax breakdown",
-      `Federal tax portion: ${fmt(q.federalPortion)}`,
-      ...(rates?.stateTaxEnabled ? [`State tax portion: ${fmt(q.statePortion)}`] : []),
-      ...(q.businessPortion > 0 ? [`Self-employment/business portion: ${fmt(q.businessPortion)}`] : []),
-      "",
-      "Income and deductions",
-      `Income included: ${fmt(q.incomeIncluded)}`,
-      `Deductions included: ${fmt(Math.max(0, q.deductionsIncluded))}`,
-      "",
-      "Quarter activity",
-      ...activityLines,
-    ];
-    downloadBlob(createSimplePdfBlob(`${q.label} Tax Summary`, lines), `tax-summary-${currentYear}-${q.key}.pdf`);
   };
 
   if (isLoading) {
@@ -364,102 +244,22 @@ export default function Taxes() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Quarterly Tax Progress</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {quarterData.map((q) => {
-            const isOpen = expandedQuarter === q.key;
-            const statusLabel = q.status === "paid" ? "Paid" : q.status === "attention" ? "Needs attention" : q.status === "partial" ? "Partially paid" : "On track";
-            return (
-              <Collapsible key={q.key} open={isOpen} onOpenChange={(open) => setExpandedQuarter(open ? q.key : null)}>
-                <CollapsibleTrigger asChild>
-                  <button className="w-full rounded-lg border border-border p-4 text-left transition-colors hover:bg-muted/40">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        {q.status === "paid" ? <CheckCircle2 className="h-5 w-5 text-primary" /> : q.status === "attention" ? <AlertTriangle className="h-5 w-5 text-destructive" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
-                        <div>
-                          <p className="font-semibold text-foreground">{q.label}</p>
-                          <p className="text-xs text-muted-foreground">Due {q.dueLabel}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-foreground">{statusLabel}</p>
-                        <p className="text-xs text-muted-foreground">{fmt(q.paidAmount)} paid of {fmt(q.recommended)} estimated</p>
-                      </div>
-                    </div>
-                    <Progress value={q.progress} className="mt-3 h-2" />
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mx-1 space-y-4 border-x border-b border-border px-4 pb-4 pt-3 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">Export this quarter’s CPA-ready summary and activity.</p>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => exportQuarterCsv(q, statusLabel)} className="gap-2">
-                          <Download className="h-4 w-4" /> CSV
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => exportQuarterPdf(q, statusLabel)} className="gap-2">
-                          <Download className="h-4 w-4" /> PDF
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-4">
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Estimated due</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.recommended)}</p></div>
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Paid</p><p className="mt-1 font-semibold tabular-nums text-primary">{fmt(q.paidAmount)}</p></div>
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.savedAmount)}</p></div>
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Still to cover</p><p className="mt-1 font-semibold tabular-nums text-destructive">{fmt(q.remainingAfterSaved)}</p></div>
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-foreground">Tax breakdown</h4>
-                          <Badge variant="secondary">{statusLabel}</Badge>
-                        </div>
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Federal tax portion</span><span className="font-medium tabular-nums">{fmt(q.federalPortion)}</span></div>
-                          {rates?.stateTaxEnabled && <div className="flex justify-between gap-3"><span className="text-muted-foreground">State tax portion</span><span className="font-medium tabular-nums">{fmt(q.statePortion)}</span></div>}
-                          {q.businessPortion > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Self-employment/business portion</span><span className="font-medium tabular-nums">{fmt(q.businessPortion)}</span></div>}
-                          <div className="border-t border-border pt-2 flex justify-between gap-3 font-semibold"><span>Estimated total</span><span className="tabular-nums">{fmt(q.recommended)}</span></div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-foreground">Income and deductions</h4>
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Income included</span><span className="font-medium tabular-nums">{fmt(q.incomeIncluded)}</span></div>
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Deductions included</span><span className="font-medium tabular-nums">{fmt(Math.max(0, q.deductionsIncluded))}</span></div>
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Payments logged</span><span className="font-medium tabular-nums">{q.qPayments.length}</span></div>
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Savings entries logged</span><span className="font-medium tabular-nums">{q.qSavings.length}</span></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-md border border-border p-3">
-                      <h4 className="mb-2 font-medium text-foreground">Quarter activity</h4>
-                      <div className="space-y-2">
-                        {q.qPayments.length === 0 && q.qSavings.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">No payments or savings have been logged for this quarter yet.</p>
-                        ) : (
-                          <>
-                            {q.qPayments.map((p) => <div key={p.id} className="flex justify-between gap-3 text-xs"><span className="text-muted-foreground">Payment · {format(new Date(p.payment_date + "T00:00:00"), "MMM d")}</span><span className="font-medium tabular-nums">{fmt(Number(p.amount))}</span></div>)}
-                            {q.qSavings.map((sv) => <div key={sv.id} className="flex justify-between gap-3 text-xs"><span className="text-muted-foreground">Saved · {format(new Date(sv.savings_date + "T00:00:00"), "MMM d")}</span><span className="font-medium tabular-nums">{fmt(Number(sv.amount))}</span></div>)}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {taxMode === "forecast" && <p className="text-xs text-muted-foreground">Includes planned income and planned deductions where available.</p>}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            );
-          })}
-        </CardContent>
-      </Card>
+      <section id="quarterly-estimator" className="scroll-mt-6">
+        <QuarterlyTracker
+          annualTaxLiability={annualTaxLiability}
+          payments={payments}
+          methodLabel={overviewProfile.label}
+          incomeEntries={incomeEntries || []}
+          personalEntries={personalEntries || []}
+          transactions={transactions || []}
+          companies={companies}
+          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
+          projectedPaychecks={projectedPaychecks}
+          personalBucketRate={personalRate}
+          businessBucketRate={businessRate}
+          effectiveTaxRate={trackerEffectiveTaxRate}
+        />
+      </section>
 
       {/* ── Actions ── */}
       <div className="flex gap-3 flex-wrap">
@@ -701,7 +501,7 @@ export default function Taxes() {
               <Select value={paymentQuarter} onValueChange={setPaymentQuarter}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {QUARTERS.map((q) => <SelectItem key={q.key} value={q.key}>{q.label} — Due {q.dueLabel}</SelectItem>)}
+                  {PAYMENT_QUARTERS.map((q) => <SelectItem key={q.key} value={q.key}>{q.label} — Due {q.dueLabel}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
