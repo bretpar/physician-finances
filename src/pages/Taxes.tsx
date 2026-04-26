@@ -244,102 +244,22 @@ export default function Taxes() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Quarterly Tax Progress</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {quarterData.map((q) => {
-            const isOpen = expandedQuarter === q.key;
-            const statusLabel = q.status === "paid" ? "Paid" : q.status === "attention" ? "Needs attention" : q.status === "partial" ? "Partially paid" : "On track";
-            return (
-              <Collapsible key={q.key} open={isOpen} onOpenChange={(open) => setExpandedQuarter(open ? q.key : null)}>
-                <CollapsibleTrigger asChild>
-                  <button className="w-full rounded-lg border border-border p-4 text-left transition-colors hover:bg-muted/40">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        {q.status === "paid" ? <CheckCircle2 className="h-5 w-5 text-primary" /> : q.status === "attention" ? <AlertTriangle className="h-5 w-5 text-destructive" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
-                        <div>
-                          <p className="font-semibold text-foreground">{q.label}</p>
-                          <p className="text-xs text-muted-foreground">Due {q.dueLabel}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-foreground">{statusLabel}</p>
-                        <p className="text-xs text-muted-foreground">{fmt(q.paidAmount)} paid of {fmt(q.recommended)} estimated</p>
-                      </div>
-                    </div>
-                    <Progress value={q.progress} className="mt-3 h-2" />
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mx-1 space-y-4 border-x border-b border-border px-4 pb-4 pt-3 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">Export this quarter’s CPA-ready summary and activity.</p>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => exportQuarterCsv(q, statusLabel)} className="gap-2">
-                          <Download className="h-4 w-4" /> CSV
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => exportQuarterPdf(q, statusLabel)} className="gap-2">
-                          <Download className="h-4 w-4" /> PDF
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-4">
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Estimated due</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.recommended)}</p></div>
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Paid</p><p className="mt-1 font-semibold tabular-nums text-primary">{fmt(q.paidAmount)}</p></div>
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="mt-1 font-semibold tabular-nums text-foreground">{fmt(q.savedAmount)}</p></div>
-                      <div className="rounded-md bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Still to cover</p><p className="mt-1 font-semibold tabular-nums text-destructive">{fmt(q.remainingAfterSaved)}</p></div>
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-foreground">Tax breakdown</h4>
-                          <Badge variant="secondary">{statusLabel}</Badge>
-                        </div>
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Federal tax portion</span><span className="font-medium tabular-nums">{fmt(q.federalPortion)}</span></div>
-                          {rates?.stateTaxEnabled && <div className="flex justify-between gap-3"><span className="text-muted-foreground">State tax portion</span><span className="font-medium tabular-nums">{fmt(q.statePortion)}</span></div>}
-                          {q.businessPortion > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Self-employment/business portion</span><span className="font-medium tabular-nums">{fmt(q.businessPortion)}</span></div>}
-                          <div className="border-t border-border pt-2 flex justify-between gap-3 font-semibold"><span>Estimated total</span><span className="tabular-nums">{fmt(q.recommended)}</span></div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-foreground">Income and deductions</h4>
-                        <div className="space-y-2 rounded-md border border-border p-3">
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Income included</span><span className="font-medium tabular-nums">{fmt(q.incomeIncluded)}</span></div>
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Deductions included</span><span className="font-medium tabular-nums">{fmt(Math.max(0, q.deductionsIncluded))}</span></div>
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Payments logged</span><span className="font-medium tabular-nums">{q.qPayments.length}</span></div>
-                          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Savings entries logged</span><span className="font-medium tabular-nums">{q.qSavings.length}</span></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-md border border-border p-3">
-                      <h4 className="mb-2 font-medium text-foreground">Quarter activity</h4>
-                      <div className="space-y-2">
-                        {q.qPayments.length === 0 && q.qSavings.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">No payments or savings have been logged for this quarter yet.</p>
-                        ) : (
-                          <>
-                            {q.qPayments.map((p) => <div key={p.id} className="flex justify-between gap-3 text-xs"><span className="text-muted-foreground">Payment · {format(new Date(p.payment_date + "T00:00:00"), "MMM d")}</span><span className="font-medium tabular-nums">{fmt(Number(p.amount))}</span></div>)}
-                            {q.qSavings.map((sv) => <div key={sv.id} className="flex justify-between gap-3 text-xs"><span className="text-muted-foreground">Saved · {format(new Date(sv.savings_date + "T00:00:00"), "MMM d")}</span><span className="font-medium tabular-nums">{fmt(Number(sv.amount))}</span></div>)}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {taxMode === "forecast" && <p className="text-xs text-muted-foreground">Includes planned income and planned deductions where available.</p>}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            );
-          })}
-        </CardContent>
-      </Card>
+      <section id="quarterly-estimator" className="scroll-mt-6">
+        <QuarterlyTracker
+          annualTaxLiability={annualTaxLiability}
+          payments={payments}
+          methodLabel={overviewProfile.label}
+          incomeEntries={incomeEntries || []}
+          personalEntries={personalEntries || []}
+          transactions={transactions || []}
+          companies={companies}
+          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
+          projectedPaychecks={projectedPaychecks}
+          personalBucketRate={personalRate}
+          businessBucketRate={businessRate}
+          effectiveTaxRate={trackerEffectiveTaxRate}
+        />
+      </section>
 
       {/* ── Actions ── */}
       <div className="flex gap-3 flex-wrap">
