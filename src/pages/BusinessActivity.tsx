@@ -55,6 +55,19 @@ const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
 const num = (v: string) => parseFloat(v) || 0;
+const UNASSIGNED_COMPANY_VALUE = "__unassigned__";
+
+function isInterestIncomeTransaction(tx: Pick<DbTransaction, "transaction_type" | "vendor" | "category">): boolean {
+  if (tx.transaction_type !== "income") return false;
+  const text = `${tx.vendor || ""} ${tx.category || ""}`.toLowerCase();
+  return /\binterest\b/.test(text);
+}
+
+function isUnassignedOrAutoAssignedInterest(tx: DbTransaction): boolean {
+  if (!isInterestIncomeTransaction(tx)) return false;
+  if (!tx.source_id) return true;
+  return (tx.source_type || "manual") === "plaid" && !tx.user_edited;
+}
 
 /* ───── Income Form State ───── */
 interface IncomeFormState {
@@ -262,11 +275,17 @@ export default function Transactions() {
   [companies]);
 
   const getCompanyByFormValue = (value: string) => {
-    if (!value) return undefined;
+    if (!value || value === UNASSIGNED_COMPANY_VALUE) return undefined;
     const byId = companyById.get(value);
     if (byId) return byId;
     const matches = companies.filter((c) => c.name === value);
     return matches.length === 1 ? matches[0] : undefined;
+  };
+
+  const getTransactionCompanyLabel = (tx: DbTransaction) => {
+    if (!tx.source_id) return "Unassigned";
+    const company = companyById.get(tx.source_id);
+    return company ? company.name : "Unassigned";
   };
 
   const getCompanyType = (value: string): FilingType =>
@@ -374,6 +393,13 @@ export default function Transactions() {
     ),
   [transactions]);
 
+  const unassignedInterestReviewQueue = useMemo(() =>
+    transactions.filter((t) =>
+      isUnassignedOrAutoAssignedInterest(t) &&
+      !t.excluded_from_reports
+    ),
+  [transactions]);
+
   const assignLegacyExpense = (transactionId: string, companyId: string) => {
     const company = companyById.get(companyId);
     if (!company) return;
@@ -383,6 +409,18 @@ export default function Transactions() {
       source_id: company.id,
       company_type: company.companyType,
       needs_review: false,
+    } as any);
+  };
+
+  const markInterestIncomeForReview = (transactionId: string) => {
+    updateMutation.mutate({
+      id: transactionId,
+      entity: "Unassigned",
+      source_id: null,
+      company_type: "other_income",
+      category: "Interest Income",
+      needs_review: true,
+      excluded_from_reports: true,
     } as any);
   };
 
@@ -473,8 +511,8 @@ export default function Transactions() {
       setIncomeForm({
         date: tx.transaction_date,
         name: tx.vendor,
-        company: (linked as any)?.source_id || tx.source_id || linked?.company || tx.entity || "",
-        income_type: normalizeFilingType(linked?.income_type || tx.company_type || "1099_schedule_c"),
+        company: (linked as any)?.source_id || tx.source_id || UNASSIGNED_COMPANY_VALUE,
+        income_type: normalizeFilingType(linked?.income_type || tx.company_type || (isInterestIncomeTransaction(tx) ? "other_income" : "1099_schedule_c")),
         gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
         net_received: linked && linked.deposited_amount ? String(linked.deposited_amount) : "",
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
@@ -565,8 +603,9 @@ export default function Transactions() {
     const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
     const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
-    const companyName = selectedIncomeCompany?.name || incomeForm.company || "Unassigned";
-    const companyType = incomeForm.income_type || selectedIncomeCompany?.companyType || getCompanyType(incomeForm.company);
+    const companyName = selectedIncomeCompany?.name || "Unassigned";
+    const companyType = selectedIncomeCompany?.companyType || incomeForm.income_type || getCompanyType(incomeForm.company);
+    const isUnassignedInterestIncome = !selectedIncomeCompany && /\binterest\b/i.test(`${incomeForm.name} ${incomeForm.notes}`);
 
     // Gross income is the source of truth for revenue/tax totals.
     // Deposited (net) amount is stored separately on income_entries for matching/cashflow.
@@ -592,6 +631,8 @@ export default function Transactions() {
         entity: companyName,
         company_type: companyType,
         source_id: selectedIncomeCompany?.id || null,
+        needs_review: isUnassignedInterestIncome,
+        excluded_from_reports: isUnassignedInterestIncome ? true : (oldTx?.excluded_from_reports ?? false),
         notes: incomeForm.notes,
         actual_withholding: num(incomeForm.actual_withholding),
         withholding_saved: num(incomeForm.actual_withholding) > 0,
@@ -900,7 +941,11 @@ export default function Transactions() {
   const summaryStats = useMemo(() => {
     // CANONICAL EXCLUSION: personal / excluded / transfer rows never count
     // toward business revenue or deductible business expense.
-    const businessFiltered = filtered.filter((t) => !isExcludedFromBusiness(t as any));
+    const businessFiltered = filtered.filter((t) =>
+      !isExcludedFromBusiness(t as any) &&
+      !!t.source_id &&
+      !isUnassignedOrAutoAssignedInterest(t)
+    );
     const revenue = businessFiltered
       .filter((t) => t.transaction_type === "income")
       .reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -1187,6 +1232,37 @@ export default function Transactions() {
         </div>
       )}
 
+      {unassignedInterestReviewQueue.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex flex-col gap-1 border-b border-border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-card-foreground">Needs Review: interest income</h2>
+              <p className="text-xs text-muted-foreground">
+                Bank interest is taxable interest by default and is excluded from business profit unless you explicitly assign it.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit text-xs">{unassignedInterestReviewQueue.length} item{unassignedInterestReviewQueue.length === 1 ? "" : "s"}</Badge>
+          </div>
+          <div className="divide-y divide-border">
+            {unassignedInterestReviewQueue.map((tx) => (
+              <div key={tx.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[90px_1fr_110px_140px] sm:items-center">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-card-foreground">{tx.vendor || "Interest income"}</p>
+                  <p className="truncate text-xs text-muted-foreground">Current company: {getTransactionCompanyLabel(tx)}</p>
+                </div>
+                <span className="text-sm font-semibold text-card-foreground tabular-nums sm:text-right">{fmt(Math.abs(tx.amount))}</span>
+                <Button variant="outline" size="sm" onClick={() => markInterestIncomeForReview(tx.id)} disabled={updateMutation.isPending}>
+                  Mark Review
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Mobile Select All — only when actively in selection mode */}
@@ -1276,7 +1352,7 @@ export default function Transactions() {
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground truncate">
-                  {tx.entity || "Unassigned"}
+                  {getTransactionCompanyLabel(tx)}
                 </span>
                 <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>
                   {isIncomeTx ? "+" : isTransferTx ? "" : ""}{fmt(displayAmount)}
@@ -1452,9 +1528,7 @@ export default function Transactions() {
                         </div>
                       )}
                       <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
-                      {tx.entity && (
-                        <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{tx.entity}</span></div>
-                      )}
+                      <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{getTransactionCompanyLabel(tx)}</span></div>
                       {(tx as { schedule_c_category?: string | null }).schedule_c_category && (
                         <div className="flex justify-between gap-3"><span>Schedule C</span><span className="text-foreground text-right truncate">{(tx as { schedule_c_category?: string | null }).schedule_c_category}</span></div>
                       )}
@@ -1658,7 +1732,7 @@ export default function Transactions() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select company" />
+                    <SelectValue placeholder={isEditingIncome ? "Unassigned" : "Select company"} />
                     {isEditingIncome && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1671,11 +1745,17 @@ export default function Transactions() {
                     )}
                   </SelectTrigger>
                   <SelectContent>
+                    {incomeForm.company === UNASSIGNED_COMPANY_VALUE && (
+                      <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned</SelectItem>
+                    )}
                     {businessCompanies.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name} ({getFilingMeta(c.companyType).shortLabel})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {isEditingIncome && !selectedIncomeCompany && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
+                )}
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Amount *</Label>
