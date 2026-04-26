@@ -46,7 +46,7 @@ export default function DashboardMetrics({
   businessProfitYTD,
 }: DashboardMetricsProps) {
   const isPremium = isFeatureEnabled("premium_visibility");
-  const [projection, setProjection] = useState(false);
+  const [projection, setProjection] = useState(true);
   const showProjection = isPremium && projection;
 
   // ── Pull the EXACT same inputs Income Planner uses ──────────────────────
