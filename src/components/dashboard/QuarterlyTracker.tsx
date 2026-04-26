@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CheckCircle2, Sparkles, Compass, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,6 +40,9 @@ interface QuarterlyTrackerProps {
   businessBucketRate?: number;
   /** @deprecated kept for backward-compat; use personal/business rates instead. */
   effectiveTaxRate?: number;
+  showCompanyBreakdown?: boolean;
+  showFooter?: boolean;
+  showTaxOverviewCta?: boolean;
 }
 
 const fmt = (n: number) =>
@@ -113,7 +118,11 @@ export default function QuarterlyTracker({
   personalBucketRate,
   businessBucketRate,
   effectiveTaxRate,
+  showCompanyBreakdown = true,
+  showFooter = true,
+  showTaxOverviewCta = false,
 }: QuarterlyTrackerProps) {
+  const navigate = useNavigate();
   const initial = useMemo(() => currentOwningYear(), []);
   const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
 
@@ -403,8 +412,19 @@ export default function QuarterlyTracker({
           )}
         </div>
 
+        {showTaxOverviewCta && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => navigate("/taxes#quarterly-estimator")}
+          >
+            View Tax Overview
+          </Button>
+        )}
+
         {/* Per-company breakdown */}
-        <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
+        {showCompanyBreakdown && <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
           <div className="rounded-lg border bg-card/50">
             <CollapsibleTrigger className="w-full px-3 py-2 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
               <span className="flex items-center gap-1.5 text-left">
@@ -444,10 +464,10 @@ export default function QuarterlyTracker({
               </div>
             </CollapsibleContent>
           </div>
-        </Collapsible>
+        </Collapsible>}
 
         {/* Single footer line — quarterly target context + bucket-aware rates */}
-        <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+        {showFooter && <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
           Quarterly target based on Current + Planned income
           {(typeof personalBucketRate === "number" && Number.isFinite(personalBucketRate)) ||
           (typeof businessBucketRate === "number" && Number.isFinite(businessBucketRate)) ? (
@@ -464,7 +484,7 @@ export default function QuarterlyTracker({
           ) : typeof effectiveTaxRate === "number" && Number.isFinite(effectiveTaxRate) ? (
             <> · Effective Tax Rate: <span className="text-foreground/80 font-medium tabular-nums">{effectiveTaxRate.toFixed(1)}%</span></>
           ) : null}
-        </p>
+        </p>}
 
         {/* Quarter navigation affordance */}
         <div className="absolute bottom-2 right-2 flex items-center gap-0.5 text-muted-foreground">
