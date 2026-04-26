@@ -85,7 +85,6 @@ export default function Taxes() {
   // Use the unified debug breakdown as the source of truth so UI matches engine.
   const estimatedOwed = debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0;
   const totalGrossIncome = e?.totalIncome ?? ((e?.w2Income ?? 0) + (e?.grossBusinessIncome ?? 0) + (e?.otherIncome ?? 0));
-  const totalReturnIncome = e?.totalReturnIncomeBeforeAdjustments ?? 0;
   const overviewProfile = getSelectedWithholdingProfileRate({
     taxSettings: rates,
     actualEstimate,
@@ -94,19 +93,11 @@ export default function Taxes() {
   const overviewEffectiveRate = rates?.withholdingMethod === "flat_estimate"
     ? overviewProfile.federalProfileRate
     : e?.effectiveRate ?? overviewProfile.canonicalEffectiveTaxRate;
-  const actualFedWH = debug?.actualFederalWithheld ?? 0;
-  const actualStateWH = debug?.actualStateWithheld ?? 0;
-  const projFedWH = debug?.projectedFederalWithheld ?? 0;
-  const projStateWH = debug?.projectedStateWithheld ?? 0;
-  const futureW2WH = projFedWH + projStateWH;
   const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
   const totalCovered = debug?.countedCreditsTotal ?? 0;
   const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
 
   const now = new Date();
-  const monthsLeft = Math.max(1, 12 - now.getMonth());
-  const monthlyGuidance = remainingTax > 0 ? remainingTax / monthsLeft : 0;
-  const progressPct = estimatedOwed > 0 ? Math.min(100, (totalCovered / estimatedOwed) * 100) : 100;
 
   // Quarterly data
   const quarterData = useMemo(() => {
