@@ -134,9 +134,15 @@ export default function Reports() {
     if (mileageDed > 0) {
       byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
     }
+    const homeOfficeDed = homeOfficeDeductions
+      .filter((d) => d.include_in_tax_calculation && d.status === "active")
+      .filter((d) => plCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === plCompany)
+      .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
+    if (homeOfficeDed > 0) byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
-    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
-  }, [transactions, plCompany, dateRange, mileageByCompanyName]);
+    const totalExpenses = txExpenseTotal + mileageDed + homeOfficeDed;
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, homeOfficeDeduction: homeOfficeDed, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
+  }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
 
   // ──── Annual Tax Summary Computation ────
   const taxData = useMemo(() => {
@@ -167,7 +173,11 @@ export default function Reports() {
     } else {
       mileageDed = mileageByCompanyName.get(taxCompany) || 0;
     }
-    const totalExpenses = txExpenseTotal + mileageDed;
+    const homeOfficeDed = homeOfficeDeductions
+      .filter((d) => d.include_in_tax_calculation && d.status === "active")
+      .filter((d) => taxCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === taxCompany)
+      .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
+    const totalExpenses = txExpenseTotal + mileageDed + homeOfficeDed;
 
     const byCategory: Record<string, number> = {};
     for (const cat of EXPENSE_CATEGORIES) byCategory[cat] = 0;
@@ -176,9 +186,10 @@ export default function Reports() {
       byCategory[cat] = (byCategory[cat] || 0) + Math.abs(t.amount);
     }
     byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
+    byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
-    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, netProfit: grossIncome - totalExpenses, byCategory };
-  }, [transactions, taxCompany, taxYear, mileageByCompanyName]);
+    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, homeOfficeDeduction: homeOfficeDed, netProfit: grossIncome - totalExpenses, byCategory };
+  }, [transactions, taxCompany, taxYear, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
 
   // ──── HSA summary (deductions/reporting) — for Tax Summary (annual) ────
   const hsaSummary = useMemo(() => {
