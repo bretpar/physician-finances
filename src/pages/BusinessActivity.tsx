@@ -55,6 +55,13 @@ const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
 const num = (v: string) => parseFloat(v) || 0;
+const UNASSIGNED_COMPANY_VALUE = "__unassigned__";
+
+function isInterestIncomeTransaction(tx: Pick<DbTransaction, "transaction_type" | "vendor" | "category">): boolean {
+  if (tx.transaction_type !== "income") return false;
+  const text = `${tx.vendor || ""} ${tx.category || ""}`.toLowerCase();
+  return /\binterest\b/.test(text);
+}
 
 /* ───── Income Form State ───── */
 interface IncomeFormState {
@@ -262,11 +269,17 @@ export default function Transactions() {
   [companies]);
 
   const getCompanyByFormValue = (value: string) => {
-    if (!value) return undefined;
+    if (!value || value === UNASSIGNED_COMPANY_VALUE) return undefined;
     const byId = companyById.get(value);
     if (byId) return byId;
     const matches = companies.filter((c) => c.name === value);
     return matches.length === 1 ? matches[0] : undefined;
+  };
+
+  const getTransactionCompanyLabel = (tx: DbTransaction) => {
+    if (!tx.source_id) return "Unassigned";
+    const company = companyById.get(tx.source_id);
+    return company ? company.name : "Unassigned";
   };
 
   const getCompanyType = (value: string): FilingType =>
