@@ -490,6 +490,12 @@ export default function Reports() {
                     </div>
                   );
                 })}
+                {taxData.homeOfficeDeduction > 0 && (
+                  <div className="flex justify-between px-6 py-2">
+                    <span className="text-sm text-foreground">Business use of home / Home office deduction</span>
+                    <span className="text-sm tabular-nums text-foreground">{fmt(taxData.homeOfficeDeduction)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
