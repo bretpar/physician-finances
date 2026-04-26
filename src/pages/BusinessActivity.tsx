@@ -486,8 +486,8 @@ export default function Transactions() {
       setIncomeForm({
         date: tx.transaction_date,
         name: tx.vendor,
-        company: (linked as any)?.source_id || tx.source_id || linked?.company || tx.entity || "",
-        income_type: normalizeFilingType(linked?.income_type || tx.company_type || "1099_schedule_c"),
+        company: (linked as any)?.source_id || tx.source_id || UNASSIGNED_COMPANY_VALUE,
+        income_type: normalizeFilingType(linked?.income_type || tx.company_type || (isInterestIncomeTransaction(tx) ? "other_income" : "1099_schedule_c")),
         gross_amount: linked ? String(linked.paycheck_amount) : String(tx.amount),
         net_received: linked && linked.deposited_amount ? String(linked.deposited_amount) : "",
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
@@ -578,8 +578,9 @@ export default function Transactions() {
     const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
     const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
-    const companyName = selectedIncomeCompany?.name || incomeForm.company || "Unassigned";
-    const companyType = incomeForm.income_type || selectedIncomeCompany?.companyType || getCompanyType(incomeForm.company);
+    const companyName = selectedIncomeCompany?.name || "Unassigned";
+    const companyType = selectedIncomeCompany?.companyType || incomeForm.income_type || getCompanyType(incomeForm.company);
+    const isUnassignedInterestIncome = !selectedIncomeCompany && /\binterest\b/i.test(`${incomeForm.name} ${incomeForm.notes}`);
 
     // Gross income is the source of truth for revenue/tax totals.
     // Deposited (net) amount is stored separately on income_entries for matching/cashflow.
@@ -605,6 +606,8 @@ export default function Transactions() {
         entity: companyName,
         company_type: companyType,
         source_id: selectedIncomeCompany?.id || null,
+        needs_review: isUnassignedInterestIncome,
+        excluded_from_reports: isUnassignedInterestIncome ? true : (oldTx?.excluded_from_reports ?? false),
         notes: incomeForm.notes,
         actual_withholding: num(incomeForm.actual_withholding),
         withholding_saved: num(incomeForm.actual_withholding) > 0,
