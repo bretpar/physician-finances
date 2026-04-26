@@ -1232,6 +1232,37 @@ export default function Transactions() {
         </div>
       )}
 
+      {unassignedInterestReviewQueue.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex flex-col gap-1 border-b border-border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-card-foreground">Needs Review: interest income</h2>
+              <p className="text-xs text-muted-foreground">
+                Bank interest is taxable interest by default and is excluded from business profit unless you explicitly assign it.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit text-xs">{unassignedInterestReviewQueue.length} item{unassignedInterestReviewQueue.length === 1 ? "" : "s"}</Badge>
+          </div>
+          <div className="divide-y divide-border">
+            {unassignedInterestReviewQueue.map((tx) => (
+              <div key={tx.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[90px_1fr_110px_140px] sm:items-center">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-card-foreground">{tx.vendor || "Interest income"}</p>
+                  <p className="truncate text-xs text-muted-foreground">Current company: {getTransactionCompanyLabel(tx)}</p>
+                </div>
+                <span className="text-sm font-semibold text-card-foreground tabular-nums sm:text-right">{fmt(Math.abs(tx.amount))}</span>
+                <Button variant="outline" size="sm" onClick={() => markInterestIncomeForReview(tx.id)} disabled={updateMutation.isPending}>
+                  Mark Review
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Banking-style table */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Mobile Select All — only when actively in selection mode */}
