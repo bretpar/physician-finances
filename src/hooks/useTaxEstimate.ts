@@ -453,7 +453,7 @@ export function useTaxEstimate(): {
       actualOnlyTaxInputs: buildInput(scopedTaxData.actualOnlyTaxInputs, "actualOnly"),
       includePlannedTaxInputs: buildInput(scopedTaxData.includePlannedTaxInputs, "actualPlusPlanned"),
     };
-  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, companies, annualizedRetirement]);
+  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, companies, annualizedRetirement, homeOfficeDeductions]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;
