@@ -425,15 +425,15 @@ export default function QuarterlyTracker({
 
         {/* Per-company breakdown */}
         {showCompanyBreakdown && <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
-          <div className="rounded-lg border bg-card/50">
-            <CollapsibleTrigger className="w-full px-3 py-2 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
-              <span className="flex items-center gap-1.5 text-left">
+          <div className="overflow-hidden rounded-lg border bg-card/50">
+            <CollapsibleTrigger className="w-full min-w-0 px-3 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] items-start sm:items-center gap-1 sm:gap-x-3 text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
+              <span className="flex min-w-0 items-center gap-1.5 text-left">
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", breakdownOpen && "rotate-180")} />
-                This quarter by company
+                <span className="min-w-0 break-words">This quarter by company</span>
               </span>
-              <span className="text-right w-16">Paid</span>
-              <span className="text-center w-3">·</span>
-              <span className="text-right w-16">Saved</span>
+              <span className="hidden text-right w-20 sm:block">Paid</span>
+              <span className="hidden text-center w-3 sm:block">·</span>
+              <span className="hidden text-right w-20 sm:block">Saved</span>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="divide-y divide-border border-t">
@@ -447,16 +447,20 @@ export default function QuarterlyTracker({
                     return (
                       <div
                         key={r.key}
-                        className="px-3 py-2 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 text-sm"
+                        className="px-3 py-2.5 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] items-start sm:items-center gap-2 sm:gap-x-3 text-sm"
                       >
-                        <span className={cn("truncate", empty && "text-muted-foreground")}>{r.label}</span>
-                        <span className={cn("tabular-nums text-right w-16", r.paid === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
-                          {fmt(r.paid)}
-                        </span>
-                        <span className="text-muted-foreground text-center w-3">·</span>
-                        <span className={cn("tabular-nums text-right w-16", r.saved === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
-                          {fmt(r.saved)}
-                        </span>
+                        <span className={cn("min-w-0 break-words leading-snug", empty && "text-muted-foreground")}>{r.label}</span>
+                        <div className="grid grid-cols-2 gap-2 sm:contents">
+                          <span className={cn("rounded-md bg-muted/40 px-2 py-1 text-left tabular-nums sm:w-20 sm:bg-transparent sm:p-0 sm:text-right", r.paid === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
+                            <span className="block text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Paid</span>
+                            {fmt(r.paid)}
+                          </span>
+                          <span className="hidden text-muted-foreground text-center w-3 sm:block">·</span>
+                          <span className={cn("rounded-md bg-muted/40 px-2 py-1 text-left tabular-nums sm:w-20 sm:bg-transparent sm:p-0 sm:text-right", r.saved === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
+                            <span className="block text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Saved</span>
+                            {fmt(r.saved)}
+                          </span>
+                        </div>
                       </div>
                     );
                   })
