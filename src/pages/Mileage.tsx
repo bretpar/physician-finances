@@ -109,6 +109,11 @@ export default function Mileage() {
 
   // ─── Income-linked retirement data ────────────
   const { data: incomeEntries } = useIncomeEntries();
+  const { data: transactions = [] } = useTransactions();
+  const currentYear = now.getFullYear();
+  const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(currentYear);
+  const saveHomeOffice = useSaveHomeOfficeDeduction();
+  const deleteHomeOffice = useDeleteHomeOfficeDeduction();
   const paycheckLinked = useMemo(() => {
     if (!incomeEntries) return { entries: [], total: 0 };
     const entries = incomeEntries.filter((e) => Number(e.retirement_401k) > 0);
@@ -120,6 +125,10 @@ export default function Mileage() {
   const [contribEditId, setContribEditId] = useState<string | null>(null);
   const [showContribForm, setShowContribForm] = useState(false);
   const [contribDeleteId, setContribDeleteId] = useState<string | null>(null);
+  const [homeOfficeForm, setHomeOfficeForm] = useState<HomeOfficeForm>(emptyHomeOfficeForm);
+  const [homeOfficeEditId, setHomeOfficeEditId] = useState<string | null>(null);
+  const [showHomeOfficeForm, setShowHomeOfficeForm] = useState(false);
+  const [homeOfficeDeleteId, setHomeOfficeDeleteId] = useState<string | null>(null);
 
   // ─── Mileage helpers ──────────────────────────
   const monthTotalMiles = useMemo(() => monthEntries.reduce((s, e) => s + Number(e.miles), 0), [monthEntries]);
