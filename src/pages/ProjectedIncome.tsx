@@ -355,19 +355,7 @@ export default function ProjectedIncome() {
       include_in_tax: s.include_in_tax,
     });
     setEditingId(s.id);
-    setAdvancedOpen(
-      Number(s.federal_withholding || 0) > 0 ||
-      Number(s.state_withholding || 0) > 0 ||
-      Number(s.ss_withholding || 0) > 0 ||
-      Number(s.medicare_withholding || 0) > 0 ||
-      Number(s.retirement_401k) > 0 ||
-      Number(s.healthcare_deduction || 0) > 0 ||
-      Number(s.hsa_contribution || 0) > 0 ||
-      Number(s.pre_tax_deductions) > 0 ||
-      Number(s.taxes_withheld) > 0 ||
-      Number(s.additional_tax_reserve || 0) > 0 ||
-      !!(s.notes && s.notes.trim()),
-    );
+    setAdvancedOpen(false);
     setShowSourceError(false);
     setShowForm(true);
   };
@@ -1145,11 +1133,7 @@ export default function ProjectedIncome() {
                       onSsChange={(v) => setField("ss_withholding", v)}
                       medicare={form.medicare_withholding}
                       onMedicareChange={(v) => setField("medicare_withholding", v)}
-                      defaultAdvancedOpen={
-                        num(form.federal_withholding) > 0 ||
-                        num(form.ss_withholding) > 0 ||
-                        num(form.medicare_withholding) > 0
-                      }
+                      collapseKey={editingId || showForm}
                     />
                   )}
                   {!!taxSettings?.stateIncomeTaxEnabled && showField("state_withholding") && (
