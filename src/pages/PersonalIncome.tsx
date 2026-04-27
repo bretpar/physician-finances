@@ -378,18 +378,7 @@ export default function PersonalIncome() {
     });
     setEditingId(entry.id);
     setShowSourceError(false);
-    setAdvancedOpen(
-      Number(entry.federal_withholding) > 0 ||
-      Number(entry.state_withholding) > 0 ||
-      Number((entry as any).ss_withholding || 0) > 0 ||
-      Number((entry as any).medicare_withholding || 0) > 0 ||
-      Number(entry.retirement_401k) > 0 ||
-      Number(entry.pre_tax_deductions) > 0 ||
-      Number((entry as any).healthcare_deduction || 0) > 0 ||
-      Number((entry as any).hsa_contribution || 0) > 0 ||
-      Number((entry as any).additional_tax_reserve || 0) > 0 ||
-      !!(entry.notes && entry.notes.trim())
-    );
+    setAdvancedOpen(false);
     setPendingAttachments([]);
     setShowForm(true);
   }
@@ -922,11 +911,7 @@ export default function PersonalIncome() {
                 onSsChange={(v) => setField("ss_withholding", v)}
                 medicare={form.medicare_withholding}
                 onMedicareChange={(v) => setField("medicare_withholding", v)}
-                defaultAdvancedOpen={
-                  num(form.federal_withholding) > 0 ||
-                  num(form.ss_withholding) > 0 ||
-                  num(form.medicare_withholding) > 0
-                }
+                collapseKey={editingId || showForm}
               />
             )}
 
