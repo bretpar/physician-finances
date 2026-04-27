@@ -102,6 +102,45 @@ export function usePlaidTransactions() {
   });
 }
 
+export function usePlaidNeedsReviewTransactions() {
+  return useQuery({
+    queryKey: ["plaid-transactions", "needs-review"],
+    queryFn: async () => {
+      const { data: rawRows, error } = await supabase
+        .from("plaid_transactions")
+        .select("*")
+        .order("date", { ascending: false });
+      if (error) throw error;
+
+      const rows = rawRows || [];
+      if (rows.length === 0) return [];
+
+      const rawIds = rows.map((r: any) => r.id);
+      const plaidAccountIds = Array.from(new Set(rows.map((r: any) => r.plaid_account_id).filter(Boolean)));
+
+      const [{ data: appTxs }, { data: incomeEntries }, { data: accounts }] = await Promise.all([
+        supabase.from("transactions").select("plaid_transaction_ref").in("plaid_transaction_ref", rawIds),
+        supabase.from("income_entries").select("linked_transaction_id").in("linked_transaction_id", rawIds),
+        supabase.from("plaid_accounts").select("plaid_account_id, account_name, account_routing, sync_enabled").in("plaid_account_id", plaidAccountIds),
+      ]);
+
+      const routedIds = new Set([
+        ...((appTxs || []).map((t: any) => t.plaid_transaction_ref).filter(Boolean)),
+        ...((incomeEntries || []).map((t: any) => t.linked_transaction_id).filter(Boolean)),
+      ]);
+      const accountMap = new Map((accounts || []).map((a: any) => [a.plaid_account_id, a]));
+
+      return rows
+        .filter((row: any) => !routedIds.has(row.id))
+        .map((row: any) => ({ ...row, account: accountMap.get(row.plaid_account_id) || null }));
+    },
+  });
+}
+
+function syncSummary(data: any) {
+  return `Imported ${data?.raw_imported || 0} raw · Routed ${data?.routed_transactions || data?.transactions_added || 0} · Needs review ${data?.needs_review_transactions || 0} · Skipped ${data?.skipped_ignored_accounts || data?.transactions_skipped || 0} · Tombstoned ${data?.tombstoned_transactions || data?.transactions_tombstoned || 0}`;
+}
+
 // ---- Sync Transactions ----
 export function useSyncTransactions() {
   const qc = useQueryClient();
@@ -118,7 +157,29 @@ export function useSyncTransactions() {
       qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
-      toast.success(`Synced ${data?.transactions_added || 0} new transactions`);
+      toast.success(data?.mode === "backfill" ? "Backfill complete" : "Sync complete", {
+        description: syncSummary(data),
+      });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
+export function useBackfillPlaidTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (plaidAccountId?: string) => {
+      const { data, error } = await supabase.functions.invoke("plaid-sync-transactions", {
+        body: { mode: "backfill", ...(plaidAccountId ? { plaid_account_id: plaidAccountId } : {}) },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
+      toast.success("Backfill complete", { description: syncSummary(data) });
     },
     onError: (e) => toast.error(e.message),
   });
