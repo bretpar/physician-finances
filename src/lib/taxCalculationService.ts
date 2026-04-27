@@ -123,7 +123,9 @@ export interface TaxDebugBreakdown {
   w2TaxableIncomeBase: number;
   otherIncome: number;
   totalReturnIncomeBeforeAdjustments: number;
+  /** Non-W-2 pre-tax deductions only; W-2 pre-tax is reflected in w2TaxableIncomeBase. */
   preTaxDeductions: number;
+  deductionSourceBreakdown: string;
   retirementContributions: number;
   /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
   healthInsuranceDeduction: number;
@@ -133,7 +135,7 @@ export interface TaxDebugBreakdown {
   projectedHealthInsuranceDeduction: number;
   halfSETaxDeduction: number;
   ownerDeductions: number;
-  /** Adjusted Gross Income = total return income − preTax − retirement − health insurance − ½ SE tax. */
+  /** Adjusted Gross Income = return income after W-2 payroll deductions − non-W2 preTax − retirement − health insurance − ½ SE tax. */
   agi: number;
   deductionApplied: number;
   deductionType: "standard" | "itemized";
@@ -269,12 +271,13 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const ineligibleBusinessIncome = Math.max(0, businessIncome - seEligibleBusinessIncome);
   const otherIncome = personalNonW2Income + netStockGain + ineligibleBusinessIncome + projOther;
 
-  // combinedPreTax = ONLY actual pre-tax deductions (NOT health insurance).
+  // combinedPreTax = ONLY W-2 payroll pre-tax deductions (NOT health insurance).
   // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
   // Actual healthcare always counts; projected healthcare only when includeProjectedIncome=true.
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
   const w2PreTaxDeductions = businessPreTax + personalPreTax + projPreTax;
   const w2TaxableIncomeBase = Math.max(0, w2Income - w2PreTaxDeductions);
+  const nonW2PreTaxDeductions = 0;
   const actualHealthInsuranceDeduction = ownerHealthcare;
   const healthInsuranceDeduction = actualHealthInsuranceDeduction + projHealthInsurance;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
@@ -314,8 +317,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     seMileageDeduction: seEligibleMileageDeduction,
     grossBusinessIncome,
     otherIncome,
-    preTaxDeductions: combinedPreTax + healthInsuranceDeduction,
+    w2PreTaxDeductions,
+    preTaxDeductions: nonW2PreTaxDeductions,
     retirement401k: combined401k,
+    healthInsuranceDeduction,
     businessDeductions: businessExpenses,
     mileageDeduction,
     taxesWithheld: combinedFederalWithheld,
@@ -336,7 +341,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   });
 
   const totalDeductions =
-    combinedPreTax + combined401k + businessExpenses + mileageDeduction +
+    w2PreTaxDeductions + nonW2PreTaxDeductions + combined401k + healthInsuranceDeduction + businessExpenses + mileageDeduction +
     estimate.deductionApplied + estimate.seTax.deductibleHalf;
 
   // Counted credits = federal + state withholding + estimated payments.
@@ -366,7 +371,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     w2TaxableIncomeBase,
     otherIncome: estimate.otherIncome,
     totalReturnIncomeBeforeAdjustments: estimate.totalReturnIncomeBeforeAdjustments,
-    preTaxDeductions: combinedPreTax,
+    preTaxDeductions: nonW2PreTaxDeductions,
+    deductionSourceBreakdown: `W-2 payroll pre-tax: ${w2PreTaxDeductions.toFixed(2)}; non-W-2 pre-tax: ${nonW2PreTaxDeductions.toFixed(2)}; retirement: ${combined401k.toFixed(2)}; health insurance: ${healthInsuranceDeduction.toFixed(2)}; half SE tax: ${estimate.halfSETaxDeduction.toFixed(2)}`,
     retirementContributions: combined401k,
     healthInsuranceDeduction,
     actualHealthInsuranceDeduction,
