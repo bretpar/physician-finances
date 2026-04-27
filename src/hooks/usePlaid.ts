@@ -80,6 +80,7 @@ export function useReviewAccounts() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
+      qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
       toast.success("Account preferences saved");
     },
@@ -213,6 +214,7 @@ export function useUpdatePlaidAccount() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
+      qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
       toast.success("Account settings updated");
     },
     onError: (e: any) => toast.error(e.message),
