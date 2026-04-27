@@ -137,7 +137,7 @@ export function useIncomeRecommendation() {
       const projectedEventsUsed = 0;
 
       const actualWithheld = federalWithheld + stateWithheld;
-      recommendedAdditionalReserve = Math.max(0, Math.round((baseTaxEstimate - actualWithheld) * 100) / 100);
+      const recommendedAdditionalReserve = Math.max(0, Math.round((baseTaxEstimate - actualWithheld) * 100) / 100);
 
       const totalSuggestedReserve = Math.round((baseTaxEstimate + quarterlyAdjustmentAmount) * 100) / 100;
 
