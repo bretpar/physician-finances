@@ -163,9 +163,10 @@ export function useWithholdingRecommendation() {
         };
       }
 
-      // DYNAMIC MODES: pick the right unified estimate + debug
-      const estimate = forecastEstimate;
-      const debug = forecastDebug;
+      // DYNAMIC MODES: pick the selected unified estimate + debug without changing engine math
+      const useForecastSource = withholdingMethod === "dynamic_planner";
+      const estimate = useForecastSource ? forecastEstimate : actualEstimate;
+      const debug = useForecastSource ? forecastDebug : actualDebug;
       if (!estimate || !debug) return null;
 
       const methodLabel = selectedProfile.label;

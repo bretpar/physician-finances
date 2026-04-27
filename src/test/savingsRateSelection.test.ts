@@ -41,11 +41,13 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("flat_estimate");
+    expect(result.estimateSource).toBe("manual");
+    expect(result.label).toBe("Using manual tax rate");
     expect(result.federalProfileRate).toBe(20);
     expect(result.canonicalEffectiveTaxRate).toBe(20);
   });
 
-  it("uses forecast federalEffectiveRate and effectiveRate for dynamic_actual", () => {
+  it("uses actual-only federalEffectiveRate and effectiveRate for dynamic_actual", () => {
     const result = getSelectedWithholdingProfileRate({
       taxSettings: { withholdingMethod: "dynamic_actual" },
       actualEstimate,
@@ -53,8 +55,10 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("dynamic_actual");
-    expect(result.federalProfileRate).toBe(12.4);
-    expect(result.canonicalEffectiveTaxRate).toBe(17);
+    expect(result.estimateSource).toBe("actual-only");
+    expect(result.label).toBe("Based on actual income only");
+    expect(result.federalProfileRate).toBe(11.1);
+    expect(result.canonicalEffectiveTaxRate).toBe(14.2);
   });
 
   it("uses forecast federalEffectiveRate and effectiveRate for dynamic_planner", () => {
@@ -65,6 +69,8 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("dynamic_planner");
+    expect(result.estimateSource).toBe("forecast");
+    expect(result.label).toBe("Includes planned/future income");
     expect(result.federalProfileRate).toBe(12.4);
     expect(result.canonicalEffectiveTaxRate).toBe(17);
   });
@@ -82,10 +88,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       applyBusinessStateTax: true,
     });
 
-    expect(result.components.federal).toBe(12.4);
+    expect(result.components.federal).toBe(11.1);
     expect(result.components.selfEmployment).toBeCloseTo(14.13, 2);
     expect(result.components.businessState).toBe(1.5);
-    expect(result.rate).toBeCloseTo(28.03, 2);
+    expect(result.rate).toBeCloseTo(26.73, 2);
   });
 
   it("W-2 uses effectiveRate only and never adds SE or business state", () => {
@@ -97,10 +103,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       forecastEstimate,
     });
 
-    expect(result.components.federal).toBe(17);
+    expect(result.components.federal).toBe(14.2);
     expect(result.components.selfEmployment).toBe(0);
     expect(result.components.businessState).toBe(0);
-    expect(result.rate).toBe(17);
+    expect(result.rate).toBe(14.2);
   });
 
   it("other personal income uses effectiveRate only", () => {
@@ -112,10 +118,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       forecastEstimate,
     });
 
-    expect(result.components.federal).toBe(17);
+    expect(result.components.federal).toBe(14.2);
     expect(result.components.selfEmployment).toBe(0);
     expect(result.components.businessState).toBe(0);
-    expect(result.rate).toBe(17);
+    expect(result.rate).toBe(14.2);
   });
 
   it("K-1 defaults to SE tax unless the company toggle is off", () => {
@@ -137,12 +143,12 @@ describe("getSavingsRateForIncomeBucket", () => {
       includeSETaxInRecommendation: false,
     });
 
-    expect(defaultK1.components.federal).toBe(12.4);
+    expect(defaultK1.components.federal).toBe(11.1);
     expect(defaultK1.components.selfEmployment).toBeCloseTo(14.13, 2);
     expect(defaultK1.components.businessState).toBe(1.5);
-    expect(defaultK1.rate).toBeCloseTo(28.03, 2);
+    expect(defaultK1.rate).toBeCloseTo(26.73, 2);
     expect(toggleOffK1.components.selfEmployment).toBe(0);
-    expect(toggleOffK1.rate).toBe(13.9);
+    expect(toggleOffK1.rate).toBe(12.6);
   });
 
   it("S-corp distribution never adds SE tax", () => {
@@ -155,10 +161,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       applyBusinessStateTax: true,
     });
 
-    expect(result.components.federal).toBe(12.4);
+    expect(result.components.federal).toBe(11.1);
     expect(result.components.selfEmployment).toBe(0);
     expect(result.components.businessState).toBe(1.5);
-    expect(result.rate).toBe(13.9);
+    expect(result.rate).toBe(12.6);
   });
 
   it("flat mode uses the manual user input as the base rate", () => {
@@ -211,7 +217,7 @@ describe("getSavingsRateForIncomeBucket", () => {
     });
 
     expect(result.components.businessState).toBe(0);
-    expect(result.components.federal).toBe(12.4);
-    expect(result.rate).toBeCloseTo(26.53, 2);
+    expect(result.components.federal).toBe(11.1);
+    expect(result.rate).toBeCloseTo(25.23, 2);
   });
 });

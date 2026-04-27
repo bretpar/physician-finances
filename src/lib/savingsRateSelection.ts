@@ -78,6 +78,7 @@ export interface WithholdingProfileRateResult {
   /** All-inclusive display rate: total estimated annual tax ÷ total return income. */
   canonicalEffectiveTaxRate: number;
   source: WithholdingProfileRateSource;
+  estimateSource: "manual" | "actual-only" | "forecast";
   label: string;
 }
 
@@ -176,11 +177,12 @@ export function getSelectedWithholdingProfileRate(input: {
       federalProfileRate,
       canonicalEffectiveTaxRate: federalProfileRate,
       source: "flat_estimate",
-      label: `Flat ${federalProfileRate.toFixed(1)}% federal estimate`,
+      estimateSource: "manual",
+      label: "Using manual tax rate",
     };
   }
 
-  const dynamicEstimate = input.forecastEstimate;
+  const dynamicEstimate = method === "dynamic_planner" ? input.forecastEstimate : input.actualEstimate;
   const federalProfileRate = dynamicOrdinaryIncomeProfileRate(dynamicEstimate);
   const allInclusiveRate = canonicalEffectiveTaxRate(dynamicEstimate);
 
@@ -190,7 +192,8 @@ export function getSelectedWithholdingProfileRate(input: {
       federalProfileRate,
       canonicalEffectiveTaxRate: allInclusiveRate,
       source: "dynamic_planner",
-      label: "Based on actual + future income",
+      estimateSource: "forecast",
+      label: "Includes planned/future income",
     };
   }
 
@@ -199,7 +202,8 @@ export function getSelectedWithholdingProfileRate(input: {
     federalProfileRate,
     canonicalEffectiveTaxRate: allInclusiveRate,
     source: "dynamic_actual",
-    label: "Based on actual + future income",
+    estimateSource: "actual-only",
+    label: "Based on actual income only",
   };
 }
 
