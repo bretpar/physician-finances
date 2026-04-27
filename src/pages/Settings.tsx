@@ -34,10 +34,12 @@ import { ledgerForIncomeType, ledgerLabel } from "@/lib/ledgerRouting";
 import {
   usePlaidItems,
   usePlaidAccounts,
+  usePlaidNeedsReviewTransactions,
   useSyncTransactions,
   useDisconnectPlaidItem,
   useUpdatePlaidAccount,
   useBulkApplyAccountBusiness,
+  useBackfillPlaidTransactions,
   useReviewAccounts,
 } from "@/hooks/usePlaid";
 import { DuplicateCleanupCard } from "@/components/DuplicateCleanupCard";
@@ -943,10 +945,12 @@ function ConnectedAccountsSection() {
   const { companies } = useCompanies();
   const { data: plaidItems = [], isLoading: plaidItemsLoading } = usePlaidItems();
   const { data: plaidAccounts = [] } = usePlaidAccounts();
+  const { data: needsReviewTransactions = [] } = usePlaidNeedsReviewTransactions();
   const syncMutation = useSyncTransactions();
   const disconnectMutation = useDisconnectPlaidItem();
   const updateAccountMutation = useUpdatePlaidAccount();
   const bulkApplyMutation = useBulkApplyAccountBusiness();
+  const backfillMutation = useBackfillPlaidTransactions();
   const reviewAccountsMutation = useReviewAccounts();
 
   const [linkLoading, setLinkLoading] = useState(false);
@@ -966,6 +970,13 @@ function ConnectedAccountsSection() {
   >({});
 
   const totalAccounts = plaidAccounts.length;
+  const needsReviewByAccount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const row of needsReviewTransactions as any[]) {
+      counts[row.plaid_account_id] = (counts[row.plaid_account_id] || 0) + 1;
+    }
+    return counts;
+  }, [needsReviewTransactions]);
 
   const toggleExpand = (id: string) =>
     setExpandedItems((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -1002,7 +1013,7 @@ function ConnectedAccountsSection() {
                   .eq("plaid_item_id", exchangeData.item_db_id).eq("is_active", true);
                 if (newAccts) {
                   const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }> = {};
-                  for (const a of newAccts) prefs[a.id] = { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
+                  for (const a of newAccts) prefs[a.id] = { sync_enabled: true, mode: "unassigned", companyId: "", routing: "needs_review" };
                   setReviewPrefs(prefs);
                 }
               }, 500);
@@ -1086,7 +1097,17 @@ function ConnectedAccountsSection() {
       account_business_mode: editRouting === "business" ? editMode : "unassigned",
       default_company_id: editRouting === "business" && editMode === "single_business" && editCompanyId ? editCompanyId : null,
       account_routing: editRouting,
-    }, { onSuccess: () => setEditingAccount(null) });
+    }, {
+      onSuccess: () => {
+        const wasNeedsReview = (editingAccount.account_routing || "needs_review") === "needs_review";
+        const canRouteNow = editRouting === "business" || editRouting === "personal";
+        const pendingCount = needsReviewByAccount[editingAccount.plaid_account_id] || 0;
+        if (wasNeedsReview && canRouteNow && pendingCount > 0) {
+          backfillMutation.mutate(editingAccount.plaid_account_id);
+        }
+        setEditingAccount(null);
+      },
+    });
   };
 
   const handleBulkApply = () => {
@@ -1105,7 +1126,7 @@ function ConnectedAccountsSection() {
       const routing = pref.routing;
       return {
         id: a.id,
-        sync_enabled: routing === "business" || routing === "personal",
+        sync_enabled: routing !== "ignore",
         account_business_mode: routing === "business" ? pref.mode : "unassigned",
         default_company_id: routing === "business" && pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
         account_routing: routing,
@@ -1149,6 +1170,31 @@ function ConnectedAccountsSection() {
           </div>
         ) : (
           <div className="space-y-3">
+            {needsReviewTransactions.length > 0 && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Needs Review</p>
+                    <p className="text-xs text-muted-foreground">{needsReviewTransactions.length} imported Plaid transaction{needsReviewTransactions.length !== 1 ? "s" : ""} waiting for account assignment.</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => backfillMutation.mutate(undefined)} disabled={backfillMutation.isPending}>
+                    {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Re-sync / Backfill missing transactions
+                  </Button>
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {(needsReviewTransactions as any[]).slice(0, 8).map((tx) => (
+                    <div key={tx.id} className="flex items-center justify-between gap-3 rounded-md bg-card px-3 py-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-medium text-card-foreground truncate">{tx.merchant_name || tx.name}</p>
+                        <p className="text-muted-foreground truncate">{tx.account?.account_name || tx.plaid_account_id} · {tx.date}</p>
+                      </div>
+                      <span className="font-mono text-muted-foreground shrink-0">${Number(tx.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {plaidItems.map((item) => {
               const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
               const expanded = expandedItems.has(item.id);
@@ -1188,6 +1234,15 @@ function ConnectedAccountsSection() {
                           Refresh All
                         </Button>
                         <Button
+                          variant="outline" size="sm"
+                          onClick={() => backfillMutation.mutate(undefined)}
+                          disabled={backfillMutation.isPending}
+                          className="gap-1.5"
+                        >
+                          {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                          Re-sync / Backfill missing transactions
+                        </Button>
+                        <Button
                           variant="ghost" size="sm"
                           onClick={() => setDisconnectItemId(item.id)}
                           className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto"
@@ -1203,6 +1258,7 @@ function ConnectedAccountsSection() {
                             const mode = (acct as any).account_business_mode || "unassigned";
                             const companyId = (acct as any).default_company_id || null;
                             const isActive = routing === "business" || routing === "personal";
+                            const pendingReviewCount = needsReviewByAccount[(acct as any).plaid_account_id] || 0;
                             return (
                               <div key={acct.id} className={cn(
                                 "rounded-lg border border-border bg-card p-3",
@@ -1220,6 +1276,11 @@ function ConnectedAccountsSection() {
                                       <Badge variant={getModeColor(routing)} className="text-[10px] h-5">
                                         {getModeLabel(routing, mode, companyId)}
                                       </Badge>
+                                      {pendingReviewCount > 0 && (
+                                        <Badge variant="outline" className="text-[10px] h-5">
+                                          {pendingReviewCount} Needs Review
+                                        </Badge>
+                                      )}
                                       {acct.current_balance != null && (
                                         <span className="text-[11px] font-mono text-muted-foreground">
                                           ${Number(acct.current_balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
@@ -1289,7 +1350,7 @@ function ConnectedAccountsSection() {
                 {editRouting === "business" && "Transactions appear in Business Activity for profit/loss tracking."}
                 {editRouting === "personal" && "Transactions appear in Personal Income. Not included in business P&L."}
                 {editRouting === "ignore" && "No transactions will be imported from this account."}
-                {editRouting === "needs_review" && "Transactions are paused until you choose a destination."}
+                {editRouting === "needs_review" && "Transactions are imported into Needs Review until you choose a destination."}
               </p>
             </div>
             {editRouting === "business" && (
@@ -1382,7 +1443,7 @@ function ConnectedAccountsSection() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-muted-foreground">Route to:</Label>
-                        <Select value={routing} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, routing: v, mode: v !== "business" ? "unassigned" : pref.mode, companyId: v !== "business" ? "" : pref.companyId, sync_enabled: v === "business" || v === "personal" } }))}>
+                        <Select value={routing} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, routing: v, mode: v !== "business" ? "unassigned" : pref.mode, companyId: v !== "business" ? "" : pref.companyId, sync_enabled: v !== "ignore" } }))}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="business">Business Activity</SelectItem>
