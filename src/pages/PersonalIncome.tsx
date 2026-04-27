@@ -296,12 +296,7 @@ export default function PersonalIncome() {
       stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
     });
 
-    const methodLabel =
-      method === "flat_estimate"
-        ? `Flat ${effectiveRate.toFixed(1)}% estimate`
-        : method === "dynamic_planner"
-        ? "Based on actual + future income"
-        : "Based on actual + future income";
+    const methodLabel = selectedProfile.label;
 
     const rateBreakdown: SavingsRateResult = {
       rate: effectiveRate,
