@@ -1233,6 +1233,7 @@ function ConnectedAccountsSection() {
                             const mode = (acct as any).account_business_mode || "unassigned";
                             const companyId = (acct as any).default_company_id || null;
                             const isActive = routing === "business" || routing === "personal";
+                            const pendingReviewCount = needsReviewByAccount[(acct as any).plaid_account_id] || 0;
                             return (
                               <div key={acct.id} className={cn(
                                 "rounded-lg border border-border bg-card p-3",
@@ -1250,6 +1251,11 @@ function ConnectedAccountsSection() {
                                       <Badge variant={getModeColor(routing)} className="text-[10px] h-5">
                                         {getModeLabel(routing, mode, companyId)}
                                       </Badge>
+                                      {pendingReviewCount > 0 && (
+                                        <Badge variant="outline" className="text-[10px] h-5">
+                                          {pendingReviewCount} Needs Review
+                                        </Badge>
+                                      )}
                                       {acct.current_balance != null && (
                                         <span className="text-[11px] font-mono text-muted-foreground">
                                           ${Number(acct.current_balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
