@@ -10,7 +10,7 @@ const COMMON_CATEGORIES = [
   "Advertising",
   "Office expense",
   "Supplies",
-  "Legal and professional services",
+  "Legal and professional fees",
   "Insurance",
   "Taxes and licenses",
   "Travel",
