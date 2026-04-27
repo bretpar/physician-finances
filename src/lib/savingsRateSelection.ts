@@ -129,6 +129,7 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateRe
   const profile = getSelectedWithholdingProfileRate({
     taxSettings: settings,
     actualEstimate: input.actualEstimate,
+    currentPaceEstimate: input.currentPaceEstimate,
     forecastEstimate: input.forecastEstimate,
   });
   const method = profile.methodUsed;
