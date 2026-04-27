@@ -4,6 +4,7 @@ import SummaryCards from "./SummaryCards";
 import IncomeSourceCards from "./IncomeSourceCards";
 import TaxSummary from "./TaxSummary";
 import MathAccordion from "./MathAccordion";
+import AgiReconciliationPanel from "./AgiReconciliationPanel";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -97,7 +98,10 @@ export default function TaxBreakdown({ filterCompanyName }: Props) {
         <TaxSummary data={data} />
       </div>
 
-      {/* 4. Show calculation details */}
+      {/* 4. AGI reconciliation */}
+      <AgiReconciliationPanel data={data} />
+
+      {/* 5. Show calculation details */}
       <MathAccordion data={data} />
 
       <p className="text-xs text-muted-foreground text-center pt-2">
