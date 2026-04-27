@@ -28,7 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
-import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
+import { mapToScheduleC } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
@@ -903,7 +903,7 @@ export default function Transactions() {
           vendor: expenseForm.name,
           amount,
           category: expenseForm.category,
-          schedule_c_category: expenseForm.schedule_c_category || null,
+          schedule_c_category: mapToScheduleC(expenseForm.category),
           notes: expenseForm.notes,
           entity: selectedExpenseCompany?.name || "Unassigned",
           source_id: selectedExpenseCompany?.id || null,
@@ -916,7 +916,7 @@ export default function Transactions() {
           vendor: expenseForm.name,
           amount,
           category: expenseForm.category,
-          schedule_c_category: expenseForm.schedule_c_category || null,
+          schedule_c_category: mapToScheduleC(expenseForm.category),
           notes: expenseForm.notes,
           transaction_type: "expense",
           entity: selectedExpenseCompany?.name || "Unassigned",
@@ -2110,29 +2110,10 @@ export default function Transactions() {
             </div>
 
             {!expenseForm.is_transfer && (
-              <>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                  <ExpenseCategoryCombobox value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v }))} />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">
-                    Schedule C category <span className="text-muted-foreground/70">(optional, for tax breakdown)</span>
-                  </Label>
-                  <Select
-                    value={expenseForm.schedule_c_category || "auto"}
-                    onValueChange={(v) => setExpenseForm((f) => ({ ...f, schedule_c_category: v === "auto" ? "" : v }))}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">Auto-detect from category</SelectItem>
-                      {SCHEDULE_C_CATEGORIES.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                <ExpenseCategoryCombobox value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v, schedule_c_category: mapToScheduleC(v) }))} />
+              </div>
             )}
 
             {expenseForm.is_transfer && (
