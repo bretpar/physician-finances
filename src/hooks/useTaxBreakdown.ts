@@ -128,10 +128,16 @@ export interface TaxBreakdownResult {
   totalLongTermGains: number;
   totalOtherIncome: number;
   totalGrossIncome: number;
+  totalReturnIncomeBeforeAdjustments: number;
+  w2PreTaxDeductions: number;
+  w2TaxableIncomeBase: number;
   totalDeductions: number;
   preTaxDeductions: number;
   retirement401k: number;
   healthInsuranceDeduction: number;
+  actualHealthInsuranceDeduction: number;
+  projectedHealthInsuranceDeduction: number;
+  deductionSourceBreakdown: string;
   agi: number;
   standardDeduction: number;
   itemizedDeduction: number;
@@ -507,8 +513,11 @@ export function useTaxBreakdown(
         mode, filingStatus, sources,
         totalBusinessRevenue, totalBusinessExpenses, totalBusinessProfit,
         totalW2Income, totalShortTermGains, totalLongTermGains, totalOtherIncome,
-        totalGrossIncome: 0, totalDeductions: 0,
+        totalGrossIncome: 0, totalReturnIncomeBeforeAdjustments: 0,
+        w2PreTaxDeductions: 0, w2TaxableIncomeBase: 0, totalDeductions: 0,
         preTaxDeductions: 0, retirement401k: 0, healthInsuranceDeduction: 0,
+        actualHealthInsuranceDeduction: 0, projectedHealthInsuranceDeduction: 0,
+        deductionSourceBreakdown: "",
         agi: 0, standardDeduction, itemizedDeduction,
         deductionApplied: 0, deductionType: "standard",
         seDeductibleHalf: 0,
@@ -534,6 +543,9 @@ export function useTaxBreakdown(
 
     // Engine values (these are THE truth — used by Tax Overview too)
     const totalGrossIncome = debug.totalGrossIncome;
+    const totalReturnIncomeBeforeAdjustments = debug.totalReturnIncomeBeforeAdjustments;
+    const w2PreTaxDeductions = debug.w2PreTaxDeductions;
+    const w2TaxableIncomeBase = debug.w2TaxableIncomeBase;
     const agi = debug.agi;
     const taxableIncome = debug.totalTaxableIncome;
     const federalTaxBeforeCredits = debug.federalTaxBeforeCredits;
@@ -548,6 +560,9 @@ export function useTaxBreakdown(
     const preTaxFromEngine = debug.preTaxDeductions;
     const retirementFromEngine = debug.retirementContributions;
     const healthInsuranceDeduction = debug.healthInsuranceDeduction;
+    const actualHealthInsuranceDeduction = debug.actualHealthInsuranceDeduction;
+    const projectedHealthInsuranceDeduction = debug.projectedHealthInsuranceDeduction;
+    const deductionSourceBreakdown = debug.deductionSourceBreakdown;
     const deductionApplied = debug.deductionApplied;
     const deductionType = debug.deductionType;
     const totalDeductions = debug.totalDeductions;
@@ -620,10 +635,12 @@ export function useTaxBreakdown(
       mode, filingStatus, sources,
       totalBusinessRevenue, totalBusinessExpenses, totalBusinessProfit,
       totalW2Income, totalShortTermGains, totalLongTermGains, totalOtherIncome,
-      totalGrossIncome, totalDeductions,
+      totalGrossIncome, totalReturnIncomeBeforeAdjustments,
+      w2PreTaxDeductions, w2TaxableIncomeBase, totalDeductions,
       preTaxDeductions: preTaxFromEngine,
       retirement401k: retirementFromEngine,
-      healthInsuranceDeduction,
+      healthInsuranceDeduction, actualHealthInsuranceDeduction, projectedHealthInsuranceDeduction,
+      deductionSourceBreakdown,
       agi, standardDeduction, itemizedDeduction,
       deductionApplied, deductionType,
       seDeductibleHalf,
