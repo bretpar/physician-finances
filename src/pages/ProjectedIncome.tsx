@@ -5,7 +5,6 @@ import {
   DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
   X, RotateCcw, CheckCircle2, AlertCircle, Link2, ExternalLink,
 } from "lucide-react";
-import TaxDebugPanel from "@/components/TaxDebugPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -200,7 +199,7 @@ export default function ProjectedIncome() {
   const { data: plannerConversions } = usePlannerConversions();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: taxSettings } = useTaxSettings();
-  const { forecastEstimate, forecastDebug } = useTaxEstimate();
+  const { forecastEstimate } = useTaxEstimate();
 
   const addStream = useAddStream();
   const updateStream = useUpdateStream();
@@ -642,44 +641,6 @@ export default function ProjectedIncome() {
           sublabel={projected401k > 0 ? `+ ${fmt(projected401k)} in 401(k)` : undefined}
         />
       </div>
-
-      {forecastDebug && (
-        <Card>
-          <CardContent className="pt-5 pb-5 space-y-4">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Tax Flow (Actual + Projected)</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Same IRS-style flow as the Tax Overview, using your actual YTD income plus everything still planned.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <FlowStat label="Gross Business Income" value={fmt(forecastDebug.grossBusinessIncome)} />
-              <FlowStat label="Business Expenses" value={`−${fmt(forecastDebug.businessExpenses)}`} tone="muted" />
-              <FlowStat label="Net Business Profit" value={fmt(forecastDebug.netBusinessProfit)} />
-              <FlowStat label="Total Return Income" value={fmt(forecastDebug.totalReturnIncomeBeforeAdjustments)} />
-              <FlowStat label="Taxable Income" value={fmt(forecastDebug.totalTaxableIncome)} />
-              <FlowStat label="Total Estimated Tax" value={fmt(forecastDebug.totalEstimatedTax)} tone="destructive" />
-              <FlowStat label="Taxes Already Withheld/Paid" value={fmt(forecastDebug.countedCreditsTotal)} tone="success" />
-              <FlowStat
-                label="Remaining Tax To Cover"
-                value={fmt(forecastDebug.remainingTaxDue)}
-                tone={forecastDebug.remainingTaxDue > 0 ? "warning" : "success"}
-              />
-            </div>
-
-            {forecastDebug.nonCountedSavingsTotal > 0 && (
-              <p className="text-[11px] text-muted-foreground italic">
-                Plus {fmt(forecastDebug.nonCountedSavingsTotal)} set aside in savings — shown for planning only, not counted as a submitted tax payment.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {forecastDebug && (
-        <TaxDebugPanel debug={forecastDebug} label="Income Planner — Tax Calculation Debug" />
-      )}
 
         <div className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
