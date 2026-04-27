@@ -1170,6 +1170,31 @@ function ConnectedAccountsSection() {
           </div>
         ) : (
           <div className="space-y-3">
+            {needsReviewTransactions.length > 0 && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Needs Review</p>
+                    <p className="text-xs text-muted-foreground">{needsReviewTransactions.length} imported Plaid transaction{needsReviewTransactions.length !== 1 ? "s" : ""} waiting for account assignment.</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => backfillMutation.mutate(undefined)} disabled={backfillMutation.isPending}>
+                    {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Re-sync / Backfill missing transactions
+                  </Button>
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {(needsReviewTransactions as any[]).slice(0, 8).map((tx) => (
+                    <div key={tx.id} className="flex items-center justify-between gap-3 rounded-md bg-card px-3 py-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-medium text-card-foreground truncate">{tx.merchant_name || tx.name}</p>
+                        <p className="text-muted-foreground truncate">{tx.account?.account_name || tx.plaid_account_id} · {tx.date}</p>
+                      </div>
+                      <span className="font-mono text-muted-foreground shrink-0">${Number(tx.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {plaidItems.map((item) => {
               const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
               const expanded = expandedItems.has(item.id);
