@@ -166,7 +166,7 @@ export function useIncomeRecommendation() {
         effectiveRate = rateSel.rate;
         methodLabel = rateSel.label;
       } else {
-        const estimate = forecastEstimate;
+        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : actualEstimate;
         if (!estimate) return null;
         const rateToUse = getSavingsRateForIncomeBucket({
           incomeBucket: resolvedBucket,
@@ -197,7 +197,7 @@ export function useIncomeRecommendation() {
       let projectedEventsUsed = 0;
 
       if (isDynamicEnabled && isQuarterlyEnabled) {
-        const estimate = withholdingMethod === "flat_estimate" ? actualEstimate : forecastEstimate;
+        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : actualEstimate;
         if (estimate) {
           const annualTax = estimate.totalTaxLiability;
           const quarterFraction = quarterInfo.quarter / 4;
