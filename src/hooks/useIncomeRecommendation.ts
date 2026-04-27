@@ -73,7 +73,7 @@ interface RecommendationInput {
 // getNextQuarterDeadline now lives in src/lib/quarters.ts (shared helper).
 
 export function useIncomeRecommendation() {
-  const { actualEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
@@ -141,7 +141,7 @@ export function useIncomeRecommendation() {
       const isW2 = isW2FilingType(incomeType);
       const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
       const withholdingMethod = settings.withholdingMethod || "dynamic_planner";
-      const profile = getSelectedWithholdingProfileRate({ taxSettings: settings, actualEstimate, forecastEstimate });
+      const profile = getSelectedWithholdingProfileRate({ taxSettings: settings, actualEstimate, currentPaceEstimate, forecastEstimate });
 
       // Net taxable for this entry
       const netTaxable = Math.max(0, grossIncome - retirement401k - preTaxDeductions);
@@ -157,6 +157,7 @@ export function useIncomeRecommendation() {
           incomeType,
           taxSettings: settings,
           actualEstimate,
+          currentPaceEstimate,
           forecastEstimate,
           companyId,
           applyBusinessStateTax,
@@ -166,13 +167,14 @@ export function useIncomeRecommendation() {
         effectiveRate = rateSel.rate;
         methodLabel = rateSel.label;
       } else {
-        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : actualEstimate;
+        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : (currentPaceEstimate ?? actualEstimate);
         if (!estimate) return null;
         const rateToUse = getSavingsRateForIncomeBucket({
           incomeBucket: resolvedBucket,
           incomeType,
           taxSettings: settings,
           actualEstimate,
+          currentPaceEstimate,
           forecastEstimate,
           companyId,
           applyBusinessStateTax,
@@ -197,7 +199,7 @@ export function useIncomeRecommendation() {
       let projectedEventsUsed = 0;
 
       if (isDynamicEnabled && isQuarterlyEnabled) {
-        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : actualEstimate;
+        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : (currentPaceEstimate ?? actualEstimate);
         if (estimate) {
           const annualTax = estimate.totalTaxLiability;
           const quarterFraction = quarterInfo.quarter / 4;
@@ -280,7 +282,7 @@ export function useIncomeRecommendation() {
         nextDeadlineLabel: quarterInfo.quarterLabel,
       };
     };
-  }, [actualEstimate, forecastEstimate, settings, taxPayments, taxSavings, isDynamicEnabled, isQuarterlyEnabled, quarterInfo, projectedEventCount, historicalCadenceEstimate]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings, taxPayments, taxSavings, isDynamicEnabled, isQuarterlyEnabled, quarterInfo, projectedEventCount, historicalCadenceEstimate]);
 
   return { getRecommendation, isLoading };
 }
