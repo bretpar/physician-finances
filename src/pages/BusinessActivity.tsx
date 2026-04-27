@@ -614,6 +614,7 @@ export default function Transactions() {
     // and is read everywhere via getTotalFederalPaid().
     const fedWH = preserve("federal_withholding", num(incomeForm.federal_withholding), (linkedEntry as any)?.federal_withholding || 0);
     const stateWH = preserve("state_withholding", num(incomeForm.state_withholding), (linkedEntry as any)?.state_withholding || 0);
+    const applicableStateWH = taxSettings?.businessStateTaxEnabled ? stateWH : 0;
     const ssWH = preserve("ss_withholding", num(incomeForm.ss_withholding), (linkedEntry as any)?.ss_withholding || 0);
     const medicareWH = preserve("medicare_withholding", num(incomeForm.medicare_withholding), (linkedEntry as any)?.medicare_withholding || 0);
     const companyName = selectedIncomeCompany?.name || "Unassigned";
