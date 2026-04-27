@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 
 const COMMON_CATEGORIES = [
   "Advertising",
@@ -18,31 +18,7 @@ const COMMON_CATEGORIES = [
   "Utilities",
 ];
 
-const ALL_CATEGORIES = [
-  "Advertising",
-  "Car and truck expenses",
-  "Commissions and fees",
-  "Contract labor",
-  "Depletion",
-  "Depreciation / Section 179",
-  "Employee benefit programs",
-  "Insurance",
-  "Interest - mortgage",
-  "Interest - other",
-  "Legal and professional services",
-  "Meals",
-  "Office expense",
-  "Other expenses",
-  "Pension and profit-sharing plans",
-  "Rent or lease - other business property",
-  "Rent or lease - vehicles, machinery, equipment",
-  "Repairs and maintenance",
-  "Supplies",
-  "Taxes and licenses",
-  "Travel",
-  "Utilities",
-  "Wages",
-];
+const ALL_CATEGORIES = SCHEDULE_C_CATEGORIES.map((category) => category.label);
 
 export const EXPENSE_CATEGORIES = ALL_CATEGORIES;
 
