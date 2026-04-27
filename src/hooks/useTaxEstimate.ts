@@ -29,8 +29,10 @@ export function useTaxEstimate(): {
   taxMode: TaxMode;
   setTaxMode: (mode: TaxMode) => void;
   actualEstimate: TaxEstimate | null;
+  currentPaceEstimate: TaxEstimate | null;
   forecastEstimate: TaxEstimate | null;
   actualDebug: TaxDebugBreakdown | null;
+  currentPaceDebug: TaxDebugBreakdown | null;
   forecastDebug: TaxDebugBreakdown | null;
 } {
   const [taxMode, setTaxModeRaw] = useState<TaxMode>("forecast");
@@ -460,19 +462,56 @@ export function useTaxEstimate(): {
     return computeUnifiedTaxEstimate({ ...scopedBaseInputs.actualOnlyTaxInputs, includeProjectedIncome: false });
   }, [scopedBaseInputs]);
 
+  const currentPaceResult = useMemo(() => {
+    if (!scopedBaseInputs) return null;
+    const now = new Date();
+    const elapsedMonths = Math.max(1, now.getMonth() + 1);
+    const annualizationFactor = 12 / elapsedMonths;
+    const actual = scopedBaseInputs.actualOnlyTaxInputs;
+
+    return computeUnifiedTaxEstimate({
+      ...actual,
+      businessIncome: actual.businessIncome * annualizationFactor,
+      seEligibleBusinessIncome: actual.seEligibleBusinessIncome * annualizationFactor,
+      seEligibleBusinessExpenses: (actual.seEligibleBusinessExpenses ?? actual.businessExpenses) * annualizationFactor,
+      seEligibleMileageDeduction: (actual.seEligibleMileageDeduction ?? actual.mileageDeduction) * annualizationFactor,
+      businessW2: actual.businessW2 * annualizationFactor,
+      businessPreTax: actual.businessPreTax * annualizationFactor,
+      businessRetirement: actual.businessRetirement * annualizationFactor,
+      ownerHealthcare: actual.ownerHealthcare * annualizationFactor,
+      businessStateEligibleGross: actual.businessStateEligibleGross * annualizationFactor,
+      businessStateEligibleExpenses: actual.businessStateEligibleExpenses * annualizationFactor,
+      businessStateEligibleMileage: actual.businessStateEligibleMileage * annualizationFactor,
+      businessStateEligibleOwnerAdjustments: actual.businessStateEligibleOwnerAdjustments * annualizationFactor,
+      personalIncome: actual.personalIncome * annualizationFactor,
+      personalW2: actual.personalW2 * annualizationFactor,
+      personalNonW2Income: actual.personalNonW2Income * annualizationFactor,
+      personalPreTax: actual.personalPreTax * annualizationFactor,
+      personalRetirement: actual.personalRetirement * annualizationFactor,
+      netStockGain: actual.netStockGain * annualizationFactor,
+      businessExpenses: actual.businessExpenses * annualizationFactor,
+      mileageDeduction: actual.mileageDeduction * annualizationFactor,
+      annualizedRetirement: actual.annualizedRetirement * annualizationFactor,
+      includeProjectedIncome: false,
+      rateSourceLabel: "actual/YTD income pace",
+    });
+  }, [scopedBaseInputs]);
+
   const forecastResult = useMemo(() => {
     if (!scopedBaseInputs) return null;
     return computeUnifiedTaxEstimate({ ...scopedBaseInputs.includePlannedTaxInputs, includeProjectedIncome: true });
   }, [scopedBaseInputs]);
 
   const actualEstimate = actualResult?.estimate ?? null;
+  const currentPaceEstimate = currentPaceResult?.estimate ?? null;
   const forecastEstimate = forecastResult?.estimate ?? null;
   const estimate = taxMode === "forecast" ? forecastEstimate : actualEstimate;
 
   return {
     estimate, isLoading, taxMode, setTaxMode,
-    actualEstimate, forecastEstimate,
+    actualEstimate, currentPaceEstimate, forecastEstimate,
     actualDebug: actualResult?.debug ?? null,
+    currentPaceDebug: currentPaceResult?.debug ?? null,
     forecastDebug: forecastResult?.debug ?? null,
   };
 }

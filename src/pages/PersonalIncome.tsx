@@ -171,7 +171,7 @@ export default function PersonalIncome() {
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
-  const { actualEstimate, forecastEstimate } = useTaxEstimate();
+  const { actualEstimate, currentPaceEstimate, forecastEstimate } = useTaxEstimate();
   const stateIncomeTaxEnabled = !!taxSettings?.stateIncomeTaxEnabled;
 
   const [showForm, setShowForm] = useState(false);
@@ -265,6 +265,7 @@ export default function PersonalIncome() {
     const selectedProfile = getSelectedWithholdingProfileRate({
       taxSettings,
       actualEstimate,
+      currentPaceEstimate,
       forecastEstimate,
     });
     const method = selectedProfile.methodUsed;
@@ -329,6 +330,7 @@ export default function PersonalIncome() {
     stateIncomeTaxEnabled,
     taxSettings,
     actualEstimate,
+    currentPaceEstimate,
     forecastEstimate,
   ]);
 

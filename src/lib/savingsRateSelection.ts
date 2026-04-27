@@ -42,6 +42,7 @@ export interface SavingsRateInput {
   incomeType?: string;
   taxSettings: SavingsRateSettingsLike | null | undefined;
   actualEstimate: TaxEstimate | null | undefined;
+  currentPaceEstimate?: TaxEstimate | null | undefined;
   forecastEstimate: TaxEstimate | null | undefined;
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
@@ -128,6 +129,7 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateRe
   const profile = getSelectedWithholdingProfileRate({
     taxSettings: settings,
     actualEstimate: input.actualEstimate,
+    currentPaceEstimate: input.currentPaceEstimate,
     forecastEstimate: input.forecastEstimate,
   });
   const method = profile.methodUsed;
@@ -165,6 +167,7 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateRe
 export function getSelectedWithholdingProfileRate(input: {
   taxSettings: SavingsRateSettingsLike | null | undefined;
   actualEstimate: TaxEstimate | null | undefined;
+  currentPaceEstimate?: TaxEstimate | null | undefined;
   forecastEstimate: TaxEstimate | null | undefined;
 }): WithholdingProfileRateResult {
   const settings = input.taxSettings ?? {};
@@ -182,7 +185,7 @@ export function getSelectedWithholdingProfileRate(input: {
     };
   }
 
-  const dynamicEstimate = method === "dynamic_planner" ? input.forecastEstimate : input.actualEstimate;
+  const dynamicEstimate = method === "dynamic_planner" ? input.forecastEstimate : (input.currentPaceEstimate ?? input.actualEstimate);
   const federalProfileRate = dynamicOrdinaryIncomeProfileRate(dynamicEstimate);
   const allInclusiveRate = canonicalEffectiveTaxRate(dynamicEstimate);
 
@@ -202,8 +205,8 @@ export function getSelectedWithholdingProfileRate(input: {
     federalProfileRate,
     canonicalEffectiveTaxRate: allInclusiveRate,
     source: "dynamic_actual",
-    estimateSource: "actual-only",
-    label: "Based on actual income only",
+      estimateSource: "actual-only",
+      label: "Based on actual income pace",
   };
 }
 

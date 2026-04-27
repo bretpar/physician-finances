@@ -223,8 +223,10 @@ export function useTaxBreakdown(
   // 🎯 SINGLE SOURCE OF TRUTH for all totals
   const {
     actualDebug,
+    currentPaceDebug,
     forecastDebug,
     actualEstimate,
+    currentPaceEstimate,
     forecastEstimate,
     isLoading: estLoading,
   } = useTaxEstimate();
@@ -615,6 +617,7 @@ export function useTaxBreakdown(
     const profile = getSelectedWithholdingProfileRate({
       taxSettings: settings,
       actualEstimate,
+      currentPaceEstimate,
       forecastEstimate,
     });
     const effectiveRate = ((settings?.withholdingMethod === "flat_estimate" ? profile.federalProfileRate : profile.canonicalEffectiveTaxRate) || 0) / 100;
@@ -682,5 +685,5 @@ export function useTaxBreakdown(
     };
   }, [settings, txs, incomes, companies, streams, bonuses, overrides, mileageEntries, homeOfficeDeductions, filterCompanyName, mode,
       sLoading, tLoading, iLoading, stLoading, bLoading, oLoading, estLoading, hoLoading,
-      actualDebug, forecastDebug, actualEstimate, forecastEstimate]);
+      actualDebug, currentPaceDebug, forecastDebug, actualEstimate, currentPaceEstimate, forecastEstimate]);
 }

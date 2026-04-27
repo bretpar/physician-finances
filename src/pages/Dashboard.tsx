@@ -26,7 +26,7 @@ export default function Dashboard() {
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: payments = [] } = useTaxPayments();
-  const { actualEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
@@ -213,13 +213,14 @@ export default function Dashboard() {
   // - dynamic_planner → forecast/canonical actual + planned tax profile
   const method = rates?.withholdingMethod ?? "dynamic_planner";
   const baseEstimate =
-    method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : actualEstimate;
-  const profile = getSelectedWithholdingProfileRate({ taxSettings: rates, actualEstimate, forecastEstimate });
+    method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate);
+  const profile = getSelectedWithholdingProfileRate({ taxSettings: rates, actualEstimate, currentPaceEstimate, forecastEstimate });
   const personalRate = getSavingsRateForIncomeBucket({
     incomeBucket: "personal",
     incomeType: "W2",
     taxSettings: rates,
     actualEstimate,
+    currentPaceEstimate,
     forecastEstimate,
   }).rate;
   const businessRate = getSavingsRateForIncomeBucket({
@@ -227,6 +228,7 @@ export default function Dashboard() {
     incomeType: "1099",
     taxSettings: rates,
     actualEstimate,
+    currentPaceEstimate,
     forecastEstimate,
     includeSETaxInRecommendation: true,
   }).rate;
