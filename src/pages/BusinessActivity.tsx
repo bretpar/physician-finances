@@ -2110,29 +2110,10 @@ export default function Transactions() {
             </div>
 
             {!expenseForm.is_transfer && (
-              <>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
-                  <ExpenseCategoryCombobox value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v }))} />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">
-                    Schedule C category <span className="text-muted-foreground/70">(optional, for tax breakdown)</span>
-                  </Label>
-                  <Select
-                    value={expenseForm.schedule_c_category || "auto"}
-                    onValueChange={(v) => setExpenseForm((f) => ({ ...f, schedule_c_category: v === "auto" ? "" : v }))}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">Auto-detect from category</SelectItem>
-                      {SCHEDULE_C_CATEGORIES.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+                <ExpenseCategoryCombobox value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v, schedule_c_category: mapToScheduleC(v) }))} />
+              </div>
             )}
 
             {expenseForm.is_transfer && (
