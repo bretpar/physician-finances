@@ -1013,7 +1013,7 @@ function ConnectedAccountsSection() {
                   .eq("plaid_item_id", exchangeData.item_db_id).eq("is_active", true);
                 if (newAccts) {
                   const prefs: Record<string, { sync_enabled: boolean; mode: string; companyId: string; routing: string }> = {};
-                  for (const a of newAccts) prefs[a.id] = { sync_enabled: false, mode: "unassigned", companyId: "", routing: "needs_review" };
+                  for (const a of newAccts) prefs[a.id] = { sync_enabled: true, mode: "unassigned", companyId: "", routing: "needs_review" };
                   setReviewPrefs(prefs);
                 }
               }, 500);
@@ -1126,7 +1126,7 @@ function ConnectedAccountsSection() {
       const routing = pref.routing;
       return {
         id: a.id,
-        sync_enabled: routing === "business" || routing === "personal",
+        sync_enabled: routing !== "ignore",
         account_business_mode: routing === "business" ? pref.mode : "unassigned",
         default_company_id: routing === "business" && pref.mode === "single_business" && pref.companyId ? pref.companyId : null,
         account_routing: routing,
@@ -1350,7 +1350,7 @@ function ConnectedAccountsSection() {
                 {editRouting === "business" && "Transactions appear in Business Activity for profit/loss tracking."}
                 {editRouting === "personal" && "Transactions appear in Personal Income. Not included in business P&L."}
                 {editRouting === "ignore" && "No transactions will be imported from this account."}
-                {editRouting === "needs_review" && "Transactions are paused until you choose a destination."}
+                {editRouting === "needs_review" && "Transactions are imported into Needs Review until you choose a destination."}
               </p>
             </div>
             {editRouting === "business" && (
