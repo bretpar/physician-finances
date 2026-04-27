@@ -1517,25 +1517,3 @@ function SummaryCard({
   );
 }
 
-function FlowStat({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "muted" | "destructive" | "success" | "warning";
-}) {
-  const toneClass =
-    tone === "destructive" ? "text-destructive"
-    : tone === "success" ? "text-emerald-600 dark:text-emerald-400"
-    : tone === "warning" ? "text-amber-600 dark:text-amber-400"
-    : tone === "muted" ? "text-muted-foreground"
-    : "text-foreground";
-  return (
-    <div className="rounded-md border border-border bg-card px-3 py-2.5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`text-lg font-semibold tabular-nums mt-1 ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
