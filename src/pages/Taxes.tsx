@@ -352,9 +352,7 @@ export default function Taxes() {
       {(taxMode === "actual" ? actualDebug : forecastDebug) && (
         <TaxDebugPanel
           debug={(taxMode === "actual" ? actualDebug : forecastDebug)!}
-          label={`Taxes Tab — ${taxMode === "forecast" ? "Forecast" : "Actual"} Calculation Debug`}
-          compareDebug={taxMode === "forecast" ? forecastDebug : undefined}
-          compareLabel="Income Planner"
+          label={taxMode === "forecast" ? "Income Planner — Tax Calculation Debug" : "Taxes Tab — Actual Calculation Debug"}
         />
       )}
       {savings.length > 0 && (
