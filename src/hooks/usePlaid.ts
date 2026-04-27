@@ -131,8 +131,8 @@ export function usePlaidNeedsReviewTransactions() {
       const accountMap = new Map((accounts || []).map((a: any) => [a.plaid_account_id, a]));
 
       return rows
-        .filter((row: any) => !routedIds.has(row.id))
-        .map((row: any) => ({ ...row, account: accountMap.get(row.plaid_account_id) || null }));
+        .map((row: any) => ({ ...row, account: accountMap.get(row.plaid_account_id) || null }))
+        .filter((row: any) => !routedIds.has(row.id) && (row.account?.account_routing || "needs_review") === "needs_review");
     },
   });
 }
