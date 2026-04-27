@@ -134,7 +134,7 @@ export function useWithholdingRecommendation() {
         const flatRate = rateSel.rate;
         const taxOnEntry = netTaxableForEntry * (flatRate / 100);
 
-        const rec = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
+        const rec = Math.max(0, Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100);
 
         return {
           recommendedWithholding: rec,
@@ -145,7 +145,7 @@ export function useWithholdingRecommendation() {
           estimatedRemainingTax: 0,
           effectiveRate: flatRate,
           isManualMode: true,
-          isOverWithheld: rec < 0,
+          isOverWithheld: rec <= 0,
           methodLabel: rateSel.label,
           rateBreakdown: rateSel,
           annualTaxLiability: 0,
@@ -169,7 +169,8 @@ export function useWithholdingRecommendation() {
 
       const methodLabel = selectedProfile.label;
 
-      // ── Unified "annual remaining tax" view ─────────────────────────────
+      // Annual fields are kept for transparency only; they do not drive the
+      // per-entry reserve recommendation.
       // debug.countedCreditsTotal already includes:
       //   - actual federal withholding
       //   - actual state withholding
@@ -181,7 +182,7 @@ export function useWithholdingRecommendation() {
       const countedCreditsTotal = debug.countedCreditsTotal;
       const annualRemainingTax = debug.remainingTaxDue; // = max(0, liability − credits)
 
-      // ── W-2 path: annual-remaining-tax distribution ─────────────────────
+      // ── W-2 path: per-entry reserve math ────────────────────────────────
       if (resolvedBucket === "personal" || isW2) {
         const rateSelection = getSavingsRateForIncomeBucket({
           incomeBucket: "personal",
@@ -192,7 +193,7 @@ export function useWithholdingRecommendation() {
           forecastEstimate,
         });
         const paycheckTarget = netTaxableForEntry * (rateSelection.rate / 100);
-        const recommendedWithholding = Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100;
+        const recommendedWithholding = Math.max(0, Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100);
 
         return {
           recommendedWithholding,
