@@ -22,7 +22,7 @@ import {
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod, type QuarterlyTrackerMethod } from "@/hooks/useTaxSettings";
+import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod, type QuarterlyTrackerMethod, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import { isPremiumFeature } from "@/lib/featureFlags";
 import {
   FILING_TYPES,
@@ -328,6 +328,77 @@ function QuarterlyTrackerMethodSection() {
           </div>
         </label>
       </RadioGroup>
+    </SectionCard>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
+/*  Household Income Streams section                             */
+/* ──────────────────────────────────────────────────────────── */
+const HOUSEHOLD_INCOME_STREAM_OPTIONS: Array<{ key: keyof HouseholdIncomeStreams; label: string }> = [
+  { key: "w2Income", label: "W2 income" },
+  { key: "spouseW2Income", label: "Spouse/partner W2 income" },
+  { key: "additionalW2Job", label: "Additional W2 job" },
+  { key: "business1099Income", label: "Business / 1099 income" },
+  { key: "k1PartnershipIncome", label: "K-1 / partnership income" },
+  { key: "sCorpIncome", label: "S-corp income" },
+  { key: "rentalIncome", label: "Rental income" },
+  { key: "investmentIncome", label: "Investment income" },
+  { key: "otherIncome", label: "Other income" },
+];
+
+function HouseholdIncomeStreamsSection() {
+  const { data } = useTaxSettings();
+  const updateMutation = useUpdateTaxSettings();
+  const [savedTick, setSavedTick] = useState(false);
+
+  const source: HouseholdIncomeStreams = useMemo(() => data?.householdIncomeStreams ?? {
+    w2Income: true,
+    spouseW2Income: true,
+    additionalW2Job: true,
+    business1099Income: true,
+    k1PartnershipIncome: true,
+    sCorpIncome: true,
+    rentalIncome: true,
+    investmentIncome: true,
+    otherIncome: true,
+  }, [data?.householdIncomeStreams]);
+
+  const draft = useSectionDraft<HouseholdIncomeStreams>({
+    source,
+    onSave: async (next) => {
+      if (!data?.id) throw new Error("Tax settings not loaded");
+      await updateMutation.mutateAsync({ id: data.id, householdIncomeStreams: next });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 2000);
+    },
+  });
+
+  return (
+    <SectionCard
+      title="Household Income Streams"
+      icon={<Settings2 className="h-5 w-5" />}
+      description="Saved profile flags for future household-aware workflows. These do not change tax calculations yet."
+      isDirty={draft.isDirty}
+      isSaving={draft.isSaving}
+      justSaved={savedTick}
+      onSave={draft.save}
+      onCancel={draft.cancel}
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {HOUSEHOLD_INCOME_STREAM_OPTIONS.map((option) => (
+          <div key={option.key} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <Label className="text-sm font-medium text-card-foreground" htmlFor={`household-${option.key}`}>
+              {option.label}
+            </Label>
+            <Switch
+              id={`household-${option.key}`}
+              checked={draft.draft[option.key]}
+              onCheckedChange={(checked) => draft.patch({ [option.key]: checked } as Partial<HouseholdIncomeStreams>)}
+            />
+          </div>
+        ))}
+      </div>
     </SectionCard>
   );
 }
