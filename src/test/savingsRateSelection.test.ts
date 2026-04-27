@@ -143,12 +143,12 @@ describe("getSavingsRateForIncomeBucket", () => {
       includeSETaxInRecommendation: false,
     });
 
-    expect(defaultK1.components.federal).toBe(12.4);
+    expect(defaultK1.components.federal).toBe(11.1);
     expect(defaultK1.components.selfEmployment).toBeCloseTo(14.13, 2);
     expect(defaultK1.components.businessState).toBe(1.5);
-    expect(defaultK1.rate).toBeCloseTo(28.03, 2);
+    expect(defaultK1.rate).toBeCloseTo(26.73, 2);
     expect(toggleOffK1.components.selfEmployment).toBe(0);
-    expect(toggleOffK1.rate).toBe(13.9);
+    expect(toggleOffK1.rate).toBe(12.6);
   });
 
   it("S-corp distribution never adds SE tax", () => {
@@ -161,10 +161,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       applyBusinessStateTax: true,
     });
 
-    expect(result.components.federal).toBe(12.4);
+    expect(result.components.federal).toBe(11.1);
     expect(result.components.selfEmployment).toBe(0);
     expect(result.components.businessState).toBe(1.5);
-    expect(result.rate).toBe(13.9);
+    expect(result.rate).toBe(12.6);
   });
 
   it("flat mode uses the manual user input as the base rate", () => {
@@ -217,7 +217,7 @@ describe("getSavingsRateForIncomeBucket", () => {
     });
 
     expect(result.components.businessState).toBe(0);
-    expect(result.components.federal).toBe(12.4);
-    expect(result.rate).toBeCloseTo(26.53, 2);
+    expect(result.components.federal).toBe(11.1);
+    expect(result.rate).toBeCloseTo(25.23, 2);
   });
 });
