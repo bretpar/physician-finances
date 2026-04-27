@@ -127,15 +127,14 @@ export function useIncomeRecommendation() {
       baseTaxEstimate = Math.round(baseTaxEstimate * 100) / 100;
 
       // ── PER-ENTRY RESERVE RECOMMENDATION ──
-      let dynamicTaxRecommendation = baseTaxEstimate;
-      let quarterlyAdjustmentAmount = 0;
-      let recommendationStatus: RecommendationStatus = "on_track";
-      let shortfallOrSurplus = 0;
-      let totalShortfallByDeadline = 0;
-      let recommendedAdditionalReserve = 0;
-      let confidence: RecommendationConfidence = "high";
-      let spreadExplanation = "Based on this paycheck only";
-      let projectedEventsUsed = 0;
+      const dynamicTaxRecommendation = baseTaxEstimate;
+      const quarterlyAdjustmentAmount = 0;
+      const recommendationStatus: RecommendationStatus = "on_track";
+      const shortfallOrSurplus = 0;
+      const totalShortfallByDeadline = 0;
+      const confidence: RecommendationConfidence = "high";
+      const spreadExplanation = "Based on this paycheck only";
+      const projectedEventsUsed = 0;
 
       const actualWithheld = federalWithheld + stateWithheld;
       recommendedAdditionalReserve = Math.max(0, Math.round((baseTaxEstimate - actualWithheld) * 100) / 100);
@@ -156,11 +155,11 @@ export function useIncomeRecommendation() {
         spreadExplanation,
         effectiveRate,
         methodLabel,
-        isDynamicEnabled,
-        nextDeadlineLabel: quarterInfo.quarterLabel,
+        isDynamicEnabled: false,
+        nextDeadlineLabel: "this paycheck",
       };
     };
-  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings, taxPayments, taxSavings, isDynamicEnabled, isQuarterlyEnabled, quarterInfo, projectedEventCount, historicalCadenceEstimate]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings]);
 
   return { getRecommendation, isLoading };
 }
