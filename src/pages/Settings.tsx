@@ -214,16 +214,18 @@ function TaxWithholdingSection() {
             <p className="text-sm font-medium text-card-foreground">Flat Rate</p>
             <p className="text-xs text-muted-foreground mt-0.5">Use the same percentage for every paycheck. Best if you want a simple, predictable rule. A good starting point is your effective tax rate from last year’s tax return.</p>
             {draft.draft.withholdingMethod === "flat_estimate" && (
-              <div className="mt-3 flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Rate (%)</Label>
-                <Input
-                  type="number" step="0.1" min="0" max="100"
-                  className="w-24 h-8"
-                  value={draft.draft.manualEffectiveTaxRate ?? 20}
-                  onChange={(e) => draft.patch({ manualEffectiveTaxRate: parseFloat(e.target.value) || 0 })}
-                />
+              <div>
+                <div className="mt-3 flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">Rate (%)</Label>
+                  <Input
+                    type="number" step="0.1" min="0" max="100"
+                    className="w-24 h-8"
+                    value={draft.draft.manualEffectiveTaxRate ?? 20}
+                    onChange={(e) => draft.patch({ manualEffectiveTaxRate: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Tip: You can often estimate this by looking at your prior year total tax divided by total income, or by using the effective tax rate from last year’s tax return.</p>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Tip: You can often estimate this by looking at your prior year total tax divided by total income, or by using the effective tax rate from last year’s tax return.</p>
             )}
           </div>
         </label>
