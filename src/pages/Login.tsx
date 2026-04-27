@@ -35,7 +35,7 @@ export default function Login() {
           <div className="mx-auto h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
             <PiggyBank className="h-7 w-7 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">Welcome to MedFinance</CardTitle>
+          <CardTitle className="text-2xl">Welcome to Paycheck MD</CardTitle>
           <CardDescription>Sign in to your account to continue</CardDescription>
         </CardHeader>
         <CardContent>

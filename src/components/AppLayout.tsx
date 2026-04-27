@@ -94,7 +94,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <PiggyBank className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-base font-semibold text-sidebar-primary-foreground">MedFinance</h1>
+            <h1 className="text-base font-semibold text-sidebar-primary-foreground">Paycheck MD</h1>
             <p className="text-xs text-sidebar-foreground truncate">{organizationName || "Physician Portal"}</p>
           </div>
           <button
