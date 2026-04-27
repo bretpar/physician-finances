@@ -1443,7 +1443,7 @@ function ConnectedAccountsSection() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-medium text-muted-foreground">Route to:</Label>
-                        <Select value={routing} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, routing: v, mode: v !== "business" ? "unassigned" : pref.mode, companyId: v !== "business" ? "" : pref.companyId, sync_enabled: v === "business" || v === "personal" } }))}>
+                        <Select value={routing} onValueChange={(v) => setReviewPrefs((p) => ({ ...p, [acct.id]: { ...pref, routing: v, mode: v !== "business" ? "unassigned" : pref.mode, companyId: v !== "business" ? "" : pref.companyId, sync_enabled: v !== "ignore" } }))}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="business">Business Activity</SelectItem>
