@@ -233,7 +233,7 @@ function TaxWithholdingSection() {
           <RadioGroupItem value="dynamic_actual" className="mt-0.5" />
           <div>
             <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Current Income</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Uses your actual income so far this year and estimates the rest of the year based on your current pace. This creates an estimated annual income, tax burden, and effective tax rate.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Uses your actual income so far this year, divides it by the months elapsed, then projects that monthly pace across the remaining months of the year. This creates an estimated annual income, tax burden, and effective tax rate.</p>
           </div>
         </label>
         <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
