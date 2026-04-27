@@ -87,6 +87,7 @@ export interface UnifiedTaxInput {
   withholdingOverrideAmount?: number | null;
   withholdingMethod?: string | null;
   manualEffectiveTaxRate?: number | null;
+  rateSourceLabel?: string | null;
 
   stateIncomeTaxEnabled?: boolean;
   /** Backwards-compatible alias for personal state income tax only. */
@@ -355,7 +356,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // holds and state withholding never gets "double-counted" by being implicit
   // in state tax due AND added to countedCreditsTotal.
   const remainingTaxDue = Math.max(0, estimate.totalTaxLiability - countedCreditsTotal);
-  const scopeLabel = includeProjectedIncome ? "actual + planned" : "actual only";
+  const scopeLabel = input.rateSourceLabel || (includeProjectedIncome ? "actual + planned" : "actual only");
 
   const debug: TaxDebugBreakdown = {
     includeProjectedIncome,
