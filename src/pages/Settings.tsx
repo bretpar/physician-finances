@@ -945,10 +945,12 @@ function ConnectedAccountsSection() {
   const { companies } = useCompanies();
   const { data: plaidItems = [], isLoading: plaidItemsLoading } = usePlaidItems();
   const { data: plaidAccounts = [] } = usePlaidAccounts();
+  const { data: needsReviewTransactions = [] } = usePlaidNeedsReviewTransactions();
   const syncMutation = useSyncTransactions();
   const disconnectMutation = useDisconnectPlaidItem();
   const updateAccountMutation = useUpdatePlaidAccount();
   const bulkApplyMutation = useBulkApplyAccountBusiness();
+  const backfillMutation = useBackfillPlaidTransactions();
   const reviewAccountsMutation = useReviewAccounts();
 
   const [linkLoading, setLinkLoading] = useState(false);
@@ -968,6 +970,13 @@ function ConnectedAccountsSection() {
   >({});
 
   const totalAccounts = plaidAccounts.length;
+  const needsReviewByAccount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const row of needsReviewTransactions as any[]) {
+      counts[row.plaid_account_id] = (counts[row.plaid_account_id] || 0) + 1;
+    }
+    return counts;
+  }, [needsReviewTransactions]);
 
   const toggleExpand = (id: string) =>
     setExpandedItems((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
