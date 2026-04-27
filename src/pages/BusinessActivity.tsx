@@ -810,7 +810,7 @@ export default function Transactions() {
             const recommended = Math.max(0, rec.baseTaxEstimate || 0);
             const actualSaved =
               taxWithheld +
-              num(incomeForm.state_withholding) +
+              applicableStateWH +
               num(incomeForm.ss_withholding) +
               num(incomeForm.medicare_withholding) +
               num(incomeForm.additional_tax_reserve);
