@@ -45,7 +45,7 @@ describe("getSelectedWithholdingProfileRate", () => {
     expect(result.canonicalEffectiveTaxRate).toBe(20);
   });
 
-  it("uses forecast federalEffectiveRate and effectiveRate for dynamic_actual", () => {
+  it("uses actual-only federalEffectiveRate and effectiveRate for dynamic_actual", () => {
     const result = getSelectedWithholdingProfileRate({
       taxSettings: { withholdingMethod: "dynamic_actual" },
       actualEstimate,
@@ -53,8 +53,10 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("dynamic_actual");
-    expect(result.federalProfileRate).toBe(12.4);
-    expect(result.canonicalEffectiveTaxRate).toBe(17);
+    expect(result.estimateSource).toBe("actual-only");
+    expect(result.label).toBe("Based on actual income only");
+    expect(result.federalProfileRate).toBe(11.1);
+    expect(result.canonicalEffectiveTaxRate).toBe(14.2);
   });
 
   it("uses forecast federalEffectiveRate and effectiveRate for dynamic_planner", () => {
@@ -65,6 +67,8 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("dynamic_planner");
+    expect(result.estimateSource).toBe("forecast");
+    expect(result.label).toBe("Includes planned/future income");
     expect(result.federalProfileRate).toBe(12.4);
     expect(result.canonicalEffectiveTaxRate).toBe(17);
   });
