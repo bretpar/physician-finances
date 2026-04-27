@@ -28,7 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
-import { mapToScheduleC } from "@/lib/scheduleC";
+import { mapToScheduleC, SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
@@ -837,6 +837,12 @@ export default function Transactions() {
     const amount = num(expenseForm.amount);
     if (amount === 0) return;
     if (!expenseForm.is_transfer && !selectedExpenseCompany) { toast.error("Please select a company"); return; }
+    const scheduleCMapping = expenseForm.is_transfer ? null : mapToScheduleC(expenseForm.category);
+    const hasScheduleCMapping = !!scheduleCMapping && SCHEDULE_C_CATEGORIES.some((c) => c.value === scheduleCMapping);
+    if (!expenseForm.is_transfer && (!expenseForm.category || !hasScheduleCMapping)) {
+      toast.error("Please choose a valid Schedule C category before saving");
+      return;
+    }
 
     const flushAttachmentsTo = (newTxId: string) => {
       if (pendingExpenseAttachments.length === 0) return;
@@ -891,7 +897,7 @@ export default function Transactions() {
           vendor: expenseForm.name,
           amount,
           category: expenseForm.category,
-          schedule_c_category: mapToScheduleC(expenseForm.category),
+          schedule_c_category: scheduleCMapping,
           notes: expenseForm.notes,
           entity: selectedExpenseCompany?.name || "Unassigned",
           source_id: selectedExpenseCompany?.id || null,
@@ -904,7 +910,7 @@ export default function Transactions() {
           vendor: expenseForm.name,
           amount,
           category: expenseForm.category,
-          schedule_c_category: mapToScheduleC(expenseForm.category),
+          schedule_c_category: scheduleCMapping,
           notes: expenseForm.notes,
           transaction_type: "expense",
           entity: selectedExpenseCompany?.name || "Unassigned",
