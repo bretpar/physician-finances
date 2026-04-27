@@ -57,7 +57,7 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           {/* Base estimate — always shown */}
           <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Base tax estimate for this paycheck</span>
+              <span className="text-sm text-muted-foreground">Tax target for this paycheck</span>
               <span className="text-sm font-semibold">{fmt(recommendation.baseTaxEstimate)}</span>
             </div>
             <p className="text-[10px] text-muted-foreground">
@@ -65,8 +65,8 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
             </p>
           </div>
 
-          {/* Dynamic recommendation — premium feature */}
-          {showDynamic && recommendation.isDynamicEnabled && recommendation.recommendationStatus === "behind" && (
+          {/* Legacy annual/quarterly catch-up UI is intentionally disabled for paycheck reserve recommendations. */}
+          {showDynamic && recommendation.isDynamicEnabled && recommendation.quarterlyAdjustmentAmount > 0 && recommendation.recommendationStatus === "behind" && (
             <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
               {/* Exact shortfall */}
               <div className="flex justify-between items-center">
@@ -111,7 +111,7 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           )}
 
           {/* When ahead or on track, simpler display */}
-          {showDynamic && recommendation.isDynamicEnabled && recommendation.recommendationStatus !== "behind" && (
+          {showDynamic && recommendation.isDynamicEnabled && recommendation.quarterlyAdjustmentAmount > 0 && recommendation.recommendationStatus !== "behind" && (
             <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Quarterly adjustment recommendation</span>
@@ -125,7 +125,7 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           )}
 
           {/* Quarterly status — premium feature */}
-          {showQuarterly && recommendation.isDynamicEnabled && (
+          {showQuarterly && recommendation.isDynamicEnabled && recommendation.quarterlyAdjustmentAmount > 0 && (
             <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Status for next estimated payment</span>
@@ -152,11 +152,11 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           {recommendation.recommendedAdditionalReserve > 0 && (
             <div className="rounded-lg border-2 border-primary/30 p-3 bg-primary/5">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Recommended Additional tax reserve</span>
+                <span className="text-sm font-medium">Recommended additional tax reserve</span>
                 <span className="text-base font-bold text-primary">{fmt(recommendation.recommendedAdditionalReserve)}</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
-                This is the amount above your actual withholding that we recommend setting aside.
+                Based on this paycheck only, after taxes already withheld on this entry.
               </p>
             </div>
           )}

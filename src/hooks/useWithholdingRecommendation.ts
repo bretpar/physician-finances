@@ -1,16 +1,10 @@
 /**
  * Smart Withholding Recommendation Engine
  *
- * Uses the user's global withholding method (from Settings) and the UNIFIED
- * tax estimate (actual + projected W-2 withholding + estimated payments) to
- * produce a single consistent per-entry recommendation.
- *
- * Key fix (Apr 2026): W-2 recommendations now respect projected future W-2
- * withholding already expected across the year. Previously we applied the
- * effective rate to each paycheck and subtracted only that paycheck's own
- * withholding — which double-counted tax that employer payroll will already
- * withhold on remaining checks. We now distribute only the UNIFIED
- * remaining-after-credits annual tax across remaining pay periods.
+ * Uses the user's global withholding method (from Settings) and centralized
+ * effective-rate selection to produce a single consistent per-entry reserve
+ * recommendation. It does NOT distribute annual remaining tax across future
+ * paychecks.
  *
  * Methods:
  * - flat_estimate: user-defined flat % on net taxable (legacy per-entry)
@@ -39,7 +33,7 @@ export interface WithholdingInput {
 }
 
 export interface WithholdingRecommendation {
-  /** Amount to withhold/set aside for this specific income entry (can be negative for W2) */
+  /** Extra amount to save for this specific income entry, floored at 0. */
   recommendedWithholding: number;
   /** Projected total annual income */
   annualIncomeEstimate: number;
@@ -70,7 +64,7 @@ export interface WithholdingRecommendation {
   actualStateWithheld: number;
   estimatedPaymentsMade: number;
   taxSavingsSetAside: number;
-  recommendationBasis: "annual_remaining_tax" | "flat_rate" | "per_entry_rate";
+  recommendationBasis: "flat_rate" | "per_entry_rate";
 }
 
 /**
@@ -140,7 +134,7 @@ export function useWithholdingRecommendation() {
         const flatRate = rateSel.rate;
         const taxOnEntry = netTaxableForEntry * (flatRate / 100);
 
-        const rec = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
+        const rec = Math.max(0, Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100);
 
         return {
           recommendedWithholding: rec,
@@ -151,7 +145,7 @@ export function useWithholdingRecommendation() {
           estimatedRemainingTax: 0,
           effectiveRate: flatRate,
           isManualMode: true,
-          isOverWithheld: rec < 0,
+          isOverWithheld: rec <= 0,
           methodLabel: rateSel.label,
           rateBreakdown: rateSel,
           annualTaxLiability: 0,
@@ -175,7 +169,8 @@ export function useWithholdingRecommendation() {
 
       const methodLabel = selectedProfile.label;
 
-      // ── Unified "annual remaining tax" view ─────────────────────────────
+      // Annual fields are kept for transparency only; they do not drive the
+      // per-entry reserve recommendation.
       // debug.countedCreditsTotal already includes:
       //   - actual federal withholding
       //   - actual state withholding
@@ -187,7 +182,7 @@ export function useWithholdingRecommendation() {
       const countedCreditsTotal = debug.countedCreditsTotal;
       const annualRemainingTax = debug.remainingTaxDue; // = max(0, liability − credits)
 
-      // ── W-2 path: annual-remaining-tax distribution ─────────────────────
+      // ── W-2 path: per-entry reserve math ────────────────────────────────
       if (resolvedBucket === "personal" || isW2) {
         const rateSelection = getSavingsRateForIncomeBucket({
           incomeBucket: "personal",
@@ -198,7 +193,7 @@ export function useWithholdingRecommendation() {
           forecastEstimate,
         });
         const paycheckTarget = netTaxableForEntry * (rateSelection.rate / 100);
-        const recommendedWithholding = Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100;
+        const recommendedWithholding = Math.max(0, Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100);
 
         return {
           recommendedWithholding,

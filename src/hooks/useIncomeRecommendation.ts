@@ -1,24 +1,18 @@
 /**
  * Smart Income Recommendation Engine
  * 
- * Calculates base tax estimate, dynamic recommendation, quarterly status,
- * and additional tax reserve for income entries.
- * 
- * Uses projected income streams from Income Planner as the primary source
- * for estimating remaining income events before the next tax deadline.
- * Falls back to historical cadence or total shortfall when projections are absent.
+ * Calculates per-entry tax reserve guidance for income entries.
+ *
+ * This intentionally does NOT spread annual or quarterly shortfalls across
+ * future paychecks. Each recommendation answers: based on this entry's taxable
+ * base and selected effective tax rate, how much extra should be saved after
+ * taxes already withheld on this entry?
  */
 
 import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { useTaxPayments } from "@/hooks/useTaxPayments";
-import { useTaxSavings } from "@/hooks/useTaxSavings";
-import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
-import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import { isW2FilingType } from "@/lib/filingTypes";
-import { getNextQuarterDeadline } from "@/lib/quarters";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 export type RecommendationStatus = "ahead" | "on_track" | "behind";
@@ -27,11 +21,11 @@ export type RecommendationConfidence = "high" | "estimated" | "low";
 export interface IncomeRecommendation {
   /** Base tax estimate for this specific paycheck */
   baseTaxEstimate: number;
-  /** Dynamic recommendation using full-year tax picture */
+  /** Per-entry tax target before subtracting taxes already withheld */
   dynamicTaxRecommendation: number;
-  /** Quarterly catch-up or reduction amount */
+  /** Deprecated compatibility field; paycheck recommendations do not add catch-up */
   quarterlyAdjustmentAmount: number;
-  /** Total suggested tax reserve (base + quarterly adjustment) */
+  /** Per-entry tax target before subtracting taxes already withheld */
   totalSuggestedReserve: number;
   /** User's status for next estimated payment */
   recommendationStatus: RecommendationStatus;
@@ -75,62 +69,7 @@ interface RecommendationInput {
 export function useIncomeRecommendation() {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
-  const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
-  const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
-  const { data: streams = [], isLoading: strLoading } = useProjectedStreams();
-  const { data: bonuses = [], isLoading: bonLoading } = useProjectedBonuses();
-  const { data: personalEntries = [], isLoading: piLoading } = usePersonalIncomeEntries();
-
-  const isLoading = estLoading || settingsLoading || tpLoading || tsLoading || strLoading || bonLoading || piLoading;
-
-  const isDynamicEnabled = isFeatureEnabled("dynamic_paycheck_recommendation");
-  const isQuarterlyEnabled = isFeatureEnabled("quarterly_payment_tracking");
-
-  const quarterInfo = useMemo(() => getNextQuarterDeadline(), []);
-
-  // Count projected income events between now and next deadline
-  const projectedEventCount = useMemo(() => {
-    if (!streams.length && !bonuses.length) return 0;
-    const allPaychecks = generateProjectedPaychecks(streams, bonuses, personalEntries);
-    const deadlineStr = quarterInfo.deadline.toISOString().split("T")[0];
-    return allPaychecks.filter(
-      (p) => !p.isSkipped && p.date <= deadlineStr
-    ).length;
-  }, [streams, bonuses, personalEntries, quarterInfo]);
-
-  // Estimate historical cadence as fallback
-  const historicalCadenceEstimate = useMemo(() => {
-    if (personalEntries.length < 2) return null;
-    // Sort by date ascending
-    const sorted = [...personalEntries].sort((a, b) => a.income_date.localeCompare(b.income_date));
-    // Look at the last 6 months of entries
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const sixMonthStr = sixMonthsAgo.toISOString().split("T")[0];
-    const recent = sorted.filter((e) => e.income_date >= sixMonthStr);
-    if (recent.length < 2) return null;
-
-    // Calculate average days between entries
-    let totalDays = 0;
-    for (let i = 1; i < recent.length; i++) {
-      const d1 = new Date(recent[i - 1].income_date);
-      const d2 = new Date(recent[i].income_date);
-      totalDays += (d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
-    }
-    const avgDaysBetween = totalDays / (recent.length - 1);
-    if (avgDaysBetween <= 0 || avgDaysBetween > 90) return null; // unreasonable
-
-    // Estimate events between now and deadline
-    const now = new Date();
-    const daysToDeadline = Math.max(1, (quarterInfo.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    const estimatedEvents = Math.max(1, Math.round(daysToDeadline / avgDaysBetween));
-
-    return {
-      avgDaysBetween: Math.round(avgDaysBetween),
-      estimatedEvents,
-      recentCount: recent.length,
-    };
-  }, [personalEntries, quarterInfo]);
+  const isLoading = estLoading || settingsLoading;
 
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
@@ -187,80 +126,18 @@ export function useIncomeRecommendation() {
 
       baseTaxEstimate = Math.round(baseTaxEstimate * 100) / 100;
 
-      // ── DYNAMIC RECOMMENDATION (premium feature) ──
-      let dynamicTaxRecommendation = baseTaxEstimate;
-      let quarterlyAdjustmentAmount = 0;
-      let recommendationStatus: RecommendationStatus = "on_track";
-      let shortfallOrSurplus = 0;
-      let totalShortfallByDeadline = 0;
-      let recommendedAdditionalReserve = 0;
-      let confidence: RecommendationConfidence = "high";
-      let spreadExplanation = "";
-      let projectedEventsUsed = 0;
+      // ── PER-ENTRY RESERVE RECOMMENDATION ──
+      const dynamicTaxRecommendation = baseTaxEstimate;
+      const quarterlyAdjustmentAmount = 0;
+      const recommendationStatus: RecommendationStatus = "on_track";
+      const shortfallOrSurplus = 0;
+      const totalShortfallByDeadline = 0;
+      const confidence: RecommendationConfidence = "high";
+      const spreadExplanation = "Based on this paycheck only";
+      const projectedEventsUsed = 0;
 
-      if (isDynamicEnabled && isQuarterlyEnabled) {
-        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : (currentPaceEstimate ?? actualEstimate);
-        if (estimate) {
-          const annualTax = estimate.totalTaxLiability;
-          const quarterFraction = quarterInfo.quarter / 4;
-          const targetByNextDeadline = annualTax * quarterFraction;
-
-          const totalWithheld = estimate.taxesAlreadyWithheld;
-          const quarterlyPaid = taxPayments.reduce((s, p) => s + Number(p.amount), 0);
-          // Savings set aside is informational only — NOT a submitted tax payment, so it
-          // does NOT count as money applied against the bill.
-          const totalCovered = totalWithheld + quarterlyPaid;
-
-          shortfallOrSurplus = Math.round((targetByNextDeadline - totalCovered) * 100) / 100;
-          totalShortfallByDeadline = Math.max(0, shortfallOrSurplus);
-
-          if (shortfallOrSurplus > 100) {
-            recommendationStatus = "behind";
-
-            // ── SPREAD LOGIC: use projected income as primary source ──
-            if (projectedEventCount > 0) {
-              // High confidence: we know exactly how many income events are coming
-              projectedEventsUsed = projectedEventCount;
-              quarterlyAdjustmentAmount = Math.round((shortfallOrSurplus / projectedEventCount) * 100) / 100;
-              confidence = "high";
-              spreadExplanation = `Spread across ${projectedEventCount} projected income event${projectedEventCount > 1 ? "s" : ""} before ${quarterInfo.quarterLabel}`;
-            } else if (historicalCadenceEstimate) {
-              // Estimated confidence: using recent income patterns
-              projectedEventsUsed = historicalCadenceEstimate.estimatedEvents;
-              quarterlyAdjustmentAmount = Math.round((shortfallOrSurplus / historicalCadenceEstimate.estimatedEvents) * 100) / 100;
-              confidence = "estimated";
-              spreadExplanation = `Estimated across ~${historicalCadenceEstimate.estimatedEvents} income event${historicalCadenceEstimate.estimatedEvents > 1 ? "s" : ""} (based on recent ~${historicalCadenceEstimate.avgDaysBetween}-day cadence)`;
-            } else {
-              // Low confidence: no projections or historical pattern — show total shortfall
-              projectedEventsUsed = 0;
-              quarterlyAdjustmentAmount = shortfallOrSurplus; // full amount on this transaction
-              confidence = "low";
-              spreadExplanation = `Total shortfall by ${quarterInfo.quarterLabel} — add projected income in Income Planner for per-paycheck guidance`;
-            }
-          } else if (shortfallOrSurplus < -100) {
-            recommendationStatus = "ahead";
-            quarterlyAdjustmentAmount = 0;
-            confidence = "high";
-            spreadExplanation = "No catch-up needed — you are ahead";
-          } else {
-            recommendationStatus = "on_track";
-            quarterlyAdjustmentAmount = 0;
-            confidence = "high";
-            spreadExplanation = "On track for next estimated payment";
-          }
-
-          dynamicTaxRecommendation = Math.round((baseTaxEstimate + quarterlyAdjustmentAmount) * 100) / 100;
-
-          const actualWithheld = federalWithheld + stateWithheld;
-          recommendedAdditionalReserve = Math.max(0, Math.round((dynamicTaxRecommendation - actualWithheld) * 100) / 100);
-        }
-      } else {
-        const actualWithheld = federalWithheld + stateWithheld;
-        recommendedAdditionalReserve = Math.max(0, Math.round((baseTaxEstimate - actualWithheld) * 100) / 100);
-        dynamicTaxRecommendation = baseTaxEstimate;
-        confidence = "high";
-        spreadExplanation = "Based on this paycheck only";
-      }
+      const actualWithheld = federalWithheld + stateWithheld;
+      const recommendedAdditionalReserve = Math.max(0, Math.round((baseTaxEstimate - actualWithheld) * 100) / 100);
 
       const totalSuggestedReserve = Math.round((baseTaxEstimate + quarterlyAdjustmentAmount) * 100) / 100;
 
@@ -278,11 +155,11 @@ export function useIncomeRecommendation() {
         spreadExplanation,
         effectiveRate,
         methodLabel,
-        isDynamicEnabled,
-        nextDeadlineLabel: quarterInfo.quarterLabel,
+        isDynamicEnabled: false,
+        nextDeadlineLabel: "this paycheck",
       };
     };
-  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings, taxPayments, taxSavings, isDynamicEnabled, isQuarterlyEnabled, quarterInfo, projectedEventCount, historicalCadenceEstimate]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings]);
 
   return { getRecommendation, isLoading };
 }

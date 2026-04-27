@@ -243,12 +243,18 @@ export default function PersonalIncome() {
       grossIncome: grossAmount,
       incomeType: isW2Type(form.income_type) ? "w2" : form.income_type,
       incomeBucket: "personal",
-      taxesAlreadyWithheld: num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding),
+      taxesAlreadyWithheld:
+        getCanonicalTotalFederalPayrollTaxes({
+          total_federal_payroll_taxes: form.total_federal_payroll_taxes,
+          federal_withholding: num(form.federal_withholding),
+          ss_withholding: num(form.ss_withholding),
+          medicare_withholding: num(form.medicare_withholding),
+        }) + (stateIncomeTaxEnabled ? num(form.state_withholding) : 0),
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction),
       alreadyIncludedInEstimate: isEditing,
     });
-  }, [grossAmount, form.income_type, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, getWithholdingRec, isEditing]);
+  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, stateIncomeTaxEnabled, getWithholdingRec, isEditing]);
 
   // ── Per-paycheck profile-based savings guide ────────────────────────────
   // Simple paycheck-only calculation: uses the user's selected tax profile
