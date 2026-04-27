@@ -90,6 +90,32 @@ describe("W-2 only income", () => {
   });
 });
 
+describe("W-2 pre-tax deductions", () => {
+  it("subtracts W-2 pre-tax deductions exactly once from AGI", () => {
+    const w2Income = 129_957.32;
+    const w2PreTaxDeductions = 1_473.26;
+    const netBusinessProfit = 251_435.45;
+    const result = estimate({
+      totalIncome: w2Income + netBusinessProfit,
+      w2Income,
+      w2PreTaxDeductions,
+      seIncome: netBusinessProfit,
+      grossBusinessIncome: netBusinessProfit,
+      businessDeductions: 0,
+      mileageDeduction: 0,
+    });
+
+    const agiBeforeSETaxDeduction = result.agi + result.halfSETaxDeduction;
+    const expectedBeforeSETax = netBusinessProfit + w2Income - w2PreTaxDeductions;
+    const duplicatedBeforeSETax = netBusinessProfit + w2Income - (w2PreTaxDeductions * 2);
+
+    expect(result.w2TaxableIncomeBase).toBeCloseTo(w2Income - w2PreTaxDeductions, 2);
+    expect(result.totalReturnIncomeBeforeAdjustments).toBeCloseTo(expectedBeforeSETax, 2);
+    expect(agiBeforeSETaxDeduction).toBeCloseTo(expectedBeforeSETax, 2);
+    expect(agiBeforeSETaxDeduction).not.toBeCloseTo(duplicatedBeforeSETax, 2);
+  });
+});
+
 // ================================================================
 // 3. Ordinary (non-wage) income only — no SE tax
 // ================================================================
