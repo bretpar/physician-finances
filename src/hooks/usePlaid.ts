@@ -203,8 +203,7 @@ export function useUpdatePlaidAccount() {
       const update: any = { default_company_id, account_business_mode };
       if (account_routing) {
         update.account_routing = account_routing;
-        // Sync the sync_enabled flag based on routing
-        update.sync_enabled = account_routing !== "ignore" && account_routing !== "needs_review";
+        update.sync_enabled = account_routing !== "ignore";
       }
       const { error } = await supabase
         .from("plaid_accounts")
