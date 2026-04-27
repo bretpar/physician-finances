@@ -25,7 +25,7 @@ type NavItem = {
   label: string;
   w2OnlyLabel?: string;
   subtitle: string;
-  module?: "business";
+  module?: "business" | "investment";
 };
 
 const navItems: NavItem[] = [
@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
   { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses", module: "business" },
   { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes" },
   { to: "/projected-income", icon: TrendingUp, label: "Income Planner", w2OnlyLabel: "Withholding Guide", subtitle: "Future or hypothetical income" },
+  { to: "/stocks", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment" },
   { to: "/deductions", icon: Car, label: "Deductions", subtitle: "" },
   { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates" },
   { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries" },
@@ -42,6 +43,11 @@ const navItems: NavItem[] = [
 function hasBusinessIncomeStream(streams?: HouseholdIncomeStreams) {
   if (!streams) return true;
   return streams.business1099Income || streams.k1PartnershipIncome || streams.sCorpIncome;
+}
+
+function hasInvestmentIncomeStream(streams?: HouseholdIncomeStreams) {
+  if (!streams) return true;
+  return streams.investmentIncome;
 }
 
 function hasOnlyW2IncomeStreams(streams?: HouseholdIncomeStreams) {
@@ -58,8 +64,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: taxSettings } = useTaxSettings();
   const householdStreams = taxSettings?.householdIncomeStreams;
   const showBusinessNav = hasBusinessIncomeStream(householdStreams);
+  const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
-  const visibleNavItems = navItems.filter((item) => item.module !== "business" || showBusinessNav);
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.module === "business") return showBusinessNav;
+    if (item.module === "investment") return showInvestmentNav;
+    return true;
+  });
 
   // Auto-convert planned income → ledger drafts (no-op if Settings toggle is OFF)
   usePlannerConversionFallback();
