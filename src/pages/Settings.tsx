@@ -1209,6 +1209,15 @@ function ConnectedAccountsSection() {
                           Refresh All
                         </Button>
                         <Button
+                          variant="outline" size="sm"
+                          onClick={() => backfillMutation.mutate(undefined)}
+                          disabled={backfillMutation.isPending}
+                          className="gap-1.5"
+                        >
+                          {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                          Re-sync / Backfill missing transactions
+                        </Button>
+                        <Button
                           variant="ghost" size="sm"
                           onClick={() => setDisconnectItemId(item.id)}
                           className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto"
