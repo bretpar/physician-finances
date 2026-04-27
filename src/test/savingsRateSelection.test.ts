@@ -41,6 +41,8 @@ describe("getSelectedWithholdingProfileRate", () => {
     });
 
     expect(result.source).toBe("flat_estimate");
+    expect(result.estimateSource).toBe("manual");
+    expect(result.label).toBe("Using manual tax rate");
     expect(result.federalProfileRate).toBe(20);
     expect(result.canonicalEffectiveTaxRate).toBe(20);
   });
@@ -86,10 +88,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       applyBusinessStateTax: true,
     });
 
-    expect(result.components.federal).toBe(12.4);
+    expect(result.components.federal).toBe(11.1);
     expect(result.components.selfEmployment).toBeCloseTo(14.13, 2);
     expect(result.components.businessState).toBe(1.5);
-    expect(result.rate).toBeCloseTo(28.03, 2);
+    expect(result.rate).toBeCloseTo(26.73, 2);
   });
 
   it("W-2 uses effectiveRate only and never adds SE or business state", () => {
@@ -101,10 +103,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       forecastEstimate,
     });
 
-    expect(result.components.federal).toBe(17);
+    expect(result.components.federal).toBe(14.2);
     expect(result.components.selfEmployment).toBe(0);
     expect(result.components.businessState).toBe(0);
-    expect(result.rate).toBe(17);
+    expect(result.rate).toBe(14.2);
   });
 
   it("other personal income uses effectiveRate only", () => {
@@ -116,10 +118,10 @@ describe("getSavingsRateForIncomeBucket", () => {
       forecastEstimate,
     });
 
-    expect(result.components.federal).toBe(17);
+    expect(result.components.federal).toBe(14.2);
     expect(result.components.selfEmployment).toBe(0);
     expect(result.components.businessState).toBe(0);
-    expect(result.rate).toBe(17);
+    expect(result.rate).toBe(14.2);
   });
 
   it("K-1 defaults to SE tax unless the company toggle is off", () => {
