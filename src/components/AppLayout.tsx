@@ -17,22 +17,49 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
+import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 
-const navItems = [
+type NavItem = {
+  to: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  w2OnlyLabel?: string;
+  subtitle: string;
+  module?: "business";
+};
+
+const navItems: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "" },
-  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses" },
-  { to: "/personal-income", icon: Wallet, label: "Personal Income", subtitle: "Actual income affecting taxes" },
-  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income" },
+  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses", module: "business" },
+  { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes" },
+  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", w2OnlyLabel: "Withholding Guide", subtitle: "Future or hypothetical income" },
   { to: "/deductions", icon: Car, label: "Deductions", subtitle: "" },
-  { to: "/taxes", icon: Calculator, label: "Taxes", subtitle: "Current vs forecasted tax estimates" },
+  { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates" },
   { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries" },
   { to: "/settings", icon: Settings, label: "Settings", subtitle: "" },
 ];
+
+function hasBusinessIncomeStream(streams?: HouseholdIncomeStreams) {
+  if (!streams) return true;
+  return streams.business1099Income || streams.k1PartnershipIncome || streams.sCorpIncome;
+}
+
+function hasOnlyW2IncomeStreams(streams?: HouseholdIncomeStreams) {
+  if (!streams) return false;
+  const hasW2 = streams.w2Income || streams.spouseW2Income || streams.additionalW2Job;
+  const hasNonW2 = streams.business1099Income || streams.k1PartnershipIncome || streams.sCorpIncome || streams.rentalIncome || streams.investmentIncome || streams.otherIncome;
+  return hasW2 && !hasNonW2;
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const { organizationName, signOut, user } = useAuth();
+  const { data: taxSettings } = useTaxSettings();
+  const householdStreams = taxSettings?.householdIncomeStreams;
+  const showBusinessNav = hasBusinessIncomeStream(householdStreams);
+  const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
+  const visibleNavItems = navItems.filter((item) => item.module !== "business" || showBusinessNav);
 
   // Auto-convert planned income → ledger drafts (no-op if Settings toggle is OFF)
   usePlannerConversionFallback();
@@ -68,7 +95,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -78,7 +105,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               }`}
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {item.label}
+              {useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label}
             </NavLink>
           ))}
         </nav>
@@ -109,7 +136,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <h2 className="text-lg font-semibold text-foreground truncate">
-            {navItems.find((i) => i.to === location.pathname)?.label ?? "Page"}
+            {(() => {
+              const item = navItems.find((i) => i.to === location.pathname);
+              return item ? (useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label) : "Page";
+            })()}
           </h2>
         </header>
         <div
