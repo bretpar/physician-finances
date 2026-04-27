@@ -12,13 +12,7 @@
 import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { useTaxPayments } from "@/hooks/useTaxPayments";
-import { useTaxSavings } from "@/hooks/useTaxSavings";
-import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
-import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import { isW2FilingType } from "@/lib/filingTypes";
-import { getNextQuarterDeadline } from "@/lib/quarters";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 
 export type RecommendationStatus = "ahead" | "on_track" | "behind";
@@ -75,62 +69,7 @@ interface RecommendationInput {
 export function useIncomeRecommendation() {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
-  const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
-  const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
-  const { data: streams = [], isLoading: strLoading } = useProjectedStreams();
-  const { data: bonuses = [], isLoading: bonLoading } = useProjectedBonuses();
-  const { data: personalEntries = [], isLoading: piLoading } = usePersonalIncomeEntries();
-
-  const isLoading = estLoading || settingsLoading || tpLoading || tsLoading || strLoading || bonLoading || piLoading;
-
-  const isDynamicEnabled = isFeatureEnabled("dynamic_paycheck_recommendation");
-  const isQuarterlyEnabled = isFeatureEnabled("quarterly_payment_tracking");
-
-  const quarterInfo = useMemo(() => getNextQuarterDeadline(), []);
-
-  // Count projected income events between now and next deadline
-  const projectedEventCount = useMemo(() => {
-    if (!streams.length && !bonuses.length) return 0;
-    const allPaychecks = generateProjectedPaychecks(streams, bonuses, personalEntries);
-    const deadlineStr = quarterInfo.deadline.toISOString().split("T")[0];
-    return allPaychecks.filter(
-      (p) => !p.isSkipped && p.date <= deadlineStr
-    ).length;
-  }, [streams, bonuses, personalEntries, quarterInfo]);
-
-  // Estimate historical cadence as fallback
-  const historicalCadenceEstimate = useMemo(() => {
-    if (personalEntries.length < 2) return null;
-    // Sort by date ascending
-    const sorted = [...personalEntries].sort((a, b) => a.income_date.localeCompare(b.income_date));
-    // Look at the last 6 months of entries
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const sixMonthStr = sixMonthsAgo.toISOString().split("T")[0];
-    const recent = sorted.filter((e) => e.income_date >= sixMonthStr);
-    if (recent.length < 2) return null;
-
-    // Calculate average days between entries
-    let totalDays = 0;
-    for (let i = 1; i < recent.length; i++) {
-      const d1 = new Date(recent[i - 1].income_date);
-      const d2 = new Date(recent[i].income_date);
-      totalDays += (d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24);
-    }
-    const avgDaysBetween = totalDays / (recent.length - 1);
-    if (avgDaysBetween <= 0 || avgDaysBetween > 90) return null; // unreasonable
-
-    // Estimate events between now and deadline
-    const now = new Date();
-    const daysToDeadline = Math.max(1, (quarterInfo.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    const estimatedEvents = Math.max(1, Math.round(daysToDeadline / avgDaysBetween));
-
-    return {
-      avgDaysBetween: Math.round(avgDaysBetween),
-      estimatedEvents,
-      recentCount: recent.length,
-    };
-  }, [personalEntries, quarterInfo]);
+  const isLoading = estLoading || settingsLoading;
 
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
