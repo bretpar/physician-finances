@@ -685,5 +685,5 @@ export function useTaxBreakdown(
     };
   }, [settings, txs, incomes, companies, streams, bonuses, overrides, mileageEntries, homeOfficeDeductions, filterCompanyName, mode,
       sLoading, tLoading, iLoading, stLoading, bLoading, oLoading, estLoading, hoLoading,
-      actualDebug, forecastDebug, actualEstimate, forecastEstimate]);
+      actualDebug, currentPaceDebug, forecastDebug, actualEstimate, currentPaceEstimate, forecastEstimate]);
 }
