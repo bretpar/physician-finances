@@ -1097,7 +1097,17 @@ function ConnectedAccountsSection() {
       account_business_mode: editRouting === "business" ? editMode : "unassigned",
       default_company_id: editRouting === "business" && editMode === "single_business" && editCompanyId ? editCompanyId : null,
       account_routing: editRouting,
-    }, { onSuccess: () => setEditingAccount(null) });
+    }, {
+      onSuccess: () => {
+        const wasNeedsReview = (editingAccount.account_routing || "needs_review") === "needs_review";
+        const canRouteNow = editRouting === "business" || editRouting === "personal";
+        const pendingCount = needsReviewByAccount[editingAccount.plaid_account_id] || 0;
+        if (wasNeedsReview && canRouteNow && pendingCount > 0) {
+          backfillMutation.mutate(editingAccount.plaid_account_id);
+        }
+        setEditingAccount(null);
+      },
+    });
   };
 
   const handleBulkApply = () => {
