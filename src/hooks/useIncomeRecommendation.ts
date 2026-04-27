@@ -1,12 +1,12 @@
 /**
  * Smart Income Recommendation Engine
  * 
- * Calculates base tax estimate, dynamic recommendation, quarterly status,
- * and additional tax reserve for income entries.
- * 
- * Uses projected income streams from Income Planner as the primary source
- * for estimating remaining income events before the next tax deadline.
- * Falls back to historical cadence or total shortfall when projections are absent.
+ * Calculates per-entry tax reserve guidance for income entries.
+ *
+ * This intentionally does NOT spread annual or quarterly shortfalls across
+ * future paychecks. Each recommendation answers: based on this entry's taxable
+ * base and selected effective tax rate, how much extra should be saved after
+ * taxes already withheld on this entry?
  */
 
 import { useMemo } from "react";
@@ -27,11 +27,11 @@ export type RecommendationConfidence = "high" | "estimated" | "low";
 export interface IncomeRecommendation {
   /** Base tax estimate for this specific paycheck */
   baseTaxEstimate: number;
-  /** Dynamic recommendation using full-year tax picture */
+  /** Per-entry tax target before subtracting taxes already withheld */
   dynamicTaxRecommendation: number;
-  /** Quarterly catch-up or reduction amount */
+  /** Deprecated compatibility field; paycheck recommendations do not add catch-up */
   quarterlyAdjustmentAmount: number;
-  /** Total suggested tax reserve (base + quarterly adjustment) */
+  /** Per-entry tax target before subtracting taxes already withheld */
   totalSuggestedReserve: number;
   /** User's status for next estimated payment */
   recommendationStatus: RecommendationStatus;
