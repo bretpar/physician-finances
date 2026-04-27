@@ -560,19 +560,7 @@ export default function Transactions() {
       setEditingIncomeEntryId(linked?.id || null);
       setEditingIncomeWasUnassigned(!((linked as any)?.source_id || tx.source_id));
       setLinkedEntry(linked || null);
-      // Auto-expand Advanced when any saved advanced value exists
-      const hasAdvanced =
-        linked &&
-        (linked.taxes_withheld > 0 ||
-          linked.pre_tax_deductions > 0 ||
-          linked.retirement_401k > 0 ||
-          linked.deposited_amount > 0 ||
-          (linked as any).healthcare_deduction > 0 ||
-          (linked as any).federal_withholding > 0 ||
-          (linked as any).state_withholding > 0 ||
-          (linked as any).additional_tax_reserve > 0 ||
-          ((tx as any).actual_withholding || 0) > 0);
-      setAdvancedOpen(!!hasAdvanced);
+      setAdvancedOpen(false);
       setShowIncomeForm(true);
     } else {
       setExpenseForm({
@@ -1901,11 +1889,7 @@ export default function Transactions() {
                 onSsChange={(v) => setIncomeForm((f) => ({ ...f, ss_withholding: v }))}
                 medicare={incomeForm.medicare_withholding}
                 onMedicareChange={(v) => setIncomeForm((f) => ({ ...f, medicare_withholding: v }))}
-                defaultAdvancedOpen={
-                  num(incomeForm.federal_withholding) > 0 ||
-                  num(incomeForm.ss_withholding) > 0 ||
-                  num(incomeForm.medicare_withholding) > 0
-                }
+                collapseKey={editingIncomeTxId || showIncomeForm}
               />
             )}
 
