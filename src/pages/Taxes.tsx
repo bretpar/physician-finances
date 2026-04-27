@@ -47,7 +47,7 @@ const PAYMENT_QUARTERS = [
 
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, forecastEstimate, actualDebug, forecastDebug } = useTaxEstimate();
+  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug } = useTaxEstimate();
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
   const { data: transactions, isLoading: txLoading } = useTransactions();
@@ -97,7 +97,8 @@ export default function Taxes() {
   const overviewProfile = getSelectedWithholdingProfileRate({
     taxSettings: rates,
     actualEstimate,
-    forecastEstimate: taxMode === "actual" ? actualEstimate : forecastEstimate,
+    currentPaceEstimate,
+    forecastEstimate: taxMode === "actual" ? (currentPaceEstimate ?? actualEstimate) : forecastEstimate,
   });
   const overviewEffectiveRate = rates?.withholdingMethod === "flat_estimate"
     ? overviewProfile.federalProfileRate
@@ -114,12 +115,13 @@ export default function Taxes() {
     [streams, bonuses, incomeEntries],
   );
   const method = rates?.withholdingMethod ?? "dynamic_planner";
-  const trackerEstimate = method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : actualEstimate;
+  const trackerEstimate = method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate);
   const personalRate = getSavingsRateForIncomeBucket({
     incomeBucket: "personal",
     incomeType: "W2",
     taxSettings: rates,
     actualEstimate,
+    currentPaceEstimate,
     forecastEstimate,
   }).rate;
   const businessRate = getSavingsRateForIncomeBucket({
@@ -127,6 +129,7 @@ export default function Taxes() {
     incomeType: "1099",
     taxSettings: rates,
     actualEstimate,
+    currentPaceEstimate,
     forecastEstimate,
     includeSETaxInRecommendation: true,
   }).rate;
