@@ -1,16 +1,10 @@
 /**
  * Smart Withholding Recommendation Engine
  *
- * Uses the user's global withholding method (from Settings) and the UNIFIED
- * tax estimate (actual + projected W-2 withholding + estimated payments) to
- * produce a single consistent per-entry recommendation.
- *
- * Key fix (Apr 2026): W-2 recommendations now respect projected future W-2
- * withholding already expected across the year. Previously we applied the
- * effective rate to each paycheck and subtracted only that paycheck's own
- * withholding — which double-counted tax that employer payroll will already
- * withhold on remaining checks. We now distribute only the UNIFIED
- * remaining-after-credits annual tax across remaining pay periods.
+ * Uses the user's global withholding method (from Settings) and centralized
+ * effective-rate selection to produce a single consistent per-entry reserve
+ * recommendation. It does NOT distribute annual remaining tax across future
+ * paychecks.
  *
  * Methods:
  * - flat_estimate: user-defined flat % on net taxable (legacy per-entry)
@@ -39,7 +33,7 @@ export interface WithholdingInput {
 }
 
 export interface WithholdingRecommendation {
-  /** Amount to withhold/set aside for this specific income entry (can be negative for W2) */
+  /** Extra amount to save for this specific income entry, floored at 0. */
   recommendedWithholding: number;
   /** Projected total annual income */
   annualIncomeEstimate: number;
@@ -70,7 +64,7 @@ export interface WithholdingRecommendation {
   actualStateWithheld: number;
   estimatedPaymentsMade: number;
   taxSavingsSetAside: number;
-  recommendationBasis: "annual_remaining_tax" | "flat_rate" | "per_entry_rate";
+  recommendationBasis: "flat_rate" | "per_entry_rate";
 }
 
 /**
