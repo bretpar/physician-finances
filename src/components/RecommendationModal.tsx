@@ -66,7 +66,7 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           </div>
 
           {/* Legacy annual/quarterly catch-up UI is intentionally disabled for paycheck reserve recommendations. */}
-          {showDynamic && recommendation.isDynamicEnabled && recommendation.recommendationStatus === "behind" && (
+          {showDynamic && recommendation.isDynamicEnabled && recommendation.quarterlyAdjustmentAmount > 0 && recommendation.recommendationStatus === "behind" && (
             <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
               {/* Exact shortfall */}
               <div className="flex justify-between items-center">
@@ -111,7 +111,7 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           )}
 
           {/* When ahead or on track, simpler display */}
-          {showDynamic && recommendation.isDynamicEnabled && recommendation.recommendationStatus !== "behind" && (
+          {showDynamic && recommendation.isDynamicEnabled && recommendation.quarterlyAdjustmentAmount > 0 && recommendation.recommendationStatus !== "behind" && (
             <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Quarterly adjustment recommendation</span>
@@ -125,7 +125,7 @@ export function RecommendationModal({ open, onClose, onApplyRecommendation, reco
           )}
 
           {/* Quarterly status — premium feature */}
-          {showQuarterly && recommendation.isDynamicEnabled && (
+          {showQuarterly && recommendation.isDynamicEnabled && recommendation.quarterlyAdjustmentAmount > 0 && (
             <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Status for next estimated payment</span>
