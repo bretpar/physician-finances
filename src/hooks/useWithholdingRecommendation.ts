@@ -83,8 +83,10 @@ export interface WithholdingRecommendation {
 export function useWithholdingRecommendation() {
   const {
     actualEstimate,
+    currentPaceEstimate,
     forecastEstimate,
     actualDebug,
+    currentPaceDebug,
     forecastDebug,
     isLoading: estLoading,
   } = useTaxEstimate();
@@ -115,6 +117,7 @@ export function useWithholdingRecommendation() {
       const selectedProfile = getSelectedWithholdingProfileRate({
         taxSettings: settings,
         actualEstimate,
+        currentPaceEstimate,
         forecastEstimate,
       });
 
@@ -128,6 +131,7 @@ export function useWithholdingRecommendation() {
           incomeType,
           taxSettings: settings,
           actualEstimate,
+          currentPaceEstimate,
           forecastEstimate,
           companyId,
           applyBusinessStateTax,
@@ -165,8 +169,8 @@ export function useWithholdingRecommendation() {
 
       // DYNAMIC MODES: pick the selected unified estimate + debug without changing engine math
       const useForecastSource = withholdingMethod === "dynamic_planner";
-      const estimate = useForecastSource ? forecastEstimate : actualEstimate;
-      const debug = useForecastSource ? forecastDebug : actualDebug;
+      const estimate = useForecastSource ? forecastEstimate : (currentPaceEstimate ?? actualEstimate);
+      const debug = useForecastSource ? forecastDebug : (currentPaceDebug ?? actualDebug);
       if (!estimate || !debug) return null;
 
       const methodLabel = selectedProfile.label;
@@ -190,6 +194,7 @@ export function useWithholdingRecommendation() {
           incomeType,
           taxSettings: settings,
           actualEstimate,
+          currentPaceEstimate,
           forecastEstimate,
         });
         const paycheckTarget = netTaxableForEntry * (rateSelection.rate / 100);
@@ -230,6 +235,7 @@ export function useWithholdingRecommendation() {
         incomeType,
         taxSettings: settings,
         actualEstimate,
+        currentPaceEstimate,
         forecastEstimate,
         companyId,
         applyBusinessStateTax,
@@ -264,7 +270,7 @@ export function useWithholdingRecommendation() {
         recommendationBasis: "per_entry_rate",
       };
     };
-  }, [actualEstimate, forecastEstimate, actualDebug, forecastDebug, settings]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, settings]);
 
   return { getRecommendation, isLoading };
 }
