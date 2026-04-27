@@ -27,25 +27,48 @@ interface TaxWidgetProps {
   w2Withheld: number;
   totalTaxLiability: number;
   remainingLiability: number;
+  federalEffectiveRate?: number;
+  effectiveRate?: number;
+  seEffectiveRate?: number;
+  additionalSETaxReserve?: number;
+  showAdditionalSETaxReserve?: boolean;
 }
 
-export default function TaxWidget({ estimatedTax, seTax, quarterlyEstimate, netProfit, w2Withheld, totalTaxLiability, remainingLiability }: TaxWidgetProps) {
+export default function TaxWidget({
+  estimatedTax,
+  seTax,
+  quarterlyEstimate,
+  w2Withheld,
+  totalTaxLiability,
+  remainingLiability,
+  federalEffectiveRate,
+  effectiveRate,
+  seEffectiveRate,
+  additionalSETaxReserve = 0,
+  showAdditionalSETaxReserve = false,
+}: TaxWidgetProps) {
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
-  const effectiveRate = netProfit > 0 ? (totalTaxLiability / netProfit) * 100 : 0;
+  const pct = (n: number) => `${n.toFixed(1)}%`;
 
   return (
     <div className="glass-card rounded-xl p-5 space-y-4">
       <h3 className="text-sm font-semibold text-card-foreground">Tax Estimates — April 2026</h3>
-      <TaxLine label="Federal (32% all income)" value={fmt(estimatedTax)} percent={32} />
-      <TaxLine label="SE Tax (15.3% on 1099/K-1)" value={fmt(seTax)} percent={15.3} />
+      <TaxLine label="Federal income tax estimate" value={fmt(estimatedTax)} />
+      {federalEffectiveRate !== undefined && (
+        <TaxLine label="Effective federal tax rate" value={pct(federalEffectiveRate)} percent={federalEffectiveRate} />
+      )}
+      <TaxLine label="Self-employment tax estimate" value={fmt(seTax)} percent={seEffectiveRate} />
+      {showAdditionalSETaxReserve && additionalSETaxReserve > 0 && (
+        <TaxLine label="Additional SE tax reserve" value={fmt(additionalSETaxReserve)} variant="warning" />
+      )}
       <div className="pt-3 border-t border-border space-y-3">
         <TaxLine label="Total Tax Liability" value={fmt(totalTaxLiability)} />
         <TaxLine label="W-2 Withholdings" value={`−${fmt(w2Withheld)}`} variant="success" />
         <TaxLine label="Remaining to Set Aside" value={fmt(remainingLiability)} variant="warning" />
         <TaxLine label="Quarterly Estimate" value={fmt(quarterlyEstimate)} />
-        <TaxLine label="Effective Rate" value={`${effectiveRate.toFixed(1)}%`} percent={effectiveRate} />
+        {effectiveRate !== undefined && <TaxLine label="Effective tax rate" value={pct(effectiveRate)} percent={effectiveRate} />}
       </div>
     </div>
   );
