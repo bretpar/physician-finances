@@ -183,7 +183,7 @@ function TaxWithholdingSection() {
     const monthlyPace = ytdIncome / monthsElapsed;
     const projectedAnnualIncome = Number(currentPaceDebug?.totalGrossIncome || currentPaceEstimate?.totalIncome || 0);
     const projectedTax = Number(currentPaceDebug?.totalEstimatedTax || currentPaceEstimate?.totalTaxLiability || 0);
-    const effectiveRate = Number(currentPaceDebug?.canonicalEffectiveTaxRate || currentPaceEstimate?.effectiveTaxRate || 0);
+    const effectiveRate = Number(currentPaceDebug?.canonicalEffectiveTaxRate || currentPaceEstimate?.effectiveRate || 0);
 
     return { monthsElapsed, monthsRemaining, ytdIncome, monthlyPace, projectedAnnualIncome, projectedTax, effectiveRate };
   }, [actualDebug, currentPaceDebug, currentPaceEstimate]);
