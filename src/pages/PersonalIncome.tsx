@@ -222,7 +222,7 @@ export default function PersonalIncome() {
         // Federal total via shared helper + state (kept here so the summary
         // card still reflects "all taxes withheld"); the dashboard tracker is
         // federal-only.
-        const withheld = getTotalFederalPaid(e as any) + Number(e.state_withholding || 0);
+        const withheld = getTotalFederalPaid(e as any) + (stateIncomeTaxEnabled ? Number(e.state_withholding || 0) : 0);
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
           totalWithheld: acc.totalWithheld + withheld,
