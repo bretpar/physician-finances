@@ -1305,6 +1305,15 @@ export type Database = {
           created_at: string
           deduction_type: string
           filing_status: string
+          household_additional_w2_job_enabled: boolean
+          household_business_1099_income_enabled: boolean
+          household_investment_income_enabled: boolean
+          household_k1_partnership_income_enabled: boolean
+          household_other_income_enabled: boolean
+          household_rental_income_enabled: boolean
+          household_scorp_income_enabled: boolean
+          household_spouse_w2_income_enabled: boolean
+          household_w2_income_enabled: boolean
           hsa_enabled: boolean
           hsa_source_company_id: string | null
           id: string
@@ -1341,6 +1350,15 @@ export type Database = {
           created_at?: string
           deduction_type?: string
           filing_status?: string
+          household_additional_w2_job_enabled?: boolean
+          household_business_1099_income_enabled?: boolean
+          household_investment_income_enabled?: boolean
+          household_k1_partnership_income_enabled?: boolean
+          household_other_income_enabled?: boolean
+          household_rental_income_enabled?: boolean
+          household_scorp_income_enabled?: boolean
+          household_spouse_w2_income_enabled?: boolean
+          household_w2_income_enabled?: boolean
           hsa_enabled?: boolean
           hsa_source_company_id?: string | null
           id?: string
@@ -1377,6 +1395,15 @@ export type Database = {
           created_at?: string
           deduction_type?: string
           filing_status?: string
+          household_additional_w2_job_enabled?: boolean
+          household_business_1099_income_enabled?: boolean
+          household_investment_income_enabled?: boolean
+          household_k1_partnership_income_enabled?: boolean
+          household_other_income_enabled?: boolean
+          household_rental_income_enabled?: boolean
+          household_scorp_income_enabled?: boolean
+          household_spouse_w2_income_enabled?: boolean
+          household_w2_income_enabled?: boolean
           hsa_enabled?: boolean
           hsa_source_company_id?: string | null
           id?: string

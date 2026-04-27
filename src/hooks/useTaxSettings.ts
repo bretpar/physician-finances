@@ -10,6 +10,18 @@ export type PersonalStateTaxMode = "none" | "flat_rate" | "annual_estimate";
 export type BusinessStateTaxBase = "net_profit" | "gross";
 export type BusinessStateTaxApplicationMode = "all_business" | "selected";
 
+export interface HouseholdIncomeStreams {
+  w2Income: boolean;
+  spouseW2Income: boolean;
+  additionalW2Job: boolean;
+  business1099Income: boolean;
+  k1PartnershipIncome: boolean;
+  sCorpIncome: boolean;
+  rentalIncome: boolean;
+  investmentIncome: boolean;
+  otherIncome: boolean;
+}
+
 export interface TaxRates {
   id?: string;
   // Core profile
@@ -44,6 +56,8 @@ export interface TaxRates {
   // ─── HSA ───
   hsaEnabled: boolean;
   hsaSourceCompanyId: string | null;
+  // ─── Household Income Streams ───
+  householdIncomeStreams: HouseholdIncomeStreams;
   // ─── Forecasting Automation ───
   /** Auto-convert future planned income into real ledger drafts on/after their date. */
   autoConvertFutureIncomeToLedger: boolean;
@@ -80,6 +94,17 @@ const DEFAULT_RATES: TaxRates = {
   businessStateTaxCompanyIds: [],
   hsaEnabled: false,
   hsaSourceCompanyId: null,
+  householdIncomeStreams: {
+    w2Income: true,
+    spouseW2Income: true,
+    additionalW2Job: true,
+    business1099Income: true,
+    k1PartnershipIncome: true,
+    sCorpIncome: true,
+    rentalIncome: true,
+    investmentIncome: true,
+    otherIncome: true,
+  },
   autoConvertFutureIncomeToLedger: false,
   quarterlyTrackerMethod: "even",
 };
@@ -125,6 +150,17 @@ export function useTaxSettings() {
         businessStateTaxCompanyIds: Array.isArray(d.business_state_tax_company_ids) ? (d.business_state_tax_company_ids as string[]) : [],
         hsaEnabled: !!d.hsa_enabled,
         hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
+        householdIncomeStreams: {
+          w2Income: d.household_w2_income_enabled ?? true,
+          spouseW2Income: d.household_spouse_w2_income_enabled ?? true,
+          additionalW2Job: d.household_additional_w2_job_enabled ?? true,
+          business1099Income: d.household_business_1099_income_enabled ?? true,
+          k1PartnershipIncome: d.household_k1_partnership_income_enabled ?? true,
+          sCorpIncome: d.household_scorp_income_enabled ?? true,
+          rentalIncome: d.household_rental_income_enabled ?? true,
+          investmentIncome: d.household_investment_income_enabled ?? true,
+          otherIncome: d.household_other_income_enabled ?? true,
+        },
         autoConvertFutureIncomeToLedger: !!d.auto_convert_future_income_to_ledger,
         quarterlyTrackerMethod: (d.quarterly_tracker_method as QuarterlyTrackerMethod) || "even",
       } as TaxRates;
@@ -169,6 +205,17 @@ export function useUpdateTaxSettings() {
       if (rest.businessStateTaxCompanyIds !== undefined) payload.business_state_tax_company_ids = rest.businessStateTaxCompanyIds;
       if (rest.hsaEnabled !== undefined) payload.hsa_enabled = rest.hsaEnabled;
       if (rest.hsaSourceCompanyId !== undefined) payload.hsa_source_company_id = rest.hsaSourceCompanyId;
+      if (rest.householdIncomeStreams !== undefined) {
+        payload.household_w2_income_enabled = rest.householdIncomeStreams.w2Income;
+        payload.household_spouse_w2_income_enabled = rest.householdIncomeStreams.spouseW2Income;
+        payload.household_additional_w2_job_enabled = rest.householdIncomeStreams.additionalW2Job;
+        payload.household_business_1099_income_enabled = rest.householdIncomeStreams.business1099Income;
+        payload.household_k1_partnership_income_enabled = rest.householdIncomeStreams.k1PartnershipIncome;
+        payload.household_scorp_income_enabled = rest.householdIncomeStreams.sCorpIncome;
+        payload.household_rental_income_enabled = rest.householdIncomeStreams.rentalIncome;
+        payload.household_investment_income_enabled = rest.householdIncomeStreams.investmentIncome;
+        payload.household_other_income_enabled = rest.householdIncomeStreams.otherIncome;
+      }
       if (rest.autoConvertFutureIncomeToLedger !== undefined) payload.auto_convert_future_income_to_ledger = rest.autoConvertFutureIncomeToLedger;
       if ((rest as any).quarterlyTrackerMethod !== undefined) payload.quarterly_tracker_method = (rest as any).quarterlyTrackerMethod;
 
