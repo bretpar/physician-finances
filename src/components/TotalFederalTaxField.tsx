@@ -15,8 +15,8 @@ interface Props {
   onSsChange: (value: string) => void;
   medicare: string;
   onMedicareChange: (value: string) => void;
-  /** Force advanced section open initially (e.g. when editing a record with breakdown). */
-  defaultAdvancedOpen?: boolean;
+  /** Changes when the parent editor opens a different record; forces this expandable section closed. */
+  collapseKey?: string | number | boolean | null;
   label?: string;
   className?: string;
 }
@@ -46,14 +46,18 @@ export function TotalFederalTaxField({
   onSsChange,
   medicare,
   onMedicareChange,
-  defaultAdvancedOpen = false,
+  collapseKey,
   label = "Total Federal Payroll Taxes",
   className,
 }: Props) {
-  const [open, setOpen] = useState(defaultAdvancedOpen);
+  const [open, setOpen] = useState(false);
   // Track which mode the user is in so we don't fight their input.
   const hasBreakdown =
     num(federal) > 0 || num(ss) > 0 || num(medicare) > 0;
+
+  useEffect(() => {
+    setOpen(false);
+  }, [collapseKey]);
 
   // Whenever any breakdown value changes, push the sum to the main total.
   const lastSumRef = useRef<string | null>(null);
