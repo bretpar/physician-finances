@@ -50,6 +50,7 @@ import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { cn } from "@/lib/utils";
 
 /* ─── Types ─── */
@@ -170,8 +171,30 @@ type WithholdingDraft = {
 
 function TaxWithholdingSection() {
   const { data } = useTaxSettings();
+  const { actualDebug, currentPaceDebug, currentPaceEstimate, isLoading: taxEstimateLoading } = useTaxEstimate();
   const updateMutation = useUpdateTaxSettings();
   const [savedTick, setSavedTick] = useState(false);
+
+  const currentIncomePreview = useMemo(() => {
+    const now = new Date();
+    const monthsElapsed = Math.max(1, now.getMonth() + 1);
+    const monthsRemaining = Math.max(0, 12 - monthsElapsed);
+    const ytdIncome = Number(actualDebug?.actualIncome || 0);
+    const monthlyPace = ytdIncome / monthsElapsed;
+    const projectedAnnualIncome = Number(currentPaceDebug?.totalGrossIncome || currentPaceEstimate?.totalIncome || 0);
+    const projectedTax = Number(currentPaceDebug?.totalEstimatedTax || currentPaceEstimate?.totalTaxLiability || 0);
+    const effectiveRate = Number(currentPaceDebug?.canonicalEffectiveTaxRate || currentPaceEstimate?.effectiveTaxRate || 0);
+
+    return { monthsElapsed, monthsRemaining, ytdIncome, monthlyPace, projectedAnnualIncome, projectedTax, effectiveRate };
+  }, [actualDebug, currentPaceDebug, currentPaceEstimate]);
+
+  const fmtMoney = (amount: number) => new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
+
+  const fmtPercent = (rate: number) => `${(rate * 100).toFixed(1)}%`;
 
   const source: WithholdingDraft = useMemo(() => ({
     withholdingMethod: data?.withholdingMethod || "dynamic_planner",
@@ -231,9 +254,49 @@ function TaxWithholdingSection() {
         </label>
         <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
           <RadioGroupItem value="dynamic_actual" className="mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Current Income</p>
             <p className="text-xs text-muted-foreground mt-0.5">Uses your actual income so far this year, divides it by the months elapsed, then projects that monthly pace across the remaining months of the year. This creates an estimated annual income, tax burden, and effective tax rate.</p>
+            {draft.draft.withholdingMethod === "dynamic_actual" && (
+              <div className="mt-3 rounded-md border border-border bg-muted/20 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-card-foreground">YTD → Projected Annual</p>
+                  <Badge variant="outline" className="text-[10px]">Preview</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                  <div>
+                    <p className="text-muted-foreground">YTD income</p>
+                    <p className="font-medium text-card-foreground">{taxEstimateLoading ? "—" : fmtMoney(currentIncomePreview.ytdIncome)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Months elapsed</p>
+                    <p className="font-medium text-card-foreground">{currentIncomePreview.monthsElapsed} of 12</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Monthly pace</p>
+                    <p className="font-medium text-card-foreground">{taxEstimateLoading ? "—" : fmtMoney(currentIncomePreview.monthlyPace)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Remaining months</p>
+                    <p className="font-medium text-card-foreground">{currentIncomePreview.monthsRemaining}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs sm:grid-cols-3">
+                  <div>
+                    <p className="text-muted-foreground">Projected annual income</p>
+                    <p className="font-semibold text-card-foreground">{taxEstimateLoading ? "—" : fmtMoney(currentIncomePreview.projectedAnnualIncome)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Projected annual tax</p>
+                    <p className="font-semibold text-card-foreground">{taxEstimateLoading ? "—" : fmtMoney(currentIncomePreview.projectedTax)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Effective tax rate</p>
+                    <p className="font-semibold text-card-foreground">{taxEstimateLoading ? "—" : fmtPercent(currentIncomePreview.effectiveRate)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </label>
         <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
