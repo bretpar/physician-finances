@@ -48,7 +48,47 @@ export interface FeatureAccessContext {
   subscriptionTier: SubscriptionTier;
 }
 
+export interface UserTypeDisplayInfo {
+  label: string;
+  explanation: string;
+}
+
 export const DEFAULT_SUBSCRIPTION_TIER: SubscriptionTier = "FREE";
+
+export const USER_TYPE_DISPLAY: Record<UserType, UserTypeDisplayInfo> = {
+  W2_ONLY: {
+    label: "W2-only household",
+    explanation: "Your app will focus on paycheck withholding, W4 guidance, deductions, and projected refund or amount due.",
+  },
+  W2_PLUS_1099: {
+    label: "W2 + 1099 household",
+    explanation: "Your app will combine paycheck withholding with 1099 tax savings and quarterly planning.",
+  },
+  FULLY_1099: {
+    label: "Self-employed household",
+    explanation: "Your app will focus on business income, expenses, tax savings, and quarterly estimated payments.",
+  },
+  W2_PLUS_K1: {
+    label: "W2 + K-1 household",
+    explanation: "Your app will combine paycheck withholding with partnership income planning and estimated tax tracking.",
+  },
+  W2_PLUS_SCORP: {
+    label: "W2 + S-corp household",
+    explanation: "Your app will combine payroll withholding, S-corp income, business deductions, and tax planning.",
+  },
+  W2_PLUS_RENTAL: {
+    label: "W2 + rental household",
+    explanation: "Your app will combine paycheck withholding with rental income planning and tax projections.",
+  },
+  MULTI_STREAM_HOUSEHOLD: {
+    label: "Multi-income household",
+    explanation: "Your app will keep multiple income tools available so paycheck, business, investment, and other income can be reviewed together.",
+  },
+  INVESTMENT_HEAVY: {
+    label: "Investment-income household",
+    explanation: "Your app will focus on taxable investment income, tax estimates, and planning tools for non-paycheck income.",
+  },
+};
 
 export function deriveUserTypeFromIncomeStreams(streams?: HouseholdIncomeStreams): UserType {
   if (!streams) return "MULTI_STREAM_HOUSEHOLD";
@@ -162,6 +202,10 @@ export function getFeatureAccess(userType: UserType, subscriptionTier: Subscript
     },
     {} as Record<FeatureKey, FeatureAccess>,
   );
+}
+
+export function getUserTypeDisplayInfo(userType: UserType): UserTypeDisplayInfo {
+  return USER_TYPE_DISPLAY[userType];
 }
 
 export function canAccessFeature(featureKey: FeatureKey, context: FeatureAccessContext): boolean {
