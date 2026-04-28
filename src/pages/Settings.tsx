@@ -412,17 +412,54 @@ function QuarterlyTrackerMethodSection() {
 /* ──────────────────────────────────────────────────────────── */
 /*  Household Income Streams section                             */
 /* ──────────────────────────────────────────────────────────── */
-const HOUSEHOLD_INCOME_STREAM_OPTIONS: Array<{ key: keyof HouseholdIncomeStreams; label: string }> = [
-  { key: "w2Income", label: "W2 income" },
-  { key: "spouseW2Income", label: "Spouse/partner W2 income" },
-  { key: "additionalW2Job", label: "Additional W2 job" },
-  { key: "business1099Income", label: "Business / 1099 income" },
-  { key: "k1PartnershipIncome", label: "K-1 / partnership income" },
-  { key: "sCorpIncome", label: "S-corp income" },
-  { key: "rentalIncome", label: "Rental income" },
-  { key: "investmentIncome", label: "Investment income" },
-  { key: "otherIncome", label: "Other income" },
+const HOUSEHOLD_INCOME_STREAM_OPTIONS: Array<{ key: keyof HouseholdIncomeStreams; label: string; moduleLabel: string }> = [
+  { key: "w2Income", label: "W2 income", moduleLabel: "W2" },
+  { key: "spouseW2Income", label: "Spouse/partner W2 income", moduleLabel: "spouse/partner W2" },
+  { key: "additionalW2Job", label: "Additional W2 job", moduleLabel: "additional W2 job" },
+  { key: "business1099Income", label: "1099/self-employed income", moduleLabel: "1099/self-employed" },
+  { key: "k1PartnershipIncome", label: "K-1 / partnership income", moduleLabel: "K-1 / partnership" },
+  { key: "sCorpIncome", label: "S-corp income", moduleLabel: "S-corp" },
+  { key: "rentalIncome", label: "Rental income", moduleLabel: "rental" },
+  { key: "investmentIncome", label: "Investment income", moduleLabel: "investment" },
+  { key: "otherIncome", label: "Other income", moduleLabel: "other" },
 ];
+
+const FEATURE_LABELS: Record<FeatureKey, string> = {
+  basicWithholdingGuide: "Basic withholding guide",
+  advancedWithholdingGuide: "Advanced withholding guide",
+  spouseW2Support: "Spouse/partner W2 support",
+  multipleW2Jobs: "Multiple W2 jobs",
+  businessIncomeTracking: "Business income tracking",
+  businessExpenseTracking: "Business expense tracking",
+  mileageDeduction: "Mileage deductions",
+  homeOfficeDeduction: "Home office deductions",
+  quarterlyTaxPlanner: "Quarterly tax planner",
+  scenarioPlanner: "Income planner",
+  reportsExport: "Report exports",
+  advancedTaxOverview: "Advanced tax overview",
+  premiumEducation: "Premium guidance",
+  customW2BusinessSplit: "Custom W2/business split",
+  detailedReports: "Detailed reports",
+  basicTaxOverview: "Basic tax overview",
+  basicPaycheckTracking: "Paycheck tracking",
+  basic1099Tracking: "1099 tracking",
+  basicTaxGapEstimate: "Basic tax gap estimate",
+  basicExpenseTracking: "Basic expense tracking",
+  basicTaxSavingsEstimate: "Basic tax savings estimate",
+};
+
+const TAX_EXCLUSION_CHOICES_KEY = "paycheckmd-household-income-exclusion-choices";
+
+function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = [], businessRows: any[] = []) {
+  if (key === "business1099Income") return businessRows.some((e) => ["1099", "1099_schedule_c"].includes(String(e.income_type || "")));
+  if (key === "k1PartnershipIncome") return businessRows.some((e) => ["k1", "k1_partnership"].includes(String(e.income_type || "")));
+  if (key === "sCorpIncome") return businessRows.some((e) => String(e.income_type || "").includes("scorp"));
+  if (key === "rentalIncome") return personalRows.some((e) => classifyPersonalIncome(e) === "rental");
+  if (key === "investmentIncome") return personalRows.some((e) => ["capital_gains", "loss", "ordinary"].includes(classifyPersonalIncome(e)));
+  if (key === "otherIncome") return personalRows.some((e) => classifyPersonalIncome(e) === "ordinary");
+  if (key === "spouseW2Income") return personalRows.some((e) => e.ui_income_subtype === "w2_partner");
+  return personalRows.some((e) => classifyPersonalIncome(e) === "w2");
+}
 
 function HouseholdIncomeStreamsSection() {
   const { data } = useTaxSettings();
