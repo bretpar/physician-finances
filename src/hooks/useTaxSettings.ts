@@ -134,9 +134,10 @@ const DEFAULT_RATES: TaxRates = {
   subscriptionTier: "premium",
 };
 
-export function useTaxSettings() {
+export function useTaxSettings(enabled = true) {
   return useQuery({
     queryKey: ["tax_settings"],
+    enabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tax_settings")
