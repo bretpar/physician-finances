@@ -608,9 +608,11 @@ export default function ProjectedIncome() {
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Income Planner</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{isW2Only ? "Withholding Guide" : "Income Planner"}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Plan your expected income for the year and see how it affects your tax estimate.
+          {isW2Only
+            ? "Your paycheck already withholds some taxes. This guide checks whether your current and expected withholding is enough for your projected household tax bill."
+            : "Plan your expected income for the year and see how it affects your tax estimate."}
         </p>
       </div>
 
@@ -636,11 +638,54 @@ export default function ProjectedIncome() {
         />
         <SummaryCard
           icon={<PiggyBank className="h-4 w-4" />}
-          label="Projected Withholding"
+          label={isW2Only ? "Federal Withholding" : "Projected Withholding"}
           value={fmt(projectedWithholding)}
           sublabel={projected401k > 0 ? `+ ${fmt(projected401k)} in 401(k)` : undefined}
         />
       </div>
+
+      {isW2Only && forecastDebug && (
+        <Card>
+          <CardContent className="p-5 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Household Withholding Check</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                If there is a gap, you can either update your W4 to withhold more or save the same amount yourself.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <SummaryCard icon={<Shield className="h-4 w-4" />} label="Projected Taxable Income" value={fmt(forecastDebug.totalTaxableIncome)} />
+              <SummaryCard icon={<Shield className="h-4 w-4" />} label="Estimated Total Tax" value={fmt(forecastDebug.totalEstimatedTax)} />
+              <SummaryCard icon={<PiggyBank className="h-4 w-4" />} label="Expected Future Withholding" value={fmt(forecastDebug.projectedFederalWithheld + (taxSettings?.stateIncomeTaxEnabled ? forecastDebug.projectedStateWithheld : 0))} />
+              <SummaryCard icon={<PiggyBank className="h-4 w-4" />} label="Recommended Extra Per Paycheck" value={fmt(forecastDebug.recommendedSetAside)} highlight />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Federal withholding so far</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{fmt(forecastDebug.actualFederalWithheld)}</p>
+              </div>
+              {taxSettings?.stateIncomeTaxEnabled && (
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">State withholding so far</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{fmt(forecastDebug.actualStateWithheld)}</p>
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {projectedGap > 0
+                ? `Based on your projected household income, deductions, taxes, and current withholding, you are projected to be short by ${fmt(projectedGap)}.`
+                : projectedRefund > 0
+                  ? `You are projected to have a refund of about ${fmt(projectedRefund)} if your income and withholding stay on track.`
+                  : "Your current withholding appears to be on track based on your projected household income, deductions, and taxes."}
+            </p>
+            {(spouseW2Locked || multipleW2Locked) && (
+              <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Premium</span> unlocks spouse W2 tracking, multiple W2 jobs, scenario planning, and detailed withholding reports. Your existing paycheck data still stays in the household projection.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
         <div className="space-y-2">
           <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
@@ -1037,7 +1082,7 @@ export default function ProjectedIncome() {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {INCOME_SUBTYPES.map((t) => (
+                  {visibleIncomeSubtypes.map((t) => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
