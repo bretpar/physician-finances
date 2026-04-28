@@ -1369,6 +1369,7 @@ export type Database = {
           onboarding_banner_dismissed: boolean
           onboarding_complete: boolean | null
           onboarding_first_name: string
+          onboarding_step: number
           organization_id: string | null
           other_dependents_count: number
           personal_state_tax_annual_estimate: number
@@ -1426,6 +1427,7 @@ export type Database = {
           onboarding_banner_dismissed?: boolean
           onboarding_complete?: boolean | null
           onboarding_first_name?: string
+          onboarding_step?: number
           organization_id?: string | null
           other_dependents_count?: number
           personal_state_tax_annual_estimate?: number
@@ -1483,6 +1485,7 @@ export type Database = {
           onboarding_banner_dismissed?: boolean
           onboarding_complete?: boolean | null
           onboarding_first_name?: string
+          onboarding_step?: number
           organization_id?: string | null
           other_dependents_count?: number
           personal_state_tax_annual_estimate?: number
