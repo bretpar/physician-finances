@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Check, ChevronLeft, PiggyBank } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -86,8 +86,30 @@ export default function Onboarding() {
   const merged = useMemo(() => taxSettings ? {
     ...draft,
     firstName: draft.firstName || taxSettings.onboardingFirstName || "",
+    onboardingStep: taxSettings.onboardingStep || draft.onboardingStep || 1,
     incomeProfileType: draft.incomeProfileType || taxSettings.incomeProfileType,
   } : draft, [draft, taxSettings]);
+
+  useEffect(() => {
+    if (!user || isLoading || !taxSettings) return;
+    const savedStep = Math.min(6, Math.max(1, taxSettings.onboardingStep || 1));
+    setStep(savedStep);
+    sessionStorage.setItem("paycheckmd-onboarding-step", String(savedStep));
+    setDraft((current) => ({
+      ...current,
+      firstName: current.firstName || taxSettings.onboardingFirstName || "",
+      onboardingStep: savedStep,
+      incomeProfileType: taxSettings.incomeProfileType || current.incomeProfileType,
+      enabledIncomeSources: taxSettings.enabledIncomeSources || current.enabledIncomeSources,
+      enabledPersonalIncomeTypes: taxSettings.enabledPersonalIncomeTypes || current.enabledPersonalIncomeTypes,
+      taxRecommendationMethod: taxSettings.taxRecommendationMethod || current.taxRecommendationMethod,
+      flatFederalRate: taxSettings.flatFederalRate ?? current.flatFederalRate,
+      flatStateRate: taxSettings.flatStateRate ?? current.flatStateRate,
+      deductionStrategy: taxSettings.deductionStrategy || current.deductionStrategy,
+      enabledDeductionTypes: taxSettings.enabledDeductionTypes || current.enabledDeductionTypes,
+      subscriptionTier: taxSettings.subscriptionTier || current.subscriptionTier,
+    }));
+  }, [user, isLoading, taxSettings]);
 
   if (user && taxSettings?.onboardingComplete === true && step === 1 && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
@@ -174,6 +196,7 @@ export default function Onboarding() {
       id: settingsId,
       onboardingComplete: next.onboardingComplete,
       onboardingFirstName: next.firstName,
+      onboardingStep: next.onboardingStep,
       incomeProfileType: next.incomeProfileType,
       enabledIncomeSources: sources,
       enabledPersonalIncomeTypes: next.enabledPersonalIncomeTypes,
