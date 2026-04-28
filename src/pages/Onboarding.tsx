@@ -10,13 +10,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getUserOrgId } from "@/hooks/useOrgId";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
+  getAllowedCompanyTypes,
   incomeProfileToSources,
   incomeSourcesToHouseholdStreams,
+  onboardingCompanyTypeToFilingType,
   taxRecommendationToWithholdingMethod,
+  type OnboardingCompanyDraft,
+  type OnboardingCompanyType,
   type DeductionStrategy,
   type IncomeProfileType,
   type OnboardingSubscriptionTier,
@@ -28,6 +34,12 @@ const personalOptions = [
   ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"],
   ["capital_gains", "Capital gains"], ["rental", "Rental income"], ["retirement", "Retirement income"], ["other", "Other income"],
 ];
+
+const companyTypeLabels: Record<OnboardingCompanyType, string> = {
+  w2: "W-2 Employer",
+  "1099": "1099 Business",
+  k1: "K-1 Partnership / S-Corp",
+};
 
 const deductionLabels: Record<string, string> = {
   retirement_401k: "401(k) / retirement contributions", healthcare_premiums: "Healthcare premiums", hsa: "HSA contributions",
@@ -68,6 +80,7 @@ export default function Onboarding() {
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
+  const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
 
   const settingsId = taxSettings?.id;
   const merged = useMemo(() => taxSettings ? {
@@ -79,6 +92,66 @@ export default function Onboarding() {
   if (user && taxSettings?.onboardingComplete === true && step === 1 && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
+
+  const allowedCompanyTypes = getAllowedCompanyTypes(merged.incomeProfileType);
+  const companySetupCopy = {
+    w2_only: {
+      title: "Add your employer",
+      subtitle: "Add the employer that sends your W-2 paycheck. You can add more later in Settings.",
+      nameLabel: "Employer name",
+      namePlaceholder: "e.g. Providence",
+      addLabel: "Add another W-2 employer",
+    },
+    w2_plus_business: {
+      title: "Add your income sources",
+      subtitle: "Add the employers, businesses, or partnerships you want PaycheckMD to track. You can add more later.",
+      nameLabel: "Company or employer name",
+      namePlaceholder: "e.g. Hospital Group or Consulting LLC",
+      addLabel: "Add another income source",
+    },
+    business_only: {
+      title: "Add your business income sources",
+      subtitle: "Add the businesses, partnerships, or contractor income sources you want PaycheckMD to track. You can add more later.",
+      nameLabel: "Company or business name",
+      namePlaceholder: "e.g. Consulting LLC",
+      addLabel: "Add another business source",
+    },
+  }[merged.incomeProfileType];
+
+  const addCompanyDraft = () => setCompanyDrafts((current) => [...current, { name: "", type: allowedCompanyTypes[0], description: "" }]);
+  const updateCompanyDraft = (index: number, updates: Partial<OnboardingCompanyDraft>) => setCompanyDrafts((current) => current.map((item, i) => i === index ? { ...item, ...updates } : item));
+  const removeCompanyDraft = (index: number) => setCompanyDrafts((current) => current.filter((_, i) => i !== index));
+
+  async function createOnboardingCompanies() {
+    if (!user) return;
+    const allowed = getAllowedCompanyTypes(merged.incomeProfileType);
+    const validDrafts = companyDrafts
+      .map((company) => ({ ...company, name: company.name.trim(), description: company.description?.trim() || "" }))
+      .filter((company) => company.name || company.description || company.type)
+      .filter((company) => company.name && allowed.includes(company.type));
+    if (validDrafts.length === 0) return;
+    const uniqueDrafts = Array.from(new Map(validDrafts.map((company) => [`${company.name.toLowerCase()}::${company.type}`, company])).values());
+    const orgId = await getUserOrgId();
+    const { error } = await supabase.from("companies").insert(uniqueDrafts.map((company) => {
+      const companyType = onboardingCompanyTypeToFilingType(company.type);
+      return {
+        user_id: user.id,
+        organization_id: orgId,
+        name: company.name,
+        nickname: company.description || company.name,
+        notes: company.description || "",
+        company_type: companyType,
+        source_kind: company.type === "w2" ? "w2_employer" : companyType,
+        include_in_tax: true,
+        default_setaside_method: "recommended",
+        default_setaside_pct: null,
+        advanced_field_visibility: {},
+        apply_business_state_tax: true,
+        include_se_tax_in_recommendation: true,
+      };
+    }) as any);
+    if (error) throw error;
+  }
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}) {
     if (!settingsId) return;
@@ -123,6 +196,7 @@ export default function Onboarding() {
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false });
         }
       } else if (step === 6) {
+        await createOnboardingCompanies();
         await persist({ onboardingComplete: true });
         sessionStorage.removeItem("paycheckmd-start-setup");
         sessionStorage.removeItem("paycheckmd-onboarding-step");
