@@ -280,9 +280,13 @@ export default function Onboarding() {
       setStep(nextStep);
     } catch (error: any) {
       if (step === 1 && !user) {
-        const next = recordFailedAttempt(SIGNUP_ATTEMPTS_KEY);
-        setSignupCooldownUntil(next.cooldownUntil);
-        toast.error(getAuthErrorMessage(error, error.message || "Signup could not be completed. Please try again."));
+        const message = String(error?.message || "");
+        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter an email");
+        if (!isInputError) {
+          const next = recordFailedAttempt(SIGNUP_ATTEMPTS_KEY);
+          setSignupCooldownUntil(next.cooldownUntil);
+        }
+        toast.error(isInputError ? message : getAuthErrorMessage(error, "Signup could not be completed. Please try signing in or use a different email."));
       } else {
         toast.error(error.message || "Could not save onboarding.");
       }
