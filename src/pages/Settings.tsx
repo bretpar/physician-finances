@@ -682,6 +682,43 @@ function HouseholdIncomeStreamsSection() {
           </div>
         </div>
       )}
+      {pathwayWillChange && (
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-card-foreground">When did this income change start?</p>
+            <p className="text-xs text-muted-foreground mt-1">This records your pathway history only. It does not split the tax year or remove prior data from the tax engine.</p>
+          </div>
+          <RadioGroup value={effectiveDateChoice} onValueChange={(value) => setEffectiveDateChoice(value as EffectiveDateChoice)} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-2 text-sm text-card-foreground"><RadioGroupItem value="today" />Today</label>
+            <label className="flex items-center gap-2 text-sm text-card-foreground"><RadioGroupItem value="month-start" />Start of this month</label>
+            <label className="flex items-center gap-2 text-sm text-card-foreground"><RadioGroupItem value="year-start" />Start of this year</label>
+            <label className="flex items-center gap-2 text-sm text-card-foreground"><RadioGroupItem value="custom" />Custom date</label>
+          </RadioGroup>
+          {effectiveDateChoice === "custom" && (
+            <div className="max-w-xs">
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Effective date</Label>
+              <Input type="date" value={customEffectiveDate} onChange={(event) => setCustomEffectiveDate(event.target.value)} />
+            </div>
+          )}
+        </div>
+      )}
+      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+        <p className="text-sm font-semibold text-card-foreground">Income pathway history</p>
+        {pathwayHistory.length > 0 ? (
+          <div className="space-y-2">
+            {pathwayHistory.map((row) => (
+              <div key={row.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-card-foreground">
+                  {(getUserTypeDisplayInfo(row.previous_user_type as any)?.label || row.previous_user_type)} → {(getUserTypeDisplayInfo(row.new_user_type as any)?.label || row.new_user_type)}
+                </p>
+                <p className="text-xs text-muted-foreground">Effective {formatPathwayDate(row.effective_date)}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No pathway changes recorded yet.</p>
+        )}
+      </div>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
