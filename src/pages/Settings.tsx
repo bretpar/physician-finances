@@ -671,6 +671,27 @@ function HouseholdIncomeStreamsSection() {
         <p className="text-xs text-muted-foreground">{pathway.explanation}</p>
       </div>
       {draft.isDirty && (
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-card-foreground">When did this income change start?</p>
+            <p className="text-xs text-muted-foreground mt-1">This date records pathway history for context. It does not reset your tax year or split the tax engine.</p>
+          </div>
+          <RadioGroup value={effectiveDateChoice} onValueChange={(value) => setEffectiveDateChoice(value as EffectiveDateChoice)} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="today" />Today</label>
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="month" />Start of this month</label>
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="year" />Start of this year</label>
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="custom" />Custom date</label>
+          </RadioGroup>
+          {effectiveDateChoice === "custom" && (
+            <div className="max-w-xs">
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Effective date</Label>
+              <Input type="date" value={customEffectiveDate} onChange={(e) => setCustomEffectiveDate(e.target.value)} />
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">This updates your app experience going forward. Your prior income, withholding, deductions, expenses, and payments will remain part of your tax-year projection unless you explicitly exclude them.</p>
+        </div>
+      )}
+      {draft.isDirty && (
         <div className="rounded-lg border border-border p-4 space-y-4">
           <div>
             <p className="text-sm font-semibold text-card-foreground">This will update your app experience.</p>
