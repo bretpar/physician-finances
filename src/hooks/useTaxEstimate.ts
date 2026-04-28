@@ -259,7 +259,7 @@ export function useTaxEstimate(): {
     const actualTxs = allTxs.filter((t) => t.transaction_date <= todayStr);
     const allIncomeRows = reconciledIncomeEntries || [];
     const actualIncomeRows = allIncomeRows.filter((e) => e.income_date <= todayStr);
-    const allPersonalRows = personalEntries || [];
+    const allPersonalRows = (personalEntries || []).filter((e) => e.include_in_tax_estimate !== false);
     const actualPersonalRows = allPersonalRows.filter((e) => e.income_date <= todayStr);
     const allStockRows = stockTxs || [];
     const actualStockRows = allStockRows.filter((s) => s.sale_date <= todayStr);
