@@ -461,6 +461,28 @@ function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = 
   return personalRows.some((e) => classifyPersonalIncome(e) === "w2");
 }
 
+function personalRowsForStream(key: keyof HouseholdIncomeStreams, personalRows: any[] = []) {
+  return personalRows.filter((e) => {
+    const category = classifyPersonalIncome(e);
+    if (key === "spouseW2Income") return e.ui_income_subtype === "w2_partner";
+    if (key === "w2Income" || key === "additionalW2Job") return category === "w2";
+    if (key === "rentalIncome") return category === "rental";
+    if (key === "investmentIncome") return category === "capital_gains" || category === "loss";
+    if (key === "otherIncome") return category === "ordinary";
+    return false;
+  });
+}
+
+function businessRowsForStream(key: keyof HouseholdIncomeStreams, businessRows: any[] = []) {
+  return businessRows.filter((e) => {
+    const incomeType = String(e.income_type || "");
+    if (key === "business1099Income") return incomeType === "1099" || incomeType === "1099_schedule_c";
+    if (key === "k1PartnershipIncome") return incomeType === "k1" || incomeType === "k1_partnership";
+    if (key === "sCorpIncome") return incomeType.includes("scorp");
+    return false;
+  });
+}
+
 function HouseholdIncomeStreamsSection() {
   const { data } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
