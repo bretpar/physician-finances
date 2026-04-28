@@ -451,6 +451,29 @@ const FEATURE_LABELS: Record<FeatureKey, string> = {
 
 const TAX_EXCLUSION_CHOICES_KEY = "paycheckmd-household-income-exclusion-choices";
 
+type EffectiveDateChoice = "today" | "month-start" | "year-start" | "custom";
+
+interface PathwayHistoryRow {
+  id: string;
+  previous_user_type: string;
+  new_user_type: string;
+  effective_date: string;
+  changed_at: string;
+}
+
+function getEffectiveDate(choice: EffectiveDateChoice, customDate: string) {
+  const now = new Date();
+  if (choice === "month-start") return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  if (choice === "year-start") return new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+  if (choice === "custom") return customDate;
+  return now.toISOString().slice(0, 10);
+}
+
+function formatPathwayDate(value: string) {
+  if (!value) return "—";
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = [], businessRows: any[] = []) {
   if (key === "business1099Income") return businessRows.some((e) => ["1099", "1099_schedule_c"].includes(String(e.income_type || "")));
   if (key === "k1PartnershipIncome") return businessRows.some((e) => ["k1", "k1_partnership"].includes(String(e.income_type || "")));
