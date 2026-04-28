@@ -456,7 +456,7 @@ function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = 
   if (key === "k1PartnershipIncome") return businessRows.some((e) => ["k1", "k1_partnership"].includes(String(e.income_type || "")));
   if (key === "sCorpIncome") return businessRows.some((e) => String(e.income_type || "").includes("scorp"));
   if (key === "rentalIncome") return personalRows.some((e) => classifyPersonalIncome(e) === "rental");
-  if (key === "investmentIncome") return personalRows.some((e) => ["capital_gains", "loss", "ordinary"].includes(classifyPersonalIncome(e)));
+  if (key === "investmentIncome") return personalRows.some((e) => ["capital_gains", "loss"].includes(classifyPersonalIncome(e)));
   if (key === "otherIncome") return personalRows.some((e) => classifyPersonalIncome(e) === "ordinary");
   if (key === "spouseW2Income") return personalRows.some((e) => e.ui_income_subtype === "w2_partner");
   return personalRows.some((e) => classifyPersonalIncome(e) === "w2");
