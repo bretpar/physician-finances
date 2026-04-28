@@ -1342,8 +1342,14 @@ export type Database = {
           business_state_tax_enabled: boolean
           business_state_tax_rate: number
           created_at: string
+          deduction_strategy: string
           deduction_type: string
+          enabled_deduction_types: string[]
+          enabled_income_sources: Json
+          enabled_personal_income_types: string[]
           filing_status: string
+          flat_federal_rate: number | null
+          flat_state_rate: number | null
           household_additional_w2_job_enabled: boolean
           household_business_1099_income_enabled: boolean
           household_investment_income_enabled: boolean
@@ -1356,9 +1362,13 @@ export type Database = {
           hsa_enabled: boolean
           hsa_source_company_id: string | null
           id: string
+          income_profile_type: string
           itemized_deduction_amount: number
           last_year_tax: number
           manual_effective_tax_rate: number | null
+          onboarding_banner_dismissed: boolean
+          onboarding_complete: boolean | null
+          onboarding_first_name: string
           organization_id: string | null
           other_dependents_count: number
           personal_state_tax_annual_estimate: number
@@ -1371,7 +1381,9 @@ export type Database = {
           state_income_tax_enabled: boolean
           state_of_residence: string
           state_tax_enabled: boolean
+          subscription_tier: string
           tax_mode: string
+          tax_recommendation_method: string
           updated_at: string
           user_id: string
           withholding_method: string
@@ -1387,8 +1399,14 @@ export type Database = {
           business_state_tax_enabled?: boolean
           business_state_tax_rate?: number
           created_at?: string
+          deduction_strategy?: string
           deduction_type?: string
+          enabled_deduction_types?: string[]
+          enabled_income_sources?: Json
+          enabled_personal_income_types?: string[]
           filing_status?: string
+          flat_federal_rate?: number | null
+          flat_state_rate?: number | null
           household_additional_w2_job_enabled?: boolean
           household_business_1099_income_enabled?: boolean
           household_investment_income_enabled?: boolean
@@ -1401,9 +1419,13 @@ export type Database = {
           hsa_enabled?: boolean
           hsa_source_company_id?: string | null
           id?: string
+          income_profile_type?: string
           itemized_deduction_amount?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null
+          onboarding_banner_dismissed?: boolean
+          onboarding_complete?: boolean | null
+          onboarding_first_name?: string
           organization_id?: string | null
           other_dependents_count?: number
           personal_state_tax_annual_estimate?: number
@@ -1416,7 +1438,9 @@ export type Database = {
           state_income_tax_enabled?: boolean
           state_of_residence?: string
           state_tax_enabled?: boolean
+          subscription_tier?: string
           tax_mode?: string
+          tax_recommendation_method?: string
           updated_at?: string
           user_id: string
           withholding_method?: string
@@ -1432,8 +1456,14 @@ export type Database = {
           business_state_tax_enabled?: boolean
           business_state_tax_rate?: number
           created_at?: string
+          deduction_strategy?: string
           deduction_type?: string
+          enabled_deduction_types?: string[]
+          enabled_income_sources?: Json
+          enabled_personal_income_types?: string[]
           filing_status?: string
+          flat_federal_rate?: number | null
+          flat_state_rate?: number | null
           household_additional_w2_job_enabled?: boolean
           household_business_1099_income_enabled?: boolean
           household_investment_income_enabled?: boolean
@@ -1446,9 +1476,13 @@ export type Database = {
           hsa_enabled?: boolean
           hsa_source_company_id?: string | null
           id?: string
+          income_profile_type?: string
           itemized_deduction_amount?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null
+          onboarding_banner_dismissed?: boolean
+          onboarding_complete?: boolean | null
+          onboarding_first_name?: string
           organization_id?: string | null
           other_dependents_count?: number
           personal_state_tax_annual_estimate?: number
@@ -1461,7 +1495,9 @@ export type Database = {
           state_income_tax_enabled?: boolean
           state_of_residence?: string
           state_tax_enabled?: boolean
+          subscription_tier?: string
           tax_mode?: string
+          tax_recommendation_method?: string
           updated_at?: string
           user_id?: string
           withholding_method?: string

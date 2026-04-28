@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
@@ -19,7 +20,8 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
-import { DEFAULT_SUBSCRIPTION_TIER, deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
@@ -36,15 +38,14 @@ export default function Dashboard() {
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const featureAccess = getFeatureAccess(userType, DEFAULT_SUBSCRIPTION_TIER);
+  const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(rates?.subscriptionTier));
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
 
   useEffect(() => {
-    const reviewed = localStorage.getItem("paycheckmd-household-income-profile-reviewed") === "true";
-    const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true";
-    setShowProfileReviewBanner(!reviewed && !dismissed);
-  }, []);
+    const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true" || !!rates?.onboardingBannerDismissed;
+    setShowProfileReviewBanner(rates?.onboardingComplete == null && !dismissed);
+  }, [rates?.onboardingBannerDismissed, rates?.onboardingComplete]);
 
   const projectedPaychecks = useMemo(
     () =>
@@ -290,12 +291,13 @@ export default function Dashboard() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-card-foreground">Review your household income profile. We added income pathways so your dashboard matches your household.</p>
             <div className="flex gap-2">
-              <Button asChild size="sm"><Link to="/settings">Review now</Link></Button>
+              <Button asChild size="sm"><Link to="/onboarding" onClick={() => sessionStorage.setItem("paycheckmd-start-setup", "true")}>Start setup</Link></Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   localStorage.setItem("paycheckmd-household-income-profile-review-dismissed", "true");
+                  if (rates?.id) void supabase.from("tax_settings").update({ onboarding_banner_dismissed: true } as any).eq("id", rates.id);
                   setShowProfileReviewBanner(false);
                 }}
               >

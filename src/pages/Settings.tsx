@@ -58,12 +58,12 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import {
   ALL_ENTITLEMENT_FEATURES,
-  DEFAULT_SUBSCRIPTION_TIER,
   deriveUserTypeFromIncomeStreams,
   getFeatureAccess,
   getUserTypeDisplayInfo,
   type FeatureKey,
 } from "@/lib/entitlements";
+import { incomeProfileToSources, incomeSourcesToHouseholdStreams, subscriptionTierToEntitlementTier, taxRecommendationToWithholdingMethod, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier, type TaxRecommendationMethod } from "@/lib/onboarding";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -587,7 +587,7 @@ function HouseholdIncomeStreamsSection() {
   const currentUserType = deriveUserTypeFromIncomeStreams(source);
   const pathwayWillChange = draft.isDirty && currentUserType !== derivedUserType;
   const pathway = getUserTypeDisplayInfo(derivedUserType);
-  const featureAccess = getFeatureAccess(derivedUserType, DEFAULT_SUBSCRIPTION_TIER);
+  const featureAccess = getFeatureAccess(derivedUserType, subscriptionTierToEntitlementTier(data?.subscriptionTier));
   const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
   const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
   const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]);
@@ -750,6 +750,86 @@ function HouseholdIncomeStreamsSection() {
     </SectionCard>
   );
 }
+/* ──────────────────────────────────────────────────────────── */
+type OnboardingPreferencesDraft = Pick<TaxRates,
+  | "incomeProfileType" | "enabledPersonalIncomeTypes" | "taxRecommendationMethod"
+  | "flatFederalRate" | "flatStateRate" | "deductionStrategy" | "enabledDeductionTypes" | "subscriptionTier"
+>;
+
+const PERSONAL_INCOME_OPTIONS = [
+  ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"], ["capital_gains", "Capital gains"],
+  ["rental", "Rental income"], ["retirement", "Retirement income"], ["other", "Other income"],
+] as const;
+
+const DEDUCTION_LABELS: Record<string, string> = {
+  retirement_401k: "401(k) / retirement contributions", healthcare_premiums: "Healthcare premiums", hsa: "HSA contributions", mileage: "Mileage",
+  home_office: "Home office", business_expenses: "Business expenses", professional_expenses: "Professional expenses", charitable: "Charitable donations",
+  mortgage_interest: "Mortgage interest", salt: "State and local taxes", other: "Other deductions",
+};
+
+const DEDUCTIONS_BY_PROFILE: Record<IncomeProfileType, string[]> = {
+  w2_only: ["retirement_401k", "healthcare_premiums", "hsa", "charitable", "mortgage_interest", "salt", "other"],
+  w2_plus_business: ["retirement_401k", "healthcare_premiums", "hsa", "mileage", "home_office", "business_expenses", "professional_expenses", "charitable", "mortgage_interest", "salt", "other"],
+  business_only: ["business_expenses", "mileage", "home_office", "healthcare_premiums", "hsa", "professional_expenses", "retirement_401k", "other"],
+};
+
+function OnboardingPreferencesSection() {
+  const { data } = useTaxSettings();
+  const updateMutation = useUpdateTaxSettings();
+  const [savedTick, setSavedTick] = useState(false);
+
+  const source: OnboardingPreferencesDraft = useMemo(() => ({
+    incomeProfileType: data?.incomeProfileType || "w2_plus_business",
+    enabledPersonalIncomeTypes: data?.enabledPersonalIncomeTypes || [],
+    taxRecommendationMethod: data?.taxRecommendationMethod || "dynamic_planner",
+    flatFederalRate: data?.flatFederalRate ?? data?.manualEffectiveTaxRate ?? null,
+    flatStateRate: data?.flatStateRate ?? null,
+    deductionStrategy: data?.deductionStrategy || "standard",
+    enabledDeductionTypes: data?.enabledDeductionTypes || [],
+    subscriptionTier: data?.subscriptionTier || "premium",
+  }), [data]);
+
+  const draft = useSectionDraft<OnboardingPreferencesDraft>({
+    source,
+    onSave: async (next) => {
+      if (!data?.id) throw new Error("Tax settings not loaded");
+      const enabledIncomeSources = incomeProfileToSources(next.incomeProfileType);
+      await updateMutation.mutateAsync({
+        id: data.id,
+        ...next,
+        enabledIncomeSources,
+        householdIncomeStreams: incomeSourcesToHouseholdStreams(enabledIncomeSources, next.enabledPersonalIncomeTypes),
+        withholdingMethod: taxRecommendationToWithholdingMethod(next.taxRecommendationMethod),
+        manualEffectiveTaxRate: next.taxRecommendationMethod === "flat_rate" ? next.flatFederalRate : data.manualEffectiveTaxRate,
+        deductionType: next.deductionStrategy === "itemized" ? "itemized" : "standard",
+        hsaEnabled: next.enabledDeductionTypes.includes("hsa"),
+      });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 2000);
+    },
+  });
+
+  const d = draft.draft;
+  const toggleList = (field: "enabledPersonalIncomeTypes" | "enabledDeductionTypes", value: string, checked: boolean) => {
+    const list = d[field];
+    draft.patch({ [field]: checked ? [...list, value] : list.filter((item) => item !== value) } as Partial<OnboardingPreferencesDraft>);
+  };
+
+  return (
+    <SectionCard title="Dashboard Personalization" icon={<Settings2 className="h-5 w-5" />} description="Selections from onboarding. These hide or collapse sections by default without deleting existing data." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div><Label className="text-xs text-muted-foreground mb-1.5 block">Income profile type</Label><Select value={d.incomeProfileType} onValueChange={(v) => draft.patch({ incomeProfileType: v as IncomeProfileType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="w2_only">W-2 Only</SelectItem><SelectItem value="w2_plus_business">W-2 + 1099/K-1</SelectItem><SelectItem value="business_only">1099/K-1 Only</SelectItem></SelectContent></Select></div>
+        <div><Label className="text-xs text-muted-foreground mb-1.5 block">Plan status</Label><Select value={d.subscriptionTier} onValueChange={(v) => draft.patch({ subscriptionTier: v as OnboardingSubscriptionTier })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select></div>
+      </div>
+      <div><Label className="text-xs text-muted-foreground mb-2 block">Personal income categories</Label><div className="grid gap-2 sm:grid-cols-2">{PERSONAL_INCOME_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledPersonalIncomeTypes", value, !!checked)} />{label}</label>)}</div></div>
+      <div><Label className="text-xs text-muted-foreground mb-1.5 block">Tax recommendation method</Label><Select value={d.taxRecommendationMethod} onValueChange={(v) => draft.patch({ taxRecommendationMethod: v as TaxRecommendationMethod })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="flat_rate">Flat Rate</SelectItem><SelectItem value="dynamic_actual">Dynamic — Based on Current Income</SelectItem><SelectItem value="dynamic_planner">Dynamic — Based on Income Planner</SelectItem></SelectContent></Select></div>
+      {d.taxRecommendationMethod === "flat_rate" && <div className="grid gap-4 sm:grid-cols-2"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatFederalRate ?? ""} onChange={(e) => draft.patch({ flatFederalRate: parseFloat(e.target.value) || 0 })} /></div>{data?.stateIncomeTaxEnabled && <div><Label className="text-xs text-muted-foreground mb-1.5 block">State flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatStateRate ?? ""} onChange={(e) => draft.patch({ flatStateRate: parseFloat(e.target.value) || 0 })} /></div>}</div>}
+      <div><Label className="text-xs text-muted-foreground mb-1.5 block">Deduction strategy</Label><Select value={d.deductionStrategy} onValueChange={(v) => draft.patch({ deductionStrategy: v as DeductionStrategy })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standard">Standard deduction</SelectItem><SelectItem value="itemized">Itemized deductions</SelectItem><SelectItem value="not_sure">Not sure</SelectItem></SelectContent></Select></div>
+      <div><Label className="text-xs text-muted-foreground mb-2 block">Deduction sections shown by default</Label><div className="grid gap-2 sm:grid-cols-2">{DEDUCTIONS_BY_PROFILE[d.incomeProfileType].map((value) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledDeductionTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledDeductionTypes", value, !!checked)} />{DEDUCTION_LABELS[value]}</label>)}</div></div>
+    </SectionCard>
+  );
+}
+
 /* ──────────────────────────────────────────────────────────── */
 type TaxProfileDraft = Pick<TaxRates,
   | "filingStatus" | "deductionType" | "itemizedDeductionAmount"
@@ -2092,6 +2172,7 @@ export default function Settings() {
       <ProfileSection justSavedFlag={justSavedFlag} />
       <TaxWithholdingSection />
       <QuarterlyTrackerMethodSection />
+      <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
       <TaxProfileSection />
       <HsaSettingsSection />

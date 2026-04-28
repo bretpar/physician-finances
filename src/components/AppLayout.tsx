@@ -19,11 +19,11 @@ import { Button } from "@/components/ui/button";
 import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import {
-  DEFAULT_SUBSCRIPTION_TIER,
   deriveUserTypeFromIncomeStreams,
   getFeatureAccess,
   type FeatureKey,
 } from "@/lib/entitlements";
+import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
 
 type NavItem = {
   to: string;
@@ -75,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
   const userType = deriveUserTypeFromIncomeStreams(householdStreams);
-  const featureAccess = getFeatureAccess(userType, DEFAULT_SUBSCRIPTION_TIER);
+  const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(taxSettings?.subscriptionTier));
   const visibleNavItems = navItems.filter((item) => {
     if (item.module === "business") return showBusinessNav;
     if (item.module === "investment") return showInvestmentNav;

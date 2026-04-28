@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import BusinessActivity from "@/pages/BusinessActivity";
@@ -16,6 +17,7 @@ import Reports from "@/pages/Reports";
 // Accounts page removed — consolidated into Settings
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
+import Onboarding from "@/pages/Onboarding";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import NotFound from "@/pages/NotFound";
@@ -24,6 +26,8 @@ const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
+  const location = useLocation();
+  const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings(!!user);
 
   if (loading) {
     return (
@@ -35,6 +39,22 @@ function ProtectedRoutes() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (settingsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+
+  if (location.pathname === "/onboarding") {
+    return <Onboarding />;
+  }
+
+  if (taxSettings?.onboardingComplete === false) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return (
@@ -82,7 +102,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Signup />} />
+      <Route path="/signup" element={user ? <Navigate to="/onboarding" replace /> : <Signup />} />
+      <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
     </Routes>
   );
