@@ -489,6 +489,7 @@ function HouseholdIncomeStreamsSection() {
   const updateMutation = useUpdateTaxSettings();
   const { data: businessIncomeRows = [] } = useIncomeEntries();
   const { data: personalIncomeRows = [] } = usePersonalIncomeEntries();
+  const queryClient = useQueryClient();
   const [savedTick, setSavedTick] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exclusionChoices, setExclusionChoices] = useState<Record<string, "hide-only" | "hide-and-exclude">>({});
@@ -528,6 +529,26 @@ function HouseholdIncomeStreamsSection() {
   const disabledStreamsWithData = HOUSEHOLD_INCOME_STREAM_OPTIONS.filter(
     (option) => source[option.key] && !draft.draft[option.key] && hasStreamData(option.key, personalIncomeRows, businessIncomeRows),
   );
+
+  const applyExplicitExclusions = async () => {
+    const selected = disabledStreamsWithData.filter((option) => exclusionChoices[option.key] === "hide-and-exclude");
+    const personalIds = selected.flatMap((option) => personalRowsForStream(option.key, personalIncomeRows).map((row) => row.id));
+    const businessIds = selected.flatMap((option) => businessRowsForStream(option.key, businessIncomeRows).map((row) => row.linked_transaction_id).filter(Boolean));
+
+    if (personalIds.length > 0) {
+      const { error } = await supabase.from("income_entries").update({ include_in_tax_estimate: false } as any).in("id", personalIds);
+      if (error) throw error;
+    }
+    if (businessIds.length > 0) {
+      const { error } = await supabase.from("transactions").update({ excluded_from_reports: true } as any).in("id", businessIds);
+      if (error) throw error;
+    }
+    if (personalIds.length > 0 || businessIds.length > 0) {
+      queryClient.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      queryClient.invalidateQueries({ queryKey: ["income_entries"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  };
 
   const saveWithSafetyCheck = () => {
     if (disabledStreamsWithData.length > 0 && !disabledStreamsWithData.every((option) => exclusionChoices[option.key])) {
