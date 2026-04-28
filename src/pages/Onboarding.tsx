@@ -243,7 +243,7 @@ export default function Onboarding() {
             return;
           }
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
-          await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep }).eq("user_id", data.user?.id);
+          await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user?.id);
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
