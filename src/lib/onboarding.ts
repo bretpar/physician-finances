@@ -1,10 +1,19 @@
 import type { HouseholdIncomeStreams, WithholdingMethod } from "@/hooks/useTaxSettings";
 import type { FeatureKey, SubscriptionTier } from "@/lib/entitlements";
+import type { FilingType } from "@/lib/filingTypes";
 
 export type IncomeProfileType = "w2_only" | "w2_plus_business" | "business_only";
 export type TaxRecommendationMethod = "flat_rate" | "dynamic_actual" | "dynamic_planner";
 export type DeductionStrategy = "standard" | "itemized" | "not_sure";
 export type OnboardingSubscriptionTier = "free" | "premium";
+
+export type OnboardingCompanyType = "w2" | "1099" | "k1";
+
+export interface OnboardingCompanyDraft {
+  name: string;
+  type: OnboardingCompanyType;
+  description?: string;
+}
 
 export interface EnabledIncomeSources {
   w2: boolean;
@@ -46,6 +55,18 @@ export function incomeProfileToSources(profile: IncomeProfileType): EnabledIncom
   if (profile === "w2_only") return { w2: true, form1099: false, k1: false };
   if (profile === "business_only") return { w2: false, form1099: true, k1: true };
   return { w2: true, form1099: true, k1: true };
+}
+
+export function getAllowedCompanyTypes(incomeProfileType: IncomeProfileType): OnboardingCompanyType[] {
+  if (incomeProfileType === "w2_only") return ["w2"];
+  if (incomeProfileType === "business_only") return ["1099", "k1"];
+  return ["w2", "1099", "k1"];
+}
+
+export function onboardingCompanyTypeToFilingType(type: OnboardingCompanyType): FilingType {
+  if (type === "w2") return "w2";
+  if (type === "k1") return "k1_partnership";
+  return "1099_schedule_c";
 }
 
 export function incomeSourcesToHouseholdStreams(sources: EnabledIncomeSources, personalTypes: string[] = []): HouseholdIncomeStreams {
