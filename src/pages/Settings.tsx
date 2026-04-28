@@ -2172,6 +2172,7 @@ export default function Settings() {
       <ProfileSection justSavedFlag={justSavedFlag} />
       <TaxWithholdingSection />
       <QuarterlyTrackerMethodSection />
+      <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
       <TaxProfileSection />
       <HsaSettingsSection />
