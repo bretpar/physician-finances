@@ -61,7 +61,7 @@ function SelectCard({ selected, title, description, onClick, children }: { selec
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: taxSettings, isLoading } = useTaxSettings();
+  const { data: taxSettings, isLoading } = useTaxSettings(!!user);
   const updateTaxSettings = useUpdateTaxSettings();
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState(user?.email || "");
