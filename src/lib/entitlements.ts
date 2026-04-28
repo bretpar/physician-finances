@@ -1,4 +1,5 @@
 import type { HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
+import { hasFeatureAccess as hasCanonicalFeatureAccess } from "@/lib/onboarding";
 
 export type UserType =
   | "W2_ONLY"
@@ -209,6 +210,7 @@ export function getUserTypeDisplayInfo(userType: UserType): UserTypeDisplayInfo 
 }
 
 export function canAccessFeature(featureKey: FeatureKey, context: FeatureAccessContext): boolean {
+  if (!hasCanonicalFeatureAccess({ subscriptionTier: context.subscriptionTier }, featureKey)) return false;
   return getFeatureAccess(context.userType, context.subscriptionTier)[featureKey]?.status === "available";
 }
 
