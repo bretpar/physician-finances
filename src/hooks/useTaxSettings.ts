@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import type { DeductionStrategy, EnabledIncomeSources, IncomeProfileType, OnboardingSubscriptionTier, TaxRecommendationMethod } from "@/lib/onboarding";
 
 export type WithholdingMethod = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
 export type QuarterlyTrackerMethod = "even" | "dynamic";
@@ -64,6 +65,18 @@ export interface TaxRates {
   // ─── Quarterly Tax Tracker ───
   /** How the dashboard Quarterly Tax Progress card computes each quarter's target. */
   quarterlyTrackerMethod: QuarterlyTrackerMethod;
+  onboardingComplete: boolean | null;
+  onboardingBannerDismissed: boolean;
+  onboardingFirstName: string;
+  incomeProfileType: IncomeProfileType;
+  enabledIncomeSources: EnabledIncomeSources;
+  enabledPersonalIncomeTypes: string[];
+  taxRecommendationMethod: TaxRecommendationMethod;
+  flatFederalRate: number | null;
+  flatStateRate: number | null;
+  deductionStrategy: DeductionStrategy;
+  enabledDeductionTypes: string[];
+  subscriptionTier: OnboardingSubscriptionTier;
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -107,6 +120,18 @@ const DEFAULT_RATES: TaxRates = {
   },
   autoConvertFutureIncomeToLedger: false,
   quarterlyTrackerMethod: "even",
+  onboardingComplete: null,
+  onboardingBannerDismissed: false,
+  onboardingFirstName: "",
+  incomeProfileType: "w2_plus_business",
+  enabledIncomeSources: { w2: true, form1099: true, k1: true },
+  enabledPersonalIncomeTypes: [],
+  taxRecommendationMethod: "dynamic_planner",
+  flatFederalRate: null,
+  flatStateRate: null,
+  deductionStrategy: "standard",
+  enabledDeductionTypes: [],
+  subscriptionTier: "premium",
 };
 
 export function useTaxSettings() {
