@@ -557,6 +557,7 @@ function HouseholdIncomeStreamsSection() {
     source,
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
+      await recordPathwayHistory(next);
       await updateMutation.mutateAsync({ id: data.id, householdIncomeStreams: next });
       localStorage.setItem("paycheckmd-household-income-profile-reviewed", "true");
       if (Object.keys(exclusionChoices).length > 0) {
