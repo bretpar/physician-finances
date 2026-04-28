@@ -3,5 +3,8 @@ project_id = "fiqnxprhvsadcqicczkg"
 [functions.admin-metrics]
 verify_jwt = false
 
+[functions.admin-list-users]
+verify_jwt = false
+
 [functions.onboarding-signup]
 verify_jwt = false
