@@ -533,10 +533,13 @@ function HouseholdIncomeStreamsSection() {
   const updateMutation = useUpdateTaxSettings();
   const { data: businessIncomeRows = [] } = useIncomeEntries();
   const { data: personalIncomeRows = [] } = usePersonalIncomeEntries();
+  const { data: pathwayHistory = [] } = useIncomePathwayHistory();
   const queryClient = useQueryClient();
   const [savedTick, setSavedTick] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exclusionChoices, setExclusionChoices] = useState<Record<string, "hide-only" | "hide-and-exclude">>({});
+  const [effectiveDateChoice, setEffectiveDateChoice] = useState<EffectiveDateChoice>("today");
+  const [customEffectiveDate, setCustomEffectiveDate] = useState(toDateInputValue(new Date()));
 
   const source: HouseholdIncomeStreams = useMemo(() => data?.householdIncomeStreams ?? {
     w2Income: true,
@@ -566,7 +569,10 @@ function HouseholdIncomeStreamsSection() {
   });
 
   const derivedUserType = deriveUserTypeFromIncomeStreams(draft.draft);
+  const previousUserType = deriveUserTypeFromIncomeStreams(source);
   const pathway = getUserTypeDisplayInfo(derivedUserType);
+  const effectiveDate = getEffectiveDate(effectiveDateChoice, customEffectiveDate);
+  const pathwayChanged = draft.isDirty && previousUserType !== derivedUserType;
   const featureAccess = getFeatureAccess(derivedUserType, DEFAULT_SUBSCRIPTION_TIER);
   const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
   const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
