@@ -121,18 +121,29 @@ export default function Onboarding() {
   const addCompanyDraft = () => setCompanyDrafts((current) => [...current, { name: "", type: allowedCompanyTypes[0], description: "" }]);
   const updateCompanyDraft = (index: number, updates: Partial<OnboardingCompanyDraft>) => setCompanyDrafts((current) => current.map((item, i) => i === index ? { ...item, ...updates } : item));
   const removeCompanyDraft = (index: number) => setCompanyDrafts((current) => current.filter((_, i) => i !== index));
+  const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
+    const allowed = getAllowedCompanyTypes(incomeProfileType);
+    patch({ incomeProfileType, enabledIncomeSources: incomeProfileToSources(incomeProfileType) });
+    setCompanyDrafts((current) => current.map((company) => allowed.includes(company.type) ? company : { ...company, type: allowed[0] }));
+  };
 
   async function createOnboardingCompanies() {
     if (!user) return;
     const allowed = getAllowedCompanyTypes(merged.incomeProfileType);
-    const validDrafts = companyDrafts
+    const normalizedDrafts = companyDrafts
       .map((company) => ({ ...company, name: company.name.trim(), description: company.description?.trim() || "" }))
-      .filter((company) => company.name || company.description || company.type)
+      .filter((company) => company.name || company.description);
+    const incompleteDraft = normalizedDrafts.find((company) => !company.name || !company.type);
+    if (incompleteDraft) throw new Error("Add a company name or remove the unfinished company card.");
+    const validDrafts = normalizedDrafts
       .filter((company) => company.name && allowed.includes(company.type));
     if (validDrafts.length === 0) return;
     const uniqueDrafts = Array.from(new Map(validDrafts.map((company) => [`${company.name.toLowerCase()}::${company.type}`, company])).values());
     const orgId = await getUserOrgId();
-    const { error } = await supabase.from("companies").insert(uniqueDrafts.map((company) => {
+    const { data: existing, error: existingError } = await supabase.from("companies").select("name, company_type");
+    if (existingError) throw existingError;
+    const existingKeys = new Set((existing || []).map((company: any) => `${String(company.name || "").trim().toLowerCase()}::${company.company_type}`));
+    const rows = uniqueDrafts.map((company) => {
       const companyType = onboardingCompanyTypeToFilingType(company.type);
       return {
         user_id: user.id,
@@ -149,7 +160,9 @@ export default function Onboarding() {
         apply_business_state_tax: true,
         include_se_tax_in_recommendation: true,
       };
-    }) as any);
+    }).filter((company) => !existingKeys.has(`${company.name.toLowerCase()}::${company.company_type}`));
+    if (rows.length === 0) return;
+    const { error } = await supabase.from("companies").insert(rows as any);
     if (error) throw error;
   }
 
