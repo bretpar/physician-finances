@@ -1190,6 +1190,7 @@ function CompaniesSection() {
             {companies.map((company) => {
               const incomeCount = incomeCountByCompanyName[company.name] || 0;
               const filingTypeLocked = incomeCount > 0;
+              const companyTypeOptions = company.name.trim() ? COMPANY_TYPES : COMPANY_TYPES.filter((type) => allowedNewCompanyTypes.includes(type.value));
               const advOpen = advancedOpenIds.has(company.id);
               const toggleOptions = TOGGLE_OPTIONS_BY_TYPE[getValue(company, "companyType")];
               const visibility = resolveAdvancedVisibility(
@@ -1233,7 +1234,7 @@ function CompaniesSection() {
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                          {companyTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       {(() => {
