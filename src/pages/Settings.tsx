@@ -561,9 +561,10 @@ function HouseholdIncomeStreamsSection() {
 
   return (
     <SectionCard
-      title="Household Income Streams"
+      title="Household Income Profile"
       icon={<Settings2 className="h-5 w-5" />}
       description="Review what income your household currently has so the app can match your pathway."
+      defaultOpen
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
       justSaved={savedTick}
