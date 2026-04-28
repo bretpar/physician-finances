@@ -79,6 +79,12 @@ export default function Mileage() {
   const now = new Date();
   const { data: taxSettings } = useTaxSettings();
   const isW2Only = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams) === "W2_ONLY";
+  const enabledDeductionTypes = taxSettings?.enabledDeductionTypes || [];
+  const showMileage = !isW2Only && (enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("mileage"));
+  const showHomeOffice = !isW2Only && (enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("home_office"));
+  const showRetirement = enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("retirement_401k");
+  const showHsa = enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("hsa");
+  const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
 
   // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -335,12 +341,12 @@ export default function Mileage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <Tabs defaultValue={isW2Only ? "retirement" : "mileage"} className="w-full">
-        <TabsList className={`grid w-full ${isW2Only ? "grid-cols-2 max-w-md" : "grid-cols-4 max-w-2xl"}`}>
-          {!isW2Only && <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>}
-          {!isW2Only && <TabsTrigger value="home-office" className="gap-2"><Home className="h-4 w-4" /> Home Office</TabsTrigger>}
-          <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>
-          <TabsTrigger value="hsa" className="gap-2"><HeartPulse className="h-4 w-4" /> HSA</TabsTrigger>
+      <Tabs defaultValue={defaultTab} className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4">
+          {showMileage && <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>}
+          {showHomeOffice && <TabsTrigger value="home-office" className="gap-2"><Home className="h-4 w-4" /> Home Office</TabsTrigger>}
+          {showRetirement && <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>}
+          {showHsa && <TabsTrigger value="hsa" className="gap-2"><HeartPulse className="h-4 w-4" /> HSA</TabsTrigger>}
         </TabsList>
 
         {/* ─── MILEAGE TAB ──────────────────────────── */}
