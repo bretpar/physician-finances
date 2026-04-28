@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PiggyBank, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { clearAttemptState, getAuthErrorMessage, getRemainingCooldownSeconds, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
+
+const LOGIN_ATTEMPTS_KEY = "paycheckmd-login-attempts";
+const RESET_ATTEMPTS_KEY = "paycheckmd-reset-attempts";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -16,16 +20,31 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [loginCooldownUntil, setLoginCooldownUntil] = useState(() => readAttemptState(LOGIN_ATTEMPTS_KEY).cooldownUntil);
+  const [resetCooldownUntil, setResetCooldownUntil] = useState(() => readAttemptState(RESET_ATTEMPTS_KEY).cooldownUntil);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const loginCooldownSeconds = getRemainingCooldownSeconds(loginCooldownUntil);
+  const resetCooldownSeconds = getRemainingCooldownSeconds(resetCooldownUntil);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) return;
+    if (loginCooldownSeconds > 0) return;
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      const next = recordFailedAttempt(LOGIN_ATTEMPTS_KEY);
+      setLoginCooldownUntil(next.cooldownUntil);
+      toast.error(getAuthErrorMessage(error, "Invalid email or password."));
     } else {
+      clearAttemptState(LOGIN_ATTEMPTS_KEY);
       navigate("/");
     }
   }
@@ -36,13 +55,21 @@ export default function Login() {
       toast.error("Enter your email address first.");
       return;
     }
+    if (resetCooldownSeconds > 0) return;
     setResetLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     setResetLoading(false);
-    if (error) toast.error(error.message);
-    else toast.success("Password reset link sent. Check your email.");
+    if (error) {
+      const next = recordFailedAttempt(RESET_ATTEMPTS_KEY);
+      setResetCooldownUntil(next.cooldownUntil);
+      toast.error(getAuthErrorMessage(error, "If an account exists for that email, we’ll send reset instructions."));
+    } else {
+      clearAttemptState(RESET_ATTEMPTS_KEY);
+      setResetCooldownUntil(0);
+      toast.success("If an account exists for that email, we’ll send reset instructions.");
+    }
   }
 
   return (
@@ -91,7 +118,9 @@ export default function Login() {
               </div>
             </div>}
             {!resetMode && <div className="text-right"><button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => setResetMode(true)}>Forgot password?</button></div>}
-            <Button type="submit" className="w-full" disabled={loading || resetLoading}>
+            {loginCooldownSeconds > 0 && !resetMode && <p className="text-sm text-muted-foreground">Too many attempts. Please try again in {loginCooldownSeconds} seconds.</p>}
+            {resetCooldownSeconds > 0 && resetMode && <p className="text-sm text-muted-foreground">Too many attempts. Please try again in {resetCooldownSeconds} seconds.</p>}
+            <Button type="submit" className="w-full" disabled={loading || resetLoading || (!resetMode && loginCooldownSeconds > 0) || (resetMode && resetCooldownSeconds > 0)}>
               {resetMode ? (resetLoading ? "Sending…" : "Send reset link") : (loading ? "Signing in…" : "Sign In")}
             </Button>
           </form>
