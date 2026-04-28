@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { clearAttemptState, getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
   getAllowedCompanyTypes,
@@ -29,6 +30,8 @@ import {
   type TaxRecommendationMethod,
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
+
+const SIGNUP_ATTEMPTS_KEY = "paycheckmd-signup-attempts";
 
 const personalOptions = [
   ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"],
@@ -78,7 +81,10 @@ export default function Onboarding() {
   const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
+  const [companyWebsite, setCompanyWebsite] = useState("");
   const [saving, setSaving] = useState(false);
+  const [signupCooldownUntil, setSignupCooldownUntil] = useState(() => readAttemptState(SIGNUP_ATTEMPTS_KEY).cooldownUntil);
+  const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
 
@@ -110,6 +116,13 @@ export default function Onboarding() {
       subscriptionTier: taxSettings.subscriptionTier || current.subscriptionTier,
     }));
   }, [user, isLoading, taxSettings]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const signupCooldownSeconds = Math.max(0, Math.ceil((signupCooldownUntil - now) / 1000));
 
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
@@ -226,6 +239,7 @@ export default function Onboarding() {
   }
 
   async function continueStep() {
+    if (saving || (step === 1 && !user && signupCooldownSeconds > 0)) return;
     setSaving(true);
     try {
       const nextStep = Math.min(6, step + 1);
@@ -233,17 +247,20 @@ export default function Onboarding() {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
           if (!email || password.length < 6) throw new Error("Enter an email and a password with at least 6 characters.");
+          if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
           const { data: existingCheck, error: existingError } = await supabase.functions.invoke("onboarding-signup", { body: { email } });
           if (existingError) throw existingError;
-          if (existingCheck?.exists) throw new Error("An account already exists for this email. Please log in or reset your password.");
+          if (existingCheck?.exists) throw new Error("Signup could not be completed. Please try signing in or use a different email.");
           const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) throw error;
           if (!data.session) {
-            toast.success("Account created. Please check your email to finish signing in.");
+            toast.success("Account created. Please sign in to continue.");
             return;
           }
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
           await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user?.id);
+          clearAttemptState(SIGNUP_ATTEMPTS_KEY);
+          setSignupCooldownUntil(0);
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
@@ -262,7 +279,17 @@ export default function Onboarding() {
       sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
       setStep(nextStep);
     } catch (error: any) {
-      toast.error(error.message || "Could not save onboarding.");
+      if (step === 1 && !user) {
+        const message = String(error?.message || "");
+        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter an email");
+        if (!isInputError) {
+          const next = recordFailedAttempt(SIGNUP_ATTEMPTS_KEY);
+          setSignupCooldownUntil(next.cooldownUntil);
+        }
+        toast.error(isInputError ? message : getAuthErrorMessage(error, "Signup could not be completed. Please try signing in or use a different email."));
+      } else {
+        toast.error(error.message || "Could not save onboarding.");
+      }
     } finally {
       setSaving(false);
     }
@@ -279,7 +306,7 @@ export default function Onboarding() {
             <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">Step {step} of 6</p><div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / 6) * 100}%` }} /></div></div>
           </div>
 
-          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize your PaycheckMD dashboard so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" /></div><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p></>}</div></div>}
+          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize your PaycheckMD dashboard so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" /></div><div aria-hidden="true" className="sr-only"><Label htmlFor="companyWebsite">Company website</Label><Input id="companyWebsite" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" /></div>{signupCooldownSeconds > 0 && <p className="text-sm text-muted-foreground">Too many signup attempts. Please wait before trying again.</p>}<p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p></>}</div></div>}
 
           {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What best describes your income?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 Only" description="I receive employee paychecks with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")}>Focuses on paychecks, withholding, and W-2 deductions.</SelectCard><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + 1099/K-1" description="I have employee income plus business, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")}>Keeps business activity, expenses, quarterly tools, and planner visible.</SelectCard><SelectCard selected={merged.incomeProfileType === "business_only"} title="1099/K-1 Only" description="I mainly earn income through business, contractor, partnership, or self-employed work." onClick={() => selectIncomeProfile("business_only")}>Hides payroll sections by default without deleting prior W-2 data.</SelectCard></div></div>}
 
@@ -293,7 +320,7 @@ export default function Onboarding() {
 
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
             <Button variant="outline" onClick={goBack} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
-            <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === 6 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+            <Button onClick={continueStep} disabled={saving || (user && isLoading) || (step === 1 && !user && signupCooldownSeconds > 0)}>{saving ? "Saving…" : step === 6 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
           </div>
         </CardContent>
       </Card>

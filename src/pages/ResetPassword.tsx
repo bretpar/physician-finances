@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PiggyBank } from "lucide-react";
 import { toast } from "sonner";
+import { getAuthErrorMessage } from "@/lib/authProtection";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function ResetPassword() {
     setLoading(false);
 
     if (error) {
-      toast.error(error.message);
+      toast.error(getAuthErrorMessage(error, "Password could not be updated. Please request a new reset link."));
       return;
     }
 
