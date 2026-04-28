@@ -29,12 +29,13 @@ export default function Dashboard() {
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: payments = [] } = useTaxPayments();
-  const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, isLoading: estLoading } = useTaxEstimate();
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
+  const isW2Only = userType === "W2_ONLY";
   const featureAccess = getFeatureAccess(userType, DEFAULT_SUBSCRIPTION_TIER);
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
@@ -212,6 +213,13 @@ export default function Dashboard() {
     return [...fromTx, ...fromPersonal];
   }, [transactions, personalEntries]);
 
+  const hasIncludedPriorNonW2Income = useMemo(() => {
+    return (incomeEntries || []).some((e) => {
+      const type = normalizeFilingType(e.income_type);
+      return type !== "w2" && type !== "scorp_w2";
+    }) || (transactions || []).some((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any));
+  }, [incomeEntries, transactions]);
+
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -301,9 +309,49 @@ export default function Dashboard() {
       <DashboardMetrics
         totalIncomeYTD={summary.totalIncome}
         businessProfitYTD={summary.businessNetIncome}
+        w2Only={isW2Only}
       />
 
-      <QuarterlyTracker
+      {isW2Only && forecastDebug && (
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-normal text-muted-foreground">Withholding Progress</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+                {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.countedCreditsTotal)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-normal text-muted-foreground">Expected Refund / Amount Due</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+                {forecastDebug.remainingTaxDue > 0
+                  ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.remainingTaxDue)
+                  : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Math.max(0, forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax))}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-normal text-muted-foreground">Extra Withholding Recommendation</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-primary">
+                {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.recommendedSetAside)}
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {forecastDebug.remainingTaxDue > 0
+              ? `Based on your projected household income, deductions, taxes, and current withholding, you are projected to be short by ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.remainingTaxDue)}. Add ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.recommendedSetAside)} extra per paycheck to your W4, or save ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.recommendedSetAside)} per paycheck manually.`
+              : forecastDebug.countedCreditsTotal > forecastDebug.totalEstimatedTax
+                ? `You are projected to have a refund of about ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax)} if your income and withholding stay on track.`
+                : "Your current withholding appears to be on track based on your projected household income, deductions, and taxes."}
+          </p>
+          {hasIncludedPriorNonW2Income && (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              Your current pathway is W2-only. Earlier income from other sources may still be included in your full-year tax projection if it was marked as included.
+            </p>
+          )}
+        </section>
+      )}
+
+      {!isW2Only && <QuarterlyTracker
         annualTaxLiability={annualTaxLiability}
         payments={payments}
         methodLabel={methodLabel}
@@ -321,7 +369,7 @@ export default function Dashboard() {
         showTaxOverviewCta={false}
         showQuarterNavigation={false}
         linkDeadlineToTaxOverview
-      />
+      />}
 
       <FinancialScore
         taxProgressPct={taxProgressPct}
