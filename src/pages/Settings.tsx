@@ -584,6 +584,8 @@ function HouseholdIncomeStreamsSection() {
   }, [loadPathwayHistory]);
 
   const derivedUserType = deriveUserTypeFromIncomeStreams(draft.draft);
+  const currentUserType = deriveUserTypeFromIncomeStreams(source);
+  const pathwayWillChange = draft.isDirty && currentUserType !== derivedUserType;
   const pathway = getUserTypeDisplayInfo(derivedUserType);
   const featureAccess = getFeatureAccess(derivedUserType, DEFAULT_SUBSCRIPTION_TIER);
   const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
