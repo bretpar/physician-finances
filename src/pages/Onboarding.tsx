@@ -143,6 +143,17 @@ export default function Onboarding() {
   const addCompanyDraft = () => setCompanyDrafts((current) => [...current, { name: "", type: allowedCompanyTypes[0], description: "" }]);
   const updateCompanyDraft = (index: number, updates: Partial<OnboardingCompanyDraft>) => setCompanyDrafts((current) => current.map((item, i) => i === index ? { ...item, ...updates } : item));
   const removeCompanyDraft = (index: number) => setCompanyDrafts((current) => current.filter((_, i) => i !== index));
+  const goBack = async () => {
+    if (step === 1) {
+      navigate("/login");
+      return;
+    }
+    const nextStep = step - 1;
+    setStep(nextStep);
+    sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+    patch({ onboardingStep: nextStep });
+    if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
+  };
   const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
     const allowed = getAllowedCompanyTypes(incomeProfileType);
     patch({ incomeProfileType, enabledIncomeSources: incomeProfileToSources(incomeProfileType) });
@@ -217,35 +228,39 @@ export default function Onboarding() {
   async function continueStep() {
     setSaving(true);
     try {
+      const nextStep = Math.min(6, step + 1);
       if (step === 1) {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
           if (!email || password.length < 6) throw new Error("Enter an email and a password with at least 6 characters.");
+          const { data: existingCheck, error: existingError } = await supabase.functions.invoke("onboarding-signup", { body: { email } });
+          if (existingError) throw existingError;
+          if (existingCheck?.exists) throw new Error("An account already exists for this email. Please log in or reset your password.");
           const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) throw error;
           if (!data.session) {
             toast.success("Account created. Please check your email to finish signing in.");
             return;
           }
+          await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
+          await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep }).eq("user_id", data.user?.id);
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
-          await persist({ firstName: merged.firstName.trim(), onboardingComplete: false });
+          await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
         }
       } else if (step === 6) {
         await createOnboardingCompanies();
-        await persist({ onboardingComplete: true });
+        await persist({ onboardingComplete: true, onboardingStep: 6 });
         sessionStorage.removeItem("paycheckmd-start-setup");
         sessionStorage.removeItem("paycheckmd-onboarding-step");
         navigate("/", { replace: true });
         return;
       } else {
-        await persist({ onboardingComplete: false });
+        await persist({ onboardingComplete: false, onboardingStep: nextStep });
       }
-      setStep((s) => {
-        const nextStep = Math.min(6, s + 1);
-        sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-        return nextStep;
-      });
+      patch({ onboardingStep: nextStep });
+      sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+      setStep(nextStep);
     } catch (error: any) {
       toast.error(error.message || "Could not save onboarding.");
     } finally {
