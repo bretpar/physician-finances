@@ -654,10 +654,20 @@ export default function ProjectedIncome() {
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <SummaryCard icon={<Shield className="h-4 w-4" />} label="Projected Taxable Income" value={fmt(forecastDebug.totalTaxableIncome)} />
-              <SummaryCard icon={<Shield className="h-4 w-4" />} label="Estimated Total Tax" value={fmt(forecastDebug.totalEstimatedTax)} />
-              <SummaryCard icon={<PiggyBank className="h-4 w-4" />} label="Expected Future Withholding" value={fmt(forecastDebug.projectedFederalWithheld + (taxSettings?.stateIncomeTaxEnabled ? forecastDebug.projectedStateWithheld : 0))} />
-              <SummaryCard icon={<PiggyBank className="h-4 w-4" />} label="Recommended Extra Per Paycheck" value={fmt(forecastDebug.recommendedSetAside)} highlight />
+              {[
+                { label: "Projected Taxable Income", value: fmt(forecastDebug.totalTaxableIncome), Icon: Shield },
+                { label: "Estimated Total Tax", value: fmt(forecastDebug.totalEstimatedTax), Icon: Shield },
+                { label: "Expected Future Withholding", value: fmt(forecastDebug.projectedFederalWithheld + (taxSettings?.stateIncomeTaxEnabled ? forecastDebug.projectedStateWithheld : 0)), Icon: PiggyBank },
+                { label: "Recommended Extra Per Paycheck", value: fmt(forecastDebug.recommendedSetAside), Icon: PiggyBank, highlight: true },
+              ].map(({ label, value, Icon, highlight }) => (
+                <div key={label} className="rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Icon className="h-4 w-4" />
+                    <span className="text-xs font-medium uppercase tracking-normal">{label}</span>
+                  </div>
+                  <p className={`mt-1 text-xl font-semibold tabular-nums ${highlight ? "text-primary" : "text-foreground"}`}>{value}</p>
+                </div>
+              ))}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-border bg-muted/30 p-3">
