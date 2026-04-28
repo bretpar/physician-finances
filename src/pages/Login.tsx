@@ -91,7 +91,7 @@ export default function Login() {
               </div>
             </div>}
             {!resetMode && <div className="text-right"><button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => setResetMode(true)}>Forgot password?</button></div>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || resetLoading}>
               {resetMode ? (resetLoading ? "Sending…" : "Send reset link") : (loading ? "Signing in…" : "Sign In")}
             </Button>
           </form>
