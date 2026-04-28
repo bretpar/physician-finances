@@ -52,6 +52,17 @@ import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { cn } from "@/lib/utils";
+import { classifyPersonalIncome } from "@/lib/incomeClassification";
+import { useIncomeEntries } from "@/hooks/useIncome";
+import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
+import {
+  ALL_ENTITLEMENT_FEATURES,
+  DEFAULT_SUBSCRIPTION_TIER,
+  deriveUserTypeFromIncomeStreams,
+  getFeatureAccess,
+  getUserTypeDisplayInfo,
+  type FeatureKey,
+} from "@/lib/entitlements";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
