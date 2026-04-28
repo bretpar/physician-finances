@@ -509,6 +509,7 @@ function businessRowsForStream(key: keyof HouseholdIncomeStreams, businessRows: 
 
 function HouseholdIncomeStreamsSection() {
   const { data } = useTaxSettings();
+  const { user, organizationId } = useAuth();
   const updateMutation = useUpdateTaxSettings();
   const { data: businessIncomeRows = [] } = useIncomeEntries();
   const { data: personalIncomeRows = [] } = usePersonalIncomeEntries();
@@ -516,6 +517,9 @@ function HouseholdIncomeStreamsSection() {
   const [savedTick, setSavedTick] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exclusionChoices, setExclusionChoices] = useState<Record<string, "hide-only" | "hide-and-exclude">>({});
+  const [effectiveDateChoice, setEffectiveDateChoice] = useState<EffectiveDateChoice>("today");
+  const [customEffectiveDate, setCustomEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pathwayHistory, setPathwayHistory] = useState<PathwayHistoryRow[]>([]);
 
   const source: HouseholdIncomeStreams = useMemo(() => data?.householdIncomeStreams ?? {
     w2Income: true,
@@ -533,16 +537,51 @@ function HouseholdIncomeStreamsSection() {
     source,
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
+      const previousUserType = deriveUserTypeFromIncomeStreams(source);
+      const nextUserType = deriveUserTypeFromIncomeStreams(next);
       await updateMutation.mutateAsync({ id: data.id, householdIncomeStreams: next });
+      if (user && previousUserType !== nextUserType) {
+        const effectiveDate = getEffectiveDate(effectiveDateChoice, customEffectiveDate);
+        const { error } = await supabase.from("income_pathway_history").insert({
+          user_id: user.id,
+          organization_id: organizationId,
+          changed_by_user: user.id,
+          previous_user_type: previousUserType,
+          new_user_type: nextUserType,
+          effective_date: effectiveDate,
+          active_income_stream_flags: next,
+        } as any);
+        if (error) throw error;
+      }
       localStorage.setItem("paycheckmd-household-income-profile-reviewed", "true");
       if (Object.keys(exclusionChoices).length > 0) {
         localStorage.setItem(TAX_EXCLUSION_CHOICES_KEY, JSON.stringify(exclusionChoices));
       }
       await applyExplicitExclusions();
+      await loadPathwayHistory();
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
     },
   });
+
+  const loadPathwayHistory = useCallback(async () => {
+    if (!user) return;
+    const { data: rows, error } = await supabase
+      .from("income_pathway_history")
+      .select("id, previous_user_type, new_user_type, effective_date, changed_at")
+      .order("effective_date", { ascending: false })
+      .order("changed_at", { ascending: false })
+      .limit(8);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setPathwayHistory((rows || []) as PathwayHistoryRow[]);
+  }, [user]);
+
+  useEffect(() => {
+    loadPathwayHistory();
+  }, [loadPathwayHistory]);
 
   const derivedUserType = deriveUserTypeFromIncomeStreams(draft.draft);
   const pathway = getUserTypeDisplayInfo(derivedUserType);
