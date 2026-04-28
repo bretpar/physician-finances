@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
   getAllowedCompanyTypes,
@@ -29,6 +30,8 @@ import {
   type TaxRecommendationMethod,
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
+
+const SIGNUP_ATTEMPTS_KEY = "paycheckmd-signup-attempts";
 
 const personalOptions = [
   ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"],
@@ -78,7 +81,10 @@ export default function Onboarding() {
   const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
+  const [companyWebsite, setCompanyWebsite] = useState("");
   const [saving, setSaving] = useState(false);
+  const [signupCooldownUntil, setSignupCooldownUntil] = useState(() => readAttemptState(SIGNUP_ATTEMPTS_KEY).cooldownUntil);
+  const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
 
@@ -110,6 +116,13 @@ export default function Onboarding() {
       subscriptionTier: taxSettings.subscriptionTier || current.subscriptionTier,
     }));
   }, [user, isLoading, taxSettings]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const signupCooldownSeconds = Math.max(0, Math.ceil((signupCooldownUntil - now) / 1000));
 
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
@@ -226,6 +239,7 @@ export default function Onboarding() {
   }
 
   async function continueStep() {
+    if (saving || (step === 1 && !user && signupCooldownSeconds > 0)) return;
     setSaving(true);
     try {
       const nextStep = Math.min(6, step + 1);
@@ -233,13 +247,14 @@ export default function Onboarding() {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
           if (!email || password.length < 6) throw new Error("Enter an email and a password with at least 6 characters.");
+          if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
           const { data: existingCheck, error: existingError } = await supabase.functions.invoke("onboarding-signup", { body: { email } });
           if (existingError) throw existingError;
-          if (existingCheck?.exists) throw new Error("An account already exists for this email. Please log in or reset your password.");
+          if (existingCheck?.exists) throw new Error("Signup could not be completed. Please try signing in or use a different email.");
           const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) throw error;
           if (!data.session) {
-            toast.success("Account created. Please check your email to finish signing in.");
+            toast.success("Account created. Please sign in to continue.");
             return;
           }
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
@@ -262,7 +277,13 @@ export default function Onboarding() {
       sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
       setStep(nextStep);
     } catch (error: any) {
-      toast.error(error.message || "Could not save onboarding.");
+      if (step === 1 && !user) {
+        const next = recordFailedAttempt(SIGNUP_ATTEMPTS_KEY);
+        setSignupCooldownUntil(next.cooldownUntil);
+        toast.error(getAuthErrorMessage(error, error.message || "Signup could not be completed. Please try again."));
+      } else {
+        toast.error(error.message || "Could not save onboarding.");
+      }
     } finally {
       setSaving(false);
     }
