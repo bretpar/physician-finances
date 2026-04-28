@@ -290,12 +290,13 @@ export default function Dashboard() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-card-foreground">Review your household income profile. We added income pathways so your dashboard matches your household.</p>
             <div className="flex gap-2">
-              <Button asChild size="sm"><Link to="/settings">Review now</Link></Button>
+              <Button asChild size="sm"><Link to="/onboarding" onClick={() => sessionStorage.setItem("paycheckmd-start-setup", "true")}>Start setup</Link></Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   localStorage.setItem("paycheckmd-household-income-profile-review-dismissed", "true");
+                  if (rates?.id) void supabase.from("tax_settings").update({ onboarding_banner_dismissed: true } as any).eq("id", rates.id);
                   setShowProfileReviewBanner(false);
                 }}
               >
