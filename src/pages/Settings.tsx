@@ -464,7 +464,11 @@ function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = 
 function HouseholdIncomeStreamsSection() {
   const { data } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
+  const { data: businessIncomeRows = [] } = useIncomeEntries();
+  const { data: personalIncomeRows = [] } = usePersonalIncomeEntries();
   const [savedTick, setSavedTick] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [exclusionChoices, setExclusionChoices] = useState<Record<string, "hide-only" | "hide-and-exclude">>({});
 
   const source: HouseholdIncomeStreams = useMemo(() => data?.householdIncomeStreams ?? {
     w2Income: true,
@@ -483,22 +487,48 @@ function HouseholdIncomeStreamsSection() {
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
       await updateMutation.mutateAsync({ id: data.id, householdIncomeStreams: next });
+      localStorage.setItem("paycheckmd-household-income-profile-reviewed", "true");
+      if (Object.keys(exclusionChoices).length > 0) {
+        localStorage.setItem(TAX_EXCLUSION_CHOICES_KEY, JSON.stringify(exclusionChoices));
+      }
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
     },
   });
 
+  const derivedUserType = deriveUserTypeFromIncomeStreams(draft.draft);
+  const pathway = getUserTypeDisplayInfo(derivedUserType);
+  const featureAccess = getFeatureAccess(derivedUserType, DEFAULT_SUBSCRIPTION_TIER);
+  const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
+  const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
+  const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]);
+  const disabledStreamsWithData = HOUSEHOLD_INCOME_STREAM_OPTIONS.filter(
+    (option) => source[option.key] && !draft.draft[option.key] && hasStreamData(option.key, personalIncomeRows, businessIncomeRows),
+  );
+
+  const saveWithSafetyCheck = () => {
+    if (disabledStreamsWithData.length > 0 && !disabledStreamsWithData.every((option) => exclusionChoices[option.key])) {
+      setConfirmOpen(true);
+      return;
+    }
+    draft.save();
+  };
+
   return (
     <SectionCard
       title="Household Income Streams"
       icon={<Settings2 className="h-5 w-5" />}
-      description="Saved profile flags for future household-aware workflows. These do not change tax calculations yet."
+      description="Review what income your household currently has so the app can match your pathway."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
       justSaved={savedTick}
-      onSave={draft.save}
+      onSave={saveWithSafetyCheck}
       onCancel={draft.cancel}
     >
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-card-foreground">What income does your household currently have?</p>
+        <p className="text-xs text-muted-foreground">Select every stream that applies. Technical pathway labels are derived automatically.</p>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {HOUSEHOLD_INCOME_STREAM_OPTIONS.map((option) => (
           <div key={option.key} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
@@ -513,6 +543,63 @@ function HouseholdIncomeStreamsSection() {
           </div>
         ))}
       </div>
+      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-semibold text-card-foreground">{pathway.label}</p>
+          <Badge variant="outline">Derived pathway</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">{pathway.explanation}</p>
+      </div>
+      {draft.isDirty && (
+        <div className="rounded-lg border border-border p-4 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-card-foreground">This will update your app experience.</p>
+            <p className="text-xs text-muted-foreground mt-1">Existing data will not be deleted. Income is not excluded from tax projections unless you explicitly choose that option.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-medium text-card-foreground mb-2">Visible sections</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">{visibleSections.slice(0, 6).map((label) => <li key={label}>• {label}</li>)}</ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-card-foreground mb-2">Hidden sections</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">{hiddenSections.length ? hiddenSections.slice(0, 6).map((label) => <li key={label}>• {label}</li>) : <li>• None</li>}</ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-card-foreground mb-2">Premium features</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">{lockedSections.length ? lockedSections.slice(0, 6).map((label) => <li key={label}>• {label}</li>) : <li>• None</li>}</ul>
+            </div>
+          </div>
+        </div>
+      )}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm income stream changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have existing income data for one or more streams you turned off. Choose how the app should treat those records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            {disabledStreamsWithData.map((option) => (
+              <div key={option.key} className="rounded-lg border border-border p-3 space-y-3">
+                <p className="text-sm font-medium text-card-foreground">You have existing {option.moduleLabel} income data.</p>
+                <RadioGroup
+                  value={exclusionChoices[option.key] || "hide-only"}
+                  onValueChange={(value) => setExclusionChoices((prev) => ({ ...prev, [option.key]: value as "hide-only" | "hide-and-exclude" }))}
+                >
+                  <label className="flex items-start gap-2 text-sm text-card-foreground"><RadioGroupItem value="hide-only" className="mt-0.5" />Hide tools only, keep income in tax projection.</label>
+                  <label className="flex items-start gap-2 text-sm text-card-foreground"><RadioGroupItem value="hide-and-exclude" className="mt-0.5" />Hide tools and exclude income from tax projection.</label>
+                </RadioGroup>
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConfirmOpen(false); draft.save(); }}>Save profile</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SectionCard>
   );
 }
