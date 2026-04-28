@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getUserOrgId } from "@/hooks/useOrgId";
-import { getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
+import { clearAttemptState, getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
   getAllowedCompanyTypes,
@@ -259,6 +259,8 @@ export default function Onboarding() {
           }
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
           await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user?.id);
+          clearAttemptState(SIGNUP_ATTEMPTS_KEY);
+          setSignupCooldownUntil(0);
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
