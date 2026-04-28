@@ -396,6 +396,45 @@ export type Database = {
           },
         ]
       }
+      income_pathway_history: {
+        Row: {
+          active_income_stream_flags: Json
+          changed_at: string
+          changed_by_user: string
+          created_at: string
+          effective_date: string
+          id: string
+          new_user_type: string
+          organization_id: string | null
+          previous_user_type: string
+          user_id: string
+        }
+        Insert: {
+          active_income_stream_flags?: Json
+          changed_at?: string
+          changed_by_user: string
+          created_at?: string
+          effective_date: string
+          id?: string
+          new_user_type: string
+          organization_id?: string | null
+          previous_user_type: string
+          user_id: string
+        }
+        Update: {
+          active_income_stream_flags?: Json
+          changed_at?: string
+          changed_by_user?: string
+          created_at?: string
+          effective_date?: string
+          id?: string
+          new_user_type?: string
+          organization_id?: string | null
+          previous_user_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mileage_entries: {
         Row: {
           company_id: string | null
