@@ -51,7 +51,8 @@ import { ledgerForIncomeType } from "@/lib/ledgerRouting";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
-import { DEFAULT_SUBSCRIPTION_TIER, deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -234,7 +235,7 @@ export default function ProjectedIncome() {
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
   const userType = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const featureAccess = getFeatureAccess(userType, DEFAULT_SUBSCRIPTION_TIER);
+  const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(taxSettings?.subscriptionTier));
   const spouseW2Locked = featureAccess.spouseW2Support?.status === "locked";
   const multipleW2Locked = featureAccess.multipleW2Jobs?.status === "locked";
 
@@ -289,9 +290,14 @@ export default function ProjectedIncome() {
   const projectedRefund = forecastDebug ? Math.max(0, forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax) : 0;
   const projectedGap = forecastDebug?.remainingTaxDue ?? 0;
   const visibleIncomeSubtypes = useMemo(() => {
-    if (!isW2Only) return INCOME_SUBTYPES;
+    if (!isW2Only) return INCOME_SUBTYPES.filter((t) => {
+      if ((t.value === "w2_user" || t.value === "w2_partner") && taxSettings?.enabledIncomeSources?.w2 === false) return t.value === form.ui_income_subtype;
+      if (t.value === "1099_schedule_c" && taxSettings?.enabledIncomeSources?.form1099 === false) return t.value === form.ui_income_subtype;
+      if (t.value === "k1_partnership" && taxSettings?.enabledIncomeSources?.k1 === false) return t.value === form.ui_income_subtype;
+      return true;
+    });
     return INCOME_SUBTYPES.filter((t) => t.value === "w2_user" || t.value === "w2_partner" || t.value === form.ui_income_subtype);
-  }, [isW2Only, form.ui_income_subtype]);
+  }, [isW2Only, form.ui_income_subtype, taxSettings?.enabledIncomeSources]);
 
   const toggleMonth = (m: number) => {
     setExpandedMonths((prev) => {
