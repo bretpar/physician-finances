@@ -452,6 +452,49 @@ const FEATURE_LABELS: Record<FeatureKey, string> = {
 
 const TAX_EXCLUSION_CHOICES_KEY = "paycheckmd-household-income-exclusion-choices";
 
+type EffectiveDateChoice = "today" | "month" | "year" | "custom";
+
+interface IncomePathwayHistoryRow {
+  id: string;
+  previous_user_type: UserType;
+  new_user_type: UserType;
+  effective_date: string;
+  changed_at: string;
+  active_income_stream_flags: HouseholdIncomeStreams;
+}
+
+function toDateInputValue(date: Date) {
+  return date.toISOString().split("T")[0];
+}
+
+function getEffectiveDate(choice: EffectiveDateChoice, customDate: string) {
+  const now = new Date();
+  if (choice === "month") return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+  if (choice === "year") return `${now.getFullYear()}-01-01`;
+  if (choice === "custom" && customDate) return customDate;
+  return toDateInputValue(now);
+}
+
+function formatPathwayDate(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(year, month - 1, day));
+}
+
+function useIncomePathwayHistory() {
+  return useQuery({
+    queryKey: ["income_pathway_history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("income_pathway_history" as any)
+        .select("id, previous_user_type, new_user_type, effective_date, changed_at, active_income_stream_flags")
+        .order("effective_date", { ascending: false })
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as IncomePathwayHistoryRow[];
+    },
+  });
+}
+
 function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = [], businessRows: any[] = []) {
   if (key === "business1099Income") return businessRows.some((e) => ["1099", "1099_schedule_c"].includes(String(e.income_type || "")));
   if (key === "k1PartnershipIncome") return businessRows.some((e) => ["k1", "k1_partnership"].includes(String(e.income_type || "")));
