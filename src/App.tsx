@@ -27,7 +27,7 @@ const queryClient = new QueryClient();
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings();
+  const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings(!!user);
 
   if (loading) {
     return (
