@@ -63,7 +63,7 @@ export default function Onboarding() {
   const { user } = useAuth();
   const { data: taxSettings, isLoading } = useTaxSettings(!!user);
   const updateTaxSettings = useUpdateTaxSettings();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -112,8 +112,12 @@ export default function Onboarding() {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
           if (!email || password.length < 6) throw new Error("Enter an email and a password with at least 6 characters.");
-          const { error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
+          const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) throw error;
+          if (!data.session) {
+            toast.success("Account created. Please check your email to finish signing in.");
+            return;
+          }
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false });
@@ -121,12 +125,17 @@ export default function Onboarding() {
       } else if (step === 6) {
         await persist({ onboardingComplete: true });
         sessionStorage.removeItem("paycheckmd-start-setup");
+        sessionStorage.removeItem("paycheckmd-onboarding-step");
         navigate("/", { replace: true });
         return;
       } else {
         await persist({ onboardingComplete: false });
       }
-      setStep((s) => Math.min(6, s + 1));
+      setStep((s) => {
+        const nextStep = Math.min(6, s + 1);
+        sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+        return nextStep;
+      });
     } catch (error: any) {
       toast.error(error.message || "Could not save onboarding.");
     } finally {
@@ -158,7 +167,7 @@ export default function Onboarding() {
           {step === 6 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1><p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p></div><div className="grid gap-3 sm:grid-cols-2"><SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, deduction tracking, and limited planner access.</SelectCard><SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard></div></div>}
 
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            {step > 1 ? <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button> : <span />}
+            {step > 1 ? <Button variant="outline" onClick={() => setStep((s) => { const nextStep = s - 1; sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep)); return nextStep; })} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button> : <span />}
             <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === 6 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
           </div>
         </CardContent>
