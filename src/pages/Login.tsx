@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PiggyBank, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { clearAttemptState, getAuthErrorMessage, getRemainingCooldownSeconds, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
+import { clearAttemptState, getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
 
 const LOGIN_ATTEMPTS_KEY = "paycheckmd-login-attempts";
 const RESET_ATTEMPTS_KEY = "paycheckmd-reset-attempts";
@@ -29,8 +29,8 @@ export default function Login() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const loginCooldownSeconds = getRemainingCooldownSeconds(loginCooldownUntil);
-  const resetCooldownSeconds = getRemainingCooldownSeconds(resetCooldownUntil);
+  const loginCooldownSeconds = Math.max(0, Math.ceil((loginCooldownUntil - now) / 1000));
+  const resetCooldownSeconds = Math.max(0, Math.ceil((resetCooldownUntil - now) / 1000));
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
