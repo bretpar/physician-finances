@@ -1,16 +1,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-type AppRole = "admin" | "super_admin";
+type AdminRole = "admin" | "super_admin";
+type UserType = "w2_only" | "w2_1099_k1" | "1099_k1_only" | "unknown";
 
 type AuthUserSummary = {
   id: string;
   created_at?: string;
-  last_sign_in_at?: string | null;
 };
 
 type TaxSettingsRow = {
@@ -40,13 +36,6 @@ type StreamRow = {
   is_active: boolean | null;
 };
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 function rate(numerator: number, denominator: number) {
   if (!denominator) return 0;
   return Number((numerator / denominator).toFixed(4));
@@ -70,17 +59,34 @@ function isBusinessType(value?: string | null) {
   ]).has((value || "").toLowerCase().trim());
 }
 
+function mapUserType(row?: TaxSettingsRow): UserType {
+  const profile = (row?.income_profile_type || "").trim();
+  if (profile === "w2_only") return "w2_only";
+  if (profile === "w2_plus_business") return "w2_1099_k1";
+  if (profile === "business_only") return "1099_k1_only";
+
+  const hasW2 = Boolean(row?.household_w2_income_enabled || row?.household_spouse_w2_income_enabled || row?.household_additional_w2_job_enabled);
+  const hasBusiness = Boolean(row?.household_business_1099_income_enabled || row?.household_k1_partnership_income_enabled || row?.household_scorp_income_enabled || row?.household_rental_income_enabled);
+
+  if (hasW2 && hasBusiness) return "w2_1099_k1";
+  if (hasW2) return "w2_only";
+  if (hasBusiness) return "1099_k1_only";
+  return "unknown";
+}
+
 async function fetchAllRows<T>(queryFactory: () => any, pageSize = 1000): Promise<T[]> {
   const rows: T[] = [];
 
   for (let from = 0; ; from += pageSize) {
     const to = from + pageSize - 1;
     const { data, error } = await queryFactory().range(from, to);
-    if (error) throw error;
+    if (error) {
+      console.warn("admin-metrics optional query skipped", error);
+      return [];
+    }
 
     const page = (data || []) as T[];
     rows.push(...page);
-
     if (page.length < pageSize) break;
   }
 
@@ -99,7 +105,6 @@ async function listAllUsers(admin: any): Promise<AuthUserSummary[]> {
     users.push(...batch.map((user) => ({
       id: user.id,
       created_at: user.created_at,
-      last_sign_in_at: user.last_sign_in_at,
     })));
 
     if (batch.length < perPage) break;
@@ -108,7 +113,7 @@ async function listAllUsers(admin: any): Promise<AuthUserSummary[]> {
   return users;
 }
 
-async function hasAdminRole(admin: any, userId: string, role: AppRole) {
+async function hasAdminRole(admin: any, userId: string, role: AdminRole) {
   const { data, error } = await admin.rpc("has_role", {
     _user_id: userId,
     _role: role,
@@ -118,37 +123,41 @@ async function hasAdminRole(admin: any, userId: string, role: AppRole) {
   return data === true;
 }
 
+async function requireAdmin(req: Request, admin: any) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return { error: jsonResponse(req, { error: "Unauthorized" }, 401) };
+
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data?.user) return { error: jsonResponse(req, { error: "Unauthorized" }, 401) };
+
+  const [isAdmin, isSuperAdmin] = await Promise.all([
+    hasAdminRole(admin, data.user.id, "admin"),
+    hasAdminRole(admin, data.user.id, "super_admin"),
+  ]);
+
+  if (!isAdmin && !isSuperAdmin) return { error: jsonResponse(req, { error: "Unauthorized" }, 403) };
+  return { user: data.user };
+}
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method !== "GET") return jsonResponse(req, { error: "Method not allowed" }, 405);
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Unauthorized" }, 401);
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !serviceRoleKey) {
-      return jsonResponse({ error: "Server configuration error" }, 500);
+      return jsonResponse(req, { error: "Server configuration error" }, 500);
     }
 
-    const token = authHeader.replace(/^Bearer\s+/i, "");
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: authData, error: authError } = await admin.auth.getUser(token);
 
-    if (authError || !authData?.user) return jsonResponse({ error: "Unauthorized" }, 401);
-
-    const callerUserId = authData.user.id;
-
-    const [isAdmin, isSuperAdmin] = await Promise.all([
-      hasAdminRole(admin, callerUserId, "admin"),
-      hasAdminRole(admin, callerUserId, "super_admin"),
-    ]);
-
-    if (!isAdmin && !isSuperAdmin) return jsonResponse({ error: "Forbidden" }, 403);
+    const auth = await requireAdmin(req, admin);
+    if (auth.error) return auth.error;
 
     const now = Date.now();
     const daysAgo = (days: number) => now - days * 24 * 60 * 60 * 1000;
@@ -169,7 +178,6 @@ Deno.serve(async (req) => {
     ]);
 
     const totalUsers = users.length;
-    const activeUsers30d = users.filter((user) => user.last_sign_in_at && Date.parse(user.last_sign_in_at) >= daysAgo(30)).length;
     const newUsers7d = users.filter((user) => user.created_at && Date.parse(user.created_at) >= daysAgo(7)).length;
     const newUsers30d = users.filter((user) => user.created_at && Date.parse(user.created_at) >= daysAgo(30)).length;
 
@@ -178,18 +186,19 @@ Deno.serve(async (req) => {
         .filter((row) => (row.subscription_tier || "").toLowerCase() === "premium")
         .map((row) => row.user_id),
     );
-    const freeUsersSet = new Set(
-      users
-        .map((user) => user.id)
-        .filter((userId) => !premiumUsersSet.has(userId)),
-    );
+    const freeUsers = Math.max(totalUsers - premiumUsersSet.size, 0);
 
-    const usersByType: Record<string, number> = {};
-    for (const row of taxSettings) {
-      const key = (row.income_profile_type || "unknown").trim() || "unknown";
-      usersByType[key] = (usersByType[key] || 0) + 1;
+    const usersByType: Record<UserType, number> = {
+      w2_only: 0,
+      w2_1099_k1: 0,
+      "1099_k1_only": 0,
+      unknown: 0,
+    };
+
+    const settingsByUser = new Map(taxSettings.map((row) => [row.user_id, row]));
+    for (const user of users) {
+      usersByType[mapUserType(settingsByUser.get(user.id))] += 1;
     }
-    if (totalUsers > taxSettings.length) usersByType.unknown = (usersByType.unknown || 0) + (totalUsers - taxSettings.length);
 
     const w2Users = new Set<string>();
     const businessUsers = new Set<string>();
@@ -224,25 +233,31 @@ Deno.serve(async (req) => {
     }
 
     const completedOnboarding = taxSettings.filter((row) => row.onboarding_complete === true).length;
+    const incompleteOnboarding = Math.max(totalUsers - completedOnboarding, 0);
 
-    return jsonResponse({
+    return jsonResponse(req, {
       total_users: totalUsers,
-      active_users_30d: activeUsers30d,
       new_users_7d: newUsers7d,
       new_users_30d: newUsers30d,
-      free_users: freeUsersSet.size,
+      free_users: freeUsers,
       premium_users: premiumUsersSet.size,
-      users_by_type: usersByType,
-      onboarding_completion_rate: rate(completedOnboarding, totalUsers),
       premium_conversion_rate: rate(premiumUsersSet.size, totalUsers),
-      users_with_w2_income: w2Users.size,
-      users_with_business_income: businessUsers.size,
-      users_with_deductions: deductionUsers.size,
-      users_with_plaid_connected: plaidUsers.size,
-      users_with_planned_income: plannedIncomeUsers.size,
+      users_by_type: usersByType,
+      onboarding: {
+        completed: completedOnboarding,
+        incomplete: incompleteOnboarding,
+        completion_rate: rate(completedOnboarding, totalUsers),
+      },
+      usage: {
+        users_with_paychecks: w2Users.size,
+        users_with_business_income: businessUsers.size,
+        users_with_deductions: deductionUsers.size,
+        users_with_planned_income: plannedIncomeUsers.size,
+        users_with_plaid_connected: plaidUsers.size,
+      },
     });
   } catch (error) {
     console.error("admin-metrics error", error);
-    return jsonResponse({ error: "Internal error" }, 500);
+    return jsonResponse(req, { error: "Internal error" }, 500);
   }
 });
