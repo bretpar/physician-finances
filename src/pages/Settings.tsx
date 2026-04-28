@@ -614,7 +614,7 @@ function HouseholdIncomeStreamsSection() {
 
     const { error } = await supabase.from("income_pathway_history" as any).insert({
       user_id: currentUser.id,
-      organization_id: (data as any)?.organization_id ?? null,
+      organization_id: data?.organizationId ?? null,
       previous_user_type: priorUserType,
       new_user_type: newUserType,
       effective_date: effectiveDate,
