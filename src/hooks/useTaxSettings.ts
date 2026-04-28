@@ -24,6 +24,7 @@ export interface HouseholdIncomeStreams {
 
 export interface TaxRates {
   id?: string;
+  organizationId?: string | null;
   // Core profile
   filingStatus: "single" | "married_filing_jointly";
   lastYearTax: number;
@@ -123,6 +124,7 @@ export function useTaxSettings() {
       const d = data as any;
       return {
         id: data.id,
+        organizationId: (d.organization_id as string | null) ?? null,
         filingStatus: (data.filing_status as TaxRates["filingStatus"]) || "single",
         lastYearTax: Number(data.last_year_tax) || 0,
         standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,

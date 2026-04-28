@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ import {
   getFeatureAccess,
   getUserTypeDisplayInfo,
   type FeatureKey,
+  type UserType,
 } from "@/lib/entitlements";
 
 /* ─── Types ─── */
@@ -451,6 +452,49 @@ const FEATURE_LABELS: Record<FeatureKey, string> = {
 
 const TAX_EXCLUSION_CHOICES_KEY = "paycheckmd-household-income-exclusion-choices";
 
+type EffectiveDateChoice = "today" | "month" | "year" | "custom";
+
+interface IncomePathwayHistoryRow {
+  id: string;
+  previous_user_type: UserType;
+  new_user_type: UserType;
+  effective_date: string;
+  changed_at: string;
+  active_income_stream_flags: HouseholdIncomeStreams;
+}
+
+function toDateInputValue(date: Date) {
+  return date.toISOString().split("T")[0];
+}
+
+function getEffectiveDate(choice: EffectiveDateChoice, customDate: string) {
+  const now = new Date();
+  if (choice === "month") return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+  if (choice === "year") return `${now.getFullYear()}-01-01`;
+  if (choice === "custom" && customDate) return customDate;
+  return toDateInputValue(now);
+}
+
+function formatPathwayDate(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(year, month - 1, day));
+}
+
+function useIncomePathwayHistory() {
+  return useQuery({
+    queryKey: ["income_pathway_history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("income_pathway_history" as any)
+        .select("id, previous_user_type, new_user_type, effective_date, changed_at, active_income_stream_flags")
+        .order("effective_date", { ascending: false })
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as IncomePathwayHistoryRow[];
+    },
+  });
+}
+
 function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = [], businessRows: any[] = []) {
   if (key === "business1099Income") return businessRows.some((e) => ["1099", "1099_schedule_c"].includes(String(e.income_type || "")));
   if (key === "k1PartnershipIncome") return businessRows.some((e) => ["k1", "k1_partnership"].includes(String(e.income_type || "")));
@@ -489,10 +533,13 @@ function HouseholdIncomeStreamsSection() {
   const updateMutation = useUpdateTaxSettings();
   const { data: businessIncomeRows = [] } = useIncomeEntries();
   const { data: personalIncomeRows = [] } = usePersonalIncomeEntries();
+  const { data: pathwayHistory = [] } = useIncomePathwayHistory();
   const queryClient = useQueryClient();
   const [savedTick, setSavedTick] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exclusionChoices, setExclusionChoices] = useState<Record<string, "hide-only" | "hide-and-exclude">>({});
+  const [effectiveDateChoice, setEffectiveDateChoice] = useState<EffectiveDateChoice>("today");
+  const [customEffectiveDate, setCustomEffectiveDate] = useState(toDateInputValue(new Date()));
 
   const source: HouseholdIncomeStreams = useMemo(() => data?.householdIncomeStreams ?? {
     w2Income: true,
@@ -510,6 +557,7 @@ function HouseholdIncomeStreamsSection() {
     source,
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
+      await recordPathwayHistory(next);
       await updateMutation.mutateAsync({ id: data.id, householdIncomeStreams: next });
       localStorage.setItem("paycheckmd-household-income-profile-reviewed", "true");
       if (Object.keys(exclusionChoices).length > 0) {
@@ -522,7 +570,10 @@ function HouseholdIncomeStreamsSection() {
   });
 
   const derivedUserType = deriveUserTypeFromIncomeStreams(draft.draft);
+  const previousUserType = deriveUserTypeFromIncomeStreams(source);
   const pathway = getUserTypeDisplayInfo(derivedUserType);
+  const effectiveDate = getEffectiveDate(effectiveDateChoice, customEffectiveDate);
+  const pathwayChanged = draft.isDirty && previousUserType !== derivedUserType;
   const featureAccess = getFeatureAccess(derivedUserType, DEFAULT_SUBSCRIPTION_TIER);
   const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
   const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
@@ -549,6 +600,29 @@ function HouseholdIncomeStreamsSection() {
       queryClient.invalidateQueries({ queryKey: ["income_entries"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
+  };
+
+  const recordPathwayHistory = async (next: HouseholdIncomeStreams) => {
+    const newUserType = deriveUserTypeFromIncomeStreams(next);
+    const priorUserType = deriveUserTypeFromIncomeStreams(source);
+    if (newUserType === priorUserType && !draft.isDirty) return;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    const currentUser = authData.user;
+    if (!currentUser) throw new Error("Not authenticated");
+
+    const { error } = await supabase.from("income_pathway_history" as any).insert({
+      user_id: currentUser.id,
+      organization_id: data?.organizationId ?? null,
+      previous_user_type: priorUserType,
+      new_user_type: newUserType,
+      effective_date: effectiveDate,
+      changed_by_user: currentUser.id,
+      active_income_stream_flags: next,
+    });
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ["income_pathway_history"] });
   };
 
   const saveWithSafetyCheck = () => {
@@ -596,6 +670,27 @@ function HouseholdIncomeStreamsSection() {
         </div>
         <p className="text-xs text-muted-foreground">{pathway.explanation}</p>
       </div>
+      {draft.isDirty && (
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-card-foreground">When did this income change start?</p>
+            <p className="text-xs text-muted-foreground mt-1">This date records pathway history for context. It does not reset your tax year or split the tax engine.</p>
+          </div>
+          <RadioGroup value={effectiveDateChoice} onValueChange={(value) => setEffectiveDateChoice(value as EffectiveDateChoice)} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="today" />Today</label>
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="month" />Start of this month</label>
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="year" />Start of this year</label>
+            <label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-card-foreground"><RadioGroupItem value="custom" />Custom date</label>
+          </RadioGroup>
+          {effectiveDateChoice === "custom" && (
+            <div className="max-w-xs">
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Effective date</Label>
+              <Input type="date" value={customEffectiveDate} onChange={(e) => setCustomEffectiveDate(e.target.value)} />
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">This updates your app experience going forward. Your prior income, withholding, deductions, expenses, and payments will remain part of your tax-year projection unless you explicitly exclude them.</p>
+        </div>
+      )}
       {draft.isDirty && (
         <div className="rounded-lg border border-border p-4 space-y-4">
           <div>
@@ -646,6 +741,24 @@ function HouseholdIncomeStreamsSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <div className="rounded-lg border border-border p-4 space-y-3">
+        <p className="text-sm font-semibold text-card-foreground">Income pathway history</p>
+        {pathwayHistory.length > 0 ? (
+          <div className="space-y-2">
+            {pathwayHistory.slice(0, 6).map((row) => {
+              const info = getUserTypeDisplayInfo(row.new_user_type);
+              return (
+                <div key={row.id} className="flex items-center justify-between gap-3 rounded-md bg-muted/20 px-3 py-2">
+                  <p className="text-sm text-card-foreground">{formatPathwayDate(row.effective_date)}: {info.label}</p>
+                  <Badge variant="outline" className="text-[10px]">Saved</Badge>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No pathway changes have been saved yet.</p>
+        )}
+      </div>
     </SectionCard>
   );
 }
