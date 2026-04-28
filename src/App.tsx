@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import BusinessActivity from "@/pages/BusinessActivity";
@@ -26,6 +27,7 @@ const queryClient = new QueryClient();
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings();
 
   if (loading) {
     return (
@@ -39,8 +41,20 @@ function ProtectedRoutes() {
     return <Navigate to="/login" replace />;
   }
 
+  if (settingsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+
   if (location.pathname === "/onboarding") {
     return <Onboarding />;
+  }
+
+  if (taxSettings?.onboardingComplete === false) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return (
