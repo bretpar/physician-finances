@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
