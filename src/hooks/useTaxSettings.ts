@@ -68,6 +68,7 @@ export interface TaxRates {
   onboardingComplete: boolean | null;
   onboardingBannerDismissed: boolean;
   onboardingFirstName: string;
+  onboardingStep: number;
   incomeProfileType: IncomeProfileType;
   enabledIncomeSources: EnabledIncomeSources;
   enabledPersonalIncomeTypes: string[];
@@ -123,6 +124,7 @@ const DEFAULT_RATES: TaxRates = {
   onboardingComplete: null,
   onboardingBannerDismissed: false,
   onboardingFirstName: "",
+  onboardingStep: 1,
   incomeProfileType: "w2_plus_business",
   enabledIncomeSources: { w2: true, form1099: true, k1: true },
   enabledPersonalIncomeTypes: [],
@@ -192,6 +194,7 @@ export function useTaxSettings(enabled = true) {
         onboardingComplete: d.onboarding_complete ?? null,
         onboardingBannerDismissed: !!d.onboarding_banner_dismissed,
         onboardingFirstName: (d.onboarding_first_name as string) || "",
+        onboardingStep: Math.min(6, Math.max(1, Number(d.onboarding_step) || 1)),
         incomeProfileType: (d.income_profile_type as IncomeProfileType) || "w2_plus_business",
         enabledIncomeSources: {
           w2: !!(d.enabled_income_sources?.w2 ?? true),
@@ -263,6 +266,7 @@ export function useUpdateTaxSettings() {
       if (rest.onboardingComplete !== undefined) payload.onboarding_complete = rest.onboardingComplete;
       if (rest.onboardingBannerDismissed !== undefined) payload.onboarding_banner_dismissed = rest.onboardingBannerDismissed;
       if (rest.onboardingFirstName !== undefined) payload.onboarding_first_name = rest.onboardingFirstName;
+      if (rest.onboardingStep !== undefined) payload.onboarding_step = rest.onboardingStep;
       if (rest.incomeProfileType !== undefined) payload.income_profile_type = rest.incomeProfileType;
       if (rest.enabledIncomeSources !== undefined) payload.enabled_income_sources = rest.enabledIncomeSources;
       if (rest.enabledPersonalIncomeTypes !== undefined) payload.enabled_personal_income_types = rest.enabledPersonalIncomeTypes;

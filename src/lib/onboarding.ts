@@ -25,6 +25,7 @@ export interface UserOnboardingSettings {
   onboardingComplete: boolean | null;
   onboardingBannerDismissed: boolean;
   firstName: string;
+  onboardingStep: number;
   incomeProfileType: IncomeProfileType;
   enabledIncomeSources: EnabledIncomeSources;
   enabledPersonalIncomeTypes: string[];
@@ -40,6 +41,7 @@ export const DEFAULT_ONBOARDING_SETTINGS: UserOnboardingSettings = {
   onboardingComplete: null,
   onboardingBannerDismissed: false,
   firstName: "",
+  onboardingStep: 1,
   incomeProfileType: "w2_plus_business",
   enabledIncomeSources: { w2: true, form1099: true, k1: true },
   enabledPersonalIncomeTypes: [],

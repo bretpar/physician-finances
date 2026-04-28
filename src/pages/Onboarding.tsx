@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Check, ChevronLeft, PiggyBank } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -86,10 +86,32 @@ export default function Onboarding() {
   const merged = useMemo(() => taxSettings ? {
     ...draft,
     firstName: draft.firstName || taxSettings.onboardingFirstName || "",
+    onboardingStep: taxSettings.onboardingStep || draft.onboardingStep || 1,
     incomeProfileType: draft.incomeProfileType || taxSettings.incomeProfileType,
   } : draft, [draft, taxSettings]);
 
-  if (user && taxSettings?.onboardingComplete === true && step === 1 && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
+  useEffect(() => {
+    if (!user || isLoading || !taxSettings) return;
+    const savedStep = Math.min(6, Math.max(1, taxSettings.onboardingStep || 1));
+    setStep(savedStep);
+    sessionStorage.setItem("paycheckmd-onboarding-step", String(savedStep));
+    setDraft((current) => ({
+      ...current,
+      firstName: current.firstName || taxSettings.onboardingFirstName || "",
+      onboardingStep: savedStep,
+      incomeProfileType: taxSettings.incomeProfileType || current.incomeProfileType,
+      enabledIncomeSources: taxSettings.enabledIncomeSources || current.enabledIncomeSources,
+      enabledPersonalIncomeTypes: taxSettings.enabledPersonalIncomeTypes || current.enabledPersonalIncomeTypes,
+      taxRecommendationMethod: taxSettings.taxRecommendationMethod || current.taxRecommendationMethod,
+      flatFederalRate: taxSettings.flatFederalRate ?? current.flatFederalRate,
+      flatStateRate: taxSettings.flatStateRate ?? current.flatStateRate,
+      deductionStrategy: taxSettings.deductionStrategy || current.deductionStrategy,
+      enabledDeductionTypes: taxSettings.enabledDeductionTypes || current.enabledDeductionTypes,
+      subscriptionTier: taxSettings.subscriptionTier || current.subscriptionTier,
+    }));
+  }, [user, isLoading, taxSettings]);
+
+  if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
 
@@ -121,6 +143,17 @@ export default function Onboarding() {
   const addCompanyDraft = () => setCompanyDrafts((current) => [...current, { name: "", type: allowedCompanyTypes[0], description: "" }]);
   const updateCompanyDraft = (index: number, updates: Partial<OnboardingCompanyDraft>) => setCompanyDrafts((current) => current.map((item, i) => i === index ? { ...item, ...updates } : item));
   const removeCompanyDraft = (index: number) => setCompanyDrafts((current) => current.filter((_, i) => i !== index));
+  const goBack = async () => {
+    if (step === 1) {
+      navigate("/login");
+      return;
+    }
+    const nextStep = step - 1;
+    setStep(nextStep);
+    sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+    patch({ onboardingStep: nextStep });
+    if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
+  };
   const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
     const allowed = getAllowedCompanyTypes(incomeProfileType);
     patch({ incomeProfileType, enabledIncomeSources: incomeProfileToSources(incomeProfileType) });
@@ -174,6 +207,7 @@ export default function Onboarding() {
       id: settingsId,
       onboardingComplete: next.onboardingComplete,
       onboardingFirstName: next.firstName,
+      onboardingStep: next.onboardingStep,
       incomeProfileType: next.incomeProfileType,
       enabledIncomeSources: sources,
       enabledPersonalIncomeTypes: next.enabledPersonalIncomeTypes,
@@ -194,35 +228,39 @@ export default function Onboarding() {
   async function continueStep() {
     setSaving(true);
     try {
+      const nextStep = Math.min(6, step + 1);
       if (step === 1) {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
           if (!email || password.length < 6) throw new Error("Enter an email and a password with at least 6 characters.");
+          const { data: existingCheck, error: existingError } = await supabase.functions.invoke("onboarding-signup", { body: { email } });
+          if (existingError) throw existingError;
+          if (existingCheck?.exists) throw new Error("An account already exists for this email. Please log in or reset your password.");
           const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) throw error;
           if (!data.session) {
             toast.success("Account created. Please check your email to finish signing in.");
             return;
           }
+          await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
+          await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user?.id);
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
-          await persist({ firstName: merged.firstName.trim(), onboardingComplete: false });
+          await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
         }
       } else if (step === 6) {
         await createOnboardingCompanies();
-        await persist({ onboardingComplete: true });
+        await persist({ onboardingComplete: true, onboardingStep: 6 });
         sessionStorage.removeItem("paycheckmd-start-setup");
         sessionStorage.removeItem("paycheckmd-onboarding-step");
         navigate("/", { replace: true });
         return;
       } else {
-        await persist({ onboardingComplete: false });
+        await persist({ onboardingComplete: false, onboardingStep: nextStep });
       }
-      setStep((s) => {
-        const nextStep = Math.min(6, s + 1);
-        sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-        return nextStep;
-      });
+      patch({ onboardingStep: nextStep });
+      sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+      setStep(nextStep);
     } catch (error: any) {
       toast.error(error.message || "Could not save onboarding.");
     } finally {
@@ -241,7 +279,7 @@ export default function Onboarding() {
             <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">Step {step} of 6</p><div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / 6) * 100}%` }} /></div></div>
           </div>
 
-          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize your PaycheckMD dashboard so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></div><div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /></div></>}</div></div>}
+          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize your PaycheckMD dashboard so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" /></div><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p></>}</div></div>}
 
           {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What best describes your income?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 Only" description="I receive employee paychecks with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")}>Focuses on paychecks, withholding, and W-2 deductions.</SelectCard><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + 1099/K-1" description="I have employee income plus business, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")}>Keeps business activity, expenses, quarterly tools, and planner visible.</SelectCard><SelectCard selected={merged.incomeProfileType === "business_only"} title="1099/K-1 Only" description="I mainly earn income through business, contractor, partnership, or self-employed work." onClick={() => selectIncomeProfile("business_only")}>Hides payroll sections by default without deleting prior W-2 data.</SelectCard></div></div>}
 
@@ -254,7 +292,7 @@ export default function Onboarding() {
           {step === 6 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1><p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p></div><div className="grid gap-3 sm:grid-cols-2"><SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, deduction tracking, and limited planner access.</SelectCard><SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard></div></div>}
 
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            {step > 1 ? <Button variant="outline" onClick={() => setStep((s) => { const nextStep = s - 1; sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep)); return nextStep; })} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button> : <span />}
+            <Button variant="outline" onClick={goBack} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === 6 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
           </div>
         </CardContent>
