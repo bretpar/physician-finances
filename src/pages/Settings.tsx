@@ -741,6 +741,24 @@ function HouseholdIncomeStreamsSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <div className="rounded-lg border border-border p-4 space-y-3">
+        <p className="text-sm font-semibold text-card-foreground">Income pathway history</p>
+        {pathwayHistory.length > 0 ? (
+          <div className="space-y-2">
+            {pathwayHistory.slice(0, 6).map((row) => {
+              const info = getUserTypeDisplayInfo(row.new_user_type);
+              return (
+                <div key={row.id} className="flex items-center justify-between gap-3 rounded-md bg-muted/20 px-3 py-2">
+                  <p className="text-sm text-card-foreground">{formatPathwayDate(row.effective_date)}: {info.label}</p>
+                  <Badge variant="outline" className="text-[10px]">Saved</Badge>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No pathway changes have been saved yet.</p>
+        )}
+      </div>
     </SectionCard>
   );
 }
