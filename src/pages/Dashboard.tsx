@@ -19,7 +19,8 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
-import { DEFAULT_SUBSCRIPTION_TIER, deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
@@ -36,15 +37,14 @@ export default function Dashboard() {
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const featureAccess = getFeatureAccess(userType, DEFAULT_SUBSCRIPTION_TIER);
+  const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(rates?.subscriptionTier));
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
 
   useEffect(() => {
-    const reviewed = localStorage.getItem("paycheckmd-household-income-profile-reviewed") === "true";
-    const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true";
-    setShowProfileReviewBanner(!reviewed && !dismissed);
-  }, []);
+    const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true" || !!rates?.onboardingBannerDismissed;
+    setShowProfileReviewBanner(rates?.onboardingComplete == null && !dismissed);
+  }, [rates?.onboardingBannerDismissed, rates?.onboardingComplete]);
 
   const projectedPaychecks = useMemo(
     () =>
