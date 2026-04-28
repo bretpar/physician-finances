@@ -1,0 +1,168 @@
+import { useMemo, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { Check, ChevronLeft, PiggyBank } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  DEFAULT_ONBOARDING_SETTINGS,
+  incomeProfileToSources,
+  incomeSourcesToHouseholdStreams,
+  taxRecommendationToWithholdingMethod,
+  type DeductionStrategy,
+  type IncomeProfileType,
+  type OnboardingSubscriptionTier,
+  type TaxRecommendationMethod,
+  type UserOnboardingSettings,
+} from "@/lib/onboarding";
+
+const personalOptions = [
+  ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"],
+  ["capital_gains", "Capital gains"], ["rental", "Rental income"], ["retirement", "Retirement income"], ["other", "Other income"],
+];
+
+const deductionLabels: Record<string, string> = {
+  retirement_401k: "401(k) / retirement contributions", healthcare_premiums: "Healthcare premiums", hsa: "HSA contributions",
+  mileage: "Mileage", home_office: "Home office", business_expenses: "Business expenses", professional_expenses: "Professional expenses",
+  charitable: "Charitable donations", mortgage_interest: "Mortgage interest", salt: "State and local taxes", other: "Other deductions",
+};
+
+const deductionOptionsByProfile: Record<IncomeProfileType, string[]> = {
+  w2_only: ["retirement_401k", "healthcare_premiums", "hsa", "charitable", "mortgage_interest", "salt", "other"],
+  w2_plus_business: ["retirement_401k", "healthcare_premiums", "hsa", "mileage", "home_office", "business_expenses", "professional_expenses", "charitable", "mortgage_interest", "salt", "other"],
+  business_only: ["business_expenses", "mileage", "home_office", "healthcare_premiums", "hsa", "professional_expenses", "retirement_401k", "other"],
+};
+
+function SelectCard({ selected, title, description, onClick, children }: { selected: boolean; title: string; description: string; onClick: () => void; children?: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className={cn("w-full rounded-xl border p-4 text-left transition-colors", selected ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-muted/40")}>
+      <div className="flex items-start gap-3">
+        <span className={cn("mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border", selected ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
+          {selected && <Check className="h-3 w-3" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-card-foreground">{title}</span>
+          <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+          {children && <span className="mt-3 block text-xs text-muted-foreground">{children}</span>}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+export default function Onboarding() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: taxSettings, isLoading } = useTaxSettings();
+  const updateTaxSettings = useUpdateTaxSettings();
+  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState(user?.email || "");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
+
+  const settingsId = taxSettings?.id;
+  const merged = useMemo(() => taxSettings ? {
+    ...draft,
+    firstName: draft.firstName || taxSettings.onboardingFirstName || "",
+    incomeProfileType: draft.incomeProfileType || taxSettings.incomeProfileType,
+  } : draft, [draft, taxSettings]);
+
+  if (user && taxSettings?.onboardingComplete === true && step === 1 && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
+
+  const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
+
+  async function persist(partial: Partial<UserOnboardingSettings> = {}) {
+    if (!settingsId) return;
+    const next = { ...merged, ...partial };
+    const sources = incomeProfileToSources(next.incomeProfileType);
+    await updateTaxSettings.mutateAsync({
+      id: settingsId,
+      onboardingComplete: next.onboardingComplete,
+      onboardingFirstName: next.firstName,
+      incomeProfileType: next.incomeProfileType,
+      enabledIncomeSources: sources,
+      enabledPersonalIncomeTypes: next.enabledPersonalIncomeTypes,
+      householdIncomeStreams: incomeSourcesToHouseholdStreams(sources, next.enabledPersonalIncomeTypes),
+      taxRecommendationMethod: next.taxRecommendationMethod,
+      withholdingMethod: taxRecommendationToWithholdingMethod(next.taxRecommendationMethod),
+      manualEffectiveTaxRate: next.taxRecommendationMethod === "flat_rate" ? next.flatFederalRate ?? taxSettings?.manualEffectiveTaxRate ?? 20 : taxSettings?.manualEffectiveTaxRate ?? null,
+      flatFederalRate: next.flatFederalRate ?? null,
+      flatStateRate: next.flatStateRate ?? null,
+      deductionStrategy: next.deductionStrategy,
+      deductionType: next.deductionStrategy === "itemized" ? "itemized" : "standard",
+      enabledDeductionTypes: next.enabledDeductionTypes,
+      hsaEnabled: next.enabledDeductionTypes.includes("hsa"),
+      subscriptionTier: next.subscriptionTier,
+    });
+  }
+
+  async function continueStep() {
+    setSaving(true);
+    try {
+      if (step === 1) {
+        if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
+        if (!user) {
+          if (!email || password.length < 6) throw new Error("Enter an email and a password with at least 6 characters.");
+          const { error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
+          if (error) throw error;
+        } else {
+          await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
+          await persist({ firstName: merged.firstName.trim(), onboardingComplete: false });
+        }
+      } else if (step === 6) {
+        await persist({ onboardingComplete: true });
+        sessionStorage.removeItem("paycheckmd-start-setup");
+        navigate("/", { replace: true });
+        return;
+      } else {
+        await persist({ onboardingComplete: false });
+      }
+      setStep((s) => Math.min(6, s + 1));
+    } catch (error: any) {
+      toast.error(error.message || "Could not save onboarding.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const deductions = deductionOptionsByProfile[merged.incomeProfileType];
+
+  return (
+    <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
+      <Card className="mx-auto w-full max-w-2xl">
+        <CardContent className="space-y-6 p-5 sm:p-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><PiggyBank className="h-5 w-5" /></div>
+            <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">Step {step} of 6</p><div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / 6) * 100}%` }} /></div></div>
+          </div>
+
+          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize your PaycheckMD dashboard so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></div><div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" /></div></>}</div></div>}
+
+          {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What best describes your income?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 Only" description="I receive employee paychecks with taxes withheld by payroll." onClick={() => patch({ incomeProfileType: "w2_only", enabledIncomeSources: incomeProfileToSources("w2_only") })}>Focuses on paychecks, withholding, and W-2 deductions.</SelectCard><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + 1099/K-1" description="I have employee income plus business, contractor, partnership, or side income." onClick={() => patch({ incomeProfileType: "w2_plus_business", enabledIncomeSources: incomeProfileToSources("w2_plus_business") })}>Keeps business activity, expenses, quarterly tools, and planner visible.</SelectCard><SelectCard selected={merged.incomeProfileType === "business_only"} title="1099/K-1 Only" description="I mainly earn income through business, contractor, partnership, or self-employed work." onClick={() => patch({ incomeProfileType: "business_only", enabledIncomeSources: incomeProfileToSources("business_only") })}>Hides payroll sections by default without deleting prior W-2 data.</SelectCard></div></div>}
+
+          {step === 3 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Add other income sources</h1><p className="mt-1 text-sm text-muted-foreground">Do you have any other income sources you want to track?</p></div><div className="grid gap-3 sm:grid-cols-2">{personalOptions.map(([value, label]) => <label key={value} className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm"><Checkbox checked={merged.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => patch({ enabledPersonalIncomeTypes: checked ? [...merged.enabledPersonalIncomeTypes, value] : merged.enabledPersonalIncomeTypes.filter((v) => v !== value) })} />{label}</label>)}<label className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm"><Checkbox checked={merged.enabledPersonalIncomeTypes.length === 0} onCheckedChange={() => patch({ enabledPersonalIncomeTypes: [] })} />None right now</label></div></div>}
+
+          {step === 4 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your tax estimate style</h1><p className="mt-1 text-sm text-muted-foreground">How should PaycheckMD estimate your tax recommendations?</p></div><div className="grid gap-3"><SelectCard selected={merged.taxRecommendationMethod === "flat_rate"} title="Flat Rate" description="Use the same fixed percentage for every paycheck or income entry." onClick={() => patch({ taxRecommendationMethod: "flat_rate" })}>A common starting point is the effective tax rate from your prior-year tax return.</SelectCard>{merged.taxRecommendationMethod === "flat_rate" && <div className="grid gap-3 rounded-lg border border-border p-4 sm:grid-cols-2"><div><Label>Federal flat rate percentage</Label><Input type="number" min="0" max="100" step="0.1" value={merged.flatFederalRate ?? ""} onChange={(e) => patch({ flatFederalRate: Number(e.target.value) })} /></div>{taxSettings?.stateIncomeTaxEnabled && <div><Label>State flat rate percentage</Label><Input type="number" min="0" max="100" step="0.1" value={merged.flatStateRate ?? ""} onChange={(e) => patch({ flatStateRate: Number(e.target.value) })} /></div>}</div>}<SelectCard selected={merged.taxRecommendationMethod === "dynamic_actual"} title="Dynamic — Based on Current Income" description="Estimate annual income using what you have already earned this year." onClick={() => patch({ taxRecommendationMethod: "dynamic_actual" })}>Uses actual income and deductions entered to date, not planned future income.</SelectCard><SelectCard selected={merged.taxRecommendationMethod === "dynamic_planner"} title="Dynamic — Based on Income Planner" description="Use your actual income plus planned future income to estimate your full-year tax picture." onClick={() => patch({ taxRecommendationMethod: "dynamic_planner" })}>Best when income varies or future paychecks and contracts are known.</SelectCard></div></div>}
+
+          {step === 5 && <div className="space-y-5"><div><h1 className="text-2xl font-semibold text-foreground">Choose deductions to track</h1><p className="mt-1 text-sm text-muted-foreground">Which deductions should PaycheckMD help you track?</p></div><div><p className="mb-3 text-sm font-medium">Do you usually take the standard deduction or itemize deductions?</p><RadioGroup value={merged.deductionStrategy} onValueChange={(v) => patch({ deductionStrategy: v as DeductionStrategy })} className="grid gap-2 sm:grid-cols-3"><label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><RadioGroupItem value="standard" />Standard deduction</label><label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><RadioGroupItem value="itemized" />Itemized deductions</label><label className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><RadioGroupItem value="not_sure" />Not sure</label></RadioGroup></div><div className="grid gap-3 sm:grid-cols-2">{deductions.map((value) => <label key={value} className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm"><Checkbox checked={merged.enabledDeductionTypes.includes(value)} onCheckedChange={(checked) => patch({ enabledDeductionTypes: checked ? [...merged.enabledDeductionTypes, value] : merged.enabledDeductionTypes.filter((v) => v !== value) })} />{deductionLabels[value]}</label>)}</div></div>}
+
+          {step === 6 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1><p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p></div><div className="grid gap-3 sm:grid-cols-2"><SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, deduction tracking, and limited planner access.</SelectCard><SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard></div></div>}
+
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+            {step > 1 ? <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button> : <span />}
+            <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === 6 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
