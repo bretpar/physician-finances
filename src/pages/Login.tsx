@@ -14,6 +14,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +30,21 @@ export default function Login() {
     }
   }
 
+  async function handlePasswordReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) {
+      toast.error("Enter your email address first.");
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetLoading(false);
+    if (error) toast.error(error.message);
+    else toast.success("Password reset link sent. Check your email.");
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -36,10 +53,10 @@ export default function Login() {
             <PiggyBank className="h-7 w-7 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">Welcome to Paycheck MD</CardTitle>
-          <CardDescription>Sign in to your account to continue</CardDescription>
+          <CardDescription>{resetMode ? "Reset your password" : "Sign in to your account to continue"}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={resetMode ? handlePasswordReset : handleLogin} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
@@ -52,7 +69,7 @@ export default function Login() {
                 autoComplete="email"
               />
             </div>
-            <div>
+            {!resetMode && <div>
               <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Input
@@ -72,11 +89,13 @@ export default function Login() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-            </div>
+            </div>}
+            {!resetMode && <div className="text-right"><button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => setResetMode(true)}>Forgot password?</button></div>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in…" : "Sign In"}
+              {resetMode ? (resetLoading ? "Sending…" : "Send reset link") : (loading ? "Signing in…" : "Sign In")}
             </Button>
           </form>
+          {resetMode && <button type="button" className="mt-4 w-full text-center text-sm font-medium text-primary hover:underline" onClick={() => setResetMode(false)}>Back to sign in</button>}
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/signup" className="text-primary hover:underline font-medium">
