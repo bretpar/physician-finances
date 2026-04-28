@@ -111,7 +111,7 @@ export default function Onboarding() {
     }));
   }, [user, isLoading, taxSettings]);
 
-  if (user && taxSettings?.onboardingComplete === true && step === 1 && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
+  if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
 
