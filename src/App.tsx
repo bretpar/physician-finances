@@ -54,7 +54,7 @@ function ProtectedRoutes() {
     return <Onboarding />;
   }
 
-  if (taxSettings?.onboardingComplete === false) {
+  if (taxSettings?.onboardingComplete !== true) {
     return <Navigate to="/onboarding" replace />;
   }
 
