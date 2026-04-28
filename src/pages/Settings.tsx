@@ -58,12 +58,12 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import {
   ALL_ENTITLEMENT_FEATURES,
-  DEFAULT_SUBSCRIPTION_TIER,
   deriveUserTypeFromIncomeStreams,
   getFeatureAccess,
   getUserTypeDisplayInfo,
   type FeatureKey,
 } from "@/lib/entitlements";
+import { incomeProfileToSources, incomeSourcesToHouseholdStreams, subscriptionTierToEntitlementTier, taxRecommendationToWithholdingMethod, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier, type TaxRecommendationMethod } from "@/lib/onboarding";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
