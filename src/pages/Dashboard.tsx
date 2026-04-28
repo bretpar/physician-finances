@@ -18,6 +18,7 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { DEFAULT_SUBSCRIPTION_TIER, deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -31,6 +32,9 @@ export default function Dashboard() {
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
+  const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
+  const featureAccess = getFeatureAccess(userType, DEFAULT_SUBSCRIPTION_TIER);
+  const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
 
   const projectedPaychecks = useMemo(
     () =>
@@ -253,7 +257,14 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <header className="px-1 pb-1">
-        <h1 className="text-lg font-medium text-foreground/90">Welcome back, {greeting}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-lg font-medium text-foreground/90">Welcome back, {greeting}</h1>
+          {hasLockedDashboardFeatures && (
+            <span className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
+              Premium
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground/80">Here's your money at a glance.</p>
       </header>
 
