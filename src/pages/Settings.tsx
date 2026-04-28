@@ -515,6 +515,7 @@ function HouseholdIncomeStreamsSection() {
       if (Object.keys(exclusionChoices).length > 0) {
         localStorage.setItem(TAX_EXCLUSION_CHOICES_KEY, JSON.stringify(exclusionChoices));
       }
+      await applyExplicitExclusions();
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
     },
