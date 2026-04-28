@@ -32,6 +32,14 @@ export interface Company {
 
 export const DEFAULT_COMPANIES: Company[] = [];
 
+function sourceKindForCompanyType(companyType: FilingType) {
+  if (companyType === "w2") return "w2_employer";
+  if (companyType === "k1_partnership") return "k1_partnership";
+  if (companyType === "scorp_w2" || companyType === "scorp_distribution") return "s_corp";
+  if (companyType === "other") return "other_business";
+  return "1099_schedule_c";
+}
+
 interface CompanyContextValue {
   companies: Company[];
   /** Map of company name → number of saved income_entries. Drives filing-type lock. */
@@ -110,6 +118,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       name: company.name,
       nickname: company.nickname,
       company_type: company.companyType,
+      source_kind: sourceKindForCompanyType(company.companyType),
       include_in_tax: company.includeInTax,
       default_setaside_method: company.defaultSetasideMethod,
       default_setaside_pct: company.defaultSetasidePct,
@@ -127,7 +136,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     const dbUpdates: Record<string, any> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.nickname !== undefined) dbUpdates.nickname = updates.nickname;
-    if (updates.companyType !== undefined) dbUpdates.company_type = updates.companyType;
+    if (updates.companyType !== undefined) {
+      dbUpdates.company_type = updates.companyType;
+      dbUpdates.source_kind = sourceKindForCompanyType(updates.companyType);
+    }
     if (updates.includeInTax !== undefined) dbUpdates.include_in_tax = updates.includeInTax;
     if (updates.defaultSetasideMethod !== undefined) dbUpdates.default_setaside_method = updates.defaultSetasideMethod;
     if (updates.defaultSetasidePct !== undefined) dbUpdates.default_setaside_pct = updates.defaultSetasidePct;

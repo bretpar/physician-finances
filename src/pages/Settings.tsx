@@ -63,7 +63,7 @@ import {
   getUserTypeDisplayInfo,
   type FeatureKey,
 } from "@/lib/entitlements";
-import { incomeProfileToSources, incomeSourcesToHouseholdStreams, subscriptionTierToEntitlementTier, taxRecommendationToWithholdingMethod, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier, type TaxRecommendationMethod } from "@/lib/onboarding";
+import { getAllowedCompanyTypes, incomeProfileToSources, incomeSourcesToHouseholdStreams, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, taxRecommendationToWithholdingMethod, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier, type TaxRecommendationMethod } from "@/lib/onboarding";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -1091,6 +1091,7 @@ function TaxProfileSection() {
 /* ──────────────────────────────────────────────────────────── */
 function CompaniesSection() {
   const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany } = useCompanies();
+  const { data: taxSettings } = useTaxSettings();
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
 
   // Single page-wide draft keyed by company id, so each company gets local edit state.
@@ -1102,6 +1103,8 @@ function CompaniesSection() {
 
   const dirtyIds = Object.keys(drafts);
   const anyDirty = dirtyIds.length > 0;
+  const allowedNewCompanyTypes = useMemo(() => getAllowedCompanyTypes(taxSettings?.incomeProfileType || "w2_plus_business").map(onboardingCompanyTypeToFilingType), [taxSettings?.incomeProfileType]);
+  const defaultCompanyType = allowedNewCompanyTypes[0] || "1099_schedule_c";
 
   function setField<K extends keyof Company>(id: string, field: K, value: Company[K]) {
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }));
@@ -1144,7 +1147,7 @@ function CompaniesSection() {
 
   function handleAdd() {
     addCompany({
-      name: "", nickname: "", companyType: "1099_schedule_c", includeInTax: true,
+      name: "", nickname: "", companyType: defaultCompanyType, includeInTax: true,
       defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
       advancedFieldVisibility: {}, applyBusinessStateTax: true, includeSETaxInRecommendation: true,
     });
@@ -1187,6 +1190,7 @@ function CompaniesSection() {
             {companies.map((company) => {
               const incomeCount = incomeCountByCompanyName[company.name] || 0;
               const filingTypeLocked = incomeCount > 0;
+              const companyTypeOptions = company.name.trim() ? COMPANY_TYPES : COMPANY_TYPES.filter((type) => allowedNewCompanyTypes.includes(type.value));
               const advOpen = advancedOpenIds.has(company.id);
               const toggleOptions = TOGGLE_OPTIONS_BY_TYPE[getValue(company, "companyType")];
               const visibility = resolveAdvancedVisibility(
@@ -1230,7 +1234,7 @@ function CompaniesSection() {
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {COMPANY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                          {companyTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       {(() => {
