@@ -1,5 +1,6 @@
 // Feature tier classification for future monetization
 // Currently all features are unlocked — this system enables future gating
+import type { FeatureKey } from "@/lib/entitlements";
 
 export type FeatureTier = 'core' | 'advanced';
 
@@ -127,3 +128,21 @@ export function getFeatureTier(featureId: string): FeatureTier | undefined {
 export function isPremiumFeature(featureId: string): boolean {
   return FEATURES[featureId]?.tier === 'advanced';
 }
+
+export const ENTITLEMENT_FEATURE_KEYS: FeatureKey[] = [
+  "basicWithholdingGuide",
+  "advancedWithholdingGuide",
+  "spouseW2Support",
+  "multipleW2Jobs",
+  "businessIncomeTracking",
+  "businessExpenseTracking",
+  "mileageDeduction",
+  "homeOfficeDeduction",
+  "quarterlyTaxPlanner",
+  "scenarioPlanner",
+  "reportsExport",
+  "advancedTaxOverview",
+  "premiumEducation",
+  "customW2BusinessSplit",
+  "detailedReports",
+];
