@@ -49,7 +49,7 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
 
 function rate(numerator: number, denominator: number) {
   if (!denominator) return 0;
-  return Number(((numerator / denominator) * 100).toFixed(2));
+  return Number((numerator / denominator).toFixed(4));
 }
 
 function isW2Type(value?: string | null) {
@@ -127,25 +127,21 @@ Deno.serve(async (req) => {
     if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    if (!supabaseUrl || !serviceRoleKey) {
       return jsonResponse({ error: "Server configuration error" }, 500);
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
     const token = authHeader.replace(/^Bearer\s+/i, "");
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-
-    if (claimsError || !claimsData?.claims?.sub) return jsonResponse({ error: "Unauthorized" }, 401);
-
-    const callerUserId = claimsData.claims.sub as string;
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    const { data: authData, error: authError } = await admin.auth.getUser(token);
+
+    if (authError || !authData?.user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+    const callerUserId = authData.user.id;
 
     const [isAdmin, isSuperAdmin] = await Promise.all([
       hasAdminRole(admin, callerUserId, "admin"),
@@ -176,9 +172,6 @@ Deno.serve(async (req) => {
     const activeUsers30d = users.filter((user) => user.last_sign_in_at && Date.parse(user.last_sign_in_at) >= daysAgo(30)).length;
     const newUsers7d = users.filter((user) => user.created_at && Date.parse(user.created_at) >= daysAgo(7)).length;
     const newUsers30d = users.filter((user) => user.created_at && Date.parse(user.created_at) >= daysAgo(30)).length;
-
-    const settingsByUser = new Map<string, TaxSettingsRow>();
-    for (const row of taxSettings) settingsByUser.set(row.user_id, row);
 
     const premiumUsersSet = new Set(
       taxSettings
