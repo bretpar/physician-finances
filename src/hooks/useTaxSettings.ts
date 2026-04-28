@@ -188,6 +188,22 @@ export function useTaxSettings() {
         },
         autoConvertFutureIncomeToLedger: !!d.auto_convert_future_income_to_ledger,
         quarterlyTrackerMethod: (d.quarterly_tracker_method as QuarterlyTrackerMethod) || "even",
+        onboardingComplete: d.onboarding_complete ?? null,
+        onboardingBannerDismissed: !!d.onboarding_banner_dismissed,
+        onboardingFirstName: (d.onboarding_first_name as string) || "",
+        incomeProfileType: (d.income_profile_type as IncomeProfileType) || "w2_plus_business",
+        enabledIncomeSources: {
+          w2: !!(d.enabled_income_sources?.w2 ?? true),
+          form1099: !!(d.enabled_income_sources?.form1099 ?? true),
+          k1: !!(d.enabled_income_sources?.k1 ?? true),
+        },
+        enabledPersonalIncomeTypes: Array.isArray(d.enabled_personal_income_types) ? d.enabled_personal_income_types : [],
+        taxRecommendationMethod: (d.tax_recommendation_method as TaxRecommendationMethod) || ((d.withholding_method === "flat_estimate" ? "flat_rate" : d.withholding_method) as TaxRecommendationMethod) || "dynamic_planner",
+        flatFederalRate: d.flat_federal_rate != null ? Number(d.flat_federal_rate) : (d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null),
+        flatStateRate: d.flat_state_rate != null ? Number(d.flat_state_rate) : null,
+        deductionStrategy: (d.deduction_strategy as DeductionStrategy) || ((d.deduction_type === "itemized" ? "itemized" : "standard") as DeductionStrategy),
+        enabledDeductionTypes: Array.isArray(d.enabled_deduction_types) ? d.enabled_deduction_types : [],
+        subscriptionTier: (d.subscription_tier as OnboardingSubscriptionTier) || "premium",
       } as TaxRates;
     },
   });
@@ -243,6 +259,18 @@ export function useUpdateTaxSettings() {
       }
       if (rest.autoConvertFutureIncomeToLedger !== undefined) payload.auto_convert_future_income_to_ledger = rest.autoConvertFutureIncomeToLedger;
       if ((rest as any).quarterlyTrackerMethod !== undefined) payload.quarterly_tracker_method = (rest as any).quarterlyTrackerMethod;
+      if (rest.onboardingComplete !== undefined) payload.onboarding_complete = rest.onboardingComplete;
+      if (rest.onboardingBannerDismissed !== undefined) payload.onboarding_banner_dismissed = rest.onboardingBannerDismissed;
+      if (rest.onboardingFirstName !== undefined) payload.onboarding_first_name = rest.onboardingFirstName;
+      if (rest.incomeProfileType !== undefined) payload.income_profile_type = rest.incomeProfileType;
+      if (rest.enabledIncomeSources !== undefined) payload.enabled_income_sources = rest.enabledIncomeSources;
+      if (rest.enabledPersonalIncomeTypes !== undefined) payload.enabled_personal_income_types = rest.enabledPersonalIncomeTypes;
+      if (rest.taxRecommendationMethod !== undefined) payload.tax_recommendation_method = rest.taxRecommendationMethod;
+      if (rest.flatFederalRate !== undefined) payload.flat_federal_rate = rest.flatFederalRate;
+      if (rest.flatStateRate !== undefined) payload.flat_state_rate = rest.flatStateRate;
+      if (rest.deductionStrategy !== undefined) payload.deduction_strategy = rest.deductionStrategy;
+      if (rest.enabledDeductionTypes !== undefined) payload.enabled_deduction_types = rest.enabledDeductionTypes;
+      if (rest.subscriptionTier !== undefined) payload.subscription_tier = rest.subscriptionTier;
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
