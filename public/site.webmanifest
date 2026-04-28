@@ -1,0 +1,17 @@
+{
+  "name": "Paycheck MD",
+  "short_name": "Paycheck MD",
+  "description": "Paycheck MD helps physicians track income, withholding, tax reserves, and estimated tax progress across W-2 and 1099 work.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0066CC",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
