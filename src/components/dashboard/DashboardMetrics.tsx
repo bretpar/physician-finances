@@ -19,6 +19,7 @@ interface DashboardMetricsProps {
   totalIncomeYTD: number;
   /** YTD business profit = business revenue – business expenses. From useDashboardSummary.businessNetIncome. */
   businessProfitYTD: number;
+  w2Only?: boolean;
 }
 
 const fmt = (n: number) =>
@@ -44,6 +45,7 @@ const fmt = (n: number) =>
 export default function DashboardMetrics({
   totalIncomeYTD,
   businessProfitYTD,
+  w2Only = false,
 }: DashboardMetricsProps) {
   const isPremium = isFeatureEnabled("premium_visibility");
   const [projection, setProjection] = useState(true);
@@ -85,10 +87,10 @@ export default function DashboardMetrics({
   const expectedAnnualIncome = actualYTD.income + projectedTotals.grossIncome;
   const projectedBusinessProfit = forecastDebug?.netBusinessProfit ?? 0;
 
-  const primaryValue = projection ? expectedAnnualIncome : totalIncomeYTD;
-  const secondaryValue = projection ? projectedBusinessProfit : businessProfitYTD;
-  const primaryLabel = projection ? "Expected Annual Income" : "Total Income (YTD)";
-  const secondaryLabel = projection ? "Projected Business Profit" : "Business Profit (YTD)";
+  const primaryValue = w2Only ? (forecastDebug?.totalGrossIncome ?? expectedAnnualIncome) : (projection ? expectedAnnualIncome : totalIncomeYTD);
+  const secondaryValue = w2Only ? (forecastDebug?.totalTaxableIncome ?? 0) : (projection ? projectedBusinessProfit : businessProfitYTD);
+  const primaryLabel = w2Only ? "Projected Household Income" : (projection ? "Expected Annual Income" : "Total Income (YTD)");
+  const secondaryLabel = w2Only ? "Projected Taxable Income" : (projection ? "Projected Business Profit" : "Business Profit (YTD)");
 
   const primaryAnim = useCountUp(primaryValue);
   const secondaryAnim = useCountUp(secondaryValue);
@@ -96,7 +98,7 @@ export default function DashboardMetrics({
   return (
     <section className="px-1">
       {/* Header row: subtle, with optional premium toggle on the right */}
-      {isPremium && (
+      {isPremium && !w2Only && (
         <div className="flex items-center justify-end gap-2 mb-3">
           <Label
             htmlFor="projection-toggle"
@@ -134,7 +136,7 @@ export default function DashboardMetrics({
           </div>
         </div>
 
-        {/* Secondary metric — Business Profit */}
+        {/* Secondary metric */}
         <div className="relative flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5 sm:py-4 overflow-hidden">
           <span
             aria-hidden

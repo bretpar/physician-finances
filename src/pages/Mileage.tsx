@@ -25,8 +25,10 @@ import {
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -75,6 +77,8 @@ const emptyContribForm: ContribForm = {
 
 export default function Mileage() {
   const now = new Date();
+  const { data: taxSettings } = useTaxSettings();
+  const isW2Only = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams) === "W2_ONLY";
 
   // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -331,10 +335,10 @@ export default function Mileage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <Tabs defaultValue="mileage" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
-          <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>
-          <TabsTrigger value="home-office" className="gap-2"><Home className="h-4 w-4" /> Home Office</TabsTrigger>
+      <Tabs defaultValue={isW2Only ? "retirement" : "mileage"} className="w-full">
+        <TabsList className={`grid w-full ${isW2Only ? "grid-cols-2 max-w-md" : "grid-cols-4 max-w-2xl"}`}>
+          {!isW2Only && <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>}
+          {!isW2Only && <TabsTrigger value="home-office" className="gap-2"><Home className="h-4 w-4" /> Home Office</TabsTrigger>}
           <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>
           <TabsTrigger value="hsa" className="gap-2"><HeartPulse className="h-4 w-4" /> HSA</TabsTrigger>
         </TabsList>

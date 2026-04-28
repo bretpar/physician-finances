@@ -33,6 +33,9 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
+import { normalizeFilingType } from "@/lib/filingTypes";
+import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -89,6 +92,13 @@ export default function Taxes() {
 
   const e = estimate;
   const debug = taxMode === "actual" ? actualDebug : forecastDebug;
+  const isW2Only = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams) === "W2_ONLY";
+  const hasIncludedPriorNonW2Income = useMemo(() => {
+    return (incomeEntries || []).some((entry) => {
+      const type = normalizeFilingType(entry.income_type);
+      return type !== "w2" && type !== "scorp_w2";
+    }) || (transactions || []).some((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any));
+  }, [incomeEntries, transactions]);
   const totalSetAside = savings.reduce((s, sv) => s + Number(sv.amount), 0);
 
   // Use the unified debug breakdown as the source of truth so UI matches engine.
@@ -181,7 +191,9 @@ export default function Taxes() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Tax Overview</h1>
-          <p className="text-sm text-muted-foreground">Current vs forecasted tax estimates</p>
+          <p className="text-sm text-muted-foreground">
+            {isW2Only ? "Household income, withholding, and projected refund or amount due" : "Current vs forecasted tax estimates"}
+          </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
           <button
@@ -212,7 +224,7 @@ export default function Taxes() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm font-medium text-muted-foreground">Total Gross Income</p>
+            <p className="text-sm font-medium text-muted-foreground">{isW2Only ? "Household Income" : "Total Gross Income"}</p>
             <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(totalGrossIncome)}</p>
             <p className="mt-2 text-xs text-muted-foreground">Before deductions</p>
           </CardContent>
@@ -236,7 +248,9 @@ export default function Taxes() {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    This is the effective tax rate used to estimate extra tax savings needed from W-2 paychecks. Business income may also have additional self-employment or business taxes calculated separately.
+                    {isW2Only
+                      ? "This is the shared household rate used for paycheck withholding guidance."
+                      : "This is the effective tax rate used to estimate extra tax savings needed from W-2 paychecks. Business income may also have additional self-employment or business taxes calculated separately."}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -247,7 +261,32 @@ export default function Taxes() {
         </Card>
       </div>
 
-      <section id="quarterly-estimator" className="scroll-mt-6">
+      {isW2Only && debug && (
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <h2 className="text-lg font-semibold text-foreground">Projected Refund / Amount Due</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div><p className="text-xs text-muted-foreground">Estimated total tax</p><p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{fmt(debug.totalEstimatedTax)}</p></div>
+              <div><p className="text-xs text-muted-foreground">Withholding and payments</p><p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{fmt(debug.countedCreditsTotal)}</p></div>
+              <div><p className="text-xs text-muted-foreground">Extra per paycheck</p><p className="mt-1 text-xl font-semibold tabular-nums text-primary">{fmt(debug.recommendedSetAside)}</p></div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {debug.remainingTaxDue > 0
+                ? `Based on your projected household income, deductions, taxes, and current withholding, you are projected to be short by ${fmt(debug.remainingTaxDue)}.`
+                : debug.countedCreditsTotal > debug.totalEstimatedTax
+                  ? `You are projected to have a refund of about ${fmt(debug.countedCreditsTotal - debug.totalEstimatedTax)} if your income and withholding stay on track.`
+                  : "Your current withholding appears to be on track based on your projected household income, deductions, and taxes."}
+            </p>
+            {hasIncludedPriorNonW2Income && (
+              <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                Earlier income from other sources is labeled as included prior income and remains part of the full-year projection when marked included.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
           annualTaxLiability={annualTaxLiability}
           payments={payments}
@@ -262,10 +301,10 @@ export default function Taxes() {
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
         />
-      </section>
+      </section>}
 
       {/* ── Actions ── */}
-      <div className="flex gap-3 flex-wrap">
+      {!isW2Only && <div className="flex gap-3 flex-wrap">
         <Button onClick={() => { resetSavingsForm(); setSavingsOpen(true); }} className="gap-2">
           <Plus className="h-4 w-4" /> Log Tax Savings
         </Button>
@@ -277,7 +316,7 @@ export default function Taxes() {
             <ExternalLink className="h-4 w-4 mr-2" /> IRS Direct Pay
           </a>
         </Button>
-      </div>
+      </div>}
 
       {/* ── How This Estimate Works ── */}
       <Collapsible open={showHow} onOpenChange={setShowHow}>
@@ -293,8 +332,8 @@ export default function Taxes() {
               <p>Your tax estimate is calculated automatically using the following approach:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>We combine your <strong>actual income received</strong> with any <strong>projected future income</strong> to estimate your annual total.</li>
-                <li>We subtract deductions — pre-tax contributions, retirement, business expenses, and your standard deduction.</li>
-                <li>We apply <strong>federal tax brackets</strong> to your estimated taxable income, plus self-employment tax and state tax where applicable.</li>
+                <li>We subtract deductions — pre-tax contributions, retirement, {isW2Only ? "and your standard or itemized deduction" : "business expenses, and your standard deduction"}.</li>
+                <li>We apply <strong>federal tax brackets</strong> to your estimated taxable income{isW2Only ? " and state tax where applicable" : ", plus self-employment tax and state tax where applicable"}.</li>
                 <li>We subtract taxes already withheld from paychecks and any quarterly payments you've made.</li>
                 <li>The remaining amount is spread across remaining months to give you a <strong>recommended monthly set-aside</strong>.</li>
               </ul>

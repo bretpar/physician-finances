@@ -33,16 +33,17 @@ type NavItem = {
   subtitle: string;
   module?: "business" | "investment";
   featureKey?: FeatureKey;
+  w2OnlyFeatureKey?: FeatureKey;
 };
 
 const navItems: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "" },
   { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses", module: "business", featureKey: "businessIncomeTracking" },
   { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes", featureKey: "basicPaycheckTracking" },
-  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", w2OnlyLabel: "Withholding Guide", subtitle: "Future or hypothetical income", featureKey: "scenarioPlanner" },
+  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", w2OnlyLabel: "Withholding Guide", subtitle: "Future or hypothetical income", featureKey: "scenarioPlanner", w2OnlyFeatureKey: "basicWithholdingGuide" },
   { to: "/stocks", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment" },
   { to: "/deductions", icon: Car, label: "Deductions", subtitle: "", featureKey: "mileageDeduction" },
-  { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", featureKey: "advancedTaxOverview" },
+  { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", featureKey: "advancedTaxOverview", w2OnlyFeatureKey: "basicTaxOverview" },
   { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", featureKey: "detailedReports" },
   { to: "/settings", icon: Settings, label: "Settings", subtitle: "" },
 ];
@@ -126,7 +127,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <item.icon className="h-5 w-5 shrink-0" />
               <span className="min-w-0 flex-1 truncate">{useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label}</span>
-              {item.featureKey && featureAccess[item.featureKey]?.status === "locked" && (
+              {(() => {
+                const key = useW2OnlyLabels && item.w2OnlyFeatureKey ? item.w2OnlyFeatureKey : item.featureKey;
+                return key && featureAccess[key]?.status === "locked";
+              })() && (
                 <span className="rounded-sm border border-sidebar-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-sidebar-foreground">
                   Premium
                 </span>
