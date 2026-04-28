@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -19,6 +20,7 @@ import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { DEFAULT_SUBSCRIPTION_TIER, deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -35,6 +37,13 @@ export default function Dashboard() {
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const featureAccess = getFeatureAccess(userType, DEFAULT_SUBSCRIPTION_TIER);
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
+  const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
+
+  useEffect(() => {
+    const reviewed = localStorage.getItem("paycheckmd-household-income-profile-reviewed") === "true";
+    const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true";
+    setShowProfileReviewBanner(!reviewed && !dismissed);
+  }, []);
 
   const projectedPaychecks = useMemo(
     () =>
@@ -267,6 +276,27 @@ export default function Dashboard() {
         </div>
         <p className="text-xs text-muted-foreground/80">Here's your money at a glance.</p>
       </header>
+
+      {showProfileReviewBanner && (
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-card-foreground">Review your household income profile. We added income pathways so your dashboard matches your household.</p>
+            <div className="flex gap-2">
+              <Button asChild size="sm"><Link to="/settings">Review now</Link></Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  localStorage.setItem("paycheckmd-household-income-profile-review-dismissed", "true");
+                  setShowProfileReviewBanner(false);
+                }}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <DashboardMetrics
         totalIncomeYTD={summary.totalIncome}

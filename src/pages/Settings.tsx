@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,17 @@ import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { cn } from "@/lib/utils";
+import { classifyPersonalIncome } from "@/lib/incomeClassification";
+import { useIncomeEntries } from "@/hooks/useIncome";
+import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
+import {
+  ALL_ENTITLEMENT_FEATURES,
+  DEFAULT_SUBSCRIPTION_TIER,
+  deriveUserTypeFromIncomeStreams,
+  getFeatureAccess,
+  getUserTypeDisplayInfo,
+  type FeatureKey,
+} from "@/lib/entitlements";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -401,22 +413,86 @@ function QuarterlyTrackerMethodSection() {
 /* ──────────────────────────────────────────────────────────── */
 /*  Household Income Streams section                             */
 /* ──────────────────────────────────────────────────────────── */
-const HOUSEHOLD_INCOME_STREAM_OPTIONS: Array<{ key: keyof HouseholdIncomeStreams; label: string }> = [
-  { key: "w2Income", label: "W2 income" },
-  { key: "spouseW2Income", label: "Spouse/partner W2 income" },
-  { key: "additionalW2Job", label: "Additional W2 job" },
-  { key: "business1099Income", label: "Business / 1099 income" },
-  { key: "k1PartnershipIncome", label: "K-1 / partnership income" },
-  { key: "sCorpIncome", label: "S-corp income" },
-  { key: "rentalIncome", label: "Rental income" },
-  { key: "investmentIncome", label: "Investment income" },
-  { key: "otherIncome", label: "Other income" },
+const HOUSEHOLD_INCOME_STREAM_OPTIONS: Array<{ key: keyof HouseholdIncomeStreams; label: string; moduleLabel: string }> = [
+  { key: "w2Income", label: "W2 income", moduleLabel: "W2" },
+  { key: "spouseW2Income", label: "Spouse/partner W2 income", moduleLabel: "spouse/partner W2" },
+  { key: "additionalW2Job", label: "Additional W2 job", moduleLabel: "additional W2 job" },
+  { key: "business1099Income", label: "1099/self-employed income", moduleLabel: "1099/self-employed" },
+  { key: "k1PartnershipIncome", label: "K-1 / partnership income", moduleLabel: "K-1 / partnership" },
+  { key: "sCorpIncome", label: "S-corp income", moduleLabel: "S-corp" },
+  { key: "rentalIncome", label: "Rental income", moduleLabel: "rental" },
+  { key: "investmentIncome", label: "Investment income", moduleLabel: "investment" },
+  { key: "otherIncome", label: "Other income", moduleLabel: "other" },
 ];
+
+const FEATURE_LABELS: Record<FeatureKey, string> = {
+  basicWithholdingGuide: "Basic withholding guide",
+  advancedWithholdingGuide: "Advanced withholding guide",
+  spouseW2Support: "Spouse/partner W2 support",
+  multipleW2Jobs: "Multiple W2 jobs",
+  businessIncomeTracking: "Business income tracking",
+  businessExpenseTracking: "Business expense tracking",
+  mileageDeduction: "Mileage deductions",
+  homeOfficeDeduction: "Home office deductions",
+  quarterlyTaxPlanner: "Quarterly tax planner",
+  scenarioPlanner: "Income planner",
+  reportsExport: "Report exports",
+  advancedTaxOverview: "Advanced tax overview",
+  premiumEducation: "Premium guidance",
+  customW2BusinessSplit: "Custom W2/business split",
+  detailedReports: "Detailed reports",
+  basicTaxOverview: "Basic tax overview",
+  basicPaycheckTracking: "Paycheck tracking",
+  basic1099Tracking: "1099 tracking",
+  basicTaxGapEstimate: "Basic tax gap estimate",
+  basicExpenseTracking: "Basic expense tracking",
+  basicTaxSavingsEstimate: "Basic tax savings estimate",
+};
+
+const TAX_EXCLUSION_CHOICES_KEY = "paycheckmd-household-income-exclusion-choices";
+
+function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = [], businessRows: any[] = []) {
+  if (key === "business1099Income") return businessRows.some((e) => ["1099", "1099_schedule_c"].includes(String(e.income_type || "")));
+  if (key === "k1PartnershipIncome") return businessRows.some((e) => ["k1", "k1_partnership"].includes(String(e.income_type || "")));
+  if (key === "sCorpIncome") return businessRows.some((e) => String(e.income_type || "").includes("scorp"));
+  if (key === "rentalIncome") return personalRows.some((e) => classifyPersonalIncome(e) === "rental");
+  if (key === "investmentIncome") return personalRows.some((e) => ["capital_gains", "loss"].includes(classifyPersonalIncome(e)));
+  if (key === "otherIncome") return personalRows.some((e) => classifyPersonalIncome(e) === "ordinary");
+  if (key === "spouseW2Income") return personalRows.some((e) => e.ui_income_subtype === "w2_partner");
+  return personalRows.some((e) => classifyPersonalIncome(e) === "w2");
+}
+
+function personalRowsForStream(key: keyof HouseholdIncomeStreams, personalRows: any[] = []) {
+  return personalRows.filter((e) => {
+    const category = classifyPersonalIncome(e);
+    if (key === "spouseW2Income") return e.ui_income_subtype === "w2_partner";
+    if (key === "w2Income" || key === "additionalW2Job") return category === "w2";
+    if (key === "rentalIncome") return category === "rental";
+    if (key === "investmentIncome") return category === "capital_gains" || category === "loss";
+    if (key === "otherIncome") return category === "ordinary";
+    return false;
+  });
+}
+
+function businessRowsForStream(key: keyof HouseholdIncomeStreams, businessRows: any[] = []) {
+  return businessRows.filter((e) => {
+    const incomeType = String(e.income_type || "");
+    if (key === "business1099Income") return incomeType === "1099" || incomeType === "1099_schedule_c";
+    if (key === "k1PartnershipIncome") return incomeType === "k1" || incomeType === "k1_partnership";
+    if (key === "sCorpIncome") return incomeType.includes("scorp");
+    return false;
+  });
+}
 
 function HouseholdIncomeStreamsSection() {
   const { data } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
+  const { data: businessIncomeRows = [] } = useIncomeEntries();
+  const { data: personalIncomeRows = [] } = usePersonalIncomeEntries();
+  const queryClient = useQueryClient();
   const [savedTick, setSavedTick] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [exclusionChoices, setExclusionChoices] = useState<Record<string, "hide-only" | "hide-and-exclude">>({});
 
   const source: HouseholdIncomeStreams = useMemo(() => data?.householdIncomeStreams ?? {
     w2Income: true,
@@ -435,22 +511,70 @@ function HouseholdIncomeStreamsSection() {
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
       await updateMutation.mutateAsync({ id: data.id, householdIncomeStreams: next });
+      localStorage.setItem("paycheckmd-household-income-profile-reviewed", "true");
+      if (Object.keys(exclusionChoices).length > 0) {
+        localStorage.setItem(TAX_EXCLUSION_CHOICES_KEY, JSON.stringify(exclusionChoices));
+      }
+      await applyExplicitExclusions();
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
     },
   });
 
+  const derivedUserType = deriveUserTypeFromIncomeStreams(draft.draft);
+  const pathway = getUserTypeDisplayInfo(derivedUserType);
+  const featureAccess = getFeatureAccess(derivedUserType, DEFAULT_SUBSCRIPTION_TIER);
+  const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
+  const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
+  const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]);
+  const disabledStreamsWithData = HOUSEHOLD_INCOME_STREAM_OPTIONS.filter(
+    (option) => source[option.key] && !draft.draft[option.key] && hasStreamData(option.key, personalIncomeRows, businessIncomeRows),
+  );
+
+  const applyExplicitExclusions = async () => {
+    const selected = disabledStreamsWithData.filter((option) => exclusionChoices[option.key] === "hide-and-exclude");
+    const personalIds = selected.flatMap((option) => personalRowsForStream(option.key, personalIncomeRows).map((row) => row.id));
+    const businessIds = selected.flatMap((option) => businessRowsForStream(option.key, businessIncomeRows).map((row) => row.linked_transaction_id).filter(Boolean));
+
+    if (personalIds.length > 0) {
+      const { error } = await supabase.from("income_entries").update({ include_in_tax_estimate: false } as any).in("id", personalIds);
+      if (error) throw error;
+    }
+    if (businessIds.length > 0) {
+      const { error } = await supabase.from("transactions").update({ excluded_from_reports: true } as any).in("id", businessIds);
+      if (error) throw error;
+    }
+    if (personalIds.length > 0 || businessIds.length > 0) {
+      queryClient.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      queryClient.invalidateQueries({ queryKey: ["income_entries"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  };
+
+  const saveWithSafetyCheck = () => {
+    if (disabledStreamsWithData.length > 0 && !disabledStreamsWithData.every((option) => exclusionChoices[option.key])) {
+      setConfirmOpen(true);
+      return;
+    }
+    draft.save();
+  };
+
   return (
     <SectionCard
-      title="Household Income Streams"
+      title="Household Income Profile"
       icon={<Settings2 className="h-5 w-5" />}
-      description="Saved profile flags for future household-aware workflows. These do not change tax calculations yet."
+      description="Review what income your household currently has so the app can match your pathway."
+      defaultOpen
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
       justSaved={savedTick}
-      onSave={draft.save}
+      onSave={saveWithSafetyCheck}
       onCancel={draft.cancel}
     >
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-card-foreground">What income does your household currently have?</p>
+        <p className="text-xs text-muted-foreground">Select every stream that applies. Technical pathway labels are derived automatically.</p>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {HOUSEHOLD_INCOME_STREAM_OPTIONS.map((option) => (
           <div key={option.key} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
@@ -465,6 +589,63 @@ function HouseholdIncomeStreamsSection() {
           </div>
         ))}
       </div>
+      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-semibold text-card-foreground">{pathway.label}</p>
+          <Badge variant="outline">Derived pathway</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">{pathway.explanation}</p>
+      </div>
+      {draft.isDirty && (
+        <div className="rounded-lg border border-border p-4 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-card-foreground">This will update your app experience.</p>
+            <p className="text-xs text-muted-foreground mt-1">Existing data will not be deleted. Income is not excluded from tax projections unless you explicitly choose that option.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-medium text-card-foreground mb-2">Visible sections</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">{visibleSections.slice(0, 6).map((label) => <li key={label}>• {label}</li>)}</ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-card-foreground mb-2">Hidden sections</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">{hiddenSections.length ? hiddenSections.slice(0, 6).map((label) => <li key={label}>• {label}</li>) : <li>• None</li>}</ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-card-foreground mb-2">Premium features</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">{lockedSections.length ? lockedSections.slice(0, 6).map((label) => <li key={label}>• {label}</li>) : <li>• None</li>}</ul>
+            </div>
+          </div>
+        </div>
+      )}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm income stream changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have existing income data for one or more streams you turned off. Choose how the app should treat those records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            {disabledStreamsWithData.map((option) => (
+              <div key={option.key} className="rounded-lg border border-border p-3 space-y-3">
+                <p className="text-sm font-medium text-card-foreground">You have existing {option.moduleLabel} income data.</p>
+                <RadioGroup
+                  value={exclusionChoices[option.key] || "hide-only"}
+                  onValueChange={(value) => setExclusionChoices((prev) => ({ ...prev, [option.key]: value as "hide-only" | "hide-and-exclude" }))}
+                >
+                  <label className="flex items-start gap-2 text-sm text-card-foreground"><RadioGroupItem value="hide-only" className="mt-0.5" />Hide tools only, keep income in tax projection.</label>
+                  <label className="flex items-start gap-2 text-sm text-card-foreground"><RadioGroupItem value="hide-and-exclude" className="mt-0.5" />Hide tools and exclude income from tax projection.</label>
+                </RadioGroup>
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConfirmOpen(false); draft.save(); }}>Save profile</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SectionCard>
   );
 }
