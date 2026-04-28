@@ -601,6 +601,29 @@ function HouseholdIncomeStreamsSection() {
     }
   };
 
+  const recordPathwayHistory = async (next: HouseholdIncomeStreams) => {
+    const newUserType = deriveUserTypeFromIncomeStreams(next);
+    const priorUserType = deriveUserTypeFromIncomeStreams(source);
+    if (newUserType === priorUserType && !draft.isDirty) return;
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    const currentUser = authData.user;
+    if (!currentUser) throw new Error("Not authenticated");
+
+    const { error } = await supabase.from("income_pathway_history" as any).insert({
+      user_id: currentUser.id,
+      organization_id: (data as any)?.organization_id ?? null,
+      previous_user_type: priorUserType,
+      new_user_type: newUserType,
+      effective_date: effectiveDate,
+      changed_by_user: currentUser.id,
+      active_income_stream_flags: next,
+    });
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ["income_pathway_history"] });
+  };
+
   const saveWithSafetyCheck = () => {
     if (disabledStreamsWithData.length > 0 && !disabledStreamsWithData.every((option) => exclusionChoices[option.key])) {
       setConfirmOpen(true);
