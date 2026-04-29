@@ -6,6 +6,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
+import { aggregateInvestmentTaxBuckets, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
@@ -51,6 +52,7 @@ export function useTaxEstimate(): {
   const { data: streams, isLoading: strLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonLoading } = useProjectedBonuses();
   const { data: stockTxs, isLoading: stkLoading } = useStockTransactions();
+  const { data: investmentEntries, isLoading: invLoading } = useInvestmentIncomeEntries();
   const { data: retirementContribs, isLoading: retLoading } = useRetirementContributions();
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
@@ -263,6 +265,8 @@ export function useTaxEstimate(): {
     const actualPersonalRows = allPersonalRows.filter((e) => e.income_date <= todayStr);
     const allStockRows = stockTxs || [];
     const actualStockRows = allStockRows.filter((s) => s.sale_date <= todayStr);
+    const allInvestmentRows = investmentEntries || [];
+    const actualInvestmentRows = allInvestmentRows.filter((s) => s.entry_date <= todayStr);
 
     return {
       actualOnlyTaxInputs: {
@@ -270,6 +274,7 @@ export function useTaxEstimate(): {
         incomeEntries: actualIncomeRows,
         personalEntries: actualPersonalRows,
         stockTransactions: actualStockRows,
+        investmentEntries: actualInvestmentRows,
         canonicalBusiness: makeCanonicalBusiness(actualTxs, actualIncomeRows),
       },
       includePlannedTaxInputs: {
@@ -277,12 +282,13 @@ export function useTaxEstimate(): {
         incomeEntries: allIncomeRows,
         personalEntries: allPersonalRows,
         stockTransactions: allStockRows,
+        investmentEntries: allInvestmentRows,
         canonicalBusiness: makeCanonicalBusiness(allTxs, allIncomeRows),
       },
     };
-  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr]);
+  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr]);
 
-  const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || retLoading || tpLoading || tsLoading || hoLoading;
+  const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || invLoading || retLoading || tpLoading || tsLoading || hoLoading;
 
   const scopedBaseInputs = useMemo(() => {
     if (!rates || !reconciledIncomeEntries) return null;
