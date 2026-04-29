@@ -327,7 +327,9 @@ export function useTaxEstimate(): {
       const stockLosses = scope.stockTransactions
         .filter((s) => Number(s.gain_loss) < 0)
         .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
-      const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses);
+      const investmentBuckets = aggregateInvestmentTaxBuckets(scope.investmentEntries || []);
+      const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses + investmentBuckets.netSalesForCurrentTaxEngine);
+      const investmentDividends = Math.max(0, investmentBuckets.dividends);
 
       const businessExpenses = scope.transactions
         .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
@@ -411,9 +413,9 @@ export function useTaxEstimate(): {
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction,
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
-        personalIncome: totalPersonalIncome,
+        personalIncome: totalPersonalIncome + investmentDividends,
         personalW2,
-        personalNonW2Income,
+        personalNonW2Income: personalNonW2Income + investmentDividends,
         personalFederalWithheld,
         personalStateWithheld,
         personalPreTax,
