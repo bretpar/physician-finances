@@ -10,6 +10,7 @@ import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import BusinessActivity from "@/pages/BusinessActivity";
 import PersonalIncome from "@/pages/PersonalIncome";
+import InvestmentIncome from "@/pages/InvestmentIncome";
 import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
 import Taxes from "@/pages/Taxes";
@@ -65,6 +66,7 @@ function ProtectedRoutes() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/business-activity" element={<BusinessActivity />} />
           <Route path="/personal-income" element={<PersonalIncome />} />
+          <Route path="/investments" element={<InvestmentIncome />} />
           <Route path="/accounts" element={<Navigate to="/settings" replace />} />
           <Route path="/projected-income" element={<ProjectedIncome />} />
           <Route path="/deductions" element={<Mileage />} />
@@ -76,8 +78,7 @@ function ProtectedRoutes() {
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />
           <Route path="/mileage" element={<Navigate to="/deductions" replace />} />
-          <Route path="/stocks" element={<Navigate to="/" replace />} />
-          <Route path="/stocks" element={<Navigate to="/" replace />} />
+          <Route path="/stocks" element={<Navigate to="/investments" replace />} />
           <Route path="/tax-planning" element={<Navigate to="/taxes" replace />} />
           <Route path="/tax-reserve" element={<Navigate to="/taxes" replace />} />
           <Route path="/quarterly-taxes" element={<Navigate to="/taxes" replace />} />

@@ -7,6 +7,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
+import { aggregateInvestmentTaxBuckets, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
@@ -30,12 +31,13 @@ export default function Dashboard() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
+  const { data: investmentEntries } = useInvestmentIncomeEntries();
   const { data: payments = [] } = useTaxPayments();
   const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, isLoading: estLoading } = useTaxEstimate();
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
-  const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
+  const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries, investmentEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
   const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(rates?.subscriptionTier));
@@ -72,8 +74,9 @@ export default function Dashboard() {
     const personal = (personalEntries || [])
       .filter((e) => inMonth(e.income_date))
       .reduce((s, e) => s + Number(e.gross_amount || 0), 0);
-    return business + personal;
-  }, [transactions, personalEntries, currentMonth, currentYear]);
+    const investments = aggregateInvestmentTaxBuckets((investmentEntries || []).filter((e) => inMonth(e.entry_date))).totalTaxableIncome;
+    return business + personal + investments;
+  }, [transactions, personalEntries, investmentEntries, currentMonth, currentYear]);
 
   // ── Per-COMPANY CURRENT-QUARTER paid vs saved ────────────────────────────
   // Paid  = federal_withholding + state_withholding on income dated this quarter
