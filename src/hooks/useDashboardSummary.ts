@@ -3,6 +3,7 @@ import type { DbTransaction } from "@/hooks/useTransactions";
 import type { TaxRates } from "@/hooks/useTaxSettings";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import { aggregateInvestmentTaxBuckets, type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 
@@ -24,7 +25,8 @@ export function useDashboardSummary(
   transactions: DbTransaction[] | undefined,
   rates: TaxRates | undefined,
   incomeEntries?: IncomeEntry[],
-  personalEntries?: PersonalIncomeEntry[]
+  personalEntries?: PersonalIncomeEntry[],
+  investmentEntries?: InvestmentIncomeEntry[]
 ): DashboardSummary {
   return useMemo(() => {
     const empty: DashboardSummary = {
@@ -60,6 +62,7 @@ export function useDashboardSummary(
     // Federal-only: federal income tax + Social Security + Medicare.
     const w2Withheld = personal
       .reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
+    const investmentTaxableIncome = aggregateInvestmentTaxBuckets(investmentEntries || []).totalTaxableIncome;
 
     // Business withholding from transactions (already excluded above).
     const txWithheld = txs
@@ -72,7 +75,7 @@ export function useDashboardSummary(
 
     const totalWithheld = Math.max(txWithheld, legacyWithheld) + w2Withheld;
 
-    const totalIncome = businessIncome + personalIncome;
+    const totalIncome = businessIncome + personalIncome + investmentTaxableIncome;
     const totalExpenses = businessExpenses;
     const netProfit = totalIncome - totalExpenses;
 
@@ -80,7 +83,7 @@ export function useDashboardSummary(
       businessIncome,
       businessExpenses,
       businessNetIncome,
-      personalIncome,
+      personalIncome: personalIncome + investmentTaxableIncome,
       projectedIncome: 0, // filled by tax estimate
       totalIncome,
       totalExpenses,
@@ -89,5 +92,5 @@ export function useDashboardSummary(
       w2Withheld,
       totalWithheld,
     };
-  }, [transactions, rates, incomeEntries, personalEntries]);
+  }, [transactions, rates, incomeEntries, personalEntries, investmentEntries]);
 }
