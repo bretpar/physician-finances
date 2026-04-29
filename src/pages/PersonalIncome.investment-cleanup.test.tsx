@@ -21,6 +21,7 @@ vi.mock("@/hooks/useAttachments", () => ({
   ALLOWED_MIME: new Set(["image/png", "image/jpeg", "application/pdf"]),
   useAttachmentCounts: () => ({ data: new Map() }),
   useTransactionAttachments: () => ({ data: [], isLoading: false }),
+  useSignedAttachmentUrl: () => ({ data: null, isLoading: false }),
   useUploadAttachments: () => ({ mutate: vi.fn() }),
 }));
 
