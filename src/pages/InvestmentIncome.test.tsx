@@ -91,9 +91,7 @@ describe("InvestmentIncome page", () => {
 
     await user.click(screen.getByRole("button", { name: /add/i }));
     fireEvent.click(screen.getByRole("combobox", { name: /investment income type/i }));
-    fireEvent.keyDown(screen.getByRole("combobox", { name: /investment income type/i }), { key: "ArrowDown" });
-    fireEvent.keyDown(screen.getByRole("combobox", { name: /investment income type/i }), { key: "ArrowDown" });
-    fireEvent.keyDown(screen.getByRole("combobox", { name: /investment income type/i }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: /dividend/i }));
     fireEvent.change(screen.getByPlaceholderText("e.g. VTI dividend"), { target: { value: "VTI" } });
     fireEvent.change(screen.getByLabelText(/taxable dividend amount/i), { target: { value: "350" } });
     fireEvent.click(screen.getByRole("button", { name: /save entry/i }));
