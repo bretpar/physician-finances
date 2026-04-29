@@ -1755,7 +1755,7 @@ export type Database = {
             foreignKeyName: "transaction_match_ignores_plaid_transaction_record_id_fkey"
             columns: ["plaid_transaction_record_id"]
             isOneToOne: false
-            referencedRelation: "plaid_transactions"
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
