@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import InvestmentIncome from "@/pages/InvestmentIncome";
@@ -85,11 +86,12 @@ describe("InvestmentIncome page", () => {
   });
 
   it("creates dividends without requiring sale proceeds or cost basis", async () => {
+    const user = userEvent.setup();
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /add/i }));
-    fireEvent.mouseDown(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: /dividend/i }));
+    await user.click(screen.getByRole("button", { name: /add/i }));
+    await user.click(screen.getByRole("combobox", { name: /investment income type/i }));
+    await user.click(screen.getByRole("option", { name: /dividend/i }));
     fireEvent.change(screen.getByPlaceholderText("e.g. VTI dividend"), { target: { value: "VTI" } });
     fireEvent.change(screen.getByLabelText(/taxable dividend amount/i), { target: { value: "350" } });
     fireEvent.click(screen.getByRole("button", { name: /save entry/i }));
