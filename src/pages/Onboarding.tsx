@@ -303,12 +303,13 @@ export default function Onboarding() {
     } catch (error: any) {
       if (step === 1 && !user) {
         const message = String(error?.message || "");
-        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter an email");
-        if (!isInputError) {
+        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use a stronger password");
+        const isDuplicateError = message === DUPLICATE_EMAIL_MESSAGE || isDuplicateEmailError(error);
+        if (!isInputError && !isDuplicateError) {
           const next = recordFailedAttempt(SIGNUP_ATTEMPTS_KEY);
           setSignupCooldownUntil(next.cooldownUntil);
         }
-        toast.error(isInputError ? message : getAuthErrorMessage(error, "Signup could not be completed. Please try signing in or use a different email."));
+        toast.error(isInputError ? message : isDuplicateError ? DUPLICATE_EMAIL_MESSAGE : getAuthErrorMessage(error, "Signup could not be completed. Please try again."));
       } else {
         toast.error(error.message || "Could not save onboarding.");
       }
