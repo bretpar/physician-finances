@@ -32,6 +32,16 @@ import {
 } from "@/lib/onboarding";
 
 const SIGNUP_ATTEMPTS_KEY = "paycheckmd-signup-attempts";
+const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please sign in or reset your password.";
+
+function isDuplicateEmailError(error: unknown) {
+  const message = String((error as { message?: string } | null)?.message || error || "").toLowerCase();
+  return ["already", "registered", "exists", "duplicate"].some((term) => message.includes(term));
+}
+
+function isValidEmailFormat(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 
 const personalOptions = [
   ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"],
@@ -116,6 +126,14 @@ export default function Onboarding() {
       subscriptionTier: taxSettings.subscriptionTier || current.subscriptionTier,
     }));
   }, [user, isLoading, taxSettings]);
+
+  useEffect(() => {
+    if (!user && step !== 1) {
+      setStep(1);
+      sessionStorage.setItem("paycheckmd-onboarding-step", "1");
+      patch({ onboardingStep: 1 });
+    }
+  }, [user, step]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -246,12 +264,16 @@ export default function Onboarding() {
       if (step === 1) {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
-          if (!email || password.length < 6) throw new Error("Enter an email and a password with at least 6 characters.");
+          const normalizedEmail = email.trim();
+          if (!normalizedEmail) throw new Error("Enter your email to continue.");
+          if (!isValidEmailFormat(normalizedEmail)) throw new Error("Enter a valid email address.");
+          if (!password) throw new Error("Enter a password to continue.");
+          if (password.length < 6) throw new Error("Use a stronger password with at least 6 characters.");
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
-          const { data: existingCheck, error: existingError } = await supabase.functions.invoke("onboarding-signup", { body: { email } });
+          const { data: existingCheck, error: existingError } = await supabase.functions.invoke("onboarding-signup", { body: { email: normalizedEmail } });
           if (existingError) throw existingError;
-          if (existingCheck?.exists) throw new Error("Signup could not be completed. Please try signing in or use a different email.");
-          const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
+          if (existingCheck?.exists) throw new Error(DUPLICATE_EMAIL_MESSAGE);
+          const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) throw error;
           if (!data.session) {
             toast.success("Account created. Please sign in to continue.");
