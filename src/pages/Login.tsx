@@ -34,7 +34,10 @@ export default function Login() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password) {
+      toast.error("Enter both email and password to sign in.");
+      return;
+    }
     if (loginCooldownSeconds > 0) return;
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
