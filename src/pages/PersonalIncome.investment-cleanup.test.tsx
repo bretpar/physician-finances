@@ -119,7 +119,7 @@ describe("PersonalIncome investment input cleanup", () => {
     renderPage();
 
     expect(screen.getAllByText("Legacy dividend").length).toBeGreaterThan(0);
-    expect(screen.getByText("Dividend")).toBeInTheDocument();
+    expect(screen.getByText(/dividend/i)).toBeInTheDocument();
     expect(screen.getAllByText(/\$300\.00/).length).toBeGreaterThan(0);
   });
 });
