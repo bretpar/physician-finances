@@ -435,6 +435,54 @@ export type Database = {
         }
         Relationships: []
       }
+      investment_income_entries: {
+        Row: {
+          asset_name_or_ticker: string
+          cost_basis: number | null
+          created_at: string
+          entry_date: string
+          id: string
+          investment_income_type: string
+          notes: string
+          organization_id: string | null
+          sale_proceeds: number | null
+          tax_recommendation: number
+          taxable_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asset_name_or_ticker?: string
+          cost_basis?: number | null
+          created_at?: string
+          entry_date?: string
+          id?: string
+          investment_income_type: string
+          notes?: string
+          organization_id?: string | null
+          sale_proceeds?: number | null
+          tax_recommendation?: number
+          taxable_amount?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asset_name_or_ticker?: string
+          cost_basis?: number | null
+          created_at?: string
+          entry_date?: string
+          id?: string
+          investment_income_type?: string
+          notes?: string
+          organization_id?: string | null
+          sale_proceeds?: number | null
+          tax_recommendation?: number
+          taxable_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mileage_entries: {
         Row: {
           company_id: string | null
