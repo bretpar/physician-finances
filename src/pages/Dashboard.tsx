@@ -37,7 +37,7 @@ export default function Dashboard() {
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
-  const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries);
+  const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries, investmentEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
   const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(rates?.subscriptionTier));
