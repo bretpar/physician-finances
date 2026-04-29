@@ -50,9 +50,6 @@ const num = (v: string) => parseFloat(v) || 0;
 const INCOME_TYPES = [
   { value: "w2_user", label: "W2 Income (You)" },
   { value: "w2_partner", label: "W2 Income (Partner)" },
-  { value: "short_term_gain", label: "Short-Term Capital Gain" },
-  { value: "long_term_gain", label: "Long-Term Capital Gain" },
-  { value: "dividend", label: "Dividend" },
   { value: "interest", label: "Interest" },
   { value: "rental", label: "Rental Income" },
   { value: "other_income", label: "Other Income" },
@@ -60,6 +57,7 @@ const INCOME_TYPES = [
 ];
 
 const VALID_UI_TYPES = new Set(INCOME_TYPES.map((t) => t.value));
+const LEGACY_INVESTMENT_UI_TYPES = new Set(["short_term_gain", "long_term_gain", "dividend"]);
 
 const TAX_CATEGORY_MAP: Record<string, string> = {
   w2_user: "ordinary",
@@ -83,8 +81,10 @@ const TAX_CATEGORY_MAP: Record<string, string> = {
 function hydrateIncomeType(entry: PersonalIncomeEntry): string {
   const ui = (entry as any).ui_income_subtype as string | null | undefined;
   if (ui && VALID_UI_TYPES.has(ui)) return ui;
+  if (ui && LEGACY_INVESTMENT_UI_TYPES.has(ui)) return ui;
   const raw = (entry.income_type || "").toLowerCase();
   if (VALID_UI_TYPES.has(raw)) return raw;
+  if (LEGACY_INVESTMENT_UI_TYPES.has(raw)) return raw;
   if (raw === "w2") return "w2_user";
   if (raw === "other") return "other_income";
   // Anything else falls through to a safe default so the Select never blanks out.
