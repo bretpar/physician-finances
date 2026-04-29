@@ -66,6 +66,7 @@ export default function InvestmentIncome() {
     costBasis: num(form.cost_basis),
     taxableAmountOverride: form.taxable_amount === "" ? null : num(form.taxable_amount),
   });
+  const canShowTaxRecommendation = computedTaxable > 0 && (isDividend || (!!form.sale_proceeds && !!form.cost_basis));
 
   const summary = useMemo(() => aggregateInvestmentTaxBuckets(entries), [entries]);
 
@@ -209,8 +210,8 @@ export default function InvestmentIncome() {
                     <TableCell className="text-right text-muted-foreground">{Number(entry.tax_recommendation || 0) > 0 ? fmt(Number(entry.tax_recommendation)) : "—"}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(entry)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(entry.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <Button variant="ghost" size="icon" aria-label={`Edit ${entry.asset_name_or_ticker}`} onClick={() => openEdit(entry)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" aria-label={`Delete ${entry.asset_name_or_ticker}`} onClick={() => setDeleteId(entry.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -227,13 +228,13 @@ export default function InvestmentIncome() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label><DateField value={form.entry_date} onChange={(v) => setField("entry_date", v)} /></div>
-              <div><Label className="text-xs text-muted-foreground mb-1.5 block">Investment income type</Label><Select value={form.investment_income_type} onValueChange={(v) => setField("investment_income_type", v as InvestmentIncomeType)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short_term_sale">Short-term sale</SelectItem><SelectItem value="long_term_sale">Long-term sale</SelectItem><SelectItem value="dividend">Dividend</SelectItem></SelectContent></Select></div>
+              <div><Label className="text-xs text-muted-foreground mb-1.5 block">Investment income type</Label><Select value={form.investment_income_type} onValueChange={(v) => setField("investment_income_type", v as InvestmentIncomeType)}><SelectTrigger aria-label="Investment income type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short_term_sale">Short-term sale</SelectItem><SelectItem value="long_term_sale">Long-term sale</SelectItem><SelectItem value="dividend">Dividend</SelectItem></SelectContent></Select></div>
             </div>
-            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Stock / asset name or ticker</Label><Input value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
-            {!isDividend && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Total sale proceeds</Label><Input type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div><div><Label className="text-xs text-muted-foreground mb-1.5 block">Cost basis</Label><Input type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div></div>}
-            <div><Label className="text-xs text-muted-foreground mb-1.5 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label><Input type="number" step="0.01" value={form.taxable_amount} onChange={(e) => setField("taxable_amount", e.target.value)} placeholder={isDividend ? "0.00" : String(num(form.sale_proceeds) - num(form.cost_basis))} className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")} /><p className="text-[10px] text-muted-foreground mt-1">{isDividend ? "Used for dividend tax calculations." : "Defaults to sale proceeds minus cost basis; override if needed."}</p></div>
+            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
+            {!isDividend && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div><div><Label className="text-xs text-muted-foreground mb-1.5 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div></div>}
+            <div><Label className="text-xs text-muted-foreground mb-1.5 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label><Input aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"} type="number" step="0.01" value={form.taxable_amount} onChange={(e) => setField("taxable_amount", e.target.value)} placeholder={isDividend ? "0.00" : String(num(form.sale_proceeds) - num(form.cost_basis))} className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")} /><p className="text-[10px] text-muted-foreground mt-1">{isDividend ? "Used for dividend tax calculations." : "Defaults to sale proceeds minus cost basis; override if needed."}</p></div>
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
-            {computedTaxable > 0 && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm"><span className="text-muted-foreground">Estimated tax to set aside: </span><span className="font-semibold text-foreground">{fmt(buildPayload().tax_recommendation)}</span></div>}
+            {canShowTaxRecommendation && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm"><span className="text-muted-foreground">Estimated tax to set aside: </span><span className="font-semibold text-foreground">{fmt(buildPayload().tax_recommendation)}</span></div>}
             <div className="flex justify-between gap-2">
               {editingId ? <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId); setShowForm(false); }}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button> : <div />}
               <div className="flex gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={saveForm} disabled={!form.entry_date || !form.asset_name_or_ticker.trim()}>{editingId ? "Save" : "Save Entry"}</Button></div>
