@@ -18,6 +18,7 @@ vi.mock("@/contexts/CompanyContext", () => ({
 }));
 
 vi.mock("@/hooks/useAttachments", () => ({
+  ALLOWED_MIME: new Set(["image/png", "image/jpeg", "application/pdf"]),
   useAttachmentCounts: () => ({ data: {} }),
   useUploadAttachments: () => ({ mutate: vi.fn() }),
 }));
