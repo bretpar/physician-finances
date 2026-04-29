@@ -26,10 +26,14 @@ vi.mock("@/hooks/useAttachments", () => ({
   useUploadAttachments: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock("@/hooks/useIncomeSources", () => ({
-  useIncomeSources: () => ({ data: [], isLoading: false }),
-  useCreateIncomeSource: () => ({ mutateAsync: vi.fn() }),
-}));
+vi.mock("@/hooks/useIncomeSources", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useIncomeSources")>("@/hooks/useIncomeSources");
+  return {
+    ...actual,
+    useIncomeSources: () => ({ data: [], isLoading: false }),
+    useCreateIncomeSource: () => ({ mutateAsync: vi.fn() }),
+  };
+});
 
 vi.mock("@/hooks/useTaxSettings", () => ({
   useTaxSettings: () => ({ data: { stateIncomeTaxEnabled: false }, isLoading: false }),
@@ -103,7 +107,7 @@ describe("PersonalIncome investment input cleanup", () => {
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: /add/i }));
-    fireEvent.mouseDown(screen.getByRole("combobox"));
+    fireEvent.mouseDown(screen.getAllByRole("combobox")[0]);
 
     expect(screen.queryByRole("option", { name: /short-term capital gain/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /long-term capital gain/i })).not.toBeInTheDocument();
