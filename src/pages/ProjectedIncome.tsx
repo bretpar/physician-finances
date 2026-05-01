@@ -30,7 +30,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
   useAddStream, useUpdateStream, useDeleteStream,
-  useAddBonus, useDeleteBonus,
+  useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useDeleteOverride,
   usePlannerConversions,
   generateProjectedPaychecks, getProjectedTotals,
