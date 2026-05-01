@@ -1405,6 +1405,19 @@ export default function ProjectedIncome() {
           </p>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={overrideForm.new_date}
+                onChange={(e) => setOverrideForm((p) => ({ ...p, new_date: e.target.value }))}
+              />
+              {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
+                <p className="text-xs text-muted-foreground">
+                  Moved from original date {overrideTarget?.date}.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
               <Label>Gross Amount</Label>
               <Input
                 type="number"
