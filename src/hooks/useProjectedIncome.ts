@@ -374,6 +374,32 @@ export function useDeleteBonus() {
   });
 }
 
+export function useUpdateBonus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      id: string;
+      name?: string;
+      amount?: number;
+      taxes_withheld?: number;
+      scheduled_date?: string;
+      frequency?: string;
+    }) => {
+      const { id, ...patch } = args;
+      const { error } = await supabase
+        .from("projected_bonus_events")
+        .update(patch)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
+      toast.success("Bonus updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
 /* ─── Override Mutations ─── */
 export function useAddOverride() {
   const qc = useQueryClient();
