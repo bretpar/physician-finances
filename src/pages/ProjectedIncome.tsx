@@ -30,7 +30,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
   useAddStream, useUpdateStream, useDeleteStream,
-  useAddBonus, useDeleteBonus,
+  useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useDeleteOverride,
   usePlannerConversions,
   generateProjectedPaychecks, getProjectedTotals,
@@ -208,6 +208,8 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const deleteBonus = useDeleteBonus();
+  const updateBonus = useUpdateBonus();
   const addIncome = useAddIncome();
   const addPersonalIncome = useAddPersonalIncome();
   const createSource = useCreateIncomeSource();
@@ -230,6 +232,13 @@ export default function ProjectedIncome() {
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
     paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "",
   });
+
+  // Bonus edit state
+  const [bonusEditTarget, setBonusEditTarget] = useState<{ id: string; streamId: string } | null>(null);
+  const [bonusEditForm, setBonusEditForm] = useState<{ name: string; amount: string; taxes_withheld: string; scheduled_date: string }>({
+    name: "", amount: "", taxes_withheld: "", scheduled_date: "",
+  });
+  const [bonusDeleteConfirm, setBonusDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
 
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
@@ -930,7 +939,52 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {/* Actions for past-due entries */}
+                            {/* Actions for bonus entries (active or past-due, not converted/matched/skipped) */}
+                            {entry.type === "bonus" && entry.bonusEventId && !isMatched && !isConverted && !isSkipped && (
+                              <>
+                                {(isActive || isPastDue) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs px-2"
+                                    title="Convert bonus to actual income"
+                                    onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
+                                  >
+                                    <Plus className="h-3 w-3 mr-0.5" /> Convert
+                                  </Button>
+                                )}
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  title="Edit bonus"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBonusEditTarget({ id: entry.bonusEventId!, streamId: entry.streamId });
+                                    setBonusEditForm({
+                                      name: entry.label.replace(/\s*\(.*\)\s*$/, ""),
+                                      amount: String(entry.grossAmount),
+                                      taxes_withheld: String(entry.taxesWithheld),
+                                      scheduled_date: entry.date,
+                                    });
+                                  }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-destructive"
+                                  title="Delete bonus"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBonusDeleteConfirm({ id: entry.bonusEventId!, label: entry.label });
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
                             {isPastDue && (
                               <>
                                 <Button
@@ -1416,7 +1470,94 @@ export default function ProjectedIncome() {
         </DialogContent>
       </Dialog>
 
-      {/* Convert to Actual Income Confirmation */}
+      {/* Bonus Edit Dialog */}
+      <Dialog open={!!bonusEditTarget} onOpenChange={(open) => { if (!open) setBonusEditTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Bonus</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input
+                value={bonusEditForm.name}
+                onChange={(e) => setBonusEditForm((p) => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Amount</Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  value={bonusEditForm.amount}
+                  onChange={(e) => setBonusEditForm((p) => ({ ...p, amount: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tax Withholding</Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  value={bonusEditForm.taxes_withheld}
+                  onChange={(e) => setBonusEditForm((p) => ({ ...p, taxes_withheld: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={bonusEditForm.scheduled_date}
+                onChange={(e) => setBonusEditForm((p) => ({ ...p, scheduled_date: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBonusEditTarget(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!bonusEditTarget) return;
+                updateBonus.mutate({
+                  id: bonusEditTarget.id,
+                  name: bonusEditForm.name,
+                  amount: num(bonusEditForm.amount),
+                  taxes_withheld: num(bonusEditForm.taxes_withheld),
+                  scheduled_date: bonusEditForm.scheduled_date,
+                }, { onSuccess: () => setBonusEditTarget(null) });
+              }}
+              disabled={!bonusEditForm.scheduled_date || num(bonusEditForm.amount) <= 0}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bonus Delete Confirmation */}
+      <Dialog open={!!bonusDeleteConfirm} onOpenChange={(open) => { if (!open) setBonusDeleteConfirm(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Bonus</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete <span className="font-medium text-foreground">{bonusDeleteConfirm?.label}</span>? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBonusDeleteConfirm(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!bonusDeleteConfirm) return;
+                deleteBonus.mutate(bonusDeleteConfirm.id, {
+                  onSuccess: () => setBonusDeleteConfirm(null),
+                });
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

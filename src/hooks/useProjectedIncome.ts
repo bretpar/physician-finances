@@ -113,6 +113,8 @@ export interface ProjectedPaycheck {
   matchedAmount?: number;
   /** Company type from the stream (W2, 1099, K1, etc.) */
   streamCompanyType?: string;
+  /** If this is a bonus entry, the originating bonus event id */
+  bonusEventId?: string;
 }
 
 /* ─── Helpers ─── */
@@ -372,6 +374,32 @@ export function useDeleteBonus() {
   });
 }
 
+export function useUpdateBonus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      id: string;
+      name?: string;
+      amount?: number;
+      taxes_withheld?: number;
+      scheduled_date?: string;
+      frequency?: string;
+    }) => {
+      const { id, ...patch } = args;
+      const { error } = await supabase
+        .from("projected_bonus_events")
+        .update(patch)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
+      toast.success("Bonus updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+}
+
 /* ─── Override Mutations ─── */
 export function useAddOverride() {
   const qc = useQueryClient();
@@ -517,6 +545,7 @@ export function generateProjectedPaychecks(
     isSkipped: boolean;
     isModified: boolean;
     streamCompanyType?: string;
+    bonusEventId?: string;
   }> = [];
 
   for (const stream of streams) {
@@ -630,6 +659,7 @@ export function generateProjectedPaychecks(
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
+        bonusEventId: bonus.id,
         isSkipped: false, isModified: false, streamCompanyType: stream?.company_type,
       });
     }
