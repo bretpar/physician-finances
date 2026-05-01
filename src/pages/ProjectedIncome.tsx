@@ -836,7 +836,7 @@ export default function ProjectedIncome() {
                       return (
                         <div
                           key={i}
-                          className={`flex items-center justify-between px-3 py-2.5 rounded-md border bg-card ${
+                          className={`flex items-start sm:items-center justify-between gap-2 px-3 py-2.5 rounded-md border bg-card ${
                             isConverted
                               ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20 opacity-70"
                               : isSkipped
@@ -850,8 +850,12 @@ export default function ProjectedIncome() {
                               : "border-border/50"
                           }`}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-xs text-muted-foreground w-12 shrink-0">{entry.date.slice(5)}</span>
+                          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                            <span className="text-xs text-muted-foreground w-12 shrink-0 sm:pt-0 pt-0.5">{entry.date.slice(5)}</span>
+                            <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className={`text-sm font-medium sm:truncate break-words line-clamp-2 ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                              {entry.label}
+                            </span>
                             <span className={`text-sm font-medium truncate ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
                               {entry.label}
                             </span>
