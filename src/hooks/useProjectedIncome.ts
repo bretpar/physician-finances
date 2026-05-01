@@ -561,7 +561,7 @@ export function generateProjectedPaychecks(
 
     // One-time / single
     if (stream.pay_frequency === "single") {
-      if (!isAfter(start, yearEnd)) {
+      if (!isAfter(start, yearEnd) && !isBefore(start, yearStart)) {
         const dateStr = format(start, "yyyy-MM-dd");
         const override = overrideMap.get(`${stream.id}:${dateStr}`);
         if (override?.action === "skip") {
