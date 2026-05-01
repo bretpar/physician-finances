@@ -233,6 +233,13 @@ export default function ProjectedIncome() {
     paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "",
   });
 
+  // Bonus edit state
+  const [bonusEditTarget, setBonusEditTarget] = useState<{ id: string; streamId: string } | null>(null);
+  const [bonusEditForm, setBonusEditForm] = useState<{ name: string; amount: string; taxes_withheld: string; scheduled_date: string }>({
+    name: "", amount: "", taxes_withheld: "", scheduled_date: "",
+  });
+  const [bonusDeleteConfirm, setBonusDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
+
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
   const userType = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams);
