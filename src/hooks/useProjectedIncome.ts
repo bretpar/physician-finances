@@ -69,6 +69,8 @@ export interface ProjectedIncomeOverride {
   user_id: string;
   organization_id: string | null;
   override_date: string;
+  /** Optional. When set on a "modify" override, the occurrence is rendered on this date instead of override_date. */
+  new_date: string | null;
   action: "skip" | "modify";
   paycheck_amount: number;
   taxes_withheld: number;
