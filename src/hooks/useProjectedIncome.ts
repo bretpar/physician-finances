@@ -69,6 +69,8 @@ export interface ProjectedIncomeOverride {
   user_id: string;
   organization_id: string | null;
   override_date: string;
+  /** Optional. When set on a "modify" override, the occurrence is rendered on this date instead of override_date. */
+  new_date: string | null;
   action: "skip" | "modify";
   paycheck_amount: number;
   taxes_withheld: number;
@@ -418,6 +420,7 @@ export function useAddOverride() {
       retirement_401k?: number;
       pre_tax_deductions?: number;
       notes?: string;
+      new_date?: string | null;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -433,6 +436,7 @@ export function useAddOverride() {
         retirement_401k: override.retirement_401k ?? 0,
         pre_tax_deductions: override.pre_tax_deductions ?? 0,
         notes: override.notes || "",
+        new_date: override.new_date ?? null,
       });
       if (error) throw error;
     },
@@ -579,8 +583,9 @@ export function generateProjectedPaychecks(
           const tax = override?.action === "modify" ? override.taxes_withheld : stream.taxes_withheld;
           const ret = override?.action === "modify" ? override.retirement_401k : stream.retirement_401k;
           const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
+          const displayDate = override?.action === "modify" && override.new_date ? override.new_date : dateStr;
           rawPaychecks.push({
-            date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
+            date: displayDate, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
             healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
@@ -620,8 +625,9 @@ export function generateProjectedPaychecks(
         const tax = override?.action === "modify" ? override.taxes_withheld : stream.taxes_withheld;
         const ret = override?.action === "modify" ? override.retirement_401k : stream.retirement_401k;
         const ded = override?.action === "modify" ? override.pre_tax_deductions : stream.pre_tax_deductions;
+        const displayDate = override?.action === "modify" && override.new_date ? override.new_date : dateStr;
         rawPaychecks.push({
-          date: dateStr, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
+          date: displayDate, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
           healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,

@@ -1018,6 +1018,7 @@ export type Database = {
           healthcare_deduction: number
           hsa_contribution: number
           id: string
+          new_date: string | null
           notes: string | null
           organization_id: string | null
           override_date: string
@@ -1035,6 +1036,7 @@ export type Database = {
           healthcare_deduction?: number
           hsa_contribution?: number
           id?: string
+          new_date?: string | null
           notes?: string | null
           organization_id?: string | null
           override_date: string
@@ -1052,6 +1054,7 @@ export type Database = {
           healthcare_deduction?: number
           hsa_contribution?: number
           id?: string
+          new_date?: string | null
           notes?: string | null
           organization_id?: string | null
           override_date?: string

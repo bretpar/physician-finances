@@ -129,6 +129,7 @@ interface OverrideForm {
   retirement_401k: string;
   pre_tax_deductions: string;
   notes: string;
+  new_date: string;
 }
 
 const emptyForm = (monthIdx?: number): StreamForm => {
@@ -230,7 +231,7 @@ export default function ProjectedIncome() {
   // Override edit state
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
-    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "",
+    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "",
   });
 
   // Bonus edit state
@@ -258,7 +259,10 @@ export default function ProjectedIncome() {
     const map = new Map<string, ProjectedIncomeOverride>();
     if (overrides) {
       for (const o of overrides) {
+        // Index by anchor (override_date) AND by display date (new_date) when moved,
+        // so ledger rows showing at the moved date can still find their override.
         map.set(`${o.stream_id}:${o.override_date}`, o);
+        if (o.new_date) map.set(`${o.stream_id}:${o.new_date}`, o);
       }
     }
     return map;
@@ -511,47 +515,45 @@ export default function ProjectedIncome() {
 
   const openOverrideEdit = (entry: ProjectedPaycheck) => {
     const existing = overrideLookup.get(`${entry.streamId}:${entry.date}`);
-    // Pre-fill with current values (override or stream defaults)
+    // Anchor date = the original scheduled occurrence. If this entry was already moved,
+    // the anchor lives on the override row, otherwise it's the entry's own date.
+    const anchorDate = existing?.override_date || entry.date;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
       pre_tax_deductions: String(entry.preTaxDeductions),
       notes: existing?.notes || "",
+      new_date: existing?.new_date || entry.date,
     });
-    setOverrideTarget({ streamId: entry.streamId, date: entry.date });
+    setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
 
   const handleOverrideSubmit = () => {
     if (!overrideTarget) return;
     const existing = overrideLookup.get(`${overrideTarget.streamId}:${overrideTarget.date}`);
-    // Delete existing override first if present, then add new one
+    // If user picked the same date as the anchor, treat as "no move"
+    const movedDate =
+      overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
+        ? overrideForm.new_date
+        : null;
+    const payload = {
+      stream_id: overrideTarget.streamId,
+      override_date: overrideTarget.date,
+      action: "modify" as const,
+      paycheck_amount: num(overrideForm.paycheck_amount),
+      taxes_withheld: num(overrideForm.taxes_withheld),
+      retirement_401k: num(overrideForm.retirement_401k),
+      pre_tax_deductions: num(overrideForm.pre_tax_deductions),
+      notes: overrideForm.notes,
+      new_date: movedDate,
+    };
     if (existing) {
       deleteOverride.mutate(existing.id, {
-        onSuccess: () => {
-          addOverride.mutate({
-            stream_id: overrideTarget.streamId,
-            override_date: overrideTarget.date,
-            action: "modify",
-            paycheck_amount: num(overrideForm.paycheck_amount),
-            taxes_withheld: num(overrideForm.taxes_withheld),
-            retirement_401k: num(overrideForm.retirement_401k),
-            pre_tax_deductions: num(overrideForm.pre_tax_deductions),
-            notes: overrideForm.notes,
-          });
-        },
+        onSuccess: () => addOverride.mutate(payload),
       });
     } else {
-      addOverride.mutate({
-        stream_id: overrideTarget.streamId,
-        override_date: overrideTarget.date,
-        action: "modify",
-        paycheck_amount: num(overrideForm.paycheck_amount),
-        taxes_withheld: num(overrideForm.taxes_withheld),
-        retirement_401k: num(overrideForm.retirement_401k),
-        pre_tax_deductions: num(overrideForm.pre_tax_deductions),
-        notes: overrideForm.notes,
-      });
+      addOverride.mutate(payload);
     }
     setOverrideTarget(null);
   };
@@ -985,7 +987,7 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {isPastDue && (
+                            {isPastDue && entry.type === "paycheck" && (
                               <>
                                 <Button
                                   size="sm"
@@ -995,6 +997,15 @@ export default function ProjectedIncome() {
                                   onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
                                 >
                                   <Plus className="h-3 w-3 mr-0.5" /> Convert
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  title="Edit this date"
+                                  onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
+                                >
+                                  <Pencil className="h-3 w-3" />
                                 </Button>
                                 <Button
                                   size="icon"
@@ -1402,6 +1413,19 @@ export default function ProjectedIncome() {
             Override the default amounts for this specific date only. The rest of the stream stays unchanged.
           </p>
           <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={overrideForm.new_date}
+                onChange={(e) => setOverrideForm((p) => ({ ...p, new_date: e.target.value }))}
+              />
+              {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
+                <p className="text-xs text-muted-foreground">
+                  Moved from original date {overrideTarget?.date}.
+                </p>
+              )}
+            </div>
             <div className="space-y-1.5">
               <Label>Gross Amount</Label>
               <Input
