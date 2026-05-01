@@ -129,6 +129,7 @@ interface OverrideForm {
   retirement_401k: string;
   pre_tax_deductions: string;
   notes: string;
+  new_date: string;
 }
 
 const emptyForm = (monthIdx?: number): StreamForm => {
