@@ -122,8 +122,13 @@ export interface ProjectedPaycheck {
 export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
   const today = startOfDay(new Date());
   if (stream.pay_frequency === "single") {
+    // One-time streams are NOT expired just because their date has passed.
+    // They should still appear in the ledger (as past-due / matched / converted)
+    // for the entire calendar year. They only fall off when the year rolls over,
+    // which is handled by the yearStart/yearEnd window in generateProjectedPaychecks.
     const d = parseISO(stream.start_date);
-    return isBefore(d, today) && !isSameDay(d, today);
+    const yearStart = parseISO(`${today.getFullYear()}-01-01`);
+    return isBefore(d, yearStart);
   }
   if (stream.end_date) {
     const end = parseISO(stream.end_date);
