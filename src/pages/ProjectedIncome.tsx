@@ -1604,7 +1604,110 @@ export default function ProjectedIncome() {
         </DialogContent>
       </Dialog>
 
+
       <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
+      {/* Mobile actions bottom sheet */}
+      <Sheet open={!!mobileActionsEntry} onOpenChange={(open) => { if (!open) setMobileActionsEntry(null); }}>
+        <SheetContent side="bottom" className="rounded-t-xl">
+          <SheetHeader className="text-left">
+            <SheetTitle className="truncate">{mobileActionsEntry?.label}</SheetTitle>
+            <p className="text-xs text-muted-foreground">{mobileActionsEntry?.date}</p>
+          </SheetHeader>
+          {mobileActionsEntry && (() => {
+            const e = mobileActionsEntry;
+            const m_isMatched = e.matchStatus === "matched";
+            const m_isPastDue = e.matchStatus === "past_due";
+            const m_isSkipped = e.matchStatus === "skipped";
+            const m_isActive = e.matchStatus === "active";
+            const m_isAutoConverted = e.matchStatus === "converted";
+            const m_override = overrideLookup.get(`${e.streamId}:${e.date}`);
+            const m_isOverrideConverted = m_isSkipped && m_override?.notes?.includes("Converted to actual income");
+            const m_isConverted = m_isAutoConverted || m_isOverrideConverted;
+            const m_t = (e.streamCompanyType || "").toLowerCase();
+            const m_isBiz = m_t === "1099" || m_t === "k1" || m_t === "1099_schedule_c" || m_t === "k1_partnership" || m_t === "scorp_distribution";
+            const m_viewDest = m_isBiz ? "/business-activity" : "/personal-income";
+            const m_viewLabel = m_isBiz ? "Business Activity" : "Personal Income";
+            const close = () => setMobileActionsEntry(null);
+            return (
+              <div className="flex flex-col gap-2 mt-4 pb-4">
+                {((m_isActive && e.type === "paycheck") || (e.type === "bonus" && e.bonusEventId && (m_isActive || m_isPastDue) && !m_isMatched && !m_isConverted && !m_isSkipped) || (m_isPastDue && e.type === "paycheck")) && (
+                  <Button variant="outline" className="justify-start h-12" onClick={() => { close(); openConvert(e); }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {e.type === "bonus" ? "Convert bonus to actual income" : (m_isBiz ? "Move to Business Ledger" : "Move to Personal Income")}
+                  </Button>
+                )}
+                {((m_isActive && e.type === "paycheck") || (m_isPastDue && e.type === "paycheck")) && (
+                  <Button variant="outline" className="justify-start h-12" onClick={() => { close(); openOverrideEdit(e); }}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit this date
+                  </Button>
+                )}
+                {e.type === "bonus" && e.bonusEventId && !m_isMatched && !m_isConverted && !m_isSkipped && (
+                  <Button variant="outline" className="justify-start h-12" onClick={() => {
+                    close();
+                    setBonusEditTarget({ id: e.bonusEventId!, streamId: e.streamId });
+                    setBonusEditForm({
+                      name: e.label.replace(/\s*\(.*\)\s*$/, ""),
+                      amount: String(e.grossAmount),
+                      taxes_withheld: String(e.taxesWithheld),
+                      scheduled_date: e.date,
+                    });
+                  }}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit bonus
+                  </Button>
+                )}
+                {(m_isMatched || m_isConverted) && (
+                  <Button variant="outline" className="justify-start h-12" onClick={() => { close(); navigate(m_viewDest); }}>
+                    <ExternalLink className="h-4 w-4 mr-2" /> View in {m_viewLabel}
+                  </Button>
+                )}
+                {m_isSkipped && !m_isConverted && (
+                  <Button variant="outline" className="justify-start h-12 text-primary" onClick={() => { close(); handleRestore(e); }}>
+                    <RotateCcw className="h-4 w-4 mr-2" /> Restore this date
+                  </Button>
+                )}
+                {e.isModified && m_isActive && (
+                  <Button variant="outline" className="justify-start h-12" onClick={() => { close(); handleRestore(e); }}>
+                    <RotateCcw className="h-4 w-4 mr-2" /> Reset to default
+                  </Button>
+                )}
+                {((m_isActive || m_isPastDue) && e.type === "paycheck") && (
+                  <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => { close(); setMobileSkipConfirm(e); }}>
+                    <X className="h-4 w-4 mr-2" /> Delete (skip this date)
+                  </Button>
+                )}
+                {e.type === "bonus" && e.bonusEventId && !m_isMatched && !m_isConverted && !m_isSkipped && (
+                  <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => {
+                    close();
+                    setBonusDeleteConfirm({ id: e.bonusEventId!, label: e.label });
+                  }}>
+                    <X className="h-4 w-4 mr-2" /> Delete bonus
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={!!mobileSkipConfirm} onOpenChange={(open) => { if (!open) setMobileSkipConfirm(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this income?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will skip <span className="font-medium text-foreground">{mobileSkipConfirm?.label}</span> on {mobileSkipConfirm?.date}. You can restore it later.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMobileSkipConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => {
+              if (!mobileSkipConfirm) return;
+              handleSkip(mobileSkipConfirm);
+              setMobileSkipConfirm(null);
+            }}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Convert to Actual Income</DialogTitle>
