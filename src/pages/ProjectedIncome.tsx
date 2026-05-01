@@ -987,7 +987,7 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {isPastDue && (
+                            {isPastDue && entry.type === "paycheck" && (
                               <>
                                 <Button
                                   size="sm"
@@ -997,6 +997,15 @@ export default function ProjectedIncome() {
                                   onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
                                 >
                                   <Plus className="h-3 w-3 mr-0.5" /> Convert
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  title="Edit this date"
+                                  onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
+                                >
+                                  <Pencil className="h-3 w-3" />
                                 </Button>
                                 <Button
                                   size="icon"
