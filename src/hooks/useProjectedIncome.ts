@@ -632,6 +632,7 @@ export function generateProjectedPaychecks(
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
+        bonusEventId: bonus.id,
         isSkipped: false, isModified: false, streamCompanyType: stream?.company_type,
       });
     }
