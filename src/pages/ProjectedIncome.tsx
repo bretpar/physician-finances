@@ -939,7 +939,52 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {/* Actions for past-due entries */}
+                            {/* Actions for bonus entries (active or past-due, not converted/matched/skipped) */}
+                            {entry.type === "bonus" && entry.bonusEventId && !isMatched && !isConverted && !isSkipped && (
+                              <>
+                                {(isActive || isPastDue) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs px-2"
+                                    title="Convert bonus to actual income"
+                                    onClick={(e) => { e.stopPropagation(); openConvert(entry); }}
+                                  >
+                                    <Plus className="h-3 w-3 mr-0.5" /> Convert
+                                  </Button>
+                                )}
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  title="Edit bonus"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBonusEditTarget({ id: entry.bonusEventId!, streamId: entry.streamId });
+                                    setBonusEditForm({
+                                      name: entry.label.replace(/\s*\(.*\)\s*$/, ""),
+                                      amount: String(entry.grossAmount),
+                                      taxes_withheld: String(entry.taxesWithheld),
+                                      scheduled_date: entry.date,
+                                    });
+                                  }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-destructive"
+                                  title="Delete bonus"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBonusDeleteConfirm({ id: entry.bonusEventId!, label: entry.label });
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
                             {isPastDue && (
                               <>
                                 <Button
