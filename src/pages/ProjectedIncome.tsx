@@ -853,10 +853,7 @@ export default function ProjectedIncome() {
                           <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                             <span className="text-xs text-muted-foreground w-12 shrink-0 sm:pt-0 pt-0.5">{entry.date.slice(5)}</span>
                             <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className={`text-sm font-medium sm:truncate break-words line-clamp-2 ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                              {entry.label}
-                            </span>
-                            <span className={`text-sm font-medium truncate ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                            <span className={`text-sm font-medium break-words line-clamp-2 sm:line-clamp-none sm:truncate ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
                               {entry.label}
                             </span>
                             {entry.type === "bonus" && (
@@ -883,8 +880,24 @@ export default function ProjectedIncome() {
                             {entry.isModified && isActive && (
                               <Badge variant="outline" className="text-xs shrink-0 border-primary/40 text-primary">Modified</Badge>
                             )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          {/* Mobile: amount + single pencil that opens action sheet */}
+                          <div className="flex sm:hidden items-center gap-2 shrink-0 pt-0.5">
+                            <span className={`text-sm font-semibold whitespace-nowrap ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {fmtFull(entry.grossAmount)}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              title="Actions"
+                              onClick={(e) => { e.stopPropagation(); setMobileActionsEntry(entry); }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="hidden sm:flex items-center gap-2 shrink-0">
                             {/* Matched entry: show actual amount + link to view */}
                             {isMatched && entry.matchedAmount != null && (
                               <>
