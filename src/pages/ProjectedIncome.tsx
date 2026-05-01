@@ -515,47 +515,45 @@ export default function ProjectedIncome() {
 
   const openOverrideEdit = (entry: ProjectedPaycheck) => {
     const existing = overrideLookup.get(`${entry.streamId}:${entry.date}`);
-    // Pre-fill with current values (override or stream defaults)
+    // Anchor date = the original scheduled occurrence. If this entry was already moved,
+    // the anchor lives on the override row, otherwise it's the entry's own date.
+    const anchorDate = existing?.override_date || entry.date;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
       pre_tax_deductions: String(entry.preTaxDeductions),
       notes: existing?.notes || "",
+      new_date: existing?.new_date || entry.date,
     });
-    setOverrideTarget({ streamId: entry.streamId, date: entry.date });
+    setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
 
   const handleOverrideSubmit = () => {
     if (!overrideTarget) return;
     const existing = overrideLookup.get(`${overrideTarget.streamId}:${overrideTarget.date}`);
-    // Delete existing override first if present, then add new one
+    // If user picked the same date as the anchor, treat as "no move"
+    const movedDate =
+      overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
+        ? overrideForm.new_date
+        : null;
+    const payload = {
+      stream_id: overrideTarget.streamId,
+      override_date: overrideTarget.date,
+      action: "modify" as const,
+      paycheck_amount: num(overrideForm.paycheck_amount),
+      taxes_withheld: num(overrideForm.taxes_withheld),
+      retirement_401k: num(overrideForm.retirement_401k),
+      pre_tax_deductions: num(overrideForm.pre_tax_deductions),
+      notes: overrideForm.notes,
+      new_date: movedDate,
+    };
     if (existing) {
       deleteOverride.mutate(existing.id, {
-        onSuccess: () => {
-          addOverride.mutate({
-            stream_id: overrideTarget.streamId,
-            override_date: overrideTarget.date,
-            action: "modify",
-            paycheck_amount: num(overrideForm.paycheck_amount),
-            taxes_withheld: num(overrideForm.taxes_withheld),
-            retirement_401k: num(overrideForm.retirement_401k),
-            pre_tax_deductions: num(overrideForm.pre_tax_deductions),
-            notes: overrideForm.notes,
-          });
-        },
+        onSuccess: () => addOverride.mutate(payload),
       });
     } else {
-      addOverride.mutate({
-        stream_id: overrideTarget.streamId,
-        override_date: overrideTarget.date,
-        action: "modify",
-        paycheck_amount: num(overrideForm.paycheck_amount),
-        taxes_withheld: num(overrideForm.taxes_withheld),
-        retirement_401k: num(overrideForm.retirement_401k),
-        pre_tax_deductions: num(overrideForm.pre_tax_deductions),
-        notes: overrideForm.notes,
-      });
+      addOverride.mutate(payload);
     }
     setOverrideTarget(null);
   };
