@@ -1605,7 +1605,6 @@ export default function ProjectedIncome() {
       </Dialog>
 
 
-      <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
       {/* Mobile actions bottom sheet */}
       <Sheet open={!!mobileActionsEntry} onOpenChange={(open) => { if (!open) setMobileActionsEntry(null); }}>
         <SheetContent side="bottom" className="rounded-t-xl">
@@ -1708,6 +1707,7 @@ export default function ProjectedIncome() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Convert to Actual Income</DialogTitle>
