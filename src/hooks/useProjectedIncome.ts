@@ -113,6 +113,8 @@ export interface ProjectedPaycheck {
   matchedAmount?: number;
   /** Company type from the stream (W2, 1099, K1, etc.) */
   streamCompanyType?: string;
+  /** If this is a bonus entry, the originating bonus event id */
+  bonusEventId?: string;
 }
 
 /* ─── Helpers ─── */
