@@ -208,6 +208,8 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const deleteBonus = useDeleteBonus();
+  const updateBonus = useUpdateBonus();
   const addIncome = useAddIncome();
   const addPersonalIncome = useAddPersonalIncome();
   const createSource = useCreateIncomeSource();
