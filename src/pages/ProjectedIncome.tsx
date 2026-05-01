@@ -259,7 +259,10 @@ export default function ProjectedIncome() {
     const map = new Map<string, ProjectedIncomeOverride>();
     if (overrides) {
       for (const o of overrides) {
+        // Index by anchor (override_date) AND by display date (new_date) when moved,
+        // so ledger rows showing at the moved date can still find their override.
         map.set(`${o.stream_id}:${o.override_date}`, o);
+        if (o.new_date) map.set(`${o.stream_id}:${o.new_date}`, o);
       }
     }
     return map;
