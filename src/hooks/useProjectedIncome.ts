@@ -519,6 +519,7 @@ export function generateProjectedPaychecks(
     isSkipped: boolean;
     isModified: boolean;
     streamCompanyType?: string;
+    bonusEventId?: string;
   }> = [];
 
   for (const stream of streams) {
