@@ -420,6 +420,7 @@ export function useAddOverride() {
       retirement_401k?: number;
       pre_tax_deductions?: number;
       notes?: string;
+      new_date?: string | null;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -435,6 +436,7 @@ export function useAddOverride() {
         retirement_401k: override.retirement_401k ?? 0,
         pre_tax_deductions: override.pre_tax_deductions ?? 0,
         notes: override.notes || "",
+        new_date: override.new_date ?? null,
       });
       if (error) throw error;
     },
