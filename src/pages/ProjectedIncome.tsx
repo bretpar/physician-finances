@@ -1470,7 +1470,94 @@ export default function ProjectedIncome() {
         </DialogContent>
       </Dialog>
 
-      {/* Convert to Actual Income Confirmation */}
+      {/* Bonus Edit Dialog */}
+      <Dialog open={!!bonusEditTarget} onOpenChange={(open) => { if (!open) setBonusEditTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Bonus</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input
+                value={bonusEditForm.name}
+                onChange={(e) => setBonusEditForm((p) => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Amount</Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  value={bonusEditForm.amount}
+                  onChange={(e) => setBonusEditForm((p) => ({ ...p, amount: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tax Withholding</Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  value={bonusEditForm.taxes_withheld}
+                  onChange={(e) => setBonusEditForm((p) => ({ ...p, taxes_withheld: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={bonusEditForm.scheduled_date}
+                onChange={(e) => setBonusEditForm((p) => ({ ...p, scheduled_date: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBonusEditTarget(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!bonusEditTarget) return;
+                updateBonus.mutate({
+                  id: bonusEditTarget.id,
+                  name: bonusEditForm.name,
+                  amount: num(bonusEditForm.amount),
+                  taxes_withheld: num(bonusEditForm.taxes_withheld),
+                  scheduled_date: bonusEditForm.scheduled_date,
+                }, { onSuccess: () => setBonusEditTarget(null) });
+              }}
+              disabled={!bonusEditForm.scheduled_date || num(bonusEditForm.amount) <= 0}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bonus Delete Confirmation */}
+      <Dialog open={!!bonusDeleteConfirm} onOpenChange={(open) => { if (!open) setBonusDeleteConfirm(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Bonus</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete <span className="font-medium text-foreground">{bonusDeleteConfirm?.label}</span>? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBonusDeleteConfirm(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!bonusDeleteConfirm) return;
+                deleteBonus.mutate(bonusDeleteConfirm.id, {
+                  onSuccess: () => setBonusDeleteConfirm(null),
+                });
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
