@@ -243,6 +243,8 @@ export default function ProjectedIncome() {
     name: "", amount: "", taxes_withheld: "", scheduled_date: "",
   });
   const [bonusDeleteConfirm, setBonusDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
+  const [mobileActionsEntry, setMobileActionsEntry] = useState<ProjectedPaycheck | null>(null);
+  const [mobileSkipConfirm, setMobileSkipConfirm] = useState<ProjectedPaycheck | null>(null);
 
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
