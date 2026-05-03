@@ -154,6 +154,58 @@ export function SourceEmployerCombobox({
 
   const triggerInvalid = invalid && !linkedSource && !otherName;
 
+  if (isOther) {
+    return (
+      <div className="space-y-2">
+        <Input
+          ref={otherInputRef}
+          autoFocus
+          placeholder="Enter employer or income source"
+          value={otherName}
+          onChange={(e) => setOtherName(e.target.value)}
+          className={cn("h-10", invalid && !otherName && "border-destructive")}
+        />
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="save-as-source"
+            checked={saveAsNew}
+            onCheckedChange={(v) => setSaveAsNew(v === true)}
+          />
+          <Label htmlFor="save-as-source" className="text-xs text-foreground cursor-pointer leading-tight">
+            Save this employer/source for future use
+          </Label>
+        </div>
+        {saveAsNew && (
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">
+              Source type <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={newSourceKind || ""}
+              onValueChange={(v) => setNewKind(v as SourceKind)}
+            >
+              <SelectTrigger className={cn("h-9", invalid && !newSourceKind && "border-destructive")}>
+                <SelectValue placeholder="Choose type…" />
+              </SelectTrigger>
+              <SelectContent>
+                {SOURCE_KIND_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={backToDropdown}
+          className="text-xs text-primary hover:underline"
+        >
+          Choose saved source instead
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
@@ -257,53 +309,6 @@ export function SourceEmployerCombobox({
           </div>
         </PopoverContent>
       </Popover>
-
-      {/* "Other" follow-up fields */}
-      {isOther && (
-        <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">
-              Other Source / Employer Name {required && <span className="text-destructive">*</span>}
-            </Label>
-            <Input
-              placeholder="e.g. Acme Hospital"
-              value={otherName}
-              onChange={(e) => setOtherName(e.target.value)}
-              className={cn(invalid && !otherName && "border-destructive")}
-            />
-          </div>
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="save-as-source"
-              checked={saveAsNew}
-              onCheckedChange={(v) => setSaveAsNew(v === true)}
-            />
-            <Label htmlFor="save-as-source" className="text-xs text-foreground cursor-pointer leading-tight">
-              Save this as a new source in Settings
-            </Label>
-          </div>
-          {saveAsNew && (
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Source type <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={newSourceKind || ""}
-                onValueChange={(v) => setNewKind(v as SourceKind)}
-              >
-                <SelectTrigger className={cn("h-9", invalid && !newSourceKind && "border-destructive")}>
-                  <SelectValue placeholder="Choose type…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOURCE_KIND_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
