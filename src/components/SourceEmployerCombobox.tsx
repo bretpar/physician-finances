@@ -60,9 +60,16 @@ export function SourceEmployerCombobox({
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [otherMode, setOtherMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const otherInputRef = useRef<HTMLInputElement>(null);
 
-  const isOther = sourceId === null && otherName.length > 0;
+  const isOther = otherMode || (sourceId === null && otherName.length > 0);
+
+  // Keep otherMode in sync if a linked source becomes set externally
+  useEffect(() => {
+    if (sourceId) setOtherMode(false);
+  }, [sourceId]);
 
   const linkedSource = useMemo(
     () => sources.find((s) => s.id === sourceId) || null,
