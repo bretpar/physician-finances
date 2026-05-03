@@ -104,14 +104,28 @@ export function SourceEmployerCombobox({
   }
 
   function selectOther() {
+    setOtherMode(true);
     onChange({
       sourceId: null,
-      otherName: otherName || (search.trim() || ""),
+      otherName: otherName || search.trim() || "",
       saveAsNew: false,
       newSourceKind: null,
       linkedSource: null,
     });
     setOpen(false);
+    setTimeout(() => otherInputRef.current?.focus(), 50);
+  }
+
+  function backToDropdown() {
+    setOtherMode(false);
+    onChange({
+      sourceId: null,
+      otherName: "",
+      saveAsNew: false,
+      newSourceKind: null,
+      linkedSource: null,
+    });
+    setOpen(true);
   }
 
   function setOtherName(name: string) {
