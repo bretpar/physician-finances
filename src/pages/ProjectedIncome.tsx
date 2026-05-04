@@ -728,8 +728,9 @@ export default function ProjectedIncome() {
           </Button>
         </div>
 
-        <div className="space-y-1.5">
-          {MONTHS.map((monthName, idx) => {
+        {(() => {
+          const renderMonth = (idx: number) => {
+            const monthName = MONTHS[idx];
             const entries = byMonth.get(idx) || [];
             const activeEntries = entries.filter((e) => e.matchStatus === "active");
             const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
@@ -738,10 +739,127 @@ export default function ProjectedIncome() {
             const convertedEntries = entries.filter((e) => e.matchStatus === "converted");
             const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
             const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
+            // Count of income entries shown in the simplified collapsed row.
+            // Includes everything the user planned for the month (active +
+            // matched + past-due + converted), but excludes "skipped" since
+            // those are intentionally removed from the plan.
+            const countableEntries =
+              activeEntries.length +
+              matchedEntries.length +
+              pastDueEntries.length +
+              convertedEntries.length;
+            // Total income amount displayed in the simplified row mirrors the
+            // count above so the right-hand $ matches the middle count.
+            const rowTotal = entries
+              .filter((e) => e.matchStatus !== "skipped")
+              .reduce((s, e) => s + e.grossAmount, 0);
             const isExpanded = expandedMonths.has(idx);
             const isPast = idx < currentMonth;
             const isCurrent = idx === currentMonth;
+            const countLabel = `${countableEntries} ${countableEntries === 1 ? "paycheck" : "paychecks"}`;
 
+            return (
+              <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    className={`w-full grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 sm:px-4 py-3 rounded-lg border transition-colors text-left ${
+                      isCurrent
+                        ? "border-primary/30 bg-primary/5"
+                        : isPast
+                        ? "border-border/50 bg-muted/30"
+                        : "border-border bg-card hover:bg-accent/5"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      )}
+                      <span className="font-medium text-foreground truncate">{monthName}</span>
+                    </div>
+                    <span className="text-xs sm:text-sm text-muted-foreground text-center truncate">
+                      {countableEntries > 0 ? countLabel : ""}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground text-right whitespace-nowrap">
+                      {rowTotal > 0 ? fmt(rowTotal) : ""}
+                    </span>
+                  </button>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <div className="ml-4 mr-1 mt-1 mb-2 space-y-2">
+                    {activeEntries.length > 0 && (
+                      <div className="flex flex-wrap gap-4 px-3 py-2 rounded-md bg-muted/40 text-xs text-muted-foreground">
+                        <span>Total: <strong className="text-foreground">{fmt(monthTotal)}</strong></span>
+                        {monthWithheld > 0 && (
+                          <span>Withholding: <strong className="text-foreground">{fmt(monthWithheld)}</strong></span>
+                        )}
+                        {activeEntries.reduce((s, e) => s + e.retirement401k, 0) > 0 && (
+                          <span>401(k): <strong className="text-foreground">
+                            {fmt(activeEntries.reduce((s, e) => s + e.retirement401k, 0))}
+                          </strong></span>
+                        )}
+                      </div>
+                    )}
+
+                    {entries.map((entry, i) => {
+                      const isMatched = entry.matchStatus === "matched";
+// ... keep existing code (entry rendering through end of entries.map and the empty/add buttons)
+                    })}
+                    {entries.length === 0 && (
+                      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                        No projected income for this month.
+                      </div>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => openAddForMonth(idx)}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add income for {monthName}
+                    </Button>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          };
+
+          const upcomingIdxs = MONTHS.map((_, i) => i).filter((i) => i >= currentMonth);
+          const previousIdxs = MONTHS.map((_, i) => i).filter((i) => i < currentMonth);
+
+          return (
+            <>
+              <div className="space-y-1.5">
+                {upcomingIdxs.map(renderMonth)}
+              </div>
+
+              {previousIdxs.length > 0 && (
+                <Collapsible open={showPreviousMonths} onOpenChange={setShowPreviousMonths} className="mt-3">
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
+                      <div className="flex items-center gap-2">
+                        {showPreviousMonths ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="text-sm font-medium text-muted-foreground">Previous months</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{previousIdxs.length}</span>
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="space-y-1.5 mt-1.5">
+                      {previousIdxs.map(renderMonth)}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </>
+          );
+        })()}
             return (
               <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
                 <CollapsibleTrigger asChild>
