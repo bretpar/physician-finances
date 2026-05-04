@@ -735,21 +735,15 @@ export default function ProjectedIncome() {
             const activeEntries = entries.filter((e) => e.matchStatus === "active");
             const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
             const pastDueEntries = entries.filter((e) => e.matchStatus === "past_due");
-            const skippedEntries = entries.filter((e) => e.matchStatus === "skipped");
             const convertedEntries = entries.filter((e) => e.matchStatus === "converted");
             const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
             const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
-            // Count of income entries shown in the simplified collapsed row.
-            // Includes everything the user planned for the month (active +
-            // matched + past-due + converted), but excludes "skipped" since
-            // those are intentionally removed from the plan.
+            // Simplified row count + total exclude "skipped" entries.
             const countableEntries =
               activeEntries.length +
               matchedEntries.length +
               pastDueEntries.length +
               convertedEntries.length;
-            // Total income amount displayed in the simplified row mirrors the
-            // count above so the right-hand $ matches the middle count.
             const rowTotal = entries
               .filter((e) => e.matchStatus !== "skipped")
               .reduce((s, e) => s + e.grossAmount, 0);
@@ -805,149 +799,15 @@ export default function ProjectedIncome() {
 
                     {entries.map((entry, i) => {
                       const isMatched = entry.matchStatus === "matched";
-// ... keep existing code (entry rendering through end of entries.map and the empty/add buttons)
-                    })}
-                    {entries.length === 0 && (
-                      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-                        No projected income for this month.
-                      </div>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-muted-foreground"
-                      onClick={() => openAddForMonth(idx)}
-                    >
-                      <Plus className="h-3 w-3 mr-1" /> Add income for {monthName}
-                    </Button>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            );
-          };
-
-          const upcomingIdxs = MONTHS.map((_, i) => i).filter((i) => i >= currentMonth);
-          const previousIdxs = MONTHS.map((_, i) => i).filter((i) => i < currentMonth);
-
-          return (
-            <>
-              <div className="space-y-1.5">
-                {upcomingIdxs.map(renderMonth)}
-              </div>
-
-              {previousIdxs.length > 0 && (
-                <Collapsible open={showPreviousMonths} onOpenChange={setShowPreviousMonths} className="mt-3">
-                  <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
-                      <div className="flex items-center gap-2">
-                        {showPreviousMonths ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className="text-sm font-medium text-muted-foreground">Previous months</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{previousIdxs.length}</span>
-                    </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="space-y-1.5 mt-1.5">
-                      {previousIdxs.map(renderMonth)}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </>
-          );
-        })()}
-            return (
-              <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
-                <CollapsibleTrigger asChild>
-                  <button
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors text-left ${
-                      isCurrent
-                        ? "border-primary/30 bg-primary/5"
-                        : isPast
-                        ? "border-border/50 bg-muted/30 opacity-60"
-                        : "border-border bg-card hover:bg-accent/5"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span className="font-medium text-foreground">{monthName}</span>
-                      {activeEntries.length > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          {activeEntries.length} upcoming
-                        </Badge>
-                      )}
-                      {matchedEntries.length > 0 && (
-                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
-                          {matchedEntries.length} matched
-                        </Badge>
-                      )}
-                      {convertedEntries.length > 0 && (
-                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-600 dark:text-emerald-400">
-                          {convertedEntries.length} converted
-                        </Badge>
-                      )}
-                      {pastDueEntries.length > 0 && (
-                        <Badge variant="outline" className="text-xs border-amber-400 text-amber-600 dark:text-amber-400">
-                          {pastDueEntries.length} needs review
-                        </Badge>
-                      )}
-                      {skippedEntries.length > 0 && (
-                        <Badge variant="outline" className="text-xs border-muted text-muted-foreground">
-                          {skippedEntries.length} skipped
-                        </Badge>
-                      )}
-                      {isCurrent && (
-                        <Badge variant="default" className="text-xs">Current</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      {monthTotal > 0 && (
-                        <span className="font-semibold text-success">{fmt(monthTotal)}</span>
-                      )}
-                      {monthWithheld > 0 && (
-                        <span className="text-muted-foreground">{fmt(monthWithheld)} tax</span>
-                      )}
-                    </div>
-                  </button>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent>
-                  <div className="ml-4 mr-1 mt-1 mb-2 space-y-2">
-                    {activeEntries.length > 0 && (
-                      <div className="flex flex-wrap gap-4 px-3 py-2 rounded-md bg-muted/40 text-xs text-muted-foreground">
-                        <span>Total: <strong className="text-foreground">{fmt(monthTotal)}</strong></span>
-                        {monthWithheld > 0 && (
-                          <span>Withholding: <strong className="text-foreground">{fmt(monthWithheld)}</strong></span>
-                        )}
-                        {activeEntries.reduce((s, e) => s + e.retirement401k, 0) > 0 && (
-                          <span>401(k): <strong className="text-foreground">
-                            {fmt(activeEntries.reduce((s, e) => s + e.retirement401k, 0))}
-                          </strong></span>
-                        )}
-                      </div>
-                    )}
-
-                    {entries.map((entry, i) => {
-                      const isMatched = entry.matchStatus === "matched";
                       const isPastDue = entry.matchStatus === "past_due";
                       const isSkipped = entry.matchStatus === "skipped";
                       const isActive = entry.matchStatus === "active";
                       const isAutoConverted = entry.matchStatus === "converted";
 
-                      // Check if this skipped entry was converted (legacy: existing override-based flow)
                       const override = overrideLookup.get(`${entry.streamId}:${entry.date}`);
                       const isOverrideConverted = isSkipped && override?.notes?.includes("Converted to actual income");
                       const isConverted = isAutoConverted || isOverrideConverted;
 
-                      // Determine link destination for matched/converted entries
                       const _t = (entry.streamCompanyType || "").toLowerCase();
                       const isBizType = _t === "1099" || _t === "k1" || _t === "1099_schedule_c" || _t === "k1_partnership" || _t === "scorp_distribution";
                       const viewDestination = isBizType ? "/business-activity" : "/personal-income";
@@ -1018,7 +878,6 @@ export default function ProjectedIncome() {
                             </Button>
                           </div>
                           <div className="hidden sm:flex items-center gap-2 shrink-0">
-                            {/* Matched entry: show actual amount + link to view */}
                             {isMatched && entry.matchedAmount != null && (
                               <>
                                 <span className="text-xs text-muted-foreground">
@@ -1035,7 +894,6 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {/* Converted entry: show link to destination ledger */}
                             {isConverted && (
                               <Button
                                 size="sm"
@@ -1050,7 +908,6 @@ export default function ProjectedIncome() {
                             <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
-                            {/* Actions for active entries */}
                             {isActive && entry.type === "paycheck" && (
                               <>
                                 <Button
@@ -1083,7 +940,6 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {/* Actions for bonus entries (active or past-due, not converted/matched/skipped) */}
                             {entry.type === "bonus" && entry.bonusEventId && !isMatched && !isConverted && !isSkipped && (
                               <>
                                 {(isActive || isPastDue) && (
@@ -1160,7 +1016,6 @@ export default function ProjectedIncome() {
                                 </Button>
                               </>
                             )}
-                            {/* Restore for skipped (non-converted) entries */}
                             {isSkipped && !isConverted && (
                               <Button
                                 size="icon"
@@ -1172,7 +1027,6 @@ export default function ProjectedIncome() {
                                 <RotateCcw className="h-3 w-3" />
                               </Button>
                             )}
-                            {/* Restore modified */}
                             {entry.isModified && isActive && (
                               <Button
                                 size="icon"
@@ -1207,9 +1061,42 @@ export default function ProjectedIncome() {
                 </CollapsibleContent>
               </Collapsible>
             );
-          })}
-        </div>
+          };
 
+          const upcomingIdxs = MONTHS.map((_, i) => i).filter((i) => i >= currentMonth);
+          const previousIdxs = MONTHS.map((_, i) => i).filter((i) => i < currentMonth);
+
+          return (
+            <>
+              <div className="space-y-1.5">
+                {upcomingIdxs.map(renderMonth)}
+              </div>
+
+              {previousIdxs.length > 0 && (
+                <Collapsible open={showPreviousMonths} onOpenChange={setShowPreviousMonths} className="mt-3">
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
+                      <div className="flex items-center gap-2">
+                        {showPreviousMonths ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="text-sm font-medium text-muted-foreground">Previous months</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{previousIdxs.length}</span>
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="space-y-1.5 mt-1.5">
+                      {previousIdxs.map(renderMonth)}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </>
+          );
+        })()}
       {streams && streams.length > 0 && (() => {
         const activeStreams = streams.filter((s) => !isStreamExpired(s));
         const expiredStreams = streams.filter((s) => isStreamExpired(s));
