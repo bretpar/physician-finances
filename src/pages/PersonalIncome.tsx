@@ -477,12 +477,15 @@ export default function PersonalIncome() {
     setShowSourceError(false);
 
     let payloadSourceId = form.source_id;
-    if (!payloadSourceId && form.source_save_as_new && form.source_new_kind && form.source_name.trim()) {
+    // Only persist a new company/source when the user explicitly opted-in via
+    // the "Save this employer/source for future use" checkbox. Manual "Other"
+    // entries without the checkbox are stored on the income row only.
+    if (!payloadSourceId && form.source_save_as_new && form.source_name.trim()) {
       try {
         const newId = await persistNewSourceIfRequested(
           {
             otherName: form.source_name,
-            saveAsNew: true,
+            saveAsNew: form.source_save_as_new,
             newSourceKind: form.source_new_kind,
           },
           createSource.mutateAsync,

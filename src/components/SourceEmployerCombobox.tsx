@@ -321,7 +321,11 @@ export async function persistNewSourceIfRequested(
   selection: { otherName: string; saveAsNew: boolean; newSourceKind: SourceKind | null },
   createSource: ReturnType<typeof useCreateIncomeSource>["mutateAsync"],
 ): Promise<string | null> {
-  if (!selection.saveAsNew || !selection.otherName.trim() || !selection.newSourceKind) return null;
+  // Hard guard: do nothing unless the user explicitly opted-in via the
+  // "Save this employer/source for future use" checkbox AND chose a type.
+  if (!selection.saveAsNew) return null;
+  if (!selection.otherName.trim()) return null;
+  if (!selection.newSourceKind) return null;
   const created = await createSource({
     name: selection.otherName.trim(),
     source_kind: selection.newSourceKind,
