@@ -230,6 +230,7 @@ export default function ProjectedIncome() {
     const current = new Date().getMonth();
     return new Set([current]);
   });
+  const [showPreviousMonths, setShowPreviousMonths] = useState(false);
 
   // Override edit state
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
