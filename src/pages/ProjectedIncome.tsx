@@ -421,14 +421,15 @@ export default function ProjectedIncome() {
       return;
     }
 
-    // Persist new source if requested
+    // Persist new source ONLY when the user opted-in via the
+    // "Save this employer/source for future use" checkbox.
     let payloadSourceId = form.source_id;
-    if (!payloadSourceId && form.source_save_as_new && form.source_new_kind && form.source_name.trim()) {
+    if (!payloadSourceId && form.source_save_as_new && form.source_name.trim()) {
       try {
         payloadSourceId = await persistNewSourceIfRequested(
           {
             otherName: form.source_name,
-            saveAsNew: true,
+            saveAsNew: form.source_save_as_new,
             newSourceKind: form.source_new_kind,
           },
           createSource.mutateAsync,
