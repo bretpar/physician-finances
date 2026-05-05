@@ -283,7 +283,7 @@ export default function Onboarding() {
     if (saving || (step === 1 && !user && signupCooldownSeconds > 0)) return;
     setSaving(true);
     try {
-      const nextStep = Math.min(6, step + 1);
+      const nextStep = Math.min(4, step + 1);
       if (step === 1) {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
@@ -299,8 +299,6 @@ export default function Onboarding() {
             console.error("[onboarding] signUp failed", error);
             throw error;
           }
-          // Supabase returns a user with an empty identities array when the email is already registered
-          // (and email confirmations are enabled), instead of throwing an error.
           const identities = (data.user as any)?.identities;
           if (data.user && Array.isArray(identities) && identities.length === 0) {
             throw new Error(DUPLICATE_EMAIL_MESSAGE);
@@ -317,9 +315,9 @@ export default function Onboarding() {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
         }
-      } else if (step === 6) {
+      } else if (step === 4) {
         await createOnboardingCompanies();
-        await persist({ onboardingComplete: true, onboardingStep: 6 });
+        await persist({ onboardingComplete: true, onboardingStep: 4 });
         sessionStorage.removeItem("paycheckmd-start-setup");
         sessionStorage.removeItem("paycheckmd-onboarding-step");
         navigate("/", { replace: true });
