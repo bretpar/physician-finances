@@ -130,8 +130,8 @@ function ProfileSection({ justSavedFlag }: { justSavedFlag: (key: string) => boo
 
   return (
     <SectionCard
-      title="Profile"
-      icon={<UserCircle className="h-5 w-5" />}
+      bare
+      title="Personal Profile"
       description="Your name and login email."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
