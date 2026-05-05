@@ -108,7 +108,7 @@ export default function Onboarding() {
 
   useEffect(() => {
     if (!user || isLoading || !taxSettings) return;
-    const savedStep = Math.min(6, Math.max(1, taxSettings.onboardingStep || 1));
+    const savedStep = Math.min(4, Math.max(1, taxSettings.onboardingStep || 1));
     setStep(savedStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(savedStep));
     setDraft((current) => ({
@@ -187,8 +187,31 @@ export default function Onboarding() {
   };
   const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
     const allowed = getAllowedCompanyTypes(incomeProfileType);
-    patch({ incomeProfileType, enabledIncomeSources: incomeProfileToSources(incomeProfileType) });
+    patch({
+      incomeProfileType,
+      enabledIncomeSources: incomeProfileToSources(incomeProfileType),
+      taxRecommendationMethod: "dynamic_actual",
+      deductionStrategy: "standard",
+      enabledPersonalIncomeTypes: [],
+    });
     setCompanyDrafts((current) => current.map((company) => allowed.includes(company.type) ? company : { ...company, type: allowed[0] }));
+  };
+
+  const skipCompanyStep = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      setCompanyDrafts([]);
+      const nextStep = 4;
+      await persist({ onboardingComplete: false, onboardingStep: nextStep });
+      patch({ onboardingStep: nextStep });
+      sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+      setStep(nextStep);
+    } catch (error: any) {
+      toast.error(error.message || "Could not save onboarding.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   async function createOnboardingCompanies() {
