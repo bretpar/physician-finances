@@ -270,19 +270,26 @@ export default function Onboarding() {
           if (!password) throw new Error("Enter a password to continue.");
           if (password.length < 6) throw new Error("Use a stronger password with at least 6 characters.");
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
-          const { data: existingCheck, error: existingError } = await supabase.functions.invoke("onboarding-signup", { body: { email: normalizedEmail } });
-          if (existingError) throw existingError;
-          if (existingCheck?.exists) throw new Error(DUPLICATE_EMAIL_MESSAGE);
           const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
-          if (error) throw error;
+          if (error) {
+            if (isDuplicateEmailError(error)) throw new Error(DUPLICATE_EMAIL_MESSAGE);
+            console.error("[onboarding] signUp failed", error);
+            throw error;
+          }
+          // Supabase returns a user with an empty identities array when the email is already registered
+          // (and email confirmations are enabled), instead of throwing an error.
+          const identities = (data.user as any)?.identities;
+          if (data.user && Array.isArray(identities) && identities.length === 0) {
+            throw new Error(DUPLICATE_EMAIL_MESSAGE);
+          }
+          clearAttemptState(SIGNUP_ATTEMPTS_KEY);
+          setSignupCooldownUntil(0);
           if (!data.session) {
-            toast.success("Account created. Please sign in to continue.");
+            toast.success("Check your email to verify your address, then sign in to continue.");
             return;
           }
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
           await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user?.id);
-          clearAttemptState(SIGNUP_ATTEMPTS_KEY);
-          setSignupCooldownUntil(0);
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
