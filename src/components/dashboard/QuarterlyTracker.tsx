@@ -411,8 +411,8 @@ export default function QuarterlyTracker({
             />
             {showTodayMarker && (
               <div
-                className="absolute top-[-2px] bottom-[-2px] w-0.5 bg-foreground/70 rounded-sm transition-[left] duration-700 ease-out"
-                style={{ left: `${animExpectedPct}%` }}
+                className="absolute top-[-2px] bottom-[-2px] w-0.5 bg-foreground/70 rounded-sm"
+                style={{ left: `${expectedPct}%` }}
                 aria-label="Today's expected pace"
                 title={`Today's pace: ${fmt(expectedByNow)}`}
               />
