@@ -86,9 +86,29 @@ export function SectionCard({
   const showActionBar = !hideActionBar && isDirty && (onSave || onCancel);
 
   if (bare) {
+    const bareToggle = () => {
+      if (!collapsible) return;
+      if (bareOpen && isDirty) {
+        setConfirmCollapse(true);
+        return;
+      }
+      setBareOpen((o) => !o);
+    };
     return (
       <div className="space-y-4">
-        <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex items-start gap-3",
+            collapsible && "cursor-pointer select-none sm:cursor-default",
+          )}
+          onClick={collapsible ? (e) => {
+            // Only toggle on mobile
+            if (window.matchMedia("(min-width: 640px)").matches) return;
+            bareToggle();
+          } : undefined}
+          role={collapsible ? "button" : undefined}
+          aria-expanded={collapsible ? bareOpen : undefined}
+        >
           {icon && (
             <div className="mt-0.5 text-primary flex-shrink-0" aria-hidden>
               {icon}
@@ -112,10 +132,22 @@ export function SectionCard({
               <p className="text-xs text-muted-foreground mt-1">{description}</p>
             )}
           </div>
-          {headerAction && <div className="flex-shrink-0">{headerAction}</div>}
+          <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            {headerAction}
+            {collapsible && (
+              <button
+                type="button"
+                aria-label={bareOpen ? "Collapse" : "Expand"}
+                onClick={bareToggle}
+                className="sm:hidden h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={cn("h-4 w-4 transition-transform", bareOpen && "rotate-180")} />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="space-y-5">{children}</div>
-        {showActionBar && (
+        {bareOpen && <div className="space-y-5">{children}</div>}
+        {bareOpen && showActionBar && (
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
             {onCancel && (
               <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
@@ -130,6 +162,30 @@ export function SectionCard({
             )}
           </div>
         )}
+
+        <AlertDialog open={confirmCollapse} onOpenChange={setConfirmCollapse}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You have unsaved edits in <strong>{title}</strong>. Collapsing this section will discard them.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  onCancel?.();
+                  setConfirmCollapse(false);
+                  setBareOpen(false);
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Discard
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
