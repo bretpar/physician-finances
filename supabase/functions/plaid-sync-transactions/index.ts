@@ -238,8 +238,6 @@ Deno.serve(async (req) => {
       user = authUser;
     }
 
-    let body: any = {};
-    try { body = await req.json(); } catch { /* no body */ }
     const targetItemId = body?.item_id;
     const mode = body?.mode === "backfill" ? "backfill" : "sync";
     const targetPlaidAccountId = body?.plaid_account_id;
