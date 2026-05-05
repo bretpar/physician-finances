@@ -85,6 +85,55 @@ export function SectionCard({
 
   const showActionBar = !hideActionBar && isDirty && (onSave || onCancel);
 
+  if (bare) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          {icon && (
+            <div className="mt-0.5 text-primary flex-shrink-0" aria-hidden>
+              {icon}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-sm font-semibold text-card-foreground">{title}</h4>
+              {isDirty && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning">
+                  <AlertCircle className="h-3 w-3" /> Unsaved
+                </span>
+              )}
+              {justSaved && !isDirty && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
+                  <Check className="h-3 w-3" /> Saved
+                </span>
+              )}
+            </div>
+            {description && (
+              <p className="text-xs text-muted-foreground mt-1">{description}</p>
+            )}
+          </div>
+          {headerAction && <div className="flex-shrink-0">{headerAction}</div>}
+        </div>
+        <div className="space-y-5">{children}</div>
+        {showActionBar && (
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+            {onCancel && (
+              <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
+                Cancel
+              </Button>
+            )}
+            {onSave && (
+              <Button size="sm" onClick={onSave} disabled={isSaving || !isDirty}>
+                {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                Save Changes
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <section className="glass-card rounded-xl overflow-hidden">
       <header
