@@ -197,6 +197,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Cron-triggered path: refresh all users' connected accounts.
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const providedCron = req.headers.get("x-cron-secret");
+    if (cronSecret && providedCron && providedCron === cronSecret) {
+      return await runCronSync();
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
