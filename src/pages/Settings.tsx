@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
 import {
   Plus, Trash2, Building2, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
@@ -130,8 +131,8 @@ function ProfileSection({ justSavedFlag }: { justSavedFlag: (key: string) => boo
 
   return (
     <SectionCard
-      title="Profile"
-      icon={<UserCircle className="h-5 w-5" />}
+      bare
+      title="Personal Profile"
       description="Your name and login email."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
@@ -229,8 +230,8 @@ function TaxWithholdingSection() {
 
   return (
     <SectionCard
-      title="Tax Withholding Method"
-      icon={<Calculator className="h-5 w-5" />}
+      bare
+      title="Withholding Method"
       description="How withholding recommendations are calculated across the app."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
@@ -356,8 +357,8 @@ function QuarterlyTrackerMethodSection() {
 
   return (
     <SectionCard
+      bare
       title="Quarterly Tax Tracker Method"
-      icon={<Calculator className="h-5 w-5" />}
       description="How the dashboard's Quarterly Tax Progress card calculates each quarter's target."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
@@ -881,8 +882,8 @@ function TaxProfileSection() {
 
   return (
     <SectionCard
+      bare
       title="Tax Profile"
-      icon={<Calculator className="h-5 w-5" />}
       description="Inputs that drive the predictive tax model."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
@@ -2185,12 +2186,30 @@ export default function Settings() {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto pb-12">
-      <ProfileSection justSavedFlag={justSavedFlag} />
-      <TaxWithholdingSection />
-      <QuarterlyTrackerMethodSection />
+      <SectionCard
+        title="Profile & Tax Profile"
+        icon={<UserCircle className="h-5 w-5" />}
+        description="Your personal info and tax filing details."
+        hideActionBar
+      >
+        <ProfileSection justSavedFlag={justSavedFlag} />
+        <Separator className="my-2" />
+        <TaxProfileSection />
+      </SectionCard>
+
+      <SectionCard
+        title="Tax Withholding & Quarterly Tracker"
+        icon={<Calculator className="h-5 w-5" />}
+        description="Choose how withholding recommendations and quarterly targets are calculated."
+        hideActionBar
+      >
+        <TaxWithholdingSection />
+        <Separator className="my-2" />
+        <QuarterlyTrackerMethodSection />
+      </SectionCard>
+
       <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
-      <TaxProfileSection />
       <HsaSettingsSection />
       <ForecastingAutomationSection />
       <CompaniesSection />
