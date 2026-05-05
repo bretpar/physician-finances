@@ -881,8 +881,8 @@ function TaxProfileSection() {
 
   return (
     <SectionCard
+      bare
       title="Tax Profile"
-      icon={<Calculator className="h-5 w-5" />}
       description="Inputs that drive the predictive tax model."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
