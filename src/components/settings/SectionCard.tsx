@@ -59,6 +59,7 @@ export function SectionCard({
   onSave,
   onCancel,
   hideActionBar = false,
+  bare = false,
   children,
 }: SectionCardProps) {
   const [open, setOpen] = useState(defaultOpen);
