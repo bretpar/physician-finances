@@ -1993,6 +1993,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      install_plaid_sync_cron_job: {
+        Args: { _secret: string }
+        Returns: undefined
+      }
       install_planner_cron_job: {
         Args: { _secret: string }
         Returns: undefined
