@@ -1686,14 +1686,29 @@ function ConnectedAccountsSection() {
           </div>
         ) : (
           <div className="space-y-3">
-            <SyncStatusIndicator
-              lastSyncedAt={plaidItems.reduce<string | null>((max, it: any) => {
-                if (!it.last_synced_at) return max;
-                if (!max || new Date(it.last_synced_at) > new Date(max)) return it.last_synced_at;
-                return max;
-              }, null)}
-              formatRelative={formatDate}
-            />
+            {(() => {
+              let latest: string | null = null;
+              for (const it of plaidItems as any[]) {
+                if (!it.last_synced_at) continue;
+                if (!latest || new Date(it.last_synced_at) > new Date(latest)) latest = it.last_synced_at;
+              }
+              // Daily cron runs at 08:15 UTC
+              const now = new Date();
+              const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 15, 0));
+              if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
+              const nextLabel = next.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    <span>Last synced: <span className="font-medium text-card-foreground">{formatDate(latest)}</span></span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    Next auto-sync: <span className="font-medium text-card-foreground">{nextLabel}</span>
+                  </div>
+                </div>
+              );
+            })()}
             {needsReviewTransactions.length > 0 && (
               <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
