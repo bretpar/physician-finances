@@ -1686,6 +1686,14 @@ function ConnectedAccountsSection() {
           </div>
         ) : (
           <div className="space-y-3">
+            <SyncStatusIndicator
+              lastSyncedAt={plaidItems.reduce<string | null>((max, it: any) => {
+                if (!it.last_synced_at) return max;
+                if (!max || new Date(it.last_synced_at) > new Date(max)) return it.last_synced_at;
+                return max;
+              }, null)}
+              formatRelative={formatDate}
+            />
             {needsReviewTransactions.length > 0 && (
               <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
