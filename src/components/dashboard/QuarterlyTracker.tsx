@@ -263,13 +263,23 @@ export default function QuarterlyTracker({
   const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
 
   // ── Pace math (vs today's expected, not full target) ──────────────────────
+  // Today marker depends ONLY on the current date and quarter window — not on
+  // tax/payment/savings data. Normalize to local noon to avoid TZ off-by-one.
+  const { quarterProgress, isFutureQuarter, isPastQuarter } = useMemo(() => {
+    const raw = new Date();
+    const today = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 12, 0, 0);
+    const start = new Date(q.start.getFullYear(), q.start.getMonth(), q.start.getDate(), 12, 0, 0);
+    const end = new Date(q.end.getFullYear(), q.end.getMonth(), q.end.getDate(), 12, 0, 0);
+    const totalMs = Math.max(1, end.getTime() - start.getTime());
+    const elapsedMs = today.getTime() - start.getTime();
+    const progress = Math.max(0, Math.min(1, elapsedMs / totalMs));
+    return {
+      quarterProgress: progress,
+      isFutureQuarter: today < start,
+      isPastQuarter: today >= end,
+    };
+  }, [q.start, q.end]);
   const now = new Date();
-  const totalDays = Math.max(1, (q.end.getTime() - q.start.getTime()) / 86400000);
-  const elapsedDays = (now.getTime() - q.start.getTime()) / 86400000;
-  // Future quarter → 0 progress; past quarter → 100%
-  const quarterProgress = Math.max(0, Math.min(1, elapsedDays / totalDays));
-  const isFutureQuarter = now < q.start;
-  const isPastQuarter = now >= q.end;
   const expectedByNow = quarterTarget * quarterProgress;
   const paceDiff = progressAmount - expectedByNow;
   const tolerance = Math.max(expectedByNow * 0.1, 250);
@@ -318,10 +328,10 @@ export default function QuarterlyTracker({
   // Bar percentages — capped at quarter target.
   const paidPct = clampPct(quarterTarget > 0 ? (paidThisQuarter / quarterTarget) * 100 : 0);
   const savedPct = Math.min(100 - paidPct, clampPct(quarterTarget > 0 ? (savedThisQuarter / quarterTarget) * 100 : 0));
-  const expectedPct = clampPct(quarterTarget > 0 ? quarterProgress * 100 : 0);
+  const expectedPct = clampPct(quarterProgress * 100);
   const animPaidPct = clampPct(useCountUp(paidPct, 1100));
   const animSavedPct = Math.min(100 - animPaidPct, clampPct(useCountUp(savedPct, 1100)));
-  const animExpectedPct = clampPct(useCountUp(expectedPct, 1100));
+  // Today marker renders immediately — no animation, no waiting on data.
   const showTodayMarker = !isFutureQuarter && !isPastQuarter && expectedPct > 0 && expectedPct < 100;
 
   // Prorate the estimated-payment offset across companies by their saved share.
@@ -401,8 +411,8 @@ export default function QuarterlyTracker({
             />
             {showTodayMarker && (
               <div
-                className="absolute top-[-2px] bottom-[-2px] w-0.5 bg-foreground/70 rounded-sm transition-[left] duration-700 ease-out"
-                style={{ left: `${animExpectedPct}%` }}
+                className="absolute top-[-2px] bottom-[-2px] w-0.5 bg-foreground/70 rounded-sm"
+                style={{ left: `${expectedPct}%` }}
                 aria-label="Today's expected pace"
                 title={`Today's pace: ${fmt(expectedByNow)}`}
               />
