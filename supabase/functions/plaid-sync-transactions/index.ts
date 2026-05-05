@@ -191,6 +191,57 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
   return "routed";
 }
 
+async function runCronFanOut(req: Request): Promise<Response> {
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const cronSecret = Deno.env.get("CRON_SECRET")!;
+  const admin = createClient(url, serviceKey);
+
+  const { data: items, error } = await admin
+    .from("plaid_items")
+    .select("user_id")
+    .eq("status", "active");
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const userIds = Array.from(new Set((items || []).map((r: any) => r.user_id))).filter(Boolean);
+
+  const endpoint = `${url}/functions/v1/plaid-sync-transactions`;
+  const results: Array<{ user_id: string; ok: boolean; status: number }> = [];
+
+  // Fire requests in parallel batches to avoid blocking too long.
+  const BATCH = 5;
+  for (let i = 0; i < userIds.length; i += BATCH) {
+    const batch = userIds.slice(i, i + BATCH);
+    const settled = await Promise.allSettled(
+      batch.map(async (uid) => {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-cron-secret": cronSecret,
+            "Authorization": `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({ user_id: uid }),
+        });
+        return { user_id: uid, ok: res.ok, status: res.status };
+      })
+    );
+    for (const s of settled) {
+      if (s.status === "fulfilled") results.push(s.value);
+      else results.push({ user_id: "unknown", ok: false, status: 0 });
+    }
+  }
+
+  console.log("Plaid daily cron fan-out complete", { users: userIds.length, results });
+  return new Response(JSON.stringify({ success: true, users: userIds.length, results }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
