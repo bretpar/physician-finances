@@ -40,6 +40,8 @@ interface SectionCardProps {
   onCancel?: () => void;
   /** Hide the action bar even when dirty (e.g. read-only sections). */
   hideActionBar?: boolean;
+  /** Render without outer card chrome (for nesting inside another SectionCard). */
+  bare?: boolean;
   children: ReactNode;
 }
 
