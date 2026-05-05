@@ -1653,10 +1653,22 @@ function ConnectedAccountsSection() {
         description="Manage linked banks. Assign each account to a destination."
         defaultOpen={false}
         headerAction={
-          <Button size="sm" onClick={handleConnectBank} disabled={linkLoading} className="gap-1.5">
-            {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            <span className="hidden sm:inline">Connect</span>
-          </Button>
+          plaidItems.length === 0 ? (
+            <Button size="sm" onClick={handleConnectBank} disabled={linkLoading} className="gap-1.5">
+              {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              <span className="hidden sm:inline">Connect</span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); syncMutation.mutate(undefined); }}
+              disabled={syncMutation.isPending}
+              className="gap-1.5"
+            >
+              {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="hidden sm:inline">Refresh All</span>
+            </Button>
+          )
         }
         hideActionBar
       >
