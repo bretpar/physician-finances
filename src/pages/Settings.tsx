@@ -229,8 +229,8 @@ function TaxWithholdingSection() {
 
   return (
     <SectionCard
-      title="Tax Withholding Method"
-      icon={<Calculator className="h-5 w-5" />}
+      bare
+      title="Withholding Method"
       description="How withholding recommendations are calculated across the app."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
