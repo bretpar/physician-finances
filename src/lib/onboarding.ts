@@ -45,7 +45,7 @@ export const DEFAULT_ONBOARDING_SETTINGS: UserOnboardingSettings = {
   incomeProfileType: "w2_plus_business",
   enabledIncomeSources: { w2: true, form1099: true, k1: true },
   enabledPersonalIncomeTypes: [],
-  taxRecommendationMethod: "dynamic_planner",
+  taxRecommendationMethod: "dynamic_actual",
   flatFederalRate: null,
   flatStateRate: null,
   deductionStrategy: "standard",
