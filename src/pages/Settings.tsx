@@ -2210,7 +2210,6 @@ export default function Settings() {
 
       <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
-      <TaxProfileSection />
       <HsaSettingsSection />
       <ForecastingAutomationSection />
       <CompaniesSection />
