@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, PiggyBank } from "lucide-react";
+import { Check, ChevronLeft, Eye, EyeOff, PiggyBank } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
@@ -91,6 +91,7 @@ export default function Onboarding() {
   const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [companyWebsite, setCompanyWebsite] = useState("");
   const [saving, setSaving] = useState(false);
   const [signupCooldownUntil, setSignupCooldownUntil] = useState(() => readAttemptState(SIGNUP_ATTEMPTS_KEY).cooldownUntil);
