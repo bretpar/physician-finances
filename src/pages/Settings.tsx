@@ -356,8 +356,8 @@ function QuarterlyTrackerMethodSection() {
 
   return (
     <SectionCard
+      bare
       title="Quarterly Tax Tracker Method"
-      icon={<Calculator className="h-5 w-5" />}
       description="How the dashboard's Quarterly Tax Progress card calculates each quarter's target."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
