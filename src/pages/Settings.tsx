@@ -2186,9 +2186,28 @@ export default function Settings() {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto pb-12">
-      <ProfileSection justSavedFlag={justSavedFlag} />
-      <TaxWithholdingSection />
-      <QuarterlyTrackerMethodSection />
+      <SectionCard
+        title="Profile & Tax Profile"
+        icon={<UserCircle className="h-5 w-5" />}
+        description="Your personal info and tax filing details."
+        hideActionBar
+      >
+        <ProfileSection justSavedFlag={justSavedFlag} />
+        <Separator className="my-2" />
+        <TaxProfileSection />
+      </SectionCard>
+
+      <SectionCard
+        title="Tax Withholding & Quarterly Tracker"
+        icon={<Calculator className="h-5 w-5" />}
+        description="Choose how withholding recommendations and quarterly targets are calculated."
+        hideActionBar
+      >
+        <TaxWithholdingSection />
+        <Separator className="my-2" />
+        <QuarterlyTrackerMethodSection />
+      </SectionCard>
+
       <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
       <TaxProfileSection />
