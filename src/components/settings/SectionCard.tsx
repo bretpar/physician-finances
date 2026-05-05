@@ -63,6 +63,20 @@ export function SectionCard({
   children,
 }: SectionCardProps) {
   const [open, setOpen] = useState(defaultOpen);
+  // For `bare` mode: collapsed by default on mobile, always open on desktop.
+  const [bareOpen, setBareOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(min-width: 640px)").matches;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 640px)");
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) setBareOpen(true);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
   const [confirmCollapse, setConfirmCollapse] = useState(false);
   const dirtyKey = useId();
 
