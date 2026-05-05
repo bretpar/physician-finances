@@ -328,10 +328,10 @@ export default function QuarterlyTracker({
   // Bar percentages — capped at quarter target.
   const paidPct = clampPct(quarterTarget > 0 ? (paidThisQuarter / quarterTarget) * 100 : 0);
   const savedPct = Math.min(100 - paidPct, clampPct(quarterTarget > 0 ? (savedThisQuarter / quarterTarget) * 100 : 0));
-  const expectedPct = clampPct(quarterTarget > 0 ? quarterProgress * 100 : 0);
+  const expectedPct = clampPct(quarterProgress * 100);
   const animPaidPct = clampPct(useCountUp(paidPct, 1100));
   const animSavedPct = Math.min(100 - animPaidPct, clampPct(useCountUp(savedPct, 1100)));
-  const animExpectedPct = clampPct(useCountUp(expectedPct, 1100));
+  // Today marker renders immediately — no animation, no waiting on data.
   const showTodayMarker = !isFutureQuarter && !isPastQuarter && expectedPct > 0 && expectedPct < 100;
 
   // Prorate the estimated-payment offset across companies by their saved share.
