@@ -200,30 +200,42 @@ Deno.serve(async (req) => {
     // Cron-triggered path: refresh all users' connected accounts.
     const cronSecret = Deno.env.get("CRON_SECRET");
     const providedCron = req.headers.get("x-cron-secret");
-    if (cronSecret && providedCron && providedCron === cronSecret) {
-      return await runCronSync();
+    const isCron = !!(cronSecret && providedCron && providedCron === cronSecret);
+
+    let body: any = {};
+    try { body = await req.json(); } catch { /* no body */ }
+
+    let user: { id: string } | null = null;
+    if (isCron && !body?.user_id) {
+      // Fan out: dispatch one request per user with active plaid_items.
+      return await runCronFanOut(req);
     }
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (isCron && body?.user_id) {
+      user = { id: String(body.user_id) };
+    } else {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Not authenticated" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+      if (userError || !authUser) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      user = authUser;
     }
 
     let body: any = {};
