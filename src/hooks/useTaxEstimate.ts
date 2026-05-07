@@ -21,6 +21,7 @@ import { aggregateByCategory } from "@/lib/incomeClassification";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
+import { useYtdCatchupEntries, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -59,6 +60,7 @@ export function useTaxEstimate(): {
   const { data: hsaRows = [] } = useHsaContributions(currentYear);
   const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
   const { companies } = useCompanies();
+  const { data: ytdCatchups } = useYtdCatchupEntries();
   const todayStr = new Date().toISOString().split("T")[0];
 
   // ── Reconcile income_entries before any tax math ─────────────────────────
