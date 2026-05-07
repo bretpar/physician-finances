@@ -135,6 +135,7 @@ const DEFAULT_RATES: TaxRates = {
   deductionStrategy: "standard",
   enabledDeductionTypes: [],
   subscriptionTier: "premium",
+  ytdCatchupChoice: null,
 };
 
 export function useTaxSettings(enabled = true) {
