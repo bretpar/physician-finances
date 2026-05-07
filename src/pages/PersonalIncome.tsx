@@ -301,6 +301,10 @@ export default function PersonalIncome() {
       selectedProfileEffectiveTaxRate: effectiveRate,
       totalFederalPayrollTaxes,
       stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
+      // Live form value — the paycheck guide updates immediately when the
+      // user types in the Additional Tax Reserve field for this entry.
+      // This reserve applies ONLY to this entry and is not actual withholding.
+      additionalTaxReserveForThisEntry: num(form.additional_tax_reserve),
     });
 
     const methodLabel = selectedProfile.label;
@@ -333,6 +337,7 @@ export default function PersonalIncome() {
     form.medicare_withholding,
     form.total_federal_payroll_taxes,
     form.state_withholding,
+    form.additional_tax_reserve,
     stateIncomeTaxEnabled,
     taxSettings,
     actualEstimate,
