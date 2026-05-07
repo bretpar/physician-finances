@@ -89,11 +89,35 @@ export function YtdCatchupCard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Catch Up Your Year So Far</DialogTitle>
+            <DialogTitle>{editing ? "Edit YTD catch-up" : "Catch Up Your Year So Far"}</DialogTitle>
           </DialogHeader>
           <YtdCatchupForm initial={editing} onSaved={() => setOpen(false)} onCancel={() => setOpen(false)} />
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this YTD catch-up entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes <span className="font-medium">{confirmDelete?.company_name}</span> ({confirmDelete && fmtDate(confirmDelete.period_start)} – {confirmDelete && fmtDate(confirmDelete.period_end)}) from your year-to-date totals. Tax recommendations will update immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={del.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={del.isPending}
+              onClick={async () => {
+                if (!confirmDelete) return;
+                await del.mutateAsync(confirmDelete.id);
+                setConfirmDelete(null);
+              }}
+            >
+              {del.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
