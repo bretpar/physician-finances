@@ -295,23 +295,67 @@ export function useTaxEstimate(): {
   const scopedBaseInputs = useMemo(() => {
     if (!rates || !reconciledIncomeEntries) return null;
 
-    // Aggregate YTD catch-up entries for the current tax year, bucketed by source type.
+    // Aggregate YTD catch-up entries for the current tax year, bucketed by
+    // source type. SAFEGUARD against double-counting: for each catch-up entry,
+    // subtract any imported income_entries (entry_kind != 'ytd_catchup') whose
+    // income_date falls within the catch-up period_start..period_end and whose
+    // source bucket matches. Totals are clamped to >= 0.
     const currentYr = new Date().getFullYear();
+    const bucketForFiling = (filing: string | undefined): "w2" | "business" | "other" => {
+      const f = (filing || "").toLowerCase();
+      if (f === "w2") return "w2";
+      if (f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution") return "business";
+      return "other";
+    };
+    const overlapDebug: Array<Record<string, number | string>> = [];
     const catchupBuckets = (ytdCatchups || [])
       .filter((c: YtdCatchupEntry) => c.tax_year === currentYr)
       .reduce(
         (acc, c) => {
-          const bucket = c.source_type === "w2" ? acc.w2
-            : c.source_type === "1099_k1" ? acc.business
-            : acc.other;
-          bucket.gross += Number(c.gross_income) || 0;
-          bucket.federalWithheld += Number(c.federal_withholding) || 0;
-          bucket.stateWithheld += Number(c.state_withholding) || 0;
-          bucket.preTax += (Number(c.healthcare_premiums) || 0)
+          const targetBucket: "w2" | "business" | "other" =
+            c.source_type === "w2" ? "w2" : c.source_type === "1099_k1" ? "business" : "other";
+          const bucket = acc[targetBucket];
+
+          const overlapping = (reconciledIncomeEntries || []).filter((e: any) => {
+            if ((e.entry_kind || "regular_paycheck") === "ytd_catchup") return false;
+            const d = e.income_date as string | undefined;
+            if (!d || d < c.period_start || d > c.period_end) return false;
+            if (Number(String(d).slice(0, 4)) !== c.tax_year) return false;
+            return bucketForFiling(e.income_type) === targetBucket;
+          });
+          const sum = (key: string) => overlapping.reduce((s: number, e: any) => s + Number(e[key] || 0), 0);
+          const overlapGross = overlapping.reduce((s: number, e: any) => s + Number(e.paycheck_amount || e.gross_amount || 0), 0);
+          const overlapFedW = sum("federal_withholding");
+          const overlapStateW = sum("state_withholding");
+          const overlapPreTax = sum("pre_tax_deductions") + sum("hsa_contribution");
+          const overlapRetire = sum("retirement_401k");
+
+          const cGross = Math.max(0, (Number(c.gross_income) || 0) - overlapGross);
+          const cFedW = Math.max(0, (Number(c.federal_withholding) || 0) - overlapFedW);
+          const cStateW = Math.max(0, (Number(c.state_withholding) || 0) - overlapStateW);
+          const cPreTaxRaw = (Number(c.healthcare_premiums) || 0)
             + (Number(c.dental_vision) || 0)
             + (Number(c.other_pretax) || 0)
             + (Number(c.hsa_contribution) || 0);
-          bucket.retirement += Number(c.retirement_401k) || 0;
+          const cPreTax = Math.max(0, cPreTaxRaw - overlapPreTax);
+          const cRetire = Math.max(0, (Number(c.retirement_401k) || 0) - overlapRetire);
+
+          if (overlapping.length > 0) {
+            overlapDebug.push({
+              catchupId: c.id,
+              source: c.source_type,
+              period: `${c.period_start}..${c.period_end}`,
+              overlappingRows: overlapping.length,
+              subtractedGross: overlapGross,
+              subtractedFedW: overlapFedW,
+            });
+          }
+
+          bucket.gross += cGross;
+          bucket.federalWithheld += cFedW;
+          bucket.stateWithheld += cStateW;
+          bucket.preTax += cPreTax;
+          bucket.retirement += cRetire;
           return acc;
         },
         {
@@ -320,6 +364,11 @@ export function useTaxEstimate(): {
           other: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
         },
       );
+
+    if (overlapDebug.length > 0 && typeof window !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.warn("[useTaxEstimate] YTD catch-up overlap detected — catch-up totals reduced to prevent double-counting:", overlapDebug);
+    }
 
     const buildInput = (
       scope: typeof scopedTaxData.actualOnlyTaxInputs,
