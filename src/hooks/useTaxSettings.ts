@@ -78,6 +78,7 @@ export interface TaxRates {
   deductionStrategy: DeductionStrategy;
   enabledDeductionTypes: string[];
   subscriptionTier: OnboardingSubscriptionTier;
+  ytdCatchupChoice: "yes" | "no" | "skip" | null;
 }
 
 const DEFAULT_RATES: TaxRates = {
