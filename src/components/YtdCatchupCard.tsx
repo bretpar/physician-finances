@@ -4,6 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useYtdCatchupEntries, useDeleteYtdCatchup, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { YtdCatchupForm } from "./YtdCatchupForm";
@@ -18,6 +28,7 @@ export function YtdCatchupCard() {
   const del = useDeleteYtdCatchup();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<YtdCatchupEntry | undefined>();
+  const [confirmDelete, setConfirmDelete] = useState<YtdCatchupEntry | null>(null);
 
   const startNew = () => { setEditing(undefined); setOpen(true); };
   const startEdit = (e: YtdCatchupEntry) => { setEditing(e); setOpen(true); };
@@ -64,8 +75,8 @@ export function YtdCatchupCard() {
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" onClick={() => startEdit(e)}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => del.mutate(e.id)}><Trash2 className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => startEdit(e)} aria-label="Edit catch-up entry"><Pencil className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(e)} disabled={del.isPending} aria-label="Delete catch-up entry"><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -78,11 +89,35 @@ export function YtdCatchupCard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Catch Up Your Year So Far</DialogTitle>
+            <DialogTitle>{editing ? "Edit YTD catch-up" : "Catch Up Your Year So Far"}</DialogTitle>
           </DialogHeader>
           <YtdCatchupForm initial={editing} onSaved={() => setOpen(false)} onCancel={() => setOpen(false)} />
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this YTD catch-up entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes <span className="font-medium">{confirmDelete?.company_name}</span> ({confirmDelete && fmtDate(confirmDelete.period_start)} – {confirmDelete && fmtDate(confirmDelete.period_end)}) from your year-to-date totals. Tax recommendations will update immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={del.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={del.isPending}
+              onClick={async () => {
+                if (!confirmDelete) return;
+                await del.mutateAsync(confirmDelete.id);
+                setConfirmDelete(null);
+              }}
+            >
+              {del.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
