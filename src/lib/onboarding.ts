@@ -35,6 +35,7 @@ export interface UserOnboardingSettings {
   deductionStrategy: DeductionStrategy;
   enabledDeductionTypes: string[];
   subscriptionTier: OnboardingSubscriptionTier;
+  ytdCatchupChoice: "yes" | "no" | "skip" | null;
 }
 
 export const DEFAULT_ONBOARDING_SETTINGS: UserOnboardingSettings = {
@@ -51,6 +52,7 @@ export const DEFAULT_ONBOARDING_SETTINGS: UserOnboardingSettings = {
   deductionStrategy: "standard",
   enabledDeductionTypes: [],
   subscriptionTier: "premium",
+  ytdCatchupChoice: null,
 };
 
 export function incomeProfileToSources(profile: IncomeProfileType): EnabledIncomeSources {
