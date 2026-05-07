@@ -1001,25 +1001,16 @@ export default function PersonalIncome() {
             {/* Per-paycheck profile-based savings guide — uses the SELECTED
                 tax profile effective rate (NOT annual remaining tax). */}
             {grossAmount > 0 && paycheckSavings && (() => {
-              // remainingSavingsNeeded already accounts for this entry's
-              // Additional Tax Reserve. When the reserve fully covers the
-              // shortfall (or exceeds it) we display $0 / On track instead of
-              // "Over-withheld", because the reserve is user-set-aside money
-              // for THIS paycheck — not actual over-withholding.
-              const remaining = paycheckSavings.remainingSavingsNeeded;
+              // withholdingDifference = target − payroll − reserve. Treat any
+              // surplus (payroll + reserve > target) as "over-withheld" with
+              // the surplus surfaced — same UX shape as before the reserve
+              // change. Reserve still never enters payroll totals.
               const reserveApplied = paycheckSavings.additionalTaxReserveApplied;
-              const rawDiff = paycheckSavings.withholdingDifference;
-              const isUnder = remaining > 0;
-              // Only mark "over" when payroll withholding alone exceeds target
-              // (reserve doesn't create over-withholding).
-              const isOver =
-                !isUnder &&
-                paycheckSavings.totalPayrollTaxesWithheld > paycheckSavings.paycheckTaxTarget;
-              const absAmount = isUnder
-                ? Math.round(remaining)
-                : isOver
-                ? Math.round(Math.abs(rawDiff))
-                : 0;
+              const diff = paycheckSavings.withholdingDifference;
+              const status = paycheckSavings.status;
+              const isUnder = status === "under_withheld";
+              const isOver = status === "over_withheld";
+              const absAmount = Math.round(Math.abs(diff));
               const amountDisplay = `$${absAmount.toLocaleString()}`;
               const ratePct = paycheckSavings.effectiveRateUsed;
               const rateDisplay = `${ratePct.toFixed(1)}%`;
@@ -1038,7 +1029,7 @@ export default function PersonalIncome() {
                 ? `No additional savings needed this paycheck • Based on effective tax rate of ${rateDisplay}${reserveNote}`
                 : isUnder
                 ? `To stay on track • Based on effective tax rate of ${rateDisplay}${reserveNote}`
-                : `Withholding + reserve cover your target • Based on effective tax rate of ${rateDisplay}${reserveNote}`;
+                : `Withholding matches your target • Based on effective tax rate of ${rateDisplay}${reserveNote}`;
               const rightLabel = isOver ? "Over-withheld" : isUnder ? "Under-saving" : "On track";
               const rightColor = isOver
                 ? "text-emerald-600 dark:text-emerald-400"
