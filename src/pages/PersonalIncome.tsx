@@ -1006,10 +1006,18 @@ export default function PersonalIncome() {
               // the surplus surfaced — same UX shape as before the reserve
               // change. Reserve still never enters payroll totals.
               const reserveApplied = paycheckSavings.additionalTaxReserveApplied;
+              const payrollWithheld = paycheckSavings.totalPayrollTaxesWithheld;
+              const target = paycheckSavings.paycheckTaxTarget;
               const diff = paycheckSavings.withholdingDifference;
               const status = paycheckSavings.status;
               const isUnder = status === "under_withheld";
               const isOver = status === "over_withheld";
+              // Distinguish a true payroll over-withholding from a surplus
+              // created by the user's additional tax reserve. Real
+              // over-withholding = payroll alone exceeds the target. A
+              // reserve-driven surplus is just earmarked savings.
+              const payrollOver = payrollWithheld > target;
+              const isReserveDrivenOver = isOver && !payrollOver;
               const absAmount = Math.round(Math.abs(diff));
               const amountDisplay = `$${absAmount.toLocaleString()}`;
               const ratePct = paycheckSavings.effectiveRateUsed;
@@ -1017,20 +1025,30 @@ export default function PersonalIncome() {
 
               const reserveNote =
                 reserveApplied > 0
-                  ? ` • Includes $${Math.round(reserveApplied).toLocaleString()} additional tax reserve for this paycheck`
+                  ? ` • Includes $${Math.round(reserveApplied).toLocaleString()} additional tax reserve (not actual withholding)`
                   : "";
 
               const primary = isOver
-                ? `You're ahead by ${amountDisplay}`
+                ? isReserveDrivenOver
+                  ? `You're ahead by ${amountDisplay} (payroll + reserve surplus)`
+                  : `You're ahead by ${amountDisplay}`
                 : isUnder
                 ? `Save ${amountDisplay} more this paycheck`
                 : "You're on track";
               const secondary = isOver
-                ? `No additional savings needed this paycheck • Based on effective tax rate of ${rateDisplay}${reserveNote}`
+                ? isReserveDrivenOver
+                  ? `Your payroll withholding plus your additional tax reserve exceed this paycheck's tax target. Actual payroll withholding alone is not over • Based on effective tax rate of ${rateDisplay}${reserveNote}`
+                  : `Payroll withholding alone exceeds this paycheck's tax target • Based on effective tax rate of ${rateDisplay}${reserveNote}`
                 : isUnder
                 ? `To stay on track • Based on effective tax rate of ${rateDisplay}${reserveNote}`
                 : `Withholding matches your target • Based on effective tax rate of ${rateDisplay}${reserveNote}`;
-              const rightLabel = isOver ? "Over-withheld" : isUnder ? "Under-saving" : "On track";
+              const rightLabel = isOver
+                ? isReserveDrivenOver
+                  ? "Over-withheld (payroll + reserve)"
+                  : "Over-withheld (payroll)"
+                : isUnder
+                ? "Under-saving"
+                : "On track";
               const rightColor = isOver
                 ? "text-emerald-600 dark:text-emerald-400"
                 : isUnder
