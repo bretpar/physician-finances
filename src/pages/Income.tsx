@@ -13,6 +13,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { YtdCatchupCard } from "@/components/YtdCatchupCard";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -157,6 +158,8 @@ export default function Income() {
           </CardContent>
         </Card>
       )}
+
+      <YtdCatchupCard />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
