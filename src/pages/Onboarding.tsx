@@ -456,7 +456,7 @@ export default function Onboarding() {
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
             <Button variant="outline" onClick={goBack} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
-              {step === 3 && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
+              {step === 3 && catchupSubStep === "company" && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
               <Button onClick={continueStep} disabled={saving || (user && isLoading) || (step === 1 && !user && signupCooldownSeconds > 0)}>{saving ? "Saving…" : step === 4 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>
