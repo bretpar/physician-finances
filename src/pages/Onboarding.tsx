@@ -368,27 +368,52 @@ export default function Onboarding() {
 
           {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What type of income do you want to track first?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div><p className="text-xs text-muted-foreground">You can change this later in Settings. We’ll set sensible defaults so you don’t have to configure tax details now.</p></div>}
 
-          {step === 3 && <div className="space-y-5">
+          {step === 3 && catchupSubStep === "ask" && <div className="space-y-5">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Have you already earned income this year?</h1>
               <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
             </div>
             <div className="grid gap-3">
-              <SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={() => setCatchupChoice("yes")} />
-              <SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={() => setCatchupChoice("no")} />
-              <SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={() => setCatchupChoice("skip")} />
+              <SelectCard
+                selected={catchupChoice === "yes"}
+                title="Yes, help me catch up"
+                description="Enter year-to-date income and withholdings from your most recent paystub."
+                onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }}
+              />
+              <SelectCard
+                selected={catchupChoice === "no"}
+                title="No, I’m starting fresh"
+                description="I haven’t earned income this year yet, or I’ll only track from now on."
+                onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }}
+              />
+              <SelectCard
+                selected={catchupChoice === "skip"}
+                title="Skip for now"
+                description="I’ll add this later from the Income tab."
+                onClick={async () => { patch({ ytdCatchupChoice: "skip" }); if (settingsId) await persist({ ytdCatchupChoice: "skip" }); setCatchupSubStep("company"); }}
+              />
             </div>
-            {catchupChoice === "yes" && (
-              <div className="rounded-xl border border-border p-4">
-                <h2 className="text-lg font-semibold mb-1">Catch Up Your Year So Far</h2>
-                {existingCatchups && existingCatchups.length > 0 && (
-                  <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
-                )}
-                <YtdCatchupForm />
-              </div>
+            {catchupChoice && (
+              <p className="text-xs text-muted-foreground">Saved — you can change this later in the Income tab.</p>
             )}
-            <div className="border-t border-border pt-4">
-              <h2 className="text-lg font-semibold text-foreground">{companySetupCopy.title}</h2>
+          </div>}
+
+          {step === 3 && catchupSubStep === "form" && <div className="space-y-5">
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">Catch up your year so far</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals from your most recent paystub. Add as many entries as you need.</p>
+            </div>
+            <div className="rounded-xl border border-border p-4">
+              {existingCatchups && existingCatchups.length > 0 && (
+                <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
+              )}
+              <YtdCatchupForm />
+            </div>
+          </div>}
+
+          {step === 3 && catchupSubStep === "company" && <div className="space-y-5">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground">{companySetupCopy.title}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p>
             </div>
             <div className="space-y-3">{companyDrafts.map((company, index) => <div key={index} className="rounded-lg border border-border p-4"><div className="grid gap-3 sm:grid-cols-[1fr_210px]"><div><Label>{companySetupCopy.nameLabel}</Label><Input value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} /></div>{allowedCompanyTypes.length > 1 && <div><Label>Type</Label><Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>}</div><div className="mt-3"><Label>Optional description or nickname</Label><Input value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" /></div><div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div></div>)}<Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button><p className="text-xs text-muted-foreground">You can add more later in Settings.</p></div>
