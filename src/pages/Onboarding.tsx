@@ -147,6 +147,13 @@ export default function Onboarding() {
     return () => window.clearInterval(timer);
   }, []);
 
+  // Initialize the catch-up sub-step from the persisted choice when step 3 mounts.
+  useEffect(() => {
+    if (step !== 3) return;
+    if (catchupChoice === "yes") setCatchupSubStep((s) => (s === "ask" ? "form" : s));
+    else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
+  }, [step, catchupChoice]);
+
   const signupCooldownSeconds = Math.max(0, Math.ceil((signupCooldownUntil - now) / 1000));
 
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
