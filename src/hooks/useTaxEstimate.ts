@@ -426,28 +426,40 @@ export function useTaxEstimate(): {
           : sum;
       }, 0);
 
+      // ── YTD catch-up injection ─────────────────────────────────────────────
+      // Catch-up entries represent prior-period actuals from a paystub. They
+      // ALWAYS apply (in both actualOnly and actualPlusPlanned scopes) because
+      // they describe income already earned this tax year before the user
+      // started tracking in PaycheckMD. They are NOT projected income.
+      const cu = catchupBuckets;
+      const cuW2Gross = cu.w2.gross;
+      const cuBizGross = cu.business.gross;
+      const cuOtherGross = cu.other.gross;
+      const cuFedW = cu.w2.federalWithheld + cu.business.federalWithheld + cu.other.federalWithheld;
+      const cuStateW = cu.w2.stateWithheld + cu.business.stateWithheld + cu.other.stateWithheld;
+
       return {
-        businessIncome,
-        seEligibleBusinessIncome,
+        businessIncome: businessIncome + cuBizGross,
+        seEligibleBusinessIncome: seEligibleBusinessIncome + cuBizGross,
         seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction,
         seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
-        businessFederalWithheld,
-        businessStateWithheld,
-        businessPreTax,
-        businessRetirement,
+        businessFederalWithheld: businessFederalWithheld + cu.business.federalWithheld,
+        businessStateWithheld: businessStateWithheld + cu.business.stateWithheld,
+        businessPreTax: businessPreTax + cu.business.preTax,
+        businessRetirement: businessRetirement + cu.business.retirement,
         ownerHealthcare,
-        businessStateEligibleGross,
+        businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction,
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
-        personalIncome: totalPersonalIncome + investmentDividends,
-        personalW2,
-        personalNonW2Income: personalNonW2Income + investmentDividends,
-        personalFederalWithheld,
-        personalStateWithheld,
-        personalPreTax,
-        personalRetirement,
+        personalIncome: totalPersonalIncome + investmentDividends + cuW2Gross + cuOtherGross,
+        personalW2: personalW2 + cuW2Gross,
+        personalNonW2Income: personalNonW2Income + investmentDividends + cuOtherGross,
+        personalFederalWithheld: personalFederalWithheld + cu.w2.federalWithheld + cu.other.federalWithheld,
+        personalStateWithheld: personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld,
+        personalPreTax: personalPreTax + cu.w2.preTax + cu.other.preTax,
+        personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
         businessExpenses: businessExpenses + homeOfficeDeduction,
         mileageDeduction,
