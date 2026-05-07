@@ -279,6 +279,7 @@ export function useUpdateTaxSettings() {
       if (rest.deductionStrategy !== undefined) payload.deduction_strategy = rest.deductionStrategy;
       if (rest.enabledDeductionTypes !== undefined) payload.enabled_deduction_types = rest.enabledDeductionTypes;
       if (rest.subscriptionTier !== undefined) payload.subscription_tier = rest.subscriptionTier;
+      if (rest.ytdCatchupChoice !== undefined) payload.ytd_catchup_choice = rest.ytdCatchupChoice;
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
