@@ -456,8 +456,9 @@ export function useTaxEstimate(): {
         (s, e) => s + Math.max(0, Number((e as any).additional_tax_reserve || 0)),
         0,
       );
-      const businessEntryReserves = linkedEntries.reduce(
-        (s, e) => s + Math.max(0, Number((e as any).additional_tax_reserve || 0)),
+      const businessEntryReserves = incomeEntriesClean.reduce(
+        (s, e) =>
+          s + (e.linked_transaction_id ? Math.max(0, Number((e as any).additional_tax_reserve || 0)) : 0),
         0,
       );
       const savingsTotal = manualSavingsTotal + personalEntryReserves + businessEntryReserves;
