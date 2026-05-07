@@ -4,6 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useYtdCatchupEntries, useDeleteYtdCatchup, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { YtdCatchupForm } from "./YtdCatchupForm";
@@ -18,6 +28,7 @@ export function YtdCatchupCard() {
   const del = useDeleteYtdCatchup();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<YtdCatchupEntry | undefined>();
+  const [confirmDelete, setConfirmDelete] = useState<YtdCatchupEntry | null>(null);
 
   const startNew = () => { setEditing(undefined); setOpen(true); };
   const startEdit = (e: YtdCatchupEntry) => { setEditing(e); setOpen(true); };
