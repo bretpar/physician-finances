@@ -37,6 +37,14 @@ export interface PaycheckProfileSavingsInput {
   totalFederalPayrollTaxes: number;
   /** State withholding on this paycheck, only when state tax is enabled. */
   stateWithholdingIfEnabled: number;
+  /**
+   * Additional tax reserve the user manually set aside for THIS specific
+   * income entry. This is NOT actual payroll withholding — it is extra money
+   * earmarked for taxes for this paycheck. It reduces the per-paycheck
+   * remaining-savings recommendation, but is intentionally NOT added into
+   * `totalPayrollTaxesWithheld` and never spreads across other paychecks.
+   */
+  additionalTaxReserveForThisEntry?: number;
 }
 
 export interface PaycheckProfileSavingsResult {
@@ -44,6 +52,14 @@ export interface PaycheckProfileSavingsResult {
   taxablePaycheckAmount: number;
   paycheckTaxTarget: number;
   totalPayrollTaxesWithheld: number;
+  /** Per-entry reserve applied to this calculation (informational). */
+  additionalTaxReserveApplied: number;
+  /** Remaining savings needed = max(target − payroll withheld − reserve, 0). */
+  remainingSavingsNeeded: number;
+  /**
+   * Signed difference: positive when more savings are still needed,
+   * negative when over-saved (payroll + reserve exceeds target).
+   */
   withholdingDifference: number;
   status: PaycheckSavingsStatus;
 }
