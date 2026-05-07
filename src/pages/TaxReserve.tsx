@@ -46,13 +46,17 @@ export default function TaxReserve() {
   const [source, setSource] = useState("manual");
   const [notes, setNotes] = useState("");
 
-  const totalSetAside = useMemo(() => savings.reduce((s, e) => s + Number(e.amount), 0), [savings]);
+  const manualSavingsTotal = useMemo(() => savings.reduce((s, e) => s + Number(e.amount), 0), [savings]);
   const t = estimate?.tracking;
   // Use unified engine output: total tax owed and ALL counted credits (federal
   // W/H + state W/H + estimated payments). Same definition as Tax Overview.
   const estimatedOwed = debug?.totalEstimatedTax ?? estimate?.totalTaxLiability ?? 0;
   const taxesWithheld = debug?.countedCreditsTotal ?? 0;
   const remainingOwed = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - taxesWithheld);
+  // taxSavingsSetAside in the engine = manual savings + per-entry Additional
+  // Tax Reserve from personal & business income entries. Surface the unified
+  // total so reserve entered on a paycheck rolls into the same "set aside" bar.
+  const totalSetAside = debug?.taxSavingsSetAside ?? manualSavingsTotal;
   const taxGap = totalSetAside - remainingOwed;
   const onTrack = taxGap >= 0;
 

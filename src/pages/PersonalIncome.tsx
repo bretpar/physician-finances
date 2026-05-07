@@ -301,6 +301,10 @@ export default function PersonalIncome() {
       selectedProfileEffectiveTaxRate: effectiveRate,
       totalFederalPayrollTaxes,
       stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
+      // Live form value — the paycheck guide updates immediately when the
+      // user types in the Additional Tax Reserve field for this entry.
+      // This reserve applies ONLY to this entry and is not actual withholding.
+      additionalTaxReserveForThisEntry: num(form.additional_tax_reserve),
     });
 
     const methodLabel = selectedProfile.label;
@@ -333,6 +337,7 @@ export default function PersonalIncome() {
     form.medicare_withholding,
     form.total_federal_payroll_taxes,
     form.state_withholding,
+    form.additional_tax_reserve,
     stateIncomeTaxEnabled,
     taxSettings,
     actualEstimate,
@@ -972,14 +977,16 @@ export default function PersonalIncome() {
                     </div>
                   )}
 
-                  {/* Additional tax reserve field on edit */}
-                  {isEditing && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
-                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
-                      <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
-                    </div>
-                  )}
+                  {/* Additional tax reserve — extra money the user is setting
+                      aside for taxes for THIS specific paycheck only. Not
+                      counted as actual federal/state/SS/Medicare withholding,
+                      and does not spread across other paychecks. Available on
+                      add and edit so the live paycheck guide reflects it. */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Extra money you set aside for taxes on this paycheck. Not actual withholding.</p>
+                  </div>
 
                   {visibleFields.notes && (
                     <div>
@@ -994,14 +1001,33 @@ export default function PersonalIncome() {
             {/* Per-paycheck profile-based savings guide — uses the SELECTED
                 tax profile effective rate (NOT annual remaining tax). */}
             {grossAmount > 0 && paycheckSavings && (() => {
-              const diff = paycheckSavings.withholdingDifference;
-              const status = paycheckSavings.status;
-              const isUnder = status === "under_withheld";
-              const isOver = status === "over_withheld";
-              const absAmount = Math.round(Math.abs(diff));
+              // remainingSavingsNeeded already accounts for this entry's
+              // Additional Tax Reserve. When the reserve fully covers the
+              // shortfall (or exceeds it) we display $0 / On track instead of
+              // "Over-withheld", because the reserve is user-set-aside money
+              // for THIS paycheck — not actual over-withholding.
+              const remaining = paycheckSavings.remainingSavingsNeeded;
+              const reserveApplied = paycheckSavings.additionalTaxReserveApplied;
+              const rawDiff = paycheckSavings.withholdingDifference;
+              const isUnder = remaining > 0;
+              // Only mark "over" when payroll withholding alone exceeds target
+              // (reserve doesn't create over-withholding).
+              const isOver =
+                !isUnder &&
+                paycheckSavings.totalPayrollTaxesWithheld > paycheckSavings.paycheckTaxTarget;
+              const absAmount = isUnder
+                ? Math.round(remaining)
+                : isOver
+                ? Math.round(Math.abs(rawDiff))
+                : 0;
               const amountDisplay = `$${absAmount.toLocaleString()}`;
               const ratePct = paycheckSavings.effectiveRateUsed;
               const rateDisplay = `${ratePct.toFixed(1)}%`;
+
+              const reserveNote =
+                reserveApplied > 0
+                  ? ` • Includes $${Math.round(reserveApplied).toLocaleString()} additional tax reserve for this paycheck`
+                  : "";
 
               const primary = isOver
                 ? `You're ahead by ${amountDisplay}`
@@ -1009,10 +1035,10 @@ export default function PersonalIncome() {
                 ? `Save ${amountDisplay} more this paycheck`
                 : "You're on track";
               const secondary = isOver
-                ? `No additional savings needed this paycheck • Based on effective tax rate of ${rateDisplay}`
+                ? `No additional savings needed this paycheck • Based on effective tax rate of ${rateDisplay}${reserveNote}`
                 : isUnder
-                ? `To stay on track • Based on effective tax rate of ${rateDisplay}`
-                : `Withholding matches your target • Based on effective tax rate of ${rateDisplay}`;
+                ? `To stay on track • Based on effective tax rate of ${rateDisplay}${reserveNote}`
+                : `Withholding + reserve cover your target • Based on effective tax rate of ${rateDisplay}${reserveNote}`;
               const rightLabel = isOver ? "Over-withheld" : isUnder ? "Under-saving" : "On track";
               const rightColor = isOver
                 ? "text-emerald-600 dark:text-emerald-400"
