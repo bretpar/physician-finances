@@ -295,6 +295,32 @@ export function useTaxEstimate(): {
   const scopedBaseInputs = useMemo(() => {
     if (!rates || !reconciledIncomeEntries) return null;
 
+    // Aggregate YTD catch-up entries for the current tax year, bucketed by source type.
+    const currentYr = new Date().getFullYear();
+    const catchupBuckets = (ytdCatchups || [])
+      .filter((c: YtdCatchupEntry) => c.tax_year === currentYr)
+      .reduce(
+        (acc, c) => {
+          const bucket = c.source_type === "w2" ? acc.w2
+            : c.source_type === "1099_k1" ? acc.business
+            : acc.other;
+          bucket.gross += Number(c.gross_income) || 0;
+          bucket.federalWithheld += Number(c.federal_withholding) || 0;
+          bucket.stateWithheld += Number(c.state_withholding) || 0;
+          bucket.preTax += (Number(c.healthcare_premiums) || 0)
+            + (Number(c.dental_vision) || 0)
+            + (Number(c.other_pretax) || 0)
+            + (Number(c.hsa_contribution) || 0);
+          bucket.retirement += Number(c.retirement_401k) || 0;
+          return acc;
+        },
+        {
+          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
+          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
+          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
+        },
+      );
+
     const buildInput = (
       scope: typeof scopedTaxData.actualOnlyTaxInputs,
       incomeScope: "actualOnly" | "actualPlusPlanned",
