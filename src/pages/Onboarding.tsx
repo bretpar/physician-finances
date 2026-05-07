@@ -110,6 +110,7 @@ export default function Onboarding() {
     onboardingStep: taxSettings.onboardingStep || draft.onboardingStep || 1,
     incomeProfileType: draft.incomeProfileType || taxSettings.incomeProfileType,
   } : draft, [draft, taxSettings]);
+  const catchupChoice = merged.ytdCatchupChoice ?? null;
 
   useEffect(() => {
     if (!user || isLoading || !taxSettings) return;
