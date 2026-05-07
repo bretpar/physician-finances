@@ -1445,6 +1445,7 @@ export type Database = {
           withholding_override_amount: number | null
           withholding_override_percent: number | null
           withholding_override_type: string
+          ytd_catchup_choice: string | null
         }
         Insert: {
           auto_convert_future_income_to_ledger?: boolean
@@ -1503,6 +1504,7 @@ export type Database = {
           withholding_override_amount?: number | null
           withholding_override_percent?: number | null
           withholding_override_type?: string
+          ytd_catchup_choice?: string | null
         }
         Update: {
           auto_convert_future_income_to_ledger?: boolean
@@ -1561,6 +1563,7 @@ export type Database = {
           withholding_override_amount?: number | null
           withholding_override_percent?: number | null
           withholding_override_type?: string
+          ytd_catchup_choice?: string | null
         }
         Relationships: [
           {

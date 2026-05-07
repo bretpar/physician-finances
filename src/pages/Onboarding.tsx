@@ -100,7 +100,7 @@ export default function Onboarding() {
   const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
-  const [catchupChoice, setCatchupChoice] = useState<"yes" | "no" | "skip" | null>(null);
+  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
   const { data: existingCatchups } = useYtdCatchupEntries();
 
   const settingsId = taxSettings?.id;
@@ -110,6 +110,7 @@ export default function Onboarding() {
     onboardingStep: taxSettings.onboardingStep || draft.onboardingStep || 1,
     incomeProfileType: draft.incomeProfileType || taxSettings.incomeProfileType,
   } : draft, [draft, taxSettings]);
+  const catchupChoice = merged.ytdCatchupChoice ?? null;
 
   useEffect(() => {
     if (!user || isLoading || !taxSettings) return;
@@ -129,6 +130,7 @@ export default function Onboarding() {
       deductionStrategy: taxSettings.deductionStrategy || current.deductionStrategy,
       enabledDeductionTypes: taxSettings.enabledDeductionTypes || current.enabledDeductionTypes,
       subscriptionTier: taxSettings.subscriptionTier || current.subscriptionTier,
+      ytdCatchupChoice: taxSettings.ytdCatchupChoice ?? current.ytdCatchupChoice ?? null,
     }));
   }, [user, isLoading, taxSettings]);
 
@@ -144,6 +146,13 @@ export default function Onboarding() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  // Initialize the catch-up sub-step from the persisted choice when step 3 mounts.
+  useEffect(() => {
+    if (step !== 3) return;
+    if (catchupChoice === "yes") setCatchupSubStep((s) => (s === "ask" ? "form" : s));
+    else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
+  }, [step, catchupChoice]);
 
   const signupCooldownSeconds = Math.max(0, Math.ceil((signupCooldownUntil - now) / 1000));
 
@@ -184,9 +193,18 @@ export default function Onboarding() {
       navigate("/login");
       return;
     }
+    if (step === 3 && catchupSubStep === "company") {
+      setCatchupSubStep("ask");
+      return;
+    }
+    if (step === 3 && catchupSubStep === "form") {
+      setCatchupSubStep("ask");
+      return;
+    }
     const nextStep = step - 1;
     setStep(nextStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+    setCatchupSubStep("ask");
     patch({ onboardingStep: nextStep });
     if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
   };
@@ -281,11 +299,27 @@ export default function Onboarding() {
       enabledDeductionTypes: next.enabledDeductionTypes,
       hsaEnabled: next.enabledDeductionTypes.includes("hsa"),
       subscriptionTier: next.subscriptionTier,
+      ytdCatchupChoice: next.ytdCatchupChoice ?? null,
     });
   }
 
   async function continueStep() {
     if (saving || (step === 1 && !user && signupCooldownSeconds > 0)) return;
+    // Within step 3, advance through sub-steps before moving to step 4.
+    if (step === 3) {
+      if (catchupSubStep === "ask") {
+        if (!catchupChoice) {
+          toast.error("Pick an option to continue.");
+          return;
+        }
+        setCatchupSubStep(catchupChoice === "yes" ? "form" : "company");
+        return;
+      }
+      if (catchupSubStep === "form") {
+        setCatchupSubStep("company");
+        return;
+      }
+    }
     setSaving(true);
     try {
       const nextStep = Math.min(4, step + 1);
@@ -366,27 +400,52 @@ export default function Onboarding() {
 
           {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What type of income do you want to track first?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div><p className="text-xs text-muted-foreground">You can change this later in Settings. We’ll set sensible defaults so you don’t have to configure tax details now.</p></div>}
 
-          {step === 3 && <div className="space-y-5">
+          {step === 3 && catchupSubStep === "ask" && <div className="space-y-5">
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Have you already earned income this year?</h1>
               <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
             </div>
             <div className="grid gap-3">
-              <SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={() => setCatchupChoice("yes")} />
-              <SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={() => setCatchupChoice("no")} />
-              <SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={() => setCatchupChoice("skip")} />
+              <SelectCard
+                selected={catchupChoice === "yes"}
+                title="Yes, help me catch up"
+                description="Enter year-to-date income and withholdings from your most recent paystub."
+                onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }}
+              />
+              <SelectCard
+                selected={catchupChoice === "no"}
+                title="No, I’m starting fresh"
+                description="I haven’t earned income this year yet, or I’ll only track from now on."
+                onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }}
+              />
+              <SelectCard
+                selected={catchupChoice === "skip"}
+                title="Skip for now"
+                description="I’ll add this later from the Income tab."
+                onClick={async () => { patch({ ytdCatchupChoice: "skip" }); if (settingsId) await persist({ ytdCatchupChoice: "skip" }); setCatchupSubStep("company"); }}
+              />
             </div>
-            {catchupChoice === "yes" && (
-              <div className="rounded-xl border border-border p-4">
-                <h2 className="text-lg font-semibold mb-1">Catch Up Your Year So Far</h2>
-                {existingCatchups && existingCatchups.length > 0 && (
-                  <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
-                )}
-                <YtdCatchupForm />
-              </div>
+            {catchupChoice && (
+              <p className="text-xs text-muted-foreground">Saved — you can change this later in the Income tab.</p>
             )}
-            <div className="border-t border-border pt-4">
-              <h2 className="text-lg font-semibold text-foreground">{companySetupCopy.title}</h2>
+          </div>}
+
+          {step === 3 && catchupSubStep === "form" && <div className="space-y-5">
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">Catch up your year so far</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals from your most recent paystub. Add as many entries as you need.</p>
+            </div>
+            <div className="rounded-xl border border-border p-4">
+              {existingCatchups && existingCatchups.length > 0 && (
+                <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
+              )}
+              <YtdCatchupForm />
+            </div>
+          </div>}
+
+          {step === 3 && catchupSubStep === "company" && <div className="space-y-5">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground">{companySetupCopy.title}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p>
             </div>
             <div className="space-y-3">{companyDrafts.map((company, index) => <div key={index} className="rounded-lg border border-border p-4"><div className="grid gap-3 sm:grid-cols-[1fr_210px]"><div><Label>{companySetupCopy.nameLabel}</Label><Input value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} /></div>{allowedCompanyTypes.length > 1 && <div><Label>Type</Label><Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>}</div><div className="mt-3"><Label>Optional description or nickname</Label><Input value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" /></div><div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div></div>)}<Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button><p className="text-xs text-muted-foreground">You can add more later in Settings.</p></div>
@@ -397,7 +456,7 @@ export default function Onboarding() {
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
             <Button variant="outline" onClick={goBack} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
-              {step === 3 && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
+              {step === 3 && catchupSubStep === "company" && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
               <Button onClick={continueStep} disabled={saving || (user && isLoading) || (step === 1 && !user && signupCooldownSeconds > 0)}>{saving ? "Saving…" : step === 4 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>

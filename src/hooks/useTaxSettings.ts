@@ -78,6 +78,7 @@ export interface TaxRates {
   deductionStrategy: DeductionStrategy;
   enabledDeductionTypes: string[];
   subscriptionTier: OnboardingSubscriptionTier;
+  ytdCatchupChoice: "yes" | "no" | "skip" | null;
 }
 
 const DEFAULT_RATES: TaxRates = {
@@ -134,6 +135,7 @@ const DEFAULT_RATES: TaxRates = {
   deductionStrategy: "standard",
   enabledDeductionTypes: [],
   subscriptionTier: "premium",
+  ytdCatchupChoice: null,
 };
 
 export function useTaxSettings(enabled = true) {
@@ -208,6 +210,7 @@ export function useTaxSettings(enabled = true) {
         deductionStrategy: (d.deduction_strategy as DeductionStrategy) || ((d.deduction_type === "itemized" ? "itemized" : "standard") as DeductionStrategy),
         enabledDeductionTypes: Array.isArray(d.enabled_deduction_types) ? d.enabled_deduction_types : [],
         subscriptionTier: (d.subscription_tier as OnboardingSubscriptionTier) || "premium",
+        ytdCatchupChoice: (d.ytd_catchup_choice as TaxRates["ytdCatchupChoice"]) ?? null,
       } as TaxRates;
     },
   });
@@ -276,6 +279,7 @@ export function useUpdateTaxSettings() {
       if (rest.deductionStrategy !== undefined) payload.deduction_strategy = rest.deductionStrategy;
       if (rest.enabledDeductionTypes !== undefined) payload.enabled_deduction_types = rest.enabledDeductionTypes;
       if (rest.subscriptionTier !== undefined) payload.subscription_tier = rest.subscriptionTier;
+      if (rest.ytdCatchupChoice !== undefined) payload.ytd_catchup_choice = rest.ytdCatchupChoice;
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
