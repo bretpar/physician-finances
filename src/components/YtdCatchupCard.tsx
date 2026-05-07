@@ -75,8 +75,8 @@ export function YtdCatchupCard() {
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" onClick={() => startEdit(e)}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => del.mutate(e.id)}><Trash2 className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => startEdit(e)} aria-label="Edit catch-up entry"><Pencil className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(e)} disabled={del.isPending} aria-label="Delete catch-up entry"><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 </div>
