@@ -74,11 +74,24 @@ export function calculatePaycheckProfileSavings(
   const ratePct = Math.max(0, Number(input.selectedProfileEffectiveTaxRate) || 0);
   const fedPayroll = Math.max(0, Number(input.totalFederalPayrollTaxes) || 0);
   const statePayroll = Math.max(0, Number(input.stateWithholdingIfEnabled) || 0);
+  const additionalReserve = Math.max(
+    0,
+    Number(input.additionalTaxReserveForThisEntry) || 0,
+  );
 
   const taxablePaycheckAmount = round2(Math.max(0, gross - deductions));
   const paycheckTaxTarget = round2(taxablePaycheckAmount * (ratePct / 100));
   const totalPayrollTaxesWithheld = round2(fedPayroll + statePayroll);
-  const withholdingDifference = round2(paycheckTaxTarget - totalPayrollTaxesWithheld);
+
+  // Per-entry rule: additional tax reserve reduces the remaining savings
+  // recommendation for THIS paycheck only. It is NOT added to actual
+  // withholding totals and never spreads to other paychecks.
+  const remainingSavingsNeeded = round2(
+    Math.max(0, paycheckTaxTarget - totalPayrollTaxesWithheld - additionalReserve),
+  );
+  const withholdingDifference = round2(
+    paycheckTaxTarget - totalPayrollTaxesWithheld - additionalReserve,
+  );
 
   const status: PaycheckSavingsStatus =
     withholdingDifference > 0
@@ -92,6 +105,8 @@ export function calculatePaycheckProfileSavings(
     taxablePaycheckAmount,
     paycheckTaxTarget,
     totalPayrollTaxesWithheld,
+    additionalTaxReserveApplied: round2(additionalReserve),
+    remainingSavingsNeeded,
     withholdingDifference,
     status,
   };
