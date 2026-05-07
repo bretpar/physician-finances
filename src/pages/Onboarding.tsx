@@ -100,8 +100,9 @@ export default function Onboarding() {
   const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
-  const [catchupChoice, setCatchupChoice] = useState<"yes" | "no" | "skip" | null>(null);
+  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
   const { data: existingCatchups } = useYtdCatchupEntries();
+  const catchupChoice = merged.ytdCatchupChoice ?? null;
 
   const settingsId = taxSettings?.id;
   const merged = useMemo(() => taxSettings ? {
