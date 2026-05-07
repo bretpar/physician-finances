@@ -13,6 +13,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { YtdCatchupForm } from "@/components/YtdCatchupForm";
+import { useYtdCatchupEntries } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { clearAttemptState, getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
 import {
@@ -98,6 +100,8 @@ export default function Onboarding() {
   const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
+  const [catchupChoice, setCatchupChoice] = useState<"yes" | "no" | "skip" | null>(null);
+  const { data: existingCatchups } = useYtdCatchupEntries();
 
   const settingsId = taxSettings?.id;
   const merged = useMemo(() => taxSettings ? {
@@ -362,7 +366,31 @@ export default function Onboarding() {
 
           {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What type of income do you want to track first?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div><p className="text-xs text-muted-foreground">You can change this later in Settings. We’ll set sensible defaults so you don’t have to configure tax details now.</p></div>}
 
-          {step === 3 && <div className="space-y-5"><div><h1 className="text-2xl font-semibold text-foreground">{companySetupCopy.title}</h1><p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p></div><div className="space-y-3">{companyDrafts.map((company, index) => <div key={index} className="rounded-lg border border-border p-4"><div className="grid gap-3 sm:grid-cols-[1fr_210px]"><div><Label>{companySetupCopy.nameLabel}</Label><Input value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} /></div>{allowedCompanyTypes.length > 1 && <div><Label>Type</Label><Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>}</div><div className="mt-3"><Label>Optional description or nickname</Label><Input value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" /></div><div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div></div>)}<Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button><p className="text-xs text-muted-foreground">You can add more later in Settings.</p></div></div>}
+          {step === 3 && <div className="space-y-5">
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">Have you already earned income this year?</h1>
+              <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
+            </div>
+            <div className="grid gap-3">
+              <SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={() => setCatchupChoice("yes")} />
+              <SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={() => setCatchupChoice("no")} />
+              <SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={() => setCatchupChoice("skip")} />
+            </div>
+            {catchupChoice === "yes" && (
+              <div className="rounded-xl border border-border p-4">
+                <h2 className="text-lg font-semibold mb-1">Catch Up Your Year So Far</h2>
+                {existingCatchups && existingCatchups.length > 0 && (
+                  <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
+                )}
+                <YtdCatchupForm />
+              </div>
+            )}
+            <div className="border-t border-border pt-4">
+              <h2 className="text-lg font-semibold text-foreground">{companySetupCopy.title}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p>
+            </div>
+            <div className="space-y-3">{companyDrafts.map((company, index) => <div key={index} className="rounded-lg border border-border p-4"><div className="grid gap-3 sm:grid-cols-[1fr_210px]"><div><Label>{companySetupCopy.nameLabel}</Label><Input value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} /></div>{allowedCompanyTypes.length > 1 && <div><Label>Type</Label><Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>}</div><div className="mt-3"><Label>Optional description or nickname</Label><Input value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" /></div><div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div></div>)}<Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button><p className="text-xs text-muted-foreground">You can add more later in Settings.</p></div>
+          </div>}
 
           {step === 4 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1><p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p></div><div className="grid gap-3 sm:grid-cols-2"><SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, and deduction tracking.</SelectCard><SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard></div></div>}
 

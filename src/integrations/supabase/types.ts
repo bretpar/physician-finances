@@ -208,6 +208,7 @@ export type Database = {
           created_at: string
           deposited_amount: number
           dynamic_tax_recommendation: number
+          entry_kind: string
           federal_withholding: number
           gross_amount: number
           healthcare_deduction: number
@@ -251,6 +252,7 @@ export type Database = {
           created_at?: string
           deposited_amount?: number
           dynamic_tax_recommendation?: number
+          entry_kind?: string
           federal_withholding?: number
           gross_amount?: number
           healthcare_deduction?: number
@@ -294,6 +296,7 @@ export type Database = {
           created_at?: string
           deposited_amount?: number
           dynamic_tax_recommendation?: number
+          entry_kind?: string
           federal_withholding?: number
           gross_amount?: number
           healthcare_deduction?: number
@@ -1918,6 +1921,84 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ytd_catchup_entries: {
+        Row: {
+          company_id: string | null
+          company_name: string
+          created_at: string
+          dental_vision: number
+          federal_withholding: number
+          gross_income: number
+          healthcare_premiums: number
+          hsa_contribution: number
+          id: string
+          medicare_withholding: number
+          notes: string
+          organization_id: string | null
+          other_pretax: number
+          period_end: string
+          period_start: string
+          post_tax_deductions: number
+          retirement_401k: number
+          source_type: string
+          ss_withholding: number
+          state_withholding: number
+          tax_year: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          company_name?: string
+          created_at?: string
+          dental_vision?: number
+          federal_withholding?: number
+          gross_income?: number
+          healthcare_premiums?: number
+          hsa_contribution?: number
+          id?: string
+          medicare_withholding?: number
+          notes?: string
+          organization_id?: string | null
+          other_pretax?: number
+          period_end?: string
+          period_start?: string
+          post_tax_deductions?: number
+          retirement_401k?: number
+          source_type?: string
+          ss_withholding?: number
+          state_withholding?: number
+          tax_year?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          company_name?: string
+          created_at?: string
+          dental_vision?: number
+          federal_withholding?: number
+          gross_income?: number
+          healthcare_premiums?: number
+          hsa_contribution?: number
+          id?: string
+          medicare_withholding?: number
+          notes?: string
+          organization_id?: string | null
+          other_pretax?: number
+          period_end?: string
+          period_start?: string
+          post_tax_deductions?: number
+          retirement_401k?: number
+          source_type?: string
+          ss_withholding?: number
+          state_withholding?: number
+          tax_year?: number
           updated_at?: string
           user_id?: string
         }
