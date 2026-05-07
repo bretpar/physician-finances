@@ -210,6 +210,7 @@ export function useTaxSettings(enabled = true) {
         deductionStrategy: (d.deduction_strategy as DeductionStrategy) || ((d.deduction_type === "itemized" ? "itemized" : "standard") as DeductionStrategy),
         enabledDeductionTypes: Array.isArray(d.enabled_deduction_types) ? d.enabled_deduction_types : [],
         subscriptionTier: (d.subscription_tier as OnboardingSubscriptionTier) || "premium",
+        ytdCatchupChoice: (d.ytd_catchup_choice as TaxRates["ytdCatchupChoice"]) ?? null,
       } as TaxRates;
     },
   });
