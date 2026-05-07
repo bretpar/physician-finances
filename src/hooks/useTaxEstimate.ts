@@ -444,9 +444,23 @@ export function useTaxEstimate(): {
       const quarterlyPaid = taxPayments
         .filter((p) => incomeScope === "actualPlusPlanned" || p.payment_date <= todayStr)
         .reduce((s, p) => s + Number(p.amount), 0);
-      const savingsTotal = taxSavings
+      const manualSavingsTotal = taxSavings
         .filter((e) => incomeScope === "actualPlusPlanned" || e.savings_date <= todayStr)
         .reduce((s, e) => s + Number(e.amount), 0);
+      // Per-entry "Additional Tax Reserve" the user marked on income entries
+      // is money they manually set aside for taxes (not actual withholding).
+      // Roll it into the same non-counted savings bucket so the tax estimator
+      // shows it as money already reserved. This must NEVER be added to
+      // federal/state/SS/Medicare withholding totals.
+      const personalEntryReserves = personal.reduce(
+        (s, e) => s + Math.max(0, Number((e as any).additional_tax_reserve || 0)),
+        0,
+      );
+      const businessEntryReserves = linkedEntries.reduce(
+        (s, e) => s + Math.max(0, Number((e as any).additional_tax_reserve || 0)),
+        0,
+      );
+      const savingsTotal = manualSavingsTotal + personalEntryReserves + businessEntryReserves;
 
       const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
