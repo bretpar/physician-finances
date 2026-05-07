@@ -977,14 +977,16 @@ export default function PersonalIncome() {
                     </div>
                   )}
 
-                  {/* Additional tax reserve field on edit */}
-                  {isEditing && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
-                      <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
-                      <p className="text-[10px] text-muted-foreground mt-1">Extra amount set aside beyond actual withholding</p>
-                    </div>
-                  )}
+                  {/* Additional tax reserve — extra money the user is setting
+                      aside for taxes for THIS specific paycheck only. Not
+                      counted as actual federal/state/SS/Medicare withholding,
+                      and does not spread across other paychecks. Available on
+                      add and edit so the live paycheck guide reflects it. */}
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Additional Tax Reserve</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.additional_tax_reserve} onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground mt-1">Extra money you set aside for taxes on this paycheck. Not actual withholding.</p>
+                  </div>
 
                   {visibleFields.notes && (
                     <div>
