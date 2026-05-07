@@ -282,6 +282,7 @@ export default function Onboarding() {
       enabledDeductionTypes: next.enabledDeductionTypes,
       hsaEnabled: next.enabledDeductionTypes.includes("hsa"),
       subscriptionTier: next.subscriptionTier,
+      ytdCatchupChoice: next.ytdCatchupChoice ?? null,
     });
   }
 
