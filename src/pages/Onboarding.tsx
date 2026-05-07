@@ -129,6 +129,7 @@ export default function Onboarding() {
       deductionStrategy: taxSettings.deductionStrategy || current.deductionStrategy,
       enabledDeductionTypes: taxSettings.enabledDeductionTypes || current.enabledDeductionTypes,
       subscriptionTier: taxSettings.subscriptionTier || current.subscriptionTier,
+      ytdCatchupChoice: taxSettings.ytdCatchupChoice ?? current.ytdCatchupChoice ?? null,
     }));
   }, [user, isLoading, taxSettings]);
 
