@@ -154,17 +154,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
         <header
-          className="fixed top-0 left-0 right-0 z-40 flex items-center gap-4 px-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6 h-14 lg:h-14 box-content lg:box-border"
+          className="fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6 h-12 lg:h-14 box-content lg:box-border"
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
           <button
-            className="lg:hidden text-foreground"
+            className="lg:hidden text-foreground -ml-1 p-1"
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <h2 className="text-lg font-semibold text-foreground truncate">
+          <h2 className="text-base lg:text-lg font-semibold text-foreground truncate min-w-0 flex-1">
             {(() => {
               const item = navItems.find((i) => i.to === location.pathname);
               return item ? (useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label) : "Page";
@@ -174,7 +174,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div
           className="flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6 lg:py-6 min-w-0"
           style={{
-            paddingTop: "calc(env(safe-area-inset-top) + 3.5rem + 1rem)",
+            paddingTop: "calc(env(safe-area-inset-top) + 3rem + 0.5rem)",
             paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
           }}
         >
