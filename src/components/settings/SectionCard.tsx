@@ -150,7 +150,7 @@ export function SectionCard({
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            {headerAction}
+            {(!headerActionOpenOnly || bareOpen) && headerAction}
             {collapsible && (
               <button
                 type="button"
