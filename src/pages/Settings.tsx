@@ -761,9 +761,6 @@ function OnboardingPreferencesSection() {
   const source: OnboardingPreferencesDraft = useMemo(() => ({
     incomeProfileType: data?.incomeProfileType || "w2_plus_business",
     enabledPersonalIncomeTypes: data?.enabledPersonalIncomeTypes || [],
-    taxRecommendationMethod: data?.taxRecommendationMethod || "dynamic_planner",
-    flatFederalRate: data?.flatFederalRate ?? data?.manualEffectiveTaxRate ?? null,
-    flatStateRate: data?.flatStateRate ?? null,
     deductionStrategy: data?.deductionStrategy || "standard",
     enabledDeductionTypes: data?.enabledDeductionTypes || [],
     subscriptionTier: data?.subscriptionTier || "premium",
@@ -774,13 +771,14 @@ function OnboardingPreferencesSection() {
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
       const enabledIncomeSources = incomeProfileToSources(next.incomeProfileType);
+      // NOTE: Tax recommendation method (withholdingMethod / manualEffectiveTaxRate
+      // / flat rates) is intentionally NOT touched here. That setting lives only
+      // in Tax Withholding & Quarterly Tracker → Withholding Method.
       await updateMutation.mutateAsync({
         id: data.id,
         ...next,
         enabledIncomeSources,
         householdIncomeStreams: incomeSourcesToHouseholdStreams(enabledIncomeSources, next.enabledPersonalIncomeTypes),
-        withholdingMethod: taxRecommendationToWithholdingMethod(next.taxRecommendationMethod),
-        manualEffectiveTaxRate: next.taxRecommendationMethod === "flat_rate" ? next.flatFederalRate : data.manualEffectiveTaxRate,
         deductionType: next.deductionStrategy === "itemized" ? "itemized" : "standard",
         hsaEnabled: next.enabledDeductionTypes.includes("hsa"),
       });
