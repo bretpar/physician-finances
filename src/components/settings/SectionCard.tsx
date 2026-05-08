@@ -285,7 +285,7 @@ export function SectionCard({
       )}
 
       {open && showActionBar && (
-        <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-5 sm:px-6 py-3 flex items-center justify-end gap-2">
+        <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
           {onCancel && (
             <Button
               variant="ghost"
