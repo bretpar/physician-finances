@@ -53,6 +53,7 @@ export function SectionCard({
   summary,
   description,
   headerAction,
+  headerActionOpenOnly = false,
   collapsible = true,
   defaultOpen = false,
   isDirty = false,
