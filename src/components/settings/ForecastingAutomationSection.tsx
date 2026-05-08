@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Workflow } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
@@ -15,7 +15,7 @@ interface AutomationDraft {
 }
 
 export function ForecastingAutomationSection({ bare = false }: { bare?: boolean } = {}) {
-  const { data } = useTaxSettings();
+  const { data, isLoading } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
   const qc = useQueryClient();
   const [savedTick, setSavedTick] = useState(false);
@@ -65,11 +65,25 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
     }
   };
 
+  // Empty state — match the "no settings yet" pattern from sibling sections.
+  if (!isLoading && !data) {
+    return (
+      <SectionCard
+        bare={bare}
+        title="Forecasting Automation"
+        description="Control how planned future income flows into your real ledger."
+      >
+        <p className="text-xs text-muted-foreground">
+          Save your tax profile first to enable forecasting automation.
+        </p>
+      </SectionCard>
+    );
+  }
+
   return (
     <SectionCard
       bare={bare}
       title="Forecasting Automation"
-      icon={<Workflow className="h-5 w-5" />}
       description="Control how planned future income flows into your real ledger."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
@@ -77,51 +91,57 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
       onSave={draft.save}
       onCancel={draft.cancel}
     >
-      <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-4">
-        <div className="space-y-1">
-          <Label className="text-sm font-medium">
-            Auto-convert future income to ledger transactions
+      <div className="grid grid-cols-1 gap-4">
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">
+            Auto-convert future income to ledger
           </Label>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            When enabled, planned income automatically creates a real ledger
-            transaction draft on its scheduled date and is marked Needs Review.
-            When disabled, future income stays in forecasting only and does not
-            create a ledger entry.
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-xs text-muted-foreground leading-relaxed flex-1">
+              When enabled, planned income automatically creates a real ledger
+              transaction draft on its scheduled date and is marked Needs Review.
+              When disabled, future income stays in forecasting only.
+            </p>
+            <Switch
+              checked={isOn}
+              onCheckedChange={(v) => draft.patch({ autoConvertFutureIncomeToLedger: v })}
+              aria-label="Toggle auto-convert future income"
+            />
+          </div>
         </div>
-        <Switch
-          checked={isOn}
-          onCheckedChange={(v) => draft.patch({ autoConvertFutureIncomeToLedger: v })}
-          aria-label="Toggle auto-convert future income"
-        />
-      </div>
 
-      {isOn && (
-        <div className="flex items-center justify-between rounded-lg border border-dashed border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            Conversion runs daily and on app load. Run it now if you want to catch up immediately.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleRunNow}
-            disabled={running}
-          >
-            {running ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                Running…
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-1.5" />
-                Run now
-              </>
-            )}
-          </Button>
-        </div>
-      )}
+        {isOn && (
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">
+              Manual conversion
+            </Label>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground flex-1">
+                Conversion runs daily and on app load. Run it now to catch up immediately.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRunNow}
+                disabled={running}
+              >
+                {running ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    Running…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-1.5" />
+                    Run now
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </SectionCard>
   );
 }
