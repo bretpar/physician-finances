@@ -67,6 +67,7 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
 
   return (
     <SectionCard
+      bare={bare}
       title="Forecasting Automation"
       icon={<Workflow className="h-5 w-5" />}
       description="Control how planned future income flows into your real ledger."
