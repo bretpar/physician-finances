@@ -1,4 +1,5 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useCallback } from "react";
+import { useTaxModeStore, type TaxMode as SharedTaxMode } from "@/lib/taxModeStore";
 import { useIncomeEntries, useWeightedIncome } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useTransactions } from "@/hooks/useTransactions";
