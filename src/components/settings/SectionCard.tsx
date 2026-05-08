@@ -211,7 +211,7 @@ export function SectionCard({
     <section className="glass-card rounded-xl overflow-hidden">
       <header
         className={cn(
-          "flex items-start gap-3 p-5 sm:p-6",
+          "flex items-start gap-3 p-4 sm:p-6",
           collapsible && "cursor-pointer select-none",
         )}
         onClick={collapsible ? toggle : undefined}
@@ -236,7 +236,7 @@ export function SectionCard({
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-base font-semibold text-card-foreground truncate">
+            <h3 className="text-sm sm:text-base font-semibold text-card-foreground break-words">
               {title}
             </h3>
             {summary && (
@@ -258,7 +258,7 @@ export function SectionCard({
           )}
         </div>
         <div
-          className="flex items-center gap-2 flex-shrink-0"
+          className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0"
           onClick={(e) => e.stopPropagation()}
         >
           {(!headerActionOpenOnly || open) && headerAction}
@@ -267,11 +267,11 @@ export function SectionCard({
               type="button"
               aria-label={open ? "Collapse section" : "Expand section"}
               onClick={toggle}
-              className="h-9 w-9 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="h-10 w-10 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               <ChevronDown
                 className={cn(
-                  "h-4 w-4 transition-transform",
+                  "h-5 w-5 sm:h-4 sm:w-4 transition-transform",
                   open && "rotate-180",
                 )}
               />
@@ -281,7 +281,7 @@ export function SectionCard({
       </header>
 
       {open && (
-        <div className="px-5 sm:px-6 pb-5 sm:pb-6 space-y-5">{children}</div>
+        <div className="px-4 sm:px-6 pb-5 sm:pb-6 space-y-5">{children}</div>
       )}
 
       {open && showActionBar && (
