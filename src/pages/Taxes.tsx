@@ -224,14 +224,42 @@ export default function Taxes() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm font-medium text-muted-foreground">{isW2Only ? "Household Income" : "Total Gross Income"}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">{isW2Only ? "Household Income" : "Total Gross Income"}</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's included?">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    Gross income fed into the tax engine before any deductions. Includes W-2, 1099, K-1, personal income entries, dividends, capital gains, rental, and YTD catch-ups. In Planned Income mode it also adds future planned paychecks — that's the same number shown as "Expected Annual Income" on the Dashboard. Switch to "Actual Only" to see just what's been received so far.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(totalGrossIncome)}</p>
             <p className="mt-2 text-xs text-muted-foreground">Before deductions</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm font-medium text-muted-foreground">Total Taxable Income</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">Total Taxable Income</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's subtracted?">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    Taxable income after the standard or itemized deduction, pre-tax payroll items (401(k), HSA, health premiums), business expenses, mileage, home-office deduction, and the deductible half of SE tax. This is why it's lower than Total Gross Income — and why neither matches the Dashboard's gross "Expected Annual Income" exactly.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(e?.taxableIncome ?? 0)}</p>
             <p className="mt-2 text-xs text-muted-foreground">After eligible deductions</p>
           </CardContent>

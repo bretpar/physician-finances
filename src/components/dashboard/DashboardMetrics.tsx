@@ -1,16 +1,15 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useCountUp } from "@/hooks/useCountUp";
-import { useIncomeEntries } from "@/hooks/useIncome";
-import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
-  useProjectedStreams,
-  useProjectedBonuses,
-  useStreamOverrides,
-  generateProjectedPaychecks,
-  getProjectedTotals,
-} from "@/hooks/useProjectedIncome";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
+import { useCountUp } from "@/hooks/useCountUp";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 
@@ -30,17 +29,18 @@ const fmt = (n: number) =>
   }).format(n);
 
 /**
- * Top-of-dashboard metrics card with an optional premium "Projection View" toggle.
+ * Top-of-dashboard metrics card.
  *
- * Default view:
- *  - Total Income (YTD)
- *  - Business Profit (YTD)
- *
- * Projection View (premium toggle ON):
- *  - Expected Annual Income — same formula as Income Planner
- *    (`actualYTD.income + projectedTotals.grossIncome`)
- *  - Projected Business Profit — `forecastDebug.netBusinessProfit` from the
- *    unified tax engine, which already mirrors Income Planner's projection math.
+ * IMPORTANT: All "annual" / "projected" income values come from the SAME
+ * unified tax engine that powers the Taxes tab (`useTaxEstimate`). This is
+ * what guarantees the Dashboard's "Expected Annual Income" matches the Taxes
+ * tab's "Total Gross Income" when Planned Income mode is on. Do NOT recompute
+ * income locally here — the engine already aggregates:
+ *   - W-2 actual + projected (income_entries + planner streams)
+ *   - 1099 / K-1 actual + projected (transactions + planner streams)
+ *   - Personal income entries (spouse W-2, side income, rental, etc.)
+ *   - Investment dividends and stock capital gains
+ *   - YTD catch-up entries
  */
 export default function DashboardMetrics({
   totalIncomeYTD,
@@ -50,47 +50,31 @@ export default function DashboardMetrics({
   const isPremium = isFeatureEnabled("premium_visibility");
   const [projection, setProjection] = useState(true);
 
-  // ── Pull the EXACT same inputs Income Planner uses ──────────────────────
-  const { data: incomeEntries } = useIncomeEntries();
-  const { data: streams } = useProjectedStreams();
-  const { data: bonuses } = useProjectedBonuses();
-  const { data: overrides } = useStreamOverrides();
-  const { forecastDebug } = useTaxEstimate();
+  const { forecastDebug, actualDebug } = useTaxEstimate();
 
-  // Mirror ProjectedIncome.tsx (lines 249–278) exactly.
-  const projectedPaychecks = useMemo(() => {
-    if (!streams || !bonuses) return [];
-    return generateProjectedPaychecks(
-      streams,
-      bonuses,
-      incomeEntries || [],
-      overrides || [],
-    );
-  }, [streams, bonuses, incomeEntries, overrides]);
-
-  const projectedTotals = useMemo(
-    () => getProjectedTotals(projectedPaychecks),
-    [projectedPaychecks],
-  );
-
-  const actualYTD = useMemo(() => {
-    if (!incomeEntries) return { income: 0 };
-    const year = new Date().getFullYear();
-    const ytd = incomeEntries.filter((e) =>
-      e.income_date.startsWith(String(year)),
-    );
-    return {
-      income: ytd.reduce((s, e) => s + Number(e.paycheck_amount), 0),
-    };
-  }, [incomeEntries]);
-
-  const expectedAnnualIncome = actualYTD.income + projectedTotals.grossIncome;
+  // Single source of truth: the unified tax engine's gross totals.
+  // forecastDebug = actual YTD + planned future. actualDebug = actual only.
+  const expectedAnnualIncome = forecastDebug?.totalGrossIncome ?? 0;
   const projectedBusinessProfit = forecastDebug?.netBusinessProfit ?? 0;
+  const ytdGrossFromEngine = actualDebug?.totalGrossIncome ?? totalIncomeYTD;
 
-  const primaryValue = w2Only ? (forecastDebug?.totalGrossIncome ?? expectedAnnualIncome) : (projection ? expectedAnnualIncome : totalIncomeYTD);
-  const secondaryValue = w2Only ? (forecastDebug?.totalTaxableIncome ?? 0) : (projection ? projectedBusinessProfit : businessProfitYTD);
-  const primaryLabel = w2Only ? "Projected Household Income" : (projection ? "Expected Annual Income" : "Total Income (YTD)");
-  const secondaryLabel = w2Only ? "Projected Taxable Income" : (projection ? "Projected Business Profit" : "Business Profit (YTD)");
+  const primaryValue = w2Only
+    ? expectedAnnualIncome
+    : (projection ? expectedAnnualIncome : ytdGrossFromEngine);
+  const secondaryValue = w2Only
+    ? (forecastDebug?.totalTaxableIncome ?? 0)
+    : (projection ? projectedBusinessProfit : businessProfitYTD);
+  const primaryLabel = w2Only
+    ? "Projected Household Income"
+    : (projection ? "Expected Annual Income" : "Total Income (YTD)");
+  const secondaryLabel = w2Only
+    ? "Projected Taxable Income"
+    : (projection ? "Projected Business Profit" : "Business Profit (YTD)");
+  const primaryTooltip = w2Only
+    ? "Total household gross income for the year — actual YTD plus planned future paychecks from all earners. Matches 'Total Gross Income' on the Taxes tab when Planned Income mode is on."
+    : (projection
+        ? "Full-year projected gross income from every source (W-2, 1099, K-1, personal income, dividends, capital gains, rental, YTD catch-ups, plus planned future paychecks). Same number as 'Total Gross Income' on the Taxes tab in Planned Income mode — before any deductions."
+        : "Actual gross income received so far this year, across every source. This will be lower than 'Total Gross Income' on the Taxes tab if that tab is in Planned Income mode (which also adds future planned paychecks).");
 
   const primaryAnim = useCountUp(primaryValue);
   const secondaryAnim = useCountUp(secondaryValue);
@@ -127,8 +111,20 @@ export default function DashboardMetrics({
             className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-primary"
           />
           <div className="pl-2 min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-2">
+            <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-2 inline-flex items-center gap-1.5">
               {primaryLabel}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's included in this number?">
+                      <Info className="h-3 w-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs leading-relaxed normal-case tracking-normal">
+                    {primaryTooltip}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </p>
             <p className="text-[34px] leading-none sm:text-5xl font-bold tabular-nums tracking-tight text-foreground">
               {fmt(primaryAnim)}
