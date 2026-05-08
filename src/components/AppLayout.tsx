@@ -67,6 +67,8 @@ function hasOnlyW2IncomeStreams(streams?: HouseholdIncomeStreams) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
@@ -81,6 +83,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (item.module === "investment") return showInvestmentNav;
     return true;
   });
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 4);
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Auto-convert planned income → ledger drafts (no-op if Settings toggle is OFF)
   usePlannerConversionFallback();
