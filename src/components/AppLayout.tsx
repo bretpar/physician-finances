@@ -165,7 +165,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
         <header
-          className="fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6 h-12 lg:h-14 box-content lg:box-border"
+          className={`fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6 h-12 lg:h-14 box-content lg:box-border transition-shadow duration-300 ${
+            scrolled ? "shadow-[0_2px_8px_rgba(0,0,0,0.06)]" : "shadow-none"
+          }`}
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
           <button
