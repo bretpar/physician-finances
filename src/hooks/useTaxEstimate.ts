@@ -38,12 +38,12 @@ export function useTaxEstimate(): {
   currentPaceDebug: TaxDebugBreakdown | null;
   forecastDebug: TaxDebugBreakdown | null;
 } {
-  const [taxMode, setTaxModeRaw] = useState<TaxMode>("forecast");
+  const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
-  const setTaxMode = useCallback((mode: TaxMode) => {
+  const setTaxMode = useCallback((mode: SharedTaxMode) => {
     if (mode === "forecast" && !isFeatureEnabled("forecast_mode")) return;
     setTaxModeRaw(mode);
-  }, []);
+  }, [setTaxModeRaw]);
 
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
