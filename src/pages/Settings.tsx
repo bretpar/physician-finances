@@ -699,23 +699,6 @@ function HouseholdIncomeStreamsSection() {
           )}
         </div>
       )}
-      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-        <p className="text-sm font-semibold text-card-foreground">Income pathway history</p>
-        {pathwayHistory.length > 0 ? (
-          <div className="space-y-2">
-            {pathwayHistory.map((row) => (
-              <div key={row.id} className="flex flex-col gap-1 rounded-md border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-card-foreground">
-                  {(getUserTypeDisplayInfo(row.previous_user_type as any)?.label || row.previous_user_type)} → {(getUserTypeDisplayInfo(row.new_user_type as any)?.label || row.new_user_type)}
-                </p>
-                <p className="text-xs text-muted-foreground">Effective {formatPathwayDate(row.effective_date)}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">No pathway changes recorded yet.</p>
-        )}
-      </div>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -827,8 +810,6 @@ function OnboardingPreferencesSection() {
           <div className="grid gap-2 sm:grid-cols-2">{PERSONAL_INCOME_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledPersonalIncomeTypes", value, !!checked)} />{label}</label>)}</div>
         </CollapsibleContent>
       </Collapsible>
-      <div><Label className="text-xs text-muted-foreground mb-1.5 block">Tax recommendation method</Label><Select value={d.taxRecommendationMethod} onValueChange={(v) => draft.patch({ taxRecommendationMethod: v as TaxRecommendationMethod })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="flat_rate">Flat Rate</SelectItem><SelectItem value="dynamic_actual">Dynamic — Based on Current Income</SelectItem><SelectItem value="dynamic_planner">Dynamic — Based on Income Planner</SelectItem></SelectContent></Select></div>
-      {d.taxRecommendationMethod === "flat_rate" && <div className="grid gap-4 sm:grid-cols-2"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatFederalRate ?? ""} onChange={(e) => draft.patch({ flatFederalRate: parseFloat(e.target.value) || 0 })} /></div>{data?.stateIncomeTaxEnabled && <div><Label className="text-xs text-muted-foreground mb-1.5 block">State flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatStateRate ?? ""} onChange={(e) => draft.patch({ flatStateRate: parseFloat(e.target.value) || 0 })} /></div>}</div>}
       <div><Label className="text-xs text-muted-foreground mb-1.5 block">Deduction strategy</Label><Select value={d.deductionStrategy} onValueChange={(v) => draft.patch({ deductionStrategy: v as DeductionStrategy })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standard">Standard deduction</SelectItem><SelectItem value="itemized">Itemized deductions</SelectItem><SelectItem value="not_sure">Not sure</SelectItem></SelectContent></Select></div>
       <Collapsible>
         <CollapsibleTrigger className="flex min-h-11 items-center justify-between w-full rounded-lg border border-border px-3 py-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
@@ -839,6 +820,8 @@ function OnboardingPreferencesSection() {
           <div className="grid gap-2 sm:grid-cols-2">{DEDUCTIONS_BY_PROFILE[d.incomeProfileType].map((value) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledDeductionTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledDeductionTypes", value, !!checked)} />{DEDUCTION_LABELS[value]}</label>)}</div>
         </CollapsibleContent>
       </Collapsible>
+      <Separator className="my-2" />
+      <HsaSettingsSection bare />
     </SectionCard>
   );
 }
@@ -2232,7 +2215,7 @@ export default function Settings() {
         <Separator className="my-2" />
         <TaxProfileSection />
         <Separator className="my-2" />
-        <ForecastingAutomationSection />
+        <ForecastingAutomationSection bare />
       </SectionCard>
 
       <SectionCard
@@ -2248,7 +2231,6 @@ export default function Settings() {
 
       <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
-      <HsaSettingsSection />
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />

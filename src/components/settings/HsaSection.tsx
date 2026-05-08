@@ -40,7 +40,7 @@ function isPayrollEligibleCompany(c: Company): boolean {
   return ft === "w2" || ft === "scorp_w2" || ft === "k1_partnership";
 }
 
-export function HsaSettingsSection() {
+export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
   const { data } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
   const { companies } = useCompanies();
@@ -73,6 +73,7 @@ export function HsaSettingsSection() {
 
   return (
     <SectionCard
+      bare={bare}
       title="HSA Tracking"
       icon={<HeartPulse className="h-5 w-5" />}
       description="Track Health Savings Account contributions across paychecks and individual deposits."
