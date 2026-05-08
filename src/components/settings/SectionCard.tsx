@@ -24,6 +24,8 @@ interface SectionCardProps {
   description?: string;
   /** Action element rendered in the header (e.g. an "Add" button). */
   headerAction?: ReactNode;
+  /** When true, only render headerAction while the section is expanded. */
+  headerActionOpenOnly?: boolean;
   /** Whether section is collapsible. Defaults true. */
   collapsible?: boolean;
   /** Initial open state. Defaults false so sections start collapsed. */
@@ -51,6 +53,7 @@ export function SectionCard({
   summary,
   description,
   headerAction,
+  headerActionOpenOnly = false,
   collapsible = true,
   defaultOpen = false,
   isDirty = false,
@@ -147,7 +150,7 @@ export function SectionCard({
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            {headerAction}
+            {(!headerActionOpenOnly || bareOpen) && headerAction}
             {collapsible && (
               <button
                 type="button"
@@ -258,7 +261,7 @@ export function SectionCard({
           className="flex items-center gap-2 flex-shrink-0"
           onClick={(e) => e.stopPropagation()}
         >
-          {headerAction}
+          {(!headerActionOpenOnly || open) && headerAction}
           {collapsible && (
             <button
               type="button"

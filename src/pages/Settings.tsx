@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Plus, Trash2, Building2, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, ChevronDown, ChevronRight, Users, Wrench, UserCircle,
+  Lock, ChevronDown, ChevronRight, Users, UserCircle,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,9 +44,6 @@ import {
   useBackfillPlaidTransactions,
   useReviewAccounts,
 } from "@/hooks/usePlaid";
-import { DuplicateCleanupCard } from "@/components/DuplicateCleanupCard";
-import { RestoreTombstonesCard } from "@/components/RestoreTombstonesCard";
-import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
@@ -629,7 +626,6 @@ function HouseholdIncomeStreamsSection() {
       title="Household Income Profile"
       icon={<Settings2 className="h-5 w-5" />}
       description="Review what income your household currently has so the app can match your pathway."
-      defaultOpen
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
       justSaved={savedTick}
@@ -822,11 +818,27 @@ function OnboardingPreferencesSection() {
         <div><Label className="text-xs text-muted-foreground mb-1.5 block">Income profile type</Label><Select value={d.incomeProfileType} onValueChange={(v) => draft.patch({ incomeProfileType: v as IncomeProfileType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="w2_only">W-2 Only</SelectItem><SelectItem value="w2_plus_business">W-2 + 1099/K-1</SelectItem><SelectItem value="business_only">1099/K-1 Only</SelectItem></SelectContent></Select></div>
         <div><Label className="text-xs text-muted-foreground mb-1.5 block">Plan status</Label><Select value={d.subscriptionTier} onValueChange={(v) => draft.patch({ subscriptionTier: v as OnboardingSubscriptionTier })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select></div>
       </div>
-      <div><Label className="text-xs text-muted-foreground mb-2 block">Personal income categories</Label><div className="grid gap-2 sm:grid-cols-2">{PERSONAL_INCOME_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledPersonalIncomeTypes", value, !!checked)} />{label}</label>)}</div></div>
+      <Collapsible>
+        <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border border-border p-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
+          <span>Personal income categories</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <div className="grid gap-2 sm:grid-cols-2">{PERSONAL_INCOME_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledPersonalIncomeTypes", value, !!checked)} />{label}</label>)}</div>
+        </CollapsibleContent>
+      </Collapsible>
       <div><Label className="text-xs text-muted-foreground mb-1.5 block">Tax recommendation method</Label><Select value={d.taxRecommendationMethod} onValueChange={(v) => draft.patch({ taxRecommendationMethod: v as TaxRecommendationMethod })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="flat_rate">Flat Rate</SelectItem><SelectItem value="dynamic_actual">Dynamic — Based on Current Income</SelectItem><SelectItem value="dynamic_planner">Dynamic — Based on Income Planner</SelectItem></SelectContent></Select></div>
       {d.taxRecommendationMethod === "flat_rate" && <div className="grid gap-4 sm:grid-cols-2"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatFederalRate ?? ""} onChange={(e) => draft.patch({ flatFederalRate: parseFloat(e.target.value) || 0 })} /></div>{data?.stateIncomeTaxEnabled && <div><Label className="text-xs text-muted-foreground mb-1.5 block">State flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatStateRate ?? ""} onChange={(e) => draft.patch({ flatStateRate: parseFloat(e.target.value) || 0 })} /></div>}</div>}
       <div><Label className="text-xs text-muted-foreground mb-1.5 block">Deduction strategy</Label><Select value={d.deductionStrategy} onValueChange={(v) => draft.patch({ deductionStrategy: v as DeductionStrategy })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standard">Standard deduction</SelectItem><SelectItem value="itemized">Itemized deductions</SelectItem><SelectItem value="not_sure">Not sure</SelectItem></SelectContent></Select></div>
-      <div><Label className="text-xs text-muted-foreground mb-2 block">Deduction sections shown by default</Label><div className="grid gap-2 sm:grid-cols-2">{DEDUCTIONS_BY_PROFILE[d.incomeProfileType].map((value) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledDeductionTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledDeductionTypes", value, !!checked)} />{DEDUCTION_LABELS[value]}</label>)}</div></div>
+      <Collapsible>
+        <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border border-border p-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
+          <span>Deduction sections shown by default</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <div className="grid gap-2 sm:grid-cols-2">{DEDUCTIONS_BY_PROFILE[d.incomeProfileType].map((value) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledDeductionTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledDeductionTypes", value, !!checked)} />{DEDUCTION_LABELS[value]}</label>)}</div>
+        </CollapsibleContent>
+      </Collapsible>
     </SectionCard>
   );
 }
@@ -1174,6 +1186,7 @@ function CompaniesSection() {
             <Plus className="h-4 w-4" /> Add
           </Button>
         }
+        headerActionOpenOnly
         isDirty={anyDirty}
         // Section-level save bar is hidden — each company has its own.
         hideActionBar
@@ -2218,6 +2231,8 @@ export default function Settings() {
         <ProfileSection justSavedFlag={justSavedFlag} />
         <Separator className="my-2" />
         <TaxProfileSection />
+        <Separator className="my-2" />
+        <ForecastingAutomationSection />
       </SectionCard>
 
       <SectionCard
@@ -2234,24 +2249,9 @@ export default function Settings() {
       <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
       <HsaSettingsSection />
-      <ForecastingAutomationSection />
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
-
-      <SectionCard
-        title="Data Maintenance"
-        icon={<Wrench className="h-5 w-5" />}
-        description="Clean up duplicates, restore deleted items, repair orphan records."
-        defaultOpen={false}
-        hideActionBar
-      >
-        <div className="space-y-3">
-          <DuplicateCleanupCard />
-          <RestoreTombstonesCard />
-          <OrphanIncomeCleanupCard />
-        </div>
-      </SectionCard>
     </div>
   );
 }
