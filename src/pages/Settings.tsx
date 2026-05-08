@@ -732,8 +732,8 @@ function HouseholdIncomeStreamsSection() {
 }
 /* ──────────────────────────────────────────────────────────── */
 type OnboardingPreferencesDraft = Pick<TaxRates,
-  | "incomeProfileType" | "enabledPersonalIncomeTypes" | "taxRecommendationMethod"
-  | "flatFederalRate" | "flatStateRate" | "deductionStrategy" | "enabledDeductionTypes" | "subscriptionTier"
+  | "incomeProfileType" | "enabledPersonalIncomeTypes"
+  | "deductionStrategy" | "enabledDeductionTypes" | "subscriptionTier"
 >;
 
 const PERSONAL_INCOME_OPTIONS = [
