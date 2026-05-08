@@ -156,9 +156,9 @@ export function SectionCard({
                 type="button"
                 aria-label={bareOpen ? "Collapse" : "Expand"}
                 onClick={bareToggle}
-                className="sm:hidden h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="sm:hidden h-10 w-10 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
-                <ChevronDown className={cn("h-4 w-4 transition-transform", bareOpen && "rotate-180")} />
+                <ChevronDown className={cn("h-5 w-5 transition-transform", bareOpen && "rotate-180")} />
               </button>
             )}
           </div>
