@@ -1173,6 +1173,7 @@ function CompaniesSection() {
             <Plus className="h-4 w-4" /> Add
           </Button>
         }
+        headerActionOpenOnly
         isDirty={anyDirty}
         // Section-level save bar is hidden — each company has its own.
         hideActionBar
