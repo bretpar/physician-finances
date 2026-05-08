@@ -1,6 +1,3 @@
-import { useState } from "react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -48,9 +45,9 @@ export default function DashboardMetrics({
   w2Only = false,
 }: DashboardMetricsProps) {
   const isPremium = isFeatureEnabled("premium_visibility");
-  const [projection, setProjection] = useState(true);
-
-  const { forecastDebug, actualDebug } = useTaxEstimate();
+  const { forecastDebug, actualDebug, taxMode, setTaxMode } = useTaxEstimate();
+  // Shared mode across Dashboard + Taxes tab. "forecast" = Planned Income, "actual" = Actual Only.
+  const projection = taxMode === "forecast";
 
   // Single source of truth: the unified tax engine's gross totals.
   // forecastDebug = actual YTD + planned future. actualDebug = actual only.
@@ -81,21 +78,35 @@ export default function DashboardMetrics({
 
   return (
     <section className="px-1">
-      {/* Header row: subtle, with optional premium toggle on the right */}
-      {isPremium && !w2Only && (
-        <div className="flex items-center justify-end gap-2 mb-3">
-          <Label
-            htmlFor="projection-toggle"
-            className="text-[11px] uppercase tracking-wider text-muted-foreground cursor-pointer"
-          >
-            Projection View
-          </Label>
-          <Switch
-            id="projection-toggle"
-            checked={projection}
-            onCheckedChange={setProjection}
-            aria-label="Toggle projection view"
-          />
+      {/* Shared mode toggle — synced with the Taxes tab. Premium-only for non-w2 households. */}
+      {(isPremium || w2Only) && (
+        <div className="flex items-center justify-end mb-3">
+          <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Income mode">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={projection}
+              onClick={() => setTaxMode("forecast")}
+              className={cn(
+                "px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors",
+                projection ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Planned Income
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!projection}
+              onClick={() => setTaxMode("actual")}
+              className={cn(
+                "px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors",
+                !projection ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Actual Only
+            </button>
+          </div>
         </div>
       )}
 
