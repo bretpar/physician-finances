@@ -14,7 +14,7 @@ interface AutomationDraft {
   autoConvertFutureIncomeToLedger: boolean;
 }
 
-export function ForecastingAutomationSection() {
+export function ForecastingAutomationSection({ bare = false }: { bare?: boolean } = {}) {
   const { data } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
   const qc = useQueryClient();
