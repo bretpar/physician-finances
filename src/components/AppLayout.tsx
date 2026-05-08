@@ -185,6 +185,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </h2>
         </header>
         <div
+          ref={scrollRef}
           className="flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6 lg:py-6 min-w-0"
           style={{
             paddingTop: "calc(env(safe-area-inset-top) + 3rem + 0.5rem)",
