@@ -2248,7 +2248,6 @@ export default function Settings() {
 
       <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
-      <HsaSettingsSection />
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
