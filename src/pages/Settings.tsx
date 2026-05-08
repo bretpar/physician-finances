@@ -2232,7 +2232,7 @@ export default function Settings() {
         <Separator className="my-2" />
         <TaxProfileSection />
         <Separator className="my-2" />
-        <ForecastingAutomationSection />
+        <ForecastingAutomationSection bare />
       </SectionCard>
 
       <SectionCard
