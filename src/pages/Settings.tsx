@@ -2218,6 +2218,8 @@ export default function Settings() {
         <ProfileSection justSavedFlag={justSavedFlag} />
         <Separator className="my-2" />
         <TaxProfileSection />
+        <Separator className="my-2" />
+        <ForecastingAutomationSection />
       </SectionCard>
 
       <SectionCard
@@ -2234,24 +2236,9 @@ export default function Settings() {
       <OnboardingPreferencesSection />
       <HouseholdIncomeStreamsSection />
       <HsaSettingsSection />
-      <ForecastingAutomationSection />
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
-
-      <SectionCard
-        title="Data Maintenance"
-        icon={<Wrench className="h-5 w-5" />}
-        description="Clean up duplicates, restore deleted items, repair orphan records."
-        defaultOpen={false}
-        hideActionBar
-      >
-        <div className="space-y-3">
-          <DuplicateCleanupCard />
-          <RestoreTombstonesCard />
-          <OrphanIncomeCleanupCard />
-        </div>
-      </SectionCard>
     </div>
   );
 }
