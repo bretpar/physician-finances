@@ -44,9 +44,6 @@ import {
   useBackfillPlaidTransactions,
   useReviewAccounts,
 } from "@/hooks/usePlaid";
-import { DuplicateCleanupCard } from "@/components/DuplicateCleanupCard";
-import { RestoreTombstonesCard } from "@/components/RestoreTombstonesCard";
-import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
