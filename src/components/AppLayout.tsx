@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -67,6 +67,8 @@ function hasOnlyW2IncomeStreams(streams?: HouseholdIncomeStreams) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
@@ -81,6 +83,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (item.module === "investment") return showInvestmentNav;
     return true;
   });
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 4);
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Auto-convert planned income → ledger drafts (no-op if Settings toggle is OFF)
   usePlannerConversionFallback();
@@ -154,7 +165,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
         <header
-          className="fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6 h-12 lg:h-14 box-content lg:box-border"
+          className={`fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:static lg:z-auto lg:bg-card lg:backdrop-blur-0 lg:px-6 h-12 lg:h-14 box-content lg:box-border transition-shadow duration-300 ${
+            scrolled ? "shadow-[0_2px_8px_rgba(0,0,0,0.06)]" : "shadow-none"
+          }`}
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
           <button
@@ -172,6 +185,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </h2>
         </header>
         <div
+          ref={scrollRef}
           className="flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6 lg:py-6 min-w-0"
           style={{
             paddingTop: "calc(env(safe-area-inset-top) + 3rem + 0.5rem)",
