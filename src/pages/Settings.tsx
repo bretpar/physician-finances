@@ -819,7 +819,7 @@ function OnboardingPreferencesSection() {
         <div><Label className="text-xs text-muted-foreground mb-1.5 block">Plan status</Label><Select value={d.subscriptionTier} onValueChange={(v) => draft.patch({ subscriptionTier: v as OnboardingSubscriptionTier })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select></div>
       </div>
       <Collapsible>
-        <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border border-border p-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
+        <CollapsibleTrigger className="flex min-h-11 items-center justify-between w-full rounded-lg border border-border px-3 py-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
           <span>Personal income categories</span>
           <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
         </CollapsibleTrigger>
@@ -831,7 +831,7 @@ function OnboardingPreferencesSection() {
       {d.taxRecommendationMethod === "flat_rate" && <div className="grid gap-4 sm:grid-cols-2"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Federal flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatFederalRate ?? ""} onChange={(e) => draft.patch({ flatFederalRate: parseFloat(e.target.value) || 0 })} /></div>{data?.stateIncomeTaxEnabled && <div><Label className="text-xs text-muted-foreground mb-1.5 block">State flat rate (%)</Label><Input type="number" min="0" max="100" step="0.1" value={d.flatStateRate ?? ""} onChange={(e) => draft.patch({ flatStateRate: parseFloat(e.target.value) || 0 })} /></div>}</div>}
       <div><Label className="text-xs text-muted-foreground mb-1.5 block">Deduction strategy</Label><Select value={d.deductionStrategy} onValueChange={(v) => draft.patch({ deductionStrategy: v as DeductionStrategy })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standard">Standard deduction</SelectItem><SelectItem value="itemized">Itemized deductions</SelectItem><SelectItem value="not_sure">Not sure</SelectItem></SelectContent></Select></div>
       <Collapsible>
-        <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border border-border p-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
+        <CollapsibleTrigger className="flex min-h-11 items-center justify-between w-full rounded-lg border border-border px-3 py-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
           <span>Deduction sections shown by default</span>
           <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
         </CollapsibleTrigger>
