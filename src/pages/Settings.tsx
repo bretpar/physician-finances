@@ -1279,8 +1279,8 @@ function CompaniesSection() {
 
                   <Collapsible open={advOpen} onOpenChange={() => toggleAdvanced(company.id)}>
                     <CollapsibleTrigger asChild>
-                      <button type="button" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
-                        {advOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      <button type="button" className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                        {advOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         Advanced tax settings
                       </button>
                     </CollapsibleTrigger>
