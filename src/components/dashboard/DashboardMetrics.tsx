@@ -111,8 +111,20 @@ export default function DashboardMetrics({
             className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-primary"
           />
           <div className="pl-2 min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-2">
+            <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground mb-2 inline-flex items-center gap-1.5">
               {primaryLabel}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's included in this number?">
+                      <Info className="h-3 w-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs leading-relaxed normal-case tracking-normal">
+                    {primaryTooltip}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </p>
             <p className="text-[34px] leading-none sm:text-5xl font-bold tabular-nums tracking-tight text-foreground">
               {fmt(primaryAnim)}
