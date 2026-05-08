@@ -24,6 +24,8 @@ interface SectionCardProps {
   description?: string;
   /** Action element rendered in the header (e.g. an "Add" button). */
   headerAction?: ReactNode;
+  /** When true, only render headerAction while the section is expanded. */
+  headerActionOpenOnly?: boolean;
   /** Whether section is collapsible. Defaults true. */
   collapsible?: boolean;
   /** Initial open state. Defaults false so sections start collapsed. */
