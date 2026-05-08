@@ -73,6 +73,7 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
 
   return (
     <SectionCard
+      bare={bare}
       title="HSA Tracking"
       icon={<HeartPulse className="h-5 w-5" />}
       description="Track Health Savings Account contributions across paychecks and individual deposits."
