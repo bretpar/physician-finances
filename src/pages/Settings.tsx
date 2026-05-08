@@ -61,7 +61,7 @@ import {
   getUserTypeDisplayInfo,
   type FeatureKey,
 } from "@/lib/entitlements";
-import { getAllowedCompanyTypes, incomeProfileToSources, incomeSourcesToHouseholdStreams, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, taxRecommendationToWithholdingMethod, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier, type TaxRecommendationMethod } from "@/lib/onboarding";
+import { getAllowedCompanyTypes, incomeProfileToSources, incomeSourcesToHouseholdStreams, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier } from "@/lib/onboarding";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -732,8 +732,8 @@ function HouseholdIncomeStreamsSection() {
 }
 /* ──────────────────────────────────────────────────────────── */
 type OnboardingPreferencesDraft = Pick<TaxRates,
-  | "incomeProfileType" | "enabledPersonalIncomeTypes" | "taxRecommendationMethod"
-  | "flatFederalRate" | "flatStateRate" | "deductionStrategy" | "enabledDeductionTypes" | "subscriptionTier"
+  | "incomeProfileType" | "enabledPersonalIncomeTypes"
+  | "deductionStrategy" | "enabledDeductionTypes" | "subscriptionTier"
 >;
 
 const PERSONAL_INCOME_OPTIONS = [
@@ -761,9 +761,6 @@ function OnboardingPreferencesSection() {
   const source: OnboardingPreferencesDraft = useMemo(() => ({
     incomeProfileType: data?.incomeProfileType || "w2_plus_business",
     enabledPersonalIncomeTypes: data?.enabledPersonalIncomeTypes || [],
-    taxRecommendationMethod: data?.taxRecommendationMethod || "dynamic_planner",
-    flatFederalRate: data?.flatFederalRate ?? data?.manualEffectiveTaxRate ?? null,
-    flatStateRate: data?.flatStateRate ?? null,
     deductionStrategy: data?.deductionStrategy || "standard",
     enabledDeductionTypes: data?.enabledDeductionTypes || [],
     subscriptionTier: data?.subscriptionTier || "premium",
@@ -774,13 +771,14 @@ function OnboardingPreferencesSection() {
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
       const enabledIncomeSources = incomeProfileToSources(next.incomeProfileType);
+      // NOTE: Tax recommendation method (withholdingMethod / manualEffectiveTaxRate
+      // / flat rates) is intentionally NOT touched here. That setting lives only
+      // in Tax Withholding & Quarterly Tracker → Withholding Method.
       await updateMutation.mutateAsync({
         id: data.id,
         ...next,
         enabledIncomeSources,
         householdIncomeStreams: incomeSourcesToHouseholdStreams(enabledIncomeSources, next.enabledPersonalIncomeTypes),
-        withholdingMethod: taxRecommendationToWithholdingMethod(next.taxRecommendationMethod),
-        manualEffectiveTaxRate: next.taxRecommendationMethod === "flat_rate" ? next.flatFederalRate : data.manualEffectiveTaxRate,
         deductionType: next.deductionStrategy === "itemized" ? "itemized" : "standard",
         hsaEnabled: next.enabledDeductionTypes.includes("hsa"),
       });
