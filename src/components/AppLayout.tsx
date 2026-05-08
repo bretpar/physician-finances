@@ -177,7 +177,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <h2 className="text-base lg:text-lg font-semibold text-foreground truncate min-w-0 flex-1">
+          <h2 className="text-base lg:text-lg font-semibold text-foreground leading-tight min-w-0 flex-1 break-words">
             {(() => {
               const item = navItems.find((i) => i.to === location.pathname);
               return item ? (useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label) : "Page";
