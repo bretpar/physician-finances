@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Plus, Trash2, Building2, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, ChevronDown, ChevronRight, Users, Wrench, UserCircle,
+  Lock, ChevronDown, ChevronRight, Users, UserCircle,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
