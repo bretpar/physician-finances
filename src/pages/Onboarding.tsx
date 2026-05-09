@@ -324,11 +324,11 @@ export default function Onboarding() {
       if (step === 1) {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
-          const normalizedEmail = email.trim();
+          const normalizedEmail = email.trim().toLowerCase();
           if (!normalizedEmail) throw new Error("Enter your email to continue.");
           if (!isValidEmailFormat(normalizedEmail)) throw new Error("Enter a valid email address.");
           if (!password) throw new Error("Enter a password to continue.");
-          if (password.length < 6) throw new Error("Use a stronger password with at least 6 characters.");
+          if (password.length < 6) throw new Error("Use at least 6 characters for your password.");
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
           const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) {
