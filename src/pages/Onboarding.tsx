@@ -33,7 +33,6 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-const SIGNUP_ATTEMPTS_KEY = "paycheckmd-signup-attempts";
 const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please sign in or reset your password.";
 
 function isDuplicateEmailError(error: unknown) {
