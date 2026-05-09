@@ -368,11 +368,14 @@ export default function Onboarding() {
         const message = String(error?.message || "");
         const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use a stronger password");
         const isDuplicateError = message === DUPLICATE_EMAIL_MESSAGE || isDuplicateEmailError(error);
-        if (!isInputError && !isDuplicateError) {
-          const next = recordFailedAttempt(SIGNUP_ATTEMPTS_KEY);
-          setSignupCooldownUntil(next.cooldownUntil);
-        }
-        toast.error(isInputError ? message : isDuplicateError ? DUPLICATE_EMAIL_MESSAGE : getAuthErrorMessage(error, "Signup could not be completed. Please try again."));
+        const errorMessage = isInputError
+          ? message
+          : isDuplicateError
+            ? DUPLICATE_EMAIL_MESSAGE
+            : isAuthRateLimitError(error)
+              ? "Too many signup attempts. Please wait a few minutes before trying again."
+              : "Signup could not be completed. Please check your email and password and try again.";
+        toast.error(errorMessage);
       } else {
         toast.error(error.message || "Could not save onboarding.");
       }
