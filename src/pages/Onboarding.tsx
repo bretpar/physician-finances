@@ -302,7 +302,7 @@ export default function Onboarding() {
   }
 
   async function continueStep() {
-    if (saving || (step === 1 && !user && signupCooldownSeconds > 0)) return;
+    if (saving) return;
     // Within step 3, advance through sub-steps before moving to step 4.
     if (step === 3) {
       if (catchupSubStep === "ask") {
