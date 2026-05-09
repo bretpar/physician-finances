@@ -152,7 +152,7 @@ export default function Onboarding() {
     else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
   }, [step, catchupChoice]);
 
-  const signupCooldownSeconds = Math.max(0, Math.ceil((signupCooldownUntil - now) / 1000));
+  
 
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
