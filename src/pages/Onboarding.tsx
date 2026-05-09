@@ -340,8 +340,6 @@ export default function Onboarding() {
           if (data.user && Array.isArray(identities) && identities.length === 0) {
             throw new Error(DUPLICATE_EMAIL_MESSAGE);
           }
-          clearAttemptState(SIGNUP_ATTEMPTS_KEY);
-          setSignupCooldownUntil(0);
           if (!data.session) {
             toast.success("Check your email to verify your address, then sign in to continue.");
             return;
