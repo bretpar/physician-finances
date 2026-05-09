@@ -95,7 +95,6 @@ export default function Onboarding() {
   const [showPassword, setShowPassword] = useState(false);
   const [companyWebsite, setCompanyWebsite] = useState("");
   const [saving, setSaving] = useState(false);
-  const [signupCooldownUntil, setSignupCooldownUntil] = useState(() => readAttemptState(SIGNUP_ATTEMPTS_KEY).cooldownUntil);
   const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
