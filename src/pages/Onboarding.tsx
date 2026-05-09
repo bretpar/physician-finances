@@ -366,7 +366,7 @@ export default function Onboarding() {
     } catch (error: any) {
       if (step === 1 && !user) {
         const message = String(error?.message || "");
-        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use a stronger password");
+        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use at least");
         const isDuplicateError = message === DUPLICATE_EMAIL_MESSAGE || isDuplicateEmailError(error);
         const errorMessage = isInputError
           ? message
