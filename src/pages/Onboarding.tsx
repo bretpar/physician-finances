@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { YtdCatchupForm } from "@/components/YtdCatchupForm";
 import { useYtdCatchupEntries } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
-import { clearAttemptState, getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
+import { isAuthRateLimitError } from "@/lib/authProtection";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
   getAllowedCompanyTypes,
