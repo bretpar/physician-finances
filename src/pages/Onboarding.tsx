@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { YtdCatchupForm } from "@/components/YtdCatchupForm";
 import { useYtdCatchupEntries } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
-import { clearAttemptState, getAuthErrorMessage, readAttemptState, recordFailedAttempt } from "@/lib/authProtection";
+import { isAuthRateLimitError } from "@/lib/authProtection";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
   getAllowedCompanyTypes,
@@ -33,7 +33,6 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-const SIGNUP_ATTEMPTS_KEY = "paycheckmd-signup-attempts";
 const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please sign in or reset your password.";
 
 function isDuplicateEmailError(error: unknown) {
@@ -96,7 +95,6 @@ export default function Onboarding() {
   const [showPassword, setShowPassword] = useState(false);
   const [companyWebsite, setCompanyWebsite] = useState("");
   const [saving, setSaving] = useState(false);
-  const [signupCooldownUntil, setSignupCooldownUntil] = useState(() => readAttemptState(SIGNUP_ATTEMPTS_KEY).cooldownUntil);
   const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
@@ -154,7 +152,7 @@ export default function Onboarding() {
     else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
   }, [step, catchupChoice]);
 
-  const signupCooldownSeconds = Math.max(0, Math.ceil((signupCooldownUntil - now) / 1000));
+  
 
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
@@ -304,7 +302,7 @@ export default function Onboarding() {
   }
 
   async function continueStep() {
-    if (saving || (step === 1 && !user && signupCooldownSeconds > 0)) return;
+    if (saving) return;
     // Within step 3, advance through sub-steps before moving to step 4.
     if (step === 3) {
       if (catchupSubStep === "ask") {
@@ -326,11 +324,11 @@ export default function Onboarding() {
       if (step === 1) {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
         if (!user) {
-          const normalizedEmail = email.trim();
+          const normalizedEmail = email.trim().toLowerCase();
           if (!normalizedEmail) throw new Error("Enter your email to continue.");
           if (!isValidEmailFormat(normalizedEmail)) throw new Error("Enter a valid email address.");
           if (!password) throw new Error("Enter a password to continue.");
-          if (password.length < 6) throw new Error("Use a stronger password with at least 6 characters.");
+          if (password.length < 6) throw new Error("Use at least 6 characters for your password.");
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
           const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) {
@@ -342,8 +340,6 @@ export default function Onboarding() {
           if (data.user && Array.isArray(identities) && identities.length === 0) {
             throw new Error(DUPLICATE_EMAIL_MESSAGE);
           }
-          clearAttemptState(SIGNUP_ATTEMPTS_KEY);
-          setSignupCooldownUntil(0);
           if (!data.session) {
             toast.success("Check your email to verify your address, then sign in to continue.");
             return;
@@ -370,13 +366,16 @@ export default function Onboarding() {
     } catch (error: any) {
       if (step === 1 && !user) {
         const message = String(error?.message || "");
-        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use a stronger password");
+        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use at least");
         const isDuplicateError = message === DUPLICATE_EMAIL_MESSAGE || isDuplicateEmailError(error);
-        if (!isInputError && !isDuplicateError) {
-          const next = recordFailedAttempt(SIGNUP_ATTEMPTS_KEY);
-          setSignupCooldownUntil(next.cooldownUntil);
-        }
-        toast.error(isInputError ? message : isDuplicateError ? DUPLICATE_EMAIL_MESSAGE : getAuthErrorMessage(error, "Signup could not be completed. Please try again."));
+        const errorMessage = isInputError
+          ? message
+          : isDuplicateError
+            ? DUPLICATE_EMAIL_MESSAGE
+            : isAuthRateLimitError(error)
+              ? "Too many signup attempts. Please wait a few minutes before trying again."
+              : "Signup could not be completed. Please check your email and password and try again.";
+        toast.error(errorMessage);
       } else {
         toast.error(error.message || "Could not save onboarding.");
       }
@@ -396,7 +395,7 @@ export default function Onboarding() {
             <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">Step {step} of 4</p><div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / 4) * 100}%` }} /></div></div>
           </div>
 
-          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize PaycheckMD so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><Label>Password</Label><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div><Input aria-hidden="true" className="sr-only" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" />{signupCooldownSeconds > 0 && <p className="text-sm text-muted-foreground">Too many signup attempts. Please wait before trying again.</p>}<p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p></>}</div></div>}
+          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize PaycheckMD so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><Label>Password</Label><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Use at least 6 characters. No special symbol required.</p></div><Input aria-hidden="true" className="sr-only" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" /><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p></>}</div></div>}
 
           {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What type of income do you want to track first?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div><p className="text-xs text-muted-foreground">You can change this later in Settings. We’ll set sensible defaults so you don’t have to configure tax details now.</p></div>}
 
@@ -457,7 +456,7 @@ export default function Onboarding() {
             <Button variant="outline" onClick={goBack} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
               {step === 3 && catchupSubStep === "company" && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-              <Button onClick={continueStep} disabled={saving || (user && isLoading) || (step === 1 && !user && signupCooldownSeconds > 0)}>{saving ? "Saving…" : step === 4 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+              <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === 4 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>
         </CardContent>
