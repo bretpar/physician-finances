@@ -760,8 +760,6 @@ function OnboardingPreferencesSection() {
   const source: OnboardingPreferencesDraft = useMemo(() => ({
     incomeProfileType: data?.incomeProfileType || "w2_plus_business",
     enabledPersonalIncomeTypes: data?.enabledPersonalIncomeTypes || [],
-    deductionStrategy: data?.deductionStrategy || "standard",
-    enabledDeductionTypes: data?.enabledDeductionTypes || [],
     subscriptionTier: data?.subscriptionTier || "premium",
   }), [data]);
 
@@ -778,8 +776,6 @@ function OnboardingPreferencesSection() {
         ...next,
         enabledIncomeSources,
         householdIncomeStreams: incomeSourcesToHouseholdStreams(enabledIncomeSources, next.enabledPersonalIncomeTypes),
-        deductionType: next.deductionStrategy === "itemized" ? "itemized" : "standard",
-        hsaEnabled: next.enabledDeductionTypes.includes("hsa"),
       });
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
@@ -787,7 +783,7 @@ function OnboardingPreferencesSection() {
   });
 
   const d = draft.draft;
-  const toggleList = (field: "enabledPersonalIncomeTypes" | "enabledDeductionTypes", value: string, checked: boolean) => {
+  const toggleList = (field: "enabledPersonalIncomeTypes", value: string, checked: boolean) => {
     const list = d[field];
     draft.patch({ [field]: checked ? [...list, value] : list.filter((item) => item !== value) } as Partial<OnboardingPreferencesDraft>);
   };
@@ -807,16 +803,8 @@ function OnboardingPreferencesSection() {
           <div className="grid gap-2 sm:grid-cols-2">{PERSONAL_INCOME_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledPersonalIncomeTypes", value, !!checked)} />{label}</label>)}</div>
         </CollapsibleContent>
       </Collapsible>
-      <div><Label className="text-xs text-muted-foreground mb-1.5 block">Deduction strategy</Label><Select value={d.deductionStrategy} onValueChange={(v) => draft.patch({ deductionStrategy: v as DeductionStrategy })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standard">Standard deduction</SelectItem><SelectItem value="itemized">Itemized deductions</SelectItem><SelectItem value="not_sure">Not sure</SelectItem></SelectContent></Select></div>
-      <Collapsible>
-        <CollapsibleTrigger className="flex min-h-11 items-center justify-between w-full rounded-lg border border-border px-3 py-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
-          <span>Deduction sections shown by default</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-2">
-          <div className="grid gap-2 sm:grid-cols-2">{DEDUCTIONS_BY_PROFILE[d.incomeProfileType].map((value) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledDeductionTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledDeductionTypes", value, !!checked)} />{DEDUCTION_LABELS[value]}</label>)}</div>
-        </CollapsibleContent>
-      </Collapsible>
+      <Separator className="my-2" />
+      <p className="text-xs text-muted-foreground">Deduction method (Standard or Itemized) is set in Tax Profile below.</p>
       <Separator className="my-2" />
       <HsaSettingsSection bare />
     </SectionCard>
