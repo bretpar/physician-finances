@@ -789,20 +789,10 @@ function OnboardingPreferencesSection() {
   };
 
   return (
-    <SectionCard title="Dashboard Personalization" icon={<Settings2 className="h-5 w-5" />} description="Selections from onboarding. These hide or collapse sections by default without deleting existing data." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
+    <SectionCard title="Plan & HSA" icon={<Settings2 className="h-5 w-5" />} description="Manage your subscription tier and HSA contribution settings. Income types are configured in Dashboard Personalization above." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div><Label className="text-xs text-muted-foreground mb-1.5 block">Income profile type</Label><Select value={d.incomeProfileType} onValueChange={(v) => draft.patch({ incomeProfileType: v as IncomeProfileType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="w2_only">W-2 Only</SelectItem><SelectItem value="w2_plus_business">W-2 + 1099/K-1</SelectItem><SelectItem value="business_only">1099/K-1 Only</SelectItem></SelectContent></Select></div>
         <div><Label className="text-xs text-muted-foreground mb-1.5 block">Plan status</Label><Select value={d.subscriptionTier} onValueChange={(v) => draft.patch({ subscriptionTier: v as OnboardingSubscriptionTier })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select></div>
       </div>
-      <Collapsible>
-        <CollapsibleTrigger className="flex min-h-11 items-center justify-between w-full rounded-lg border border-border px-3 py-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
-          <span>Personal income categories</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-2">
-          <div className="grid gap-2 sm:grid-cols-2">{PERSONAL_INCOME_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledPersonalIncomeTypes", value, !!checked)} />{label}</label>)}</div>
-        </CollapsibleContent>
-      </Collapsible>
       <Separator className="my-2" />
       <p className="text-xs text-muted-foreground">Deduction method (Standard or Itemized) is set in Tax Profile below.</p>
       <Separator className="my-2" />
