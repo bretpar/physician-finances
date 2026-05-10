@@ -61,7 +61,7 @@ import {
   getUserTypeDisplayInfo,
   type FeatureKey,
 } from "@/lib/entitlements";
-import { getAllowedCompanyTypes, incomeProfileToSources, incomeSourcesToHouseholdStreams, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier } from "@/lib/onboarding";
+import { getAllowedCompanyTypes, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier } from "@/lib/onboarding";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -623,9 +623,9 @@ function HouseholdIncomeStreamsSection() {
 
   return (
     <SectionCard
-      title="Household Income Profile"
+      title="Dashboard Personalization"
       icon={<Settings2 className="h-5 w-5" />}
-      description="Review what income your household currently has so the app can match your pathway."
+      description="Choose the income streams your household uses so PaycheckMD can show the right dashboard sections, income pages, and tax recommendations."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
       justSaved={savedTick}
@@ -634,7 +634,7 @@ function HouseholdIncomeStreamsSection() {
     >
       <div className="space-y-2">
         <p className="text-sm font-medium text-card-foreground">What income does your household currently have?</p>
-        <p className="text-xs text-muted-foreground">Select every stream that applies. Technical pathway labels are derived automatically.</p>
+        <p className="text-xs text-muted-foreground">Select every income type that applies. We'll use this to personalize your dashboard and tax tools.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {HOUSEHOLD_INCOME_STREAM_OPTIONS.map((option) => (
@@ -731,14 +731,7 @@ function HouseholdIncomeStreamsSection() {
   );
 }
 /* ──────────────────────────────────────────────────────────── */
-type OnboardingPreferencesDraft = Pick<TaxRates,
-  | "incomeProfileType" | "enabledPersonalIncomeTypes" | "subscriptionTier"
->;
-
-const PERSONAL_INCOME_OPTIONS = [
-  ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"], ["capital_gains", "Capital gains"],
-  ["rental", "Rental income"], ["retirement", "Retirement income"], ["other", "Other income"],
-] as const;
+type OnboardingPreferencesDraft = Pick<TaxRates, "subscriptionTier">;
 
 const DEDUCTION_LABELS: Record<string, string> = {
   retirement_401k: "401(k) / retirement contributions", healthcare_premiums: "Healthcare premiums", hsa: "HSA contributions", mileage: "Mileage",
@@ -758,8 +751,6 @@ function OnboardingPreferencesSection() {
   const [savedTick, setSavedTick] = useState(false);
 
   const source: OnboardingPreferencesDraft = useMemo(() => ({
-    incomeProfileType: data?.incomeProfileType || "w2_plus_business",
-    enabledPersonalIncomeTypes: data?.enabledPersonalIncomeTypes || [],
     subscriptionTier: data?.subscriptionTier || "premium",
   }), [data]);
 
@@ -767,42 +758,21 @@ function OnboardingPreferencesSection() {
     source,
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
-      const enabledIncomeSources = incomeProfileToSources(next.incomeProfileType);
-      // NOTE: Tax recommendation method (withholdingMethod / manualEffectiveTaxRate
-      // / flat rates) is intentionally NOT touched here. That setting lives only
-      // in Tax Withholding & Quarterly Tracker → Withholding Method.
-      await updateMutation.mutateAsync({
-        id: data.id,
-        ...next,
-        enabledIncomeSources,
-        householdIncomeStreams: incomeSourcesToHouseholdStreams(enabledIncomeSources, next.enabledPersonalIncomeTypes),
-      });
+      // Only updates subscription tier. Income type / pathway is owned by the
+      // Dashboard Personalization section (householdIncomeStreams).
+      await updateMutation.mutateAsync({ id: data.id, ...next });
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
     },
   });
 
   const d = draft.draft;
-  const toggleList = (field: "enabledPersonalIncomeTypes", value: string, checked: boolean) => {
-    const list = d[field];
-    draft.patch({ [field]: checked ? [...list, value] : list.filter((item) => item !== value) } as Partial<OnboardingPreferencesDraft>);
-  };
 
   return (
-    <SectionCard title="Dashboard Personalization" icon={<Settings2 className="h-5 w-5" />} description="Selections from onboarding. These hide or collapse sections by default without deleting existing data." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
+    <SectionCard title="Plan & HSA" icon={<Settings2 className="h-5 w-5" />} description="Manage your subscription tier and HSA contribution settings. Income types are configured in Dashboard Personalization above." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div><Label className="text-xs text-muted-foreground mb-1.5 block">Income profile type</Label><Select value={d.incomeProfileType} onValueChange={(v) => draft.patch({ incomeProfileType: v as IncomeProfileType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="w2_only">W-2 Only</SelectItem><SelectItem value="w2_plus_business">W-2 + 1099/K-1</SelectItem><SelectItem value="business_only">1099/K-1 Only</SelectItem></SelectContent></Select></div>
         <div><Label className="text-xs text-muted-foreground mb-1.5 block">Plan status</Label><Select value={d.subscriptionTier} onValueChange={(v) => draft.patch({ subscriptionTier: v as OnboardingSubscriptionTier })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select></div>
       </div>
-      <Collapsible>
-        <CollapsibleTrigger className="flex min-h-11 items-center justify-between w-full rounded-lg border border-border px-3 py-3 text-sm font-medium text-card-foreground hover:bg-muted/30 transition-colors [&[data-state=open]>svg]:rotate-180">
-          <span>Personal income categories</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-2">
-          <div className="grid gap-2 sm:grid-cols-2">{PERSONAL_INCOME_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm"><Checkbox checked={d.enabledPersonalIncomeTypes.includes(value)} onCheckedChange={(checked) => toggleList("enabledPersonalIncomeTypes", value, !!checked)} />{label}</label>)}</div>
-        </CollapsibleContent>
-      </Collapsible>
       <Separator className="my-2" />
       <p className="text-xs text-muted-foreground">Deduction method (Standard or Itemized) is set in Tax Profile below.</p>
       <Separator className="my-2" />
