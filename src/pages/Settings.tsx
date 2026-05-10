@@ -731,14 +731,7 @@ function HouseholdIncomeStreamsSection() {
   );
 }
 /* ──────────────────────────────────────────────────────────── */
-type OnboardingPreferencesDraft = Pick<TaxRates,
-  | "incomeProfileType" | "enabledPersonalIncomeTypes" | "subscriptionTier"
->;
-
-const PERSONAL_INCOME_OPTIONS = [
-  ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"], ["capital_gains", "Capital gains"],
-  ["rental", "Rental income"], ["retirement", "Retirement income"], ["other", "Other income"],
-] as const;
+type OnboardingPreferencesDraft = Pick<TaxRates, "subscriptionTier">;
 
 const DEDUCTION_LABELS: Record<string, string> = {
   retirement_401k: "401(k) / retirement contributions", healthcare_premiums: "Healthcare premiums", hsa: "HSA contributions", mileage: "Mileage",
@@ -758,8 +751,6 @@ function OnboardingPreferencesSection() {
   const [savedTick, setSavedTick] = useState(false);
 
   const source: OnboardingPreferencesDraft = useMemo(() => ({
-    incomeProfileType: data?.incomeProfileType || "w2_plus_business",
-    enabledPersonalIncomeTypes: data?.enabledPersonalIncomeTypes || [],
     subscriptionTier: data?.subscriptionTier || "premium",
   }), [data]);
 
@@ -767,26 +758,15 @@ function OnboardingPreferencesSection() {
     source,
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
-      const enabledIncomeSources = incomeProfileToSources(next.incomeProfileType);
-      // NOTE: Tax recommendation method (withholdingMethod / manualEffectiveTaxRate
-      // / flat rates) is intentionally NOT touched here. That setting lives only
-      // in Tax Withholding & Quarterly Tracker → Withholding Method.
-      await updateMutation.mutateAsync({
-        id: data.id,
-        ...next,
-        enabledIncomeSources,
-        householdIncomeStreams: incomeSourcesToHouseholdStreams(enabledIncomeSources, next.enabledPersonalIncomeTypes),
-      });
+      // Only updates subscription tier. Income type / pathway is owned by the
+      // Dashboard Personalization section (householdIncomeStreams).
+      await updateMutation.mutateAsync({ id: data.id, ...next });
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
     },
   });
 
   const d = draft.draft;
-  const toggleList = (field: "enabledPersonalIncomeTypes", value: string, checked: boolean) => {
-    const list = d[field];
-    draft.patch({ [field]: checked ? [...list, value] : list.filter((item) => item !== value) } as Partial<OnboardingPreferencesDraft>);
-  };
 
   return (
     <SectionCard title="Plan & HSA" icon={<Settings2 className="h-5 w-5" />} description="Manage your subscription tier and HSA contribution settings. Income types are configured in Dashboard Personalization above." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
