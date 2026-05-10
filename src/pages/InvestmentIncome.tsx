@@ -55,6 +55,8 @@ export default function InvestmentIncome() {
   const updateMutation = useUpdateInvestmentIncomeEntry();
   const deleteMutation = useDeleteInvestmentIncomeEntry();
   const { getRecommendation } = useIncomeRecommendation();
+  const { data: taxSettings } = useTaxSettings();
+  const investmentEnabled = taxSettings?.householdIncomeStreams?.investmentIncome !== false;
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
