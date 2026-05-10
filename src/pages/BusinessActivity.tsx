@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { isIncomeEntryTypeAllowed, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
