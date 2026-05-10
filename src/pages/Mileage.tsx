@@ -80,13 +80,9 @@ export default function Mileage() {
   const now = new Date();
   const { data: taxSettings } = useTaxSettings();
   const isW2Only = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams) === "W2_ONLY";
-  // Tool visibility is automatic based on income profile.
-  // Mileage and Home Office only apply to self-employed income (1099/K-1).
-  // Retirement and HSA apply to everyone.
-  const showMileage = !isW2Only;
-  const showHomeOffice = !isW2Only;
-  const showRetirement = true;
-  const showHsa = true;
+  // Tool visibility is automatic based on the Household Income Profile.
+  // See getDeductionToolVisibility for the rules.
+  const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
 
   // ─── Mileage state ───────────────────────────
