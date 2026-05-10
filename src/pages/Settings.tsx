@@ -634,7 +634,7 @@ function HouseholdIncomeStreamsSection() {
     >
       <div className="space-y-2">
         <p className="text-sm font-medium text-card-foreground">What income does your household currently have?</p>
-        <p className="text-xs text-muted-foreground">Select every stream that applies. Technical pathway labels are derived automatically.</p>
+        <p className="text-xs text-muted-foreground">Select every income type that applies. We'll use this to personalize your dashboard and tax tools.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {HOUSEHOLD_INCOME_STREAM_OPTIONS.map((option) => (
