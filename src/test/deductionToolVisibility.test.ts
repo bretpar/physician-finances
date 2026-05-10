@@ -85,19 +85,135 @@ describe("getDeductionToolVisibility — tool visibility rules per income profil
     });
   });
 
-  describe("edge cases", () => {
+  describe("spouse W-2 only combinations", () => {
+    it("treats spouse-W-2-only + 1099 as mixed (all visible)", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, spouseW2Income: true, business1099Income: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("treats spouse-W-2-only + K-1 as mixed (all visible)", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, spouseW2Income: true, k1PartnershipIncome: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("treats spouse-W-2-only + S-corp as mixed (all visible)", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, spouseW2Income: true, sCorpIncome: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("treats spouse-W-2 + user W-2 (no SE) as W-2 only", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, w2Income: true, spouseW2Income: true });
+      expect(v.showMileage).toBe(false);
+      expect(v.showHomeOffice).toBe(false);
+    });
+  });
+
+  describe("multiple self-employed streams", () => {
+    it("shows all four with 1099 + K-1", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, business1099Income: true, k1PartnershipIncome: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("shows all four with 1099 + S-corp", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, business1099Income: true, sCorpIncome: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("shows all four with K-1 + S-corp", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, k1PartnershipIncome: true, sCorpIncome: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("shows all four with 1099 + K-1 + S-corp (all SE)", () => {
+      const v = getDeductionToolVisibility({
+        ...baseStreams,
+        business1099Income: true,
+        k1PartnershipIncome: true,
+        sCorpIncome: true,
+      });
+      expect(v).toEqual({ showMileage: true, showHomeOffice: true, showRetirement: true, showHsa: true });
+    });
+
+    it("shows all four with W-2 + all three SE streams", () => {
+      const v = getDeductionToolVisibility({
+        ...baseStreams,
+        w2Income: true,
+        spouseW2Income: true,
+        business1099Income: true,
+        k1PartnershipIncome: true,
+        sCorpIncome: true,
+      });
+      expect(v).toEqual({ showMileage: true, showHomeOffice: true, showRetirement: true, showHsa: true });
+    });
+  });
+
+  describe("non-employment streams do not affect Mileage/Home Office", () => {
+    it("rental-only is not W-2 → Mileage/Home Office stay visible", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, rentalIncome: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("investment-only is not W-2 → Mileage/Home Office stay visible", () => {
+      const v = getDeductionToolVisibility({ ...baseStreams, investmentIncome: true });
+      expect(v.showMileage).toBe(true);
+      expect(v.showHomeOffice).toBe(true);
+    });
+
+    it("W-2 + rental + investment (no SE) is still W-2 only → hides Mileage/Home Office", () => {
+      const v = getDeductionToolVisibility({
+        ...baseStreams,
+        w2Income: true,
+        rentalIncome: true,
+        investmentIncome: true,
+        otherIncome: true,
+      });
+      expect(v.showMileage).toBe(false);
+      expect(v.showHomeOffice).toBe(false);
+    });
+  });
+
+  describe("undefined / null / empty streams", () => {
     it("defaults to permissive (all visible) when streams are undefined", () => {
       const v = getDeductionToolVisibility(undefined);
       expect(v).toEqual({ showMileage: true, showHomeOffice: true, showRetirement: true, showHsa: true });
     });
 
-    it("with no streams enabled at all, still shows Retirement and HSA but hides Mileage/Home Office only when there is W-2 income; otherwise leaves them visible", () => {
-      // No income at all → not W-2-only → Mileage/Home Office remain visible.
+    it("defaults to permissive (all visible) when streams are null", () => {
+      const v = getDeductionToolVisibility(null);
+      expect(v).toEqual({ showMileage: true, showHomeOffice: true, showRetirement: true, showHsa: true });
+    });
+
+    it("with no streams enabled at all, leaves Mileage/Home Office visible (not W-2 only)", () => {
       const v = getDeductionToolVisibility(baseStreams);
-      expect(v.showRetirement).toBe(true);
-      expect(v.showHsa).toBe(true);
-      expect(v.showMileage).toBe(true);
-      expect(v.showHomeOffice).toBe(true);
+      expect(v).toEqual({ showMileage: true, showHomeOffice: true, showRetirement: true, showHsa: true });
+    });
+
+    it("Retirement and HSA are always true across every combination", () => {
+      const combos: Array<Partial<HouseholdIncomeStreams>> = [
+        {},
+        { w2Income: true },
+        { spouseW2Income: true },
+        { business1099Income: true },
+        { k1PartnershipIncome: true },
+        { sCorpIncome: true },
+        { w2Income: true, business1099Income: true },
+        { rentalIncome: true, investmentIncome: true, otherIncome: true },
+      ];
+      for (const partial of combos) {
+        const v = getDeductionToolVisibility({ ...baseStreams, ...partial });
+        expect(v.showRetirement).toBe(true);
+        expect(v.showHsa).toBe(true);
+      }
+      // Also undefined and null
+      expect(getDeductionToolVisibility(undefined).showRetirement).toBe(true);
+      expect(getDeductionToolVisibility(null).showRetirement).toBe(true);
     });
   });
 });
