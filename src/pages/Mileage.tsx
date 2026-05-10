@@ -79,11 +79,13 @@ export default function Mileage() {
   const now = new Date();
   const { data: taxSettings } = useTaxSettings();
   const isW2Only = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams) === "W2_ONLY";
-  const enabledDeductionTypes = taxSettings?.enabledDeductionTypes || [];
-  const showMileage = !isW2Only && (enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("mileage"));
-  const showHomeOffice = !isW2Only && (enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("home_office"));
-  const showRetirement = enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("retirement_401k");
-  const showHsa = enabledDeductionTypes.length === 0 || enabledDeductionTypes.includes("hsa");
+  // Tool visibility is automatic based on income profile.
+  // Mileage and Home Office only apply to self-employed income (1099/K-1).
+  // Retirement and HSA apply to everyone.
+  const showMileage = !isW2Only;
+  const showHomeOffice = !isW2Only;
+  const showRetirement = true;
+  const showHsa = true;
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
 
   // ─── Mileage state ───────────────────────────
