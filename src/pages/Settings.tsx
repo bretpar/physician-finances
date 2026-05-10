@@ -623,9 +623,9 @@ function HouseholdIncomeStreamsSection() {
 
   return (
     <SectionCard
-      title="Household Income Profile"
+      title="Dashboard Personalization"
       icon={<Settings2 className="h-5 w-5" />}
-      description="Review what income your household currently has so the app can match your pathway."
+      description="Choose the income streams your household uses so PaycheckMD can show the right dashboard sections, income pages, and tax recommendations."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
       justSaved={savedTick}
