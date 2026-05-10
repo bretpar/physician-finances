@@ -29,6 +29,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
+import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
