@@ -61,7 +61,7 @@ import {
   getUserTypeDisplayInfo,
   type FeatureKey,
 } from "@/lib/entitlements";
-import { getAllowedCompanyTypes, incomeProfileToSources, incomeSourcesToHouseholdStreams, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier } from "@/lib/onboarding";
+import { getAllowedCompanyTypes, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier } from "@/lib/onboarding";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
