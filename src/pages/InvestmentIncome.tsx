@@ -22,6 +22,8 @@ import {
   type InvestmentIncomeEntry,
   type InvestmentIncomeType,
 } from "@/hooks/useInvestmentIncome";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { Badge } from "@/components/ui/badge";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -53,6 +55,8 @@ export default function InvestmentIncome() {
   const updateMutation = useUpdateInvestmentIncomeEntry();
   const deleteMutation = useDeleteInvestmentIncomeEntry();
   const { getRecommendation } = useIncomeRecommendation();
+  const { data: taxSettings } = useTaxSettings();
+  const investmentEnabled = taxSettings?.householdIncomeStreams?.investmentIncome !== false;
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -166,10 +170,17 @@ export default function InvestmentIncome() {
             <p className="text-xs text-muted-foreground">Investment sales and dividends affecting your taxes</p>
           </div>
         </div>
-        <Button size="sm" onClick={openAdd} className="gap-1.5">
+        <Button size="sm" onClick={openAdd} disabled={!investmentEnabled} className="gap-1.5">
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </div>
+
+      {!investmentEnabled && (
+        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <Badge variant="outline" className="mr-2">Disabled income type</Badge>
+          Investment income is turned off in your Household Income Profile. Existing entries are preserved for history; new entries are blocked. Enable it in Settings → Household Income Profile to add new investment activity.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card><CardContent className="pt-3 pb-2"><p className="text-xs text-muted-foreground">Investment Taxable YTD</p><p className="text-lg font-bold">{fmt(summary.totalTaxableIncome)}</p></CardContent></Card>

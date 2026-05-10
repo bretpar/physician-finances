@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { isIncomeEntryTypeAllowed, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
@@ -268,9 +269,17 @@ export default function Transactions() {
   const [linkedEntry, setLinkedEntry] = useState<IncomeEntry | null>(null);
 
   // Business Activity: use companies.id as the canonical business/entity selector.
+  // Filter out non-W2 companies whose filing type isn't enabled in the
+  // Household Income Profile. The currently-selected company (when editing)
+  // is always preserved so the form doesn't break.
+  const householdStreams = taxSettings?.householdIncomeStreams;
   const businessCompanies = useMemo(() =>
-    companies.filter((c) => !isW2FilingType(c.companyType)),
-  [companies]);
+    companies.filter((c) => {
+      if (isW2FilingType(c.companyType)) return false;
+      const ft = normalizeFilingType(c.companyType);
+      return isIncomeEntryTypeAllowed(householdStreams, ft) || c.id === incomeForm.company;
+    }),
+  [companies, householdStreams, incomeForm.company]);
 
   const companyById = useMemo(() =>
     new Map(companies.map((c) => [c.id, c] as const)),
@@ -1848,6 +1857,11 @@ export default function Transactions() {
                 </Select>
                 {incomeNeedsCompanyReview && (
                   <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
+                )}
+                {isIncomeEntryTypeDisabled(householdStreams, normalizeFilingType(incomeForm.income_type)) && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    No longer active in your Household Income Profile — kept available for this existing entry only.
+                  </p>
                 )}
               </div>
               <div>
