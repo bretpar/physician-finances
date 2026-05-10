@@ -269,9 +269,17 @@ export default function Transactions() {
   const [linkedEntry, setLinkedEntry] = useState<IncomeEntry | null>(null);
 
   // Business Activity: use companies.id as the canonical business/entity selector.
+  // Filter out non-W2 companies whose filing type isn't enabled in the
+  // Household Income Profile. The currently-selected company (when editing)
+  // is always preserved so the form doesn't break.
+  const householdStreams = taxSettings?.householdIncomeStreams;
   const businessCompanies = useMemo(() =>
-    companies.filter((c) => !isW2FilingType(c.companyType)),
-  [companies]);
+    companies.filter((c) => {
+      if (isW2FilingType(c.companyType)) return false;
+      const ft = normalizeFilingType(c.companyType);
+      return isIncomeEntryTypeAllowed(householdStreams, ft) || c.id === incomeForm.company;
+    }),
+  [companies, householdStreams, incomeForm.company]);
 
   const companyById = useMemo(() =>
     new Map(companies.map((c) => [c.id, c] as const)),
