@@ -1194,6 +1194,11 @@ export default function ProjectedIncome() {
                   ))}
                 </SelectContent>
               </Select>
+              {subtypeIsDisabled && (
+                <p className="text-[10px] text-muted-foreground">
+                  No longer active in your Household Income Profile — kept available for this existing entry only.
+                </p>
+              )}
               <p className="text-[10px] text-muted-foreground">
                 Determines whether this stream transfers to{" "}
                 <strong>
