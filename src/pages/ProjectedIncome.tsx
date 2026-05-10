@@ -309,15 +309,11 @@ export default function ProjectedIncome() {
   const projected401k = actualYTD.retirement + projectedTotals.retirement401k;
   const projectedRefund = forecastDebug ? Math.max(0, forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax) : 0;
   const projectedGap = forecastDebug?.remainingTaxDue ?? 0;
-  const visibleIncomeSubtypes = useMemo(() => {
-    if (!isW2Only) return INCOME_SUBTYPES.filter((t) => {
-      if ((t.value === "w2_user" || t.value === "w2_partner") && taxSettings?.enabledIncomeSources?.w2 === false) return t.value === form.ui_income_subtype;
-      if (t.value === "1099_schedule_c" && taxSettings?.enabledIncomeSources?.form1099 === false) return t.value === form.ui_income_subtype;
-      if (t.value === "k1_partnership" && taxSettings?.enabledIncomeSources?.k1 === false) return t.value === form.ui_income_subtype;
-      return true;
-    });
-    return INCOME_SUBTYPES.filter((t) => t.value === "w2_user" || t.value === "w2_partner" || t.value === form.ui_income_subtype);
-  }, [isW2Only, form.ui_income_subtype, taxSettings?.enabledIncomeSources]);
+  const visibleIncomeSubtypes = useMemo(() =>
+    filterIncomeTypeOptions(INCOME_SUBTYPES, taxSettings?.householdIncomeStreams, form.ui_income_subtype),
+    [taxSettings?.householdIncomeStreams, form.ui_income_subtype],
+  );
+  const subtypeIsDisabled = isIncomeEntryTypeDisabled(taxSettings?.householdIncomeStreams, form.ui_income_subtype);
 
   const toggleMonth = (m: number) => {
     setExpandedMonths((prev) => {
