@@ -22,6 +22,8 @@ import {
   type InvestmentIncomeEntry,
   type InvestmentIncomeType,
 } from "@/hooks/useInvestmentIncome";
+import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { Badge } from "@/components/ui/badge";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
