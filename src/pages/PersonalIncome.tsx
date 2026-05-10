@@ -35,6 +35,7 @@ import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources
 import { useCompanies } from "@/contexts/CompanyContext";
 import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
