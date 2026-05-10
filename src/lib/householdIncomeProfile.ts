@@ -100,3 +100,32 @@ export function isIncomeEntryTypeDisabled(
   if (!streams) return false;
   return !getAllowedIncomeEntryTypes(streams).has(value as IncomeEntryTypeKey);
 }
+
+/**
+ * Visibility rules for the deduction tool tabs (Mileage, Home Office,
+ * Retirement, HSA). Mileage and Home Office only apply when the user has any
+ * self-employed / business income (1099, K-1, S-corp). Retirement and HSA are
+ * always available because they exist for both W-2 and 1099/K-1 households.
+ */
+export interface DeductionToolVisibility {
+  showMileage: boolean;
+  showHomeOffice: boolean;
+  showRetirement: boolean;
+  showHsa: boolean;
+}
+
+export function getDeductionToolVisibility(
+  streams: HouseholdIncomeStreams | undefined | null,
+): DeductionToolVisibility {
+  const hasW2 = !!(streams && (streams.w2Income || streams.spouseW2Income || streams.additionalW2Job));
+  const hasSelfEmployed = !!(streams && (streams.business1099Income || streams.k1PartnershipIncome || streams.sCorpIncome));
+  // W-2 only = has W-2 income and no self-employed income.
+  const isW2Only = hasW2 && !hasSelfEmployed;
+  return {
+    showMileage: !isW2Only,
+    showHomeOffice: !isW2Only,
+    showRetirement: true,
+    showHsa: true,
+  };
+}
+
