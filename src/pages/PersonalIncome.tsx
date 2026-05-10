@@ -818,11 +818,17 @@ export default function PersonalIncome() {
                 <Select value={form.income_type} onValueChange={(v) => setField("income_type", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {INCOME_TYPES.map((t) => (
+                    {filterIncomeTypeOptions(INCOME_TYPES, taxSettings?.householdIncomeStreams, form.income_type).map((t) => (
                       <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {isIncomeEntryTypeDisabled(taxSettings?.householdIncomeStreams, form.income_type) && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    <Badge variant="outline" className="mr-1">No longer active in profile</Badge>
+                    Kept available so you can edit this existing entry.
+                  </p>
+                )}
               </div>
             </div>
 
