@@ -1858,6 +1858,11 @@ export default function Transactions() {
                 {incomeNeedsCompanyReview && (
                   <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
                 )}
+                {isIncomeEntryTypeDisabled(householdStreams, normalizeFilingType(incomeForm.income_type)) && (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    No longer active in your Household Income Profile — kept available for this existing entry only.
+                  </p>
+                )}
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Amount *</Label>
