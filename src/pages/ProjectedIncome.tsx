@@ -52,6 +52,7 @@ import {
 } from "@/lib/filingTypes";
 import { ledgerForIncomeType } from "@/lib/ledgerRouting";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
