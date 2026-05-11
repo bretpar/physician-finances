@@ -72,6 +72,8 @@ export default function InvestmentIncome() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [saleDetailsOpen, setSaleDetailsOpen] = useState(false);
+  const [howCalcOpen, setHowCalcOpen] = useState(false);
 
   const isDividend = form.investment_income_type === "dividend";
   const computedTaxable = calculateInvestmentTaxableAmount({
