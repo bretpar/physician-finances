@@ -23,7 +23,10 @@ import {
   type InvestmentIncomeType,
 } from "@/hooks/useInvestmentIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { calculateInvestmentTaxRecommendation } from "@/lib/investmentTaxRecommendation";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -36,6 +39,7 @@ type FormState = {
   sale_proceeds: string;
   cost_basis: string;
   taxable_amount: string;
+  is_qualified_dividend: boolean;
   notes: string;
 };
 
@@ -46,6 +50,7 @@ const emptyForm: FormState = {
   sale_proceeds: "",
   cost_basis: "",
   taxable_amount: "",
+  is_qualified_dividend: true,
   notes: "",
 };
 
