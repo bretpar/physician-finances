@@ -6,6 +6,8 @@ interface Props {
   /** "Planned" | "Actual (YTD)" descriptor shown beneath the number. */
   modeLabel: string;
   subtext?: string;
+  /** Optional toggle element rendered in the card header (e.g. Actual/Full year switch). */
+  toggle?: React.ReactNode;
 }
 
 const fmt = (n: number) =>
@@ -16,16 +18,19 @@ const fmt = (n: number) =>
  * Receives the value already chosen by the parent based on the Planned/Actual toggle —
  * does NOT recompute income locally.
  */
-export default function AnnualIncomeHero({ amount, modeLabel, subtext }: Props) {
+export default function AnnualIncomeHero({ amount, modeLabel, subtext, toggle }: Props) {
   const animated = useCountUp(amount);
   return (
     <section
       className="relative overflow-hidden rounded-2xl bg-success/10 px-5 py-6 sm:px-6 sm:py-7 shadow-sm"
       aria-label="Total annual income"
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-foreground/70">Total Annual Income</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs sm:text-sm font-medium text-foreground/70">Total Annual Income</p>
+            {toggle && <div className="shrink-0">{toggle}</div>}
+          </div>
           <p className="mt-2 text-4xl sm:text-5xl font-bold tabular-nums tracking-tight text-foreground">
             {fmt(animated)}
           </p>
@@ -41,3 +46,4 @@ export default function AnnualIncomeHero({ amount, modeLabel, subtext }: Props) 
     </section>
   );
 }
+

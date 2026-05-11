@@ -373,12 +373,11 @@ export default function Dashboard() {
         </section>
       )}
 
-      <IncomeModeToggle alwaysShow={isW2Only} />
-
       <AnnualIncomeHero
         amount={annualIncomeValue}
-        modeLabel={projection ? "Planned full-year income" : "Actual income (YTD)"}
+        modeLabel={projection ? "Includes planned/future income" : "Income received so far this year"}
         subtext={methodLabel}
+        toggle={<IncomeModeToggle alwaysShow={isW2Only} />}
       />
 
       {isW2Only && forecastDebug && (
