@@ -82,7 +82,9 @@ export default function InvestmentIncome() {
     costBasis: num(form.cost_basis),
     taxableAmountOverride: form.taxable_amount === "" ? null : num(form.taxable_amount),
   });
-  const canShowTaxRecommendation = computedTaxable > 0 && (isDividend || (!!form.sale_proceeds && !!form.cost_basis));
+  const bothSaleFieldsFilled = !isDividend && form.sale_proceeds !== "" && form.cost_basis !== "";
+  const taxableIsCalculated = bothSaleFieldsFilled;
+  const canShowTaxRecommendation = computedTaxable > 0;
 
   // Ordinary effective rate from the recommendation engine (fed into short-term/non-qualified div).
   const ordinaryRec = computedTaxable > 0
