@@ -33,11 +33,46 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please sign in or reset your password.";
+const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please log in or reset your password.";
+const SETUP_NOT_READY_MESSAGE = "Your account was created, but setup records were not ready. Please log in again or contact support.";
+const SETUP_FAILED_MESSAGE = "Your account was created, but onboarding setup could not finish. Please log in and try again.";
+const IS_DEBUG_BUILD = import.meta.env.DEV || (typeof window !== "undefined" && /[?&]debug=1/.test(window.location.search));
 
 function isDuplicateEmailError(error: unknown) {
   const message = String((error as { message?: string } | null)?.message || error || "").toLowerCase();
-  return ["already", "registered", "exists", "duplicate"].some((term) => message.includes(term));
+  const code = String((error as { code?: string } | null)?.code || "").toLowerCase();
+  if (code === "user_already_exists" || code === "email_exists") return true;
+  return [
+    "already registered",
+    "user already registered",
+    "already exists",
+    "email address already",
+    "duplicate",
+  ].some((term) => message.includes(term));
+}
+
+function describeAuthError(error: unknown): string {
+  if (!error) return "";
+  const e = error as { message?: string; status?: number | string; code?: string; name?: string };
+  const parts: string[] = [];
+  if (e.message) parts.push(e.message);
+  if (e.code) parts.push(`code: ${e.code}`);
+  if (e.status) parts.push(`status: ${e.status}`);
+  if (e.name) parts.push(`name: ${e.name}`);
+  return parts.join(" • ");
+}
+
+async function waitForUserSetupRows(userId: string, timeoutMs = 5000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const [{ data: profile }, { data: settings }] = await Promise.all([
+      supabase.from("profiles").select("user_id").eq("user_id", userId).maybeSingle(),
+      supabase.from("tax_settings").select("user_id").eq("user_id", userId).maybeSingle(),
+    ]);
+    if (profile && settings) return true;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return false;
 }
 
 function isValidEmailFormat(value: string) {
@@ -99,6 +134,9 @@ export default function Onboarding() {
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
   const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
+  const [signupDebugError, setSignupDebugError] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [signupState, setSignupState] = useState<"idle" | "duplicate" | "verify-email" | "setup-failed">("idle");
   const { data: existingCatchups } = useYtdCatchupEntries();
 
   const settingsId = taxSettings?.id;
@@ -332,22 +370,48 @@ export default function Onboarding() {
             throw new Error("That password is too weak. Use at least 8 characters with a mix of letters and numbers.");
           }
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
+          setSignupDebugError(null);
+          setSignupState("idle");
           const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) {
-            if (isDuplicateEmailError(error)) throw new Error(DUPLICATE_EMAIL_MESSAGE);
-            console.error("[onboarding] signUp failed", error);
+            console.error("[onboarding] Supabase signup failed", { message: error.message, status: (error as any).status, code: (error as any).code, name: error.name, fullError: error });
+            setSignupDebugError(describeAuthError(error));
+            if (isDuplicateEmailError(error)) {
+              setSignupState("duplicate");
+              throw new Error(DUPLICATE_EMAIL_MESSAGE);
+            }
             throw error;
           }
           const identities = (data.user as any)?.identities;
           if (data.user && Array.isArray(identities) && identities.length === 0) {
+            setSignupState("duplicate");
             throw new Error(DUPLICATE_EMAIL_MESSAGE);
           }
           if (!data.session) {
-            toast.success("Check your email to verify your address, then sign in to continue.");
+            setSignupState("verify-email");
+            toast.success("Account created. Please check your email to verify your address.");
             return;
           }
-          await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
-          await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user?.id);
+          // Auth user created. Wait for trigger-created rows before updating them.
+          const ready = await waitForUserSetupRows(data.user!.id);
+          if (!ready) {
+            setSignupState("setup-failed");
+            setSignupDebugError("Setup rows (profiles/tax_settings) not present after 5s. The handle_new_user trigger may have failed.");
+            toast.error(SETUP_NOT_READY_MESSAGE);
+            return;
+          }
+          try {
+            const { error: profileErr } = await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user!.id);
+            if (profileErr) throw profileErr;
+            const { error: settingsErr } = await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user!.id);
+            if (settingsErr) throw settingsErr;
+          } catch (setupError: any) {
+            console.error("[onboarding] post-signup setup update failed", setupError);
+            setSignupState("setup-failed");
+            setSignupDebugError(describeAuthError(setupError));
+            toast.error(SETUP_FAILED_MESSAGE);
+            return;
+          }
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
@@ -401,7 +465,42 @@ export default function Onboarding() {
             <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">Step {step} of 4</p><div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / 4) * 100}%` }} /></div></div>
           </div>
 
-          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize PaycheckMD so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><div className="flex items-center justify-between"><Label>Password</Label><Link to="/login" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Use at least 8 characters with a mix of letters and numbers.</p></div><Input aria-hidden="true" className="sr-only" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" /><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p></>}</div></div>}
+          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize PaycheckMD so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><div className="flex items-center justify-between"><Label>Password</Label><Link to="/login" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Use at least 8 characters with a mix of letters and numbers.</p></div><Input aria-hidden="true" className="sr-only" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" /><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p>
+            {signupState === "duplicate" && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                <p className="font-medium text-destructive">{DUPLICATE_EMAIL_MESSAGE}</p>
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => navigate("/login")}>Log in</Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/login?reset=1&email=${encodeURIComponent(email.trim().toLowerCase())}`)}>Reset password</Button>
+                </div>
+              </div>
+            )}
+            {signupState === "verify-email" && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                <p className="font-medium text-foreground">Account created. Please check your email to verify your address, then log in.</p>
+                <div className="mt-2"><Button size="sm" onClick={() => navigate("/login")}>Go to login</Button></div>
+              </div>
+            )}
+            {signupState === "setup-failed" && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-50 p-3 text-sm dark:bg-amber-950/20">
+                <p className="font-medium text-foreground">{SETUP_FAILED_MESSAGE}</p>
+                <div className="mt-2"><Button size="sm" variant="outline" onClick={() => navigate("/login")}>Go to login</Button></div>
+              </div>
+            )}
+            {signupDebugError && (IS_DEBUG_BUILD || showDebug) && (
+              <div className="rounded-md border border-border bg-muted/40 p-2 text-xs">
+                <button type="button" className="font-medium text-muted-foreground hover:text-foreground" onClick={() => setShowDebug((v) => !v)}>
+                  {showDebug ? "Hide" : "Show"} technical signup error
+                </button>
+                {(showDebug || IS_DEBUG_BUILD) && (
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">Technical signup error: {signupDebugError}</pre>
+                )}
+              </div>
+            )}
+            {!signupDebugError && !IS_DEBUG_BUILD && (
+              <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground underline" onClick={() => setShowDebug((v) => !v)}>{showDebug ? "Hide" : "Show"} technical details</button>
+            )}
+          </>}</div></div>}
 
           {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What type of income do you want to track first?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div><p className="text-xs text-muted-foreground">You can change this later in Settings. We’ll set sensible defaults so you don’t have to configure tax details now.</p></div>}
 
