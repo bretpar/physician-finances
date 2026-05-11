@@ -310,12 +310,14 @@ export default function InvestmentIncome() {
             )}
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
             {canShowTaxRecommendation && investmentRec && (
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-2">
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-3">
                 <div>
-                  <span className="text-muted-foreground">Recommended tax savings for this investment income: </span>
-                  <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
+                  <div>
+                    <span className="text-muted-foreground">Recommended tax savings: </span>
+                    <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">This is the recommended amount to save for taxes based on the investment income type and your projected tax profile.</p>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border">
                   <span className="text-muted-foreground">Taxable amount</span>
                   <span className="text-right font-medium">{fmt(investmentRec.taxableAmount)}</span>
@@ -323,11 +325,15 @@ export default function InvestmentIncome() {
                   <span className="text-right font-medium">{investmentRec.methodLabel}</span>
                   <span className="text-muted-foreground">Tax rate used</span>
                   <span className="text-right font-medium">{investmentRec.rateLabel}</span>
-                  <span className="text-muted-foreground">Estimated tax to save</span>
-                  <span className="text-right font-semibold">{fmt(investmentRec.estimatedTax)}</span>
                 </div>
+                <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
               </div>
             )}
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block" htmlFor="actual-tax-saved">Actual tax saved</Label>
+              <Input id="actual-tax-saved" aria-label="Actual tax saved" type="number" min="0" step="0.01" value={form.actual_tax_saved} onChange={(e) => setField("actual_tax_saved", e.target.value)} placeholder="0.00" />
+              <p className="text-[10px] text-muted-foreground mt-1">Enter how much you actually moved into tax savings for this investment income.</p>
+            </div>
             <div className="flex justify-between gap-2">
               {editingId ? <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId); setShowForm(false); }}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button> : <div />}
               <div className="flex gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={saveForm} disabled={!form.entry_date || !form.asset_name_or_ticker.trim()}>{editingId ? "Save" : "Save Entry"}</Button></div>
