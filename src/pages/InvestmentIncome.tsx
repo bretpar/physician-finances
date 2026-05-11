@@ -254,10 +254,15 @@ export default function InvestmentIncome() {
             </TableHeader>
             <TableBody>
               {entries.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No investment income entries yet</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No investment income entries yet</TableCell></TableRow>
               ) : entries.map((entry) => {
                 const amount = Number(entry.taxable_amount || 0);
                 const dividend = entry.investment_income_type === "dividend";
+                const recommended = Number(entry.tax_recommendation || 0);
+                const actualSavedRaw = entry.actual_tax_saved;
+                const hasActual = actualSavedRaw != null && actualSavedRaw !== undefined && actualSavedRaw !== "" as any;
+                const actualSaved = Number(actualSavedRaw || 0);
+                const diff = actualSaved - recommended;
                 return (
                   <TableRow key={entry.id}>
                     <TableCell>{new Date(entry.entry_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
@@ -266,7 +271,9 @@ export default function InvestmentIncome() {
                     <TableCell className="text-right">{dividend ? "—" : fmt(Number(entry.sale_proceeds || 0))}</TableCell>
                     <TableCell className="text-right">{dividend ? "—" : fmt(Number(entry.cost_basis || 0))}</TableCell>
                     <TableCell className={cn("text-right font-semibold", dividend ? "text-foreground" : amount < 0 ? "text-destructive" : "text-success")}>{fmt(amount)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{Number(entry.tax_recommendation || 0) > 0 ? fmt(Number(entry.tax_recommendation)) : "—"}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{recommended > 0 ? fmt(recommended) : "—"}</TableCell>
+                    <TableCell className={cn("text-right", hasActual ? "font-medium text-foreground" : "text-muted-foreground")}>{hasActual ? fmt(actualSaved) : "—"}</TableCell>
+                    <TableCell className={cn("text-right font-medium", recommended <= 0 ? "text-muted-foreground" : diff >= 0 ? "text-success" : "text-destructive")}>{recommended > 0 ? `${diff >= 0 ? "+" : ""}${fmt(diff)}` : "—"}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" aria-label={`Edit ${entry.asset_name_or_ticker}`} onClick={() => openEdit(entry)}><Pencil className="h-4 w-4" /></Button>
