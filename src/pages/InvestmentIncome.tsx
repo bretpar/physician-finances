@@ -245,8 +245,10 @@ export default function InvestmentIncome() {
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Sale proceeds</TableHead>
                 <TableHead className="text-right">Cost basis</TableHead>
-                <TableHead className="text-right">Earnings / losses</TableHead>
-                <TableHead className="text-right">Tax guide</TableHead>
+                <TableHead className="text-right">Taxable gain/loss</TableHead>
+                <TableHead className="text-right">Recommended tax savings</TableHead>
+                <TableHead className="text-right">Actual tax saved</TableHead>
+                <TableHead className="text-right">Difference</TableHead>
                 <TableHead className="w-[88px]" />
               </TableRow>
             </TableHeader>
