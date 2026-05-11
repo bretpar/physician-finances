@@ -745,6 +745,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          vault_secret_id: string | null
         }
         Insert: {
           access_token: string
@@ -759,6 +760,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          vault_secret_id?: string | null
         }
         Update: {
           access_token?: string
@@ -773,6 +775,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          vault_secret_id?: string | null
         }
         Relationships: [
           {
@@ -2073,6 +2076,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_plaid_access_token: { Args: { _item_id: string }; Returns: string }
       get_user_org_ids: { Args: { _user_id: string }; Returns: string[] }
       has_org_role: {
         Args: {
