@@ -61,7 +61,9 @@ export default function InvestmentIncome() {
   const deleteMutation = useDeleteInvestmentIncomeEntry();
   const { getRecommendation } = useIncomeRecommendation();
   const { data: taxSettings } = useTaxSettings();
+  const { forecastEstimate, actualEstimate } = useTaxEstimate();
   const investmentEnabled = taxSettings?.householdIncomeStreams?.investmentIncome !== false;
+  const filingStatus = taxSettings?.filingStatus ?? "single";
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -76,6 +78,38 @@ export default function InvestmentIncome() {
     taxableAmountOverride: form.taxable_amount === "" ? null : num(form.taxable_amount),
   });
   const canShowTaxRecommendation = computedTaxable > 0 && (isDividend || (!!form.sale_proceeds && !!form.cost_basis));
+
+  // Ordinary effective rate from the recommendation engine (fed into short-term/non-qualified div).
+  const ordinaryRec = computedTaxable > 0
+    ? getRecommendation({
+        grossIncome: computedTaxable,
+        incomeType: "personal_income",
+        incomeBucket: "personal",
+        federalWithheld: 0,
+        stateWithheld: 0,
+        retirement401k: 0,
+        preTaxDeductions: 0,
+      })
+    : null;
+  const ordinaryEffectiveRate = (ordinaryRec?.effectiveRate ?? 0) / 100;
+
+  // Projected ordinary taxable income, excluding this entry's gain (avoid double-stacking).
+  const baseEstimate = forecastEstimate ?? actualEstimate;
+  const projectedOrdinaryTaxableIncome = Math.max(
+    0,
+    (baseEstimate?.taxableIncome ?? 0) - (computedTaxable > 0 && (form.investment_income_type === "long_term_sale" || (isDividend && form.is_qualified_dividend)) ? computedTaxable : 0),
+  );
+
+  const investmentRec = computedTaxable > 0
+    ? calculateInvestmentTaxRecommendation({
+        type: form.investment_income_type,
+        taxableAmount: computedTaxable,
+        isQualifiedDividend: form.is_qualified_dividend,
+        filingStatus,
+        projectedOrdinaryTaxableIncome,
+        ordinaryEffectiveRate,
+      })
+    : null;
 
   const summary = useMemo(() => aggregateInvestmentTaxBuckets(entries), [entries]);
 
@@ -108,6 +142,7 @@ export default function InvestmentIncome() {
       sale_proceeds: entry.sale_proceeds == null ? "" : String(entry.sale_proceeds),
       cost_basis: entry.cost_basis == null ? "" : String(entry.cost_basis),
       taxable_amount: String(entry.taxable_amount),
+      is_qualified_dividend: entry.is_qualified_dividend ?? true,
       notes: entry.notes || "",
     });
     setEditingId(entry.id);
@@ -117,14 +152,13 @@ export default function InvestmentIncome() {
   function buildPayload() {
     const taxableAmount = computedTaxable;
     const rec = taxableAmount > 0
-      ? getRecommendation({
-          grossIncome: taxableAmount,
-          incomeType: form.investment_income_type === "dividend" ? "dividend" : form.investment_income_type,
-          incomeBucket: "personal",
-          federalWithheld: 0,
-          stateWithheld: 0,
-          retirement401k: 0,
-          preTaxDeductions: 0,
+      ? calculateInvestmentTaxRecommendation({
+          type: form.investment_income_type,
+          taxableAmount,
+          isQualifiedDividend: form.is_qualified_dividend,
+          filingStatus,
+          projectedOrdinaryTaxableIncome,
+          ordinaryEffectiveRate,
         })
       : null;
 
@@ -135,7 +169,8 @@ export default function InvestmentIncome() {
       sale_proceeds: isDividend ? null : num(form.sale_proceeds),
       cost_basis: isDividend ? null : num(form.cost_basis),
       taxable_amount: taxableAmount,
-      tax_recommendation: rec?.baseTaxEstimate || 0,
+      tax_recommendation: rec?.estimatedTax || 0,
+      is_qualified_dividend: isDividend ? form.is_qualified_dividend : true,
       notes: form.notes,
     };
   }
