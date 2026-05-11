@@ -370,22 +370,48 @@ export default function Onboarding() {
             throw new Error("That password is too weak. Use at least 8 characters with a mix of letters and numbers.");
           }
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
+          setSignupDebugError(null);
+          setSignupState("idle");
           const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
           if (error) {
-            if (isDuplicateEmailError(error)) throw new Error(DUPLICATE_EMAIL_MESSAGE);
-            console.error("[onboarding] signUp failed", error);
+            console.error("[onboarding] Supabase signup failed", { message: error.message, status: (error as any).status, code: (error as any).code, name: error.name, fullError: error });
+            setSignupDebugError(describeAuthError(error));
+            if (isDuplicateEmailError(error)) {
+              setSignupState("duplicate");
+              throw new Error(DUPLICATE_EMAIL_MESSAGE);
+            }
             throw error;
           }
           const identities = (data.user as any)?.identities;
           if (data.user && Array.isArray(identities) && identities.length === 0) {
+            setSignupState("duplicate");
             throw new Error(DUPLICATE_EMAIL_MESSAGE);
           }
           if (!data.session) {
-            toast.success("Check your email to verify your address, then sign in to continue.");
+            setSignupState("verify-email");
+            toast.success("Account created. Please check your email to verify your address.");
             return;
           }
-          await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user?.id);
-          await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user?.id);
+          // Auth user created. Wait for trigger-created rows before updating them.
+          const ready = await waitForUserSetupRows(data.user!.id);
+          if (!ready) {
+            setSignupState("setup-failed");
+            setSignupDebugError("Setup rows (profiles/tax_settings) not present after 5s. The handle_new_user trigger may have failed.");
+            toast.error(SETUP_NOT_READY_MESSAGE);
+            return;
+          }
+          try {
+            const { error: profileErr } = await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user!.id);
+            if (profileErr) throw profileErr;
+            const { error: settingsErr } = await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user!.id);
+            if (settingsErr) throw settingsErr;
+          } catch (setupError: any) {
+            console.error("[onboarding] post-signup setup update failed", setupError);
+            setSignupState("setup-failed");
+            setSignupDebugError(describeAuthError(setupError));
+            toast.error(SETUP_FAILED_MESSAGE);
+            return;
+          }
         } else {
           await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
           await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
