@@ -113,7 +113,12 @@ Deno.serve(async (req) => {
     });
     if (vaultError) {
       console.error("Vault store error:", vaultError);
-      await adminClient.from("plaid_items").update({ access_token: exchangeData.access_token }).eq("id", itemRow.id);
+      // Roll back the placeholder row so we never leave a token unstored.
+      await adminClient.from("plaid_items").delete().eq("id", itemRow.id);
+      return new Response(JSON.stringify({ error: "Failed to securely store bank connection" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Fetch accounts from Plaid
