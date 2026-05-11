@@ -26,6 +26,14 @@ vi.mock("@/hooks/useIncomeRecommendation", () => ({
   useIncomeRecommendation: () => ({ getRecommendation }),
 }));
 
+vi.mock("@/hooks/useTaxEstimate", () => ({
+  useTaxEstimate: () => ({ forecastEstimate: { taxableIncome: 200000 }, actualEstimate: { taxableIncome: 200000 } }),
+}));
+
+vi.mock("@/hooks/useTaxSettings", () => ({
+  useTaxSettings: () => ({ data: { filingStatus: "married_filing_jointly", householdIncomeStreams: { investmentIncome: true } } }),
+}));
+
 function entry(overrides: Partial<InvestmentIncomeEntry>): InvestmentIncomeEntry {
   return {
     id: "entry-1",
@@ -61,7 +69,7 @@ describe("InvestmentIncome page", () => {
     updateMutate.mockReset();
     deleteMutate.mockReset();
     getRecommendation.mockReset();
-    getRecommendation.mockReturnValue({ baseTaxEstimate: 2400 });
+    getRecommendation.mockReturnValue({ baseTaxEstimate: 2400, effectiveRate: 30 });
   });
 
   it("creates short-term sales using taxable amount, not sale proceeds, for tax recommendation", async () => {
@@ -74,14 +82,14 @@ describe("InvestmentIncome page", () => {
     fireEvent.click(screen.getByRole("button", { name: /save entry/i }));
 
     await waitFor(() => expect(addMutate).toHaveBeenCalled());
-    expect(getRecommendation).toHaveBeenCalledWith(expect.objectContaining({ grossIncome: 8000 }));
-    expect(getRecommendation).not.toHaveBeenCalledWith(expect.objectContaining({ grossIncome: 20000 }));
+    // Short-term uses ordinary effective rate (30%) on the taxable gain (8000) → 2400
     expect(addMutate.mock.calls[0][0]).toEqual(expect.objectContaining({
       investment_income_type: "short_term_sale",
       sale_proceeds: 20000,
       cost_basis: 12000,
       taxable_amount: 8000,
       tax_recommendation: 2400,
+      tax_method_used: "short_term_ordinary",
     }));
   });
 
@@ -91,13 +99,12 @@ describe("InvestmentIncome page", () => {
 
     await user.click(screen.getByRole("button", { name: /add/i }));
     fireEvent.click(screen.getByRole("combobox", { name: /investment income type/i }));
-    fireEvent.click(screen.getByRole("option", { name: /dividend/i }));
+    fireEvent.click(screen.getByRole("option", { name: /^dividend$/i }));
     fireEvent.change(screen.getByPlaceholderText("e.g. VTI dividend"), { target: { value: "VTI" } });
     fireEvent.change(screen.getByLabelText(/taxable dividend amount/i), { target: { value: "350" } });
     fireEvent.click(screen.getByRole("button", { name: /save entry/i }));
 
     await waitFor(() => expect(addMutate).toHaveBeenCalled());
-    expect(getRecommendation).toHaveBeenCalledWith(expect.objectContaining({ grossIncome: 350, incomeType: "dividend" }));
     expect(addMutate.mock.calls[0][0]).toEqual(expect.objectContaining({
       investment_income_type: "dividend",
       sale_proceeds: null,
