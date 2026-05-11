@@ -68,6 +68,11 @@ export function aggregateInvestmentTaxBuckets(entries: InvestmentIncomeEntry[]) 
   };
 }
 
+/** Total of user-entered actual tax savings across investment entries (null/blank = $0). */
+export function sumInvestmentActualTaxSaved(entries: InvestmentIncomeEntry[]): number {
+  return entries.reduce((s, e) => s + Math.max(0, Number(e.actual_tax_saved ?? 0)), 0);
+}
+
 export function useInvestmentIncomeEntries() {
   return useQuery({
     queryKey: ["investment_income_entries"],
