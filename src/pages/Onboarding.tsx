@@ -134,6 +134,9 @@ export default function Onboarding() {
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
   const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
+  const [signupDebugError, setSignupDebugError] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [signupState, setSignupState] = useState<"idle" | "duplicate" | "verify-email" | "setup-failed">("idle");
   const { data: existingCatchups } = useYtdCatchupEntries();
 
   const settingsId = taxSettings?.id;
