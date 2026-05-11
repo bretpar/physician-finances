@@ -124,7 +124,9 @@ export default function InvestmentIncome() {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
       if ((key === "sale_proceeds" || key === "cost_basis" || key === "investment_income_type") && next.investment_income_type !== "dividend") {
-        next.taxable_amount = String(num(next.sale_proceeds) - num(next.cost_basis));
+        if (next.sale_proceeds !== "" && next.cost_basis !== "") {
+          next.taxable_amount = String(num(next.sale_proceeds) - num(next.cost_basis));
+        }
       }
       if (key === "investment_income_type" && value === "dividend") {
         next.sale_proceeds = "";
