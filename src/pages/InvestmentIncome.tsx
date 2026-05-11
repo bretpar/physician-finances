@@ -40,6 +40,7 @@ type FormState = {
   cost_basis: string;
   taxable_amount: string;
   is_qualified_dividend: boolean;
+  actual_tax_saved: string;
   notes: string;
 };
 
@@ -51,6 +52,7 @@ const emptyForm: FormState = {
   cost_basis: "",
   taxable_amount: "",
   is_qualified_dividend: true,
+  actual_tax_saved: "",
   notes: "",
 };
 
@@ -143,6 +145,7 @@ export default function InvestmentIncome() {
       cost_basis: entry.cost_basis == null ? "" : String(entry.cost_basis),
       taxable_amount: String(entry.taxable_amount),
       is_qualified_dividend: entry.is_qualified_dividend ?? true,
+      actual_tax_saved: entry.actual_tax_saved == null ? "" : String(entry.actual_tax_saved),
       notes: entry.notes || "",
     });
     setEditingId(entry.id);
@@ -170,6 +173,9 @@ export default function InvestmentIncome() {
       cost_basis: isDividend ? null : num(form.cost_basis),
       taxable_amount: taxableAmount,
       tax_recommendation: rec?.estimatedTax || 0,
+      tax_rate_used: rec?.effectiveRate ?? null,
+      tax_method_used: rec?.taxMethod ?? null,
+      actual_tax_saved: form.actual_tax_saved === "" ? null : num(form.actual_tax_saved),
       is_qualified_dividend: isDividend ? form.is_qualified_dividend : true,
       notes: form.notes,
     };
