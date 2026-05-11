@@ -15,7 +15,14 @@ export interface InvestmentIncomeEntry {
   sale_proceeds: number | null;
   cost_basis: number | null;
   taxable_amount: number;
+  /** Recommended tax savings (calculated by the engine, guidance only). */
   tax_recommendation: number;
+  /** Actual tax amount the user moved into savings/withholding for this entry. Null = not yet saved. */
+  actual_tax_saved?: number | null;
+  /** Decimal rate used in the recommendation (e.g. 0.15). */
+  tax_rate_used?: number | null;
+  /** Tax method label, e.g. "long_term_capital_gains". */
+  tax_method_used?: string | null;
   is_qualified_dividend?: boolean | null;
   notes: string;
   created_at: string;
@@ -61,6 +68,11 @@ export function aggregateInvestmentTaxBuckets(entries: InvestmentIncomeEntry[]) 
   };
 }
 
+/** Total of user-entered actual tax savings across investment entries (null/blank = $0). */
+export function sumInvestmentActualTaxSaved(entries: InvestmentIncomeEntry[]): number {
+  return entries.reduce((s, e) => s + Math.max(0, Number(e.actual_tax_saved ?? 0)), 0);
+}
+
 export function useInvestmentIncomeEntries() {
   return useQuery({
     queryKey: ["investment_income_entries"],
@@ -95,6 +107,9 @@ export function useAddInvestmentIncomeEntry() {
         cost_basis: entry.cost_basis ?? null,
         taxable_amount: entry.taxable_amount || 0,
         tax_recommendation: entry.tax_recommendation || 0,
+        actual_tax_saved: entry.actual_tax_saved ?? null,
+        tax_rate_used: entry.tax_rate_used ?? null,
+        tax_method_used: entry.tax_method_used ?? null,
         is_qualified_dividend: entry.is_qualified_dividend ?? true,
         notes: entry.notes || "",
       });

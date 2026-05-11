@@ -7,7 +7,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
-import { aggregateInvestmentTaxBuckets, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
+import { aggregateInvestmentTaxBuckets, sumInvestmentActualTaxSaved, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
@@ -462,7 +462,11 @@ export function useTaxEstimate(): {
           s + (e.linked_transaction_id ? Math.max(0, Number((e as any).additional_tax_reserve || 0)) : 0),
         0,
       );
-      const savingsTotal = manualSavingsTotal + personalEntryReserves + businessEntryReserves;
+      // Per-entry actual tax saved on investment income entries (user-entered).
+      const investmentActualSaved = sumInvestmentActualTaxSaved(
+        (scope.investmentEntries || []).filter((e) => incomeScope === "actualPlusPlanned" || e.entry_date <= todayStr),
+      );
+      const savingsTotal = manualSavingsTotal + personalEntryReserves + businessEntryReserves + investmentActualSaved;
 
       const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);

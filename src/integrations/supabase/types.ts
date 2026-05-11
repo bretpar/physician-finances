@@ -440,6 +440,7 @@ export type Database = {
       }
       investment_income_entries: {
         Row: {
+          actual_tax_saved: number | null
           asset_name_or_ticker: string
           cost_basis: number | null
           created_at: string
@@ -450,12 +451,15 @@ export type Database = {
           notes: string
           organization_id: string | null
           sale_proceeds: number | null
+          tax_method_used: string | null
+          tax_rate_used: number | null
           tax_recommendation: number
           taxable_amount: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          actual_tax_saved?: number | null
           asset_name_or_ticker?: string
           cost_basis?: number | null
           created_at?: string
@@ -466,12 +470,15 @@ export type Database = {
           notes?: string
           organization_id?: string | null
           sale_proceeds?: number | null
+          tax_method_used?: string | null
+          tax_rate_used?: number | null
           tax_recommendation?: number
           taxable_amount?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          actual_tax_saved?: number | null
           asset_name_or_ticker?: string
           cost_basis?: number | null
           created_at?: string
@@ -482,6 +489,8 @@ export type Database = {
           notes?: string
           organization_id?: string | null
           sale_proceeds?: number | null
+          tax_method_used?: string | null
+          tax_rate_used?: number | null
           tax_recommendation?: number
           taxable_amount?: number
           updated_at?: string

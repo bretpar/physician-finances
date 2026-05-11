@@ -40,6 +40,7 @@ type FormState = {
   cost_basis: string;
   taxable_amount: string;
   is_qualified_dividend: boolean;
+  actual_tax_saved: string;
   notes: string;
 };
 
@@ -51,6 +52,7 @@ const emptyForm: FormState = {
   cost_basis: "",
   taxable_amount: "",
   is_qualified_dividend: true,
+  actual_tax_saved: "",
   notes: "",
 };
 
@@ -143,6 +145,7 @@ export default function InvestmentIncome() {
       cost_basis: entry.cost_basis == null ? "" : String(entry.cost_basis),
       taxable_amount: String(entry.taxable_amount),
       is_qualified_dividend: entry.is_qualified_dividend ?? true,
+      actual_tax_saved: entry.actual_tax_saved == null ? "" : String(entry.actual_tax_saved),
       notes: entry.notes || "",
     });
     setEditingId(entry.id);
@@ -170,6 +173,9 @@ export default function InvestmentIncome() {
       cost_basis: isDividend ? null : num(form.cost_basis),
       taxable_amount: taxableAmount,
       tax_recommendation: rec?.estimatedTax || 0,
+      tax_rate_used: rec?.effectiveRate ?? null,
+      tax_method_used: rec?.taxMethod ?? null,
+      actual_tax_saved: form.actual_tax_saved === "" ? null : num(form.actual_tax_saved),
       is_qualified_dividend: isDividend ? form.is_qualified_dividend : true,
       notes: form.notes,
     };
@@ -239,17 +245,24 @@ export default function InvestmentIncome() {
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Sale proceeds</TableHead>
                 <TableHead className="text-right">Cost basis</TableHead>
-                <TableHead className="text-right">Earnings / losses</TableHead>
-                <TableHead className="text-right">Tax guide</TableHead>
+                <TableHead className="text-right">Taxable gain/loss</TableHead>
+                <TableHead className="text-right">Recommended tax savings</TableHead>
+                <TableHead className="text-right">Actual tax saved</TableHead>
+                <TableHead className="text-right">Difference</TableHead>
                 <TableHead className="w-[88px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {entries.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No investment income entries yet</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No investment income entries yet</TableCell></TableRow>
               ) : entries.map((entry) => {
                 const amount = Number(entry.taxable_amount || 0);
                 const dividend = entry.investment_income_type === "dividend";
+                const recommended = Number(entry.tax_recommendation || 0);
+                const actualSavedRaw = entry.actual_tax_saved;
+                const hasActual = actualSavedRaw != null && actualSavedRaw !== undefined && actualSavedRaw !== "" as any;
+                const actualSaved = Number(actualSavedRaw || 0);
+                const diff = actualSaved - recommended;
                 return (
                   <TableRow key={entry.id}>
                     <TableCell>{new Date(entry.entry_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
@@ -258,7 +271,9 @@ export default function InvestmentIncome() {
                     <TableCell className="text-right">{dividend ? "—" : fmt(Number(entry.sale_proceeds || 0))}</TableCell>
                     <TableCell className="text-right">{dividend ? "—" : fmt(Number(entry.cost_basis || 0))}</TableCell>
                     <TableCell className={cn("text-right font-semibold", dividend ? "text-foreground" : amount < 0 ? "text-destructive" : "text-success")}>{fmt(amount)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{Number(entry.tax_recommendation || 0) > 0 ? fmt(Number(entry.tax_recommendation)) : "—"}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{recommended > 0 ? fmt(recommended) : "—"}</TableCell>
+                    <TableCell className={cn("text-right", hasActual ? "font-medium text-foreground" : "text-muted-foreground")}>{hasActual ? fmt(actualSaved) : "—"}</TableCell>
+                    <TableCell className={cn("text-right font-medium", recommended <= 0 ? "text-muted-foreground" : diff >= 0 ? "text-success" : "text-destructive")}>{recommended > 0 ? `${diff >= 0 ? "+" : ""}${fmt(diff)}` : "—"}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" aria-label={`Edit ${entry.asset_name_or_ticker}`} onClick={() => openEdit(entry)}><Pencil className="h-4 w-4" /></Button>
@@ -295,12 +310,14 @@ export default function InvestmentIncome() {
             )}
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
             {canShowTaxRecommendation && investmentRec && (
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-2">
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-3">
                 <div>
-                  <span className="text-muted-foreground">Recommended tax savings for this investment income: </span>
-                  <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
+                  <div>
+                    <span className="text-muted-foreground">Recommended tax savings: </span>
+                    <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">This is the recommended amount to save for taxes based on the investment income type and your projected tax profile.</p>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border">
                   <span className="text-muted-foreground">Taxable amount</span>
                   <span className="text-right font-medium">{fmt(investmentRec.taxableAmount)}</span>
@@ -308,11 +325,15 @@ export default function InvestmentIncome() {
                   <span className="text-right font-medium">{investmentRec.methodLabel}</span>
                   <span className="text-muted-foreground">Tax rate used</span>
                   <span className="text-right font-medium">{investmentRec.rateLabel}</span>
-                  <span className="text-muted-foreground">Estimated tax to save</span>
-                  <span className="text-right font-semibold">{fmt(investmentRec.estimatedTax)}</span>
                 </div>
+                <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
               </div>
             )}
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block" htmlFor="actual-tax-saved">Actual tax saved</Label>
+              <Input id="actual-tax-saved" aria-label="Actual tax saved" type="number" min="0" step="0.01" value={form.actual_tax_saved} onChange={(e) => setField("actual_tax_saved", e.target.value)} placeholder="0.00" />
+              <p className="text-[10px] text-muted-foreground mt-1">Enter how much you actually moved into tax savings for this investment income.</p>
+            </div>
             <div className="flex justify-between gap-2">
               {editingId ? <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId); setShowForm(false); }}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button> : <div />}
               <div className="flex gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={saveForm} disabled={!form.entry_date || !form.asset_name_or_ticker.trim()}>{editingId ? "Save" : "Save Entry"}</Button></div>
