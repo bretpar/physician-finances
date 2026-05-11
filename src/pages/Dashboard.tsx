@@ -373,10 +373,12 @@ export default function Dashboard() {
         </section>
       )}
 
-      <DashboardMetrics
-        totalIncomeYTD={summary.totalIncome}
-        businessProfitYTD={summary.businessNetIncome}
-        w2Only={isW2Only}
+      <IncomeModeToggle alwaysShow={isW2Only} />
+
+      <AnnualIncomeHero
+        amount={annualIncomeValue}
+        modeLabel={projection ? "Planned full-year income" : "Actual income (YTD)"}
+        subtext={methodLabel}
       />
 
       {isW2Only && forecastDebug && (
