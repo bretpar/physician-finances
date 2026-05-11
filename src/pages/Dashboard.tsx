@@ -19,6 +19,7 @@ import IncomeModeToggle from "@/components/dashboard/IncomeModeToggle";
 import AnnualIncomeHero from "@/components/dashboard/AnnualIncomeHero";
 import IncomeBreakdownCards from "@/components/dashboard/IncomeBreakdownCards";
 import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/MonthlyIncomeCard";
+import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
@@ -228,11 +229,7 @@ export default function Dashboard() {
   }, [incomeEntries, transactions]);
 
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-muted-foreground">Loading…</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // ── Choose annual liability based on the user's withholding method ────────
