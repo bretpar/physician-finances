@@ -303,12 +303,44 @@ export default function InvestmentIncome() {
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0"><DialogTitle>{editingId ? "Edit" : "Add"} Investment Income</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label className="text-xs text-muted-foreground mb-1 block">Date</Label><DateField value={form.entry_date} onChange={(v) => setField("entry_date", v)} /></div>
               <div><Label className="text-xs text-muted-foreground mb-1 block">Investment income type</Label><Select value={form.investment_income_type} onValueChange={(v) => setField("investment_income_type", v as InvestmentIncomeType)}><SelectTrigger aria-label="Investment income type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short_term_sale">Short-term sale</SelectItem><SelectItem value="long_term_sale">Long-term sale</SelectItem><SelectItem value="dividend">Dividend</SelectItem></SelectContent></Select></div>
+              <div><Label className="text-xs text-muted-foreground mb-1 block">Date</Label><DateField value={form.entry_date} onChange={(v) => setField("entry_date", v)} /></div>
             </div>
             <div><Label className="text-xs text-muted-foreground mb-1 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
-            {!isDividend && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label className="text-xs text-muted-foreground mb-1 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div><div><Label className="text-xs text-muted-foreground mb-1 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div></div>}
-            <div><Label className="text-xs text-muted-foreground mb-1 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label><Input aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"} type="number" step="0.01" value={form.taxable_amount} onChange={(e) => setField("taxable_amount", e.target.value)} placeholder={isDividend ? "0.00" : String(num(form.sale_proceeds) - num(form.cost_basis))} className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")} /><p className="text-[10px] text-muted-foreground mt-1">{isDividend ? "Used for dividend tax calculations." : "Defaults to sale proceeds minus cost basis; override if needed."}</p></div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label>
+              <Input
+                aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"}
+                type="number"
+                step="0.01"
+                value={form.taxable_amount}
+                onChange={(e) => setField("taxable_amount", e.target.value)}
+                placeholder="0.00"
+                disabled={taxableIsCalculated}
+                className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {isDividend
+                  ? "Used for dividend tax calculations."
+                  : taxableIsCalculated
+                    ? "Calculated from sale proceeds minus cost basis."
+                    : "Enter the taxable gain or loss for this investment."}
+              </p>
+            </div>
+            {!isDividend && (
+              <Collapsible open={saleDetailsOpen} onOpenChange={setSaleDetailsOpen} className="rounded-md border border-border">
+                <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/40">
+                  <span>Calculate taxable amount from sale details</span>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", saleDetailsOpen && "rotate-180")} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-3 pb-3 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div><Label className="text-xs text-muted-foreground mb-1 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div>
+                    <div><Label className="text-xs text-muted-foreground mb-1 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
             {isDividend && (
               <div className="flex items-center justify-between rounded-md border border-border p-2.5">
                 <div>
@@ -321,22 +353,27 @@ export default function InvestmentIncome() {
             <div><Label className="text-xs text-muted-foreground mb-1 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
             {canShowTaxRecommendation && investmentRec && (
               <div className="rounded-md border border-border bg-muted/30 p-2.5 text-sm space-y-2">
-                <div>
-                  <div>
-                    <span className="text-muted-foreground">Recommended tax savings: </span>
-                    <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-1">This is the recommended amount to save for taxes based on the investment income type and your projected tax profile.</p>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-muted-foreground">Recommended tax savings</span>
+                  <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border">
-                  <span className="text-muted-foreground">Taxable amount</span>
-                  <span className="text-right font-medium">{fmt(investmentRec.taxableAmount)}</span>
-                  <span className="text-muted-foreground">Tax method</span>
-                  <span className="text-right font-medium">{investmentRec.methodLabel}</span>
-                  <span className="text-muted-foreground">Tax rate used</span>
-                  <span className="text-right font-medium">{investmentRec.rateLabel}</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
+                <Collapsible open={howCalcOpen} onOpenChange={setHowCalcOpen}>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between text-[11px] text-muted-foreground hover:text-foreground">
+                    <span>How was this calculated?</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", howCalcOpen && "rotate-180")} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2 space-y-2">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border">
+                      <span className="text-muted-foreground">Taxable amount</span>
+                      <span className="text-right font-medium">{fmt(investmentRec.taxableAmount)}</span>
+                      <span className="text-muted-foreground">Tax method</span>
+                      <span className="text-right font-medium">{investmentRec.methodLabel}</span>
+                      <span className="text-muted-foreground">Tax rate used</span>
+                      <span className="text-right font-medium">{investmentRec.rateLabel}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             )}
             <div>
