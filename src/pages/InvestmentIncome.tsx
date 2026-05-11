@@ -194,8 +194,7 @@ export default function InvestmentIncome() {
 
   function saveForm() {
     if (!form.entry_date || !form.asset_name_or_ticker.trim()) return;
-    if (isDividend && num(form.taxable_amount) <= 0) return;
-    if (!isDividend && (!form.sale_proceeds || !form.cost_basis)) return;
+    if (computedTaxable === 0 && form.taxable_amount === "") return;
 
     const payload = buildPayload();
     if (editingId) {
