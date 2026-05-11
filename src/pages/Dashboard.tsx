@@ -264,6 +264,69 @@ export default function Dashboard() {
   const methodLabel = profile.label;
   const effectiveTaxRate = method === "flat_estimate" ? profile.federalProfileRate : profile.canonicalEffectiveTaxRate;
 
+  // ── Hero "Total Annual Income" + 4-card breakdown ─────────────────────────
+  // Source the values from the unified tax engine debug breakdowns so they
+  // match the Taxes tab exactly. No local recomputation.
+  const projection = taxMode === "forecast";
+  const activeDebug = projection ? forecastDebug : actualDebug;
+  const annualIncomeValue =
+    activeDebug?.totalGrossIncome ??
+    (projection ? (forecastDebug?.totalGrossIncome ?? 0) : summary.totalIncome);
+  const investmentsValue = useMemo(() => {
+    const entries = (investmentEntries || []).filter((e) => {
+      if (projection) return new Date(e.entry_date).getFullYear() === currentYear;
+      const d = new Date(e.entry_date);
+      return d.getFullYear() === currentYear && d <= now;
+    });
+    return aggregateInvestmentTaxBuckets(entries).totalTaxableIncome;
+  }, [investmentEntries, projection, currentYear, now]);
+  const businessProfitValue = activeDebug?.netBusinessProfit ?? summary.businessNetIncome;
+  const w2TotalValue = activeDebug?.w2Income ?? summary.w2Income;
+  const otherValueRaw = activeDebug
+    ? activeDebug.otherIncome - investmentsValue
+    : Math.max(0, summary.personalIncome - summary.w2Income - investmentsValue);
+  const otherValue = Math.max(0, otherValueRaw);
+
+  // ── Monthly income (actual + planned) ─────────────────────────────────────
+  const monthlyIncome: MonthBreakdown[] = useMemo(() => {
+    const months: MonthBreakdown[] = Array.from({ length: 12 }, (_, m) => ({
+      month: m,
+      actual: 0,
+      planned: 0,
+    }));
+    const inYear = (iso: string) => new Date(iso).getFullYear() === currentYear;
+    const monthOf = (iso: string) => new Date(iso).getMonth();
+    const isPastOrCurrent = (iso: string) => new Date(iso).getTime() <= now.getTime();
+
+    for (const t of transactions || []) {
+      if (t.transaction_type !== "income") continue;
+      if (isExcludedFromBusiness(t as any)) continue;
+      if (!inYear(t.transaction_date)) continue;
+      months[monthOf(t.transaction_date)].actual += Math.abs(t.amount);
+    }
+    for (const e of personalEntries || []) {
+      if (!inYear(e.income_date)) continue;
+      months[monthOf(e.income_date)].actual += Number(e.gross_amount || 0);
+    }
+    for (const e of investmentEntries || []) {
+      if (!inYear(e.entry_date)) continue;
+      const taxable = aggregateInvestmentTaxBuckets([e]).totalTaxableIncome;
+      months[monthOf(e.entry_date)].actual += taxable;
+    }
+    // Planned future paychecks: only count those strictly in the future.
+    for (const p of projectedPaychecks) {
+      if (!inYear(p.date)) continue;
+      if (isPastOrCurrent(p.date)) continue;
+      months[monthOf(p.date)].planned += Number(p.grossAmount || 0);
+    }
+    return months;
+  }, [transactions, personalEntries, investmentEntries, projectedPaychecks, currentYear, now]);
+
+  const ytdActualIncome = useMemo(
+    () => monthlyIncome.reduce((s, m) => s + m.actual, 0),
+    [monthlyIncome],
+  );
+
   const greeting =
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
