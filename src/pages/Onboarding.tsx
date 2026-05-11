@@ -33,11 +33,46 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please sign in or reset your password.";
+const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please log in or reset your password.";
+const SETUP_NOT_READY_MESSAGE = "Your account was created, but setup records were not ready. Please log in again or contact support.";
+const SETUP_FAILED_MESSAGE = "Your account was created, but onboarding setup could not finish. Please log in and try again.";
+const IS_DEBUG_BUILD = import.meta.env.DEV || (typeof window !== "undefined" && /[?&]debug=1/.test(window.location.search));
 
 function isDuplicateEmailError(error: unknown) {
   const message = String((error as { message?: string } | null)?.message || error || "").toLowerCase();
-  return ["already", "registered", "exists", "duplicate"].some((term) => message.includes(term));
+  const code = String((error as { code?: string } | null)?.code || "").toLowerCase();
+  if (code === "user_already_exists" || code === "email_exists") return true;
+  return [
+    "already registered",
+    "user already registered",
+    "already exists",
+    "email address already",
+    "duplicate",
+  ].some((term) => message.includes(term));
+}
+
+function describeAuthError(error: unknown): string {
+  if (!error) return "";
+  const e = error as { message?: string; status?: number | string; code?: string; name?: string };
+  const parts: string[] = [];
+  if (e.message) parts.push(e.message);
+  if (e.code) parts.push(`code: ${e.code}`);
+  if (e.status) parts.push(`status: ${e.status}`);
+  if (e.name) parts.push(`name: ${e.name}`);
+  return parts.join(" • ");
+}
+
+async function waitForUserSetupRows(userId: string, timeoutMs = 5000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const [{ data: profile }, { data: settings }] = await Promise.all([
+      supabase.from("profiles").select("user_id").eq("user_id", userId).maybeSingle(),
+      supabase.from("tax_settings").select("user_id").eq("user_id", userId).maybeSingle(),
+    ]);
+    if (profile && settings) return true;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return false;
 }
 
 function isValidEmailFormat(value: string) {
