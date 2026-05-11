@@ -284,8 +284,35 @@ export default function InvestmentIncome() {
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
             {!isDividend && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div><div><Label className="text-xs text-muted-foreground mb-1.5 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div></div>}
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label><Input aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"} type="number" step="0.01" value={form.taxable_amount} onChange={(e) => setField("taxable_amount", e.target.value)} placeholder={isDividend ? "0.00" : String(num(form.sale_proceeds) - num(form.cost_basis))} className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")} /><p className="text-[10px] text-muted-foreground mt-1">{isDividend ? "Used for dividend tax calculations." : "Defaults to sale proceeds minus cost basis; override if needed."}</p></div>
+            {isDividend && (
+              <div className="flex items-center justify-between rounded-md border border-border p-3">
+                <div>
+                  <Label className="text-sm">Qualified dividend</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Qualified dividends use long-term capital gains rates. Non-qualified use ordinary rates.</p>
+                </div>
+                <Switch checked={form.is_qualified_dividend} onCheckedChange={(v) => setField("is_qualified_dividend", v)} aria-label="Qualified dividend" />
+              </div>
+            )}
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
-            {canShowTaxRecommendation && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm"><span className="text-muted-foreground">Estimated tax to set aside: </span><span className="font-semibold text-foreground">{fmt(buildPayload().tax_recommendation)}</span></div>}
+            {canShowTaxRecommendation && investmentRec && (
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-2">
+                <div>
+                  <span className="text-muted-foreground">Recommended tax savings for this investment income: </span>
+                  <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border">
+                  <span className="text-muted-foreground">Taxable amount</span>
+                  <span className="text-right font-medium">{fmt(investmentRec.taxableAmount)}</span>
+                  <span className="text-muted-foreground">Tax method</span>
+                  <span className="text-right font-medium">{investmentRec.methodLabel}</span>
+                  <span className="text-muted-foreground">Tax rate used</span>
+                  <span className="text-right font-medium">{investmentRec.rateLabel}</span>
+                  <span className="text-muted-foreground">Estimated tax to save</span>
+                  <span className="text-right font-semibold">{fmt(investmentRec.estimatedTax)}</span>
+                </div>
+              </div>
+            )}
             <div className="flex justify-between gap-2">
               {editingId ? <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId); setShowForm(false); }}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button> : <div />}
               <div className="flex gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={saveForm} disabled={!form.entry_date || !form.asset_name_or_ticker.trim()}>{editingId ? "Save" : "Save Entry"}</Button></div>
