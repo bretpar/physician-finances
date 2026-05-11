@@ -19,6 +19,7 @@ import IncomeModeToggle from "@/components/dashboard/IncomeModeToggle";
 import AnnualIncomeHero from "@/components/dashboard/AnnualIncomeHero";
 import IncomeBreakdownCards from "@/components/dashboard/IncomeBreakdownCards";
 import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/MonthlyIncomeCard";
+import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import { getCurrentQuarter, getQuarterPayments } from "@/lib/quarters";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
