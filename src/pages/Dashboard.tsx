@@ -272,14 +272,14 @@ export default function Dashboard() {
   const annualIncomeValue =
     activeDebug?.totalGrossIncome ??
     (projection ? (forecastDebug?.totalGrossIncome ?? 0) : summary.totalIncome);
-  const investmentsValue = useMemo(() => {
+  const investmentsValue = (() => {
     const entries = (investmentEntries || []).filter((e) => {
       if (projection) return new Date(e.entry_date).getFullYear() === currentYear;
       const d = new Date(e.entry_date);
       return d.getFullYear() === currentYear && d <= now;
     });
     return aggregateInvestmentTaxBuckets(entries).totalTaxableIncome;
-  }, [investmentEntries, projection, currentYear, now]);
+  })();
   const businessProfitValue = activeDebug?.netBusinessProfit ?? summary.businessNetIncome;
   const w2TotalValue = activeDebug?.w2Income ?? summary.w2Income;
   const otherValueRaw = activeDebug
@@ -288,7 +288,7 @@ export default function Dashboard() {
   const otherValue = Math.max(0, otherValueRaw);
 
   // ── Monthly income (actual + planned) ─────────────────────────────────────
-  const monthlyIncome: MonthBreakdown[] = useMemo(() => {
+  const monthlyIncome: MonthBreakdown[] = (() => {
     const months: MonthBreakdown[] = Array.from({ length: 12 }, (_, m) => ({
       month: m,
       actual: 0,
@@ -313,19 +313,15 @@ export default function Dashboard() {
       const taxable = aggregateInvestmentTaxBuckets([e]).totalTaxableIncome;
       months[monthOf(e.entry_date)].actual += taxable;
     }
-    // Planned future paychecks: only count those strictly in the future.
     for (const p of projectedPaychecks) {
       if (!inYear(p.date)) continue;
       if (isPastOrCurrent(p.date)) continue;
       months[monthOf(p.date)].planned += Number(p.grossAmount || 0);
     }
     return months;
-  }, [transactions, personalEntries, investmentEntries, projectedPaychecks, currentYear, now]);
+  })();
 
-  const ytdActualIncome = useMemo(
-    () => monthlyIncome.reduce((s, m) => s + m.actual, 0),
-    [monthlyIncome],
-  );
+  const ytdActualIncome = monthlyIncome.reduce((s, m) => s + m.actual, 0);
 
   const greeting =
     user?.user_metadata?.first_name ||
