@@ -440,6 +440,19 @@ export default function Dashboard() {
         linkDeadlineToTaxOverview
       />}
 
+      <IncomeBreakdownCards
+        businessProfit={businessProfitValue}
+        w2Total={w2TotalValue}
+        investments={investmentsValue}
+        other={otherValue}
+      />
+
+      <MonthlyIncomeCard
+        months={monthlyIncome}
+        currentMonth={currentMonth}
+        ytdIncome={ytdActualIncome}
+      />
+
       <FinancialScore
         taxProgressPct={taxProgressPct}
         monthsWithIncome={monthsWithIncome}
