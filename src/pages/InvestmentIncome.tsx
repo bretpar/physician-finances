@@ -140,6 +140,8 @@ export default function InvestmentIncome() {
   function openAdd() {
     setForm(emptyForm);
     setEditingId(null);
+    setSaleDetailsOpen(false);
+    setHowCalcOpen(false);
     setShowForm(true);
   }
 
@@ -156,6 +158,8 @@ export default function InvestmentIncome() {
       notes: entry.notes || "",
     });
     setEditingId(entry.id);
+    setSaleDetailsOpen(false);
+    setHowCalcOpen(false);
     setShowForm(true);
   }
 
