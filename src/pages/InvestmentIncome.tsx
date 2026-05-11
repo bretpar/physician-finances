@@ -289,18 +289,18 @@ export default function InvestmentIncome() {
       </Card>
 
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) setEditingId(null); setShowForm(open); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editingId ? "Edit" : "Add"} Investment Income</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+        <DialogContent className="max-w-lg max-h-[90vh] p-0 flex flex-col gap-0">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0"><DialogTitle>{editingId ? "Edit" : "Add"} Investment Income</DialogTitle></DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label><DateField value={form.entry_date} onChange={(v) => setField("entry_date", v)} /></div>
-              <div><Label className="text-xs text-muted-foreground mb-1.5 block">Investment income type</Label><Select value={form.investment_income_type} onValueChange={(v) => setField("investment_income_type", v as InvestmentIncomeType)}><SelectTrigger aria-label="Investment income type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short_term_sale">Short-term sale</SelectItem><SelectItem value="long_term_sale">Long-term sale</SelectItem><SelectItem value="dividend">Dividend</SelectItem></SelectContent></Select></div>
+              <div><Label className="text-xs text-muted-foreground mb-1 block">Date</Label><DateField value={form.entry_date} onChange={(v) => setField("entry_date", v)} /></div>
+              <div><Label className="text-xs text-muted-foreground mb-1 block">Investment income type</Label><Select value={form.investment_income_type} onValueChange={(v) => setField("investment_income_type", v as InvestmentIncomeType)}><SelectTrigger aria-label="Investment income type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short_term_sale">Short-term sale</SelectItem><SelectItem value="long_term_sale">Long-term sale</SelectItem><SelectItem value="dividend">Dividend</SelectItem></SelectContent></Select></div>
             </div>
-            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
-            {!isDividend && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div><div><Label className="text-xs text-muted-foreground mb-1.5 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div></div>}
-            <div><Label className="text-xs text-muted-foreground mb-1.5 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label><Input aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"} type="number" step="0.01" value={form.taxable_amount} onChange={(e) => setField("taxable_amount", e.target.value)} placeholder={isDividend ? "0.00" : String(num(form.sale_proceeds) - num(form.cost_basis))} className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")} /><p className="text-[10px] text-muted-foreground mt-1">{isDividend ? "Used for dividend tax calculations." : "Defaults to sale proceeds minus cost basis; override if needed."}</p></div>
+            <div><Label className="text-xs text-muted-foreground mb-1 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
+            {!isDividend && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label className="text-xs text-muted-foreground mb-1 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div><div><Label className="text-xs text-muted-foreground mb-1 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div></div>}
+            <div><Label className="text-xs text-muted-foreground mb-1 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label><Input aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"} type="number" step="0.01" value={form.taxable_amount} onChange={(e) => setField("taxable_amount", e.target.value)} placeholder={isDividend ? "0.00" : String(num(form.sale_proceeds) - num(form.cost_basis))} className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")} /><p className="text-[10px] text-muted-foreground mt-1">{isDividend ? "Used for dividend tax calculations." : "Defaults to sale proceeds minus cost basis; override if needed."}</p></div>
             {isDividend && (
-              <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div className="flex items-center justify-between rounded-md border border-border p-2.5">
                 <div>
                   <Label className="text-sm">Qualified dividend</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">Qualified dividends use long-term capital gains rates. Non-qualified use ordinary rates.</p>
@@ -308,9 +308,9 @@ export default function InvestmentIncome() {
                 <Switch checked={form.is_qualified_dividend} onCheckedChange={(v) => setField("is_qualified_dividend", v)} aria-label="Qualified dividend" />
               </div>
             )}
-            <div><Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
+            <div><Label className="text-xs text-muted-foreground mb-1 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
             {canShowTaxRecommendation && investmentRec && (
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-3">
+              <div className="rounded-md border border-border bg-muted/30 p-2.5 text-sm space-y-2">
                 <div>
                   <div>
                     <span className="text-muted-foreground">Recommended tax savings: </span>
@@ -330,14 +330,14 @@ export default function InvestmentIncome() {
               </div>
             )}
             <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block" htmlFor="actual-tax-saved">Actual tax saved</Label>
+              <Label className="text-xs text-muted-foreground mb-1 block" htmlFor="actual-tax-saved">Actual tax saved</Label>
               <Input id="actual-tax-saved" aria-label="Actual tax saved" type="number" min="0" step="0.01" value={form.actual_tax_saved} onChange={(e) => setField("actual_tax_saved", e.target.value)} placeholder="0.00" />
               <p className="text-[10px] text-muted-foreground mt-1">Enter how much you actually moved into tax savings for this investment income.</p>
             </div>
-            <div className="flex justify-between gap-2">
-              {editingId ? <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId); setShowForm(false); }}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button> : <div />}
-              <div className="flex gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={saveForm} disabled={!form.entry_date || !form.asset_name_or_ticker.trim()}>{editingId ? "Save" : "Save Entry"}</Button></div>
-            </div>
+          </div>
+          <div className="shrink-0 border-t border-border px-6 py-3 flex justify-between gap-2 bg-background">
+            {editingId ? <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId); setShowForm(false); }}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button> : <div />}
+            <div className="flex gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={saveForm} disabled={!form.entry_date || !form.asset_name_or_ticker.trim()}>{editingId ? "Save" : "Save Entry"}</Button></div>
           </div>
         </DialogContent>
       </Dialog>
