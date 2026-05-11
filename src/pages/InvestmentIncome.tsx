@@ -23,7 +23,10 @@ import {
   type InvestmentIncomeType,
 } from "@/hooks/useInvestmentIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { calculateInvestmentTaxRecommendation } from "@/lib/investmentTaxRecommendation";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -36,6 +39,7 @@ type FormState = {
   sale_proceeds: string;
   cost_basis: string;
   taxable_amount: string;
+  is_qualified_dividend: boolean;
   notes: string;
 };
 
@@ -46,6 +50,7 @@ const emptyForm: FormState = {
   sale_proceeds: "",
   cost_basis: "",
   taxable_amount: "",
+  is_qualified_dividend: true,
   notes: "",
 };
 
@@ -56,7 +61,9 @@ export default function InvestmentIncome() {
   const deleteMutation = useDeleteInvestmentIncomeEntry();
   const { getRecommendation } = useIncomeRecommendation();
   const { data: taxSettings } = useTaxSettings();
+  const { forecastEstimate, actualEstimate } = useTaxEstimate();
   const investmentEnabled = taxSettings?.householdIncomeStreams?.investmentIncome !== false;
+  const filingStatus = taxSettings?.filingStatus ?? "single";
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -71,6 +78,38 @@ export default function InvestmentIncome() {
     taxableAmountOverride: form.taxable_amount === "" ? null : num(form.taxable_amount),
   });
   const canShowTaxRecommendation = computedTaxable > 0 && (isDividend || (!!form.sale_proceeds && !!form.cost_basis));
+
+  // Ordinary effective rate from the recommendation engine (fed into short-term/non-qualified div).
+  const ordinaryRec = computedTaxable > 0
+    ? getRecommendation({
+        grossIncome: computedTaxable,
+        incomeType: "personal_income",
+        incomeBucket: "personal",
+        federalWithheld: 0,
+        stateWithheld: 0,
+        retirement401k: 0,
+        preTaxDeductions: 0,
+      })
+    : null;
+  const ordinaryEffectiveRate = (ordinaryRec?.effectiveRate ?? 0) / 100;
+
+  // Projected ordinary taxable income, excluding this entry's gain (avoid double-stacking).
+  const baseEstimate = forecastEstimate ?? actualEstimate;
+  const projectedOrdinaryTaxableIncome = Math.max(
+    0,
+    (baseEstimate?.taxableIncome ?? 0) - (computedTaxable > 0 && (form.investment_income_type === "long_term_sale" || (isDividend && form.is_qualified_dividend)) ? computedTaxable : 0),
+  );
+
+  const investmentRec = computedTaxable > 0
+    ? calculateInvestmentTaxRecommendation({
+        type: form.investment_income_type,
+        taxableAmount: computedTaxable,
+        isQualifiedDividend: form.is_qualified_dividend,
+        filingStatus,
+        projectedOrdinaryTaxableIncome,
+        ordinaryEffectiveRate,
+      })
+    : null;
 
   const summary = useMemo(() => aggregateInvestmentTaxBuckets(entries), [entries]);
 
@@ -103,6 +142,7 @@ export default function InvestmentIncome() {
       sale_proceeds: entry.sale_proceeds == null ? "" : String(entry.sale_proceeds),
       cost_basis: entry.cost_basis == null ? "" : String(entry.cost_basis),
       taxable_amount: String(entry.taxable_amount),
+      is_qualified_dividend: entry.is_qualified_dividend ?? true,
       notes: entry.notes || "",
     });
     setEditingId(entry.id);
@@ -112,14 +152,13 @@ export default function InvestmentIncome() {
   function buildPayload() {
     const taxableAmount = computedTaxable;
     const rec = taxableAmount > 0
-      ? getRecommendation({
-          grossIncome: taxableAmount,
-          incomeType: form.investment_income_type === "dividend" ? "dividend" : form.investment_income_type,
-          incomeBucket: "personal",
-          federalWithheld: 0,
-          stateWithheld: 0,
-          retirement401k: 0,
-          preTaxDeductions: 0,
+      ? calculateInvestmentTaxRecommendation({
+          type: form.investment_income_type,
+          taxableAmount,
+          isQualifiedDividend: form.is_qualified_dividend,
+          filingStatus,
+          projectedOrdinaryTaxableIncome,
+          ordinaryEffectiveRate,
         })
       : null;
 
@@ -130,7 +169,8 @@ export default function InvestmentIncome() {
       sale_proceeds: isDividend ? null : num(form.sale_proceeds),
       cost_basis: isDividend ? null : num(form.cost_basis),
       taxable_amount: taxableAmount,
-      tax_recommendation: rec?.baseTaxEstimate || 0,
+      tax_recommendation: rec?.estimatedTax || 0,
+      is_qualified_dividend: isDividend ? form.is_qualified_dividend : true,
       notes: form.notes,
     };
   }
@@ -244,8 +284,35 @@ export default function InvestmentIncome() {
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
             {!isDividend && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><Label className="text-xs text-muted-foreground mb-1.5 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div><div><Label className="text-xs text-muted-foreground mb-1.5 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div></div>}
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label><Input aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"} type="number" step="0.01" value={form.taxable_amount} onChange={(e) => setField("taxable_amount", e.target.value)} placeholder={isDividend ? "0.00" : String(num(form.sale_proceeds) - num(form.cost_basis))} className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")} /><p className="text-[10px] text-muted-foreground mt-1">{isDividend ? "Used for dividend tax calculations." : "Defaults to sale proceeds minus cost basis; override if needed."}</p></div>
+            {isDividend && (
+              <div className="flex items-center justify-between rounded-md border border-border p-3">
+                <div>
+                  <Label className="text-sm">Qualified dividend</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Qualified dividends use long-term capital gains rates. Non-qualified use ordinary rates.</p>
+                </div>
+                <Switch checked={form.is_qualified_dividend} onCheckedChange={(v) => setField("is_qualified_dividend", v)} aria-label="Qualified dividend" />
+              </div>
+            )}
             <div><Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label><Input value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Optional" /></div>
-            {canShowTaxRecommendation && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm"><span className="text-muted-foreground">Estimated tax to set aside: </span><span className="font-semibold text-foreground">{fmt(buildPayload().tax_recommendation)}</span></div>}
+            {canShowTaxRecommendation && investmentRec && (
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-2">
+                <div>
+                  <span className="text-muted-foreground">Recommended tax savings for this investment income: </span>
+                  <span className="font-semibold text-foreground">{fmt(investmentRec.estimatedTax)}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Long-term gains use capital gains rates. Short-term gains are taxed like ordinary income.</p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-border">
+                  <span className="text-muted-foreground">Taxable amount</span>
+                  <span className="text-right font-medium">{fmt(investmentRec.taxableAmount)}</span>
+                  <span className="text-muted-foreground">Tax method</span>
+                  <span className="text-right font-medium">{investmentRec.methodLabel}</span>
+                  <span className="text-muted-foreground">Tax rate used</span>
+                  <span className="text-right font-medium">{investmentRec.rateLabel}</span>
+                  <span className="text-muted-foreground">Estimated tax to save</span>
+                  <span className="text-right font-semibold">{fmt(investmentRec.estimatedTax)}</span>
+                </div>
+              </div>
+            )}
             <div className="flex justify-between gap-2">
               {editingId ? <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId); setShowForm(false); }}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button> : <div />}
               <div className="flex gap-2"><Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button><Button onClick={saveForm} disabled={!form.entry_date || !form.asset_name_or_ticker.trim()}>{editingId ? "Save" : "Save Entry"}</Button></div>

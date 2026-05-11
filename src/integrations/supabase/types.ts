@@ -446,6 +446,7 @@ export type Database = {
           entry_date: string
           id: string
           investment_income_type: string
+          is_qualified_dividend: boolean
           notes: string
           organization_id: string | null
           sale_proceeds: number | null
@@ -461,6 +462,7 @@ export type Database = {
           entry_date?: string
           id?: string
           investment_income_type: string
+          is_qualified_dividend?: boolean
           notes?: string
           organization_id?: string | null
           sale_proceeds?: number | null
@@ -476,6 +478,7 @@ export type Database = {
           entry_date?: string
           id?: string
           investment_income_type?: string
+          is_qualified_dividend?: boolean
           notes?: string
           organization_id?: string | null
           sale_proceeds?: number | null

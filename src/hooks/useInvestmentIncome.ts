@@ -16,6 +16,7 @@ export interface InvestmentIncomeEntry {
   cost_basis: number | null;
   taxable_amount: number;
   tax_recommendation: number;
+  is_qualified_dividend?: boolean | null;
   notes: string;
   created_at: string;
   updated_at: string;
@@ -94,6 +95,7 @@ export function useAddInvestmentIncomeEntry() {
         cost_basis: entry.cost_basis ?? null,
         taxable_amount: entry.taxable_amount || 0,
         tax_recommendation: entry.tax_recommendation || 0,
+        is_qualified_dividend: entry.is_qualified_dividend ?? true,
         notes: entry.notes || "",
       });
       if (error) throw error;
