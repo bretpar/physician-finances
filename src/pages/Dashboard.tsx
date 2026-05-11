@@ -228,11 +228,7 @@ export default function Dashboard() {
   }, [incomeEntries, transactions]);
 
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-muted-foreground">Loading…</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // ── Choose annual liability based on the user's withholding method ────────
