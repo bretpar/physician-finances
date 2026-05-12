@@ -48,6 +48,7 @@ interface QuarterlyTrackerProps {
   showTaxOverviewCta?: boolean;
   showQuarterNavigation?: boolean;
   linkDeadlineToTaxOverview?: boolean;
+  breakdownTitle?: string;
 }
 
 const fmt = (n: number) =>
