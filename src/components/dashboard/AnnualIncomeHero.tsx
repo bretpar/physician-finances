@@ -34,10 +34,6 @@ export default function AnnualIncomeHero({ amount, modeLabel, subtext, toggle }:
           <p className="mt-2 text-4xl sm:text-5xl font-bold tabular-nums tracking-tight text-foreground">
             {fmt(animated)}
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {modeLabel}
-            {subtext && subtext !== modeLabel ? ` · ${subtext}` : ""}
-          </p>
         </div>
         <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-success/20 text-success">
           <TrendingUp className="h-6 w-6" />
