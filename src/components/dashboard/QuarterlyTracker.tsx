@@ -490,7 +490,7 @@ export default function QuarterlyTracker({
             <CollapsibleTrigger className="w-full min-w-0 px-3 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] items-start sm:items-center gap-1 sm:gap-x-3 text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
               <span className="flex min-w-0 items-center gap-1.5 text-left">
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", breakdownOpen && "rotate-180")} />
-                <span className="min-w-0 break-words">This quarter by company</span>
+              <span className="min-w-0 break-words">{breakdownTitle}</span>
               </span>
               <span className="hidden text-right w-20 sm:block">Paid</span>
               <span className="hidden text-center w-3 sm:block">·</span>
