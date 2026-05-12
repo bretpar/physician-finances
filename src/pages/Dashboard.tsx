@@ -54,6 +54,21 @@ export default function Dashboard() {
     setShowProfileReviewBanner(rates?.onboardingComplete == null && !dismissed);
   }, [rates?.onboardingBannerDismissed, rates?.onboardingComplete]);
 
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.first_name) setProfileFirstName(data.first_name);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
   const projectedPaychecks = useMemo(
     () =>
       generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries).map((p) => ({
