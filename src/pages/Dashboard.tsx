@@ -47,11 +47,27 @@ export default function Dashboard() {
   const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(rates?.subscriptionTier));
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
+  const [profileFirstName, setProfileFirstName] = useState<string>("");
 
   useEffect(() => {
     const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true" || !!rates?.onboardingBannerDismissed;
     setShowProfileReviewBanner(rates?.onboardingComplete == null && !dismissed);
   }, [rates?.onboardingBannerDismissed, rates?.onboardingComplete]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.first_name) setProfileFirstName(data.first_name);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   const projectedPaychecks = useMemo(
     () =>
@@ -321,6 +337,7 @@ export default function Dashboard() {
   const ytdActualIncome = monthlyIncome.reduce((s, m) => s + m.actual, 0);
 
   const greeting =
+    profileFirstName ||
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
