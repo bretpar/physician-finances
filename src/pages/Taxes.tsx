@@ -29,6 +29,7 @@ import { useTaxPayments, useAddTaxPayment, useUpdateTaxPayment, useDeleteTaxPaym
 import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
+import { useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
@@ -56,6 +57,7 @@ export default function Taxes() {
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
+  const { data: investmentEntries, isLoading: investmentLoading } = useInvestmentIncomeEntries();
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
@@ -88,7 +90,7 @@ export default function Taxes() {
   const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading;
+  const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading || investmentLoading;
 
   const e = estimate;
   const debug = taxMode === "actual" ? actualDebug : forecastDebug;
@@ -322,12 +324,14 @@ export default function Taxes() {
           incomeEntries={incomeEntries || []}
           personalEntries={personalEntries || []}
           transactions={transactions || []}
+          investmentEntries={investmentEntries || []}
           companies={companies}
           quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
           projectedPaychecks={projectedPaychecks}
           personalBucketRate={personalRate}
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
+          breakdownTitle="This quarter by source"
         />
       </section>}
 
