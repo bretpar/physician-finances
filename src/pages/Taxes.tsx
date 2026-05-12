@@ -29,6 +29,7 @@ import { useTaxPayments, useAddTaxPayment, useUpdateTaxPayment, useDeleteTaxPaym
 import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
+import { useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
