@@ -30,6 +30,8 @@ interface QuarterlyTrackerProps {
   incomeEntries: any[];
   personalEntries: any[];
   transactions: any[];
+  /** Investment income entries — `actual_tax_saved` counts as Saved (user reserve), never as Paid. */
+  investmentEntries?: InvestmentIncomeEntry[];
   companies: { id: string; name: string; companyType?: string }[];
   /** "even" = annual / 4. "dynamic" = share-based on actual + planned income in this quarter. */
   quarterMethod?: "even" | "dynamic";
