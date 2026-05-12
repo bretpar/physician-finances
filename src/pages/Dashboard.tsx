@@ -342,10 +342,16 @@ export default function Dashboard() {
     (user?.email ? user.email.split("@")[0] : "back");
 
   // Mirror the tracker's math (CURRENT QUARTER ONLY) so the score stays consistent.
+  // Investment `actual_tax_saved` is a user reserve, not a submitted payment —
+  // it counts as "Saved" here exactly like in QuarterlyTracker.
+  const investmentSavedThisQuarter = (investmentEntries || [])
+    .filter((e) => inQuarter(e.entry_date))
+    .reduce((s, e) => s + Math.max(0, Number(e.actual_tax_saved ?? 0)), 0);
   const quarterGoal = Math.max(0, annualTaxLiability / 4);
   const paidThisQuarter =
     companyRows.reduce((s, c) => s + c.paid, 0) + quarterlyPayments;
-  const rawSavedThisQuarter = companyRows.reduce((s, c) => s + c.saved, 0);
+  const rawSavedThisQuarter =
+    companyRows.reduce((s, c) => s + c.saved, 0) + investmentSavedThisQuarter;
   const savedThisQuarter = Math.max(0, rawSavedThisQuarter - quarterlyPayments);
   const progressThisQuarter = paidThisQuarter + savedThisQuarter;
   const taxProgressPct = quarterGoal > 0 ? (progressThisQuarter / quarterGoal) * 100 : 100;
@@ -440,6 +446,7 @@ export default function Dashboard() {
         incomeEntries={incomeEntries || []}
         personalEntries={personalEntries || []}
         transactions={transactions || []}
+        investmentEntries={investmentEntries || []}
         companies={companies}
         quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
         projectedPaychecks={projectedPaychecks}
