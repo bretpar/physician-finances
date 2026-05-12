@@ -57,6 +57,7 @@ export default function Taxes() {
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
+  const { data: investmentEntries, isLoading: investmentLoading } = useInvestmentIncomeEntries();
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
