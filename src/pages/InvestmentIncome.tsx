@@ -400,7 +400,23 @@ export default function InvestmentIncome() {
             </div>
             <div><Label className="text-xs text-muted-foreground mb-1 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
             <div>
-              <Label className="text-xs text-muted-foreground mb-1 block">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label className="text-xs text-muted-foreground">{isDividend ? "Taxable dividend amount" : "Taxable amount"}</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[240px]">
+                      {isDividend
+                        ? "Used for dividend tax calculations."
+                        : taxableIsCalculated
+                          ? "Calculated from sale proceeds minus cost basis."
+                          : "Enter the taxable gain or loss for this investment."}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <Input
                 aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"}
                 type="number"
@@ -411,13 +427,6 @@ export default function InvestmentIncome() {
                 disabled={taxableIsCalculated}
                 className={cn(!isDividend && computedTaxable < 0 ? "text-destructive" : "text-foreground")}
               />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                {isDividend
-                  ? "Used for dividend tax calculations."
-                  : taxableIsCalculated
-                    ? "Calculated from sale proceeds minus cost basis."
-                    : "Enter the taxable gain or loss for this investment."}
-              </p>
             </div>
             {!isDividend && (
               <Collapsible open={saleDetailsOpen} onOpenChange={setSaleDetailsOpen}>
