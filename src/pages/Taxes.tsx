@@ -90,7 +90,7 @@ export default function Taxes() {
   const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading;
+  const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading || investmentLoading;
 
   const e = estimate;
   const debug = taxMode === "actual" ? actualDebug : forecastDebug;
