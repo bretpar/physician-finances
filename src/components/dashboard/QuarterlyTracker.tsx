@@ -368,6 +368,14 @@ export default function QuarterlyTracker({
   });
   const rows = [
     ...adjustedCompanyRows,
+    ...(investmentSavedThisQuarter > 0
+      ? [{
+          key: "__investment_income__",
+          label: "Investment income",
+          paid: 0,
+          saved: investmentSavedThisQuarter,
+        }]
+      : []),
     {
       key: "__quarterly_payments__",
       label: `${q.label} estimated payments`,
