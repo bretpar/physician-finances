@@ -337,6 +337,7 @@ export default function Dashboard() {
   const ytdActualIncome = monthlyIncome.reduce((s, m) => s + m.actual, 0);
 
   const greeting =
+    profileFirstName ||
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
