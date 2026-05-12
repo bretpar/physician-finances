@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { BarChart3, ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
@@ -314,7 +314,7 @@ export default function InvestmentIncome() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </Fragment>
                       );
                     })}
                   </TableBody>
