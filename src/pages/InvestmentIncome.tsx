@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
-import { BarChart3, ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Info, Pencil, Plus, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
