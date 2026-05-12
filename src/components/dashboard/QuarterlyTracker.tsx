@@ -11,6 +11,7 @@ import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { aggregateInvestmentTaxBuckets, type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
