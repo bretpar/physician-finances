@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BarChart3, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -328,12 +328,12 @@ export default function InvestmentIncome() {
               </p>
             </div>
             {!isDividend && (
-              <Collapsible open={saleDetailsOpen} onOpenChange={setSaleDetailsOpen} className="rounded-md border border-border">
-                <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/40">
-                  <span>Calculate taxable amount from sale details</span>
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", saleDetailsOpen && "rotate-180")} />
+              <Collapsible open={saleDetailsOpen} onOpenChange={setSaleDetailsOpen}>
+                <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                  {saleDetailsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                  Calculate taxable amount from sale details
                 </CollapsibleTrigger>
-                <CollapsibleContent className="px-3 pb-3 pt-1">
+                <CollapsibleContent className="pt-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><Label className="text-xs text-muted-foreground mb-1 block">Total sale proceeds</Label><Input aria-label="Total sale proceeds" type="number" min="0" step="0.01" value={form.sale_proceeds} onChange={(e) => setField("sale_proceeds", e.target.value)} placeholder="0.00" /></div>
                     <div><Label className="text-xs text-muted-foreground mb-1 block">Cost basis</Label><Input aria-label="Cost basis" type="number" min="0" step="0.01" value={form.cost_basis} onChange={(e) => setField("cost_basis", e.target.value)} placeholder="0.00" /></div>
