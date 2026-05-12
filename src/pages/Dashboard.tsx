@@ -47,6 +47,7 @@ export default function Dashboard() {
   const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(rates?.subscriptionTier));
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
+  const [profileFirstName, setProfileFirstName] = useState<string>("");
 
   useEffect(() => {
     const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true" || !!rates?.onboardingBannerDismissed;
