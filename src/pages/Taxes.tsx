@@ -324,12 +324,14 @@ export default function Taxes() {
           incomeEntries={incomeEntries || []}
           personalEntries={personalEntries || []}
           transactions={transactions || []}
+          investmentEntries={investmentEntries || []}
           companies={companies}
           quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
           projectedPaychecks={projectedPaychecks}
           personalBucketRate={personalRate}
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
+          breakdownTitle="This quarter by source"
         />
       </section>}
 
