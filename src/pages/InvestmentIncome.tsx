@@ -278,9 +278,8 @@ export default function InvestmentIncome() {
                       const isExpanded = expandedId === entry.id;
                       const toggle = () => setExpandedId(isExpanded ? null : entry.id);
                       return (
-                        <>
+                        <Fragment key={entry.id}>
                           <TableRow
-                            key={entry.id}
                             className="cursor-pointer hover:bg-muted/40"
                             onClick={toggle}
                           >
