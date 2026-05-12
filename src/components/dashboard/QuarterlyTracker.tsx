@@ -254,14 +254,34 @@ export default function QuarterlyTracker({
       if (inYear(p.date)) yearIncome += amt;
       if (inWin(p.date)) qIncome += amt;
     }
+    // Investment income — count taxable amount toward both quarter and year buckets
+    // so a large stock sale in this quarter raises that quarter's target share.
+    for (const e of investmentEntries || []) {
+      const amt = Number(e.taxable_amount || 0);
+      if (inYear(e.entry_date)) yearIncome += amt;
+      if (inWin(e.entry_date)) qIncome += amt;
+    }
     if (yearIncome <= 0) return 0;
     const share = qIncome / yearIncome;
     return Math.max(0, annualTaxLiability * share);
-  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, q.start, q.end, view.year]);
+  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, investmentEntries, q.start, q.end, view.year]);
+
+  // Investment `actual_tax_saved` is a USER RESERVE (money set aside), not a
+  // submitted tax payment — it counts as "Saved", never as "Paid".
+  const investmentSavedThisQuarter = useMemo(() => {
+    const inWin = (iso: string) => {
+      const d = new Date(iso);
+      return d >= q.start && d < q.end;
+    };
+    return (investmentEntries || [])
+      .filter((e) => inWin(e.entry_date))
+      .reduce((s, e) => s + Math.max(0, Number(e.actual_tax_saved ?? 0)), 0);
+  }, [investmentEntries, q.start, q.end]);
 
   const paidFromCompanies = companyRows.reduce((s, c) => s + c.paid, 0);
   const paidThisQuarter = paidFromCompanies + quarterlyPayments;
-  const rawSavedThisQuarter = companyRows.reduce((s, c) => s + c.saved, 0);
+  const rawSavedThisQuarter =
+    companyRows.reduce((s, c) => s + c.saved, 0) + investmentSavedThisQuarter;
   const savedThisQuarter = Math.max(0, rawSavedThisQuarter - quarterlyPayments);
   const progressAmount = paidThisQuarter + savedThisQuarter;
   const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
