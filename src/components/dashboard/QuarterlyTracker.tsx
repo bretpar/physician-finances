@@ -119,6 +119,7 @@ export default function QuarterlyTracker({
   incomeEntries,
   personalEntries,
   transactions,
+  investmentEntries = [],
   companies,
   quarterMethod = "even",
   projectedPaychecks = [],
