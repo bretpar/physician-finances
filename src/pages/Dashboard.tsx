@@ -446,6 +446,7 @@ export default function Dashboard() {
         incomeEntries={incomeEntries || []}
         personalEntries={personalEntries || []}
         transactions={transactions || []}
+        investmentEntries={investmentEntries || []}
         companies={companies}
         quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
         projectedPaychecks={projectedPaychecks}
