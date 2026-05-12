@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { BarChart3, ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,6 +71,7 @@ export default function InvestmentIncome() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saleDetailsOpen, setSaleDetailsOpen] = useState(false);
   const [howCalcOpen, setHowCalcOpen] = useState(false);
@@ -246,55 +247,145 @@ export default function InvestmentIncome() {
       </div>
 
       <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Stock / asset / source</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Sale proceeds</TableHead>
-                <TableHead className="text-right">Cost basis</TableHead>
-                <TableHead className="text-right">Taxable gain/loss</TableHead>
-                <TableHead className="text-right">Recommended tax savings</TableHead>
-                <TableHead className="text-right">Actual tax saved</TableHead>
-                <TableHead className="text-right">Difference</TableHead>
-                <TableHead className="w-[88px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entries.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No investment income entries yet</TableCell></TableRow>
-              ) : entries.map((entry) => {
-                const amount = Number(entry.taxable_amount || 0);
-                const dividend = entry.investment_income_type === "dividend";
-                const recommended = Number(entry.tax_recommendation || 0);
-                const actualSavedRaw = entry.actual_tax_saved;
-                const hasActual = actualSavedRaw != null && actualSavedRaw !== undefined && actualSavedRaw !== "" as any;
-                const actualSaved = Number(actualSavedRaw || 0);
-                const diff = actualSaved - recommended;
-                return (
-                  <TableRow key={entry.id}>
-                    <TableCell>{new Date(entry.entry_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
-                    <TableCell className="font-medium">{entry.asset_name_or_ticker}</TableCell>
-                    <TableCell>{investmentIncomeTypeLabels[entry.investment_income_type]}</TableCell>
-                    <TableCell className="text-right">{dividend ? "—" : fmt(Number(entry.sale_proceeds || 0))}</TableCell>
-                    <TableCell className="text-right">{dividend ? "—" : fmt(Number(entry.cost_basis || 0))}</TableCell>
-                    <TableCell className={cn("text-right font-semibold", dividend ? "text-foreground" : amount < 0 ? "text-destructive" : "text-success")}>{fmt(amount)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{recommended > 0 ? fmt(recommended) : "—"}</TableCell>
-                    <TableCell className={cn("text-right", hasActual ? "font-medium text-foreground" : "text-muted-foreground")}>{hasActual ? fmt(actualSaved) : "—"}</TableCell>
-                    <TableCell className={cn("text-right font-medium", recommended <= 0 ? "text-muted-foreground" : diff >= 0 ? "text-success" : "text-destructive")}>{recommended > 0 ? `${diff >= 0 ? "+" : ""}${fmt(diff)}` : "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" aria-label={`Edit ${entry.asset_name_or_ticker}`} onClick={() => openEdit(entry)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" aria-label={`Delete ${entry.asset_name_or_ticker}`} onClick={() => setDeleteId(entry.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+        <CardContent className="p-0">
+          {entries.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">No investment income entries yet</div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[8px]" />
+                      <TableHead>Date</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead className="text-right">Proceeds</TableHead>
+                      <TableHead className="text-right">Taxable</TableHead>
+                      <TableHead className="text-right">Actual saved</TableHead>
+                      <TableHead className="w-[88px]" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {entries.map((entry) => {
+                      const amount = Number(entry.taxable_amount || 0);
+                      const dividend = entry.investment_income_type === "dividend";
+                      const recommended = Number(entry.tax_recommendation || 0);
+                      const actualSavedRaw = entry.actual_tax_saved;
+                      const hasActual = actualSavedRaw != null && (actualSavedRaw as any) !== "";
+                      const actualSaved = Number(actualSavedRaw || 0);
+                      const diff = actualSaved - recommended;
+                      const isExpanded = expandedId === entry.id;
+                      const toggle = () => setExpandedId(isExpanded ? null : entry.id);
+                      return (
+                        <Fragment key={entry.id}>
+                          <TableRow
+                            className="cursor-pointer hover:bg-muted/40"
+                            onClick={toggle}
+                          >
+                            <TableCell className="pr-0">
+                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{new Date(entry.entry_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
+                            <TableCell className="font-medium max-w-[260px] truncate">{entry.asset_name_or_ticker}</TableCell>
+                            <TableCell className="text-right whitespace-nowrap">{dividend || entry.sale_proceeds == null ? "—" : fmt(Number(entry.sale_proceeds || 0))}</TableCell>
+                            <TableCell className={cn("text-right font-semibold whitespace-nowrap", dividend ? "text-foreground" : amount < 0 ? "text-destructive" : "text-success")}>{fmt(amount)}</TableCell>
+                            <TableCell className={cn("text-right whitespace-nowrap", hasActual ? "font-medium text-foreground" : "text-muted-foreground")}>{hasActual ? fmt(actualSaved) : "—"}</TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="icon" aria-label={`Edit ${entry.asset_name_or_ticker}`} onClick={() => openEdit(entry)}><Pencil className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" aria-label={`Delete ${entry.asset_name_or_ticker}`} onClick={() => setDeleteId(entry.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow key={entry.id + "-details"} className="bg-muted/20 hover:bg-muted/20">
+                              <TableCell />
+                              <TableCell colSpan={6} className="py-3">
+                                <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                                  <div><dt className="text-muted-foreground">Type</dt><dd className="font-medium text-foreground">{investmentIncomeTypeLabels[entry.investment_income_type]}</dd></div>
+                                  <div><dt className="text-muted-foreground">Cost basis</dt><dd className="font-medium text-foreground">{dividend || entry.cost_basis == null ? "—" : fmt(Number(entry.cost_basis || 0))}</dd></div>
+                                  <div><dt className="text-muted-foreground">Recommended tax savings</dt><dd className="font-medium text-foreground">{recommended > 0 ? fmt(recommended) : "—"}</dd></div>
+                                  <div><dt className="text-muted-foreground">Difference</dt><dd className={cn("font-medium", recommended <= 0 ? "text-muted-foreground" : diff >= 0 ? "text-success" : "text-destructive")}>{recommended > 0 ? `${diff >= 0 ? "+" : ""}${fmt(diff)}` : "—"}</dd></div>
+                                  {entry.notes && (
+                                    <div className="col-span-2"><dt className="text-muted-foreground">Notes</dt><dd className="text-foreground whitespace-pre-wrap">{entry.notes}</dd></div>
+                                  )}
+                                </dl>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile list */}
+              <ul className="md:hidden divide-y divide-border">
+                {entries.map((entry) => {
+                  const amount = Number(entry.taxable_amount || 0);
+                  const dividend = entry.investment_income_type === "dividend";
+                  const recommended = Number(entry.tax_recommendation || 0);
+                  const actualSavedRaw = entry.actual_tax_saved;
+                  const hasActual = actualSavedRaw != null && (actualSavedRaw as any) !== "";
+                  const actualSaved = Number(actualSavedRaw || 0);
+                  const diff = actualSaved - recommended;
+                  const isExpanded = expandedId === entry.id;
+                  const toggle = () => setExpandedId(isExpanded ? null : entry.id);
+                  const dateObj = new Date(entry.entry_date + "T00:00:00");
+                  const shortDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  const fullDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                  return (
+                    <li key={entry.id}>
+                      <button
+                        type="button"
+                        onClick={toggle}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/40"
+                        aria-expanded={isExpanded}
+                      >
+                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                        <span className="text-xs text-muted-foreground w-12 shrink-0">{shortDate}</span>
+                        <span className="flex-1 min-w-0 truncate text-sm font-medium text-foreground">{entry.asset_name_or_ticker}</span>
+                        <span className={cn("text-sm font-semibold tabular-nums", dividend ? "text-foreground" : amount < 0 ? "text-destructive" : "text-success")}>{fmt(amount)}</span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Edit ${entry.asset_name_or_ticker}`}
+                          onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); openEdit(entry); } }}
+                          className="p-1 -mr-1 text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-3 pb-3 pt-1 bg-muted/20">
+                          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                            <div><dt className="text-muted-foreground">Date</dt><dd className="font-medium text-foreground">{fullDate}</dd></div>
+                            <div><dt className="text-muted-foreground">Type</dt><dd className="font-medium text-foreground">{investmentIncomeTypeLabels[entry.investment_income_type]}</dd></div>
+                            <div><dt className="text-muted-foreground">Proceeds</dt><dd className="font-medium text-foreground">{dividend || entry.sale_proceeds == null ? "—" : fmt(Number(entry.sale_proceeds || 0))}</dd></div>
+                            <div><dt className="text-muted-foreground">Cost basis</dt><dd className="font-medium text-foreground">{dividend || entry.cost_basis == null ? "—" : fmt(Number(entry.cost_basis || 0))}</dd></div>
+                            <div><dt className="text-muted-foreground">Recommended tax savings</dt><dd className="font-medium text-foreground">{recommended > 0 ? fmt(recommended) : "—"}</dd></div>
+                            <div><dt className="text-muted-foreground">Actual tax saved</dt><dd className="font-medium text-foreground">{hasActual ? fmt(actualSaved) : "—"}</dd></div>
+                            <div><dt className="text-muted-foreground">Difference</dt><dd className={cn("font-medium", recommended <= 0 ? "text-muted-foreground" : diff >= 0 ? "text-success" : "text-destructive")}>{recommended > 0 ? `${diff >= 0 ? "+" : ""}${fmt(diff)}` : "—"}</dd></div>
+                            {entry.notes && (
+                              <div className="col-span-2"><dt className="text-muted-foreground">Notes</dt><dd className="text-foreground whitespace-pre-wrap">{entry.notes}</dd></div>
+                            )}
+                          </dl>
+                          <div className="flex justify-end pt-3">
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(entry.id)}>
+                              <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
         </CardContent>
       </Card>
 
