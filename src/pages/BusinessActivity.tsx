@@ -1517,7 +1517,7 @@ export default function Transactions() {
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
                   const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
                   const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
-                  if (linkedSiblings.length > 0) badges.push({ label: `Linked · ${linkedSiblings.length + 1}`, tone: "info" });
+                  
 
                   // Secondary metadata (behind expand toggle)
                   const attCount = attachmentCounts?.get(tx.id) ?? 0;
