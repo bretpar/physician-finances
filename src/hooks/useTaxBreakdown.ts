@@ -260,16 +260,40 @@ export function useTaxBreakdown(
     }
     const companyAgg = new Map<string, CompanyAgg>();
 
+    const normName = (s: string) => (s || "").trim().toLowerCase();
+    // Resolve a stable companyId from any of: explicit id, name+type match,
+    // or name-only match. Prevents the same entity (e.g. Vituity K-1) from
+    // being keyed two different ways and rendering as duplicate cards.
+    const resolveCompanyId = (name: string, ft: FilingType, companyId: string | null): string | null => {
+      if (companyId) return companyId;
+      if (!name) return null;
+      const n = normName(name);
+      const byNameAndType = companies.find(
+        (c) => normName(c.name) === n && normalizeFilingType(c.companyType) === ft,
+      );
+      if (byNameAndType) return byNameAndType.id;
+      const byName = companies.find((c) => normName(c.name) === n);
+      return byName?.id ?? null;
+    };
+    // Build a stable key. If we resolved a real companyId use it; otherwise
+    // fall back to normalized name + filing type so casing/whitespace can't
+    // create duplicate buckets.
+    const aggKeyFor = (name: string, ft: FilingType, companyId: string | null): string => {
+      const resolved = resolveCompanyId(name, ft, companyId);
+      return resolved || `name::${normName(name) || "unassigned"}::${ft}`;
+    };
+
     const ensureAgg = (name: string, ft: FilingType, companyId: string | null = null): CompanyAgg => {
-      const key = companyId || `${name}::${ft}`;
+      const resolvedId = resolveCompanyId(name, ft, companyId);
+      const key = aggKeyFor(name, ft, companyId);
       const existing = companyAgg.get(key) ?? {
-        companyId, name, filingType: ft,
+        companyId: resolvedId, name, filingType: ft,
         actualGross: 0, plannedGross: 0,
         preTax: 0, retirement: 0, healthcare: 0,
         withheld: 0, stateWithheld: 0, federalWithheld: 0,
         plannedPreTax: 0, plannedRetirement: 0,
       };
-      existing.companyId = existing.companyId || companyId;
+      existing.companyId = existing.companyId || resolvedId;
       companyAgg.set(key, existing);
       return existing;
     };
