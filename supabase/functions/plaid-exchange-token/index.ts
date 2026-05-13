@@ -10,6 +10,26 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID");
+    const PLAID_SECRET = Deno.env.get("PLAID_SECRET");
+
+    const missing: string[] = [];
+    if (!SUPABASE_URL) missing.push("SUPABASE_URL");
+    if (!SUPABASE_ANON_KEY) missing.push("SUPABASE_ANON_KEY");
+    if (!SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+    if (!PLAID_CLIENT_ID) missing.push("PLAID_CLIENT_ID");
+    if (!PLAID_SECRET) missing.push("PLAID_SECRET");
+    if (missing.length > 0) {
+      console.error("plaid-exchange-token missing env vars:", missing);
+      return new Response(JSON.stringify({ error: `Server misconfigured: missing ${missing.join(", ")}` }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
@@ -19,8 +39,8 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
+      SUPABASE_URL!,
+      SUPABASE_ANON_KEY!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
@@ -42,8 +62,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID");
-    const PLAID_SECRET = Deno.env.get("PLAID_SECRET");
     const PLAID_ENV = Deno.env.get("PLAID_ENV") || "sandbox";
 
     const plaidHost = PLAID_ENV === "production"
@@ -72,10 +90,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const adminClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Get user's org_id
     const { data: orgMember } = await adminClient
@@ -100,7 +115,7 @@ Deno.serve(async (req) => {
 
     if (insertError) {
       console.error("Insert error:", insertError);
-      return new Response(JSON.stringify({ error: "Failed to save connection" }), {
+      return new Response(JSON.stringify({ error: `Failed to save connection: ${insertError.message}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -115,7 +130,9 @@ Deno.serve(async (req) => {
       console.error("Vault store error:", vaultError);
       // Roll back the placeholder row so we never leave a token unstored.
       await adminClient.from("plaid_items").delete().eq("id", itemRow.id);
-      return new Response(JSON.stringify({ error: "Failed to securely store bank connection" }), {
+      return new Response(JSON.stringify({
+        error: `Failed to securely store bank connection: ${vaultError.message || "vault unavailable"}`,
+      }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
