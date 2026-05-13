@@ -23,6 +23,7 @@ import Onboarding from "@/pages/Onboarding";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import NotFound from "@/pages/NotFound";
+import MobileReview from "@/pages/MobileReview";
 
 const queryClient = new QueryClient();
 
