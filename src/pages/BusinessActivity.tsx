@@ -1385,7 +1385,6 @@ export default function Transactions() {
             const displayAmount = isIncomeTx ? Math.abs(tx.amount) : isTransferTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
-            const matchSuggestion = suggestionByManualId.get(tx.id);
 
             return (
               <div key={tx.id}>
@@ -1549,7 +1548,9 @@ export default function Transactions() {
                   else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "muted" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
-                  const mobileMatchSuggestion = suggestionByManualId.get(tx.id);
+                  const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
+                  const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
+                  if (linkedSiblings.length > 0) badges.push({ label: `Linked · ${linkedSiblings.length + 1}`, tone: "info" });
 
                   // Secondary metadata (behind expand toggle)
                   const attCount = attachmentCounts?.get(tx.id) ?? 0;
