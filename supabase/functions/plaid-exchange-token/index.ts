@@ -92,10 +92,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const adminClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Get user's org_id
     const { data: orgMember } = await adminClient
@@ -120,7 +117,7 @@ Deno.serve(async (req) => {
 
     if (insertError) {
       console.error("Insert error:", insertError);
-      return new Response(JSON.stringify({ error: "Failed to save connection" }), {
+      return new Response(JSON.stringify({ error: `Failed to save connection: ${insertError.message}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -135,7 +132,9 @@ Deno.serve(async (req) => {
       console.error("Vault store error:", vaultError);
       // Roll back the placeholder row so we never leave a token unstored.
       await adminClient.from("plaid_items").delete().eq("id", itemRow.id);
-      return new Response(JSON.stringify({ error: "Failed to securely store bank connection" }), {
+      return new Response(JSON.stringify({
+        error: `Failed to securely store bank connection: ${vaultError.message || "vault unavailable"}`,
+      }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
