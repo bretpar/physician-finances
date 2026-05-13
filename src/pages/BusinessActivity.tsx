@@ -1517,7 +1517,7 @@ export default function Transactions() {
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
                   const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
                   const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
-                  if (linkedSiblings.length > 0) badges.push({ label: `Linked · ${linkedSiblings.length + 1}`, tone: "info" });
+                  
 
                   // Secondary metadata (behind expand toggle)
                   const attCount = attachmentCounts?.get(tx.id) ?? 0;
@@ -1530,60 +1530,6 @@ export default function Transactions() {
 
                   const expandableContent = (
                     <>
-                      {linkedSiblings.length > 0 && (
-                        <div className="-mx-4 -mt-1 mb-2 px-4 py-2 bg-blue-50/60 dark:bg-blue-950/20 border-y border-blue-200/50 dark:border-blue-900/30 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5 text-[12px] font-medium text-blue-900 dark:text-blue-200">
-                              <Link2 className="h-3 w-3 shrink-0" />
-                              <span>Linked transactions ({linkedSiblings.length})</span>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 text-[11px] px-2 text-destructive hover:text-destructive"
-                              disabled={unlinkMatchGroup.isPending}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (tx.linked_group_id) unlinkMatchGroup.mutate(tx.linked_group_id);
-                              }}
-                            >
-                              <Unlink className="h-3 w-3 mr-1" /> Unlink all
-                            </Button>
-                          </div>
-                          <div className="space-y-1.5">
-                            {linkedSiblings.map((it) => {
-                              const lt = it.transaction;
-                              const ltType = (lt.transaction_type || "expense") as string;
-                              const ltDate = new Date(lt.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                              const ltCategory = ltType === "income" ? "Income" : ltType === "transfer" ? "Transfer" : (mapLegacyCategory(lt.category) || "Uncategorized");
-                              return (
-                                <div key={it.itemId} className="flex items-start gap-2 text-[12px]">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-medium text-foreground truncate">{lt.vendor || "(No payee)"}</div>
-                                    <div className="text-muted-foreground">
-                                      {ltDate} · {fmt(Math.abs(lt.amount))} · {ltCategory}
-                                    </div>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 text-[11px]"
-                                    disabled={unlinkMatchGroupItem.isPending}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (tx.linked_group_id) {
-                                        unlinkMatchGroupItem.mutate({ itemId: it.itemId, groupId: tx.linked_group_id });
-                                      }
-                                    }}
-                                  >
-                                    Unlink
-                                  </Button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
                       <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
                       <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{getTransactionCompanyLabel(tx)}</span></div>
                       {(tx as { schedule_c_category?: string | null }).schedule_c_category && (
@@ -1618,17 +1564,88 @@ export default function Transactions() {
                             <Paperclip className="h-3 w-3" /> View Receipt{attCount > 1 ? `s (${attCount})` : ""}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            enterMobileSelectionWith(tx.id);
-                          }}
-                        >
-                          <Link2 className="h-3 w-3" /> Select for linking
-                        </button>
+                        {linkedSiblings.length === 0 && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              enterMobileSelectionWith(tx.id);
+                            }}
+                          >
+                            <Link2 className="h-3 w-3" /> Select for linking
+                          </button>
+                        )}
                       </div>
+                      {linkedSiblings.length > 0 && (
+                        <Collapsible className="-mx-4 mt-3 border-t border-blue-200/50 dark:border-blue-900/30 bg-blue-50/60 dark:bg-blue-950/20">
+                          <CollapsibleTrigger
+                            onClick={(e) => e.stopPropagation()}
+                            className="group w-full px-4 py-2.5 flex items-center justify-between gap-2 text-[12px] font-medium text-blue-900 dark:text-blue-200 hover:bg-blue-100/40 dark:hover:bg-blue-900/20"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <Link2 className="h-3 w-3 shrink-0" />
+                              Linked transactions ({linkedSiblings.length})
+                            </span>
+                            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="px-4 pb-3 space-y-1.5">
+                            {linkedSiblings.map((it) => {
+                              const lt = it.transaction;
+                              const ltType = (lt.transaction_type || "expense") as string;
+                              const ltDate = new Date(lt.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                              const ltCategory = ltType === "income" ? "Income" : ltType === "transfer" ? "Transfer" : (mapLegacyCategory(lt.category) || "Uncategorized");
+                              return (
+                                <div key={it.itemId} className="flex items-start gap-2 text-[12px]">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-foreground truncate">{lt.vendor || "(No payee)"}</div>
+                                    <div className="text-muted-foreground">
+                                      {ltDate} · {fmt(Math.abs(lt.amount))} · {ltCategory}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-[11px]"
+                                    disabled={unlinkMatchGroupItem.isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (tx.linked_group_id) {
+                                        unlinkMatchGroupItem.mutate({ itemId: it.itemId, groupId: tx.linked_group_id });
+                                      }
+                                    }}
+                                  >
+                                    Unlink
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                            <div className="pt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  enterMobileSelectionWith(tx.id);
+                                }}
+                              >
+                                <Link2 className="h-3 w-3" /> Link More
+                              </button>
+                              <button
+                                type="button"
+                                disabled={unlinkMatchGroup.isPending}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (tx.linked_group_id) unlinkMatchGroup.mutate(tx.linked_group_id);
+                                }}
+                              >
+                                <Unlink className="h-3 w-3" /> Unlink All
+                              </button>
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
                     </>
                   );
 

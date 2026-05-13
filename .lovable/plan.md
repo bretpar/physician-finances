@@ -1,27 +1,48 @@
-## Problem
+## Goal
+Refine the expanded transaction UX in `src/pages/BusinessActivity.tsx`. Pure presentation change — no data/logic changes.
 
-On mobile, the Add/Edit Investment Income dialog fills the entire screen and the user can't scroll up or down. The footer buttons (Save/Cancel/Delete) are hidden behind the device's home indicator and inputs at the bottom can't be reached.
+## Changes (mobile + desktop expanded view)
 
-## Fix
+1. **Remove the "Linked · N" badge** on the collapsed row.
+   - Delete the `badges.push({ label: \`Linked · ${linkedSiblings.length + 1}\`, tone: "info" })` line (~1520).
 
-Update the dialog in `src/pages/InvestmentIncome.tsx` (around line 292) to:
+2. **Move the linked-transactions block to the bottom** of `expandableContent`, after the action buttons row (currently above Category at line 1533).
 
-1. **Constrain dialog height and make body scrollable**
-   - Change `DialogContent` to `max-w-lg max-h-[90vh] p-0 flex flex-col` so the dialog never exceeds 90% of viewport height.
-   - Wrap the header in a non-shrinking container (`px-6 pt-6 pb-2 shrink-0`).
-   - Wrap the form fields in a scrollable middle region: `flex-1 overflow-y-auto px-6 py-2`.
-   - Move the action buttons row into a sticky footer: `shrink-0 border-t bg-background px-6 py-3` so Save/Cancel/Delete are always visible.
+3. **Make it a collapsible chevron section** with header text `Linked transactions (X)` where X = `linkedSiblings.length` (siblings only, matches current count semantics).
+   - Default state: collapsed.
+   - Tap header (with chevron icon, `ChevronDown` when open / `ChevronRight` when closed) toggles a local `useState` per row, or use Radix `Collapsible`.
+   - Expanded shows the per-sibling list with individual "Unlink" buttons (existing behavior preserved — unlinking restores that transaction to the ledger via `useUnlinkMatchGroupItem`).
+   - Footer row inside the expanded panel with two buttons: **"Link More"** (calls `enterMobileSelectionWith(tx.id)`, replacing the standalone "Select for linking" button when linked) and **"Unlink All"** (calls `useUnlinkMatchGroup`).
 
-2. **Condense vertical spacing for mobile**
-   - Reduce field stack spacing from `space-y-4` to `space-y-3`.
-   - Reduce label bottom margin from `mb-1.5` to `mb-1`.
-   - Reduce the recommendation card padding (`p-3` → `p-2.5`) and tighten its inner spacing (`space-y-3` → `space-y-2`).
-   - Tighten the qualified-dividend row similarly.
+4. **Conditional bottom action**:
+   - If `linkedSiblings.length === 0`: show the existing "Select for linking" button (current behavior).
+   - If `linkedSiblings.length > 0`: hide standalone "Select for linking" button; the collapsible "Linked transactions (X)" section replaces it, with "Link More" inside.
 
-3. **No logic changes** — only Tailwind classes / layout structure in the dialog. Form state, validation, save handler, and recommendation calculations are unchanged.
+## Layout (expanded view, top → bottom)
+```text
+Category .........................
+Company ..........................
+Schedule C (if any) ..............
+Source ...........................
+Account (if any) .................
+Attachments (if any) .............
+Deposited (if any) ...............
+Notes (if any) ...................
+[View Receipt] [Select for linking]    ← only if not linked
+─────────────────────────────────
+▸ Linked transactions (3)              ← only if linked; collapsible
+  (expanded:)
+  ACH … May 7 · $300 · Income   [Unlink]
+  ACH … May 7 · $3,180 · Income [Unlink]
+  ACH … May 7 · $3,360 · Income [Unlink]
+  [Link More]  [Unlink All]
+```
 
-## Result
+## Technical notes
+- All state lives inside the row's render closure or via a `Map<txId, boolean>` in component state for expansion. Simplest: extract a small `LinkedTransactionsPanel` subcomponent with its own `useState(false)` for open/closed.
+- Keep existing Tailwind tokens (`bg-blue-50/60 dark:bg-blue-950/20`, `border-blue-200/50`, etc.).
+- No changes to `useTransactionMatching`, schema, or other ledger logic.
+- "Select for linking" button stays in the action button row when no links exist; "Link More" inside the collapsible reuses the same `enterMobileSelectionWith(tx.id)` handler.
 
-- The dialog opens at a comfortable height with internal scrolling for the form.
-- Header stays pinned at top, action buttons stay pinned at bottom.
-- On a 393×697 mobile viewport, all fields are reachable and the Save button is always tappable.
+## Out of scope
+Tax engine, hooks, schema, suggestions, desktop selection flow.
