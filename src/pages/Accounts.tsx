@@ -76,15 +76,19 @@ export default function Accounts() {
       const handler = (window as any).Plaid.create({
         token: data.link_token,
         onSuccess: async (publicToken: string, metadata: any) => {
-          const { error: exchangeError } = await supabase.functions.invoke("plaid-exchange-token", {
+          const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke("plaid-exchange-token", {
             body: {
               public_token: publicToken,
               institution_name: metadata?.institution?.name || "Bank Account",
               institution_id: metadata?.institution?.institution_id || "",
             },
           });
-          if (exchangeError) {
-            toast.error("Failed to connect account");
+          console.log("plaid-exchange-token response:", { exchangeData, exchangeError });
+          const backendError = (exchangeData as any)?.error;
+          if (exchangeError || backendError) {
+            toast.error("Failed to connect account", {
+              description: backendError || exchangeError?.message || "Unknown error",
+            });
           } else {
             toast.success("Bank account connected!");
             syncMutation.mutate(undefined);
