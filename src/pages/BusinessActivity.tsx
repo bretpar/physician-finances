@@ -221,17 +221,7 @@ export default function Transactions() {
   // Attachment counts per transaction (for paperclip badges)
   const { data: attachmentCounts } = useAttachmentCounts();
 
-  // Suggested matches (pass income entries for net-amount matching)
-  const suggestions = useSuggestedMatches(transactions, incomeEntries);
-  const ignoreMutation = useIgnoreMatch();
-  // Index suggestions by manual transaction id so individual rows can show their best candidate.
-  const suggestionByManualId = useMemo(() => {
-    const m = new Map<string, typeof suggestions[number]>();
-    for (const s of suggestions) {
-      if (!m.has(s.manualTx.id)) m.set(s.manualTx.id, s);
-    }
-    return m;
-  }, [suggestions]);
+  // Match-suggestion engine removed — linking is now manual long-press multi-select only.
 
   // ─── Income modal state ───
   const [showIncomeForm, setShowIncomeForm] = useState(false);
