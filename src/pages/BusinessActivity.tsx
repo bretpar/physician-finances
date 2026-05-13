@@ -1285,6 +1285,8 @@ export default function Transactions() {
       {/* Suggested Matches */}
       <SuggestedMatches suggestions={suggestions} transactions={transactions} />
 
+      <MatchedGroupsPanel allTransactions={transactions} />
+
       {legacyExpenseReviewQueue.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="flex flex-col gap-1 border-b border-border bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
