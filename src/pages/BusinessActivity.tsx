@@ -12,8 +12,12 @@ import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendati
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
-import { useSuggestedMatches, useLinkTransactions, useIgnoreMatch } from "@/hooks/useTransactionMatching";
-import SuggestedMatches from "@/components/SuggestedMatches";
+import {
+  useCreateMatchGroup,
+  useUnlinkMatchGroup,
+  useUnlinkMatchGroupItem,
+  useMatchGroups,
+} from "@/hooks/useTransactionMatching";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -165,7 +169,10 @@ export default function Transactions() {
   const updateMutation = useUpdateTransaction();
   const bulkUpdateMutation = useBulkUpdateTransactions();
   const bulkDeleteMutation = useBulkDeleteTransactions();
-  const linkMutation = useLinkTransactions();
+  const createMatchGroup = useCreateMatchGroup();
+  const unlinkMatchGroup = useUnlinkMatchGroup();
+  const unlinkMatchGroupItem = useUnlinkMatchGroupItem();
+  const { data: matchGroupsMap } = useMatchGroups();
   const addIncomeMutation = useAddIncome();
   const updateIncomeMutation = useUpdateIncome();
   const { data: incomeEntries } = useIncomeEntries();
@@ -189,7 +196,7 @@ export default function Transactions() {
   const [showBulkCategory, setShowBulkCategory] = useState(false);
 
   // Mobile linking selection mode (long-press on a row to enter).
-  // Caps selection at 2; tapping a 3rd row replaces the oldest selected.
+  // No cap — user can select any 2+ transactions of any type to link together.
   const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
   const [mobileSelectedOrder, setMobileSelectedOrder] = useState<string[]>([]);
 
@@ -199,32 +206,20 @@ export default function Transactions() {
   };
 
   const toggleMobileSelect = (id: string) => {
-    setMobileSelectedOrder((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 2) return [prev[1], id]; // drop oldest
-      return [...prev, id];
-    });
+    setMobileSelectedOrder((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   };
 
   const enterMobileSelectionWith = (id: string) => {
     setMobileSelectionMode(true);
-    setMobileSelectedOrder((prev) => (prev.includes(id) ? prev : [...prev.slice(-1), id]));
+    setMobileSelectedOrder((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
   // Attachment counts per transaction (for paperclip badges)
   const { data: attachmentCounts } = useAttachmentCounts();
 
-  // Suggested matches (pass income entries for net-amount matching)
-  const suggestions = useSuggestedMatches(transactions, incomeEntries);
-  const ignoreMutation = useIgnoreMatch();
-  // Index suggestions by manual transaction id so individual rows can show their best candidate.
-  const suggestionByManualId = useMemo(() => {
-    const m = new Map<string, typeof suggestions[number]>();
-    for (const s of suggestions) {
-      if (!m.has(s.manualTx.id)) m.set(s.manualTx.id, s);
-    }
-    return m;
-  }, [suggestions]);
+  // Match-suggestion engine removed — linking is now manual long-press multi-select only.
 
   // ─── Income modal state ───
   const [showIncomeForm, setShowIncomeForm] = useState(false);
@@ -1248,40 +1243,28 @@ export default function Transactions() {
             }}>
               <ArrowLeftRight className="h-3 w-3" /> Transfer
             </Button>
-            {selectedIds.size === 2 && (() => {
-              const [id1, id2] = [...selectedIds];
-              const tx1 = filtered.find((t) => t.id === id1);
-              const tx2 = filtered.find((t) => t.id === id2);
-              if (!tx1 || !tx2) return null;
-              const src1 = tx1.source_type || "manual";
-              const src2 = tx2.source_type || "manual";
-              const oneManual = (src1 === "manual" && (src2 === "plaid" || src2 === "merged")) || (src2 === "manual" && (src1 === "plaid" || src1 === "merged"));
-              const manualTx = src1 === "manual" ? tx1 : tx2;
-              const plaidTx = src1 === "manual" ? tx2 : tx1;
-              if (oneManual) {
-                return (
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
-                    linkMutation.mutate({ manualTxId: manualTx.id, plaidTxId: plaidTx.id }, {
-                      onSuccess: () => setSelectedIds(new Set()),
-                    });
-                  }} disabled={linkMutation.isPending}>
-                    <Link2 className="h-3 w-3" /> Link Transactions
-                  </Button>
-                );
-              }
-              return (
-                <span className="text-xs text-muted-foreground italic">Select one manual + one imported to link</span>
-              );
-            })()}
+            {selectedIds.size >= 2 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                disabled={createMatchGroup.isPending}
+                onClick={() => {
+                  createMatchGroup.mutate(
+                    { transactionIds: [...selectedIds] },
+                    { onSuccess: () => setSelectedIds(new Set()) },
+                  );
+                }}
+              >
+                <Link2 className="h-3 w-3" /> Link {selectedIds.size}
+              </Button>
+            )}
           </div>
           <Button variant="ghost" size="sm" className="h-7 text-xs whitespace-nowrap" onClick={() => setSelectedIds(new Set())}>
             Clear Selection
           </Button>
         </div>
       )}
-
-      {/* Suggested Matches */}
-      <SuggestedMatches suggestions={suggestions} />
 
       {legacyExpenseReviewQueue.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -1402,7 +1385,6 @@ export default function Transactions() {
             const displayAmount = isIncomeTx ? Math.abs(tx.amount) : isTransferTx ? Math.abs(tx.amount) : -Math.abs(tx.amount);
             const source = tx.source_type || "manual";
             const isSelected = selectedIds.has(tx.id);
-            const matchSuggestion = suggestionByManualId.get(tx.id);
 
             return (
               <div key={tx.id}>
@@ -1491,40 +1473,7 @@ export default function Transactions() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {matchSuggestion && (
-                <div className="flex items-center gap-2 px-4 py-2 pl-[120px] bg-blue-50/60 dark:bg-blue-950/20 border-t border-blue-200/50 dark:border-blue-900/30 text-xs">
-                  <Link2 className="h-3 w-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span className="text-blue-900 dark:text-blue-200 truncate">
-                    Possible bank match:{" "}
-                    <span className="font-medium">{matchSuggestion.plaidTx.vendor || "Bank transaction"}</span>{" "}
-                    <span className="text-muted-foreground">
-                      · {fmt(Math.abs(matchSuggestion.plaidTx.amount))} ·{" "}
-                      {new Date(matchSuggestion.plaidTx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
-                      {matchSuggestion.confidenceLabel}
-                    </span>
-                  </span>
-                  <div className="ml-auto flex gap-1.5 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="h-6 text-[11px] px-2"
-                      disabled={linkMutation.isPending}
-                      onClick={() => linkMutation.mutate({ manualTxId: tx.id, plaidTxId: matchSuggestion.plaidTx.id, confidence: matchSuggestion.confidence })}
-                    >
-                      <Link2 className="h-3 w-3 mr-1" /> Link
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-[11px] px-2"
-                      disabled={ignoreMutation.isPending}
-                      onClick={() => ignoreMutation.mutate({ manualTxId: tx.id, plaidTxId: matchSuggestion.plaidTx.id })}
-                    >
-                      Dismiss
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {/* match suggestion banner removed — use long-press multi-select instead */}
               </div>
             );
           })}
@@ -1566,7 +1515,9 @@ export default function Transactions() {
                   else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "muted" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
-                  const mobileMatchSuggestion = suggestionByManualId.get(tx.id);
+                  const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
+                  const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
+                  if (linkedSiblings.length > 0) badges.push({ label: `Linked · ${linkedSiblings.length + 1}`, tone: "info" });
 
                   // Secondary metadata (behind expand toggle)
                   const attCount = attachmentCounts?.get(tx.id) ?? 0;
@@ -1579,42 +1530,57 @@ export default function Transactions() {
 
                   const expandableContent = (
                     <>
-                      {mobileMatchSuggestion && (
-                        <div className="-mx-4 -mt-1 mb-2 px-4 py-2 bg-blue-50/60 dark:bg-blue-950/20 border-y border-blue-200/50 dark:border-blue-900/30 space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-[12px] text-blue-900 dark:text-blue-200">
-                            <Link2 className="h-3 w-3 shrink-0" />
-                            <span className="font-medium truncate">{mobileMatchSuggestion.plaidTx.vendor || "Bank transaction"}</span>
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {fmt(Math.abs(mobileMatchSuggestion.plaidTx.amount))} ·{" "}
-                            {new Date(mobileMatchSuggestion.plaidTx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
-                            {mobileMatchSuggestion.confidenceLabel}
-                          </div>
-                          <div className="flex gap-2 pt-1">
+                      {linkedSiblings.length > 0 && (
+                        <div className="-mx-4 -mt-1 mb-2 px-4 py-2 bg-blue-50/60 dark:bg-blue-950/20 border-y border-blue-200/50 dark:border-blue-900/30 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 text-[12px] font-medium text-blue-900 dark:text-blue-200">
+                              <Link2 className="h-3 w-3 shrink-0" />
+                              <span>Linked transactions ({linkedSiblings.length})</span>
+                            </div>
                             <Button
                               size="sm"
-                              variant="default"
-                              className="h-7 text-[12px] px-3 flex-1"
-                              disabled={linkMutation.isPending}
+                              variant="ghost"
+                              className="h-6 text-[11px] px-2 text-destructive hover:text-destructive"
+                              disabled={unlinkMatchGroup.isPending}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                linkMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id, confidence: mobileMatchSuggestion.confidence });
+                                if (tx.linked_group_id) unlinkMatchGroup.mutate(tx.linked_group_id);
                               }}
                             >
-                              <Link2 className="h-3 w-3 mr-1" /> Link
+                              <Unlink className="h-3 w-3 mr-1" /> Unlink all
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[12px] px-3"
-                              disabled={ignoreMutation.isPending}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                ignoreMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id });
-                              }}
-                            >
-                              Dismiss
-                            </Button>
+                          </div>
+                          <div className="space-y-1.5">
+                            {linkedSiblings.map((it) => {
+                              const lt = it.transaction;
+                              const ltType = (lt.transaction_type || "expense") as string;
+                              const ltDate = new Date(lt.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                              const ltCategory = ltType === "income" ? "Income" : ltType === "transfer" ? "Transfer" : (mapLegacyCategory(lt.category) || "Uncategorized");
+                              return (
+                                <div key={it.itemId} className="flex items-start gap-2 text-[12px]">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-foreground truncate">{lt.vendor || "(No payee)"}</div>
+                                    <div className="text-muted-foreground">
+                                      {ltDate} · {fmt(Math.abs(lt.amount))} · {ltCategory}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-[11px]"
+                                    disabled={unlinkMatchGroupItem.isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (tx.linked_group_id) {
+                                        unlinkMatchGroupItem.mutate({ itemId: it.itemId, groupId: tx.linked_group_id });
+                                      }
+                                    }}
+                                  >
+                                    Unlink
+                                  </Button>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -1700,31 +1666,13 @@ export default function Transactions() {
 
       {/* Mobile selection action bar — only visible in selection mode */}
       {mobileSelectionMode && (() => {
-        const selectedTxs = mobileSelectedOrder
-          .map((id) => filtered.find((t) => t.id === id))
-          .filter((t): t is DbTransaction => !!t);
-        const count = selectedTxs.length;
-        let manualTx: DbTransaction | undefined;
-        let plaidTx: DbTransaction | undefined;
-        let canLink = false;
-        if (count === 2) {
-          const [a, b] = selectedTxs;
-          const sa = a.source_type || "manual";
-          const sb = b.source_type || "manual";
-          const aManual = sa === "manual";
-          const bManual = sb === "manual";
-          const aImported = sa === "plaid" || sa === "merged";
-          const bImported = sb === "plaid" || sb === "merged";
-          if (aManual && bImported) { manualTx = a; plaidTx = b; canLink = true; }
-          else if (bManual && aImported) { manualTx = b; plaidTx = a; canLink = true; }
-        }
+        const count = mobileSelectedOrder.length;
+        const canLink = count >= 2;
         const helper = count === 0
           ? "Tap a transaction to select it"
           : count === 1
-            ? "Select one more — one manual + one imported"
-            : canLink
-              ? "Ready to link"
-              : "Select one manual and one imported transaction";
+            ? "Select one more to link"
+            : `${count} transactions ready to link`;
 
         return (
           <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
@@ -1744,11 +1692,11 @@ export default function Transactions() {
               <Button
                 size="sm"
                 className="h-9 text-sm gap-1.5"
-                disabled={!canLink || linkMutation.isPending}
+                disabled={!canLink || createMatchGroup.isPending}
                 onClick={() => {
-                  if (!canLink || !manualTx || !plaidTx) return;
-                  linkMutation.mutate(
-                    { manualTxId: manualTx.id, plaidTxId: plaidTx.id },
+                  if (!canLink) return;
+                  createMatchGroup.mutate(
+                    { transactionIds: [...mobileSelectedOrder] },
                     { onSuccess: () => exitMobileSelection() },
                   );
                 }}
