@@ -169,7 +169,10 @@ export default function Transactions() {
   const updateMutation = useUpdateTransaction();
   const bulkUpdateMutation = useBulkUpdateTransactions();
   const bulkDeleteMutation = useBulkDeleteTransactions();
-  const linkMutation = useLinkTransactions();
+  const createMatchGroup = useCreateMatchGroup();
+  const unlinkMatchGroup = useUnlinkMatchGroup();
+  const unlinkMatchGroupItem = useUnlinkMatchGroupItem();
+  const { data: matchGroupsMap } = useMatchGroups();
   const addIncomeMutation = useAddIncome();
   const updateIncomeMutation = useUpdateIncome();
   const { data: incomeEntries } = useIncomeEntries();
