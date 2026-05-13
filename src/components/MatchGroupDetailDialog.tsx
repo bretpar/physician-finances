@@ -45,16 +45,39 @@ export default function MatchGroupDetailDialog({
     [groups, groupId],
   );
 
-  const txById = useMemo(() => {
-    const m = new Map<string, DbTransaction>();
-    allTransactions.forEach((t) => m.set(t.id, t));
-    return m;
-  }, [allTransactions]);
+  const [extraTx, setExtraTx] = useState<DbTransaction[]>([]);
 
   const items = (group as any)?.items || [];
   const manualItems = items.filter((i: any) => i.transaction_source === "manual");
   const importedItems = items.filter((i: any) => i.transaction_source === "imported");
   const matches = group ? Math.abs(Number(group.difference)) < 0.01 : false;
+
+  const txById = useMemo(() => {
+    const m = new Map<string, DbTransaction>();
+    allTransactions.forEach((t) => m.set(t.id, t));
+    extraTx.forEach((t) => m.set(t.id, t));
+    return m;
+  }, [allTransactions, extraTx]);
+
+  // Fetch any group items missing from the active feed (e.g. merged imported rows)
+  useEffect(() => {
+    if (!open || !group) return;
+    const missing = items
+      .map((i: any) => i.transaction_id)
+      .filter((id: string) => !txById.has(id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("transactions")
+        .select("*")
+        .in("id", missing);
+      if (!cancelled && data) setExtraTx(data as any);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, group?.id, items.length]);
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
