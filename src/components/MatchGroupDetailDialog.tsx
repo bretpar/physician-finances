@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, X, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DbTransaction } from "@/hooks/useTransactions";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useMatchGroups,
   useUnlinkMatchGroup,
