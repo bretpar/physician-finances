@@ -13,6 +13,7 @@ import {
   PiggyBank,
   Wallet,
   BarChart3,
+  CheckCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
