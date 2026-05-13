@@ -26,6 +26,7 @@
 // ============================================================================
 
 import { useMemo } from "react";
+import { logTaxBreakdown } from "@/lib/taxBreakdownDebug";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -598,6 +599,40 @@ export function useTaxBreakdown(
         `[useTaxBreakdown] Merged ${sources.length - mergedSources.length} duplicate income source card(s) in mode=${mode}`,
       );
     }
+
+    // ── Developer debug: log resolved companyId, dedupe key, merge counts
+    // for each business/K-1 entity. Toggle via the Tax Overview page or
+    // localStorage["debug:taxBreakdown"] = "1".
+    {
+      const mergeCounts = new Map<string, number>();
+      for (const s of sources) {
+        const k = dedupeKey(s);
+        if (!k) continue;
+        mergeCounts.set(k, (mergeCounts.get(k) ?? 0) + 1);
+      }
+      const debugRows = mergedSources
+        .filter((s): s is Extract<IncomeSourceBreakdown, { kind: "business" }> => s.kind === "business")
+        .map((s) => {
+          const k = dedupeKey(s) ?? "";
+          return {
+            companyName: s.companyName,
+            filingType: s.filingType,
+            resolvedCompanyId: s.companyId ?? null,
+            dedupeKey: k,
+            mergedFrom: mergeCounts.get(k) ?? 1,
+            revenue: s.revenue,
+            expenses: s.expenses,
+            profit: s.profit,
+          };
+        });
+      logTaxBreakdown({
+        mode,
+        rows: debugRows,
+        totalSourcesBeforeMerge: sources.length,
+        totalSourcesAfterMerge: mergedSources.length,
+      });
+    }
+
     sources.length = 0;
     sources.push(...mergedSources);
 

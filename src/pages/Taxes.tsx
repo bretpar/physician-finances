@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import TaxDebugPanel from "@/components/TaxDebugPanel";
+import TaxBreakdownDebugToggle from "@/components/TaxBreakdownDebugToggle";
 import { useTaxSavings, useAddTaxSaving, useUpdateTaxSaving, useDeleteTaxSaving } from "@/hooks/useTaxSavings";
 import { useTaxPayments, useAddTaxPayment, useUpdateTaxPayment, useDeleteTaxPayment } from "@/hooks/useTaxPayments";
 import { useTransactions } from "@/hooks/useTransactions";
@@ -423,6 +424,9 @@ export default function Taxes() {
       </Collapsible>
 
       {/* ── Debug Breakdown ── */}
+      <div className="flex justify-end">
+        <TaxBreakdownDebugToggle />
+      </div>
       {(taxMode === "actual" ? actualDebug : forecastDebug) && (
         <TaxDebugPanel
           debug={(taxMode === "actual" ? actualDebug : forecastDebug)!}
