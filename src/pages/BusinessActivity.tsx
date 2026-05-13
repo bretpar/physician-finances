@@ -1530,42 +1530,57 @@ export default function Transactions() {
 
                   const expandableContent = (
                     <>
-                      {mobileMatchSuggestion && (
-                        <div className="-mx-4 -mt-1 mb-2 px-4 py-2 bg-blue-50/60 dark:bg-blue-950/20 border-y border-blue-200/50 dark:border-blue-900/30 space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-[12px] text-blue-900 dark:text-blue-200">
-                            <Link2 className="h-3 w-3 shrink-0" />
-                            <span className="font-medium truncate">{mobileMatchSuggestion.plaidTx.vendor || "Bank transaction"}</span>
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {fmt(Math.abs(mobileMatchSuggestion.plaidTx.amount))} ·{" "}
-                            {new Date(mobileMatchSuggestion.plaidTx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
-                            {mobileMatchSuggestion.confidenceLabel}
-                          </div>
-                          <div className="flex gap-2 pt-1">
+                      {linkedSiblings.length > 0 && (
+                        <div className="-mx-4 -mt-1 mb-2 px-4 py-2 bg-blue-50/60 dark:bg-blue-950/20 border-y border-blue-200/50 dark:border-blue-900/30 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 text-[12px] font-medium text-blue-900 dark:text-blue-200">
+                              <Link2 className="h-3 w-3 shrink-0" />
+                              <span>Linked transactions ({linkedSiblings.length})</span>
+                            </div>
                             <Button
                               size="sm"
-                              variant="default"
-                              className="h-7 text-[12px] px-3 flex-1"
-                              disabled={linkMutation.isPending}
+                              variant="ghost"
+                              className="h-6 text-[11px] px-2 text-destructive hover:text-destructive"
+                              disabled={unlinkMatchGroup.isPending}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                linkMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id, confidence: mobileMatchSuggestion.confidence });
+                                if (tx.linked_group_id) unlinkMatchGroup.mutate(tx.linked_group_id);
                               }}
                             >
-                              <Link2 className="h-3 w-3 mr-1" /> Link
+                              <Unlink className="h-3 w-3 mr-1" /> Unlink all
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[12px] px-3"
-                              disabled={ignoreMutation.isPending}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                ignoreMutation.mutate({ manualTxId: tx.id, plaidTxId: mobileMatchSuggestion.plaidTx.id });
-                              }}
-                            >
-                              Dismiss
-                            </Button>
+                          </div>
+                          <div className="space-y-1.5">
+                            {linkedSiblings.map((it) => {
+                              const lt = it.transaction;
+                              const ltType = (lt.transaction_type || "expense") as string;
+                              const ltDate = new Date(lt.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                              const ltCategory = ltType === "income" ? "Income" : ltType === "transfer" ? "Transfer" : (mapLegacyCategory(lt.category) || "Uncategorized");
+                              return (
+                                <div key={it.itemId} className="flex items-start gap-2 text-[12px]">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-foreground truncate">{lt.vendor || "(No payee)"}</div>
+                                    <div className="text-muted-foreground">
+                                      {ltDate} · {fmt(Math.abs(lt.amount))} · {ltCategory}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-[11px]"
+                                    disabled={unlinkMatchGroupItem.isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (tx.linked_group_id) {
+                                        unlinkMatchGroupItem.mutate({ itemId: it.itemId, groupId: tx.linked_group_id });
+                                      }
+                                    }}
+                                  >
+                                    Unlink
+                                  </Button>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
