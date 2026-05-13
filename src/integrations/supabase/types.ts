@@ -1732,6 +1732,83 @@ export type Database = {
           },
         ]
       }
+      transaction_match_group_items: {
+        Row: {
+          created_at: string
+          id: string
+          match_group_id: string
+          organization_id: string | null
+          transaction_id: string
+          transaction_source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_group_id: string
+          organization_id?: string | null
+          transaction_id: string
+          transaction_source: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_group_id?: string
+          organization_id?: string | null
+          transaction_id?: string
+          transaction_source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_match_group_items_match_group_id_fkey"
+            columns: ["match_group_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_match_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transaction_match_groups: {
+        Row: {
+          created_at: string
+          difference: number
+          id: string
+          imported_total: number
+          manual_total: number
+          note: string | null
+          organization_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          difference?: number
+          id?: string
+          imported_total?: number
+          manual_total?: number
+          note?: string | null
+          organization_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          difference?: number
+          id?: string
+          imported_total?: number
+          manual_total?: number
+          note?: string | null
+          organization_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transaction_match_ignores: {
         Row: {
           created_at: string
