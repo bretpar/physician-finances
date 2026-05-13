@@ -12,8 +12,12 @@ import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendati
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
-import { useSuggestedMatches, useLinkTransactions, useIgnoreMatch } from "@/hooks/useTransactionMatching";
-import SuggestedMatches from "@/components/SuggestedMatches";
+import {
+  useCreateMatchGroup,
+  useUnlinkMatchGroup,
+  useUnlinkMatchGroupItem,
+  useMatchGroups,
+} from "@/hooks/useTransactionMatching";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
