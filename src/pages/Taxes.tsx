@@ -424,6 +424,9 @@ export default function Taxes() {
       </Collapsible>
 
       {/* ── Debug Breakdown ── */}
+      <div className="flex justify-end">
+        <TaxBreakdownDebugToggle />
+      </div>
       {(taxMode === "actual" ? actualDebug : forecastDebug) && (
         <TaxDebugPanel
           debug={(taxMode === "actual" ? actualDebug : forecastDebug)!}
