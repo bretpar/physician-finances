@@ -14,7 +14,6 @@ import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { useSuggestedMatches, useLinkTransactions, useIgnoreMatch } from "@/hooks/useTransactionMatching";
 import SuggestedMatches from "@/components/SuggestedMatches";
-import MatchedGroupsPanel from "@/components/MatchedGroupsPanel";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -1282,9 +1281,7 @@ export default function Transactions() {
       )}
 
       {/* Suggested Matches */}
-      <SuggestedMatches suggestions={suggestions} transactions={transactions} />
-
-      <MatchedGroupsPanel allTransactions={transactions} />
+      <SuggestedMatches suggestions={suggestions} />
 
       {legacyExpenseReviewQueue.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">

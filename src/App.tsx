@@ -23,7 +23,6 @@ import Onboarding from "@/pages/Onboarding";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import NotFound from "@/pages/NotFound";
-import MobileReview from "@/pages/MobileReview";
 
 const queryClient = new QueryClient();
 
@@ -75,7 +74,6 @@ function ProtectedRoutes() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/debug/transactions" element={<DebugTransactions />} />
-          <Route path="/review" element={<MobileReview />} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />

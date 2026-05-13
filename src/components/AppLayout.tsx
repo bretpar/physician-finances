@@ -13,7 +13,6 @@ import {
   PiggyBank,
   Wallet,
   BarChart3,
-  CheckCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -40,7 +39,6 @@ type NavItem = {
 const navItems: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "" },
   { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses", module: "business", featureKey: "businessIncomeTracking" },
-  { to: "/review", icon: CheckCheck, label: "Review", subtitle: "Review and approve transactions" },
   { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes", featureKey: "basicPaycheckTracking" },
   { to: "/projected-income", icon: TrendingUp, label: "Income Planner", w2OnlyLabel: "Withholding Guide", subtitle: "Future or hypothetical income", featureKey: "scenarioPlanner", w2OnlyFeatureKey: "basicWithholdingGuide" },
   { to: "/investments", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment" },
