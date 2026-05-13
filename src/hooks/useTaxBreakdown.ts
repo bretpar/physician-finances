@@ -26,6 +26,7 @@
 // ============================================================================
 
 import { useMemo } from "react";
+import { logTaxBreakdown } from "@/lib/taxBreakdownDebug";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
