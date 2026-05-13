@@ -196,7 +196,7 @@ export default function Transactions() {
   const [showBulkCategory, setShowBulkCategory] = useState(false);
 
   // Mobile linking selection mode (long-press on a row to enter).
-  // Caps selection at 2; tapping a 3rd row replaces the oldest selected.
+  // No cap — user can select any 2+ transactions of any type to link together.
   const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
   const [mobileSelectedOrder, setMobileSelectedOrder] = useState<string[]>([]);
 
@@ -206,16 +206,14 @@ export default function Transactions() {
   };
 
   const toggleMobileSelect = (id: string) => {
-    setMobileSelectedOrder((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 2) return [prev[1], id]; // drop oldest
-      return [...prev, id];
-    });
+    setMobileSelectedOrder((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   };
 
   const enterMobileSelectionWith = (id: string) => {
     setMobileSelectionMode(true);
-    setMobileSelectedOrder((prev) => (prev.includes(id) ? prev : [...prev.slice(-1), id]));
+    setMobileSelectedOrder((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
   // Attachment counts per transaction (for paperclip badges)
