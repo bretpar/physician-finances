@@ -514,6 +514,93 @@ export function useTaxBreakdown(
       }
     }
 
+    // ── Defensive dedupe: merge any business/other sources that share the
+    // same entity (companyId, or normalized name + filingType). Guards
+    // against any upstream path that might still emit two summaries for the
+    // same entity (e.g. a K-1 entity like "Vituity" appearing twice).
+    const mergedSources: IncomeSourceBreakdown[] = [];
+    const sourceIndex = new Map<string, number>();
+    const dedupeKey = (s: IncomeSourceBreakdown): string | null => {
+      if (s.kind === "business") {
+        return s.companyId
+          ? `business::id::${s.companyId}`
+          : `business::name::${normName(s.companyName)}::${s.filingType}`;
+      }
+      if (s.kind === "other") {
+        return `other::name::${normName(s.companyName)}::${s.filingType}`;
+      }
+      if (s.kind === "w2") {
+        return `w2::name::${normName(s.companyName)}`;
+      }
+      return null;
+    };
+    for (const s of sources) {
+      const key = dedupeKey(s);
+      if (!key) { mergedSources.push(s); continue; }
+      const existingIdx = sourceIndex.get(key);
+      if (existingIdx === undefined) {
+        sourceIndex.set(key, mergedSources.length);
+        mergedSources.push(s);
+        continue;
+      }
+      const prev = mergedSources[existingIdx];
+      if (prev.kind === "business" && s.kind === "business") {
+        // Merge expense categories by category key.
+        const catMap = new Map<ScheduleCCategory, CategoryBreakdown>();
+        for (const c of prev.expenseCategories) catMap.set(c.category, { ...c });
+        for (const c of s.expenseCategories) {
+          const ex = catMap.get(c.category);
+          if (ex) { ex.total += c.total; ex.count += c.count; }
+          else catMap.set(c.category, { ...c });
+        }
+        const expenses = Math.max(prev.expenses, s.expenses); // expenses are looked up by companyId — same entity = same total, take max to avoid double count
+        const actualRevenue = prev.actualRevenue + s.actualRevenue;
+        const plannedRevenue = prev.plannedRevenue + s.plannedRevenue;
+        const revenue = actualRevenue + plannedRevenue;
+        mergedSources[existingIdx] = {
+          ...prev,
+          companyId: prev.companyId || s.companyId,
+          actualRevenue, plannedRevenue, revenue,
+          expenses,
+          profit: revenue - expenses,
+          actualProfit: actualRevenue - expenses,
+          plannedProfit: plannedRevenue,
+          expenseCategories: Array.from(catMap.values()).sort((a, b) => b.total - a.total),
+          expenseTxCount: Math.max(prev.expenseTxCount, s.expenseTxCount),
+        };
+      } else if (prev.kind === "other" && s.kind === "other") {
+        const actualGrossAmount = prev.actualGrossAmount + s.actualGrossAmount;
+        const plannedGrossAmount = prev.plannedGrossAmount + s.plannedGrossAmount;
+        mergedSources[existingIdx] = {
+          ...prev,
+          actualGrossAmount, plannedGrossAmount,
+          grossAmount: actualGrossAmount + plannedGrossAmount,
+          taxableAmount: prev.taxableAmount + s.taxableAmount,
+        };
+      } else if (prev.kind === "w2" && s.kind === "w2") {
+        const actualGrossWages = prev.actualGrossWages + s.actualGrossWages;
+        const plannedGrossWages = prev.plannedGrossWages + s.plannedGrossWages;
+        mergedSources[existingIdx] = {
+          ...prev,
+          actualGrossWages, plannedGrossWages,
+          grossWages: actualGrossWages + plannedGrossWages,
+          federalWithheld: prev.federalWithheld + s.federalWithheld,
+          stateWithheld: prev.stateWithheld + s.stateWithheld,
+          preTaxDeductions: prev.preTaxDeductions + s.preTaxDeductions,
+          retirement401k: prev.retirement401k + s.retirement401k,
+          taxableWages: prev.taxableWages + s.taxableWages,
+        };
+      }
+    }
+    if (import.meta.env.DEV && mergedSources.length !== sources.length) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[useTaxBreakdown] Merged ${sources.length - mergedSources.length} duplicate income source card(s) in mode=${mode}`,
+      );
+    }
+    sources.length = 0;
+    sources.push(...mergedSources);
+
     const totalShortTermGains = capGainsShort;
     const totalLongTermGains = capGainsLong;
     if (totalShortTermGains > 0 || totalLongTermGains > 0 || capGainsLosses > 0) {
