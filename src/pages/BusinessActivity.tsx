@@ -1666,31 +1666,13 @@ export default function Transactions() {
 
       {/* Mobile selection action bar — only visible in selection mode */}
       {mobileSelectionMode && (() => {
-        const selectedTxs = mobileSelectedOrder
-          .map((id) => filtered.find((t) => t.id === id))
-          .filter((t): t is DbTransaction => !!t);
-        const count = selectedTxs.length;
-        let manualTx: DbTransaction | undefined;
-        let plaidTx: DbTransaction | undefined;
-        let canLink = false;
-        if (count === 2) {
-          const [a, b] = selectedTxs;
-          const sa = a.source_type || "manual";
-          const sb = b.source_type || "manual";
-          const aManual = sa === "manual";
-          const bManual = sb === "manual";
-          const aImported = sa === "plaid" || sa === "merged";
-          const bImported = sb === "plaid" || sb === "merged";
-          if (aManual && bImported) { manualTx = a; plaidTx = b; canLink = true; }
-          else if (bManual && aImported) { manualTx = b; plaidTx = a; canLink = true; }
-        }
+        const count = mobileSelectedOrder.length;
+        const canLink = count >= 2;
         const helper = count === 0
           ? "Tap a transaction to select it"
           : count === 1
-            ? "Select one more — one manual + one imported"
-            : canLink
-              ? "Ready to link"
-              : "Select one manual and one imported transaction";
+            ? "Select one more to link"
+            : `${count} transactions ready to link`;
 
         return (
           <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
@@ -1710,11 +1692,11 @@ export default function Transactions() {
               <Button
                 size="sm"
                 className="h-9 text-sm gap-1.5"
-                disabled={!canLink || linkMutation.isPending}
+                disabled={!canLink || createMatchGroup.isPending}
                 onClick={() => {
-                  if (!canLink || !manualTx || !plaidTx) return;
-                  linkMutation.mutate(
-                    { manualTxId: manualTx.id, plaidTxId: plaidTx.id },
+                  if (!canLink) return;
+                  createMatchGroup.mutate(
+                    { transactionIds: [...mobileSelectedOrder] },
                     { onSuccess: () => exitMobileSelection() },
                   );
                 }}
