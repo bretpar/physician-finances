@@ -1281,7 +1281,7 @@ export default function Transactions() {
       )}
 
       {/* Suggested Matches */}
-      <SuggestedMatches suggestions={suggestions} />
+      <SuggestedMatches suggestions={suggestions} transactions={transactions} />
 
       {legacyExpenseReviewQueue.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
