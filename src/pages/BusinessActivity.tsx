@@ -1473,40 +1473,7 @@ export default function Transactions() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {matchSuggestion && (
-                <div className="flex items-center gap-2 px-4 py-2 pl-[120px] bg-blue-50/60 dark:bg-blue-950/20 border-t border-blue-200/50 dark:border-blue-900/30 text-xs">
-                  <Link2 className="h-3 w-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span className="text-blue-900 dark:text-blue-200 truncate">
-                    Possible bank match:{" "}
-                    <span className="font-medium">{matchSuggestion.plaidTx.vendor || "Bank transaction"}</span>{" "}
-                    <span className="text-muted-foreground">
-                      · {fmt(Math.abs(matchSuggestion.plaidTx.amount))} ·{" "}
-                      {new Date(matchSuggestion.plaidTx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} ·{" "}
-                      {matchSuggestion.confidenceLabel}
-                    </span>
-                  </span>
-                  <div className="ml-auto flex gap-1.5 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="h-6 text-[11px] px-2"
-                      disabled={linkMutation.isPending}
-                      onClick={() => linkMutation.mutate({ manualTxId: tx.id, plaidTxId: matchSuggestion.plaidTx.id, confidence: matchSuggestion.confidence })}
-                    >
-                      <Link2 className="h-3 w-3 mr-1" /> Link
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 text-[11px] px-2"
-                      disabled={ignoreMutation.isPending}
-                      onClick={() => ignoreMutation.mutate({ manualTxId: tx.id, plaidTxId: matchSuggestion.plaidTx.id })}
-                    >
-                      Dismiss
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {/* match suggestion banner removed — use long-press multi-select instead */}
               </div>
             );
           })}
