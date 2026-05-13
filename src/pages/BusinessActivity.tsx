@@ -1243,40 +1243,28 @@ export default function Transactions() {
             }}>
               <ArrowLeftRight className="h-3 w-3" /> Transfer
             </Button>
-            {selectedIds.size === 2 && (() => {
-              const [id1, id2] = [...selectedIds];
-              const tx1 = filtered.find((t) => t.id === id1);
-              const tx2 = filtered.find((t) => t.id === id2);
-              if (!tx1 || !tx2) return null;
-              const src1 = tx1.source_type || "manual";
-              const src2 = tx2.source_type || "manual";
-              const oneManual = (src1 === "manual" && (src2 === "plaid" || src2 === "merged")) || (src2 === "manual" && (src1 === "plaid" || src1 === "merged"));
-              const manualTx = src1 === "manual" ? tx1 : tx2;
-              const plaidTx = src1 === "manual" ? tx2 : tx1;
-              if (oneManual) {
-                return (
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => {
-                    linkMutation.mutate({ manualTxId: manualTx.id, plaidTxId: plaidTx.id }, {
-                      onSuccess: () => setSelectedIds(new Set()),
-                    });
-                  }} disabled={linkMutation.isPending}>
-                    <Link2 className="h-3 w-3" /> Link Transactions
-                  </Button>
-                );
-              }
-              return (
-                <span className="text-xs text-muted-foreground italic">Select one manual + one imported to link</span>
-              );
-            })()}
+            {selectedIds.size >= 2 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                disabled={createMatchGroup.isPending}
+                onClick={() => {
+                  createMatchGroup.mutate(
+                    { transactionIds: [...selectedIds] },
+                    { onSuccess: () => setSelectedIds(new Set()) },
+                  );
+                }}
+              >
+                <Link2 className="h-3 w-3" /> Link {selectedIds.size}
+              </Button>
+            )}
           </div>
           <Button variant="ghost" size="sm" className="h-7 text-xs whitespace-nowrap" onClick={() => setSelectedIds(new Set())}>
             Clear Selection
           </Button>
         </div>
       )}
-
-      {/* Suggested Matches */}
-      <SuggestedMatches suggestions={suggestions} />
 
       {legacyExpenseReviewQueue.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
