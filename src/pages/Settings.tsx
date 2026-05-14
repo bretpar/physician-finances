@@ -1605,12 +1605,7 @@ function ConnectedAccountsSection() {
         description="Manage linked banks. Assign each account to a destination."
         defaultOpen={false}
         headerAction={
-          plaidItems.length === 0 ? (
-            <Button size="sm" onClick={handleConnectBank} disabled={linkLoading} className="gap-1.5">
-              {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              <span className="hidden sm:inline">Connect</span>
-            </Button>
-          ) : (
+          plaidItems.length > 0 ? (
             <Button
               size="sm"
               onClick={(e) => { e.stopPropagation(); syncMutation.mutate(undefined); }}
@@ -1619,6 +1614,11 @@ function ConnectedAccountsSection() {
             >
               {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               <span className="hidden sm:inline">Refresh All</span>
+            </Button>
+          ) : (
+            <Button size="sm" onClick={handleConnectBank} disabled={linkLoading} className="gap-1.5">
+              {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              <span className="hidden sm:inline">Connect</span>
             </Button>
           )
         }
@@ -1637,29 +1637,34 @@ function ConnectedAccountsSection() {
           </div>
         ) : (
           <div className="space-y-3">
-            {(() => {
-              let latest: string | null = null;
-              for (const it of plaidItems as any[]) {
-                if (!it.last_synced_at) continue;
-                if (!latest || new Date(it.last_synced_at) > new Date(latest)) latest = it.last_synced_at;
-              }
-              // Daily cron runs at 08:15 UTC
-              const now = new Date();
-              const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 15, 0));
-              if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
-              const nextLabel = next.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-              return (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
+            {/* Top action row when expanded */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {(() => {
+                let latest: string | null = null;
+                for (const it of plaidItems as any[]) {
+                  if (!it.last_synced_at) continue;
+                  if (!latest || new Date(it.last_synced_at) > new Date(latest)) latest = it.last_synced_at;
+                }
+                // Daily cron runs at 08:15 UTC
+                const now = new Date();
+                const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 15, 0));
+                if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
+                const nextLabel = next.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+                return (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <RefreshCw className="h-3.5 w-3.5" />
                     <span>Last synced: <span className="font-medium text-card-foreground">{formatDate(latest)}</span></span>
+                    <span className="hidden sm:inline">·</span>
+                    <span className="hidden sm:inline">Next auto-sync: <span className="font-medium text-card-foreground">{nextLabel}</span></span>
                   </div>
-                  <div className="text-muted-foreground">
-                    Next auto-sync: <span className="font-medium text-card-foreground">{nextLabel}</span>
-                  </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
+              <Button size="sm" onClick={handleConnectBank} disabled={linkLoading} className="gap-1.5">
+                {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                <span className="hidden sm:inline">Connect New Account</span>
+                <span className="sm:hidden">Connect</span>
+              </Button>
+            </div>
             {needsReviewTransactions.length > 0 && (
               <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1721,7 +1726,7 @@ function ConnectedAccountsSection() {
                           className="gap-1.5"
                         >
                           {itemSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                          Refresh All
+                          Refresh
                         </Button>
                         <Button
                           variant="outline" size="sm"
@@ -1730,7 +1735,7 @@ function ConnectedAccountsSection() {
                           className="gap-1.5"
                         >
                           {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                          Re-sync / Backfill missing transactions
+                          Re-sync / Backfill
                         </Button>
                         <Button
                           variant="ghost" size="sm"
