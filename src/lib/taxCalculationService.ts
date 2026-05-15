@@ -350,6 +350,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     withholdingOverrideType,
     withholdingOverridePercent,
     withholdingOverrideAmount,
+    longTermCapitalGains,
     stateTaxInputs,
   });
 
