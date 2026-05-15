@@ -6,9 +6,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { SavingsRateResult } from "@/lib/savingsRateSelection";
 
+export interface TaxableBaseBreakdown {
+  gross: number;
+  retirement401k?: number;
+  healthInsurance?: number;
+  hsa?: number;
+  otherPreTax?: number;
+}
+
 interface Props {
   rate: number;
   breakdown?: SavingsRateResult | null;
+  taxableBase?: TaxableBaseBreakdown;
 }
 
 type LineStatus = "included" | "no-rate" | "off";
