@@ -43,6 +43,7 @@ import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { txTone } from "@/lib/transactionTones";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
+import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { DateField } from "@/components/DateField";
 import {
   getFilingMeta,
