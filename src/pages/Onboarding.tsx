@@ -69,6 +69,11 @@ export default function Onboarding() {
     () => typeof window !== "undefined" && sessionStorage.getItem("paycheckmd-onboarding-start") === "income-method",
   );
   const { data: existingCatchups } = useYtdCatchupEntries();
+  const [editingCatchup, setEditingCatchup] = useState<import("@/hooks/useYtdCatchup").YtdCatchupEntry | null>(null);
+  const [catchupFormKey, setCatchupFormKey] = useState(0);
+  const [showCatchupForm, setShowCatchupForm] = useState(true);
+  const [lastSavedName, setLastSavedName] = useState<string | null>(null);
+  const catchupFormRef = useRef<HTMLDivElement | null>(null);
 
   const settingsId = taxSettings?.id;
   const merged = useMemo(() => taxSettings ? {
