@@ -1,45 +1,29 @@
-# Planned business expenses for 1099 / SE forecast
+# Improve YTD catch-up onboarding step
 
-**Problem.** "Include planned income" adds projected 1099 / K-1 / Schedule C gross receipts to the forecast, but there is no place to enter expected business expenses against that projected gross. The tax engine therefore models projected business income as 100% net profit, overstating SE tax and federal/state liability for any 1099 physician with real overhead.
+When a user picks "Yes, help me catch up" in onboarding step 3, they land on the YTD catch-up form (which captures an employer/company plus paystub totals). Today, after saving an entry, the only path to add another is the form's own re-entry, and existing entries can only be deleted from the recap — not edited. This makes the multi-employer flow clumsy and fragile to typos.
 
-**Approach.** Add a per-stream forecast expense field on business-type projected income streams plus a clearly labelled forecast assumption note. The field flows into the unified tax engine so projected SE / business income is reduced by expected expenses before SE tax, QBI, and federal/state calcs run. W-2 streams are unaffected.
+## Changes
 
-## Scope
+1. **"Add another employer" affordance after save**
+   - After `YtdCatchupForm` saves, collapse the form into a saved-state row and surface a primary "Add another employer" button right below the recap, instead of relying on the user to scroll back into a fresh form.
+   - The button resets the form to a blank entry (preserving period defaults) so the user can immediately add the next paystub without leaving the screen or hitting Continue.
+   - Keep the bottom "Continue" button as the way to advance to the next onboarding step once they're done.
 
-1. **Schema.** Add two columns to `projected_income_streams`:
-   - `forecast_expense_per_period numeric not null default 0` — dollars of expected business expense per pay period (mirrors the per-paycheck shape of every other field on the row).
-   - `forecast_expense_notes text not null default ''` — free-text assumption, e.g. "malpractice $X/mo + CME".
-   
-   No data migration needed (defaults make existing rows behave identically to today).
+2. **Edit existing entries inline**
+   - In `YtdCatchupRecap`, add an Edit (pencil) action next to each entry alongside the existing Delete.
+   - Clicking Edit loads that entry into `YtdCatchupForm` in edit mode (it already supports `initial`), scrolls the form into view, and changes the save button to "Save changes". Cancel returns to the add-new state.
+   - Show entries grouped by employer with their gross / federal / state totals so mistakes are easy to spot.
 
-2. **Hook (`useProjectedIncome.ts`).**
-   - Extend `ProjectedIncomeStream` and `ProjectedPaycheck` types with the new fields.
-   - Carry `forecast_expense_per_period` from the stream into each generated paycheck (`generateProjectedPaychecks`).
-   - Aggregate `forecastBusinessExpenses` in `getProjectedTotals`, summing only paychecks whose stream classifies as `se` (1099 / K-1) and whose `matchStatus === "active"`. W-2 and "other" streams contribute 0.
+3. **Copy + state polish**
+   - Update the catch-up screen heading to make the multi-employer intent obvious ("Add each paystub or 1099 source you've earned from this year").
+   - After a successful save, show a subtle confirmation ("Saved – Providence YTD added") and clear the form fields.
+   - Disable "Add another employer" while a save is in flight.
 
-3. **Tax wiring (`useTaxEstimate.ts`).**
-   - Read `projTotals.forecastBusinessExpenses` and add it onto the existing `businessExpenses` total that is passed to the engine. This naturally reduces `seIncome - businessExpenses` net profit, SE tax, and the federal/state taxable base — the same overlap-safe math already used for actual transactions.
-   - No change to withholding routing or to actual-only mode (totals only kick in when `incomeScope === "actualPlusPlanned"` because the projected SE income itself only counts then).
+## Technical notes
 
-4. **UI (`ProjectedIncome.tsx`).**
-   - In the create/edit stream form, when the resolved subtype is a business filing (`1099_schedule_c`, `k1_partnership`, `scorp_distribution`), render a "Forecast business expenses (per pay period)" currency input plus a "Assumption notes" textarea. Hide both for W-2.
-   - Add a one-line helper under the field: *"Estimated overhead reduces projected business profit before SE tax. Leave 0 to forecast gross receipts only."*
-   - Show the per-period expense and an annualized total ("≈ $X / yr") on the stream card so the assumption is visible at a glance.
-
-5. **Tests.**
-   - Extend `unifiedTaxEngine.test.ts` with a case: $200k projected SE gross + $5k/period forecast expense over N periods → engine receives `seIncome=200k`, `businessExpenses += N*5000`, net SE profit drops accordingly, SE tax drops.
-   - Extend `useProjectedIncome` totals test (or add one) to confirm W-2 streams never contribute forecast expenses.
-
-## Out of scope
-
-- No Plaid / transaction-level "planned expense" rows. The field is a simple per-stream assumption, not a ledger entry.
-- No category breakdown. Single dollar amount + notes is enough to remove the gross-only blind spot.
-- Past-due or matched paychecks do not contribute forecast expenses (actual transactions cover them).
-
-## Files touched
-
-- New migration: `projected_income_streams` add columns.
-- `src/hooks/useProjectedIncome.ts` — types, paycheck generation, totals.
-- `src/hooks/useTaxEstimate.ts` — feed forecast expenses into engine input.
-- `src/pages/ProjectedIncome.tsx` — form + card display.
-- `src/test/unifiedTaxEngine.test.ts` (+ optional projected totals test).
+- Files touched:
+  - `src/pages/Onboarding.tsx` — wire `onSaved` to switch the form into a "saved, add another?" state; render the new add-another button between recap and form.
+  - `src/components/YtdCatchupForm.tsx` — accept `key`/reset trigger, expose an `onSaved` callback already present, make sure Cancel works in edit mode.
+  - `src/components/YtdCatchupRecap.tsx` — add `onEdit(entry)` prop and an Edit icon button per row.
+- No schema changes; `useYtdCatchup` already supports upsert by `id`.
+- Continue/Back behavior on this step is unchanged.
