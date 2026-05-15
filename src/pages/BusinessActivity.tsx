@@ -1518,8 +1518,8 @@ export default function Transactions() {
                   });
                   // Primary badges (kept visible): type for transfers, review state
                   const badges: LedgerRowBadge[] = [];
-                  if (isTransferTx) badges.push({ label: transferLabel, tone: "info" });
-                  else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "muted" });
+                  if (isTransferTx) badges.push({ label: transferLabel, tone: "muted" });
+                  else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "expense" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
                   const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
