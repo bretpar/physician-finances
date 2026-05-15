@@ -5,14 +5,16 @@ interface StatCardProps {
   value: string;
   icon: LucideIcon;
   trend?: string;
-  variant?: "default" | "success" | "warning" | "destructive";
+  variant?: "default" | "success" | "warning" | "destructive" | "expense" | "neutral";
 }
 
 const variantStyles: Record<string, string> = {
   default: "text-primary",
-  success: "text-success",
+  success: "text-emerald-600 dark:text-emerald-400",
   warning: "text-warning",
   destructive: "text-destructive",
+  expense: "text-rose-600 dark:text-rose-400",
+  neutral: "text-slate-500 dark:text-slate-400",
 };
 
 export default function StatCard({ label, value, icon: Icon, trend, variant = "default" }: StatCardProps) {
