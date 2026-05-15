@@ -1194,6 +1194,58 @@ export default function PersonalIncome() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Read-only detail card */}
+      {detailEntry && (() => {
+        const e = detailEntry;
+        const uiType = hydrateIncomeType(e);
+        const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
+        const isLoss = uiType === "loss";
+        const withheld = getTotalFederalPaid(e as any);
+        const reserve = Number((e as any).additional_tax_reserve || 0);
+        const stateW = Number(e.state_withholding || 0);
+        const isYtd = !!(e as any).linked_ytd_catchup_id;
+        const fromPlanner = (e as any).origin_type === "planner_converted";
+        const sections: DetailSection[] = [
+          {
+            title: "Basic details",
+            fields: [
+              { label: "Source", value: e.company || "—" },
+              { label: "Type", value: typeLabel },
+              { label: "Notes", value: e.notes || "—" },
+            ],
+          },
+          {
+            title: "Tax details",
+            fields: [
+              { label: "Gross", value: fmt(Number(e.gross_amount) || 0), mono: true },
+              { label: "Federal paid", value: withheld > 0 ? fmt(withheld) : "—", mono: true },
+              ...(stateIncomeTaxEnabled ? [{ label: "State withheld", value: stateW > 0 ? fmt(stateW) : "—", mono: true }] : []),
+              { label: "Reserve", value: reserve > 0 ? fmt(reserve) : "—", mono: true },
+            ],
+          },
+        ];
+        return (
+          <TransactionDetailSheet
+            open={!!detailEntry}
+            onOpenChange={(o) => { if (!o) setDetailEntry(null); }}
+            header={{
+              title: e.name || "(No payor)",
+              subtitle: e.company || undefined,
+              date: new Date(e.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              amount: Number(e.gross_amount) || 0,
+              amountTone: isLoss ? "expense" : "income",
+              badges: [
+                ...(isYtd ? [{ label: "YTD Catch-Up", tone: "muted" as const }] : []),
+                ...(fromPlanner ? [{ label: "From Planner", tone: "success" as const }] : []),
+              ],
+            }}
+            sections={sections}
+            onEdit={() => { const target = e; setDetailEntry(null); openEdit(target); }}
+            onDelete={isYtd ? undefined : () => { setDeleteId(e.id); setDetailEntry(null); }}
+          />
+        );
+      })()}
     </div>
   );
 }
