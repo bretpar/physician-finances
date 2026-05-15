@@ -80,6 +80,6 @@ describe("planner conversion → no double-counting in projected totals", () => 
 
     // Projected totals must not count the converted occurrence.
     const totals = getProjectedTotals(paychecks, [stream]);
-    expect(totals.gross || 0).toBe(0);
+    expect(totals.grossIncome || 0).toBe(0);
   });
 });
