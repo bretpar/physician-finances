@@ -2263,6 +2263,79 @@ export default function Transactions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Read-only detail card */}
+      {detailTx && (() => {
+        const tx = detailTx;
+        const txType = (tx.transaction_type || "expense") as string;
+        const isIncomeTx = txType === "income";
+        const isTransferTx = txType === "transfer";
+        const linked = isIncomeTx ? incomeByLinkedTx.get(tx.id) : null;
+        const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
+        const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
+        const source = tx.source_type || "manual";
+        const catLabel = isIncomeTx ? "Income" : isTransferTx ? "Transfer" : (mapLegacyCategory(tx.category) || "Uncategorized");
+        const sections: DetailSection[] = [
+          {
+            title: "Basic details",
+            fields: [
+              { label: "Vendor", value: tx.vendor || "—" },
+              { label: "Company", value: getTransactionCompanyLabel(tx) },
+              { label: "Category", value: catLabel },
+              ...((tx as any).schedule_c_category ? [{ label: "Schedule C", value: (tx as any).schedule_c_category as string }] : []),
+              { label: "Source", value: source === "merged" ? "Linked (manual + bank)" : source === "plaid" ? "Imported" : "Manual" },
+              ...(tx.account_source ? [{ label: "Account", value: tx.account_source }] : []),
+              ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
+            ],
+          },
+        ];
+        if (linked) {
+          sections.push({
+            title: "Tax details",
+            fields: [
+              { label: "Gross", value: fmt(Number(linked.paycheck_amount) || 0), mono: true },
+              { label: "Federal withheld", value: fmt(getCanonicalTotalFederalPayrollTaxes(linked as any)), mono: true },
+              { label: "State withheld", value: fmt(Number((linked as any).state_withholding) || 0), mono: true },
+              { label: "Pre-tax", value: fmt(Number(linked.pre_tax_deductions) || 0), mono: true },
+              { label: "401(k)", value: fmt(Number(linked.retirement_401k) || 0), mono: true },
+            ],
+          });
+        }
+        const badges = [];
+        if (tx.needs_review) badges.push({ label: "Review", tone: "warning" as const });
+        if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "success" as const });
+        if (source === "plaid") badges.push({ label: "Imported", tone: "muted" as const });
+        if (source === "merged") badges.push({ label: "Linked", tone: "default" as const });
+        return (
+          <TransactionDetailSheet
+            open={!!detailTx}
+            onOpenChange={(o) => { if (!o) setDetailTx(null); }}
+            header={{
+              title: tx.vendor || "(No payee)",
+              subtitle: getTransactionCompanyLabel(tx),
+              date: new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              amount: Math.abs(Number(tx.amount) || 0),
+              amountTone: isIncomeTx ? "income" : isTransferTx ? "neutral" : "expense",
+              badges,
+            }}
+            sections={sections}
+            linked={{
+              items: linkedSiblings.map((it) => ({
+                id: it.itemId,
+                label: it.transaction.vendor || "(No payee)",
+                amount: Math.abs(it.transaction.amount),
+                date: new Date(it.transaction.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+              })),
+              onUnlink: tx.linked_group_id
+                ? (itemId) => unlinkMatchGroupItem.mutate({ itemId, groupId: tx.linked_group_id! })
+                : undefined,
+              onLink: () => { setDetailTx(null); enterMobileSelectionWith(tx.id); },
+            }}
+            onEdit={() => { const t = tx; setDetailTx(null); openEdit(t); }}
+            onDelete={() => { setDetailTx(null); confirmDelete(tx.id); }}
+          />
+        );
+      })()}
     </div>
   );
 }
