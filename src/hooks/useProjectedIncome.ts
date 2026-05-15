@@ -178,7 +178,7 @@ export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
  * - Same income type/company_type
  */
 function findMatchingIncome(
-  paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string },
+  paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string; streamSourceId?: string | null },
   incomeEntries: MatchableIncomeEntry[],
   usedEntryIds: Set<string>,
 ): { entry: MatchableIncomeEntry; score: number } | null {
@@ -199,11 +199,15 @@ function findMatchingIncome(
     else if (daysDiff <= 3) score += 15;
     else continue; // Skip if more than 3 days apart
 
-    // Company match
-    const pCompany = (paycheck.label || "").toLowerCase();
-    const eCompany = (entry.company || "").toLowerCase();
-    if (pCompany && eCompany && (pCompany.includes(eCompany) || eCompany.includes(pCompany))) {
+    // Source/company match — prefer source_id, fall back to company name substring
+    if (paycheck.streamSourceId && entry.source_id && paycheck.streamSourceId === entry.source_id) {
       score += 30;
+    } else {
+      const pCompany = (paycheck.label || "").toLowerCase();
+      const eCompany = (entry.company || "").toLowerCase();
+      if (pCompany && eCompany && (pCompany.includes(eCompany) || eCompany.includes(pCompany))) {
+        score += 30;
+      }
     }
 
     // Amount similarity (within 10% of gross)
@@ -224,6 +228,61 @@ function findMatchingIncome(
   }
 
   return bestMatch;
+}
+
+/**
+ * Match a projected business paycheck against active business transactions
+ * (transaction_type = 'income'). Returns the best matching transaction or null.
+ *
+ * Same scoring as personal — date ±3 days + source/vendor + amount similarity.
+ * Heuristic match only; the user must confirm before it becomes a stored link.
+ */
+function findMatchingBusinessTransaction(
+  paycheck: { date: string; grossAmount: number; label: string; streamSourceId?: string | null },
+  transactions: MatchableBusinessTransaction[],
+  usedTxIds: Set<string>,
+): { tx: MatchableBusinessTransaction; score: number } | null {
+  const pDate = parseISO(paycheck.date).getTime();
+  let best: { tx: MatchableBusinessTransaction; score: number } | null = null;
+
+  for (const tx of transactions) {
+    if (usedTxIds.has(tx.id)) continue;
+    if (tx.status !== "active") continue;
+    if (tx.transaction_type !== "income") continue;
+
+    let score = 0;
+    const tDate = parseISO(tx.transaction_date).getTime();
+    const daysDiff = Math.abs(pDate - tDate) / (1000 * 60 * 60 * 24);
+    if (daysDiff === 0) score += 40;
+    else if (daysDiff <= 1) score += 30;
+    else if (daysDiff <= 3) score += 15;
+    else continue;
+
+    if (paycheck.streamSourceId && tx.source_id && paycheck.streamSourceId === tx.source_id) {
+      score += 30;
+    } else {
+      const pVendor = (paycheck.label || "").toLowerCase();
+      const tVendor = (tx.vendor || "").toLowerCase();
+      if (pVendor && tVendor && (pVendor.includes(tVendor) || tVendor.includes(pVendor))) {
+        score += 30;
+      }
+    }
+
+    const amt = Number(tx.amount);
+    if (amt > 0 && paycheck.grossAmount > 0) {
+      const diff = Math.abs(amt - paycheck.grossAmount);
+      const pct = diff / paycheck.grossAmount;
+      if (pct === 0) score += 30;
+      else if (pct <= 0.02) score += 25;
+      else if (pct <= 0.05) score += 15;
+      else if (pct <= 0.10) score += 5;
+    }
+
+    if (score >= 45 && (!best || score > best.score)) {
+      best = { tx, score };
+    }
+  }
+  return best;
 }
 
 /* ─── Queries ─── */
