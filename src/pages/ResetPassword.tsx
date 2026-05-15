@@ -47,9 +47,7 @@ export default function ResetPassword() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <PiggyBank className="h-7 w-7 text-primary-foreground" />
-          </div>
+          <BrandLogo className="mx-auto h-12 w-12 rounded-xl" />
           <CardTitle className="text-2xl">Set a new password</CardTitle>
           <CardDescription>Enter a new password for your Paycheck MD account.</CardDescription>
         </CardHeader>
