@@ -33,6 +33,8 @@ function makeStream(overrides: Partial<ProjectedIncomeStream> = {}): ProjectedIn
     hsa_contribution: 0,
     additional_tax_reserve: 0,
     notes: "",
+    forecast_expense_per_period: 0,
+    forecast_expense_notes: "",
     created_at: "",
     updated_at: "",
     ...overrides,
