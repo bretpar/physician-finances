@@ -851,6 +851,8 @@ export function getProjectedTotals(
     w2Income: 0,
     seIncome: 0,
     otherIncome: 0,
+    /** Forecast business expenses summed across active SE paychecks (1099 / K-1 only). */
+    forecastBusinessExpenses: 0,
   };
 
   for (const p of paychecks) {
@@ -886,7 +888,18 @@ export function getProjectedTotals(
     acc.count += 1;
 
     if (bucket === "w2") acc.w2Income += p.grossAmount;
-    else if (bucket === "se") acc.seIncome += p.grossAmount;
+    else if (bucket === "se") {
+      acc.seIncome += p.grossAmount;
+      // Only SE (1099 / K-1 / Schedule C) streams contribute forecast expenses.
+      // Paychecks count toward the assumption only while still "active" — past_due,
+      // matched, suggested, skipped, and converted occurrences are excluded so
+      // actual transactions own the expense side post-conversion.
+      // Bonuses don't have an associated stream forecast expense in the model,
+      // so when stream is missing we contribute 0.
+      if (stream && p.type === "paycheck") {
+        acc.forecastBusinessExpenses += Math.max(0, Number(stream.forecast_expense_per_period) || 0);
+      }
+    }
     else acc.otherIncome += p.grossAmount;
   }
 
