@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { txTone, type TxTone } from "@/lib/transactionTones";
 
 export type LedgerRowKind =
   | "income"
@@ -26,12 +27,20 @@ const KIND_ICON: Record<LedgerRowKind, LucideIcon> = {
   neutral: Receipt,
 };
 
+const KIND_TONE: Record<LedgerRowKind, TxTone | null> = {
+  income: "income",
+  expense: "expense",
+  transfer: "transfer",
+  credit_card_payment: null, // keep purple custom
+  neutral: "neutral",
+};
+
 const KIND_ICON_CLASSES: Record<LedgerRowKind, string> = {
-  income: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  expense: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
-  transfer: "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400",
+  income: txTone("income").iconBg,
+  expense: txTone("expense").iconBg,
+  transfer: txTone("transfer").iconBg,
   credit_card_payment: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  neutral: "bg-muted text-muted-foreground",
+  neutral: txTone("neutral").iconBg,
 };
 
 export interface LedgerRowBadge {
