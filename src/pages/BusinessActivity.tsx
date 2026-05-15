@@ -1857,7 +1857,17 @@ export default function Transactions() {
                   <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
                   <p className="text-[11px] text-muted-foreground leading-snug">
                     Based on your total tax rate ({recommendation.effectiveRate.toFixed(1)}%){" "}
-                    <RecommendedSetAsideInfo rate={recommendation.effectiveRate} breakdown={recommendation.rateBreakdown} />
+                    <RecommendedSetAsideInfo
+                      rate={recommendation.effectiveRate}
+                      breakdown={recommendation.rateBreakdown}
+                      taxableBase={{
+                        gross: grossIncome,
+                        retirement401k: num(incomeForm.retirement_401k),
+                        healthInsurance: num(incomeForm.healthcare_deduction),
+                        hsa: num(incomeForm.hsa_contribution),
+                        otherPreTax: num(incomeForm.pre_tax_deductions),
+                      }}
+                    />
                   </p>
                 </div>
                 <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(recommendedWithholding)}</span>
