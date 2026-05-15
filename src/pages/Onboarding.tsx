@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, PiggyBank, PencilLine, Building2, CalendarClock, LineChart } from "lucide-react";
+import { Check, ChevronLeft, PencilLine, Building2, CalendarClock, LineChart } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
