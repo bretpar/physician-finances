@@ -328,7 +328,7 @@ export default function Onboarding() {
         <Card className="mx-auto w-full max-w-2xl">
           <CardContent className="space-y-6 p-5 sm:p-8">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><PiggyBank className="h-5 w-5" /></div>
+              <BrandLogo className="h-10 w-10 rounded-xl" />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-muted-foreground">Welcome{merged.firstName ? `, ${merged.firstName}` : ""}</p>
                 <h1 className="mt-0.5 text-2xl font-semibold text-foreground">How do you want to add income?</h1>
