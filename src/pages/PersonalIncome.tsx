@@ -360,8 +360,9 @@ export default function PersonalIncome() {
 
   function openEdit(entry: PersonalIncomeEntry) {
     if ((entry as any).linked_ytd_catchup_id) {
-      toast.info("This is a YTD Catch-Up Entry. Edit it from Income → YTD Catch-Up.", {
-        action: { label: "Go to Income", onClick: () => navigate("/personal-income") },
+      // Use sonner directly so we don't need to wire navigate here.
+      import("sonner").then(({ toast }) => {
+        toast.info("This is a YTD Catch-Up Entry. Edit it from Income → YTD Catch-Up section.");
       });
       return;
     }
