@@ -367,8 +367,8 @@ export default function Onboarding() {
           if (!normalizedEmail) throw new Error("Enter your email to continue.");
           if (!isValidEmailFormat(normalizedEmail)) throw new Error("Enter a valid email address.");
           if (!password) throw new Error("Enter a password to continue.");
-          if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-            throw new Error("That password is too weak. Use at least 8 characters with a mix of letters and numbers.");
+          if (password.length < 8) {
+            throw new Error("Password must be at least 8 characters.");
           }
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
           setSignupDebugError(null);
@@ -434,7 +434,7 @@ export default function Onboarding() {
       if (step === 1 && !user) {
         const message = String(error?.message || "");
         const lowerMessage = message.toLowerCase();
-        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use at least") || message.startsWith("That password is too weak");
+        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Password must be at least");
         const isDuplicateError = message === DUPLICATE_EMAIL_MESSAGE || isDuplicateEmailError(error);
         const isWeakPasswordError = /password|weak|strength|requirements|characters/.test(lowerMessage);
         const errorMessage = isInputError
@@ -444,7 +444,7 @@ export default function Onboarding() {
             : isAuthRateLimitError(error)
               ? "Too many signup attempts. Please wait a few minutes before trying again."
               : isWeakPasswordError
-                ? "That password is too weak. Use at least 8 characters with a mix of letters and numbers."
+                ? "Password must be at least 8 characters."
                 : "Signup could not be completed. Please check your email and password and try again.";
         toast.error(errorMessage);
       } else {
@@ -466,7 +466,7 @@ export default function Onboarding() {
             <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">Step {step} of 4</p><div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / 4) * 100}%` }} /></div></div>
           </div>
 
-          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize PaycheckMD so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><div className="flex items-center justify-between"><Label>Password</Label><Link to="/login" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Use at least 8 characters with a mix of letters and numbers.</p></div><Input aria-hidden="true" className="sr-only" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" /><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p>
+          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize PaycheckMD so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><div className="flex items-center justify-between"><Label>Password</Label><Link to="/login" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Use at least 8 characters.</p></div><Input aria-hidden="true" className="sr-only" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" /><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p>
             {signupState === "duplicate" && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
                 <p className="font-medium text-destructive">{DUPLICATE_EMAIL_MESSAGE}</p>
