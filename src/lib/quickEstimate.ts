@@ -32,18 +32,18 @@ export interface QuickEstimateResult {
   quarterlyReserve: number;     // recommended set-aside / 4
 }
 
-// 2024 federal brackets — close enough for a preview.
-const BRACKETS_SINGLE: Array<[number, number]> = [
-  [11600, 0.10], [47150, 0.12], [100525, 0.22], [191950, 0.24],
-  [243725, 0.32], [609350, 0.35], [Infinity, 0.37],
-];
-const BRACKETS_MFJ: Array<[number, number]> = [
-  [23200, 0.10], [94300, 0.12], [201050, 0.22], [383900, 0.24],
-  [487450, 0.32], [731200, 0.35], [Infinity, 0.37],
-];
+// Brackets / std deduction / SS wage base come from the centralized
+// year-keyed config in taxBrackets.ts (active tax year).
+import {
+  ORDINARY_BRACKETS as _ORD,
+  STANDARD_DEDUCTION as _STD,
+  SS_WAGE_BASE as _SS,
+} from "@/lib/taxBrackets";
 
-const STD_DEDUCTION = { single: 14600, married_filing_jointly: 29200 };
-const SS_WAGE_CAP_2024 = 168600;
+const BRACKETS_SINGLE: Array<[number, number]> = _ORD.single.map((b) => [b.max, b.rate]);
+const BRACKETS_MFJ: Array<[number, number]> = _ORD.married_filing_jointly.map((b) => [b.max, b.rate]);
+const STD_DEDUCTION = _STD;
+const SS_WAGE_CAP_2024 = _SS;
 
 // Rough state-level flat-ish estimates. Not precise — preview only.
 const STATE_FLAT_RATES: Record<string, number> = {

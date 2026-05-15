@@ -1,5 +1,15 @@
-// US Federal Tax Engine — 2024 brackets, SE tax, safe harbor, time-based tracking
-// All rates/brackets stored here for easy annual updates
+// US Federal Tax Engine — SE tax, safe harbor, time-based tracking.
+// All bracket / standard-deduction / SS-wage-base constants live in
+// src/lib/taxBrackets.ts (single year-keyed source). Bump ACTIVE_TAX_YEAR
+// there to roll the engine forward.
+
+import {
+  ORDINARY_BRACKETS,
+  STANDARD_DEDUCTION as ACTIVE_STANDARD_DEDUCTION,
+  SS_WAGE_BASE,
+  ADDITIONAL_MEDICARE_THRESHOLD,
+  SE_INCOME_FACTOR as ACTIVE_SE_INCOME_FACTOR,
+} from "@/lib/taxBrackets";
 
 export interface TaxBracket {
   min: number;
@@ -7,31 +17,14 @@ export interface TaxBracket {
   rate: number;
 }
 
-export const BRACKETS_SINGLE: TaxBracket[] = [
-  { min: 0, max: 11600, rate: 0.10 },
-  { min: 11600, max: 47150, rate: 0.12 },
-  { min: 47150, max: 100525, rate: 0.22 },
-  { min: 100525, max: 191950, rate: 0.24 },
-  { min: 191950, max: 243725, rate: 0.32 },
-  { min: 243725, max: 609350, rate: 0.35 },
-  { min: 609350, max: Infinity, rate: 0.37 },
-];
+export const BRACKETS_SINGLE: TaxBracket[] = ORDINARY_BRACKETS.single;
+export const BRACKETS_MFJ: TaxBracket[] = ORDINARY_BRACKETS.married_filing_jointly;
 
-export const BRACKETS_MFJ: TaxBracket[] = [
-  { min: 0, max: 23200, rate: 0.10 },
-  { min: 23200, max: 94300, rate: 0.12 },
-  { min: 94300, max: 201050, rate: 0.22 },
-  { min: 201050, max: 383900, rate: 0.24 },
-  { min: 383900, max: 487450, rate: 0.32 },
-  { min: 487450, max: 731200, rate: 0.35 },
-  { min: 731200, max: Infinity, rate: 0.37 },
-];
-
-export const STANDARD_DEDUCTION = { single: 14600, married_filing_jointly: 29200 };
+export const STANDARD_DEDUCTION = ACTIVE_STANDARD_DEDUCTION;
 export const SE_TAX_RATE = 0.153; // 12.4% SS + 2.9% Medicare
-export const SE_INCOME_FACTOR = 0.9235; // 92.35% of net SE income
-export const SS_WAGE_CAP_DEFAULT = 168600;
-export const MEDICARE_ADDITIONAL_THRESHOLD = { single: 200000, married_filing_jointly: 250000 };
+export const SE_INCOME_FACTOR = ACTIVE_SE_INCOME_FACTOR; // 92.35% of net SE income
+export const SS_WAGE_CAP_DEFAULT = SS_WAGE_BASE;
+export const MEDICARE_ADDITIONAL_THRESHOLD = ADDITIONAL_MEDICARE_THRESHOLD;
 export const MEDICARE_ADDITIONAL_RATE = 0.009; // 0.9%
 
 export function calculateProgressiveTax(taxableIncome: number, brackets: TaxBracket[]): number {

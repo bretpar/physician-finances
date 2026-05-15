@@ -8,7 +8,7 @@
  *  - Non-qualified (ordinary) dividend: ordinary/effective rate
  */
 
-import { LTCG_BRACKETS_2025, type FilingStatus, calcBracketTax } from "@/lib/taxBrackets";
+import { LTCG_BRACKETS, type FilingStatus, calcBracketTax } from "@/lib/taxBrackets";
 import type { InvestmentIncomeType } from "@/hooks/useInvestmentIncome";
 
 export type InvestmentTaxMethod =
@@ -52,7 +52,7 @@ export function calcLtcgTaxOnSlice(args: {
   const { filingStatus, ordinaryTaxableIncome, gain } = args;
   if (gain <= 0) return { tax: 0, effectiveRate: 0, rateLabel: "0%" };
   const base = Math.max(0, ordinaryTaxableIncome);
-  const brackets = LTCG_BRACKETS_2025[filingStatus];
+  const brackets = LTCG_BRACKETS[filingStatus];
   // Tax on (base + gain) minus tax on (base) gives tax on the slice.
   const totalUpper = calcBracketTax(base + gain, brackets).total;
   const totalLower = calcBracketTax(base, brackets).total;

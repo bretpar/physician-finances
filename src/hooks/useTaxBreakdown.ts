@@ -46,7 +46,7 @@ import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import {
-  ORDINARY_BRACKETS_2025,
+  ORDINARY_BRACKETS,
   calcBracketTax,
   getMarginalRate,
   type FilingStatus,
@@ -722,7 +722,7 @@ export function useTaxBreakdown(
     // engine's federal-tax-before-credits is authoritative.
     const taxableLTCG = Math.max(0, totalLongTermGains);
     const taxableOrdinaryIncome = Math.max(0, taxableIncome - taxableLTCG);
-    const ordBrackets = ORDINARY_BRACKETS_2025[filingStatus];
+    const ordBrackets = ORDINARY_BRACKETS[filingStatus];
     const ordinaryBracketCalc = calcBracketTax(taxableOrdinaryIncome, ordBrackets);
     // LTCG line: residual = federalTaxBeforeCredits − ordinary bracket total.
     const ltcgBracketCalc: BracketCalc = {
