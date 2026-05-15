@@ -136,8 +136,8 @@ export default function Estimate() {
     const normalizedEmail = email.trim().toLowerCase();
     if (!trimmedFirst) { toast.error("Enter your first name."); return; }
     if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) { toast.error("Enter a valid email."); return; }
-    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      toast.error("Password must be at least 8 characters with letters and numbers."); return;
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters."); return;
     }
     setSaving(true);
     try {
