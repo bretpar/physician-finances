@@ -252,10 +252,10 @@ export default function PersonalIncome() {
           medicare_withholding: num(form.medicare_withholding),
         }) + (stateIncomeTaxEnabled ? num(form.state_withholding) : 0),
       retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
       alreadyIncludedInEstimate: isEditing,
     });
-  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, stateIncomeTaxEnabled, getWithholdingRec, isEditing]);
+  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing]);
 
   // ── Per-paycheck profile-based savings guide ────────────────────────────
   // Simple paycheck-only calculation: uses the user's selected tax profile
@@ -403,7 +403,7 @@ export default function PersonalIncome() {
     const medicareOnly = num(form.medicare_withholding);
     const stateW = stateIncomeTaxEnabled ? num(form.state_withholding) : 0;
     const totalWithheld = totalFederal + stateW;
-    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction);
+    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
     // Compute the base tax estimate for the record using the canonical total.
@@ -414,7 +414,7 @@ export default function PersonalIncome() {
       federalWithheld: totalFederal,
       stateWithheld: stateW,
       retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
     });
 
     return {
@@ -892,14 +892,14 @@ export default function PersonalIncome() {
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
                   <Input
                     type="number" min="0" step="0.01"
-                    placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction)))}
+                    placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution)))}
                     value={form.net_received}
                     onChange={(e) => setField("net_received", e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account after taxes and deductions</p>
                 </div>
                 <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction)))}</strong> based on your inputs
+                  Estimated Net: <strong>{fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution)))}</strong> based on your inputs
                 </p>
               </div>
             )}

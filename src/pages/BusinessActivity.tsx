@@ -496,19 +496,19 @@ export default function Transactions() {
       incomeType: incomeForm.income_type,
       taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
       retirement401k: num(incomeForm.retirement_401k),
-      preTaxDeductions: num(incomeForm.pre_tax_deductions),
+      preTaxDeductions: num(incomeForm.pre_tax_deductions) + num(incomeForm.healthcare_deduction) + num(incomeForm.hsa_contribution),
       alreadyIncludedInEstimate: isEditingIncome,
       companyId: selectedIncomeCompany?.id ?? null,
       applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
       includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
     });
-  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, getRecommendation, isEditingIncome, selectedIncomeCompany]);
+  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, isEditingIncome, selectedIncomeCompany]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   const calculatedNet = useMemo(() => {
     if (grossIncome <= 0) return 0;
-    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.healthcare_deduction));
-  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.healthcare_deduction]);
+    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.healthcare_deduction) - num(incomeForm.hsa_contribution));
+  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.healthcare_deduction, incomeForm.hsa_contribution]);
 
   // ─── Open Income Add ───
   function openAddIncome() {
