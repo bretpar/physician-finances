@@ -8,11 +8,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useUpsertYtdCatchup, type YtdCatchupEntry, type YtdCatchupSourceType } from "@/hooks/useYtdCatchup";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import type { IncomeProfileType } from "@/lib/onboarding";
 
 interface Props {
   initial?: YtdCatchupEntry;
   onSaved?: () => void;
   onCancel?: () => void;
+  incomeProfileType?: IncomeProfileType;
 }
 
 const num = (v: string) => {
@@ -20,7 +22,7 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function YtdCatchupForm({ initial, onSaved, onCancel }: Props) {
+export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }: Props) {
   const upsert = useUpsertYtdCatchup();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: taxSettings } = useTaxSettings();
@@ -30,7 +32,23 @@ export function YtdCatchupForm({ initial, onSaved, onCancel }: Props) {
   const yearStart = `${taxYear}-01-01`;
   const today = new Date().toISOString().split("T")[0];
 
-  const [sourceType, setSourceType] = useState<YtdCatchupSourceType>(initial?.source_type ?? "w2");
+  // Determine the locked / default source type from the profile.
+  const lockedSource: YtdCatchupSourceType | null =
+    incomeProfileType === "w2_only" ? "w2"
+    : incomeProfileType === "business_only" ? "1099_k1"
+    : null;
+
+  const [sourceType, setSourceType] = useState<YtdCatchupSourceType>(
+    initial?.source_type ?? lockedSource ?? "w2"
+  );
+
+  // Keep sourceType in sync if profile locks it after mount.
+  useEffect(() => {
+    if (lockedSource && sourceType !== lockedSource && !initial) {
+      setSourceType(lockedSource);
+    }
+  }, [lockedSource, initial, sourceType]);
+
   const [companyName, setCompanyName] = useState(initial?.company_name ?? "");
   const [periodStart, setPeriodStart] = useState(initial?.period_start ?? yearStart);
   const [periodEnd, setPeriodEnd] = useState(initial?.period_end ?? today);
@@ -54,6 +72,23 @@ export function YtdCatchupForm({ initial, onSaved, onCancel }: Props) {
     return incomeEntries.filter((e) => e.income_date >= periodStart && e.income_date <= periodEnd).length;
   }, [incomeEntries, periodStart, periodEnd]);
 
+  const isW2Source = sourceType === "w2";
+  const is1099OnlyProfile = incomeProfileType === "business_only";
+  const isW2OnlyProfile = incomeProfileType === "w2_only";
+  const showSourceDropdown = !lockedSource;
+  const showPretaxSection = isW2Source; // pre-tax payroll deductions only meaningful for W-2
+
+  const description = isW2OnlyProfile
+    ? "Enter your year-to-date W-2 income and taxes withheld from your most recent paystub."
+    : is1099OnlyProfile
+      ? "Enter your year-to-date business income. Use gross income before expenses, and enter any estimated taxes already paid."
+      : "Add each income source you have earned from this year. Add W-2 paystub totals and any 1099/K-1 gross income and taxes already paid.";
+
+  const companyLabel = isW2Source ? "Employer name" : "Company / business name";
+  const companyPlaceholder = isW2Source ? "e.g. Providence" : "e.g. Consulting LLC";
+  const fedLabel = isW2Source ? "Federal withheld YTD" : "Federal estimated taxes paid YTD";
+  const stateLabel = isW2Source ? "State withheld YTD" : "State estimated taxes paid YTD";
+
   const submit = async () => {
     setError(null);
     if (!companyName.trim()) return setError("Enter the employer or company name.");
@@ -73,13 +108,13 @@ export function YtdCatchupForm({ initial, onSaved, onCancel }: Props) {
       gross_income: gross,
       federal_withholding: num(fedWh),
       state_withholding: num(stateWh),
-      ss_withholding: num(ssWh),
-      medicare_withholding: num(medWh),
-      retirement_401k: num(r401k),
-      hsa_contribution: num(hsa),
-      healthcare_premiums: num(healthcare),
-      dental_vision: num(dental),
-      other_pretax: num(otherPretax),
+      ss_withholding: isW2Source ? num(ssWh) : 0,
+      medicare_withholding: isW2Source ? num(medWh) : 0,
+      retirement_401k: isW2Source ? num(r401k) : 0,
+      hsa_contribution: isW2Source ? num(hsa) : 0,
+      healthcare_premiums: isW2Source ? num(healthcare) : 0,
+      dental_vision: isW2Source ? num(dental) : 0,
+      other_pretax: isW2Source ? num(otherPretax) : 0,
       post_tax_deductions: num(postTax),
     });
     onSaved?.();
@@ -87,27 +122,25 @@ export function YtdCatchupForm({ initial, onSaved, onCancel }: Props) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Most people do not start using PaycheckMD on January 1. Add your year-to-date income and tax
-        withholdings so your recommendations are accurate for the rest of the year. You can usually
-        find this information on your most recent paystub.
-      </p>
+      <p className="text-sm text-muted-foreground">{description}</p>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label>Income source type</Label>
-          <Select value={sourceType} onValueChange={(v) => setSourceType(v as YtdCatchupSourceType)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="w2">W-2 employer</SelectItem>
-              <SelectItem value="1099_k1">1099 / K-1 company</SelectItem>
-              <SelectItem value="other">Other income</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Company / employer name</Label>
-          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="e.g. Providence" />
+        {showSourceDropdown && (
+          <div>
+            <Label>Income source type</Label>
+            <Select value={sourceType} onValueChange={(v) => setSourceType(v as YtdCatchupSourceType)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="w2">W-2 employer</SelectItem>
+                <SelectItem value="1099_k1">1099 / K-1 company</SelectItem>
+                <SelectItem value="other">Other income</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className={showSourceDropdown ? "" : "sm:col-span-2"}>
+          <Label>{companyLabel}</Label>
+          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder={companyPlaceholder} />
         </div>
         <div>
           <Label>Period start</Label>
@@ -122,16 +155,16 @@ export function YtdCatchupForm({ initial, onSaved, onCancel }: Props) {
           <Input type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
         </div>
         <div>
-          <Label>Federal withheld YTD</Label>
+          <Label>{fedLabel}</Label>
           <Input type="number" inputMode="decimal" value={fedWh} onChange={(e) => setFedWh(e.target.value)} placeholder="0.00" />
         </div>
         {stateEnabled && (
           <div>
-            <Label>State withheld YTD</Label>
+            <Label>{stateLabel}</Label>
             <Input type="number" inputMode="decimal" value={stateWh} onChange={(e) => setStateWh(e.target.value)} placeholder="0.00" />
           </div>
         )}
-        {sourceType === "w2" && (
+        {isW2Source && (
           <>
             <div>
               <Label>Social Security YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
@@ -145,22 +178,24 @@ export function YtdCatchupForm({ initial, onSaved, onCancel }: Props) {
         )}
       </div>
 
-      {/* Pre-tax deductions */}
-      <div className="rounded-lg border border-border p-3">
-        <button type="button" className="flex w-full items-center justify-between text-sm font-medium" onClick={() => setShowPretax((v) => !v)}>
-          <span>Pre-tax deductions YTD</span>
-          {showPretax ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-        {showPretax && (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div><Label>401(k) / 403(b)</Label><Input type="number" inputMode="decimal" value={r401k} onChange={(e) => setR401k(e.target.value)} placeholder="0.00" /></div>
-            <div><Label>HSA</Label><Input type="number" inputMode="decimal" value={hsa} onChange={(e) => setHsa(e.target.value)} placeholder="0.00" /></div>
-            <div><Label>Health insurance</Label><Input type="number" inputMode="decimal" value={healthcare} onChange={(e) => setHealthcare(e.target.value)} placeholder="0.00" /></div>
-            <div><Label>Dental / vision</Label><Input type="number" inputMode="decimal" value={dental} onChange={(e) => setDental(e.target.value)} placeholder="0.00" /></div>
-            <div className="sm:col-span-2"><Label>Other pre-tax</Label><Input type="number" inputMode="decimal" value={otherPretax} onChange={(e) => setOtherPretax(e.target.value)} placeholder="0.00" /></div>
-          </div>
-        )}
-      </div>
+      {/* Pre-tax deductions (W-2 only) */}
+      {showPretaxSection && (
+        <div className="rounded-lg border border-border p-3">
+          <button type="button" className="flex w-full items-center justify-between text-sm font-medium" onClick={() => setShowPretax((v) => !v)}>
+            <span>Pre-tax deductions YTD</span>
+            {showPretax ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {showPretax && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div><Label>401(k) / 403(b)</Label><Input type="number" inputMode="decimal" value={r401k} onChange={(e) => setR401k(e.target.value)} placeholder="0.00" /></div>
+              <div><Label>HSA</Label><Input type="number" inputMode="decimal" value={hsa} onChange={(e) => setHsa(e.target.value)} placeholder="0.00" /></div>
+              <div><Label>Health insurance</Label><Input type="number" inputMode="decimal" value={healthcare} onChange={(e) => setHealthcare(e.target.value)} placeholder="0.00" /></div>
+              <div><Label>Dental / vision</Label><Input type="number" inputMode="decimal" value={dental} onChange={(e) => setDental(e.target.value)} placeholder="0.00" /></div>
+              <div className="sm:col-span-2"><Label>Other pre-tax</Label><Input type="number" inputMode="decimal" value={otherPretax} onChange={(e) => setOtherPretax(e.target.value)} placeholder="0.00" /></div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Post-tax deductions */}
       <div className="rounded-lg border border-border p-3">
