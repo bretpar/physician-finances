@@ -1226,7 +1226,7 @@ export default function ProjectedIncome() {
                 <p className="text-xs text-muted-foreground">
                   These streams have passed their end date and no longer contribute to projections.
                 </p>
-                <StreamTable
+                <CompanyAccordion
                   streams={expiredStreams}
                   onEdit={startEdit}
                   onDelete={setDeleteConfirm}
