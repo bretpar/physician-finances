@@ -812,7 +812,7 @@ export default function PersonalIncome() {
                         amountTone={isLoss ? "negative" : "positive"}
                         amountPrefix={isLoss ? "-" : "+"}
                         badges={badges}
-                        onClick={() => openEdit(entry)}
+                        onClick={() => setDetailEntry(entry)}
                       />
                       {attCount > 0 && (
                         <div className="px-4 pb-3 -mt-1">
