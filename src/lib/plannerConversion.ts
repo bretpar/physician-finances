@@ -39,6 +39,41 @@ export interface ConversionRunResult {
   duplicateSkipped: number;
   alreadyConverted: number;
   errors: number;
+  /** Per-occurrence audit log — useful for the dev/admin debug surface. */
+  audit?: Array<{
+    streamId: string;
+    company: string;
+    date: string;
+    matchStatus: string;
+    decision: "converted" | "duplicate" | "exists" | "error" | "skipped_future" | "skipped_matched";
+    bucket?: "personal" | "business";
+    error?: string;
+  }>;
+}
+
+const LAST_RUN_KEY = "planner_conversion_last_result";
+
+/** Persist a small "last run" snapshot so Settings/admin can show it. */
+function persistLastRun(result: ConversionRunResult) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      LAST_RUN_KEY,
+      JSON.stringify({ at: new Date().toISOString(), ...result }),
+    );
+  } catch { /* ignore */ }
+}
+
+export function getLastPlannerConversionRun():
+  | (ConversionRunResult & { at: string })
+  | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(LAST_RUN_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Resolve the income_type to store in ledger from the stream's company_type. */
