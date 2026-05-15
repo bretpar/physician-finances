@@ -1,5 +1,1 @@
-import Onboarding from "@/pages/Onboarding";
-
-export default function Signup() {
-  return <Onboarding />;
-}
+export { default } from "@/pages/Estimate";

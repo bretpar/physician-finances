@@ -370,7 +370,7 @@ async function persistEstimateToSettings(userId: string, input: QuickEstimateInp
   const payload: Record<string, unknown> = {
     onboarding_first_name: firstName,
     onboarding_complete: false,
-    onboarding_step: 3,
+    onboarding_step: 2,
     income_profile_type: incomeProfile,
     enabled_income_sources: enabledIncomeSources,
     filing_status: input.filingStatus,
