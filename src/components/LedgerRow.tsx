@@ -36,7 +36,7 @@ const KIND_ICON_CLASSES: Record<LedgerRowKind, string> = {
 
 export interface LedgerRowBadge {
   label: string;
-  tone?: "default" | "muted" | "warning" | "info" | "success";
+  tone?: "default" | "muted" | "warning" | "info" | "success" | "expense";
 }
 
 export interface LedgerRowProps {
