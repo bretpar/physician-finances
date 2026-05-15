@@ -681,8 +681,20 @@ export default function PersonalIncome() {
                   {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
                 <div className="min-w-0">
-                  <span className="text-sm font-medium text-foreground truncate block">{entry.name}</span>
+                  <span className="text-sm font-medium text-foreground truncate block flex items-center gap-1.5">
+                    {entry.name}
+                    {(entry as any).linked_ytd_catchup_id && (
+                      <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
+                        YTD
+                      </span>
+                    )}
+                  </span>
                   {entry.company && <span className="text-xs text-muted-foreground">{entry.company}</span>}
+                  {(entry as any).linked_ytd_catchup_id && (
+                    <span className="text-[10px] text-primary block">
+                      Setup income through {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </span>
+                  )}
                   {entry.notes?.includes("Converted from planned income") && (
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">From Income Planner</span>
                   )}
