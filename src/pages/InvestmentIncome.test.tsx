@@ -133,7 +133,7 @@ describe("InvestmentIncome page", () => {
     mockEntries = [entry({ id: "div-1", asset_name_or_ticker: "SCHD", investment_income_type: "dividend", taxable_amount: 125, sale_proceeds: null, cost_basis: null })];
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /delete schd/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /delete schd/i })[0]);
     fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
 
     await waitFor(() => expect(deleteMutate).toHaveBeenCalledWith("div-1"));
