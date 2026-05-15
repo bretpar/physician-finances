@@ -81,14 +81,12 @@ const fmtAmount = (n: number) =>
 
 const TONE_CLASS: Record<NonNullable<LedgerRowBadge["tone"]>, string> = {
   default: "border-border bg-background text-foreground",
-  muted: "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400",
+  muted: txTone("transfer").pill,
   warning:
     "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-  info: "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400",
-  success:
-    "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400",
-  expense:
-    "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-400",
+  info: txTone("info").pill,
+  success: txTone("income").pill,
+  expense: txTone("expense").pill,
 };
 
 const LONG_PRESS_MS = 450;
