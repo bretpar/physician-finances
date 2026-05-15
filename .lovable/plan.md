@@ -1,70 +1,78 @@
-# Multi-User Data Isolation Audit & Hardening
+# Consistent Transaction Detail Card
 
-## Current state (from audit)
+Add a single read-only "detail card" step that opens whenever a user clicks any transaction across the app, before any edit form is shown. Edit/Delete inside the card route into the existing form/confirmation flows — no rewrite of save logic.
 
-- **All 32 public tables have RLS enabled.**
-- **All user-owned tables have both `user_id` and `organization_id`** (only exceptions: `organizations` itself, `user_roles`, and join/system tables — all correct by design).
-- **Dual-policy pattern is already in place on every user table**: an org-scoped policy via `organization_id IN get_user_org_ids(auth.uid())` plus an "Owner fallback" policy for legacy rows where `organization_id IS NULL AND auth.uid() = user_id`.
-- **Signup is already correct**: `handle_new_user()` trigger on `auth.users` creates `organizations`, `organization_members` (role `owner`), `profiles`, and `tax_settings` rows — all keyed to `NEW.id`.
-- **Most hooks already call `getUserOrgId()`** and insert `organization_id` on writes.
+## New shared component
 
-So the foundation is sound. This plan focuses on the remaining gaps and on **proving** isolation with tests + a debug report.
+`src/components/TransactionDetailSheet.tsx` — controlled `Sheet` (mobile-friendly, drops to bottom on small screens, side panel on desktop).
 
-## Gaps to fix
+Props:
+```ts
+type DetailField = { label: string; value: ReactNode; mono?: boolean };
+type DetailSection = { title: string; fields: DetailField[] };
 
-### A. Database / RLS
+type TransactionDetailSheetProps = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  header: {
+    title: string;          // source / name
+    date: string;           // formatted
+    amount: number;
+    amountTone?: "income" | "expense" | "neutral";
+    badges?: { label: string; tone?: "default"|"success"|"warning"|"muted" }[];
+  };
+  sections: DetailSection[];          // Basic, Tax, Payment/Savings, Notes...
+  linked?: {                          // optional Linked Transactions section
+    items: { id: string; label: string; amount?: number; date?: string }[];
+    onUnlink?: (id: string) => void;
+    onLink?: () => void;              // opens existing link picker
+  };
+  primaryActions?: ReactNode;         // type-specific (Convert to ledger, etc.)
+  onEdit?: () => void;
+  onDelete?: () => void;
+};
+```
 
-1. **`plaid_items` SELECT** is owner-only (one policy, `auth.uid() = user_id`) — inconsistent with the dual-policy pattern. Add an org-scoped SELECT policy so org members can view shared Plaid items, mirroring the other Plaid tables.
-2. **`transaction_match_ignores`** is missing an UPDATE policy (intentional since rows are immutable) — leave as is, but document.
-3. **`transaction_attachments`** has only one UPDATE and one DELETE policy — verify the single policy covers both org + owner-fallback; if not, split into the standard pair.
-4. Add a **trigger** on every user-owned table that enforces `NEW.user_id = auth.uid()` on INSERT when called from an authenticated context (defense-in-depth so a future buggy policy can't let one user write rows under another user's id). Skip for service-role / edge-function paths by checking `auth.role() = 'authenticated'`.
+Layout:
+- Header: date · type badges · large amount · source/name
+- Sections rendered as `<dl>` with label/value rows
+- Linked Transactions section (if provided) with per-item Unlink + a "Link transactions" button
+- Footer: secondary special actions (left), Edit + Delete (right). Delete uses `variant="destructive"`.
 
-### B. Frontend hooks
+## Page wiring
 
-Sweep all hooks under `src/hooks/` and ensure every user-write path:
+For each list page, intercept the row/card click to open the detail sheet first. The existing "open edit form" handler becomes the sheet's `onEdit`. Existing delete-confirm becomes `onDelete`.
 
-- Calls `getUserOrgId()` and includes `organization_id: orgId` in inserts.
-- Includes `user_id: user.id` in inserts (RLS already requires it but be explicit).
-- Adds `.eq("organization_id", orgId)` on selects for **new** queries; existing queries that rely solely on RLS keep working but get an explicit filter for defense-in-depth where it doesn't break legacy NULL-org rows.
+| Page | Existing edit fn | Detail sections / extras |
+|---|---|---|
+| `src/pages/PersonalIncome.tsx` | `openEdit(entry)` | Basic (title, date, source, category), Tax (taxable, withheld), Payment, Linked transactions (existing transaction-link picker) |
+| `src/pages/BusinessActivity.tsx` | `openEditIncome` / `openEditExpense` | Basic (date, vendor/source, company, category, amount), Tax (deductible, business_use_pct), Linked (existing link multi-select), Imported source/plaid badge |
+| `src/pages/ProjectedIncome.tsx` | row click currently navigates / opens convert | Header shows planned date + amount + status (Active/Converted/Matched/Skipped). Primary action: "Convert to ledger" (uses `openConvert`) when not converted; otherwise "Open ledger row". Secondary: Override, Skip/Restore. Edit → `openOverrideEdit`. |
+| `src/pages/InvestmentIncome.tsx` | `openEdit(entry)` | Basic (date, asset, type), Tax (proceeds, cost basis, taxable amount, recommended set-aside, actual saved) |
+| `src/components/RecentTransactions.tsx` (dashboard) | navigates | Opens same detail sheet using ledger row data |
+| Plaid/imported rows (inside BusinessActivity / PersonalIncome list) | — | Same sheet; show "Imported from Plaid" badge + raw merchant; Link action when unlinked |
 
-Hooks confirmed already correct: `useIncome`, `usePersonalIncome`, `useInvestmentIncome`, `useTransactions`, `useStocks`, `useTaxPayments`, `useTaxSavings`, `useRetirementContributions`, `useMileage`, `useHomeOfficeDeductions`, `useHsaContributions`, `useYtdCatchup`, `useAttachments`, `useIncomeSources`, `useTransactionMatching`, `useProjectedIncome`.
+Row-level inline icon buttons (edit/delete) and dropdown menus are preserved as power-user shortcuts and bypass the detail sheet.
 
-Hooks to spot-check & patch if missing: `useTaxSettings`, `useTransactionLinks` (if exists), any direct `supabase.from(...)` calls inside page components.
+## Linked-transactions reuse
 
-### C. Tests
-
-Add `src/test/dataIsolation.test.ts` (vitest, runs against the real backend with two seeded users via the existing `test-seed-users` edge function):
-
-1. Seed User A and User B (each gets their own org via the signup trigger).
-2. As User A: insert rows in `companies`, `income_entries`, `transactions`, `projected_income_streams`, `planner_conversions`, `tax_settings`.
-3. As User B: insert a separate set of rows.
-4. Re-auth as A → assert `select *` returns zero of B's rows in every table.
-5. Re-auth as B → same in reverse.
-6. Cross-user **direct attack**: as A, try `update`/`delete` by row id against B's rows → assert RLS blocks (zero rows affected, no error leaked).
-7. Service-role edge function (`test-verify-user`) must scope queries by user_id; add an assertion that calling it with User A's id never returns User B rows.
-
-### D. Admin debug report
-
-New page `src/pages/admin/DataIsolationReport.tsx`, only visible when `has_role(auth.uid(), 'admin')` returns true (route guarded). It calls a new edge function `data-isolation-report` (service role) that returns, per table:
-
-- Total row count.
-- Row count grouped by `user_id` and `organization_id`.
-- Rows with `user_id IS NULL` (should always be 0 going forward).
-- Rows with `organization_id IS NULL` created **after** the deploy timestamp of this fix.
-- Rows where `organization_id` does not appear in `organization_members` for the row's `user_id` (cross-org leak).
-
-UI shows a table per audited entity with green check / red flag and a copy-to-clipboard JSON dump.
-
-## Files
-
-- `supabase/migrations/<timestamp>_data_isolation_hardening.sql` — fix `plaid_items` SELECT, normalize `transaction_attachments`, add `enforce_user_id_matches_auth()` trigger function and attach to all user-owned tables.
-- `supabase/functions/data-isolation-report/index.ts` — new service-role read-only report.
-- `src/pages/admin/DataIsolationReport.tsx` + route in `App.tsx`, guarded by admin role.
-- `src/test/dataIsolation.test.ts` — cross-user vitest suite.
-- Minor patches to any hook missing `organization_id` on insert (sweep pass).
+Reuse the existing link picker (the multi-select transaction link UI already used on Business/Personal pages). Detail card just exposes: list current links, "Unlink" per item, "Link transactions" opens that picker.
 
 ## Out of scope
 
-- Restructuring the existing fallback policies (they're correct).
-- Touching `auth.*` schema.
-- Building a UI that merges users' data (explicitly forbidden by the request).
+- No DB changes
+- No changes to forms, validation, save handlers, delete handlers, or calculation logic
+- No removal of existing edit forms or confirmations
+- No new keyboard shortcuts or routing
+
+## Files
+
+Created:
+- `src/components/TransactionDetailSheet.tsx`
+
+Edited (small wiring deltas only):
+- `src/pages/PersonalIncome.tsx`
+- `src/pages/BusinessActivity.tsx`
+- `src/pages/ProjectedIncome.tsx`
+- `src/pages/InvestmentIncome.tsx`
+- `src/components/RecentTransactions.tsx`
