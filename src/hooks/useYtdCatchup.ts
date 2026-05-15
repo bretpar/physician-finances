@@ -223,29 +223,25 @@ export function useUpsertYtdCatchup() {
         if (error) throw error;
         saved = data;
       }
-      // Mirror business catch-ups into the ledger so they show up in
-      // Business Activity. Tax engine de-dupes via overlap subtraction.
+      // Mirror catch-ups into the appropriate ledger so they show up in
+      // Business Activity (1099/K-1) or Personal Income (W-2/other). Tax
+      // engine de-dupes via overlap subtraction / include_in_tax_estimate.
       try {
-        await syncCatchupTransaction({
-          catchupId: saved.id,
+        await syncCatchupMirror({
+          catchupEntry: saved as YtdCatchupEntry,
           userId: user.id,
           orgId,
-          sourceType: saved.source_type as YtdCatchupSourceType,
-          companyId: saved.company_id ?? null,
-          companyName: saved.company_name ?? "",
-          periodEnd: saved.period_end,
-          grossIncome: Number(saved.gross_income) || 0,
-          federalWithholding: Number(saved.federal_withholding) || 0,
-          stateWithholding: Number(saved.state_withholding) || 0,
         });
       } catch (e) {
-        console.warn("[useYtdCatchup] failed to sync paired transaction", e);
+        console.warn("[useYtdCatchup] failed to sync ledger mirror", e);
       }
       return saved;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       toast.success("YTD catch-up saved");
     },
     onError: (e: any) => toast.error(e.message || "Could not save catch-up entry"),
