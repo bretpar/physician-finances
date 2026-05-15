@@ -1424,16 +1424,16 @@ export default function Transactions() {
                 <span className="text-xs text-muted-foreground truncate">
                   {getTransactionCompanyLabel(tx)}
                 </span>
-                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>
-                  {isIncomeTx ? "+" : isTransferTx ? "" : ""}{fmt(displayAmount)}
+                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-slate-500 dark:text-slate-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {isIncomeTx ? "+" : isTransferTx ? "" : "-"}{fmt(Math.abs(displayAmount))}
                 </span>
                 <span className="text-center">
                   <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${
                     isIncomeTx
                       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                       : isTransferTx
-                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400"
+                        : "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400"
                   }`}>
                     {isIncomeTx ? "Income" : isTransferTx ? transferLabel : "Expense"}
                   </span>
@@ -1518,8 +1518,8 @@ export default function Transactions() {
                   });
                   // Primary badges (kept visible): type for transfers, review state
                   const badges: LedgerRowBadge[] = [];
-                  if (isTransferTx) badges.push({ label: transferLabel, tone: "info" });
-                  else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "muted" });
+                  if (isTransferTx) badges.push({ label: transferLabel, tone: "muted" });
+                  else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "expense" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
                   const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
@@ -1665,7 +1665,7 @@ export default function Transactions() {
                       meta={null}
                       date={dateStr}
                       amount={displayAmount}
-                      amountTone={isIncomeTx ? "positive" : isTransferTx ? "neutral" : "neutral"}
+                      amountTone={isIncomeTx ? "positive" : isTransferTx ? "neutral" : "negative"}
                       amountPrefix={isIncomeTx ? "+" : isTransferTx ? "" : "-"}
                       badges={badges}
                       expandableContent={expandableContent}
