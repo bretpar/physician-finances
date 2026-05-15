@@ -112,9 +112,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }`}
       >
         <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-          <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center">
-            <PiggyBank className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
+          <BrandLogo className="h-9 w-9 rounded-lg" />
           <div className="min-w-0 flex-1">
             <h1 className="text-base font-semibold text-sidebar-primary-foreground">Paycheck MD</h1>
             <p className="text-xs text-sidebar-foreground truncate">{organizationName || "Physician Portal"}</p>
