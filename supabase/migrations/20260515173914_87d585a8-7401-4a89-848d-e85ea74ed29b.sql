@@ -1,0 +1,2 @@
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS origin_ytd_catchup_id uuid;
+CREATE INDEX IF NOT EXISTS idx_transactions_origin_ytd_catchup_id ON public.transactions(origin_ytd_catchup_id) WHERE origin_ytd_catchup_id IS NOT NULL;
