@@ -8,7 +8,7 @@
  *  - Non-qualified (ordinary) dividend: ordinary/effective rate
  */
 
-import { LTCG_BRACKETS, type FilingStatus, calcBracketTax } from "@/lib/taxBrackets";
+import { LTCG_BRACKETS, ORDINARY_BRACKETS, type FilingStatus, type Bracket, calcBracketTax } from "@/lib/taxBrackets";
 import type { InvestmentIncomeType } from "@/hooks/useInvestmentIncome";
 
 export type InvestmentTaxMethod =
