@@ -232,6 +232,7 @@ export default function ProjectedIncome() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<StreamForm>(emptyForm());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [detailEntry, setDetailEntry] = useState<ProjectedPaycheck | null>(null);
   const [convertTarget, setConvertTarget] = useState<ProjectedPaycheck | null>(null);
   const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
   const [advancedOpen, setAdvancedOpen] = useState(false);
