@@ -769,14 +769,12 @@ function OnboardingPreferencesSection() {
   const d = draft.draft;
 
   return (
-    <SectionCard title="Plan & HSA" icon={<Settings2 className="h-5 w-5" />} description="Manage your subscription tier and HSA contribution settings. Income types are configured in Dashboard Personalization above." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
+    <SectionCard title="Plan" icon={<Settings2 className="h-5 w-5" />} description="Manage your subscription tier. Income types are configured in Dashboard Personalization above." isDirty={draft.isDirty} isSaving={draft.isSaving} justSaved={savedTick} onSave={draft.save} onCancel={draft.cancel}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div><Label className="text-xs text-muted-foreground mb-1.5 block">Plan status</Label><Select value={d.subscriptionTier} onValueChange={(v) => draft.patch({ subscriptionTier: v as OnboardingSubscriptionTier })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select></div>
       </div>
       <Separator className="my-2" />
-      <p className="text-xs text-muted-foreground">Deduction method (Standard or Itemized) is set in Tax Profile below.</p>
-      <Separator className="my-2" />
-      <HsaSettingsSection bare />
+      <p className="text-xs text-muted-foreground">Deduction method (Standard or Itemized) is set in Tax Profile below. HSA tracking has moved to Profile & Tax Profile.</p>
     </SectionCard>
   );
 }
@@ -1676,31 +1674,6 @@ function ConnectedAccountsSection() {
                 <span className="sm:hidden">Connect</span>
               </Button>
             </div>
-            {needsReviewTransactions.length > 0 && (
-              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Needs Review</p>
-                    <p className="text-xs text-muted-foreground">{needsReviewTransactions.length} imported Plaid transaction{needsReviewTransactions.length !== 1 ? "s" : ""} waiting for account assignment.</p>
-                  </div>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => backfillMutation.mutate(undefined)} disabled={backfillMutation.isPending}>
-                    {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    Re-sync / Backfill missing transactions
-                  </Button>
-                </div>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {(needsReviewTransactions as any[]).slice(0, 8).map((tx) => (
-                    <div key={tx.id} className="flex items-center justify-between gap-3 rounded-md bg-card px-3 py-2 text-xs">
-                      <div className="min-w-0">
-                        <p className="font-medium text-card-foreground truncate">{tx.merchant_name || tx.name}</p>
-                        <p className="text-muted-foreground truncate">{tx.account?.account_name || tx.plaid_account_id} · {tx.date}</p>
-                      </div>
-                      <span className="font-mono text-muted-foreground shrink-0">${Number(tx.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             {plaidItems.map((item) => {
               const accounts = plaidAccounts.filter((a) => a.plaid_item_id === item.id);
               const expanded = expandedItems.has(item.id);
@@ -2185,6 +2158,8 @@ export default function Settings() {
         <ProfileSection justSavedFlag={justSavedFlag} />
         <Separator className="my-2" />
         <TaxProfileSection />
+        <Separator className="my-2" />
+        <HsaSettingsSection bare />
         <Separator className="my-2" />
         <ForecastingAutomationSection bare />
       </SectionCard>
