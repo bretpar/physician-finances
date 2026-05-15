@@ -1,94 +1,45 @@
-# Surface business YTD catch-up in Business Activity ledger
+# Planned business expenses for 1099 / SE forecast
 
-## Problem
+**Problem.** "Include planned income" adds projected 1099 / K-1 / Schedule C gross receipts to the forecast, but there is no place to enter expected business expenses against that projected gross. The tax engine therefore models projected business income as 100% net profit, overstating SE tax and federal/state liability for any 1099 physician with real overhead.
 
-Business YTD catch-up entries (`ytd_catchup_entries` with `source_type = '1099_k1'`)
-are counted by the tax engine but never appear in the Business Activity ledger,
-which reads only from `transactions`. Adding a duplicate transaction would
-double-count taxes because the engine's overlap safeguard subtracts overlapping
-`income_entries`, not overlapping `transactions`.
+**Approach.** Add a per-stream forecast expense field on business-type projected income streams plus a clearly labelled forecast assumption note. The field flows into the unified tax engine so projected SE / business income is reduced by expected expenses before SE tax, QBI, and federal/state calcs run. W-2 streams are unaffected.
 
-## Approach
+## Scope
 
-Insert one real income `transaction` per business YTD catch-up entry, tagged so
-both the ledger and the tax engine know its origin. Extend the engine's overlap
-safeguard so overlapping catch-up-origin `transactions` are also subtracted.
-The catch-up entry remains the source of truth — the transaction is its
-projection into the ledger and gets kept in sync.
+1. **Schema.** Add two columns to `projected_income_streams`:
+   - `forecast_expense_per_period numeric not null default 0` — dollars of expected business expense per pay period (mirrors the per-paycheck shape of every other field on the row).
+   - `forecast_expense_notes text not null default ''` — free-text assumption, e.g. "malpractice $X/mo + CME".
+   
+   No data migration needed (defaults make existing rows behave identically to today).
 
-## Changes
+2. **Hook (`useProjectedIncome.ts`).**
+   - Extend `ProjectedIncomeStream` and `ProjectedPaycheck` types with the new fields.
+   - Carry `forecast_expense_per_period` from the stream into each generated paycheck (`generateProjectedPaychecks`).
+   - Aggregate `forecastBusinessExpenses` in `getProjectedTotals`, summing only paychecks whose stream classifies as `se` (1099 / K-1) and whose `matchStatus === "active"`. W-2 and "other" streams contribute 0.
 
-### 1. Schema (migration)
+3. **Tax wiring (`useTaxEstimate.ts`).**
+   - Read `projTotals.forecastBusinessExpenses` and add it onto the existing `businessExpenses` total that is passed to the engine. This naturally reduces `seIncome - businessExpenses` net profit, SE tax, and the federal/state taxable base — the same overlap-safe math already used for actual transactions.
+   - No change to withholding routing or to actual-only mode (totals only kick in when `incomeScope === "actualPlusPlanned"` because the projected SE income itself only counts then).
 
-- `transactions`: add column `origin_ytd_catchup_id uuid` (nullable, indexed).
-- Extend `origin_type` usage to include the value `'ytd_catchup'` (no enum
-  change needed — column is `text`).
-- No RLS changes (existing policies on `transactions` already cover it).
+4. **UI (`ProjectedIncome.tsx`).**
+   - In the create/edit stream form, when the resolved subtype is a business filing (`1099_schedule_c`, `k1_partnership`, `scorp_distribution`), render a "Forecast business expenses (per pay period)" currency input plus a "Assumption notes" textarea. Hide both for W-2.
+   - Add a one-line helper under the field: *"Estimated overhead reduces projected business profit before SE tax. Leave 0 to forecast gross receipts only."*
+   - Show the per-period expense and an annualized total ("≈ $X / yr") on the stream card so the assumption is visible at a glance.
 
-### 2. Sync layer (`useYtdCatchup.ts`)
+5. **Tests.**
+   - Extend `unifiedTaxEngine.test.ts` with a case: $200k projected SE gross + $5k/period forecast expense over N periods → engine receives `seIncome=200k`, `businessExpenses += N*5000`, net SE profit drops accordingly, SE tax drops.
+   - Extend `useProjectedIncome` totals test (or add one) to confirm W-2 streams never contribute forecast expenses.
 
-When a business catch-up (`source_type = '1099_k1'`) is created/updated:
+## Out of scope
 
-- Upsert one paired row in `transactions` with:
-  - `transaction_type = 'income'`
-  - `transaction_date = period_end`
-  - `vendor = 'YTD catch-up: ' + company_name`
-  - `amount = gross_income`
-  - `actual_withholding = federal_withholding + state_withholding`
-  - `source_id = company_id`, `entity = company_name`, `company_type = '1099_schedule_c'`
-  - `origin_type = 'ytd_catchup'`, `origin_ytd_catchup_id = catchup.id`
-  - `status = 'active'`, `excluded_from_reports = false`, `user_edited = false`
-
-When deleted, also delete the paired transaction.
-
-W‑2 and "other" catch-ups do NOT get a paired transaction (they are personal,
-not business ledger).
-
-### 3. Tax engine overlap safeguard (`useTaxEstimate.ts`)
-
-Currently subtracts overlapping `income_entries` (excluding `entry_kind = 'ytd_catchup'`)
-from each catch-up bucket. Extend to also subtract overlapping business
-`transactions` for the `business` bucket only:
-
-- For a business catch-up entry, find `transactions` where:
-  - `transaction_type = 'income'`
-  - `status = 'active'`, not excluded
-  - `origin_type != 'ytd_catchup'` (skip the synthetic row we just created)
-  - `transaction_date BETWEEN period_start AND period_end`
-- Subtract their `amount` from `cBizGross`, and subtract proportional
-  `actual_withholding` from `cFedW`.
-
-This guarantees: even though the catch-up now has a paired transaction in the
-ledger, the canonical-business sum already includes that transaction, and the
-catch-up's own bucket clamps to zero for the overlapping portion. No double
-count.
-
-### 4. Ledger UI (`BusinessActivity.tsx`)
-
-- Render catch-up-origin rows with a visible "YTD catch-up" badge.
-- Make these rows read-only in the ledger (edit/delete disabled); show
-  hint text "Edit on the YTD catch-up form".
-- Clicking edit/delete opens the YTD catch-up form pre-filled with the linked
-  entry.
-
-### 5. Backfill (one-time, via insert tool after migration)
-
-For every existing `ytd_catchup_entries` row with `source_type = '1099_k1'`
-that has no paired transaction, insert the matching transaction.
+- No Plaid / transaction-level "planned expense" rows. The field is a simple per-stream assumption, not a ledger entry.
+- No category breakdown. Single dollar amount + notes is enough to remove the gross-only blind spot.
+- Past-due or matched paychecks do not contribute forecast expenses (actual transactions cover them).
 
 ## Files touched
 
-- New migration (schema + index).
-- `src/hooks/useYtdCatchup.ts` — upsert/delete paired transaction.
-- `src/hooks/useTaxEstimate.ts` — extend overlap subtraction for business bucket.
-- `src/pages/BusinessActivity.tsx` — badge + read-only treatment for
-  catch-up-origin rows.
-- Backfill insert (separate step).
-
-## Verification
-
-- Existing `useTaxEstimate` overlap tests still pass.
-- Add unit test: business catch-up of $50k + paired transaction of $50k →
-  Tax Overview business gross = $50k (not $100k), ledger shows the row once.
-- Manual: create a business catch-up, confirm row appears in Business Activity
-  with badge, confirm Tax Overview Gross Business Income matches Ledger total.
+- New migration: `projected_income_streams` add columns.
+- `src/hooks/useProjectedIncome.ts` — types, paycheck generation, totals.
+- `src/hooks/useTaxEstimate.ts` — feed forecast expenses into engine input.
+- `src/pages/ProjectedIncome.tsx` — form + card display.
+- `src/test/unifiedTaxEngine.test.ts` (+ optional projected totals test).
