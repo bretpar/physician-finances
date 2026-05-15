@@ -13,6 +13,10 @@ export interface MatchableIncomeEntry {
   paycheck_amount: number;
   income_type: string;
   status: string;
+  /** Set when the entry was created via a confirmed planner conversion. */
+  origin_planner_conversion_id?: string | null;
+  /** "planner_conversion" indicates the entry is the confirmed actual for a projected paycheck. */
+  entry_kind?: string | null;
 }
 
 /* ─── Types ─── */
@@ -81,7 +85,7 @@ export interface ProjectedIncomeOverride {
   updated_at: string;
 }
 
-export type ProjectedMatchStatus = "active" | "matched" | "past_due" | "skipped" | "converted";
+export type ProjectedMatchStatus = "active" | "suggested" | "matched" | "past_due" | "skipped" | "converted";
 
 /** Minimal shape of planner_conversions used to tag occurrences. */
 export interface PlannerConversionRef {
@@ -109,10 +113,14 @@ export interface ProjectedPaycheck {
   isModified?: boolean;
   /** New: tracks whether this projected paycheck has been matched to actual income */
   matchStatus: ProjectedMatchStatus;
-  /** If matched, the ID of the actual income entry */
+  /** If matched (confirmed link), the ID of the actual income entry */
   matchedIncomeId?: string;
   /** If matched, the actual amount received */
   matchedAmount?: number;
+  /** If suggested (heuristic only — NOT yet confirmed), the candidate income entry id */
+  suggestedIncomeId?: string;
+  /** If suggested, the candidate's gross amount for display only */
+  suggestedAmount?: number;
   /** Company type from the stream (W2, 1099, K1, etc.) */
   streamCompanyType?: string;
   /** If this is a bonus entry, the originating bonus event id */
@@ -714,13 +722,32 @@ export function generateProjectedPaychecks(
 
     if (match) {
       usedEntryIds.add(match.entry.id);
-      paychecks.push({
-        ...raw,
-        netAmount: Math.max(0, net),
-        matchStatus: "matched",
-        matchedIncomeId: match.entry.id,
-        matchedAmount: Number(match.entry.paycheck_amount),
-      });
+      // Only treat as truly "matched" when there is a stored relationship —
+      // i.e. the actual income entry was created via a confirmed planner
+      // conversion (entry_kind === "planner_conversion" or
+      // origin_planner_conversion_id present). Heuristic name+amount+date
+      // matches are surfaced as "suggested" until the user confirms.
+      const hasStoredLink =
+        match.entry.entry_kind === "planner_conversion" ||
+        Boolean(match.entry.origin_planner_conversion_id);
+
+      if (hasStoredLink) {
+        paychecks.push({
+          ...raw,
+          netAmount: Math.max(0, net),
+          matchStatus: "matched",
+          matchedIncomeId: match.entry.id,
+          matchedAmount: Number(match.entry.paycheck_amount),
+        });
+      } else {
+        paychecks.push({
+          ...raw,
+          netAmount: Math.max(0, net),
+          matchStatus: "suggested",
+          suggestedIncomeId: match.entry.id,
+          suggestedAmount: Number(match.entry.paycheck_amount),
+        });
+      }
     } else {
       // Check if past due
       const pDate = parseISO(raw.date);
@@ -783,6 +810,10 @@ export function getProjectedTotals(
   };
 
   for (const p of paychecks) {
+    // "suggested" is excluded from projected totals just like "matched" to
+    // avoid double-counting with the actual income entry that the heuristic
+    // pointed at. The UI still labels it "Suggested match" until the user
+    // confirms; if they dismiss it, the paycheck flips back to "active".
     if (p.matchStatus !== "active") continue;
     const stream = streamById.get(p.streamId);
     const bucket = classifyStreamType(stream?.company_type ?? p.streamCompanyType);
