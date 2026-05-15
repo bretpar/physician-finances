@@ -1068,19 +1068,28 @@ export default function Transactions() {
             <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30">
-            {(["all", "income", "expense", "transfer"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setFilterType(tab)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
-                  filterType === tab
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab === "all" ? "All" : tab === "income" ? "Income" : tab === "expense" ? "Expenses" : "Transfers"}
-              </button>
-            ))}
+            {(["all", "income", "expense", "transfer"] as const).map((tab) => {
+              const active = filterType === tab;
+              const activeTone =
+                tab === "income"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-sm"
+                  : tab === "expense"
+                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 shadow-sm"
+                    : tab === "transfer"
+                      ? "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400 shadow-sm"
+                      : "bg-background text-foreground shadow-sm";
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setFilterType(tab)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
+                    active ? activeTone : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab === "all" ? "All" : tab === "income" ? "Income" : tab === "expense" ? "Expenses" : "Transfers"}
+                </button>
+              );
+            })}
           </div>
         </div>
         {/* Mobile advanced filters */}

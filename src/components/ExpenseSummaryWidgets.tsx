@@ -17,13 +17,13 @@ export default function ExpenseSummaryWidgets(summary: ExpenseSummary) {
     <div className="space-y-3">
       {/* Main stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        <StatCard label="Business Expenses" value={fmt(summary.totalBusinessExpenses)} icon={Briefcase} variant="default" />
-        <StatCard label="Personal Expenses" value={fmt(summary.totalPersonalExpenses)} icon={User} variant="default" trend="Excluded from tax" />
+        <StatCard label="Business Expenses" value={fmt(summary.totalBusinessExpenses)} icon={Briefcase} variant="expense" />
+        <StatCard label="Personal Expenses" value={fmt(summary.totalPersonalExpenses)} icon={User} variant="neutral" trend="Excluded from tax" />
         <StatCard label="Uncategorized" value={fmt(summary.uncategorizedTotal)} icon={HelpCircle} variant="warning" trend="Needs review" />
         <StatCard label="Unassigned" value={fmt(summary.unassignedTotal)} icon={AlertCircle} variant="warning" trend="No company" />
         <StatCard label="Deductible Total" value={fmt(summary.deductibleTotal)} icon={Receipt} variant="success" />
-        <StatCard label="Month-to-Date" value={fmt(summary.mtdExpenses)} icon={Calendar} variant="default" />
-        <StatCard label="Year-to-Date" value={fmt(summary.ytdExpenses)} icon={TrendingDown} variant="destructive" />
+        <StatCard label="Month-to-Date" value={fmt(summary.mtdExpenses)} icon={Calendar} variant="expense" />
+        <StatCard label="Year-to-Date" value={fmt(summary.ytdExpenses)} icon={TrendingDown} variant="expense" />
         {topCompanies[0] && (
           <StatCard label={topCompanies[0][0]} value={fmt(topCompanies[0][1])} icon={Building2} variant="default" trend="Top company" />
         )}
