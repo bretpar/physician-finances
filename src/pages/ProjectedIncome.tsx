@@ -1934,6 +1934,89 @@ export default function ProjectedIncome() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Read-only detail card for projected paychecks */}
+      {detailEntry && (() => {
+        const e = detailEntry;
+        const dismissKey = `${e.streamId}:${e.date}`;
+        const isDismissed = dismissedSuggestions.has(dismissKey);
+        const isMatched = e.matchStatus === "matched";
+        const isSuggested = e.matchStatus === "suggested" && !isDismissed;
+        const isSkipped = e.matchStatus === "skipped";
+        const isPastDue = e.matchStatus === "past_due";
+        const override = overrideLookup.get(dismissKey);
+        const isOverrideConverted = isSkipped && override?.notes?.includes("Converted to actual income");
+        const isConverted = e.matchStatus === "converted" || isOverrideConverted;
+        const _t = (e.streamCompanyType || "").toLowerCase();
+        const isBizType = _t === "1099" || _t === "k1" || _t === "1099_schedule_c" || _t === "k1_partnership" || _t === "scorp_distribution";
+        const viewDestination = isBizType ? "/business-activity" : "/personal-income";
+        const viewLabel = isBizType ? "Business Activity" : "Personal Income";
+        const statusLabel = isConverted ? "Converted" : isMatched ? "Matched" : isSuggested ? "Suggested match" : isSkipped ? "Skipped" : isPastDue ? "Past due" : "Active";
+        const statusTone = isConverted || isMatched ? "success" : isSuggested || isPastDue ? "warning" : isSkipped ? "destructive" : "default";
+
+        const sections: DetailSection[] = [
+          {
+            title: "Basic details",
+            fields: [
+              { label: "Source", value: e.label },
+              { label: "Type", value: e.type === "bonus" ? "Bonus" : "Paycheck" },
+              ...(e.streamCompanyType ? [{ label: "Filing", value: e.streamCompanyType }] : []),
+              { label: "Status", value: statusLabel },
+              ...(isMatched && e.matchedAmount != null ? [{ label: "Actual deposit", value: fmtFull(e.matchedAmount), mono: true }] : []),
+            ],
+          },
+          {
+            title: "Tax details",
+            fields: [
+              { label: "Gross", value: fmtFull(e.grossAmount), mono: true },
+              ...(e.federalWithholding > 0 ? [{ label: "Federal", value: fmtFull(e.federalWithholding), mono: true }] : []),
+              ...(e.retirement401k > 0 ? [{ label: "401(k)", value: fmtFull(e.retirement401k), mono: true }] : []),
+            ],
+          },
+        ];
+
+        const primaryActions = (
+          <>
+            {!isConverted && !isMatched && !isSkipped && (
+              <Button variant="outline" size="sm" className="justify-start" onClick={() => { setDetailEntry(null); openConvert(e); }}>
+                <CheckCircle2 className="h-4 w-4 mr-2" /> Convert to ledger
+              </Button>
+            )}
+            {(isConverted || isMatched) && (
+              <Button variant="outline" size="sm" className="justify-start" onClick={() => { setDetailEntry(null); navigate(viewDestination); }}>
+                <ExternalLink className="h-4 w-4 mr-2" /> Open in {viewLabel}
+              </Button>
+            )}
+            {isSkipped ? (
+              <Button variant="outline" size="sm" className="justify-start" onClick={() => { setDetailEntry(null); handleRestore(e); }}>
+                <RotateCcw className="h-4 w-4 mr-2" /> Restore
+              </Button>
+            ) : !isConverted && (
+              <Button variant="outline" size="sm" className="justify-start text-destructive" onClick={() => { setDetailEntry(null); handleSkip(e); }}>
+                <X className="h-4 w-4 mr-2" /> Skip
+              </Button>
+            )}
+          </>
+        );
+
+        return (
+          <TransactionDetailSheet
+            open={!!detailEntry}
+            onOpenChange={(o) => { if (!o) setDetailEntry(null); }}
+            header={{
+              title: e.label,
+              date: new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              amount: e.grossAmount,
+              amountTone: isSkipped ? "neutral" : "income",
+              badges: [{ label: statusLabel, tone: statusTone }],
+            }}
+            sections={sections}
+            primaryActions={primaryActions}
+            onEdit={() => { const t = e; setDetailEntry(null); openOverrideEdit(t); }}
+            hideDelete
+          />
+        );
+      })()}
     </div>
   );
 }
