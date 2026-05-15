@@ -322,7 +322,7 @@ export default function Estimate() {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">At least 8 characters with letters and numbers.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Use at least 8 characters.</p>
                 </div>
                 <p className="text-xs text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p>
               </div>
