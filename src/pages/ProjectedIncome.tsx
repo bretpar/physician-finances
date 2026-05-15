@@ -393,6 +393,8 @@ export default function ProjectedIncome() {
       hsa_contribution: String(s.hsa_contribution || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
       additional_tax_reserve: String(s.additional_tax_reserve || 0),
+      forecast_expense_per_period: String(s.forecast_expense_per_period || 0),
+      forecast_expense_notes: s.forecast_expense_notes || "",
       notes: s.notes || "",
       is_active: s.is_active,
       include_in_tax: s.include_in_tax,
