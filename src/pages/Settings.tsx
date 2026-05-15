@@ -1485,7 +1485,11 @@ function ConnectedAccountsSection() {
         onExit: () => {},
       });
       handler.open();
-    } catch { toast.error("Failed to open bank connection"); }
+    } catch (e: any) {
+      toast.dismiss(loadingToast);
+      console.error("handleConnectBank error", e);
+      toast.error(e?.message || "Failed to open bank connection");
+    }
     finally { setLinkLoading(false); }
   };
 
