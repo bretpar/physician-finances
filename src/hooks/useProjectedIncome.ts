@@ -49,6 +49,10 @@ export interface ProjectedIncomeStream {
   hsa_contribution: number;
   additional_tax_reserve: number;
   notes: string;
+  /** Forecast business expenses per pay period (1099 / K-1 / Schedule C only). 0 = forecast gross only. */
+  forecast_expense_per_period: number;
+  /** Free-text assumption note documenting the expense estimate (e.g. "malpractice $X/mo + CME"). */
+  forecast_expense_notes: string;
   created_at: string;
   updated_at: string;
 }
