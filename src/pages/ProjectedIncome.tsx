@@ -166,6 +166,8 @@ const emptyForm = (monthIdx?: number): StreamForm => {
     hsa_contribution: "",
     pre_tax_deductions: "",
     additional_tax_reserve: "",
+    forecast_expense_per_period: "",
+    forecast_expense_notes: "",
     notes: "",
     is_active: true,
     include_in_tax: true,
