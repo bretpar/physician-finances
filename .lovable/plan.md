@@ -1,29 +1,91 @@
-# Improve YTD catch-up onboarding step
+# Plan: Test/seed harness for Codex E2E
 
-When a user picks "Yes, help me catch up" in onboarding step 3, they land on the YTD catch-up form (which captures an employer/company plus paystub totals). Today, after saving an entry, the only path to add another is the form's own re-entry, and existing entries can only be deleted from the recap — not edited. This makes the multi-employer flow clumsy and fragile to typos.
+Add a token-gated, production-safe way for Codex to (1) create predictable test
+users with realistic May 2026 onboarding data and (2) read back the key
+calculated values from the tax engine — without depending on direct Supabase
+Auth signup or browser automation.
 
-## Changes
+## What gets built
 
-1. **"Add another employer" affordance after save**
-   - After `YtdCatchupForm` saves, collapse the form into a saved-state row and surface a primary "Add another employer" button right below the recap, instead of relying on the user to scroll back into a fresh form.
-   - The button resets the form to a blank entry (preserving period defaults) so the user can immediately add the next paystub without leaving the screen or hitting Continue.
-   - Keep the bottom "Continue" button as the way to advance to the next onboarding step once they're done.
+### 1. Secret + token gate
 
-2. **Edit existing entries inline**
-   - In `YtdCatchupRecap`, add an Edit (pencil) action next to each entry alongside the existing Delete.
-   - Clicking Edit loads that entry into `YtdCatchupForm` in edit mode (it already supports `initial`), scrolls the form into view, and changes the save button to "Save changes". Cancel returns to the add-new state.
-   - Show entries grouped by employer with their gross / federal / state totals so mistakes are easy to spot.
+- New project secret: `TEST_SEED_ADMIN_TOKEN`.
+- Both edge functions reject requests unless the `Authorization: Bearer …`
+  header matches that env var. No public exposure.
 
-3. **Copy + state polish**
-   - Update the catch-up screen heading to make the multi-employer intent obvious ("Add each paystub or 1099 source you've earned from this year").
-   - After a successful save, show a subtle confirmation ("Saved – Providence YTD added") and clear the form fields.
-   - Disable "Add another employer" while a save is in flight.
+### 2. Edge function: `test-seed-users` (POST)
 
-## Technical notes
+- Uses the service role key to upsert three deterministic test users via
+  `auth.admin.createUser` (auto-confirmed):
+  - `test-w2@paycheckmd.test`
+  - `test-w2-1099@paycheckmd.test`
+  - `test-1099@paycheckmd.test`
+  - Password: `TestSeed!2026` (returned in response).
+- For each user, the existing `handle_new_user` trigger creates the
+  organization/profile/tax_settings rows. The function then:
+  - Updates `tax_settings`: filing status, household income flags,
+    `subscription_tier = 'premium'`, `onboarding_complete = true`,
+    `income_profile_type` matching the persona.
+  - Inserts seeded companies (W-2 employer and/or 1099 entity).
+  - Inserts seeded `income_entries` for May 2026 YTD (W-2 paychecks and/or
+    business income) plus `projected_income_streams` for future periods.
+  - Inserts seeded `investment_income_entries`: short-term gain, long-term
+    gain, qualified dividend, plus a small short-term loss.
+- Idempotent: re-running wipes prior seed rows for those users (matched by a
+  `notes` tag like `"[test-seed]"`) and reseeds. Real users are never
+  touched (the function only operates on the three known test emails).
+- Returns `{ users: [{ email, user_id, organization_id, password }], summary }`.
 
-- Files touched:
-  - `src/pages/Onboarding.tsx` — wire `onSaved` to switch the form into a "saved, add another?" state; render the new add-another button between recap and form.
-  - `src/components/YtdCatchupForm.tsx` — accept `key`/reset trigger, expose an `onSaved` callback already present, make sure Cancel works in edit mode.
-  - `src/components/YtdCatchupRecap.tsx` — add `onEdit(entry)` prop and an Edit icon button per row.
-- No schema changes; `useYtdCatchup` already supports upsert by `id`.
-- Continue/Back behavior on this step is unchanged.
+### 3. Edge function: `test-verify-user` (POST)
+
+- Token-gated. Body: `{ email }`.
+- Reads the seeded user's data with the service role and returns:
+  - `premium`, `filing_status`, `income_profile_type`, `onboarding_complete`
+  - Ledger counts: income entries, business transactions, investment entries,
+    projected streams, mileage rows
+  - Sums: `total_personal_w2_gross`, `total_business_gross`,
+    `total_investment_taxable`, short-term/long-term/dividend buckets
+  - `recommended_tax_set_aside` and `tax_recommendation` totals stored on
+    each entry by the in-app engine (these are the same numbers shown in the
+    UI, which is the closest server-side proxy to the engine output).
+- Codex compares expected vs actual on the JSON, no browser needed.
+
+### 4. Stable test selectors (`data-testid`)
+
+Add stable attributes — UI is unchanged visually:
+
+- `signup-email`, `signup-password`, `signup-submit` (Signup page)
+- `onboarding-income-type-w2`, `onboarding-income-type-w2-1099`,
+  `onboarding-income-type-1099` (income setup choice)
+- `onboarding-ytd-income` (YTD catch-up amount field)
+- `investment-add-entry`, `investment-entry-type`, `investment-taxable-amount`
+- `tax-overview-effective-rate`, `tax-overview-total-gross-income`,
+  `tax-overview-federal-tax`, `tax-overview-recommended-set-aside`
+  (Tax Overview / Estimate page)
+
+### 5. Docs
+
+- Append a "Test seed harness" section to `e2e/README.md` covering:
+  - How to set `TEST_SEED_ADMIN_TOKEN`
+  - `curl` examples for both endpoints
+  - The three personas and their seeded shape
+  - Note that the harness is disabled when the token env var is unset
+
+## Production safety
+
+- Both functions return 401 unless `TEST_SEED_ADMIN_TOKEN` is set AND the
+  caller's Bearer token matches.
+- Seed only operates on the three reserved `*.test` emails — cannot mutate
+  real accounts.
+- All seeded rows carry a `[test-seed]` marker in `notes` for easy cleanup.
+- Endpoints are not referenced by client code, so they don't ship in the app
+  bundle.
+
+## Files touched
+
+- New: `supabase/functions/test-seed-users/index.ts`
+- New: `supabase/functions/test-verify-user/index.ts`
+- Edited: `src/pages/Signup.tsx`, `src/pages/Onboarding.tsx`,
+  `src/pages/InvestmentIncome.tsx`, `src/components/tax-breakdown/SummaryCards.tsx`
+  (or the equivalent Tax Overview headline component) — `data-testid` only
+- Edited: `e2e/README.md`
