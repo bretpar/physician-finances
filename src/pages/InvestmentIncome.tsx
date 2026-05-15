@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DateField } from "@/components/DateField";
 import { cn } from "@/lib/utils";
-import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+
 import {
   aggregateInvestmentTaxBuckets,
   calculateInvestmentTaxableAmount,
@@ -63,7 +63,6 @@ export default function InvestmentIncome() {
   const addMutation = useAddInvestmentIncomeEntry();
   const updateMutation = useUpdateInvestmentIncomeEntry();
   const deleteMutation = useDeleteInvestmentIncomeEntry();
-  const { getRecommendation } = useIncomeRecommendation();
   const { data: taxSettings } = useTaxSettings();
   const { forecastEstimate, actualEstimate } = useTaxEstimate();
   const investmentEnabled = taxSettings?.householdIncomeStreams?.investmentIncome !== false;
@@ -88,25 +87,14 @@ export default function InvestmentIncome() {
   const taxableIsCalculated = bothSaleFieldsFilled;
   const canShowTaxRecommendation = computedTaxable > 0;
 
-  // Ordinary effective rate from the recommendation engine (fed into short-term/non-qualified div).
-  const ordinaryRec = computedTaxable > 0
-    ? getRecommendation({
-        grossIncome: computedTaxable,
-        incomeType: "personal_income",
-        incomeBucket: "personal",
-        federalWithheld: 0,
-        stateWithheld: 0,
-        retirement401k: 0,
-        preTaxDeductions: 0,
-      })
-    : null;
-  const ordinaryEffectiveRate = (ordinaryRec?.effectiveRate ?? 0) / 100;
-
-  // Projected ordinary taxable income, excluding this entry's gain (avoid double-stacking).
+  // Single source of truth: stack this entry's slice on top of the live engine's
+  // taxable income (excluding this entry to avoid double-counting). LTCG/qualified
+  // dividends use LTCG brackets; short-term/non-qualified use ordinary brackets —
+  // both via blended marginal slice math identical to the Tax Overview engine.
   const baseEstimate = forecastEstimate ?? actualEstimate;
   const projectedOrdinaryTaxableIncome = Math.max(
     0,
-    (baseEstimate?.taxableIncome ?? 0) - (computedTaxable > 0 && (form.investment_income_type === "long_term_sale" || (isDividend && form.is_qualified_dividend)) ? computedTaxable : 0),
+    (baseEstimate?.taxableIncome ?? 0) - (computedTaxable > 0 ? computedTaxable : 0),
   );
 
   const investmentRec = computedTaxable > 0
@@ -116,7 +104,6 @@ export default function InvestmentIncome() {
         isQualifiedDividend: form.is_qualified_dividend,
         filingStatus,
         projectedOrdinaryTaxableIncome,
-        ordinaryEffectiveRate,
       })
     : null;
 
@@ -174,7 +161,6 @@ export default function InvestmentIncome() {
           isQualifiedDividend: form.is_qualified_dividend,
           filingStatus,
           projectedOrdinaryTaxableIncome,
-          ordinaryEffectiveRate,
         })
       : null;
 
