@@ -77,6 +77,8 @@ describe("InvestmentIncome page", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /add/i }));
     fireEvent.change(screen.getByPlaceholderText("e.g. AAPL"), { target: { value: "AAPL" } });
+    // Sale-detail inputs are inside a collapsed section by default — expand it first.
+    fireEvent.click(screen.getByText(/calculate taxable amount from sale details/i));
     fireEvent.change(screen.getByLabelText(/total sale proceeds/i), { target: { value: "20000" } });
     fireEvent.change(screen.getByLabelText(/cost basis/i), { target: { value: "12000" } });
     fireEvent.click(screen.getByRole("button", { name: /save entry/i }));
