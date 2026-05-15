@@ -176,7 +176,7 @@ export default function EstimatedTax() {
             </div>
             <div className="text-center sm:text-left">
               <p className="text-sm text-muted-foreground">To stay on track, consider paying</p>
-              <p className="text-3xl font-bold text-primary">{fmt(t.suggestedMonthlyPayment)}<span className="text-lg font-normal text-muted-foreground">/month</span></p>
+              <p data-testid="tax-overview-recommended-set-aside" className="text-3xl font-bold text-primary">{fmt(t.suggestedMonthlyPayment)}<span className="text-lg font-normal text-muted-foreground">/month</span></p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {fmt(t.remainingTax)} remaining across {t.monthsRemaining} month{t.monthsRemaining !== 1 ? "s" : ""}
               </p>
@@ -193,7 +193,7 @@ export default function EstimatedTax() {
               <TrendingUp className="h-4 w-4 text-emerald-500" />
               <p className="text-sm text-muted-foreground">Total Income</p>
             </div>
-            <p className="text-2xl font-bold">{fmt(e.totalIncome)}</p>
+            <p data-testid="tax-overview-total-gross-income" className="text-2xl font-bold">{fmt(e.totalIncome)}</p>
             <p className="text-xs text-muted-foreground mt-0.5">W-2: {fmt(e.w2Income)} · SE: {fmt(e.seIncome)}</p>
           </CardContent>
         </Card>
@@ -213,8 +213,8 @@ export default function EstimatedTax() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Estimated Annual Tax</p>
             </div>
-            <p className="text-2xl font-bold">{fmt(e.totalTaxLiability)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Effective rate: {pct(e.effectiveRate)}</p>
+            <p data-testid="tax-overview-total-tax" className="text-2xl font-bold">{fmt(e.totalTaxLiability)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Effective rate: <span data-testid="tax-overview-effective-rate">{pct(e.effectiveRate)}</span></p>
           </CardContent>
         </Card>
         <Card className={getTrackingBorderColor(t.status)}>
@@ -238,7 +238,7 @@ export default function EstimatedTax() {
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Federal Income Tax</span>
-              <span className="font-medium">{fmt(e.federalTax)}</span>
+              <span data-testid="tax-overview-federal-tax" className="font-medium">{fmt(e.federalTax)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Self-Employment Tax</span>

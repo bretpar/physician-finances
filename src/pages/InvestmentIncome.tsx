@@ -228,7 +228,7 @@ export default function InvestmentIncome() {
             <p className="text-xs text-muted-foreground">Investment sales and dividends affecting your taxes</p>
           </div>
         </div>
-        <Button size="sm" onClick={openAdd} disabled={!investmentEnabled} className="gap-1.5">
+        <Button data-testid="investment-add-entry" size="sm" onClick={openAdd} disabled={!investmentEnabled} className="gap-1.5">
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </div>
@@ -402,7 +402,7 @@ export default function InvestmentIncome() {
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0"><DialogTitle>{editingId ? "Edit" : "Add"} Investment Income</DialogTitle></DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label className="text-xs text-muted-foreground mb-1 block">Investment income type</Label><Select value={form.investment_income_type} onValueChange={(v) => setField("investment_income_type", v as InvestmentIncomeType)}><SelectTrigger aria-label="Investment income type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short_term_sale">Short-term sale</SelectItem><SelectItem value="long_term_sale">Long-term sale</SelectItem><SelectItem value="dividend">Dividend</SelectItem></SelectContent></Select></div>
+              <div><Label className="text-xs text-muted-foreground mb-1 block">Investment income type</Label><Select value={form.investment_income_type} onValueChange={(v) => setField("investment_income_type", v as InvestmentIncomeType)}><SelectTrigger data-testid="investment-entry-type" aria-label="Investment income type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="short_term_sale">Short-term sale</SelectItem><SelectItem value="long_term_sale">Long-term sale</SelectItem><SelectItem value="dividend">Dividend</SelectItem></SelectContent></Select></div>
               <div><Label className="text-xs text-muted-foreground mb-1 block">Date</Label><DateField value={form.entry_date} onChange={(v) => setField("entry_date", v)} /></div>
             </div>
             <div><Label className="text-xs text-muted-foreground mb-1 block">Stock / asset name or ticker</Label><Input aria-label="Stock / asset name or ticker" value={form.asset_name_or_ticker} onChange={(e) => setField("asset_name_or_ticker", e.target.value)} placeholder={isDividend ? "e.g. VTI dividend" : "e.g. AAPL"} /></div>
@@ -425,6 +425,7 @@ export default function InvestmentIncome() {
                 </TooltipProvider>
               </div>
               <Input
+                data-testid="investment-taxable-amount"
                 aria-label={isDividend ? "Taxable dividend amount" : "Taxable amount"}
                 type="number"
                 step="0.01"
