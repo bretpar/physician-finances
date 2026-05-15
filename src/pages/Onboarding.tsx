@@ -63,6 +63,11 @@ export default function Onboarding() {
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
   const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
+  // When the brand-new user lands here right after signup we show a single
+  // "How do you want to add income?" picker instead of the multi-step flow.
+  const [showIncomeMethodPicker, setShowIncomeMethodPicker] = useState(
+    () => typeof window !== "undefined" && sessionStorage.getItem("paycheckmd-onboarding-start") === "income-method",
+  );
   const { data: existingCatchups } = useYtdCatchupEntries();
 
   const settingsId = taxSettings?.id;
