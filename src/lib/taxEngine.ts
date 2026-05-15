@@ -382,6 +382,11 @@ export function calculateFullEstimate(params: {
   withholdingOverrideType?: "none" | "percent" | "amount";
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
+  /**
+   * Long-term capital gains + qualified dividends slice (already part of otherIncome / totalIncome).
+   * Carved out at the federal-tax step and taxed at LTCG brackets stacked on ordinary taxable income.
+   */
+  longTermCapitalGains?: number;
   stateTaxInputs?: StateTaxInputs;
 }): TaxEstimate {
   const {
