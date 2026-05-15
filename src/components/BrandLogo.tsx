@@ -7,7 +7,7 @@ export function BrandLogo({ className }: { className?: string }) {
     <img
       src={logo}
       alt="Paycheck MD"
-      className={cn("h-9 w-9 rounded-lg object-contain", className)}
+      className={cn("h-9 w-9 rounded-lg object-fill", className)}
     />
   );
 }
