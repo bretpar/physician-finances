@@ -2028,7 +2028,7 @@ export default function ProjectedIncome() {
   );
 }
 
-function StreamTable({
+function CompanyAccordion({
   streams,
   onEdit,
   onDelete,
@@ -2039,52 +2039,145 @@ function StreamTable({
   onDelete: (id: string) => void;
   expired?: boolean;
 }) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, ProjectedIncomeStream[]>();
+    for (const s of streams) {
+      const key = s.company || "Unnamed";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [streams]);
+
+  const annualMultiplier = (s: ProjectedIncomeStream) => {
+    switch (s.pay_frequency) {
+      case "weekly": return 52;
+      case "biweekly": return 26;
+      case "monthly": return 12;
+      case "custom": return Math.floor(365 / (s.custom_interval_days || 14));
+      case "single": return 1;
+      default: return 26;
+    }
+  };
+
+  const nextExpectedDate = (s: ProjectedIncomeStream): Date | null => {
+    if (s.pay_frequency === "single") {
+      const d = new Date(s.start_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return d >= today ? d : null;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const end = s.end_date ? new Date(s.end_date) : null;
+    if (end && end < today) return null;
+
+    let current = new Date(s.start_date);
+    current.setHours(0, 0, 0, 0);
+    if (current >= today) return current;
+
+    const addDays = (d: Date, days: number) => {
+      const r = new Date(d);
+      r.setDate(r.getDate() + days);
+      return r;
+    };
+    const addWeeks = (d: Date, w: number) => addDays(d, w * 7);
+    const addMonths = (d: Date, m: number) => {
+      const r = new Date(d);
+      r.setMonth(r.getMonth() + m);
+      return r;
+    };
+
+    while (current < today) {
+      switch (s.pay_frequency) {
+        case "weekly": current = addWeeks(current, 1); break;
+        case "biweekly": current = addWeeks(current, 2); break;
+        case "monthly": current = addMonths(current, 1); break;
+        case "custom": current = addDays(current, s.custom_interval_days || 14); break;
+        default: current = addWeeks(current, 2);
+      }
+      if (end && current > end) return null;
+    }
+    return current;
+  };
+
   return (
-    <div className={`rounded-lg border border-border ${expired ? "opacity-60" : ""}`}>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Company</TableHead>
-            <TableHead className="hidden sm:table-cell">Frequency</TableHead>
-            <TableHead className="text-right whitespace-nowrap">Gross / Pay</TableHead>
-            <TableHead className="text-right whitespace-nowrap hidden md:table-cell">Withholding</TableHead>
-            <TableHead className="text-right whitespace-nowrap hidden lg:table-cell">401(k)</TableHead>
-            <TableHead className="hidden sm:table-cell">Status</TableHead>
-            <TableHead className="w-20"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {streams.map((s) => (
-            <TableRow key={s.id} className={!s.is_active ? "opacity-50" : ""}>
-              <TableCell className="font-medium min-w-0"><span className="block truncate">{s.company}</span></TableCell>
-              <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
-                {PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}
-              </TableCell>
-              <TableCell className="text-right font-medium text-success whitespace-nowrap tabular-nums">
-                {fmtFull(s.paycheck_amount)}
-              </TableCell>
-              <TableCell className="text-right text-sm whitespace-nowrap tabular-nums hidden md:table-cell">{fmtFull(s.taxes_withheld)}</TableCell>
-              <TableCell className="text-right text-sm whitespace-nowrap tabular-nums hidden lg:table-cell">{fmtFull(s.retirement_401k)}</TableCell>
-              <TableCell className="hidden sm:table-cell">
-                <Badge variant={expired ? "secondary" : s.is_active ? "default" : "secondary"}>
-                  {expired ? "Expired" : s.is_active ? "Active" : "Paused"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-1 justify-end">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => onDelete(s.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+    <Accordion type="multiple" className="space-y-2">
+      {grouped.map(([company, companyStreams]) => {
+        const monthlyTotal = companyStreams.reduce((sum, s) => {
+          const annual = s.paycheck_amount * annualMultiplier(s);
+          return sum + annual / 12;
+        }, 0);
+        const annualTotal = companyStreams.reduce((sum, s) => {
+          return sum + s.paycheck_amount * annualMultiplier(s);
+        }, 0);
+
+        return (
+          <AccordionItem
+            key={company}
+            value={company}
+            className={`rounded-lg border border-border ${expired ? "opacity-60" : ""}`}
+          >
+            <AccordionTrigger className="px-4 py-3 hover:no-underline">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 w-full pr-4">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold text-foreground truncate">{company}</span>
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {companyStreams.length} {companyStreams.length === 1 ? "stream" : "streams"}
+                  </Badge>
                 </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground sm:ml-auto shrink-0">
+                  <span>Mo: <span className="font-medium text-foreground">{fmt(monthlyTotal)}</span></span>
+                  <span>Yr: <span className="font-medium text-foreground">{fmt(annualTotal)}</span></span>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="space-y-2 pt-2">
+                {companyStreams.map((s) => {
+                  const nextDate = nextExpectedDate(s);
+                  const subtype = subtypeMeta(s.ui_income_subtype || "");
+                  return (
+                    <div
+                      key={s.id}
+                      className="rounded-md border border-border/60 bg-muted/20 p-3 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 space-y-0.5">
+                          <p className="font-medium text-sm text-foreground">
+                            {subtype?.label || s.ui_income_subtype || "Income"}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                            <span>{PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}</span>
+                            <span className="text-success font-medium">{fmtFull(s.paycheck_amount)}</span>
+                            {nextDate && (
+                              <span>Next: {nextDate.toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge variant={s.is_active ? "default" : "secondary"} className="text-xs">
+                            {s.is_active ? "Active" : "Paused"}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => onDelete(s.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
   );
 }
 
