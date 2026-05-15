@@ -2274,30 +2274,60 @@ export default function Transactions() {
         const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
         const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
         const source = tx.source_type || "manual";
-        const catLabel = isIncomeTx ? "Income" : isTransferTx ? "Transfer" : (mapLegacyCategory(tx.category) || "Uncategorized");
+        const catLabel = isIncomeTx ? "Income" : isTransferTx ? "Transfer" : (mapLegacyCategory(tx.category) || "");
+        const companyLabel = getTransactionCompanyLabel(tx);
+        const hasCompany = !!companyLabel && companyLabel !== "—" && companyLabel !== "Unassigned";
+        const hasCategory = !!catLabel && catLabel !== "Uncategorized";
+        const hasAccount = !!tx.account_source && tx.account_source !== "—";
         const sections: DetailSection[] = [
           {
             title: "Basic details",
             fields: [
               { label: "Vendor", value: tx.vendor || "—" },
-              { label: "Company", value: getTransactionCompanyLabel(tx) },
-              { label: "Category", value: catLabel },
+              ...(hasCompany ? [{ label: "Company", value: companyLabel }] : []),
+              ...(hasCategory ? [{ label: "Category", value: catLabel }] : []),
               ...((tx as any).schedule_c_category ? [{ label: "Schedule C", value: (tx as any).schedule_c_category as string }] : []),
-              { label: "Source", value: source === "merged" ? "Linked (manual + bank)" : source === "plaid" ? "Imported" : "Manual" },
-              ...(tx.account_source ? [{ label: "Account", value: tx.account_source }] : []),
+              ...(hasAccount ? [{ label: "Account", value: tx.account_source! }] : []),
               ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
             ],
           },
         ];
         if (linked) {
+          const lGross = Number(linked.paycheck_amount) || 0;
+          const lFed = getCanonicalTotalFederalPayrollTaxes(linked as any);
+          const lState = Number((linked as any).state_withholding) || 0;
+          const lPreTax = Number(linked.pre_tax_deductions) || 0;
+          const l401 = Number(linked.retirement_401k) || 0;
+          const lHsa = Number((linked as any).hsa_contribution) || 0;
+          const lHealth = Number((linked as any).healthcare_deduction) || 0;
+          const lOther = Number((linked as any).other_deductions) || 0;
+          const lReserve = Number((linked as any).additional_tax_reserve) || 0;
+          const lNetExplicit = (linked as any).net_amount;
+          const lNet = lNetExplicit != null && lNetExplicit !== ""
+            ? Number(lNetExplicit) || 0
+            : lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther;
           sections.push({
             title: "Tax details",
             fields: [
-              { label: "Gross", value: fmt(Number(linked.paycheck_amount) || 0), mono: true },
-              { label: "Federal withheld", value: fmt(getCanonicalTotalFederalPayrollTaxes(linked as any)), mono: true },
-              { label: "State withheld", value: fmt(Number((linked as any).state_withholding) || 0), mono: true },
-              { label: "Pre-tax", value: fmt(Number(linked.pre_tax_deductions) || 0), mono: true },
-              { label: "401(k)", value: fmt(Number(linked.retirement_401k) || 0), mono: true },
+              { label: "Gross", value: fmt(lGross), mono: true },
+              { label: "Net received", value: fmt(lNet), mono: true },
+              ...(lFed > 0 ? [{ label: "Federal withheld", value: fmt(lFed), mono: true }] : []),
+              ...(lState > 0 ? [{ label: "State withheld", value: fmt(lState), mono: true }] : []),
+              ...(lPreTax > 0 ? [{ label: "Pre-tax", value: fmt(lPreTax), mono: true }] : []),
+              ...(l401 > 0 ? [{ label: "401(k)", value: fmt(l401), mono: true }] : []),
+              ...(lHsa > 0 ? [{ label: "HSA", value: fmt(lHsa), mono: true }] : []),
+              ...(lHealth > 0 ? [{ label: "Healthcare", value: fmt(lHealth), mono: true }] : []),
+              ...(lOther > 0 ? [{ label: "Other deductions", value: fmt(lOther), mono: true }] : []),
+              ...(lReserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(lReserve), mono: true }] : []),
+            ],
+          });
+        } else if (isIncomeTx) {
+          const gAmt = Math.abs(Number(tx.amount) || 0);
+          sections.push({
+            title: "Tax details",
+            fields: [
+              { label: "Gross", value: fmt(gAmt), mono: true },
+              { label: "Net received", value: fmt(gAmt), mono: true },
             ],
           });
         }
@@ -2305,7 +2335,9 @@ export default function Transactions() {
         if (tx.needs_review) badges.push({ label: "Review", tone: "warning" as const });
         if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "success" as const });
         if (source === "plaid") badges.push({ label: "Imported", tone: "muted" as const });
-        if (source === "merged") badges.push({ label: "Linked", tone: "default" as const });
+        else if (source === "merged") badges.push({ label: "Linked", tone: "default" as const });
+        else badges.push({ label: "Manual", tone: "muted" as const });
+        if (linked) badges.push({ label: "Matched", tone: "success" as const });
         return (
           <TransactionDetailSheet
             open={!!detailTx}
