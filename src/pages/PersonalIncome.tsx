@@ -403,7 +403,7 @@ export default function PersonalIncome() {
     const medicareOnly = num(form.medicare_withholding);
     const stateW = stateIncomeTaxEnabled ? num(form.state_withholding) : 0;
     const totalWithheld = totalFederal + stateW;
-    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction);
+    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
     // Compute the base tax estimate for the record using the canonical total.
@@ -414,7 +414,7 @@ export default function PersonalIncome() {
       federalWithheld: totalFederal,
       stateWithheld: stateW,
       retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction),
+      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
     });
 
     return {
