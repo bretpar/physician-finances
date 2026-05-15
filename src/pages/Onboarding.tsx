@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { YtdCatchupForm } from "@/components/YtdCatchupForm";
+import { YtdCatchupRecap } from "@/components/YtdCatchupRecap";
 import { useYtdCatchupEntries } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { isAuthRateLimitError } from "@/lib/authProtection";
@@ -545,6 +546,7 @@ export default function Onboarding() {
               }</h1>
               <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals so recommendations stay accurate. Add as many entries as you need.</p>
             </div>
+            <YtdCatchupRecap />
             <div className="rounded-xl border border-border p-4">
               {existingCatchups && existingCatchups.length > 0 && (
                 <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
