@@ -35,6 +35,73 @@ export type YtdCatchupInput = Partial<Omit<YtdCatchupEntry, "id" | "user_id" | "
 
 const KEY = ["ytd_catchup_entries"] as const;
 
+/**
+ * Sync a paired ledger transaction for a business YTD catch-up entry so it
+ * shows up in Business Activity. The catch-up entry remains the source of
+ * truth; this transaction is its projection. Only business catch-ups
+ * (source_type='1099_k1') get a paired transaction. The tax engine's overlap
+ * safeguard subtracts overlapping business transactions from the catch-up
+ * gross to prevent double counting.
+ */
+async function syncCatchupTransaction(args: {
+  catchupId: string;
+  userId: string;
+  orgId: string | null;
+  sourceType: YtdCatchupSourceType;
+  companyId: string | null;
+  companyName: string;
+  periodEnd: string;
+  grossIncome: number;
+  federalWithholding: number;
+  stateWithholding: number;
+}) {
+  const isBusiness = args.sourceType === "1099_k1";
+
+  const { data: existing } = await supabase
+    .from("transactions")
+    .select("id")
+    .eq("origin_ytd_catchup_id" as any, args.catchupId)
+    .maybeSingle();
+
+  // Non-business catch-ups: remove any stale paired tx (e.g. user changed type).
+  if (!isBusiness) {
+    if (existing?.id) {
+      await supabase.from("transactions").delete().eq("id", existing.id);
+    }
+    return;
+  }
+
+  const row: any = {
+    user_id: args.userId,
+    organization_id: args.orgId,
+    transaction_date: args.periodEnd,
+    vendor: `YTD catch-up: ${args.companyName || "Business"}`,
+    amount: Math.max(0, Number(args.grossIncome) || 0),
+    account_source: "YTD catch-up",
+    category: "Income",
+    notes: "Synced from YTD catch-up entry. Edit on the Income page.",
+    entity: args.companyName || "Unassigned",
+    company_type: "1099_schedule_c",
+    source_id: args.companyId,
+    transaction_type: "income",
+    actual_withholding:
+      (Number(args.federalWithholding) || 0) + (Number(args.stateWithholding) || 0),
+    status: "active",
+    excluded_from_reports: false,
+    needs_review: false,
+    user_edited: false,
+    origin_type: "ytd_catchup",
+    origin_ytd_catchup_id: args.catchupId,
+    source_type: "manual",
+  };
+
+  if (existing?.id) {
+    await supabase.from("transactions").update(row).eq("id", existing.id);
+  } else {
+    await supabase.from("transactions").insert(row);
+  }
+}
+
 export function useYtdCatchupEntries() {
   return useQuery({
     queryKey: KEY,
