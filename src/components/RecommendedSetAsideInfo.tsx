@@ -135,6 +135,7 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
       </ul>
 
       <div className="space-y-2">
+        {taxableBase && <TaxableBasePanel tb={taxableBase} />}
         {breakdown && (
           <div className="rounded-md border bg-background px-3 py-2 text-xs text-foreground">
             <div className="flex items-center justify-between gap-3">
