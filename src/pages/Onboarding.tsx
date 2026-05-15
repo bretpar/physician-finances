@@ -444,19 +444,69 @@ export default function Onboarding() {
             <div className="space-y-5">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground">{
-                  merged.incomeProfileType === "w2_only" ? "Add your W-2 income from earlier this year"
-                    : merged.incomeProfileType === "business_only" ? "Add your business income earned so far this year"
-                    : "Add your income earned so far this year"
+                  merged.incomeProfileType === "w2_only" ? "Add each W-2 paystub you've received this year"
+                    : merged.incomeProfileType === "business_only" ? "Add each 1099 / business income source from this year"
+                    : "Add each paystub or 1099 source you've earned from this year"
                 }</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals so recommendations stay accurate. Add as many entries as you need.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals so recommendations stay accurate. Add one entry per employer or company — you can add as many as you need.</p>
               </div>
-              <YtdCatchupRecap />
-              <div className="rounded-xl border border-border p-4">
-                {existingCatchups && existingCatchups.length > 0 && (
-                  <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
-                )}
-                <YtdCatchupForm incomeProfileType={merged.incomeProfileType} />
-              </div>
+              <YtdCatchupRecap
+                onEdit={(entry) => {
+                  setEditingCatchup(entry);
+                  setShowCatchupForm(true);
+                  setCatchupFormKey((k) => k + 1);
+                  setLastSavedName(null);
+                  setTimeout(() => catchupFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                }}
+                editingId={editingCatchup?.id ?? null}
+              />
+              {lastSavedName && !showCatchupForm && (
+                <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+                  ✓ Saved — {lastSavedName} added.
+                </div>
+              )}
+              {showCatchupForm ? (
+                <div ref={catchupFormRef} className="rounded-xl border border-border p-4">
+                  {editingCatchup && (
+                    <p className="text-xs text-primary mb-3">Editing {editingCatchup.company_name}. Save changes or cancel to add a new entry.</p>
+                  )}
+                  <YtdCatchupForm
+                    key={catchupFormKey}
+                    initial={editingCatchup ?? undefined}
+                    incomeProfileType={merged.incomeProfileType}
+                    onSaved={() => {
+                      const name = editingCatchup?.company_name ?? "Entry";
+                      setLastSavedName(name);
+                      setEditingCatchup(null);
+                      setShowCatchupForm(false);
+                    }}
+                    onCancel={editingCatchup ? () => {
+                      setEditingCatchup(null);
+                      setCatchupFormKey((k) => k + 1);
+                    } : undefined}
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-dashed border-border p-4">
+                  <p className="text-sm text-muted-foreground">
+                    {existingCatchups && existingCatchups.length > 0
+                      ? `${existingCatchups.length} ${existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another employer or continue when you're done.`
+                      : "Add your first employer or income source to get started."}
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEditingCatchup(null);
+                      setShowCatchupForm(true);
+                      setCatchupFormKey((k) => k + 1);
+                      setLastSavedName(null);
+                      setTimeout(() => catchupFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                    }}
+                  >
+                    + Add another employer
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
