@@ -839,7 +839,12 @@ export default function ProjectedIncome() {
                             )}
                             {isMatched && (
                               <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
-                                <CheckCircle2 className="h-2.5 w-2.5" /> Matched
+                                <CheckCircle2 className="h-2.5 w-2.5" /> Matched deposit
+                              </Badge>
+                            )}
+                            {isSuggested && (
+                              <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400 gap-0.5">
+                                <AlertCircle className="h-2.5 w-2.5" /> Suggested match
                               </Badge>
                             )}
                             {isPastDue && (
