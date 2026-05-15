@@ -120,7 +120,7 @@ export async function completeOnboarding(
       personal_state_tax_mode: "none",
       business_state_tax_enabled: true,
       business_state_tax_rate: 0.00484, // WA B&O service rate
-      business_state_tax_base: "gross_receipts",
+      business_state_tax_base: "gross",
       business_state_tax_application_mode: "all_business",
       income_profile_type: "business_only",
       tax_recommendation_method: "dynamic_planner",
