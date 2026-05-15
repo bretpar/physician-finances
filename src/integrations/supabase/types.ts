@@ -914,7 +914,7 @@ export type Database = {
           {
             foreignKeyName: "planner_conversions_bonus_event_id_fkey"
             columns: ["bonus_event_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "projected_bonus_events"
             referencedColumns: ["id"]
           },

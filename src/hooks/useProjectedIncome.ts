@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
@@ -13,10 +14,25 @@ export interface MatchableIncomeEntry {
   paycheck_amount: number;
   income_type: string;
   status: string;
+  /** Optional — used by business matcher to scope to the same company/source */
+  source_id?: string | null;
   /** Set when the entry was created via a confirmed planner conversion. */
   origin_planner_conversion_id?: string | null;
   /** "planner_conversion" indicates the entry is the confirmed actual for a projected paycheck. */
   entry_kind?: string | null;
+}
+
+/** Minimal interface for business ledger transactions used in matching. */
+export interface MatchableBusinessTransaction {
+  id: string;
+  transaction_date: string;
+  vendor: string;
+  amount: number;
+  source_id: string | null;
+  status: string;
+  transaction_type: string;
+  origin_planner_conversion_id?: string | null;
+  origin_type?: string | null;
 }
 
 /* ─── Types ─── */
@@ -121,12 +137,18 @@ export interface ProjectedPaycheck {
   matchedIncomeId?: string;
   /** If matched, the actual amount received */
   matchedAmount?: number;
-  /** If suggested (heuristic only — NOT yet confirmed), the candidate income entry id */
+  /** If suggested (heuristic only — NOT yet confirmed), the candidate income entry id (personal bucket) */
   suggestedIncomeId?: string;
+  /** If suggested (heuristic only — NOT yet confirmed), the candidate transaction id (business bucket) */
+  suggestedTransactionId?: string;
+  /** Bucket of the suggested/matched record so the confirm flow can route correctly. */
+  suggestedBucket?: "personal" | "business";
   /** If suggested, the candidate's gross amount for display only */
   suggestedAmount?: number;
   /** Company type from the stream (W2, 1099, K1, etc.) */
   streamCompanyType?: string;
+  /** Linked source/employer (companies.id) from the stream — used by matching. */
+  streamSourceId?: string | null;
   /** If this is a bonus entry, the originating bonus event id */
   bonusEventId?: string;
 }
@@ -162,7 +184,7 @@ export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
  * - Same income type/company_type
  */
 function findMatchingIncome(
-  paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string },
+  paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string; streamSourceId?: string | null },
   incomeEntries: MatchableIncomeEntry[],
   usedEntryIds: Set<string>,
 ): { entry: MatchableIncomeEntry; score: number } | null {
@@ -183,11 +205,15 @@ function findMatchingIncome(
     else if (daysDiff <= 3) score += 15;
     else continue; // Skip if more than 3 days apart
 
-    // Company match
-    const pCompany = (paycheck.label || "").toLowerCase();
-    const eCompany = (entry.company || "").toLowerCase();
-    if (pCompany && eCompany && (pCompany.includes(eCompany) || eCompany.includes(pCompany))) {
+    // Source/company match — prefer source_id, fall back to company name substring
+    if (paycheck.streamSourceId && entry.source_id && paycheck.streamSourceId === entry.source_id) {
       score += 30;
+    } else {
+      const pCompany = (paycheck.label || "").toLowerCase();
+      const eCompany = (entry.company || "").toLowerCase();
+      if (pCompany && eCompany && (pCompany.includes(eCompany) || eCompany.includes(pCompany))) {
+        score += 30;
+      }
     }
 
     // Amount similarity (within 10% of gross)
@@ -208,6 +234,61 @@ function findMatchingIncome(
   }
 
   return bestMatch;
+}
+
+/**
+ * Match a projected business paycheck against active business transactions
+ * (transaction_type = 'income'). Returns the best matching transaction or null.
+ *
+ * Same scoring as personal — date ±3 days + source/vendor + amount similarity.
+ * Heuristic match only; the user must confirm before it becomes a stored link.
+ */
+function findMatchingBusinessTransaction(
+  paycheck: { date: string; grossAmount: number; label: string; streamSourceId?: string | null },
+  transactions: MatchableBusinessTransaction[],
+  usedTxIds: Set<string>,
+): { tx: MatchableBusinessTransaction; score: number } | null {
+  const pDate = parseISO(paycheck.date).getTime();
+  let best: { tx: MatchableBusinessTransaction; score: number } | null = null;
+
+  for (const tx of transactions) {
+    if (usedTxIds.has(tx.id)) continue;
+    if (tx.status !== "active") continue;
+    if (tx.transaction_type !== "income") continue;
+
+    let score = 0;
+    const tDate = parseISO(tx.transaction_date).getTime();
+    const daysDiff = Math.abs(pDate - tDate) / (1000 * 60 * 60 * 24);
+    if (daysDiff === 0) score += 40;
+    else if (daysDiff <= 1) score += 30;
+    else if (daysDiff <= 3) score += 15;
+    else continue;
+
+    if (paycheck.streamSourceId && tx.source_id && paycheck.streamSourceId === tx.source_id) {
+      score += 30;
+    } else {
+      const pVendor = (paycheck.label || "").toLowerCase();
+      const tVendor = (tx.vendor || "").toLowerCase();
+      if (pVendor && tVendor && (pVendor.includes(tVendor) || tVendor.includes(pVendor))) {
+        score += 30;
+      }
+    }
+
+    const amt = Number(tx.amount);
+    if (amt > 0 && paycheck.grossAmount > 0) {
+      const diff = Math.abs(amt - paycheck.grossAmount);
+      const pct = diff / paycheck.grossAmount;
+      if (pct === 0) score += 30;
+      else if (pct <= 0.02) score += 25;
+      else if (pct <= 0.05) score += 15;
+      else if (pct <= 0.10) score += 5;
+    }
+
+    if (score >= 45 && (!best || score > best.score)) {
+      best = { tx, score };
+    }
+  }
+  return best;
 }
 
 /* ─── Queries ─── */
@@ -271,7 +352,11 @@ export function usePlannerConversions() {
 /**
  * Confirm a heuristic "suggested" projected→actual match by inserting a
  * planner_conversion linking the projected occurrence to the existing actual
- * income entry. After this, the projected entry renders as "Converted".
+ * ledger row (income_entries for personal, transactions for business). After
+ * this, the projected entry renders as "Converted".
+ *
+ * Idempotent: if a conversion row already exists for (stream_id, occurrence_date),
+ * we skip the insert and just back-link the existing row to the ledger entry.
  */
 export function useConfirmSuggestedMatch() {
   const qc = useQueryClient();
@@ -279,29 +364,264 @@ export function useConfirmSuggestedMatch() {
     mutationFn: async (input: {
       streamId: string;
       occurrenceDate: string;
+      /** ID of the existing ledger row (income_entries.id for personal, transactions.id for business). */
       incomeEntryId: string;
       ledgerBucket: "personal" | "business";
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
-      const { error } = await supabase.from("planner_conversions").insert({
-        user_id: user.id,
-        organization_id: orgId,
-        stream_id: input.streamId,
-        occurrence_date: input.occurrenceDate,
-        ledger_bucket: input.ledgerBucket,
-        income_entry_id: input.ledgerBucket === "personal" ? input.incomeEntryId : null,
-        transaction_id: input.ledgerBucket === "business" ? input.incomeEntryId : null,
-        status: "converted",
-      } as any);
-      if (error) throw error;
+
+      // Idempotent pre-check
+      const { data: existing } = await supabase
+        .from("planner_conversions")
+        .select("id")
+        .eq("stream_id", input.streamId)
+        .eq("occurrence_date", input.occurrenceDate)
+        .maybeSingle();
+
+      let conversionId: string | null = (existing as any)?.id ?? null;
+      if (!conversionId) {
+        const { data: inserted, error } = await supabase
+          .from("planner_conversions")
+          .insert({
+            user_id: user.id,
+            organization_id: orgId,
+            stream_id: input.streamId,
+            bonus_event_id: null,
+            occurrence_date: input.occurrenceDate,
+            ledger_bucket: input.ledgerBucket,
+            income_entry_id: input.ledgerBucket === "personal" ? input.incomeEntryId : null,
+            transaction_id: input.ledgerBucket === "business" ? input.incomeEntryId : null,
+            status: "converted",
+            needs_review_reason: "Confirmed by user from suggested match",
+          } as any)
+          .select("id")
+          .single();
+        if (error) {
+          // Race: treat as already converted
+          if ((error as any).code !== "23505") throw error;
+          const { data: again } = await supabase
+            .from("planner_conversions")
+            .select("id")
+            .eq("stream_id", input.streamId)
+            .eq("occurrence_date", input.occurrenceDate)
+            .maybeSingle();
+          conversionId = (again as any)?.id ?? null;
+        } else {
+          conversionId = (inserted as any).id as string;
+        }
+      } else {
+        // Backfill the linked ledger id on the existing conversion if missing
+        await supabase
+          .from("planner_conversions")
+          .update({
+            income_entry_id: input.ledgerBucket === "personal" ? input.incomeEntryId : null,
+            transaction_id: input.ledgerBucket === "business" ? input.incomeEntryId : null,
+            status: "converted",
+          } as any)
+          .eq("id", conversionId);
+      }
+
+      // Back-link the existing ledger row to the conversion so it shows as
+      // a stored "matched" relationship on subsequent renders.
+      if (conversionId) {
+        if (input.ledgerBucket === "personal") {
+          await supabase
+            .from("income_entries")
+            .update({
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .eq("id", input.incomeEntryId);
+        } else {
+          await supabase
+            .from("transactions")
+            .update({
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .eq("id", input.incomeEntryId);
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["planner_conversions"] });
-      qc.invalidateQueries({ queryKey: ["personal_income"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Match confirmed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/**
+ * Manually convert a planned paycheck into a freshly-created ledger row.
+ * Creates the planner_conversions record FIRST (acquiring the unique slot),
+ * then inserts the ledger row, then back-links the conversion to it.
+ */
+export function useManualPlannerConvert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      streamId: string;
+      bonusEventId?: string | null;
+      occurrenceDate: string;
+      ledgerBucket: "personal" | "business";
+      // Ledger row payload
+      label: string;
+      sourceId: string | null;
+      incomeType: string;
+      uiIncomeSubtype?: string | null;
+      grossAmount: number;
+      taxesWithheld: number;
+      preTaxDeductions: number;
+      retirement401k: number;
+      healthcareDeduction: number;
+      hsaContribution: number;
+      federalWithholding: number;
+      stateWithholding: number;
+      ssWithholding: number;
+      medicareWithholding: number;
+      isBonus: boolean;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = await getUserOrgId();
+
+      // Idempotent: if a conversion already exists, return it (skip creation).
+      let existingId: string | null = null;
+      if (input.bonusEventId) {
+        const { data } = await supabase
+          .from("planner_conversions")
+          .select("id")
+          .eq("bonus_event_id", input.bonusEventId)
+          .maybeSingle();
+        existingId = (data as any)?.id ?? null;
+      } else {
+        const { data } = await supabase
+          .from("planner_conversions")
+          .select("id")
+          .eq("stream_id", input.streamId)
+          .eq("occurrence_date", input.occurrenceDate)
+          .maybeSingle();
+        existingId = (data as any)?.id ?? null;
+      }
+      if (existingId) return { conversionId: existingId, alreadyExisted: true };
+
+      // 1. Insert planner_conversions
+      const { data: conv, error: convErr } = await supabase
+        .from("planner_conversions")
+        .insert({
+          user_id: user.id,
+          organization_id: orgId,
+          stream_id: input.bonusEventId ? null : input.streamId,
+          bonus_event_id: input.bonusEventId ?? null,
+          occurrence_date: input.occurrenceDate,
+          ledger_bucket: input.ledgerBucket,
+          status: "converted",
+          needs_review_reason: "Manually converted from planner — please review",
+        } as any)
+        .select("id")
+        .single();
+      if (convErr) {
+        if ((convErr as any).code === "23505") {
+          // Race: someone else just converted it — fetch and return.
+          const lookup = input.bonusEventId
+            ? await supabase.from("planner_conversions").select("id").eq("bonus_event_id", input.bonusEventId).maybeSingle()
+            : await supabase.from("planner_conversions").select("id").eq("stream_id", input.streamId).eq("occurrence_date", input.occurrenceDate).maybeSingle();
+          return { conversionId: (lookup.data as any)?.id ?? null, alreadyExisted: true };
+        }
+        throw convErr;
+      }
+      const conversionId = (conv as any).id as string;
+
+      // 2. Create the ledger row
+      if (input.ledgerBucket === "personal") {
+        const { data: ie, error } = await supabase
+          .from("income_entries")
+          .insert({
+            user_id: user.id,
+            organization_id: orgId,
+            name: input.label,
+            company: input.label,
+            source_id: input.sourceId,
+            income_type: input.incomeType,
+            ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
+            income_date: input.occurrenceDate,
+            gross_amount: input.grossAmount,
+            paycheck_amount: input.grossAmount,
+            federal_withholding: input.federalWithholding,
+            state_withholding: input.stateWithholding,
+            ss_withholding: input.ssWithholding,
+            medicare_withholding: input.medicareWithholding,
+            taxes_withheld: input.taxesWithheld,
+            pre_tax_deductions: input.preTaxDeductions,
+            retirement_401k: input.retirement401k,
+            healthcare_deduction: input.healthcareDeduction,
+            hsa_contribution: input.hsaContribution,
+            source_bucket: "personal",
+            tax_category: "ordinary",
+            is_actual: true,
+            include_in_tax_estimate: true,
+            include_in_cash_flow: false,
+            status: "received",
+            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+          } as any)
+          .select("id")
+          .single();
+        if (error) {
+          await supabase.from("planner_conversions").delete().eq("id", conversionId);
+          throw error;
+        }
+        await supabase
+          .from("planner_conversions")
+          .update({ income_entry_id: (ie as any).id })
+          .eq("id", conversionId);
+      } else {
+        const { data: tx, error } = await supabase
+          .from("transactions")
+          .insert({
+            user_id: user.id,
+            organization_id: orgId,
+            transaction_date: input.occurrenceDate,
+            vendor: input.label,
+            amount: input.grossAmount,
+            account_source: "Planner",
+            category: "Income",
+            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+            entity: input.label || "Unassigned",
+            company_type: input.incomeType,
+            source_id: input.sourceId,
+            transaction_type: "income",
+            needs_review: true,
+            status: "active",
+            actual_withholding: input.taxesWithheld,
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+          } as any)
+          .select("id")
+          .single();
+        if (error) {
+          await supabase.from("planner_conversions").delete().eq("id", conversionId);
+          throw error;
+        }
+        await supabase
+          .from("planner_conversions")
+          .update({ transaction_id: (tx as any).id })
+          .eq("id", conversionId);
+      }
+      return { conversionId, alreadyExisted: false };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Converted to ledger");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -565,6 +885,7 @@ export function generateProjectedPaychecks(
   incomeEntries?: MatchableIncomeEntry[],
   overrides?: ProjectedIncomeOverride[],
   plannerConversions?: PlannerConversionRef[],
+  businessTransactions?: MatchableBusinessTransaction[],
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
@@ -579,17 +900,21 @@ export function generateProjectedPaychecks(
     }
   }
 
-  // Index planner conversions by stream_id + date so we can mark occurrences as "converted".
+  // Index planner conversions so we can mark occurrences as "converted".
+  // Tracks both per-stream/date paycheck conversions and per-bonus-event conversions.
   const convertedKeys = new Set<string>();
+  const convertedBonusIds = new Set<string>();
   if (plannerConversions) {
     for (const c of plannerConversions) {
       if (c.status !== "converted") continue;
-      if (c.stream_id) convertedKeys.add(`${c.stream_id}:${c.occurrence_date}`);
+      if (c.bonus_event_id) convertedBonusIds.add(c.bonus_event_id);
+      else if (c.stream_id) convertedKeys.add(`${c.stream_id}:${c.occurrence_date}`);
     }
   }
 
-  // Track which income entries have been used for matching
+  // Track which ledger rows have been used for matching (separate sets per bucket)
   const usedEntryIds = new Set<string>();
+  const usedTxIds = new Set<string>();
 
   // Collect all raw paychecks first (without matching)
   const rawPaychecks: Array<{
@@ -606,6 +931,7 @@ export function generateProjectedPaychecks(
     isSkipped: boolean;
     isModified: boolean;
     streamCompanyType?: string;
+    streamSourceId?: string | null;
     bonusEventId?: string;
   }> = [];
 
@@ -628,7 +954,7 @@ export function generateProjectedPaychecks(
             healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
-            isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
+            isSkipped: true, isModified: false, streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
           });
         } else {
           const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
@@ -641,7 +967,7 @@ export function generateProjectedPaychecks(
             healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
-            isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
+            isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
           });
         }
       }
@@ -670,7 +996,7 @@ export function generateProjectedPaychecks(
           healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
-          isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
+          isSkipped: true, isModified: false, streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
         });
       } else {
         const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
@@ -683,7 +1009,7 @@ export function generateProjectedPaychecks(
           healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
-          isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
+          isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
         });
       }
       current = getNextDate(current, stream.pay_frequency, stream.custom_interval_days);
@@ -723,7 +1049,7 @@ export function generateProjectedPaychecks(
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
         bonusEventId: bonus.id,
-        isSkipped: false, isModified: false, streamCompanyType: stream?.company_type,
+        isSkipped: false, isModified: false, streamCompanyType: stream?.company_type, streamSourceId: stream?.source_id ?? null,
       });
     }
   }
@@ -731,78 +1057,84 @@ export function generateProjectedPaychecks(
   // Sort by date for matching priority
   rawPaychecks.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Now match each paycheck against actual income entries
+  // Now match each paycheck against actual ledger rows. Personal streams match
+  // against income_entries; business streams match against transactions
+  // (transaction_type='income', status='active').
   const entries = incomeEntries || [];
+  const businessTxs = businessTransactions || [];
 
   for (const raw of rawPaychecks) {
     const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions - raw.healthcareDeduction;
 
     if (raw.isSkipped) {
-      paychecks.push({
-        ...raw,
-        netAmount: 0,
-        matchStatus: "skipped",
-      });
+      paychecks.push({ ...raw, netAmount: 0, matchStatus: "skipped" });
       continue;
     }
 
-    // Auto-converted by the planner → ledger bridge: tag as "converted" so the
-    // UI can show it as fulfilled and we don't double-count it as past_due/active.
-    if (convertedKeys.has(`${raw.streamId}:${raw.date}`)) {
-      paychecks.push({
-        ...raw,
-        netAmount: Math.max(0, net),
-        matchStatus: "converted",
-      });
+    // Auto-converted by the planner → ledger bridge: tag as "converted".
+    const isBonusConverted = raw.bonusEventId && convertedBonusIds.has(raw.bonusEventId);
+    const isPaycheckConverted = !raw.bonusEventId && convertedKeys.has(`${raw.streamId}:${raw.date}`);
+    if (isBonusConverted || isPaycheckConverted) {
+      paychecks.push({ ...raw, netAmount: Math.max(0, net), matchStatus: "converted" });
       continue;
     }
 
-    // Try to find a matching actual income entry
-    const match = findMatchingIncome(
-      { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType },
-      entries,
-      usedEntryIds,
-    );
+    const bucket = isBusinessIncomeType(raw.streamCompanyType) ? "business" : "personal";
 
-    if (match) {
-      usedEntryIds.add(match.entry.id);
-      // Only treat as truly "matched" when there is a stored relationship —
-      // i.e. the actual income entry was created via a confirmed planner
-      // conversion (entry_kind === "planner_conversion" or
-      // origin_planner_conversion_id present). Heuristic name+amount+date
-      // matches are surfaced as "suggested" until the user confirms.
-      const hasStoredLink =
-        match.entry.entry_kind === "planner_conversion" ||
-        Boolean(match.entry.origin_planner_conversion_id);
-
-      if (hasStoredLink) {
+    if (bucket === "business") {
+      const m = findMatchingBusinessTransaction(
+        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamSourceId: raw.streamSourceId },
+        businessTxs,
+        usedTxIds,
+      );
+      if (m) {
+        usedTxIds.add(m.tx.id);
+        const hasStoredLink =
+          m.tx.origin_type === "planner_converted" || Boolean(m.tx.origin_planner_conversion_id);
         paychecks.push({
           ...raw,
           netAmount: Math.max(0, net),
-          matchStatus: "matched",
-          matchedIncomeId: match.entry.id,
-          matchedAmount: Number(match.entry.paycheck_amount),
+          matchStatus: hasStoredLink ? "matched" : "suggested",
+          ...(hasStoredLink
+            ? { matchedIncomeId: m.tx.id, matchedAmount: Number(m.tx.amount) }
+            : {
+                suggestedTransactionId: m.tx.id,
+                suggestedBucket: "business" as const,
+                suggestedAmount: Number(m.tx.amount),
+              }),
         });
-      } else {
-        paychecks.push({
-          ...raw,
-          netAmount: Math.max(0, net),
-          matchStatus: "suggested",
-          suggestedIncomeId: match.entry.id,
-          suggestedAmount: Number(match.entry.paycheck_amount),
-        });
+        continue;
       }
     } else {
-      // Check if past due
-      const pDate = parseISO(raw.date);
-      const isPastDue = isBefore(pDate, now) && !isSameDay(pDate, now);
-
-      paychecks.push({
-        ...raw,
-        netAmount: Math.max(0, net),
-        matchStatus: isPastDue ? "past_due" : "active",
-      });
+      const match = findMatchingIncome(
+        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType, streamSourceId: raw.streamSourceId },
+        entries,
+        usedEntryIds,
+      );
+      if (match) {
+        usedEntryIds.add(match.entry.id);
+        const hasStoredLink =
+          match.entry.entry_kind === "planner_conversion" ||
+          Boolean(match.entry.origin_planner_conversion_id);
+        paychecks.push({
+          ...raw,
+          netAmount: Math.max(0, net),
+          matchStatus: hasStoredLink ? "matched" : "suggested",
+          ...(hasStoredLink
+            ? { matchedIncomeId: match.entry.id, matchedAmount: Number(match.entry.paycheck_amount) }
+            : {
+                suggestedIncomeId: match.entry.id,
+                suggestedBucket: "personal" as const,
+                suggestedAmount: Number(match.entry.paycheck_amount),
+              }),
+        });
+        continue;
+      }
     }
+
+    const pDate = parseISO(raw.date);
+    const isPastDue = isBefore(pDate, now) && !isSameDay(pDate, now);
+    paychecks.push({ ...raw, netAmount: Math.max(0, net), matchStatus: isPastDue ? "past_due" : "active" });
   }
 
   return paychecks.sort((a, b) => a.date.localeCompare(b.date));
