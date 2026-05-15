@@ -35,7 +35,7 @@ import {
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useDeleteOverride,
-  usePlannerConversions,
+  usePlannerConversions, useConfirmSuggestedMatch,
   generateProjectedPaychecks, getProjectedTotals,
   isStreamExpired,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
@@ -213,6 +213,8 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const confirmSuggested = useConfirmSuggestedMatch();
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const deleteBonus = useDeleteBonus();
   const updateBonus = useUpdateBonus();
   const addIncome = useAddIncome();
@@ -795,11 +797,17 @@ export default function ProjectedIncome() {
                     )}
 
                     {entries.map((entry, i) => {
+                      const dismissKey = `${entry.streamId}:${entry.date}`;
+                      const isDismissed = dismissedSuggestions.has(dismissKey);
                       const isMatched = entry.matchStatus === "matched";
-                      const isSuggested = entry.matchStatus === "suggested";
-                      const isPastDue = entry.matchStatus === "past_due";
+                      const isSuggested = entry.matchStatus === "suggested" && !isDismissed;
+                      const isPastDue = entry.matchStatus === "past_due" || (entry.matchStatus === "suggested" && isDismissed && (() => {
+                        const pDate = new Date(entry.date);
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        return pDate < today;
+                      })());
                       const isSkipped = entry.matchStatus === "skipped";
-                      const isActive = entry.matchStatus === "active";
+                      const isActive = entry.matchStatus === "active" || (entry.matchStatus === "suggested" && isDismissed && !isPastDue);
                       const isAutoConverted = entry.matchStatus === "converted";
 
                       const override = overrideLookup.get(`${entry.streamId}:${entry.date}`);
@@ -911,6 +919,46 @@ export default function ProjectedIncome() {
                             <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
+                            {isSuggested && entry.suggestedIncomeId && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs px-2 border-emerald-400 text-emerald-700 dark:text-emerald-400 gap-0.5"
+                                  title="Confirm this projected paycheck matches the actual income entry"
+                                  disabled={confirmSuggested.isPending}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const t = (entry.streamCompanyType || "").toLowerCase();
+                                    const isBiz = t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution";
+                                    confirmSuggested.mutate({
+                                      streamId: entry.streamId,
+                                      occurrenceDate: entry.date,
+                                      incomeEntryId: entry.suggestedIncomeId!,
+                                      ledgerBucket: isBiz ? "business" : "personal",
+                                    });
+                                  }}
+                                >
+                                  <CheckCircle2 className="h-3 w-3 mr-0.5" /> Confirm
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-xs px-2 text-muted-foreground gap-0.5"
+                                  title="Dismiss this suggested match"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDismissedSuggestions((prev) => {
+                                      const next = new Set(prev);
+                                      next.add(`${entry.streamId}:${entry.date}`);
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <X className="h-3 w-3 mr-0.5" /> Dismiss
+                                </Button>
+                              </>
+                            )}
                             {isActive && entry.type === "paycheck" && (
                               <>
                                 <Button
