@@ -20,6 +20,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import ResetPassword from "@/pages/ResetPassword";
 import Onboarding from "@/pages/Onboarding";
+import Estimate from "@/pages/Estimate";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import NotFound from "@/pages/NotFound";
@@ -107,6 +108,7 @@ function AppRoutes() {
       <Route path="/signup" element={user ? <Navigate to="/onboarding" replace /> : <Signup />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/estimate" element={<Estimate />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
     </Routes>
   );
