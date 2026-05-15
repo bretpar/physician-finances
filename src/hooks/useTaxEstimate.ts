@@ -499,8 +499,65 @@ export function useTaxEstimate(): {
       );
       const savingsTotal = manualSavingsTotal + personalEntryReserves + businessEntryReserves + investmentActualSaved;
 
-      const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
+      // Build the matchable business-income set: active income transactions
+      // not excluded from business reports. Pass these (with overrides and
+      // planner conversions) so generateProjectedPaychecks can flag converted/
+      // matched occurrences and getProjectedTotals excludes them — preventing
+      // double-counting of converted planner rows alongside their ledger twin.
+      const activeBusinessIncomeTransactions: import("@/hooks/useProjectedIncome").MatchableBusinessTransaction[] =
+        scope.transactions
+          .filter(
+            (t) =>
+              t.transaction_type === "income" &&
+              (t as any).status === "active" &&
+              !isExcludedFromBusiness(t as any),
+          )
+          .map((t) => ({
+            id: t.id,
+            transaction_date: t.transaction_date,
+            vendor: (t as any).vendor || "",
+            amount: Number(t.amount) || 0,
+            source_id: (t as any).source_id ?? null,
+            status: (t as any).status,
+            transaction_type: t.transaction_type,
+            origin_type: (t as any).origin_type ?? null,
+            origin_planner_conversion_id: (t as any).origin_planner_conversion_id ?? null,
+          }));
+
+      const projectedPaychecks = generateProjectedPaychecks(
+        streams || [],
+        bonuses || [],
+        incomeEntriesClean,
+        overrides || [],
+        plannerConversions || [],
+        activeBusinessIncomeTransactions,
+      );
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+
+      if (typeof window !== "undefined" && import.meta.env?.DEV && incomeScope === "actualPlusPlanned") {
+        const byStatus = projectedPaychecks.reduce<Record<string, { count: number; gross: number }>>((acc, p) => {
+          const s = p.matchStatus;
+          if (!acc[s]) acc[s] = { count: 0, gross: 0 };
+          acc[s].count += 1;
+          acc[s].gross += Number(p.grossAmount || 0);
+          return acc;
+        }, {});
+        const actualLedgerIncome =
+          (scope.canonicalBusiness.totalBusinessGross || 0) +
+          personal.reduce((s, e) => s + Number(e.paycheck_amount || 0), 0);
+        const projectedActive = byStatus.active?.gross || 0;
+        // eslint-disable-next-line no-console
+        console.table({
+          "actual ledger income": actualLedgerIncome,
+          "projected active income": projectedActive,
+          "excluded converted planner": byStatus.converted?.gross || 0,
+          "excluded matched planner": byStatus.matched?.gross || 0,
+          "excluded suggested planner": byStatus.suggested?.gross || 0,
+          "excluded past_due planner": byStatus.past_due?.gross || 0,
+          "excluded skipped planner": byStatus.skipped?.gross || 0,
+          "TOTAL expected income": actualLedgerIncome + projectedActive,
+        });
+      }
       // Forecast business expenses are user-entered assumptions on 1099 / K-1 streams
       // that reduce projected SE gross to net business profit. Only counted in the
       // "actual + planned" forecast — actual transactions own the expense side in
