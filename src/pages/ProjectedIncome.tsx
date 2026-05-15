@@ -25,9 +25,6 @@ import {
 import {
   Accordion, AccordionItem, AccordionTrigger, AccordionContent,
 } from "@/components/ui/accordion";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
