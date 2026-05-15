@@ -1454,9 +1454,19 @@ export default function Transactions() {
                     <span className="text-[10px] text-muted-foreground">Manual</span>
                   )}
                 </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {mapLegacyCategory(tx.category)}
-                </span>
+                {(() => {
+                  const catLabel = mapLegacyCategory(tx.category) || "Uncategorized";
+                  const isUncategorized = !isIncomeTx && !isTransferTx && (!tx.category || catLabel === "Uncategorized");
+                  return isUncategorized ? (
+                    <span className="truncate">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400 text-amber-600 dark:text-amber-400">
+                        Uncategorized
+                      </Badge>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground truncate">{catLabel}</span>
+                  );
+                })()}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
