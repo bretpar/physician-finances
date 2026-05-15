@@ -185,6 +185,7 @@ export default function PersonalIncome() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
+  const [detailEntry, setDetailEntry] = useState<PersonalIncomeEntry | null>(null);
   const uploadAttachments = useUploadAttachments();
 
   // Per-transaction tax-savings reminder state
