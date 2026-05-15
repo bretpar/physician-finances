@@ -67,20 +67,30 @@ export function YtdCatchupRecap({ onEdit, editingId, defaultOpen }: Props = {}) 
         <span className="text-muted-foreground">State: {fmt(totalState)}</span>
       </div>
 
-      <details className="text-xs">
+      <details className="text-xs" open={defaultOpen || !!editingId || undefined}>
         <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Review individual entries</summary>
         <ul className="mt-2 space-y-1">
-          {rows.map((e) => (
-            <li key={e.id} className="flex items-center justify-between gap-2 rounded-md bg-card border border-border px-2 py-1.5">
-              <div className="min-w-0">
-                <p className="truncate text-card-foreground">{e.company_name}</p>
-                <p className="truncate text-muted-foreground">{e.period_start} → {e.period_end} · {fmt(Number(e.gross_income) || 0)}</p>
-              </div>
-              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => del.mutate(e.id)} disabled={del.isPending}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </li>
-          ))}
+          {rows.map((e) => {
+            const isEditing = editingId === e.id;
+            return (
+              <li key={e.id} className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 ${isEditing ? "border-primary bg-primary/5" : "border-border bg-card"}`}>
+                <div className="min-w-0">
+                  <p className="truncate text-card-foreground">{e.company_name}{isEditing && <span className="ml-2 text-[10px] uppercase tracking-wide text-primary">Editing</span>}</p>
+                  <p className="truncate text-muted-foreground">{e.period_start} → {e.period_end} · {fmt(Number(e.gross_income) || 0)}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {onEdit && (
+                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => onEdit(e)} disabled={del.isPending} aria-label={`Edit ${e.company_name}`}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => del.mutate(e.id)} disabled={del.isPending} aria-label={`Delete ${e.company_name}`}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </details>
     </div>
