@@ -305,67 +305,157 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
     duplicateSkipped: 0,
     alreadyConverted: 0,
     errors: 0,
+    audit: [],
   };
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return stats;
+  if (!user) {
+    persistLastRun(stats);
+    return stats;
+  }
 
-  // Load streams, bonuses, overrides, actual income (for matching), and the user's settings.
-  const [streamsRes, bonusesRes, overridesRes, incomeRes, settingsRes] = await Promise.all([
-    supabase.from("projected_income_streams").select("*"),
-    supabase.from("projected_bonus_events").select("*"),
-    supabase.from("projected_income_overrides").select("*"),
-    supabase
-      .from("income_entries")
-      .select("id, income_date, company, paycheck_amount, income_type, status"),
-    supabase
-      .from("tax_settings")
-      .select("auto_convert_future_income_to_ledger, organization_id")
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  // Load every input that generateProjectedPaychecks needs to make accurate
+  // decisions: streams, bonuses, overrides, prior planner_conversions (so
+  // already-converted occurrences are tagged "converted" and skipped),
+  // personal income_entries (W-2 matching), and active business income
+  // transactions (1099/K-1 matching).
+  const [streamsRes, bonusesRes, overridesRes, incomeRes, conversionsRes, businessTxRes, settingsRes] =
+    await Promise.all([
+      supabase.from("projected_income_streams").select("*"),
+      supabase.from("projected_bonus_events").select("*"),
+      supabase.from("projected_income_overrides").select("*"),
+      supabase
+        .from("income_entries")
+        .select("id, income_date, company, paycheck_amount, income_type, status, source_id, origin_planner_conversion_id, entry_kind"),
+      supabase
+        .from("planner_conversions")
+        .select("stream_id, bonus_event_id, occurrence_date, status"),
+      supabase
+        .from("transactions")
+        .select("id, transaction_date, vendor, amount, source_id, status, transaction_type, origin_type, origin_planner_conversion_id, excluded_from_reports, category")
+        .eq("transaction_type", "income")
+        .eq("status", "active"),
+      supabase
+        .from("tax_settings")
+        .select("auto_convert_future_income_to_ledger, organization_id")
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
   const settings = settingsRes.data as { auto_convert_future_income_to_ledger?: boolean; organization_id?: string | null } | null;
-  if (!settings?.auto_convert_future_income_to_ledger) return stats;
+  if (!settings?.auto_convert_future_income_to_ledger) {
+    persistLastRun(stats);
+    return stats;
+  }
 
   const streams = (streamsRes.data || []) as ProjectedIncomeStream[];
   const bonuses = (bonusesRes.data || []) as ProjectedBonusEvent[];
   const overrides = (overridesRes.data || []) as ProjectedIncomeOverride[];
   const incomeEntries = (incomeRes.data || []) as MatchableIncomeEntry[];
+  const plannerConversions = (conversionsRes.data || []) as PlannerConversionRow[];
+  // Strip personal/transfer/excluded rows so business matching only sees real
+  // business income (mirrors useTaxEstimate's canonical filter).
+  const businessTxs: MatchableBusinessTransaction[] = (businessTxRes.data || [])
+    .filter((t: any) =>
+      t.transaction_type === "income" &&
+      t.status === "active" &&
+      t.excluded_from_reports !== true &&
+      (t.category || "") !== "Personal",
+    )
+    .map((t: any) => ({
+      id: t.id,
+      transaction_date: t.transaction_date,
+      vendor: t.vendor || "",
+      amount: Number(t.amount) || 0,
+      source_id: t.source_id ?? null,
+      status: t.status,
+      transaction_type: t.transaction_type,
+      origin_type: t.origin_type ?? null,
+      origin_planner_conversion_id: t.origin_planner_conversion_id ?? null,
+    }));
 
-  const paychecks = generateProjectedPaychecks(streams, bonuses, incomeEntries, overrides);
+  const paychecks = generateProjectedPaychecks(
+    streams,
+    bonuses,
+    incomeEntries,
+    overrides,
+    plannerConversions as any,
+    businessTxs,
+  );
   const today = new Date().toISOString().slice(0, 10);
 
   const streamById = new Map(streams.map((s) => [s.id, s] as const));
-  // Map bonus_event_id by stream + scheduled_date so we can attach it to the paycheck.
   const bonusByKey = new Map<string, ProjectedBonusEvent>();
   for (const b of bonuses) {
     bonusByKey.set(`${b.stream_id}:${b.scheduled_date}`, b);
   }
 
   for (const p of paychecks) {
-    // Eligibility: today or earlier, not already matched, not skipped
-    if (p.date > today) continue;
-    if (p.matchStatus === "matched" || p.matchStatus === "skipped") continue;
-
     const stream = streamById.get(p.streamId);
+    const company = stream?.company || p.label || "(unknown)";
+
+    if (p.date > today) {
+      stats.audit!.push({ streamId: p.streamId, company, date: p.date, matchStatus: p.matchStatus, decision: "skipped_future" });
+      continue;
+    }
+    // Skip anything we should not re-convert: already matched to actual,
+    // user-skipped, already converted, or with a heuristic suggested match
+    // pending review (avoid creating a duplicate of the suggested ledger row).
+    if (
+      p.matchStatus === "matched" ||
+      p.matchStatus === "skipped" ||
+      p.matchStatus === "converted" ||
+      p.matchStatus === "suggested"
+    ) {
+      stats.audit!.push({ streamId: p.streamId, company, date: p.date, matchStatus: p.matchStatus, decision: "skipped_matched" });
+      continue;
+    }
+
     if (!stream) continue;
 
     const bonus = p.type === "bonus" ? bonusByKey.get(`${p.streamId}:${p.date}`) : undefined;
 
     stats.attempted++;
-    const result = await convertOne({
-      userId: user.id,
-      organizationId: stream.organization_id ?? settings.organization_id ?? null,
-      paycheck: p,
-      stream,
-      bonusEventId: bonus?.id ?? null,
-    });
+    let result: "converted" | "duplicate" | "exists" | "error" = "error";
+    try {
+      result = await convertOne({
+        userId: user.id,
+        organizationId: stream.organization_id ?? settings.organization_id ?? null,
+        paycheck: p,
+        stream,
+        bonusEventId: bonus?.id ?? null,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[plannerConversion] convertOne threw", { stream: stream.id, date: p.date, err });
+      stats.audit!.push({
+        streamId: p.streamId, company, date: p.date, matchStatus: p.matchStatus,
+        decision: "error", error: (err as Error).message,
+      });
+      stats.errors++;
+      continue;
+    }
+
+    const bucket: "personal" | "business" = isBusinessIncomeType(stream.company_type) ? "business" : "personal";
+    stats.audit!.push({ streamId: p.streamId, company, date: p.date, matchStatus: p.matchStatus, decision: result, bucket });
 
     if (result === "converted") stats.converted++;
     else if (result === "duplicate") stats.duplicateSkipped++;
     else if (result === "exists") stats.alreadyConverted++;
     else stats.errors++;
+  }
+
+  persistLastRun(stats);
+
+  if (typeof window !== "undefined" && (import.meta as any).env?.DEV) {
+    // eslint-disable-next-line no-console
+    console.groupCollapsed(
+      `[plannerConversion] run @ ${new Date().toISOString()} — attempted=${stats.attempted} converted=${stats.converted} dup=${stats.duplicateSkipped} exists=${stats.alreadyConverted} errors=${stats.errors}`,
+    );
+    // eslint-disable-next-line no-console
+    console.table(stats.audit);
+    // eslint-disable-next-line no-console
+    console.groupEnd();
   }
 
   return stats;
