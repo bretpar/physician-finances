@@ -108,6 +108,7 @@ function AppRoutes() {
       <Route path="/signup" element={user ? <Navigate to="/onboarding" replace /> : <Signup />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/estimate" element={<Estimate />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
     </Routes>
   );
