@@ -352,7 +352,11 @@ export function usePlannerConversions() {
 /**
  * Confirm a heuristic "suggested" projected→actual match by inserting a
  * planner_conversion linking the projected occurrence to the existing actual
- * income entry. After this, the projected entry renders as "Converted".
+ * ledger row (income_entries for personal, transactions for business). After
+ * this, the projected entry renders as "Converted".
+ *
+ * Idempotent: if a conversion row already exists for (stream_id, occurrence_date),
+ * we skip the insert and just back-link the existing row to the ledger entry.
  */
 export function useConfirmSuggestedMatch() {
   const qc = useQueryClient();
@@ -360,29 +364,264 @@ export function useConfirmSuggestedMatch() {
     mutationFn: async (input: {
       streamId: string;
       occurrenceDate: string;
+      /** ID of the existing ledger row (income_entries.id for personal, transactions.id for business). */
       incomeEntryId: string;
       ledgerBucket: "personal" | "business";
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
-      const { error } = await supabase.from("planner_conversions").insert({
-        user_id: user.id,
-        organization_id: orgId,
-        stream_id: input.streamId,
-        occurrence_date: input.occurrenceDate,
-        ledger_bucket: input.ledgerBucket,
-        income_entry_id: input.ledgerBucket === "personal" ? input.incomeEntryId : null,
-        transaction_id: input.ledgerBucket === "business" ? input.incomeEntryId : null,
-        status: "converted",
-      } as any);
-      if (error) throw error;
+
+      // Idempotent pre-check
+      const { data: existing } = await supabase
+        .from("planner_conversions")
+        .select("id")
+        .eq("stream_id", input.streamId)
+        .eq("occurrence_date", input.occurrenceDate)
+        .maybeSingle();
+
+      let conversionId: string | null = (existing as any)?.id ?? null;
+      if (!conversionId) {
+        const { data: inserted, error } = await supabase
+          .from("planner_conversions")
+          .insert({
+            user_id: user.id,
+            organization_id: orgId,
+            stream_id: input.streamId,
+            bonus_event_id: null,
+            occurrence_date: input.occurrenceDate,
+            ledger_bucket: input.ledgerBucket,
+            income_entry_id: input.ledgerBucket === "personal" ? input.incomeEntryId : null,
+            transaction_id: input.ledgerBucket === "business" ? input.incomeEntryId : null,
+            status: "converted",
+            needs_review_reason: "Confirmed by user from suggested match",
+          } as any)
+          .select("id")
+          .single();
+        if (error) {
+          // Race: treat as already converted
+          if ((error as any).code !== "23505") throw error;
+          const { data: again } = await supabase
+            .from("planner_conversions")
+            .select("id")
+            .eq("stream_id", input.streamId)
+            .eq("occurrence_date", input.occurrenceDate)
+            .maybeSingle();
+          conversionId = (again as any)?.id ?? null;
+        } else {
+          conversionId = (inserted as any).id as string;
+        }
+      } else {
+        // Backfill the linked ledger id on the existing conversion if missing
+        await supabase
+          .from("planner_conversions")
+          .update({
+            income_entry_id: input.ledgerBucket === "personal" ? input.incomeEntryId : null,
+            transaction_id: input.ledgerBucket === "business" ? input.incomeEntryId : null,
+            status: "converted",
+          } as any)
+          .eq("id", conversionId);
+      }
+
+      // Back-link the existing ledger row to the conversion so it shows as
+      // a stored "matched" relationship on subsequent renders.
+      if (conversionId) {
+        if (input.ledgerBucket === "personal") {
+          await supabase
+            .from("income_entries")
+            .update({
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .eq("id", input.incomeEntryId);
+        } else {
+          await supabase
+            .from("transactions")
+            .update({
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .eq("id", input.incomeEntryId);
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["planner_conversions"] });
-      qc.invalidateQueries({ queryKey: ["personal_income"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("Match confirmed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/**
+ * Manually convert a planned paycheck into a freshly-created ledger row.
+ * Creates the planner_conversions record FIRST (acquiring the unique slot),
+ * then inserts the ledger row, then back-links the conversion to it.
+ */
+export function useManualPlannerConvert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      streamId: string;
+      bonusEventId?: string | null;
+      occurrenceDate: string;
+      ledgerBucket: "personal" | "business";
+      // Ledger row payload
+      label: string;
+      sourceId: string | null;
+      incomeType: string;
+      uiIncomeSubtype?: string | null;
+      grossAmount: number;
+      taxesWithheld: number;
+      preTaxDeductions: number;
+      retirement401k: number;
+      healthcareDeduction: number;
+      hsaContribution: number;
+      federalWithholding: number;
+      stateWithholding: number;
+      ssWithholding: number;
+      medicareWithholding: number;
+      isBonus: boolean;
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = await getUserOrgId();
+
+      // Idempotent: if a conversion already exists, return it (skip creation).
+      let existingId: string | null = null;
+      if (input.bonusEventId) {
+        const { data } = await supabase
+          .from("planner_conversions")
+          .select("id")
+          .eq("bonus_event_id", input.bonusEventId)
+          .maybeSingle();
+        existingId = (data as any)?.id ?? null;
+      } else {
+        const { data } = await supabase
+          .from("planner_conversions")
+          .select("id")
+          .eq("stream_id", input.streamId)
+          .eq("occurrence_date", input.occurrenceDate)
+          .maybeSingle();
+        existingId = (data as any)?.id ?? null;
+      }
+      if (existingId) return { conversionId: existingId, alreadyExisted: true };
+
+      // 1. Insert planner_conversions
+      const { data: conv, error: convErr } = await supabase
+        .from("planner_conversions")
+        .insert({
+          user_id: user.id,
+          organization_id: orgId,
+          stream_id: input.bonusEventId ? null : input.streamId,
+          bonus_event_id: input.bonusEventId ?? null,
+          occurrence_date: input.occurrenceDate,
+          ledger_bucket: input.ledgerBucket,
+          status: "converted",
+          needs_review_reason: "Manually converted from planner — please review",
+        } as any)
+        .select("id")
+        .single();
+      if (convErr) {
+        if ((convErr as any).code === "23505") {
+          // Race: someone else just converted it — fetch and return.
+          const lookup = input.bonusEventId
+            ? await supabase.from("planner_conversions").select("id").eq("bonus_event_id", input.bonusEventId).maybeSingle()
+            : await supabase.from("planner_conversions").select("id").eq("stream_id", input.streamId).eq("occurrence_date", input.occurrenceDate).maybeSingle();
+          return { conversionId: (lookup.data as any)?.id ?? null, alreadyExisted: true };
+        }
+        throw convErr;
+      }
+      const conversionId = (conv as any).id as string;
+
+      // 2. Create the ledger row
+      if (input.ledgerBucket === "personal") {
+        const { data: ie, error } = await supabase
+          .from("income_entries")
+          .insert({
+            user_id: user.id,
+            organization_id: orgId,
+            name: input.label,
+            company: input.label,
+            source_id: input.sourceId,
+            income_type: input.incomeType,
+            ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
+            income_date: input.occurrenceDate,
+            gross_amount: input.grossAmount,
+            paycheck_amount: input.grossAmount,
+            federal_withholding: input.federalWithholding,
+            state_withholding: input.stateWithholding,
+            ss_withholding: input.ssWithholding,
+            medicare_withholding: input.medicareWithholding,
+            taxes_withheld: input.taxesWithheld,
+            pre_tax_deductions: input.preTaxDeductions,
+            retirement_401k: input.retirement401k,
+            healthcare_deduction: input.healthcareDeduction,
+            hsa_contribution: input.hsaContribution,
+            source_bucket: "personal",
+            tax_category: "ordinary",
+            is_actual: true,
+            include_in_tax_estimate: true,
+            include_in_cash_flow: false,
+            status: "received",
+            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+          } as any)
+          .select("id")
+          .single();
+        if (error) {
+          await supabase.from("planner_conversions").delete().eq("id", conversionId);
+          throw error;
+        }
+        await supabase
+          .from("planner_conversions")
+          .update({ income_entry_id: (ie as any).id })
+          .eq("id", conversionId);
+      } else {
+        const { data: tx, error } = await supabase
+          .from("transactions")
+          .insert({
+            user_id: user.id,
+            organization_id: orgId,
+            transaction_date: input.occurrenceDate,
+            vendor: input.label,
+            amount: input.grossAmount,
+            account_source: "Planner",
+            category: "Income",
+            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+            entity: input.label || "Unassigned",
+            company_type: input.incomeType,
+            source_id: input.sourceId,
+            transaction_type: "income",
+            needs_review: true,
+            status: "active",
+            actual_withholding: input.taxesWithheld,
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+          } as any)
+          .select("id")
+          .single();
+        if (error) {
+          await supabase.from("planner_conversions").delete().eq("id", conversionId);
+          throw error;
+        }
+        await supabase
+          .from("planner_conversions")
+          .update({ transaction_id: (tx as any).id })
+          .eq("id", conversionId);
+      }
+      return { conversionId, alreadyExisted: false };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Converted to ledger");
     },
     onError: (e: Error) => toast.error(e.message),
   });
