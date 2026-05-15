@@ -1056,78 +1056,84 @@ export function generateProjectedPaychecks(
   // Sort by date for matching priority
   rawPaychecks.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Now match each paycheck against actual income entries
+  // Now match each paycheck against actual ledger rows. Personal streams match
+  // against income_entries; business streams match against transactions
+  // (transaction_type='income', status='active').
   const entries = incomeEntries || [];
+  const businessTxs = businessTransactions || [];
 
   for (const raw of rawPaychecks) {
     const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions - raw.healthcareDeduction;
 
     if (raw.isSkipped) {
-      paychecks.push({
-        ...raw,
-        netAmount: 0,
-        matchStatus: "skipped",
-      });
+      paychecks.push({ ...raw, netAmount: 0, matchStatus: "skipped" });
       continue;
     }
 
-    // Auto-converted by the planner → ledger bridge: tag as "converted" so the
-    // UI can show it as fulfilled and we don't double-count it as past_due/active.
-    if (convertedKeys.has(`${raw.streamId}:${raw.date}`)) {
-      paychecks.push({
-        ...raw,
-        netAmount: Math.max(0, net),
-        matchStatus: "converted",
-      });
+    // Auto-converted by the planner → ledger bridge: tag as "converted".
+    const isBonusConverted = raw.bonusEventId && convertedBonusIds.has(raw.bonusEventId);
+    const isPaycheckConverted = !raw.bonusEventId && convertedKeys.has(`${raw.streamId}:${raw.date}`);
+    if (isBonusConverted || isPaycheckConverted) {
+      paychecks.push({ ...raw, netAmount: Math.max(0, net), matchStatus: "converted" });
       continue;
     }
 
-    // Try to find a matching actual income entry
-    const match = findMatchingIncome(
-      { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType },
-      entries,
-      usedEntryIds,
-    );
+    const bucket = isBusinessIncomeType(raw.streamCompanyType) ? "business" : "personal";
 
-    if (match) {
-      usedEntryIds.add(match.entry.id);
-      // Only treat as truly "matched" when there is a stored relationship —
-      // i.e. the actual income entry was created via a confirmed planner
-      // conversion (entry_kind === "planner_conversion" or
-      // origin_planner_conversion_id present). Heuristic name+amount+date
-      // matches are surfaced as "suggested" until the user confirms.
-      const hasStoredLink =
-        match.entry.entry_kind === "planner_conversion" ||
-        Boolean(match.entry.origin_planner_conversion_id);
-
-      if (hasStoredLink) {
+    if (bucket === "business") {
+      const m = findMatchingBusinessTransaction(
+        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamSourceId: raw.streamSourceId },
+        businessTxs,
+        usedTxIds,
+      );
+      if (m) {
+        usedTxIds.add(m.tx.id);
+        const hasStoredLink =
+          m.tx.origin_type === "planner_converted" || Boolean(m.tx.origin_planner_conversion_id);
         paychecks.push({
           ...raw,
           netAmount: Math.max(0, net),
-          matchStatus: "matched",
-          matchedIncomeId: match.entry.id,
-          matchedAmount: Number(match.entry.paycheck_amount),
+          matchStatus: hasStoredLink ? "matched" : "suggested",
+          ...(hasStoredLink
+            ? { matchedIncomeId: m.tx.id, matchedAmount: Number(m.tx.amount) }
+            : {
+                suggestedTransactionId: m.tx.id,
+                suggestedBucket: "business" as const,
+                suggestedAmount: Number(m.tx.amount),
+              }),
         });
-      } else {
-        paychecks.push({
-          ...raw,
-          netAmount: Math.max(0, net),
-          matchStatus: "suggested",
-          suggestedIncomeId: match.entry.id,
-          suggestedAmount: Number(match.entry.paycheck_amount),
-        });
+        continue;
       }
     } else {
-      // Check if past due
-      const pDate = parseISO(raw.date);
-      const isPastDue = isBefore(pDate, now) && !isSameDay(pDate, now);
-
-      paychecks.push({
-        ...raw,
-        netAmount: Math.max(0, net),
-        matchStatus: isPastDue ? "past_due" : "active",
-      });
+      const match = findMatchingIncome(
+        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType, streamSourceId: raw.streamSourceId },
+        entries,
+        usedEntryIds,
+      );
+      if (match) {
+        usedEntryIds.add(match.entry.id);
+        const hasStoredLink =
+          match.entry.entry_kind === "planner_conversion" ||
+          Boolean(match.entry.origin_planner_conversion_id);
+        paychecks.push({
+          ...raw,
+          netAmount: Math.max(0, net),
+          matchStatus: hasStoredLink ? "matched" : "suggested",
+          ...(hasStoredLink
+            ? { matchedIncomeId: match.entry.id, matchedAmount: Number(match.entry.paycheck_amount) }
+            : {
+                suggestedIncomeId: match.entry.id,
+                suggestedBucket: "personal" as const,
+                suggestedAmount: Number(match.entry.paycheck_amount),
+              }),
+        });
+        continue;
+      }
     }
+
+    const pDate = parseISO(raw.date);
+    const isPastDue = isBefore(pDate, now) && !isSameDay(pDate, now);
+    paychecks.push({ ...raw, netAmount: Math.max(0, net), matchStatus: isPastDue ? "past_due" : "active" });
   }
 
   return paychecks.sort((a, b) => a.date.localeCompare(b.date));
