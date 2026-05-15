@@ -1885,6 +1885,7 @@ export type Database = {
           organization_id: string | null
           origin_planner_conversion_id: string | null
           origin_type: string
+          origin_ytd_catchup_id: string | null
           parent_transaction_id: string | null
           plaid_transaction_ref: string | null
           receipt_url: string | null
@@ -1928,6 +1929,7 @@ export type Database = {
           organization_id?: string | null
           origin_planner_conversion_id?: string | null
           origin_type?: string
+          origin_ytd_catchup_id?: string | null
           parent_transaction_id?: string | null
           plaid_transaction_ref?: string | null
           receipt_url?: string | null
@@ -1971,6 +1973,7 @@ export type Database = {
           organization_id?: string | null
           origin_planner_conversion_id?: string | null
           origin_type?: string
+          origin_ytd_catchup_id?: string | null
           parent_transaction_id?: string | null
           plaid_transaction_ref?: string | null
           receipt_url?: string | null

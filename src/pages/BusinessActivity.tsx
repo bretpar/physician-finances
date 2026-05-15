@@ -1531,6 +1531,8 @@ export default function Transactions() {
                   else badges.push({ label: isIncomeTx ? "Income" : "Expense", tone: isIncomeTx ? "success" : "expense" });
                   if (tx.needs_review) badges.push({ label: "Review", tone: "warning" });
                   if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "info" });
+                  const isCatchupOrigin = (tx as any).origin_type === "ytd_catchup";
+                  if (isCatchupOrigin) badges.push({ label: "YTD catch-up", tone: "info" });
                   const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
                   const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
                   
@@ -1682,7 +1684,13 @@ export default function Transactions() {
                       selectionMode={mobileSelectionMode}
                       onToggleSelect={() => toggleMobileSelect(tx.id)}
                       onLongPress={() => enterMobileSelectionWith(tx.id)}
-                      onClick={() => openEdit(tx)}
+                      onClick={() => {
+                        if (isCatchupOrigin) {
+                          toast.info("Edit this row on the Income page (YTD catch-up).");
+                          return;
+                        }
+                        openEdit(tx);
+                      }}
                     />
                   );
                 })}

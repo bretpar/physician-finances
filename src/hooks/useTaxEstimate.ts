@@ -309,6 +309,7 @@ export function useTaxEstimate(): {
       return "other";
     };
     const overlapDebug: Array<Record<string, number | string>> = [];
+    const allTxsForOverlap = transactions || [];
     const catchupBuckets = (ytdCatchups || [])
       .filter((c: YtdCatchupEntry) => c.tax_year === currentYr)
       .reduce(
@@ -331,7 +332,31 @@ export function useTaxEstimate(): {
           const overlapPreTax = sum("pre_tax_deductions") + sum("hsa_contribution");
           const overlapRetire = sum("retirement_401k");
 
-          const cGross = Math.max(0, (Number(c.gross_income) || 0) - overlapGross);
+          // BUSINESS BUCKET ONLY: also subtract overlapping business income
+          // transactions (including this catch-up's own synthetic paired
+          // transaction) from gross. This prevents double-counting now that
+          // business catch-ups are mirrored into the ledger. We deliberately
+          // do NOT subtract federal/state from the catch-up's withholding,
+          // because the synthetic transaction has no linked income_entry and
+          // therefore contributes 0 to canonicalBusiness.businessFederalWithheld
+          // — the catch-up's own withholding totals must still flow through.
+          let overlapTxGross = 0;
+          if (targetBucket === "business") {
+            overlapTxGross = allTxsForOverlap
+              .filter((t: any) => {
+                if (t.transaction_type !== "income") return false;
+                if (t.status && t.status !== "active") return false;
+                if (t.excluded_from_reports) return false;
+                if (isExcludedFromBusiness(t as any)) return false;
+                const d = t.transaction_date as string | undefined;
+                if (!d || d < c.period_start || d > c.period_end) return false;
+                if (Number(String(d).slice(0, 4)) !== c.tax_year) return false;
+                return true;
+              })
+              .reduce((s: number, t: any) => s + Math.abs(Number(t.amount) || 0), 0);
+          }
+
+          const cGross = Math.max(0, (Number(c.gross_income) || 0) - overlapGross - overlapTxGross);
           const cFedW = Math.max(0, (Number(c.federal_withholding) || 0) - overlapFedW);
           const cStateW = Math.max(0, (Number(c.state_withholding) || 0) - overlapStateW);
           const cPreTaxRaw = (Number(c.healthcare_premiums) || 0)
@@ -341,13 +366,14 @@ export function useTaxEstimate(): {
           const cPreTax = Math.max(0, cPreTaxRaw - overlapPreTax);
           const cRetire = Math.max(0, (Number(c.retirement_401k) || 0) - overlapRetire);
 
-          if (overlapping.length > 0) {
+          if (overlapping.length > 0 || overlapTxGross > 0) {
             overlapDebug.push({
               catchupId: c.id,
               source: c.source_type,
               period: `${c.period_start}..${c.period_end}`,
               overlappingRows: overlapping.length,
               subtractedGross: overlapGross,
+              subtractedTxGross: overlapTxGross,
               subtractedFedW: overlapFedW,
             });
           }
