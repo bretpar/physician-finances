@@ -210,6 +210,7 @@ export default function ProjectedIncome() {
   const { data: overrides } = useStreamOverrides();
   const { data: plannerConversions } = usePlannerConversions();
   const { data: incomeEntries } = useIncomeEntries();
+  const { data: businessTransactions } = useTransactions();
   const { data: taxSettings } = useTaxSettings();
   const { forecastEstimate, forecastDebug } = useTaxEstimate();
 
