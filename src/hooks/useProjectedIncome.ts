@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
@@ -13,10 +14,25 @@ export interface MatchableIncomeEntry {
   paycheck_amount: number;
   income_type: string;
   status: string;
+  /** Optional — used by business matcher to scope to the same company/source */
+  source_id?: string | null;
   /** Set when the entry was created via a confirmed planner conversion. */
   origin_planner_conversion_id?: string | null;
   /** "planner_conversion" indicates the entry is the confirmed actual for a projected paycheck. */
   entry_kind?: string | null;
+}
+
+/** Minimal interface for business ledger transactions used in matching. */
+export interface MatchableBusinessTransaction {
+  id: string;
+  transaction_date: string;
+  vendor: string;
+  amount: number;
+  source_id: string | null;
+  status: string;
+  transaction_type: string;
+  origin_planner_conversion_id?: string | null;
+  origin_type?: string | null;
 }
 
 /* ─── Types ─── */
