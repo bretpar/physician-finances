@@ -23,6 +23,7 @@ import Onboarding from "@/pages/Onboarding";
 import Estimate from "@/pages/Estimate";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
+import DataIsolationReport from "@/pages/admin/DataIsolationReport";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -75,6 +76,7 @@ function ProtectedRoutes() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/debug/transactions" element={<DebugTransactions />} />
+          <Route path="/admin/data-isolation" element={<DataIsolationReport />} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />
