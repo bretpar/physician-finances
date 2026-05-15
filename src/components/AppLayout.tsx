@@ -10,7 +10,7 @@ import {
   Menu,
   X,
   LogOut,
-  Wallet as PiggyBank,
+  
   Wallet,
   BarChart3,
 } from "lucide-react";
