@@ -128,6 +128,7 @@ export function useUpsertYtdCatchup() {
         user_id: user.id,
         organization_id: orgId,
       };
+      let saved: any;
       if (input.id) {
         const { data, error } = await supabase
           .from("ytd_catchup_entries" as any)
@@ -136,18 +137,39 @@ export function useUpsertYtdCatchup() {
           .select()
           .single();
         if (error) throw error;
-        return data;
+        saved = data;
+      } else {
+        const { data, error } = await supabase
+          .from("ytd_catchup_entries" as any)
+          .insert(row as any)
+          .select()
+          .single();
+        if (error) throw error;
+        saved = data;
       }
-      const { data, error } = await supabase
-        .from("ytd_catchup_entries" as any)
-        .insert(row as any)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      // Mirror business catch-ups into the ledger so they show up in
+      // Business Activity. Tax engine de-dupes via overlap subtraction.
+      try {
+        await syncCatchupTransaction({
+          catchupId: saved.id,
+          userId: user.id,
+          orgId,
+          sourceType: saved.source_type as YtdCatchupSourceType,
+          companyId: saved.company_id ?? null,
+          companyName: saved.company_name ?? "",
+          periodEnd: saved.period_end,
+          grossIncome: Number(saved.gross_income) || 0,
+          federalWithholding: Number(saved.federal_withholding) || 0,
+          stateWithholding: Number(saved.state_withholding) || 0,
+        });
+      } catch (e) {
+        console.warn("[useYtdCatchup] failed to sync paired transaction", e);
+      }
+      return saved;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("YTD catch-up saved");
     },
     onError: (e: any) => toast.error(e.message || "Could not save catch-up entry"),
@@ -158,11 +180,18 @@ export function useDeleteYtdCatchup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove paired ledger transaction first (best-effort).
+      try {
+        await (supabase as any).from("transactions").delete().eq("origin_ytd_catchup_id", id);
+      } catch (e) {
+        console.warn("[useYtdCatchup] failed to delete paired transaction", e);
+      }
       const { error } = await supabase.from("ytd_catchup_entries" as any).delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("YTD catch-up removed");
     },
   });
