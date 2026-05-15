@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { txTone, type TxTone } from "@/lib/transactionTones";
 
 export type LedgerRowKind =
   | "income"
@@ -26,12 +27,20 @@ const KIND_ICON: Record<LedgerRowKind, LucideIcon> = {
   neutral: Receipt,
 };
 
+const KIND_TONE: Record<LedgerRowKind, TxTone | null> = {
+  income: "income",
+  expense: "expense",
+  transfer: "transfer",
+  credit_card_payment: null, // keep purple custom
+  neutral: "neutral",
+};
+
 const KIND_ICON_CLASSES: Record<LedgerRowKind, string> = {
-  income: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  expense: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
-  transfer: "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400",
+  income: txTone("income").iconBg,
+  expense: txTone("expense").iconBg,
+  transfer: txTone("transfer").iconBg,
   credit_card_payment: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  neutral: "bg-muted text-muted-foreground",
+  neutral: txTone("neutral").iconBg,
 };
 
 export interface LedgerRowBadge {
@@ -72,14 +81,12 @@ const fmtAmount = (n: number) =>
 
 const TONE_CLASS: Record<NonNullable<LedgerRowBadge["tone"]>, string> = {
   default: "border-border bg-background text-foreground",
-  muted: "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400",
+  muted: txTone("transfer").pill,
   warning:
     "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-  info: "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400",
-  success:
-    "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400",
-  expense:
-    "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-400",
+  info: txTone("info").pill,
+  success: txTone("income").pill,
+  expense: txTone("expense").pill,
 };
 
 const LONG_PRESS_MS = 450;
@@ -112,11 +119,11 @@ export function LedgerRow({
 
   const amountClass =
     tone === "positive"
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? txTone("income").amount
       : tone === "negative"
-        ? "text-rose-600 dark:text-rose-400"
+        ? txTone("expense").amount
         : kind === "transfer"
-          ? "text-slate-500 dark:text-slate-400"
+          ? txTone("transfer").amount
           : "text-foreground";
 
   const prefix =

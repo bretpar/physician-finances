@@ -40,6 +40,7 @@ import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
+import { txTone } from "@/lib/transactionTones";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { DateField } from "@/components/DateField";
@@ -1072,11 +1073,11 @@ export default function Transactions() {
               const active = filterType === tab;
               const activeTone =
                 tab === "income"
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-sm"
+                  ? `${txTone("income").pill} shadow-sm`
                   : tab === "expense"
-                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 shadow-sm"
+                    ? `${txTone("expense").pill} shadow-sm`
                     : tab === "transfer"
-                      ? "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400 shadow-sm"
+                      ? `${txTone("transfer").pill} shadow-sm`
                       : "bg-background text-foreground shadow-sm";
               return (
                 <button
@@ -1433,19 +1434,18 @@ export default function Transactions() {
                 <span className="text-xs text-muted-foreground truncate">
                   {getTransactionCompanyLabel(tx)}
                 </span>
-                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-slate-500 dark:text-slate-400" : "text-rose-600 dark:text-rose-400"}`}>
+                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? txTone("income").amount : isTransferTx ? txTone("transfer").amount : txTone("expense").amount}`}>
                   {isIncomeTx ? "+" : isTransferTx ? "" : "-"}{fmt(Math.abs(displayAmount))}
                 </span>
                 <span className="text-center">
-                  <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                    isIncomeTx
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                      : isTransferTx
-                        ? "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400"
-                        : "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400"
-                  }`}>
-                    {isIncomeTx ? "Income" : isTransferTx ? transferLabel : "Expense"}
-                  </span>
+                  {(() => {
+                    const t = isIncomeTx ? txTone("income") : isTransferTx ? txTone("transfer") : txTone("expense");
+                    return (
+                      <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${t.pill}`}>
+                        {isIncomeTx ? "Income" : isTransferTx ? transferLabel : "Expense"}
+                      </span>
+                    );
+                  })()}
                 </span>
                 <span className="text-center">
                   {source === "plaid" && (
