@@ -1,5 +1,4 @@
 import type { DbTransaction } from "@/hooks/useTransactions";
-import type { DbTransaction } from "@/hooks/useTransactions";
 
 interface Props {
   transactions: DbTransaction[];
