@@ -359,6 +359,12 @@ export default function PersonalIncome() {
   }
 
   function openEdit(entry: PersonalIncomeEntry) {
+    if ((entry as any).linked_ytd_catchup_id) {
+      toast.info("This is a YTD Catch-Up Entry. Edit it from Income → YTD Catch-Up.", {
+        action: { label: "Go to Income", onClick: () => navigate("/personal-income") },
+      });
+      return;
+    }
     const uiType = hydrateIncomeType(entry);
     setForm({
       date: entry.income_date,
