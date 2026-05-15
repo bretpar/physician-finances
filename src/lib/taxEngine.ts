@@ -5,10 +5,12 @@
 
 import {
   ORDINARY_BRACKETS,
+  LTCG_BRACKETS,
   STANDARD_DEDUCTION as ACTIVE_STANDARD_DEDUCTION,
   SS_WAGE_BASE,
   ADDITIONAL_MEDICARE_THRESHOLD,
   SE_INCOME_FACTOR as ACTIVE_SE_INCOME_FACTOR,
+  calcBracketTax,
 } from "@/lib/taxBrackets";
 
 export interface TaxBracket {
