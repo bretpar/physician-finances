@@ -292,6 +292,91 @@ export default function Onboarding() {
     }
   }
 
+  async function chooseIncomeMethod(method: "manual" | "bank" | "ytd" | "planner") {
+    if (saving) return;
+    setSaving(true);
+    try {
+      // Mark onboarding complete so the user lands in the app and is not bounced
+      // back here on every page load. They can re-run setup from Settings.
+      if (settingsId) {
+        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+      }
+      sessionStorage.removeItem("paycheckmd-onboarding-start");
+      sessionStorage.removeItem("paycheckmd-onboarding-step");
+      const destination =
+        method === "manual" ? "/personal-income" :
+        method === "bank" ? "/settings" :
+        method === "ytd" ? "/personal-income?addYtd=1" :
+        "/projected-income";
+      navigate(destination, { replace: true });
+    } catch (error: any) {
+      toast.error(error.message || "Could not save your choice.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (showIncomeMethodPicker) {
+    return (
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
+        <Card className="mx-auto w-full max-w-2xl">
+          <CardContent className="space-y-6 p-5 sm:p-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><PiggyBank className="h-5 w-5" /></div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Welcome{merged.firstName ? `, ${merged.firstName}` : ""}</p>
+                <h1 className="mt-0.5 text-2xl font-semibold text-foreground">How do you want to add income?</h1>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">Pick the option that fits how you’d like to start. You can mix and match later from any tab.</p>
+            <div className="grid gap-3">
+              <button type="button" disabled={saving} onClick={() => chooseIncomeMethod("manual")} className={cn("w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 disabled:opacity-60")}>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><PencilLine className="h-4 w-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-card-foreground">Add income manually</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Enter paychecks, 1099 payments, or distributions one at a time.</span>
+                  </span>
+                </div>
+              </button>
+              <button type="button" disabled={saving} onClick={() => chooseIncomeMethod("bank")} className={cn("w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 disabled:opacity-60")}>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><Building2 className="h-4 w-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-card-foreground">Import from a bank or payroll connection</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Connect an account so deposits and paychecks import automatically.</span>
+                  </span>
+                </div>
+              </button>
+              <button type="button" disabled={saving} onClick={() => chooseIncomeMethod("ytd")} className={cn("w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 disabled:opacity-60")}>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><CalendarClock className="h-4 w-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-card-foreground">Enter year-to-date income summary</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Add totals from your most recent paystub so recommendations stay accurate.</span>
+                  </span>
+                </div>
+              </button>
+              <button type="button" disabled={saving} onClick={() => chooseIncomeMethod("planner")} className={cn("w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 disabled:opacity-60")}>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><LineChart className="h-4 w-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-card-foreground">Use Income Planner to estimate future income</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Project upcoming paychecks and bonuses to plan taxes ahead of time.</span>
+                  </span>
+                </div>
+              </button>
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-4">
+              <Button variant="ghost" onClick={() => { setShowIncomeMethodPicker(false); sessionStorage.removeItem("paycheckmd-onboarding-start"); }} disabled={saving}>Skip and finish onboarding</Button>
+              <p className="text-xs text-muted-foreground">You can change this anytime.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
       <Card className="mx-auto w-full max-w-2xl">
