@@ -14,6 +14,7 @@ import {
   Wallet,
   BarChart3,
 } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
