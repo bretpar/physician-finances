@@ -328,7 +328,7 @@ export default function InvestmentIncome() {
                   const actualSaved = Number(actualSavedRaw || 0);
                   const diff = actualSaved - recommended;
                   const isExpanded = expandedId === entry.id;
-                  const toggle = () => setExpandedId(isExpanded ? null : entry.id);
+                  const toggle = () => setDetailEntry(entry);
                   const dateObj = new Date(entry.entry_date + "T00:00:00");
                   const shortDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
                   const fullDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
