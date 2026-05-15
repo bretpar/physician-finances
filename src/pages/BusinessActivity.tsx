@@ -1665,7 +1665,7 @@ export default function Transactions() {
                       meta={null}
                       date={dateStr}
                       amount={displayAmount}
-                      amountTone={isIncomeTx ? "positive" : isTransferTx ? "neutral" : "neutral"}
+                      amountTone={isIncomeTx ? "positive" : isTransferTx ? "neutral" : "negative"}
                       amountPrefix={isIncomeTx ? "+" : isTransferTx ? "" : "-"}
                       badges={badges}
                       expandableContent={expandableContent}
