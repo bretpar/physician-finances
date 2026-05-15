@@ -122,6 +122,8 @@ interface StreamForm {
   hsa_contribution: string;
   pre_tax_deductions: string;
   additional_tax_reserve: string;
+  forecast_expense_per_period: string;
+  forecast_expense_notes: string;
   notes: string;
   is_active: boolean;
   include_in_tax: boolean;
@@ -164,6 +166,8 @@ const emptyForm = (monthIdx?: number): StreamForm => {
     hsa_contribution: "",
     pre_tax_deductions: "",
     additional_tax_reserve: "",
+    forecast_expense_per_period: "",
+    forecast_expense_notes: "",
     notes: "",
     is_active: true,
     include_in_tax: true,
@@ -389,6 +393,8 @@ export default function ProjectedIncome() {
       hsa_contribution: String(s.hsa_contribution || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
       additional_tax_reserve: String(s.additional_tax_reserve || 0),
+      forecast_expense_per_period: String(s.forecast_expense_per_period || 0),
+      forecast_expense_notes: s.forecast_expense_notes || "",
       notes: s.notes || "",
       is_active: s.is_active,
       include_in_tax: s.include_in_tax,
@@ -495,6 +501,16 @@ export default function ProjectedIncome() {
         ? num(form.additional_tax_reserve)
         : 0,
       notes: visibleFields.notes ? form.notes : "",
+      forecast_expense_per_period: (() => {
+        const f = filingType;
+        const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
+        return isBiz ? Math.max(0, num(form.forecast_expense_per_period)) : 0;
+      })(),
+      forecast_expense_notes: (() => {
+        const f = filingType;
+        const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
+        return isBiz ? (form.forecast_expense_notes || "").trim() : "";
+      })(),
       is_active: form.is_active,
       include_in_tax: form.include_in_tax,
     };
@@ -1417,6 +1433,59 @@ export default function ProjectedIncome() {
                         onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
                     </div>
                   )}
+
+                  {(() => {
+                    const meta = subtypeMeta(form.ui_income_subtype);
+                    const f = meta?.filingType ?? normalizeFilingType(form.ui_income_subtype);
+                    const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
+                    if (!isBiz) return null;
+                    const periodsPerYear = (() => {
+                      switch (form.pay_frequency) {
+                        case "weekly": return 52;
+                        case "biweekly": return 26;
+                        case "semimonthly": return 24;
+                        case "monthly": return 12;
+                        case "quarterly": return 4;
+                        case "annual": return 1;
+                        case "single": return 1;
+                        case "custom": {
+                          const d = num(form.custom_interval_days);
+                          return d > 0 ? Math.max(1, Math.round(365 / d)) : 0;
+                        }
+                        default: return 0;
+                      }
+                    })();
+                    const perPeriod = Math.max(0, num(form.forecast_expense_per_period));
+                    const annualized = periodsPerYear > 0 ? perPeriod * periodsPerYear : 0;
+                    return (
+                      <div className="space-y-3 rounded-md border border-dashed border-border bg-muted/30 p-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">
+                            Forecast business expenses (per pay period)
+                          </Label>
+                          <Input
+                            type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.forecast_expense_per_period}
+                            onChange={(e) => setField("forecast_expense_per_period", e.target.value)}
+                          />
+                          <p className="text-[11px] text-muted-foreground leading-snug">
+                            Estimated overhead reduces projected business profit before SE tax. Leave at 0 to forecast gross receipts only. Actual expense transactions are always counted separately.
+                            {annualized > 0 && (
+                              <> <span className="font-medium text-foreground">≈ {fmtFull(annualized)} / yr</span> at {periodsPerYear}× per year.</>
+                            )}
+                          </p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Assumption notes</Label>
+                          <Input
+                            value={form.forecast_expense_notes}
+                            onChange={(e) => setField("forecast_expense_notes", e.target.value)}
+                            placeholder="e.g. malpractice $X/mo + CME + supplies"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {visibleFields.notes && (
                     <div className="space-y-1.5">

@@ -197,4 +197,39 @@ describe("Unified tax engine — credits, double-counting, mode parity", () => {
 
     expect(breakdownView).toEqual(overviewView);
   });
+
+  it("forecast business expenses reduce SE tax for projected 1099 income", () => {
+    // Baseline: $200k projected SE gross with NO forecast expenses → all gross is profit.
+    const grossOnly = computeUnifiedTaxEstimate({
+      ...baseInput,
+      businessIncome: 0,
+      seEligibleBusinessIncome: 0,
+      personalIncome: 0,
+      personalW2: 0,
+      personalFederalWithheld: 0,
+      personalStateWithheld: 0,
+      businessExpenses: 0,
+      includeProjectedIncome: true,
+      projectedSEIncome: 200000,
+    }).debug;
+
+    // Same scenario with $50k of forecast business expenses booked against the
+    // projected SE gross. SE tax must drop because net business profit drops.
+    const withForecastExpenses = computeUnifiedTaxEstimate({
+      ...baseInput,
+      businessIncome: 0,
+      seEligibleBusinessIncome: 0,
+      personalIncome: 0,
+      personalW2: 0,
+      personalFederalWithheld: 0,
+      personalStateWithheld: 0,
+      businessExpenses: 50000,
+      seEligibleBusinessExpenses: 50000,
+      includeProjectedIncome: true,
+      projectedSEIncome: 200000,
+    }).debug;
+
+    expect(withForecastExpenses.selfEmploymentTax).toBeLessThan(grossOnly.selfEmploymentTax);
+    expect(withForecastExpenses.totalEstimatedTax).toBeLessThan(grossOnly.totalEstimatedTax);
+  });
 });

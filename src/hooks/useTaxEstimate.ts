@@ -496,6 +496,13 @@ export function useTaxEstimate(): {
 
       const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+      // Forecast business expenses are user-entered assumptions on 1099 / K-1 streams
+      // that reduce projected SE gross to net business profit. Only counted in the
+      // "actual + planned" forecast — actual transactions own the expense side in
+      // actual-only mode.
+      const forecastBusinessExpenses = incomeScope === "actualPlusPlanned"
+        ? Number(projTotals.forecastBusinessExpenses || 0)
+        : 0;
       const canonicalBusiness = scope.canonicalBusiness;
       const businessIncome = canonicalBusiness.grossSE + canonicalBusiness.grossOtherBusiness;
       const seEligibleBusinessIncome = canonicalBusiness.grossSE;
@@ -536,7 +543,7 @@ export function useTaxEstimate(): {
       return {
         businessIncome: businessIncome + cuBizGross,
         seEligibleBusinessIncome: seEligibleBusinessIncome + cuBizGross,
-        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction,
+        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction + forecastBusinessExpenses,
         seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
         businessFederalWithheld: businessFederalWithheld + cu.business.federalWithheld,
@@ -545,7 +552,7 @@ export function useTaxEstimate(): {
         businessRetirement: businessRetirement + cu.business.retirement,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
-        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction,
+        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio),
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
         personalIncome: totalPersonalIncome + investmentDividends + cuW2Gross + cuOtherGross,
@@ -556,7 +563,7 @@ export function useTaxEstimate(): {
         personalPreTax: personalPreTax + cu.w2.preTax + cu.other.preTax,
         personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
-        businessExpenses: businessExpenses + homeOfficeDeduction,
+        businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses,
         mileageDeduction,
         annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,
         txActualWithholding,

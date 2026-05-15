@@ -1110,6 +1110,8 @@ export type Database = {
           custom_interval_days: number | null
           end_date: string | null
           federal_withholding: number
+          forecast_expense_notes: string
+          forecast_expense_per_period: number
           healthcare_deduction: number
           hsa_contribution: number
           id: string
@@ -1139,6 +1141,8 @@ export type Database = {
           custom_interval_days?: number | null
           end_date?: string | null
           federal_withholding?: number
+          forecast_expense_notes?: string
+          forecast_expense_per_period?: number
           healthcare_deduction?: number
           hsa_contribution?: number
           id?: string
@@ -1168,6 +1172,8 @@ export type Database = {
           custom_interval_days?: number | null
           end_date?: string | null
           federal_withholding?: number
+          forecast_expense_notes?: string
+          forecast_expense_per_period?: number
           healthcare_deduction?: number
           hsa_contribution?: number
           id?: string
