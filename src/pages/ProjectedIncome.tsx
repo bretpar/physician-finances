@@ -283,10 +283,29 @@ export default function ProjectedIncome() {
     return map;
   }, [overrides]);
 
+  // Map business transactions to the matchable shape (income-typed only —
+  // mirrors the bucket router in generateProjectedPaychecks).
+  const businessTxsForMatching = useMemo(() => {
+    if (!businessTransactions) return [];
+    return businessTransactions
+      .filter((t) => t.transaction_type === "income")
+      .map((t) => ({
+        id: t.id,
+        transaction_date: t.transaction_date,
+        vendor: t.vendor,
+        amount: Number(t.amount),
+        source_id: t.source_id,
+        status: t.status,
+        transaction_type: t.transaction_type,
+        origin_type: (t as any).origin_type ?? null,
+        origin_planner_conversion_id: (t as any).origin_planner_conversion_id ?? null,
+      }));
+  }, [businessTransactions]);
+
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
-    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || []);
-  }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions]);
+    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || [], businessTxsForMatching);
+  }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks), [projectedPaychecks]);
 
