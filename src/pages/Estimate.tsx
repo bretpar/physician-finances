@@ -136,9 +136,7 @@ export default function Estimate() {
     const normalizedEmail = email.trim().toLowerCase();
     if (!trimmedFirst) { toast.error("Enter your first name."); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) { toast.error("Enter a valid email."); return; }
-    if (password.length < 8) {
-      toast.error("Password must be at least 8 characters."); return;
-    }
+    if (!password) { toast.error("Enter a password."); return; }
     setSaving(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -322,7 +320,7 @@ export default function Estimate() {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Use at least 8 characters.</p>
+                  
                 </div>
                 <p className="text-xs text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p>
               </div>
