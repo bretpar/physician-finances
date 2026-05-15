@@ -53,6 +53,14 @@ Deno.serve(async (req) => {
         products: ["transactions"],
         country_codes: ["US"],
         language: "en",
+        // Show all relevant account types so the user can pick which to link.
+        account_filters: {
+          depository: { account_subtypes: ["checking", "savings", "money market", "cd", "hsa"] },
+          credit: { account_subtypes: ["credit card"] },
+          loan: { account_subtypes: ["student", "mortgage", "auto", "business", "home equity", "line of credit", "loan"] },
+          investment: { account_subtypes: ["brokerage", "ira", "401k", "403b", "roth", "roth 401k", "457b", "529", "hsa", "sep ira", "simple ira", "sarsep", "pension"] },
+        },
+        transactions: { days_requested: 730 },
       }),
     });
 

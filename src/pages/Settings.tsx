@@ -1437,10 +1437,17 @@ function ConnectedAccountsSection() {
     setExpandedItems((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const handleConnectBank = async () => {
+    if (linkLoading) return;
     setLinkLoading(true);
+    const loadingToast = toast.loading("Opening secure bank connection…");
     try {
       const { data, error } = await supabase.functions.invoke("plaid-create-link-token");
-      if (error || !data?.link_token) { toast.error("Failed to initialize bank connection"); return; }
+      toast.dismiss(loadingToast);
+      if (error || !data?.link_token) {
+        console.error("plaid-create-link-token failed", error, data);
+        toast.error(`Failed to initialize bank connection${error?.message ? `: ${error.message}` : ""}`);
+        return;
+      }
       if (!(window as any).Plaid) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement("script");
