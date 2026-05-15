@@ -1684,7 +1684,13 @@ export default function Transactions() {
                       selectionMode={mobileSelectionMode}
                       onToggleSelect={() => toggleMobileSelect(tx.id)}
                       onLongPress={() => enterMobileSelectionWith(tx.id)}
-                      onClick={() => openEdit(tx)}
+                      onClick={() => {
+                        if (isCatchupOrigin) {
+                          toast.info("Edit this row on the Income page (YTD catch-up).");
+                          return;
+                        }
+                        openEdit(tx);
+                      }}
                     />
                   );
                 })}
