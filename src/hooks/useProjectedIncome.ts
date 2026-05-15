@@ -810,10 +810,11 @@ export function getProjectedTotals(
   };
 
   for (const p of paychecks) {
-    // "suggested" still counts as projected because no confirmed link exists
-    // yet; the heuristic candidate could be unrelated. Only exclude when there
-    // is a real stored relationship (matched / converted) or the user skipped it.
-    if (p.matchStatus !== "active" && p.matchStatus !== "suggested") continue;
+    // "suggested" is excluded from projected totals just like "matched" to
+    // avoid double-counting with the actual income entry that the heuristic
+    // pointed at. The UI still labels it "Suggested match" until the user
+    // confirms; if they dismiss it, the paycheck flips back to "active".
+    if (p.matchStatus !== "active") continue;
     const stream = streamById.get(p.streamId);
     const bucket = classifyStreamType(stream?.company_type ?? p.streamCompanyType);
 
