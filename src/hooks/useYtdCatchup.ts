@@ -36,69 +36,145 @@ export type YtdCatchupInput = Partial<Omit<YtdCatchupEntry, "id" | "user_id" | "
 const KEY = ["ytd_catchup_entries"] as const;
 
 /**
- * Sync a paired ledger transaction for a business YTD catch-up entry so it
- * shows up in Business Activity. The catch-up entry remains the source of
- * truth; this transaction is its projection. Only business catch-ups
- * (source_type='1099_k1') get a paired transaction. The tax engine's overlap
- * safeguard subtracts overlapping business transactions from the catch-up
- * gross to prevent double counting.
+ * Sync paired ledger rows for a YTD catch-up entry so the entry shows up
+ * in the right ledger:
+ *   - 1099_k1 (business)  → one row in `transactions` (Business Activity)
+ *   - w2 / other          → one row in `income_entries` (Personal Income)
+ *
+ * The catch-up entry remains the source of truth for tax math. The mirror
+ * rows are flagged so the tax engine does not double-count them:
+ *   - business mirror tx has no linked income_entry, so it contributes 0
+ *     to canonicalBusiness withholding; the tax engine's overlap safeguard
+ *     subtracts overlapping business tx gross from the catch-up gross.
+ *   - personal mirror income_entry is created with
+ *     `include_in_tax_estimate=false` so it stays out of the personal
+ *     tax aggregation; the catch-up's `cu.w2.gross` injection still feeds
+ *     the engine. The mirror IS counted in dashboard totals (which read
+ *     the unfiltered personal_income_entries query).
  */
-async function syncCatchupTransaction(args: {
-  catchupId: string;
+async function syncCatchupMirror(args: {
+  catchupEntry: YtdCatchupEntry;
   userId: string;
   orgId: string | null;
-  sourceType: YtdCatchupSourceType;
-  companyId: string | null;
-  companyName: string;
-  periodEnd: string;
-  grossIncome: number;
-  federalWithholding: number;
-  stateWithholding: number;
 }) {
-  const isBusiness = args.sourceType === "1099_k1";
+  const c = args.catchupEntry;
+  const isBusiness = c.source_type === "1099_k1";
+  const isW2 = c.source_type === "w2";
+  const gross = Math.max(0, Number(c.gross_income) || 0);
+  const fedW = Number(c.federal_withholding) || 0;
+  const stateW = Number(c.state_withholding) || 0;
+  const ssW = Number(c.ss_withholding) || 0;
+  const medW = Number(c.medicare_withholding) || 0;
+  const r401k = Number(c.retirement_401k) || 0;
+  const hsa = Number(c.hsa_contribution) || 0;
+  const preTax = (Number(c.healthcare_premiums) || 0)
+    + (Number(c.dental_vision) || 0)
+    + (Number(c.other_pretax) || 0);
+  const postTax = Number(c.post_tax_deductions) || 0;
+  const net = Math.max(0, gross - fedW - stateW - ssW - medW - r401k - hsa - preTax - postTax);
+  const periodLabel = (() => {
+    try {
+      const d = new Date(c.period_end + "T00:00:00");
+      return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    } catch {
+      return c.period_end;
+    }
+  })();
+  const friendlyName = "YTD Catch-Up Entry";
+  const friendlyNote = `Setup income through ${periodLabel}`;
 
-  const { data: existing } = await (supabase as any)
+  // ── Business mirror in `transactions` ───────────────────────────────────
+  const { data: existingTx } = await (supabase as any)
     .from("transactions")
     .select("id")
-    .eq("origin_ytd_catchup_id", args.catchupId)
+    .eq("origin_ytd_catchup_id", c.id)
     .maybeSingle();
 
-  // Non-business catch-ups: remove any stale paired tx (e.g. user changed type).
-  if (!isBusiness) {
-    if (existing?.id) {
-      await supabase.from("transactions").delete().eq("id", existing.id);
+  if (isBusiness) {
+    const txRow: any = {
+      user_id: args.userId,
+      organization_id: args.orgId,
+      transaction_date: c.period_end,
+      vendor: `${friendlyName}: ${c.company_name || "Business"}`,
+      amount: gross,
+      account_source: "YTD catch-up",
+      category: "Income",
+      notes: `${friendlyNote}. Edit from the YTD catch-up section.`,
+      entity: c.company_name || "Unassigned",
+      company_type: "1099_schedule_c",
+      source_id: c.company_id,
+      transaction_type: "income",
+      actual_withholding: fedW + stateW,
+      status: "active",
+      excluded_from_reports: false,
+      needs_review: false,
+      user_edited: false,
+      origin_type: "ytd_catchup",
+      origin_ytd_catchup_id: c.id,
+      source_type: "manual",
+    };
+    if (existingTx?.id) {
+      await supabase.from("transactions").update(txRow).eq("id", existingTx.id);
+    } else {
+      await supabase.from("transactions").insert(txRow);
     }
-    return;
+  } else if (existingTx?.id) {
+    // Source type changed away from business → remove stale tx mirror.
+    await supabase.from("transactions").delete().eq("id", existingTx.id);
   }
 
-  const row: any = {
-    user_id: args.userId,
-    organization_id: args.orgId,
-    transaction_date: args.periodEnd,
-    vendor: `YTD catch-up: ${args.companyName || "Business"}`,
-    amount: Math.max(0, Number(args.grossIncome) || 0),
-    account_source: "YTD catch-up",
-    category: "Income",
-    notes: "Synced from YTD catch-up entry. Edit on the Income page.",
-    entity: args.companyName || "Unassigned",
-    company_type: "1099_schedule_c",
-    source_id: args.companyId,
-    transaction_type: "income",
-    actual_withholding:
-      (Number(args.federalWithholding) || 0) + (Number(args.stateWithholding) || 0),
-    status: "active",
-    excluded_from_reports: false,
-    needs_review: false,
-    user_edited: false,
-    origin_type: "ytd_catchup",
-    origin_ytd_catchup_id: args.catchupId,
-    source_type: "manual",
-  };
+  // ── Personal mirror in `income_entries` (W-2 / other) ───────────────────
+  const { data: existingIncome } = await (supabase as any)
+    .from("income_entries")
+    .select("id")
+    .eq("linked_ytd_catchup_id", c.id)
+    .maybeSingle();
 
-  if (existing?.id) {
-    await supabase.from("transactions").update(row).eq("id", existing.id);
-  } else {
-    await supabase.from("transactions").insert(row);
+  if (!isBusiness) {
+    const incomeType = isW2 ? "w2_user" : "other_income";
+    const incomeRow: any = {
+      user_id: args.userId,
+      organization_id: args.orgId,
+      name: friendlyName,
+      company: c.company_name || "",
+      income_type: incomeType,
+      ui_income_subtype: isW2 ? "w2_user" : "other_income",
+      income_date: c.period_end,
+      gross_amount: gross,
+      paycheck_amount: gross,
+      deposited_amount: net,
+      federal_withholding: fedW,
+      state_withholding: stateW,
+      ss_withholding: ssW,
+      medicare_withholding: medW,
+      taxes_withheld: fedW + stateW + ssW + medW,
+      pre_tax_deductions: preTax,
+      retirement_401k: r401k,
+      hsa_contribution: hsa,
+      healthcare_deduction: 0,
+      source_bucket: "personal",
+      tax_category: "ordinary",
+      is_actual: true,
+      // CRITICAL: mirror must NOT feed the tax engine — the catch-up entry
+      // already contributes via cu.w2/other in useTaxEstimate. Setting this
+      // false keeps the mirror out of personalW2 aggregation while still
+      // showing it in dashboard totals + the Personal Income ledger.
+      include_in_tax_estimate: false,
+      include_in_cash_flow: false,
+      notes: friendlyNote,
+      status: "received",
+      origin_type: "ytd_catchup",
+      entry_kind: "ytd_catchup",
+      linked_ytd_catchup_id: c.id,
+    };
+    if (existingIncome?.id) {
+      await supabase.from("income_entries").update(incomeRow).eq("id", existingIncome.id);
+    } else {
+      await supabase.from("income_entries").insert(incomeRow);
+    }
+  } else if (existingIncome?.id) {
+    // Source type changed to business → remove stale personal mirror.
+    await supabase.from("income_entries").delete().eq("id", existingIncome.id);
   }
 }
 
@@ -147,29 +223,25 @@ export function useUpsertYtdCatchup() {
         if (error) throw error;
         saved = data;
       }
-      // Mirror business catch-ups into the ledger so they show up in
-      // Business Activity. Tax engine de-dupes via overlap subtraction.
+      // Mirror catch-ups into the appropriate ledger so they show up in
+      // Business Activity (1099/K-1) or Personal Income (W-2/other). Tax
+      // engine de-dupes via overlap subtraction / include_in_tax_estimate.
       try {
-        await syncCatchupTransaction({
-          catchupId: saved.id,
+        await syncCatchupMirror({
+          catchupEntry: saved as YtdCatchupEntry,
           userId: user.id,
           orgId,
-          sourceType: saved.source_type as YtdCatchupSourceType,
-          companyId: saved.company_id ?? null,
-          companyName: saved.company_name ?? "",
-          periodEnd: saved.period_end,
-          grossIncome: Number(saved.gross_income) || 0,
-          federalWithholding: Number(saved.federal_withholding) || 0,
-          stateWithholding: Number(saved.state_withholding) || 0,
         });
       } catch (e) {
-        console.warn("[useYtdCatchup] failed to sync paired transaction", e);
+        console.warn("[useYtdCatchup] failed to sync ledger mirror", e);
       }
       return saved;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       toast.success("YTD catch-up saved");
     },
     onError: (e: any) => toast.error(e.message || "Could not save catch-up entry"),
@@ -180,11 +252,16 @@ export function useDeleteYtdCatchup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Remove paired ledger transaction first (best-effort).
+      // Remove paired ledger mirrors first (best-effort).
       try {
         await (supabase as any).from("transactions").delete().eq("origin_ytd_catchup_id", id);
       } catch (e) {
         console.warn("[useYtdCatchup] failed to delete paired transaction", e);
+      }
+      try {
+        await (supabase as any).from("income_entries").delete().eq("linked_ytd_catchup_id", id);
+      } catch (e) {
+        console.warn("[useYtdCatchup] failed to delete paired income entry", e);
       }
       const { error } = await supabase.from("ytd_catchup_entries" as any).delete().eq("id", id);
       if (error) throw error;
@@ -192,6 +269,8 @@ export function useDeleteYtdCatchup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       toast.success("YTD catch-up removed");
     },
   });

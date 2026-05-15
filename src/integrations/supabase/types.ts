@@ -221,6 +221,7 @@ export type Database = {
           is_actual: boolean
           linked_hsa_contribution_id: string | null
           linked_transaction_id: string | null
+          linked_ytd_catchup_id: string | null
           medicare_withholding: number
           name: string
           notes: string | null
@@ -265,6 +266,7 @@ export type Database = {
           is_actual?: boolean
           linked_hsa_contribution_id?: string | null
           linked_transaction_id?: string | null
+          linked_ytd_catchup_id?: string | null
           medicare_withholding?: number
           name?: string
           notes?: string | null
@@ -309,6 +311,7 @@ export type Database = {
           is_actual?: boolean
           linked_hsa_contribution_id?: string | null
           linked_transaction_id?: string | null
+          linked_ytd_catchup_id?: string | null
           medicare_withholding?: number
           name?: string
           notes?: string | null

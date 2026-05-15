@@ -359,6 +359,13 @@ export default function PersonalIncome() {
   }
 
   function openEdit(entry: PersonalIncomeEntry) {
+    if ((entry as any).linked_ytd_catchup_id) {
+      // Use sonner directly so we don't need to wire navigate here.
+      import("sonner").then(({ toast }) => {
+        toast.info("This is a YTD Catch-Up Entry. Edit it from Income → YTD Catch-Up section.");
+      });
+      return;
+    }
     const uiType = hydrateIncomeType(entry);
     setForm({
       date: entry.income_date,
@@ -681,8 +688,20 @@ export default function PersonalIncome() {
                   {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
                 <div className="min-w-0">
-                  <span className="text-sm font-medium text-foreground truncate block">{entry.name}</span>
+                  <span className="text-sm font-medium text-foreground truncate block flex items-center gap-1.5">
+                    {entry.name}
+                    {(entry as any).linked_ytd_catchup_id && (
+                      <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
+                        YTD
+                      </span>
+                    )}
+                  </span>
                   {entry.company && <span className="text-xs text-muted-foreground">{entry.company}</span>}
+                  {(entry as any).linked_ytd_catchup_id && (
+                    <span className="text-[10px] text-primary block">
+                      Setup income through {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </span>
+                  )}
                   {entry.notes?.includes("Converted from planned income") && (
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">From Income Planner</span>
                   )}
@@ -717,7 +736,18 @@ export default function PersonalIncome() {
                     <DropdownMenuItem onClick={() => openEdit(entry)}>
                       <Pencil className="h-4 w-4 mr-2" /> Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setDeleteId(entry.id)} className="text-destructive focus:text-destructive">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if ((entry as any).linked_ytd_catchup_id) {
+                          import("sonner").then(({ toast }) => {
+                            toast.info("Delete this from Income → YTD Catch-Up. That removes it from every screen.");
+                          });
+                          return;
+                        }
+                        setDeleteId(entry.id);
+                      }}
+                      className="text-destructive focus:text-destructive"
+                    >
                       <Trash2 className="h-4 w-4 mr-2" /> Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -762,12 +792,18 @@ export default function PersonalIncome() {
                     badges.push({ label: "Review", tone: "warning" });
                   }
 
+                  if ((entry as any).linked_ytd_catchup_id) {
+                    badges.push({ label: "YTD", tone: "info" });
+                  }
+
                   return (
                     <div key={entry.id}>
                       <LedgerRow
                         kind={isLoss ? "neutral" : "income"}
                         title={entry.name || "(No payor)"}
-                        subtitle={typeLabel}
+                        subtitle={(entry as any).linked_ytd_catchup_id
+                          ? `Setup income through ${new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+                          : typeLabel}
                         meta={entry.company || null}
                         date={dateStr}
                         amount={Number(entry.gross_amount) || 0}
