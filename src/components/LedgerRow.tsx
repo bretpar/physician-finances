@@ -121,11 +121,11 @@ export function LedgerRow({
 
   const amountClass =
     tone === "positive"
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? txTone("income").amount
       : tone === "negative"
-        ? "text-rose-600 dark:text-rose-400"
+        ? txTone("expense").amount
         : kind === "transfer"
-          ? "text-slate-500 dark:text-slate-400"
+          ? txTone("transfer").amount
           : "text-foreground";
 
   const prefix =
