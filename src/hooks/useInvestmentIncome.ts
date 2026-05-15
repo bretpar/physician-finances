@@ -46,25 +46,39 @@ export function calculateInvestmentTaxableAmount(args: {
 }
 
 export function aggregateInvestmentTaxBuckets(entries: InvestmentIncomeEntry[]) {
-  const buckets = entries.reduce(
-    (acc, entry) => {
-      const amount = Number(entry.taxable_amount || 0);
-      if (entry.investment_income_type === "short_term_sale") acc.shortTermSales += amount;
-      if (entry.investment_income_type === "long_term_sale") acc.longTermSales += amount;
-      if (entry.investment_income_type === "dividend") acc.dividends += amount;
-      return acc;
-    },
-    { shortTermSales: 0, longTermSales: 0, dividends: 0 },
-  );
-
-  const salesNet = buckets.shortTermSales + buckets.longTermSales;
-  // TODO: apply annual capital loss limitation rules here when the app supports carryovers/annual limits.
+  let shortTermSales = 0;
+  let longTermSales = 0;
+  let qualifiedDividends = 0;
+  let nonQualifiedDividends = 0;
+  for (const e of entries) {
+    const amount = Number(e.taxable_amount || 0);
+    if (e.investment_income_type === "short_term_sale") shortTermSales += amount;
+    else if (e.investment_income_type === "long_term_sale") longTermSales += amount;
+    else if (e.investment_income_type === "dividend") {
+      // Default to qualified when flag is null/undefined (legacy entries).
+      if (e.is_qualified_dividend === false) nonQualifiedDividends += amount;
+      else qualifiedDividends += amount;
+    }
+  }
+  const dividends = qualifiedDividends + nonQualifiedDividends;
+  // Bucket routing for the central tax engine:
+  //  - Short-term sales (gain side) and non-qualified dividends → ordinary income.
+  //  - Long-term sales (gain side) and qualified dividends → long-term capital gains.
+  // NOTE: We do not yet apply the $3,000 annual capital loss limitation or
+  // cross-bucket loss carryovers — losses only offset same-type gains here.
+  const ordinaryInvestmentIncome = Math.max(0, shortTermSales) + Math.max(0, nonQualifiedDividends);
+  const longTermCapitalGain = Math.max(0, longTermSales) + Math.max(0, qualifiedDividends);
   return {
-    ...buckets,
-    totalTaxableIncome: buckets.shortTermSales + buckets.longTermSales + buckets.dividends,
-    netSalesForCurrentTaxEngine: Math.max(0, salesNet),
-    ordinaryInvestmentIncome: buckets.shortTermSales + buckets.dividends,
-    longTermCapitalGain: buckets.longTermSales,
+    shortTermSales,
+    longTermSales,
+    dividends,
+    qualifiedDividends,
+    nonQualifiedDividends,
+    totalTaxableIncome: shortTermSales + longTermSales + dividends,
+    // Back-compat field — sum of net sales floored at zero.
+    netSalesForCurrentTaxEngine: Math.max(0, shortTermSales + longTermSales),
+    ordinaryInvestmentIncome,
+    longTermCapitalGain,
   };
 }
 
