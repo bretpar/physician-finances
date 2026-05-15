@@ -23,6 +23,7 @@ import Onboarding from "@/pages/Onboarding";
 import Estimate from "@/pages/Estimate";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
+import DataIsolationReport from "@/pages/admin/DataIsolationReport";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
