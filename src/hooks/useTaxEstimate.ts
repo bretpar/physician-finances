@@ -563,7 +563,7 @@ export function useTaxEstimate(): {
         personalPreTax: personalPreTax + cu.w2.preTax + cu.other.preTax,
         personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
-        businessExpenses: businessExpenses + homeOfficeDeduction,
+        businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses,
         mileageDeduction,
         annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,
         txActualWithholding,
