@@ -552,7 +552,7 @@ export function useTaxEstimate(): {
         businessRetirement: businessRetirement + cu.business.retirement,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
-        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction,
+        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio),
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
         personalIncome: totalPersonalIncome + investmentDividends + cuW2Gross + cuOtherGross,
