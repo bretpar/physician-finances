@@ -736,7 +736,18 @@ export default function PersonalIncome() {
                     <DropdownMenuItem onClick={() => openEdit(entry)}>
                       <Pencil className="h-4 w-4 mr-2" /> Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setDeleteId(entry.id)} className="text-destructive focus:text-destructive">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if ((entry as any).linked_ytd_catchup_id) {
+                          import("sonner").then(({ toast }) => {
+                            toast.info("Delete this from Income → YTD Catch-Up. That removes it from every screen.");
+                          });
+                          return;
+                        }
+                        setDeleteId(entry.id);
+                      }}
+                      className="text-destructive focus:text-destructive"
+                    >
                       <Trash2 className="h-4 w-4 mr-2" /> Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
