@@ -146,8 +146,13 @@ describe("InvestmentIncome page", () => {
     ];
     renderPage();
 
-    const gainRow = screen.getByText("GAIN").closest("tr")!;
-    const lossRow = screen.getByText("LOSS").closest("tr")!;
+    // Desktop table renders rows in <tr>; mobile list also renders the asset name
+    // (jsdom ignores Tailwind's `hidden`/`md:hidden` classes), so scope to the first
+    // matching desktop row by walking up to the closest <tr>.
+    const gainCell = screen.getAllByText("GAIN").find((el) => el.closest("tr"))!;
+    const lossCell = screen.getAllByText("LOSS").find((el) => el.closest("tr"))!;
+    const gainRow = gainCell.closest("tr")!;
+    const lossRow = lossCell.closest("tr")!;
     expect(within(gainRow).getByText("$500.00")).toHaveClass("text-success");
     expect(within(lossRow).getByText("-$250.00")).toHaveClass("text-destructive");
   });
