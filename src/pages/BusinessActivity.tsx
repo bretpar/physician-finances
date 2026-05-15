@@ -1401,9 +1401,10 @@ export default function Transactions() {
             return (
               <div key={tx.id}>
               <div
-                className={`grid grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
+                className={`grid grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center cursor-pointer ${
                   tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
                 } ${isSelected ? "bg-primary/5" : ""}`}
+                onClick={() => setDetailTx(tx)}
               >
                 <Checkbox
                   checked={isSelected}
