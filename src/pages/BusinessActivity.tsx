@@ -1408,6 +1408,7 @@ export default function Transactions() {
               >
                 <Checkbox
                   checked={isSelected}
+                  onClick={(e) => e.stopPropagation()}
                   onCheckedChange={(checked) => {
                     const next = new Set(selectedIds);
                     if (checked) next.add(tx.id); else next.delete(tx.id);
