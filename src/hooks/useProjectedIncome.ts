@@ -85,7 +85,7 @@ export interface ProjectedIncomeOverride {
   updated_at: string;
 }
 
-export type ProjectedMatchStatus = "active" | "matched" | "past_due" | "skipped" | "converted";
+export type ProjectedMatchStatus = "active" | "suggested" | "matched" | "past_due" | "skipped" | "converted";
 
 /** Minimal shape of planner_conversions used to tag occurrences. */
 export interface PlannerConversionRef {
