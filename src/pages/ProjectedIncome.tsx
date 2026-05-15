@@ -306,7 +306,10 @@ export default function ProjectedIncome() {
     return map;
   }, [projectedPaychecks]);
 
-  const expectedAnnual = actualYTD.income + projectedTotals.grossIncome;
+  const localExpectedAnnual = actualYTD.income + projectedTotals.grossIncome;
+  // Use centralized tax-engine total when available so this matches Dashboard
+  // (includes investments, personal/W-2, business, and planned income).
+  const expectedAnnual = forecastDebug?.totalGrossIncome ?? localExpectedAnnual;
   const projectedWithholding = actualYTD.withheld + projectedTotals.taxesWithheld;
   const projected401k = actualYTD.retirement + projectedTotals.retirement401k;
   const projectedRefund = forecastDebug ? Math.max(0, forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax) : 0;
