@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAddIncome } from "@/hooks/useIncome";
