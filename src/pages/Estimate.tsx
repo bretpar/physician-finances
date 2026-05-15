@@ -315,12 +315,12 @@ export default function Estimate() {
                 </div>
                 <div>
                   <Label>Email</Label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                  <Input data-testid="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
                 </div>
                 <div>
                   <Label>Password</Label>
                   <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" />
+                    <Input data-testid="signup-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" />
                     <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -339,7 +339,7 @@ export default function Estimate() {
             {step < 4 ? (
               <Button onClick={next}>{step === 3 ? "Save my plan" : "Continue"}</Button>
             ) : (
-              <Button onClick={handleCreateAccount} disabled={saving}>
+              <Button data-testid="signup-submit" onClick={handleCreateAccount} disabled={saving}>
                 {saving ? "Creating account…" : "Create Account"}
               </Button>
             )}

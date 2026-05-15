@@ -171,7 +171,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
         </div>
         <div className="sm:col-span-2">
           <Label>Total gross income YTD</Label>
-          <Input type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
+          <Input data-testid="onboarding-ytd-income" type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
         </div>
         <div>
           <Label>{fedLabel}</Label>
