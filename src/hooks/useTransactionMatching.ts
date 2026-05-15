@@ -226,7 +226,10 @@ export function useLinkTransactions() {
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
 
-      // Validate both records exist before linking
+      // Validate both records exist before linking and pull the Plaid net
+      // deposit metadata so we can denormalize it onto the manual row. The
+      // manual row remains the source of truth — we never copy planned fields
+      // (amount/vendor/entity/category/etc.) from the Plaid row.
       const { data: manualRow } = await supabase
         .from("transactions")
         .select("id")
@@ -234,7 +237,7 @@ export function useLinkTransactions() {
         .maybeSingle();
       const { data: plaidRow } = await supabase
         .from("transactions")
-        .select("id")
+        .select("id, amount, transaction_date, vendor, account_source")
         .eq("id", plaidTxId)
         .maybeSingle();
 
@@ -265,7 +268,11 @@ export function useLinkTransactions() {
       });
       if (linkErr) throw linkErr;
 
-      // Update manual tx — it becomes the canonical VISIBLE (active) row.
+      // Update manual tx — it stays the canonical (active) row. We mutate
+      // ONLY link bookkeeping fields and the denormalized Plaid net deposit
+      // metadata. Planned/ledger fields (amount, vendor, entity, category,
+      // tax fields, healthcare/retirement deductions, etc.) are never
+      // touched here.
       const { error: e1 } = await supabase
         .from("transactions")
         .update({
@@ -273,7 +280,11 @@ export function useLinkTransactions() {
           linked_group_id: groupId,
           source_type: "merged",
           status: "active",
-        })
+          linked_plaid_transaction_id: plaidTxId,
+          linked_plaid_amount: (plaidRow as any).amount ?? null,
+          linked_plaid_posted_date: (plaidRow as any).transaction_date ?? null,
+          linked_plaid_account: (plaidRow as any).account_source ?? null,
+        } as any)
         .eq("id", manualTxId);
       if (e1) throw e1;
 
