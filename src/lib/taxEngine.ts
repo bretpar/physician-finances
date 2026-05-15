@@ -408,6 +408,7 @@ export function calculateFullEstimate(params: {
     withholdingOverrideType = "none",
     withholdingOverridePercent = null,
     withholdingOverrideAmount = null,
+    longTermCapitalGains: longTermCapitalGainsParam = 0,
     stateTaxInputs = {},
   } = params;
 
