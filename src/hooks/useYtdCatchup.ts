@@ -57,10 +57,10 @@ async function syncCatchupTransaction(args: {
 }) {
   const isBusiness = args.sourceType === "1099_k1";
 
-  const { data: existing } = await supabase
+  const { data: existing } = await (supabase as any)
     .from("transactions")
     .select("id")
-    .eq("origin_ytd_catchup_id" as any, args.catchupId)
+    .eq("origin_ytd_catchup_id", args.catchupId)
     .maybeSingle();
 
   // Non-business catch-ups: remove any stale paired tx (e.g. user changed type).
