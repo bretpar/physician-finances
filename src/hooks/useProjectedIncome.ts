@@ -722,13 +722,32 @@ export function generateProjectedPaychecks(
 
     if (match) {
       usedEntryIds.add(match.entry.id);
-      paychecks.push({
-        ...raw,
-        netAmount: Math.max(0, net),
-        matchStatus: "matched",
-        matchedIncomeId: match.entry.id,
-        matchedAmount: Number(match.entry.paycheck_amount),
-      });
+      // Only treat as truly "matched" when there is a stored relationship —
+      // i.e. the actual income entry was created via a confirmed planner
+      // conversion (entry_kind === "planner_conversion" or
+      // origin_planner_conversion_id present). Heuristic name+amount+date
+      // matches are surfaced as "suggested" until the user confirms.
+      const hasStoredLink =
+        match.entry.entry_kind === "planner_conversion" ||
+        Boolean(match.entry.origin_planner_conversion_id);
+
+      if (hasStoredLink) {
+        paychecks.push({
+          ...raw,
+          netAmount: Math.max(0, net),
+          matchStatus: "matched",
+          matchedIncomeId: match.entry.id,
+          matchedAmount: Number(match.entry.paycheck_amount),
+        });
+      } else {
+        paychecks.push({
+          ...raw,
+          netAmount: Math.max(0, net),
+          matchStatus: "suggested",
+          suggestedIncomeId: match.entry.id,
+          suggestedAmount: Number(match.entry.paycheck_amount),
+        });
+      }
     } else {
       // Check if past due
       const pDate = parseISO(raw.date);
