@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAddIncome } from "@/hooks/useIncome";
@@ -708,6 +709,8 @@ export default function ProjectedIncome() {
           sublabel={projected401k > 0 ? `+ ${fmt(projected401k)} in 401(k)` : undefined}
         />
       </div>
+
+      <DuplicateConversionsReview />
 
       {isW2Only && forecastDebug && (
         <Card>
