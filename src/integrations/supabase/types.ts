@@ -1875,6 +1875,10 @@ export type Database = {
           id: string
           is_recurring: boolean
           linked_group_id: string | null
+          linked_plaid_account: string | null
+          linked_plaid_amount: number | null
+          linked_plaid_posted_date: string | null
+          linked_plaid_transaction_id: string | null
           match_status: string
           needs_review: boolean
           notes: string | null
@@ -1914,6 +1918,10 @@ export type Database = {
           id?: string
           is_recurring?: boolean
           linked_group_id?: string | null
+          linked_plaid_account?: string | null
+          linked_plaid_amount?: number | null
+          linked_plaid_posted_date?: string | null
+          linked_plaid_transaction_id?: string | null
           match_status?: string
           needs_review?: boolean
           notes?: string | null
@@ -1953,6 +1961,10 @@ export type Database = {
           id?: string
           is_recurring?: boolean
           linked_group_id?: string | null
+          linked_plaid_account?: string | null
+          linked_plaid_amount?: number | null
+          linked_plaid_posted_date?: string | null
+          linked_plaid_transaction_id?: string | null
           match_status?: string
           needs_review?: boolean
           notes?: string | null
