@@ -501,6 +501,16 @@ export default function ProjectedIncome() {
         ? num(form.additional_tax_reserve)
         : 0,
       notes: visibleFields.notes ? form.notes : "",
+      forecast_expense_per_period: (() => {
+        const f = filingType;
+        const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
+        return isBiz ? Math.max(0, num(form.forecast_expense_per_period)) : 0;
+      })(),
+      forecast_expense_notes: (() => {
+        const f = filingType;
+        const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
+        return isBiz ? (form.forecast_expense_notes || "").trim() : "";
+      })(),
       is_active: form.is_active,
       include_in_tax: form.include_in_tax,
     };
