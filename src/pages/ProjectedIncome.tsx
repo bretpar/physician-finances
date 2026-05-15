@@ -1211,7 +1211,7 @@ export default function ProjectedIncome() {
             {activeStreams.length > 0 && (
               <div className="space-y-3">
                 <h2 className="text-lg font-semibold text-foreground">Income Streams</h2>
-                <StreamTable
+                <CompanyAccordion
                   streams={activeStreams}
                   onEdit={startEdit}
                   onDelete={setDeleteConfirm}
