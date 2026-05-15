@@ -101,7 +101,7 @@ export function TransactionDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-[70%] max-w-[70%] sm:w-full sm:max-w-lg p-0 flex flex-col gap-0"
+        className="w-[85%] max-w-[85%] sm:w-full sm:max-w-lg p-0 flex flex-col gap-0"
       >
         <SheetHeader className="px-6 pt-6 pb-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
