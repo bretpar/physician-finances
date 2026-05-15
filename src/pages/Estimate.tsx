@@ -154,12 +154,17 @@ export default function Estimate() {
         return;
       }
       if (!data.session) {
-        toast.success("Account created. Check your email to verify, then log in to save your plan.");
+        // Auto-confirm should provide a session immediately. If it doesn't
+        // (e.g. confirm-email is re-enabled later), surface the friendly fallback.
+        toast.success("Your account was created. Please log in to continue setup.");
         navigate("/login");
         return;
       }
       await persistEstimateToSettings(data.user!.id, input, trimmedFirst);
       sessionStorage.removeItem(ESTIMATE_STORAGE_KEY);
+      // Send the brand-new user straight into onboarding at the income setup
+      // method picker — no extra login step.
+      sessionStorage.setItem("paycheckmd-onboarding-start", "income-method");
       navigate("/onboarding", { replace: true });
     } catch (e: any) {
       toast.error(e.message || "Could not create account.");
