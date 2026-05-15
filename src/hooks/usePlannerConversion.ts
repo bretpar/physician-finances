@@ -56,10 +56,24 @@ export function usePlannerConversionFallback() {
             `${result.converted} planned ${result.converted === 1 ? "paycheck" : "paychecks"} converted to ledger drafts — please review`,
             { duration: 4500 },
           );
+        }
+        if (result.duplicateSkipped > 0) {
+          toast.info(
+            `${result.duplicateSkipped} planned ${result.duplicateSkipped === 1 ? "paycheck" : "paychecks"} flagged as possible duplicates — review/link in Income Planner`,
+            { duration: 5000 },
+          );
+        }
+        if (result.errors > 0) {
+          toast.error(
+            `${result.errors} planned ${result.errors === 1 ? "paycheck" : "paychecks"} failed to convert — see console for details`,
+          );
+        }
+        if (result.converted > 0 || result.duplicateSkipped > 0) {
           qc.invalidateQueries({ queryKey: ["transactions"] });
           qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
           qc.invalidateQueries({ queryKey: ["income_entries"] });
           qc.invalidateQueries({ queryKey: ["projected_income_streams"] });
+          qc.invalidateQueries({ queryKey: ["planner_conversions"] });
         }
       } catch (err) {
         console.error("planner conversion fallback failed", err);
