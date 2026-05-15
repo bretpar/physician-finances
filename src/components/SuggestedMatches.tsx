@@ -29,9 +29,9 @@ export default function SuggestedMatches({ suggestions }: Props) {
         <div className="flex items-center gap-2">
           <Link2 className="h-4 w-4 text-amber-600" />
           <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
-            {suggestions.length} Suggested Match{suggestions.length > 1 ? "es" : ""}
+            {suggestions.length} Suggested match{suggestions.length > 1 ? "es" : ""}
           </span>
-          <Badge variant="secondary" className="text-xs">Review</Badge>
+          <Badge variant="secondary" className="text-xs">Review needed</Badge>
         </div>
         {expanded ? (
           <ChevronUp className="h-4 w-4 text-amber-600" />
