@@ -108,14 +108,16 @@ export function LedgerRow({
   const Icon = icon ?? KIND_ICON[kind];
   const tone =
     amountTone ??
-    (kind === "income" ? "positive" : kind === "transfer" ? "neutral" : "neutral");
+    (kind === "income" ? "positive" : kind === "expense" ? "negative" : "neutral");
 
   const amountClass =
     tone === "positive"
       ? "text-emerald-600 dark:text-emerald-400"
       : tone === "negative"
-        ? "text-destructive"
-        : "text-foreground";
+        ? "text-rose-600 dark:text-rose-400"
+        : kind === "transfer"
+          ? "text-slate-500 dark:text-slate-400"
+          : "text-foreground";
 
   const prefix =
     amountPrefix ?? (tone === "positive" ? "+" : tone === "negative" ? "-" : "");
