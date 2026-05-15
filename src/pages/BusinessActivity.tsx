@@ -1424,16 +1424,16 @@ export default function Transactions() {
                 <span className="text-xs text-muted-foreground truncate">
                   {getTransactionCompanyLabel(tx)}
                 </span>
-                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>
-                  {isIncomeTx ? "+" : isTransferTx ? "" : ""}{fmt(displayAmount)}
+                <span className={`text-sm font-semibold tabular-nums text-right ${isIncomeTx ? "text-emerald-600 dark:text-emerald-400" : isTransferTx ? "text-slate-500 dark:text-slate-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {isIncomeTx ? "+" : isTransferTx ? "" : "-"}{fmt(Math.abs(displayAmount))}
                 </span>
                 <span className="text-center">
                   <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full ${
                     isIncomeTx
                       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                       : isTransferTx
-                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400"
+                        : "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400"
                   }`}>
                     {isIncomeTx ? "Income" : isTransferTx ? transferLabel : "Expense"}
                   </span>
