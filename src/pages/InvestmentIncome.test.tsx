@@ -119,7 +119,8 @@ describe("InvestmentIncome page", () => {
     mockEntries = [entry({ id: "sale-1", asset_name_or_ticker: "MSFT", taxable_amount: 8000 })];
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /edit msft/i }));
+    // Both desktop table and mobile list expose an Edit button — click the first (desktop).
+    fireEvent.click(screen.getAllByRole("button", { name: /edit msft/i })[0]);
     fireEvent.change(screen.getByLabelText(/^taxable amount$/i), { target: { value: "9000" } });
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
