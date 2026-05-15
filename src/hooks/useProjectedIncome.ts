@@ -137,12 +137,18 @@ export interface ProjectedPaycheck {
   matchedIncomeId?: string;
   /** If matched, the actual amount received */
   matchedAmount?: number;
-  /** If suggested (heuristic only — NOT yet confirmed), the candidate income entry id */
+  /** If suggested (heuristic only — NOT yet confirmed), the candidate income entry id (personal bucket) */
   suggestedIncomeId?: string;
+  /** If suggested (heuristic only — NOT yet confirmed), the candidate transaction id (business bucket) */
+  suggestedTransactionId?: string;
+  /** Bucket of the suggested/matched record so the confirm flow can route correctly. */
+  suggestedBucket?: "personal" | "business";
   /** If suggested, the candidate's gross amount for display only */
   suggestedAmount?: number;
   /** Company type from the stream (W2, 1099, K1, etc.) */
   streamCompanyType?: string;
+  /** Linked source/employer (companies.id) from the stream — used by matching. */
+  streamSourceId?: string | null;
   /** If this is a bonus entry, the originating bonus event id */
   bonusEventId?: string;
 }
