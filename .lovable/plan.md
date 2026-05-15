@@ -1,91 +1,70 @@
-# Plan: Test/seed harness for Codex E2E
+# Multi-User Data Isolation Audit & Hardening
 
-Add a token-gated, production-safe way for Codex to (1) create predictable test
-users with realistic May 2026 onboarding data and (2) read back the key
-calculated values from the tax engine — without depending on direct Supabase
-Auth signup or browser automation.
+## Current state (from audit)
 
-## What gets built
+- **All 32 public tables have RLS enabled.**
+- **All user-owned tables have both `user_id` and `organization_id`** (only exceptions: `organizations` itself, `user_roles`, and join/system tables — all correct by design).
+- **Dual-policy pattern is already in place on every user table**: an org-scoped policy via `organization_id IN get_user_org_ids(auth.uid())` plus an "Owner fallback" policy for legacy rows where `organization_id IS NULL AND auth.uid() = user_id`.
+- **Signup is already correct**: `handle_new_user()` trigger on `auth.users` creates `organizations`, `organization_members` (role `owner`), `profiles`, and `tax_settings` rows — all keyed to `NEW.id`.
+- **Most hooks already call `getUserOrgId()`** and insert `organization_id` on writes.
 
-### 1. Secret + token gate
+So the foundation is sound. This plan focuses on the remaining gaps and on **proving** isolation with tests + a debug report.
 
-- New project secret: `TEST_SEED_ADMIN_TOKEN`.
-- Both edge functions reject requests unless the `Authorization: Bearer …`
-  header matches that env var. No public exposure.
+## Gaps to fix
 
-### 2. Edge function: `test-seed-users` (POST)
+### A. Database / RLS
 
-- Uses the service role key to upsert three deterministic test users via
-  `auth.admin.createUser` (auto-confirmed):
-  - `test-w2@paycheckmd.test`
-  - `test-w2-1099@paycheckmd.test`
-  - `test-1099@paycheckmd.test`
-  - Password: `TestSeed!2026` (returned in response).
-- For each user, the existing `handle_new_user` trigger creates the
-  organization/profile/tax_settings rows. The function then:
-  - Updates `tax_settings`: filing status, household income flags,
-    `subscription_tier = 'premium'`, `onboarding_complete = true`,
-    `income_profile_type` matching the persona.
-  - Inserts seeded companies (W-2 employer and/or 1099 entity).
-  - Inserts seeded `income_entries` for May 2026 YTD (W-2 paychecks and/or
-    business income) plus `projected_income_streams` for future periods.
-  - Inserts seeded `investment_income_entries`: short-term gain, long-term
-    gain, qualified dividend, plus a small short-term loss.
-- Idempotent: re-running wipes prior seed rows for those users (matched by a
-  `notes` tag like `"[test-seed]"`) and reseeds. Real users are never
-  touched (the function only operates on the three known test emails).
-- Returns `{ users: [{ email, user_id, organization_id, password }], summary }`.
+1. **`plaid_items` SELECT** is owner-only (one policy, `auth.uid() = user_id`) — inconsistent with the dual-policy pattern. Add an org-scoped SELECT policy so org members can view shared Plaid items, mirroring the other Plaid tables.
+2. **`transaction_match_ignores`** is missing an UPDATE policy (intentional since rows are immutable) — leave as is, but document.
+3. **`transaction_attachments`** has only one UPDATE and one DELETE policy — verify the single policy covers both org + owner-fallback; if not, split into the standard pair.
+4. Add a **trigger** on every user-owned table that enforces `NEW.user_id = auth.uid()` on INSERT when called from an authenticated context (defense-in-depth so a future buggy policy can't let one user write rows under another user's id). Skip for service-role / edge-function paths by checking `auth.role() = 'authenticated'`.
 
-### 3. Edge function: `test-verify-user` (POST)
+### B. Frontend hooks
 
-- Token-gated. Body: `{ email }`.
-- Reads the seeded user's data with the service role and returns:
-  - `premium`, `filing_status`, `income_profile_type`, `onboarding_complete`
-  - Ledger counts: income entries, business transactions, investment entries,
-    projected streams, mileage rows
-  - Sums: `total_personal_w2_gross`, `total_business_gross`,
-    `total_investment_taxable`, short-term/long-term/dividend buckets
-  - `recommended_tax_set_aside` and `tax_recommendation` totals stored on
-    each entry by the in-app engine (these are the same numbers shown in the
-    UI, which is the closest server-side proxy to the engine output).
-- Codex compares expected vs actual on the JSON, no browser needed.
+Sweep all hooks under `src/hooks/` and ensure every user-write path:
 
-### 4. Stable test selectors (`data-testid`)
+- Calls `getUserOrgId()` and includes `organization_id: orgId` in inserts.
+- Includes `user_id: user.id` in inserts (RLS already requires it but be explicit).
+- Adds `.eq("organization_id", orgId)` on selects for **new** queries; existing queries that rely solely on RLS keep working but get an explicit filter for defense-in-depth where it doesn't break legacy NULL-org rows.
 
-Add stable attributes — UI is unchanged visually:
+Hooks confirmed already correct: `useIncome`, `usePersonalIncome`, `useInvestmentIncome`, `useTransactions`, `useStocks`, `useTaxPayments`, `useTaxSavings`, `useRetirementContributions`, `useMileage`, `useHomeOfficeDeductions`, `useHsaContributions`, `useYtdCatchup`, `useAttachments`, `useIncomeSources`, `useTransactionMatching`, `useProjectedIncome`.
 
-- `signup-email`, `signup-password`, `signup-submit` (Signup page)
-- `onboarding-income-type-w2`, `onboarding-income-type-w2-1099`,
-  `onboarding-income-type-1099` (income setup choice)
-- `onboarding-ytd-income` (YTD catch-up amount field)
-- `investment-add-entry`, `investment-entry-type`, `investment-taxable-amount`
-- `tax-overview-effective-rate`, `tax-overview-total-gross-income`,
-  `tax-overview-federal-tax`, `tax-overview-recommended-set-aside`
-  (Tax Overview / Estimate page)
+Hooks to spot-check & patch if missing: `useTaxSettings`, `useTransactionLinks` (if exists), any direct `supabase.from(...)` calls inside page components.
 
-### 5. Docs
+### C. Tests
 
-- Append a "Test seed harness" section to `e2e/README.md` covering:
-  - How to set `TEST_SEED_ADMIN_TOKEN`
-  - `curl` examples for both endpoints
-  - The three personas and their seeded shape
-  - Note that the harness is disabled when the token env var is unset
+Add `src/test/dataIsolation.test.ts` (vitest, runs against the real backend with two seeded users via the existing `test-seed-users` edge function):
 
-## Production safety
+1. Seed User A and User B (each gets their own org via the signup trigger).
+2. As User A: insert rows in `companies`, `income_entries`, `transactions`, `projected_income_streams`, `planner_conversions`, `tax_settings`.
+3. As User B: insert a separate set of rows.
+4. Re-auth as A → assert `select *` returns zero of B's rows in every table.
+5. Re-auth as B → same in reverse.
+6. Cross-user **direct attack**: as A, try `update`/`delete` by row id against B's rows → assert RLS blocks (zero rows affected, no error leaked).
+7. Service-role edge function (`test-verify-user`) must scope queries by user_id; add an assertion that calling it with User A's id never returns User B rows.
 
-- Both functions return 401 unless `TEST_SEED_ADMIN_TOKEN` is set AND the
-  caller's Bearer token matches.
-- Seed only operates on the three reserved `*.test` emails — cannot mutate
-  real accounts.
-- All seeded rows carry a `[test-seed]` marker in `notes` for easy cleanup.
-- Endpoints are not referenced by client code, so they don't ship in the app
-  bundle.
+### D. Admin debug report
 
-## Files touched
+New page `src/pages/admin/DataIsolationReport.tsx`, only visible when `has_role(auth.uid(), 'admin')` returns true (route guarded). It calls a new edge function `data-isolation-report` (service role) that returns, per table:
 
-- New: `supabase/functions/test-seed-users/index.ts`
-- New: `supabase/functions/test-verify-user/index.ts`
-- Edited: `src/pages/Signup.tsx`, `src/pages/Onboarding.tsx`,
-  `src/pages/InvestmentIncome.tsx`, `src/components/tax-breakdown/SummaryCards.tsx`
-  (or the equivalent Tax Overview headline component) — `data-testid` only
-- Edited: `e2e/README.md`
+- Total row count.
+- Row count grouped by `user_id` and `organization_id`.
+- Rows with `user_id IS NULL` (should always be 0 going forward).
+- Rows with `organization_id IS NULL` created **after** the deploy timestamp of this fix.
+- Rows where `organization_id` does not appear in `organization_members` for the row's `user_id` (cross-org leak).
+
+UI shows a table per audited entity with green check / red flag and a copy-to-clipboard JSON dump.
+
+## Files
+
+- `supabase/migrations/<timestamp>_data_isolation_hardening.sql` — fix `plaid_items` SELECT, normalize `transaction_attachments`, add `enforce_user_id_matches_auth()` trigger function and attach to all user-owned tables.
+- `supabase/functions/data-isolation-report/index.ts` — new service-role read-only report.
+- `src/pages/admin/DataIsolationReport.tsx` + route in `App.tsx`, guarded by admin role.
+- `src/test/dataIsolation.test.ts` — cross-user vitest suite.
+- Minor patches to any hook missing `organization_id` on insert (sweep pass).
+
+## Out of scope
+
+- Restructuring the existing fallback policies (they're correct).
+- Touching `auth.*` schema.
+- Building a UI that merges users' data (explicitly forbidden by the request).
