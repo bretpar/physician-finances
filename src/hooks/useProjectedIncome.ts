@@ -810,7 +810,10 @@ export function getProjectedTotals(
   };
 
   for (const p of paychecks) {
-    if (p.matchStatus !== "active") continue;
+    // "suggested" still counts as projected because no confirmed link exists
+    // yet; the heuristic candidate could be unrelated. Only exclude when there
+    // is a real stored relationship (matched / converted) or the user skipped it.
+    if (p.matchStatus !== "active" && p.matchStatus !== "suggested") continue;
     const stream = streamById.get(p.streamId);
     const bucket = classifyStreamType(stream?.company_type ?? p.streamCompanyType);
 
