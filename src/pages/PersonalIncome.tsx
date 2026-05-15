@@ -1205,27 +1205,44 @@ export default function PersonalIncome() {
         const uiType = hydrateIncomeType(e);
         const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
         const isLoss = uiType === "loss";
+        const gross = Number(e.gross_amount) || 0;
         const withheld = getTotalFederalPaid(e as any);
         const reserve = Number((e as any).additional_tax_reserve || 0);
         const stateW = Number(e.state_withholding || 0);
+        const preTax = Number((e as any).pre_tax_deductions || 0);
+        const ret401k = Number((e as any).retirement_401k || 0);
+        const hsa = Number((e as any).hsa_contribution || 0);
+        const healthcare = Number((e as any).healthcare_deduction || 0);
+        const otherDed = Number((e as any).other_deductions || 0);
+        const netExplicit = (e as any).net_amount;
+        const hasExplicitNet = netExplicit != null && netExplicit !== "";
+        const netReceived = hasExplicitNet
+          ? Number(netExplicit) || 0
+          : gross - withheld - stateW - preTax - ret401k - hsa - healthcare - otherDed;
         const isYtd = !!(e as any).linked_ytd_catchup_id;
         const fromPlanner = (e as any).origin_type === "planner_converted";
         const sections: DetailSection[] = [
           {
             title: "Basic details",
             fields: [
-              { label: "Source", value: e.company || "—" },
               { label: "Type", value: typeLabel },
-              { label: "Notes", value: e.notes || "—" },
+              ...(e.company ? [{ label: "Source", value: e.company }] : []),
+              ...(e.notes ? [{ label: "Notes", value: e.notes }] : []),
             ],
           },
           {
             title: "Tax details",
             fields: [
-              { label: "Gross", value: fmt(Number(e.gross_amount) || 0), mono: true },
-              { label: "Federal paid", value: withheld > 0 ? fmt(withheld) : "—", mono: true },
-              ...(stateIncomeTaxEnabled ? [{ label: "State withheld", value: stateW > 0 ? fmt(stateW) : "—", mono: true }] : []),
-              { label: "Reserve", value: reserve > 0 ? fmt(reserve) : "—", mono: true },
+              { label: "Gross", value: fmt(gross), mono: true },
+              { label: "Net received", value: fmt(netReceived), mono: true },
+              ...(withheld > 0 ? [{ label: "Federal paid", value: fmt(withheld), mono: true }] : []),
+              ...(stateIncomeTaxEnabled && stateW > 0 ? [{ label: "State withheld", value: fmt(stateW), mono: true }] : []),
+              ...(preTax > 0 ? [{ label: "Pre-tax", value: fmt(preTax), mono: true }] : []),
+              ...(ret401k > 0 ? [{ label: "401(k)", value: fmt(ret401k), mono: true }] : []),
+              ...(hsa > 0 ? [{ label: "HSA", value: fmt(hsa), mono: true }] : []),
+              ...(healthcare > 0 ? [{ label: "Healthcare", value: fmt(healthcare), mono: true }] : []),
+              ...(otherDed > 0 ? [{ label: "Other deductions", value: fmt(otherDed), mono: true }] : []),
+              ...(reserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(reserve), mono: true }] : []),
             ],
           },
         ];
