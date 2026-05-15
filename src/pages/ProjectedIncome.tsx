@@ -26,6 +26,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAddIncome } from "@/hooks/useIncome";
