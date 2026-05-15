@@ -122,6 +122,8 @@ interface StreamForm {
   hsa_contribution: string;
   pre_tax_deductions: string;
   additional_tax_reserve: string;
+  forecast_expense_per_period: string;
+  forecast_expense_notes: string;
   notes: string;
   is_active: boolean;
   include_in_tax: boolean;
