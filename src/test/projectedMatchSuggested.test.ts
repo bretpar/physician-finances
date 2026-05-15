@@ -54,7 +54,7 @@ describe("projected paycheck matching — heuristic vs confirmed", () => {
       // no entry_kind / origin_planner_conversion_id → no stored link
     };
 
-    const result = generateProjectedPaychecks([stream], [], [], [entry], []);
+    const result = generateProjectedPaychecks([stream], [], [entry], [], []);
     expect(result).toHaveLength(1);
     expect(result[0].matchStatus).toBe("suggested");
     expect(result[0].suggestedIncomeId).toBe("ie-1");
@@ -73,7 +73,7 @@ describe("projected paycheck matching — heuristic vs confirmed", () => {
       entry_kind: "planner_conversion",
     };
 
-    const result = generateProjectedPaychecks([stream], [], [], [entry], []);
+    const result = generateProjectedPaychecks([stream], [], [entry], [], []);
     expect(result[0].matchStatus).toBe("matched");
     expect(result[0].matchedIncomeId).toBe("ie-2");
   });
@@ -90,7 +90,7 @@ describe("projected paycheck matching — heuristic vs confirmed", () => {
       origin_planner_conversion_id: "pc-1",
     };
 
-    const result = generateProjectedPaychecks([stream], [], [], [entry], []);
+    const result = generateProjectedPaychecks([stream], [], [entry], [], []);
     expect(result[0].matchStatus).toBe("matched");
   });
 });
