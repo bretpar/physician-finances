@@ -953,7 +953,7 @@ export function generateProjectedPaychecks(
             healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
-            isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
+            isSkipped: true, isModified: false, streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
           });
         } else {
           const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
@@ -966,7 +966,7 @@ export function generateProjectedPaychecks(
             healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
             type: "paycheck", label: stream.company, streamId: stream.id,
-            isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
+            isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
           });
         }
       }
@@ -995,7 +995,7 @@ export function generateProjectedPaychecks(
           healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
-          isSkipped: true, isModified: false, streamCompanyType: stream.company_type,
+          isSkipped: true, isModified: false, streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
         });
       } else {
         const amt = override?.action === "modify" ? override.paycheck_amount : stream.paycheck_amount;
@@ -1008,7 +1008,7 @@ export function generateProjectedPaychecks(
           healthcareDeduction: stream.healthcare_deduction || 0,
             hsaContribution: stream.hsa_contribution || 0,
           type: "paycheck", label: stream.company, streamId: stream.id,
-          isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type,
+          isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
         });
       }
       current = getNextDate(current, stream.pay_frequency, stream.custom_interval_days);
@@ -1048,7 +1048,7 @@ export function generateProjectedPaychecks(
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
         bonusEventId: bonus.id,
-        isSkipped: false, isModified: false, streamCompanyType: stream?.company_type,
+        isSkipped: false, isModified: false, streamCompanyType: stream?.company_type, streamSourceId: stream?.source_id ?? null,
       });
     }
   }
