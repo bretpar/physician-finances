@@ -127,7 +127,7 @@ export default function Estimate() {
       if (showW2 && input.w2Income <= 0 && input.incomeKind === "w2_only") { toast.error("Enter your approximate W-2 income."); return; }
       if (showBiz && input.businessIncome <= 0 && input.incomeKind === "business_only") { toast.error("Enter your approximate business income."); return; }
     }
-    setStep((s) => Math.min(4, (s + 1) as Step));
+    setStep((s) => Math.min(4, s + 1) as Step);
   }
 
   async function handleCreateAccount() {
@@ -330,7 +330,7 @@ export default function Estimate() {
           )}
 
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            <Button variant="outline" onClick={() => step === 1 ? navigate(-1) : setStep((s) => Math.max(1, (s - 1) as Step))} disabled={saving}>
+            <Button variant="outline" onClick={() => step === 1 ? navigate(-1) : setStep((s) => Math.max(1, s - 1) as Step)} disabled={saving}>
               <ChevronLeft className="mr-1 h-4 w-4" />Back
             </Button>
             {step < 4 ? (
