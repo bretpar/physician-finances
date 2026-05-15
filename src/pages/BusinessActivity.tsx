@@ -43,6 +43,7 @@ import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { txTone } from "@/lib/transactionTones";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
+import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { DateField } from "@/components/DateField";
 import {
   getFilingMeta,
@@ -239,6 +240,7 @@ export default function Transactions() {
 
   // Mobile in-ledger receipt viewer
   const [mobileViewerTxId, setMobileViewerTxId] = useState<string | null>(null);
+  const [detailTx, setDetailTx] = useState<DbTransaction | null>(null);
   const uploadAttachments = useUploadAttachments();
 
   // Delete
@@ -1399,12 +1401,14 @@ export default function Transactions() {
             return (
               <div key={tx.id}>
               <div
-                className={`grid grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center ${
+                className={`grid grid-cols-[28px_85px_1fr_85px_100px_65px_65px_95px_36px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center cursor-pointer ${
                   tx.needs_review ? "bg-amber-50/30 dark:bg-amber-950/10" : ""
                 } ${isSelected ? "bg-primary/5" : ""}`}
+                onClick={() => setDetailTx(tx)}
               >
                 <Checkbox
                   checked={isSelected}
+                  onClick={(e) => e.stopPropagation()}
                   onCheckedChange={(checked) => {
                     const next = new Set(selectedIds);
                     if (checked) next.add(tx.id); else next.delete(tx.id);
@@ -1475,7 +1479,7 @@ export default function Transactions() {
                 })()}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -1689,7 +1693,7 @@ export default function Transactions() {
                           toast.info("Edit this row on the Income page (YTD catch-up).");
                           return;
                         }
-                        openEdit(tx);
+                        setDetailTx(tx);
                       }}
                     />
                   );
@@ -2259,6 +2263,79 @@ export default function Transactions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Read-only detail card */}
+      {detailTx && (() => {
+        const tx = detailTx;
+        const txType = (tx.transaction_type || "expense") as string;
+        const isIncomeTx = txType === "income";
+        const isTransferTx = txType === "transfer";
+        const linked = isIncomeTx ? incomeByLinkedTx.get(tx.id) : null;
+        const linkedGroupItems = tx.linked_group_id ? matchGroupsMap?.get(tx.linked_group_id) : undefined;
+        const linkedSiblings = (linkedGroupItems || []).filter((it) => it.transaction.id !== tx.id);
+        const source = tx.source_type || "manual";
+        const catLabel = isIncomeTx ? "Income" : isTransferTx ? "Transfer" : (mapLegacyCategory(tx.category) || "Uncategorized");
+        const sections: DetailSection[] = [
+          {
+            title: "Basic details",
+            fields: [
+              { label: "Vendor", value: tx.vendor || "—" },
+              { label: "Company", value: getTransactionCompanyLabel(tx) },
+              { label: "Category", value: catLabel },
+              ...((tx as any).schedule_c_category ? [{ label: "Schedule C", value: (tx as any).schedule_c_category as string }] : []),
+              { label: "Source", value: source === "merged" ? "Linked (manual + bank)" : source === "plaid" ? "Imported" : "Manual" },
+              ...(tx.account_source ? [{ label: "Account", value: tx.account_source }] : []),
+              ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
+            ],
+          },
+        ];
+        if (linked) {
+          sections.push({
+            title: "Tax details",
+            fields: [
+              { label: "Gross", value: fmt(Number(linked.paycheck_amount) || 0), mono: true },
+              { label: "Federal withheld", value: fmt(getCanonicalTotalFederalPayrollTaxes(linked as any)), mono: true },
+              { label: "State withheld", value: fmt(Number((linked as any).state_withholding) || 0), mono: true },
+              { label: "Pre-tax", value: fmt(Number(linked.pre_tax_deductions) || 0), mono: true },
+              { label: "401(k)", value: fmt(Number(linked.retirement_401k) || 0), mono: true },
+            ],
+          });
+        }
+        const badges = [];
+        if (tx.needs_review) badges.push({ label: "Review", tone: "warning" as const });
+        if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "success" as const });
+        if (source === "plaid") badges.push({ label: "Imported", tone: "muted" as const });
+        if (source === "merged") badges.push({ label: "Linked", tone: "default" as const });
+        return (
+          <TransactionDetailSheet
+            open={!!detailTx}
+            onOpenChange={(o) => { if (!o) setDetailTx(null); }}
+            header={{
+              title: tx.vendor || "(No payee)",
+              subtitle: getTransactionCompanyLabel(tx),
+              date: new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              amount: Math.abs(Number(tx.amount) || 0),
+              amountTone: isIncomeTx ? "income" : isTransferTx ? "neutral" : "expense",
+              badges,
+            }}
+            sections={sections}
+            linked={{
+              items: linkedSiblings.map((it) => ({
+                id: it.itemId,
+                label: it.transaction.vendor || "(No payee)",
+                amount: Math.abs(it.transaction.amount),
+                date: new Date(it.transaction.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+              })),
+              onUnlink: tx.linked_group_id
+                ? (itemId) => unlinkMatchGroupItem.mutate({ itemId, groupId: tx.linked_group_id! })
+                : undefined,
+              onLink: () => { setDetailTx(null); enterMobileSelectionWith(tx.id); },
+            }}
+            onEdit={() => { const t = tx; setDetailTx(null); openEdit(t); }}
+            onDelete={() => { setDetailTx(null); confirmDelete(tx.id); }}
+          />
+        );
+      })()}
     </div>
   );
 }

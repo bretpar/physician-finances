@@ -1,11 +1,16 @@
+import { useState } from "react";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import { txTone, resolveTxTone } from "@/lib/transactionTones";
+import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { useNavigate } from "react-router-dom";
 
 interface Props {
   transactions: DbTransaction[];
 }
 
 export default function RecentTransactions({ transactions }: Props) {
+  const navigate = useNavigate();
+  const [detailTx, setDetailTx] = useState<DbTransaction | null>(null);
   const fmt = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
@@ -21,7 +26,12 @@ export default function RecentTransactions({ transactions }: Props) {
       ) : (
         <div className="divide-y divide-border">
           {transactions.slice(0, 8).map((tx) => (
-            <div key={tx.id} className="flex items-center justify-between px-5 py-3 hover:bg-muted/50 transition-colors">
+            <button
+              type="button"
+              key={tx.id}
+              onClick={() => setDetailTx(tx)}
+              className="w-full text-left flex items-center justify-between px-5 py-3 hover:bg-muted/50 transition-colors"
+            >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-card-foreground truncate">{tx.vendor || "Unknown"}</p>
                 <p className="text-xs text-muted-foreground">{tx.transaction_date} · {tx.account_source || "—"}</p>
@@ -42,10 +52,42 @@ export default function RecentTransactions({ transactions }: Props) {
                   {fmt(tx.amount)}
                 </span>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
+
+      {detailTx && (() => {
+        const tx = detailTx;
+        const isIncome = tx.amount >= 0;
+        const sections: DetailSection[] = [
+          {
+            title: "Basic details",
+            fields: [
+              { label: "Vendor", value: tx.vendor || "Unknown" },
+              { label: "Category", value: tx.category || "—" },
+              ...(tx.account_source ? [{ label: "Account", value: tx.account_source }] : []),
+              ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
+            ],
+          },
+        ];
+        return (
+          <TransactionDetailSheet
+            open={!!detailTx}
+            onOpenChange={(o) => { if (!o) setDetailTx(null); }}
+            header={{
+              title: tx.vendor || "Unknown",
+              date: new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              amount: Math.abs(tx.amount),
+              amountTone: isIncome ? "income" : "expense",
+            }}
+            sections={sections}
+            onEdit={() => { setDetailTx(null); navigate("/business-activity"); }}
+            editLabel="Open in ledger"
+            hideDelete
+          />
+        );
+      })()}
     </div>
   );
 }

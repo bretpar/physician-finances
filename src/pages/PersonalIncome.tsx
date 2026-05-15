@@ -39,6 +39,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
+import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
@@ -184,6 +185,7 @@ export default function PersonalIncome() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
+  const [detailEntry, setDetailEntry] = useState<PersonalIncomeEntry | null>(null);
   const uploadAttachments = useUploadAttachments();
 
   // Per-transaction tax-savings reminder state
@@ -683,7 +685,11 @@ export default function PersonalIncome() {
             const status = ((entry as any).recommendation_status || "on_track") as keyof typeof STATUS_ICON;
             const StIcon = STATUS_ICON[status] || Minus;
             return (
-              <div key={entry.id} className="grid grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
+              <div
+                key={entry.id}
+                className="grid grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center cursor-pointer"
+                onClick={() => setDetailEntry(entry)}
+              >
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
@@ -728,7 +734,7 @@ export default function PersonalIncome() {
                 </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -810,7 +816,7 @@ export default function PersonalIncome() {
                         amountTone={isLoss ? "negative" : "positive"}
                         amountPrefix={isLoss ? "-" : "+"}
                         badges={badges}
-                        onClick={() => openEdit(entry)}
+                        onClick={() => setDetailEntry(entry)}
                       />
                       {attCount > 0 && (
                         <div className="px-4 pb-3 -mt-1">
@@ -1192,6 +1198,58 @@ export default function PersonalIncome() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Read-only detail card */}
+      {detailEntry && (() => {
+        const e = detailEntry;
+        const uiType = hydrateIncomeType(e);
+        const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
+        const isLoss = uiType === "loss";
+        const withheld = getTotalFederalPaid(e as any);
+        const reserve = Number((e as any).additional_tax_reserve || 0);
+        const stateW = Number(e.state_withholding || 0);
+        const isYtd = !!(e as any).linked_ytd_catchup_id;
+        const fromPlanner = (e as any).origin_type === "planner_converted";
+        const sections: DetailSection[] = [
+          {
+            title: "Basic details",
+            fields: [
+              { label: "Source", value: e.company || "—" },
+              { label: "Type", value: typeLabel },
+              { label: "Notes", value: e.notes || "—" },
+            ],
+          },
+          {
+            title: "Tax details",
+            fields: [
+              { label: "Gross", value: fmt(Number(e.gross_amount) || 0), mono: true },
+              { label: "Federal paid", value: withheld > 0 ? fmt(withheld) : "—", mono: true },
+              ...(stateIncomeTaxEnabled ? [{ label: "State withheld", value: stateW > 0 ? fmt(stateW) : "—", mono: true }] : []),
+              { label: "Reserve", value: reserve > 0 ? fmt(reserve) : "—", mono: true },
+            ],
+          },
+        ];
+        return (
+          <TransactionDetailSheet
+            open={!!detailEntry}
+            onOpenChange={(o) => { if (!o) setDetailEntry(null); }}
+            header={{
+              title: e.name || "(No payor)",
+              subtitle: e.company || undefined,
+              date: new Date(e.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              amount: Number(e.gross_amount) || 0,
+              amountTone: isLoss ? "expense" : "income",
+              badges: [
+                ...(isYtd ? [{ label: "YTD Catch-Up", tone: "muted" as const }] : []),
+                ...(fromPlanner ? [{ label: "From Planner", tone: "success" as const }] : []),
+              ],
+            }}
+            sections={sections}
+            onEdit={() => { const target = e; setDetailEntry(null); openEdit(target); }}
+            onDelete={isYtd ? undefined : () => { setDeleteId(e.id); setDetailEntry(null); }}
+          />
+        );
+      })()}
     </div>
   );
 }

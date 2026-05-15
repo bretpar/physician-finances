@@ -29,6 +29,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { calculateInvestmentTaxRecommendation } from "@/lib/investmentTaxRecommendation";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -72,6 +73,7 @@ export default function InvestmentIncome() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailEntry, setDetailEntry] = useState<InvestmentIncomeEntry | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saleDetailsOpen, setSaleDetailsOpen] = useState(false);
   const [howCalcOpen, setHowCalcOpen] = useState(false);
@@ -270,7 +272,7 @@ export default function InvestmentIncome() {
                       const actualSaved = Number(actualSavedRaw || 0);
                       const diff = actualSaved - recommended;
                       const isExpanded = expandedId === entry.id;
-                      const toggle = () => setExpandedId(isExpanded ? null : entry.id);
+                      const toggle = () => setDetailEntry(entry);
                       return (
                         <Fragment key={entry.id}>
                           <TableRow
@@ -326,7 +328,7 @@ export default function InvestmentIncome() {
                   const actualSaved = Number(actualSavedRaw || 0);
                   const diff = actualSaved - recommended;
                   const isExpanded = expandedId === entry.id;
-                  const toggle = () => setExpandedId(isExpanded ? null : entry.id);
+                  const toggle = () => setDetailEntry(entry);
                   const dateObj = new Date(entry.entry_date + "T00:00:00");
                   const shortDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
                   const fullDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -490,6 +492,52 @@ export default function InvestmentIncome() {
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {detailEntry && (() => {
+        const e = detailEntry;
+        const dividend = e.investment_income_type === "dividend";
+        const taxable = Number(e.taxable_amount || 0);
+        const recommended = Number(e.tax_recommendation || 0);
+        const actualSavedRaw = e.actual_tax_saved;
+        const hasActual = actualSavedRaw != null && (actualSavedRaw as any) !== "";
+        const actualSaved = Number(actualSavedRaw || 0);
+        const sections: DetailSection[] = [
+          {
+            title: "Basic details",
+            fields: [
+              { label: "Type", value: investmentIncomeTypeLabels[e.investment_income_type] },
+              { label: "Asset", value: e.asset_name_or_ticker },
+              ...(e.notes ? [{ label: "Notes", value: e.notes }] : []),
+            ],
+          },
+          {
+            title: "Tax details",
+            fields: [
+              ...(dividend || e.sale_proceeds == null ? [] : [{ label: "Proceeds", value: fmt(Number(e.sale_proceeds || 0)), mono: true }]),
+              ...(dividend || e.cost_basis == null ? [] : [{ label: "Cost basis", value: fmt(Number(e.cost_basis || 0)), mono: true }]),
+              { label: "Taxable amount", value: fmt(taxable), mono: true },
+              { label: "Recommended set-aside", value: recommended > 0 ? fmt(recommended) : "—", mono: true },
+              { label: "Actual saved", value: hasActual ? fmt(actualSaved) : "—", mono: true },
+            ],
+          },
+        ];
+        return (
+          <TransactionDetailSheet
+            open={!!detailEntry}
+            onOpenChange={(o) => { if (!o) setDetailEntry(null); }}
+            header={{
+              title: e.asset_name_or_ticker,
+              subtitle: investmentIncomeTypeLabels[e.investment_income_type],
+              date: new Date(e.entry_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              amount: taxable,
+              amountTone: dividend ? "neutral" : taxable < 0 ? "expense" : "income",
+            }}
+            sections={sections}
+            onEdit={() => { const t = e; setDetailEntry(null); openEdit(t); }}
+            onDelete={() => { setDeleteId(e.id); setDetailEntry(null); }}
+          />
+        );
+      })()}
     </div>
   );
 }
