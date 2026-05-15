@@ -251,6 +251,7 @@ export function RecommendedSetAsideInfo({ rate, breakdown, taxableBase }: Props)
             businessStatus={businessStatus}
             personalDetail={personalDetail}
             businessDetail={businessDetail}
+            taxableBase={taxableBase}
           />
         </DialogContent>
       </Dialog>
