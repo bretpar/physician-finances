@@ -919,6 +919,46 @@ export default function ProjectedIncome() {
                             <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
+                            {isSuggested && entry.suggestedIncomeId && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-xs px-2 border-emerald-400 text-emerald-700 dark:text-emerald-400 gap-0.5"
+                                  title="Confirm this projected paycheck matches the actual income entry"
+                                  disabled={confirmSuggested.isPending}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const t = (entry.streamCompanyType || "").toLowerCase();
+                                    const isBiz = t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution";
+                                    confirmSuggested.mutate({
+                                      streamId: entry.streamId,
+                                      occurrenceDate: entry.date,
+                                      incomeEntryId: entry.suggestedIncomeId!,
+                                      ledgerBucket: isBiz ? "business" : "personal",
+                                    });
+                                  }}
+                                >
+                                  <CheckCircle2 className="h-3 w-3 mr-0.5" /> Confirm
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-xs px-2 text-muted-foreground gap-0.5"
+                                  title="Dismiss this suggested match"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDismissedSuggestions((prev) => {
+                                      const next = new Set(prev);
+                                      next.add(`${entry.streamId}:${entry.date}`);
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <X className="h-3 w-3 mr-0.5" /> Dismiss
+                                </Button>
+                              </>
+                            )}
                             {isActive && entry.type === "paycheck" && (
                               <>
                                 <Button
