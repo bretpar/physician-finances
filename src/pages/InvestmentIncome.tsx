@@ -515,9 +515,10 @@ export default function InvestmentIncome() {
             fields: [
               ...(dividend || e.sale_proceeds == null ? [] : [{ label: "Proceeds", value: fmt(Number(e.sale_proceeds || 0)), mono: true }]),
               ...(dividend || e.cost_basis == null ? [] : [{ label: "Cost basis", value: fmt(Number(e.cost_basis || 0)), mono: true }]),
-              { label: "Taxable amount", value: fmt(taxable), mono: true },
-              { label: "Recommended set-aside", value: recommended > 0 ? fmt(recommended) : "—", mono: true },
-              { label: "Actual saved", value: hasActual ? fmt(actualSaved) : "—", mono: true },
+              { label: "Gross", value: fmt(taxable), mono: true },
+              { label: "Net received", value: fmt(taxable - (hasActual ? actualSaved : 0)), mono: true },
+              ...(recommended > 0 ? [{ label: "Recommended set-aside", value: fmt(recommended), mono: true }] : []),
+              ...(hasActual && actualSaved > 0 ? [{ label: "Amount saved for taxes", value: fmt(actualSaved), mono: true }] : []),
             ],
           },
         ];

@@ -60,14 +60,22 @@ export default function RecentTransactions({ transactions }: Props) {
       {detailTx && (() => {
         const tx = detailTx;
         const isIncome = tx.amount >= 0;
+        const gross = Math.abs(tx.amount);
         const sections: DetailSection[] = [
           {
             title: "Basic details",
             fields: [
               { label: "Vendor", value: tx.vendor || "Unknown" },
-              { label: "Category", value: tx.category || "—" },
+              ...(tx.category ? [{ label: "Category", value: tx.category }] : []),
               ...(tx.account_source ? [{ label: "Account", value: tx.account_source }] : []),
               ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
+            ],
+          },
+          {
+            title: "Amount",
+            fields: [
+              { label: "Gross", value: fmt(gross), mono: true },
+              ...(isIncome ? [{ label: "Net received", value: fmt(gross), mono: true }] : []),
             ],
           },
         ];

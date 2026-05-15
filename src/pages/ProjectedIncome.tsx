@@ -1972,6 +1972,7 @@ export default function ProjectedIncome() {
             title: "Tax details",
             fields: [
               { label: "Gross", value: fmtFull(e.grossAmount), mono: true },
+              { label: "Net received", value: fmtFull(Math.max(0, e.grossAmount - (e.taxesWithheld || 0) - (e.retirement401k || 0))), mono: true },
               ...(e.taxesWithheld > 0 ? [{ label: "Federal", value: fmtFull(e.taxesWithheld), mono: true }] : []),
               ...(e.retirement401k > 0 ? [{ label: "401(k)", value: fmtFull(e.retirement401k), mono: true }] : []),
             ],
