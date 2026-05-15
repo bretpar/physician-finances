@@ -240,6 +240,7 @@ export default function Transactions() {
 
   // Mobile in-ledger receipt viewer
   const [mobileViewerTxId, setMobileViewerTxId] = useState<string | null>(null);
+  const [detailTx, setDetailTx] = useState<DbTransaction | null>(null);
   const uploadAttachments = useUploadAttachments();
 
   // Delete
