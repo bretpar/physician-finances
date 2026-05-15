@@ -329,7 +329,7 @@ export default function Estimate() {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <Button variant="outline" onClick={() => step === 1 ? navigate(-1) : setStep((s) => Math.max(1, s - 1) as Step)} disabled={saving}>
               <ChevronLeft className="mr-1 h-4 w-4" />Back
             </Button>
@@ -337,7 +337,7 @@ export default function Estimate() {
               <Button onClick={next}>{step === 3 ? "Save my plan" : "Continue"}</Button>
             ) : (
               <Button onClick={handleCreateAccount} disabled={saving}>
-                {saving ? "Creating account…" : "Create account and save my plan"}
+                {saving ? "Creating account…" : "Create Account"}
               </Button>
             )}
           </div>
