@@ -1693,7 +1693,7 @@ export default function Transactions() {
                           toast.info("Edit this row on the Income page (YTD catch-up).");
                           return;
                         }
-                        openEdit(tx);
+                        setDetailTx(tx);
                       }}
                     />
                   );
