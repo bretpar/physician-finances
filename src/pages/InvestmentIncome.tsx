@@ -29,6 +29,7 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { calculateInvestmentTaxRecommendation } from "@/lib/investmentTaxRecommendation";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
