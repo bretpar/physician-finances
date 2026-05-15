@@ -959,23 +959,27 @@ export default function ProjectedIncome() {
                             <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
-                            {isSuggested && entry.suggestedIncomeId && (
+                            {isSuggested && (entry.suggestedIncomeId || entry.suggestedTransactionId) && (
                               <>
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   className="h-6 text-xs px-2 border-emerald-400 text-emerald-700 dark:text-emerald-400 gap-0.5"
-                                  title="Confirm this projected paycheck matches the actual income entry"
+                                  title="Confirm this projected paycheck matches the actual ledger entry"
                                   disabled={confirmSuggested.isPending}
+                                  data-testid="projected-confirm-suggested"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    const t = (entry.streamCompanyType || "").toLowerCase();
-                                    const isBiz = t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution";
+                                    const bucket = entry.suggestedBucket
+                                      ?? (entry.suggestedTransactionId ? "business" : "personal");
+                                    const ledgerId = bucket === "business"
+                                      ? entry.suggestedTransactionId!
+                                      : entry.suggestedIncomeId!;
                                     confirmSuggested.mutate({
                                       streamId: entry.streamId,
                                       occurrenceDate: entry.date,
-                                      incomeEntryId: entry.suggestedIncomeId!,
-                                      ledgerBucket: isBiz ? "business" : "personal",
+                                      incomeEntryId: ledgerId,
+                                      ledgerBucket: bucket,
                                     });
                                   }}
                                 >
