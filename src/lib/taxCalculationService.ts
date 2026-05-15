@@ -46,6 +46,12 @@ export interface UnifiedTaxInput {
   personalPreTax: number;
   personalRetirement: number;
   netStockGain: number;
+  /**
+   * Long-term capital gains + qualified dividends (gain side, floored at 0).
+   * Routed through AGI like other income but taxed at LTCG brackets in the engine,
+   * stacked on top of ordinary taxable income.
+   */
+  longTermCapitalGains?: number;
   businessExpenses: number;
   mileageDeduction: number;
   annualizedRetirement: number;
