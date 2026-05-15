@@ -245,8 +245,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     includeProjectedIncome,
   } = input;
 
+  // Floor LTCG slice at zero — losses already netted upstream.
+  const longTermCapitalGains = Math.max(0, longTermCapitalGainsParam);
+
   // ── Actual income ──
-  const actualIncome = businessIncome + businessW2 + personalIncome + netStockGain;
+  const actualIncome = businessIncome + businessW2 + personalIncome + netStockGain + longTermCapitalGains;
   const seEligibleBusinessExpenses = seEligibleBusinessExpensesParam ?? businessExpenses;
   const seEligibleMileageDeduction = seEligibleMileageDeductionParam ?? mileageDeduction;
 
@@ -275,9 +278,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // Display: ALL business gross (actual + projected SE + projected other-business).
   const grossBusinessIncome = businessIncome + projSE + projOther;
 
-  // Other income = personal non-W2 + stock + ineligible actual business + projected other.
+  // Other income = personal non-W2 + stock/ordinary investment + LTCG slice + ineligible actual business + projected other.
+  // The LTCG slice flows through AGI here; the engine separates it out at the federal-tax step
+  // so it gets taxed at long-term capital gains brackets instead of ordinary brackets.
   const ineligibleBusinessIncome = Math.max(0, businessIncome - seEligibleBusinessIncome);
-  const otherIncome = personalNonW2Income + netStockGain + ineligibleBusinessIncome + projOther;
+  const otherIncome = personalNonW2Income + netStockGain + longTermCapitalGains + ineligibleBusinessIncome + projOther;
 
   // combinedPreTax = ONLY W-2 payroll pre-tax deductions (NOT health insurance).
   // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
