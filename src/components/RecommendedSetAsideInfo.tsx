@@ -69,9 +69,46 @@ interface BodyProps {
   businessStatus: LineStatus;
   personalDetail?: string;
   businessDetail?: string;
+  taxableBase?: TaxableBaseBreakdown;
 }
 
-function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail }: BodyProps) {
+const fmtUsd = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
+
+function TaxableBasePanel({ tb }: { tb: TaxableBaseBreakdown }) {
+  const r = Math.max(0, tb.retirement401k ?? 0);
+  const h = Math.max(0, tb.healthInsurance ?? 0);
+  const hsa = Math.max(0, tb.hsa ?? 0);
+  const other = Math.max(0, tb.otherPreTax ?? 0);
+  const totalDeductions = r + h + hsa + other;
+  const base = Math.max(0, tb.gross - totalDeductions);
+  const Row = ({ label, value, sign = "−", tone = "muted" }: { label: string; value: number; sign?: string; tone?: "muted" | "default" }) => (
+    <div className="flex justify-between gap-3">
+      <span className={tone === "muted" ? "text-muted-foreground" : "text-foreground"}>{label}</span>
+      <span className="tabular-nums text-foreground">{sign}{fmtUsd(value)}</span>
+    </div>
+  );
+  return (
+    <div className="rounded-md border bg-background px-3 py-2 text-xs space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Taxable base</p>
+      <Row label="Gross income" value={tb.gross} sign="" tone="default" />
+      <Row label="Retirement / 401(k)" value={r} />
+      <Row label="Health insurance" value={h} />
+      <Row label="HSA contribution" value={hsa} />
+      <Row label="Other pre-tax" value={other} />
+      <div className="border-t border-border my-1" />
+      <div className="flex justify-between gap-3 font-semibold">
+        <span className="text-foreground">Taxable base</span>
+        <span className="tabular-nums text-primary">{fmtUsd(base)}</span>
+      </div>
+      <p className="text-[10px] text-muted-foreground pt-1 leading-snug">
+        Recommended set-aside = taxable base × total tax rate.
+      </p>
+    </div>
+  );
+}
+
+function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail, taxableBase }: BodyProps) {
   const sourceLabel = breakdown?.baseRateSource === "federalEffectiveRate"
     ? "federalEffectiveRate"
     : breakdown?.baseRateSource === "effectiveRate"
