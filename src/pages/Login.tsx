@@ -80,7 +80,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
-          <BrandLogo className="mx-auto h-12 w-12 rounded-xl" />
+          <BrandLogo className="mx-auto h-12 w-12 rounded-xl object-fill" />
           <CardTitle className="text-2xl">Welcome to Paycheck MD</CardTitle>
           <CardDescription>{resetMode ? "Reset your password" : "Sign in to your account to continue"}</CardDescription>
         </CardHeader>
