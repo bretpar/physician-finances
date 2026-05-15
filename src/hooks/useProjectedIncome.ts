@@ -113,10 +113,14 @@ export interface ProjectedPaycheck {
   isModified?: boolean;
   /** New: tracks whether this projected paycheck has been matched to actual income */
   matchStatus: ProjectedMatchStatus;
-  /** If matched, the ID of the actual income entry */
+  /** If matched (confirmed link), the ID of the actual income entry */
   matchedIncomeId?: string;
   /** If matched, the actual amount received */
   matchedAmount?: number;
+  /** If suggested (heuristic only — NOT yet confirmed), the candidate income entry id */
+  suggestedIncomeId?: string;
+  /** If suggested, the candidate's gross amount for display only */
+  suggestedAmount?: number;
   /** Company type from the stream (W2, 1099, K1, etc.) */
   streamCompanyType?: string;
   /** If this is a bonus entry, the originating bonus event id */
