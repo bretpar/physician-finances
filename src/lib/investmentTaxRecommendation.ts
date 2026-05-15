@@ -43,25 +43,24 @@ export function getInvestmentTaxMethod(
   return isQualifiedDividend ? "qualified_dividend" : "ordinary_dividend";
 }
 
-/** Compute LTCG tax on a slice of gain stacked on top of ordinary taxable income. */
-export function calcLtcgTaxOnSlice(args: {
-  filingStatus: FilingStatus;
-  ordinaryTaxableIncome: number;
-  gain: number;
+/** Compute tax on a slice of income stacked on top of a baseline, against a bracket set.
+ *  Returns the slice tax, blended marginal effective rate, and a human label of the rates spanned.
+ */
+function calcSliceTax(args: {
+  brackets: Bracket[];
+  baseTaxableIncome: number;
+  slice: number;
 }): { tax: number; effectiveRate: number; rateLabel: string } {
-  const { filingStatus, ordinaryTaxableIncome, gain } = args;
-  if (gain <= 0) return { tax: 0, effectiveRate: 0, rateLabel: "0%" };
-  const base = Math.max(0, ordinaryTaxableIncome);
-  const brackets = LTCG_BRACKETS[filingStatus];
-  // Tax on (base + gain) minus tax on (base) gives tax on the slice.
-  const totalUpper = calcBracketTax(base + gain, brackets).total;
+  const { brackets, baseTaxableIncome, slice } = args;
+  if (slice <= 0) return { tax: 0, effectiveRate: 0, rateLabel: "0%" };
+  const base = Math.max(0, baseTaxableIncome);
+  const totalUpper = calcBracketTax(base + slice, brackets).total;
   const totalLower = calcBracketTax(base, brackets).total;
   const tax = Math.max(0, totalUpper - totalLower);
-  const effectiveRate = tax / gain;
-  // Build a human label by listing the rates the slice spans.
+  const effectiveRate = tax / slice;
   const ratesUsed: number[] = [];
   for (const b of brackets) {
-    const sliceTop = base + gain;
+    const sliceTop = base + slice;
     const overlap = Math.max(0, Math.min(sliceTop, b.max) - Math.max(base, b.min));
     if (overlap > 0) ratesUsed.push(b.rate);
   }
@@ -73,17 +72,42 @@ export function calcLtcgTaxOnSlice(args: {
   return { tax, effectiveRate, rateLabel };
 }
 
+/** Compute LTCG tax on a slice of gain stacked on top of ordinary taxable income. */
+export function calcLtcgTaxOnSlice(args: {
+  filingStatus: FilingStatus;
+  ordinaryTaxableIncome: number;
+  gain: number;
+}): { tax: number; effectiveRate: number; rateLabel: string } {
+  return calcSliceTax({
+    brackets: LTCG_BRACKETS[args.filingStatus],
+    baseTaxableIncome: args.ordinaryTaxableIncome,
+    slice: args.gain,
+  });
+}
+
+/** Compute ordinary federal tax on a slice stacked on top of the projected ordinary
+ *  taxable income — i.e. the true blended marginal rate for that slice. */
+export function calcOrdinaryTaxOnSlice(args: {
+  filingStatus: FilingStatus;
+  ordinaryTaxableIncome: number;
+  slice: number;
+}): { tax: number; effectiveRate: number; rateLabel: string } {
+  return calcSliceTax({
+    brackets: ORDINARY_BRACKETS[args.filingStatus],
+    baseTaxableIncome: args.ordinaryTaxableIncome,
+    slice: args.slice,
+  });
+}
+
 export function calculateInvestmentTaxRecommendation(args: {
   type: InvestmentIncomeType;
   taxableAmount: number;
   isQualifiedDividend?: boolean;
   filingStatus: FilingStatus;
-  /** Projected annual ordinary taxable income (excludes the LTCG slice itself). */
+  /** Projected annual ordinary taxable income (excludes this entry's slice). */
   projectedOrdinaryTaxableIncome: number;
-  /** Decimal ordinary effective rate (e.g. 0.22) used for short-term/ordinary dividends. */
-  ordinaryEffectiveRate: number;
 }): InvestmentTaxRecommendation {
-  const { type, taxableAmount, isQualifiedDividend = true, filingStatus, projectedOrdinaryTaxableIncome, ordinaryEffectiveRate } = args;
+  const { type, taxableAmount, isQualifiedDividend = true, filingStatus, projectedOrdinaryTaxableIncome } = args;
   const method = getInvestmentTaxMethod(type, isQualifiedDividend);
   const safeTaxable = Math.max(0, taxableAmount);
 
@@ -103,13 +127,17 @@ export function calculateInvestmentTaxRecommendation(args: {
     };
   }
 
-  // Short-term sale or non-qualified dividend → ordinary rate
-  const tax = safeTaxable * ordinaryEffectiveRate;
+  // Short-term sale or non-qualified dividend → blended marginal ordinary rate via slice math
+  const { tax, effectiveRate, rateLabel } = calcOrdinaryTaxOnSlice({
+    filingStatus,
+    ordinaryTaxableIncome: projectedOrdinaryTaxableIncome,
+    slice: safeTaxable,
+  });
   return {
     taxableAmount: safeTaxable,
     taxMethod: method,
-    effectiveRate: ordinaryEffectiveRate,
-    rateLabel: `${(ordinaryEffectiveRate * 100).toFixed(2)}%`,
+    effectiveRate,
+    rateLabel,
     methodLabel: METHOD_LABEL[method],
     estimatedTax: Math.round(tax * 100) / 100,
   };
