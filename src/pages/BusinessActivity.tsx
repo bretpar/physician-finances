@@ -1454,9 +1454,19 @@ export default function Transactions() {
                     <span className="text-[10px] text-muted-foreground">Manual</span>
                   )}
                 </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {mapLegacyCategory(tx.category)}
-                </span>
+                {(() => {
+                  const catLabel = mapLegacyCategory(tx.category) || "Uncategorized";
+                  const isUncategorized = !isIncomeTx && !isTransferTx && (!tx.category || catLabel === "Uncategorized");
+                  return isUncategorized ? (
+                    <span className="truncate">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400 text-amber-600 dark:text-amber-400">
+                        Uncategorized
+                      </Badge>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground truncate">{catLabel}</span>
+                  );
+                })()}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
@@ -1530,7 +1540,7 @@ export default function Transactions() {
 
                   const expandableContent = (
                     <>
-                      <div className="flex justify-between gap-3"><span>Category</span><span className="text-foreground text-right truncate">{categoryLabel}</span></div>
+                      <div className="flex justify-between gap-3"><span>Category</span><span className="text-right truncate">{categoryLabel === "Uncategorized" && !isIncomeTx ? (<Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400 text-amber-600 dark:text-amber-400">Uncategorized</Badge>) : (<span className="text-foreground">{categoryLabel}</span>)}</span></div>
                       <div className="flex justify-between gap-3"><span>Company</span><span className="text-foreground text-right truncate">{getTransactionCompanyLabel(tx)}</span></div>
                       {(tx as { schedule_c_category?: string | null }).schedule_c_category && (
                         <div className="flex justify-between gap-3"><span>Schedule C</span><span className="text-foreground text-right truncate">{(tx as { schedule_c_category?: string | null }).schedule_c_category}</span></div>
