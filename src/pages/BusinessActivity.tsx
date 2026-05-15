@@ -1073,11 +1073,11 @@ export default function Transactions() {
               const active = filterType === tab;
               const activeTone =
                 tab === "income"
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-sm"
+                  ? `${txTone("income").pill} shadow-sm`
                   : tab === "expense"
-                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 shadow-sm"
+                    ? `${txTone("expense").pill} shadow-sm`
                     : tab === "transfer"
-                      ? "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400 shadow-sm"
+                      ? `${txTone("transfer").pill} shadow-sm`
                       : "bg-background text-foreground shadow-sm";
               return (
                 <button
