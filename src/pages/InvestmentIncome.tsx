@@ -272,7 +272,7 @@ export default function InvestmentIncome() {
                       const actualSaved = Number(actualSavedRaw || 0);
                       const diff = actualSaved - recommended;
                       const isExpanded = expandedId === entry.id;
-                      const toggle = () => setExpandedId(isExpanded ? null : entry.id);
+                      const toggle = () => setDetailEntry(entry);
                       return (
                         <Fragment key={entry.id}>
                           <TableRow
