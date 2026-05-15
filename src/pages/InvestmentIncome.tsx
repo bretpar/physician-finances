@@ -162,7 +162,6 @@ export default function InvestmentIncome() {
           isQualifiedDividend: form.is_qualified_dividend,
           filingStatus,
           projectedOrdinaryTaxableIncome,
-          ordinaryEffectiveRate,
         })
       : null;
 
