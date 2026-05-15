@@ -496,6 +496,13 @@ export function useTaxEstimate(): {
 
       const projectedPaychecks = generateProjectedPaychecks(streams || [], bonuses || [], incomeEntriesClean);
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+      // Forecast business expenses are user-entered assumptions on 1099 / K-1 streams
+      // that reduce projected SE gross to net business profit. Only counted in the
+      // "actual + planned" forecast — actual transactions own the expense side in
+      // actual-only mode.
+      const forecastBusinessExpenses = incomeScope === "actualPlusPlanned"
+        ? Number(projTotals.forecastBusinessExpenses || 0)
+        : 0;
       const canonicalBusiness = scope.canonicalBusiness;
       const businessIncome = canonicalBusiness.grossSE + canonicalBusiness.grossOtherBusiness;
       const seEligibleBusinessIncome = canonicalBusiness.grossSE;
