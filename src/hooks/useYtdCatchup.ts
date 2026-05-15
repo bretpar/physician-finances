@@ -252,11 +252,16 @@ export function useDeleteYtdCatchup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Remove paired ledger transaction first (best-effort).
+      // Remove paired ledger mirrors first (best-effort).
       try {
         await (supabase as any).from("transactions").delete().eq("origin_ytd_catchup_id", id);
       } catch (e) {
         console.warn("[useYtdCatchup] failed to delete paired transaction", e);
+      }
+      try {
+        await (supabase as any).from("income_entries").delete().eq("linked_ytd_catchup_id", id);
+      } catch (e) {
+        console.warn("[useYtdCatchup] failed to delete paired income entry", e);
       }
       const { error } = await supabase.from("ytd_catchup_entries" as any).delete().eq("id", id);
       if (error) throw error;
@@ -264,6 +269,8 @@ export function useDeleteYtdCatchup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       toast.success("YTD catch-up removed");
     },
   });
