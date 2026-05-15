@@ -21,6 +21,10 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
   const qc = useQueryClient();
   const [savedTick, setSavedTick] = useState(false);
   const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState(() => getLastPlannerConversionRun());
+  useEffect(() => {
+    if (!running) setLastRun(getLastPlannerConversionRun());
+  }, [running]);
 
   const source: AutomationDraft = useMemo(
     () => ({
