@@ -27,10 +27,24 @@ export default function RecentTransactions({ transactions }: Props) {
                 <p className="text-xs text-muted-foreground">{tx.transaction_date} · {tx.account_source || "—"}</p>
               </div>
               <div className="flex items-center gap-3 ml-4">
-                <Badge variant={tx.category !== "Uncategorized" && tx.category !== "Personal" ? "default" : "secondary"} className="text-xs hidden sm:inline-flex">
-                  {tx.category}
-                </Badge>
-                <span className={`text-sm font-semibold tabular-nums ${tx.amount >= 0 ? "text-success" : "text-destructive"}`}>
+                {(() => {
+                  const isIncome = tx.amount > 0;
+                  const isPersonal = tx.category === "Personal";
+                  const isUncategorized = tx.category === "Uncategorized";
+                  const cls = isUncategorized
+                    ? "bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/30 dark:text-amber-400"
+                    : isIncome
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400"
+                      : isPersonal
+                        ? "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800/40 dark:text-slate-400"
+                        : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-400";
+                  return (
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full hidden sm:inline-flex ${cls}`}>
+                      {tx.category}
+                    </span>
+                  );
+                })()}
+                <span className={`text-sm font-semibold tabular-nums ${tx.amount >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   {fmt(tx.amount)}
                 </span>
               </div>
