@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, Eye, EyeOff, PiggyBank } from "lucide-react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { Check, ChevronLeft, PiggyBank } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -17,7 +15,6 @@ import { YtdCatchupForm } from "@/components/YtdCatchupForm";
 import { YtdCatchupRecap } from "@/components/YtdCatchupRecap";
 import { useYtdCatchupEntries } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
-import { isAuthRateLimitError } from "@/lib/authProtection";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
   getAllowedCompanyTypes,
@@ -27,80 +24,16 @@ import {
   taxRecommendationToWithholdingMethod,
   type OnboardingCompanyDraft,
   type OnboardingCompanyType,
-  type DeductionStrategy,
   type IncomeProfileType,
-  type OnboardingSubscriptionTier,
-  type TaxRecommendationMethod,
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-const DUPLICATE_EMAIL_MESSAGE = "That email is already registered. Please log in or reset your password.";
-const SETUP_NOT_READY_MESSAGE = "Your account was created, but setup records were not ready. Please log in again or contact support.";
-const SETUP_FAILED_MESSAGE = "Your account was created, but onboarding setup could not finish. Please log in and try again.";
-const IS_DEBUG_BUILD = import.meta.env.DEV || (typeof window !== "undefined" && /[?&]debug=1/.test(window.location.search));
-
-function isDuplicateEmailError(error: unknown) {
-  const message = String((error as { message?: string } | null)?.message || error || "").toLowerCase();
-  const code = String((error as { code?: string } | null)?.code || "").toLowerCase();
-  if (code === "user_already_exists" || code === "email_exists") return true;
-  return [
-    "already registered",
-    "user already registered",
-    "already exists",
-    "email address already",
-    "duplicate",
-  ].some((term) => message.includes(term));
-}
-
-function describeAuthError(error: unknown): string {
-  if (!error) return "";
-  const e = error as { message?: string; status?: number | string; code?: string; name?: string };
-  const parts: string[] = [];
-  if (e.message) parts.push(e.message);
-  if (e.code) parts.push(`code: ${e.code}`);
-  if (e.status) parts.push(`status: ${e.status}`);
-  if (e.name) parts.push(`name: ${e.name}`);
-  return parts.join(" • ");
-}
-
-async function waitForUserSetupRows(userId: string, timeoutMs = 5000): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const [{ data: profile }, { data: settings }] = await Promise.all([
-      supabase.from("profiles").select("user_id").eq("user_id", userId).maybeSingle(),
-      supabase.from("tax_settings").select("user_id").eq("user_id", userId).maybeSingle(),
-    ]);
-    if (profile && settings) return true;
-    await new Promise((r) => setTimeout(r, 400));
-  }
-  return false;
-}
-
-function isValidEmailFormat(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-const personalOptions = [
-  ["investment", "Investments"], ["interest", "Interest income"], ["dividend", "Dividend income"],
-  ["capital_gains", "Capital gains"], ["rental", "Rental income"], ["retirement", "Retirement income"], ["other", "Other income"],
-];
+const TOTAL_STEPS = 3;
 
 const companyTypeLabels: Record<OnboardingCompanyType, string> = {
   w2: "W-2 Employer",
   "1099": "1099 Business",
   k1: "K-1 Partnership / S-Corp",
-};
-
-const deductionLabels: Record<string, string> = {
-  retirement_401k: "401(k) / retirement contributions", healthcare_premiums: "Healthcare premiums", hsa: "HSA contributions",
-  mileage: "Mileage", home_office: "Home office", business_expenses: "Business expenses", professional_expenses: "Professional expenses",
-  charitable: "Charitable donations", mortgage_interest: "Mortgage interest", salt: "State and local taxes", other: "Other deductions",
-};
-
-const deductionOptionsByProfile: Record<IncomeProfileType, string[]> = {
-  w2_only: ["retirement_401k", "healthcare_premiums", "hsa", "charitable", "mortgage_interest", "salt", "other"],
-  w2_plus_business: ["retirement_401k", "healthcare_premiums", "hsa", "mileage", "home_office", "business_expenses", "professional_expenses", "charitable", "mortgage_interest", "salt", "other"],
-  business_only: ["business_expenses", "mileage", "home_office", "healthcare_premiums", "hsa", "professional_expenses", "retirement_401k", "other"],
 };
 
 function SelectCard({ selected, title, description, onClick, children }: { selected: boolean; title: string; description: string; onClick: () => void; children?: React.ReactNode }) {
@@ -122,22 +55,14 @@ function SelectCard({ selected, title, description, onClick, children }: { selec
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { data: taxSettings, isLoading } = useTaxSettings(!!user);
   const updateTaxSettings = useUpdateTaxSettings();
   const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
-  const [email, setEmail] = useState(user?.email || "");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [companyWebsite, setCompanyWebsite] = useState("");
   const [saving, setSaving] = useState(false);
-  const [now, setNow] = useState(Date.now());
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
   const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
-  const [signupDebugError, setSignupDebugError] = useState<string | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
-  const [signupState, setSignupState] = useState<"idle" | "duplicate" | "verify-email" | "setup-failed">("idle");
   const { data: existingCatchups } = useYtdCatchupEntries();
 
   const settingsId = taxSettings?.id;
@@ -151,7 +76,7 @@ export default function Onboarding() {
 
   useEffect(() => {
     if (!user || isLoading || !taxSettings) return;
-    const savedStep = Math.min(4, Math.max(1, taxSettings.onboardingStep || 1));
+    const savedStep = Math.min(TOTAL_STEPS, Math.max(1, taxSettings.onboardingStep || 1));
     setStep(savedStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(savedStep));
     setDraft((current) => ({
@@ -172,27 +97,12 @@ export default function Onboarding() {
   }, [user, isLoading, taxSettings]);
 
   useEffect(() => {
-    if (!user && step !== 1) {
-      setStep(1);
-      sessionStorage.setItem("paycheckmd-onboarding-step", "1");
-      patch({ onboardingStep: 1 });
-    }
-  }, [user, step]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  // Initialize the catch-up sub-step from the persisted choice when step 3 mounts.
-  useEffect(() => {
-    if (step !== 3) return;
+    if (step !== 2) return;
     if (catchupChoice === "yes") setCatchupSubStep((s) => (s === "ask" ? "form" : s));
     else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
   }, [step, catchupChoice]);
 
-  
-
+  if (!authLoading && !user) return <Navigate to="/signup" replace />;
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
@@ -225,16 +135,10 @@ export default function Onboarding() {
   const addCompanyDraft = () => setCompanyDrafts((current) => [...current, { name: "", type: allowedCompanyTypes[0], description: "" }]);
   const updateCompanyDraft = (index: number, updates: Partial<OnboardingCompanyDraft>) => setCompanyDrafts((current) => current.map((item, i) => i === index ? { ...item, ...updates } : item));
   const removeCompanyDraft = (index: number) => setCompanyDrafts((current) => current.filter((_, i) => i !== index));
+
   const goBack = async () => {
-    if (step === 1) {
-      navigate("/login");
-      return;
-    }
-    if (step === 3 && catchupSubStep === "company") {
-      setCatchupSubStep("ask");
-      return;
-    }
-    if (step === 3 && catchupSubStep === "form") {
+    if (step === 1) return;
+    if (step === 2 && (catchupSubStep === "company" || catchupSubStep === "form")) {
       setCatchupSubStep("ask");
       return;
     }
@@ -245,6 +149,7 @@ export default function Onboarding() {
     patch({ onboardingStep: nextStep });
     if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
   };
+
   const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
     const allowed = getAllowedCompanyTypes(incomeProfileType);
     patch({
@@ -262,7 +167,7 @@ export default function Onboarding() {
     setSaving(true);
     try {
       setCompanyDrafts([]);
-      const nextStep = 4;
+      const nextStep = 3;
       await persist({ onboardingComplete: false, onboardingStep: nextStep });
       patch({ onboardingStep: nextStep });
       sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
@@ -282,8 +187,7 @@ export default function Onboarding() {
       .filter((company) => company.name || company.description);
     const incompleteDraft = normalizedDrafts.find((company) => !company.name || !company.type);
     if (incompleteDraft) throw new Error("Add a company name or remove the unfinished company card.");
-    const validDrafts = normalizedDrafts
-      .filter((company) => company.name && allowed.includes(company.type));
+    const validDrafts = normalizedDrafts.filter((company) => company.name && allowed.includes(company.type));
     if (validDrafts.length === 0) return;
     const uniqueDrafts = Array.from(new Map(validDrafts.map((company) => [`${company.name.toLowerCase()}::${company.type}`, company])).values());
     const orgId = await getUserOrgId();
@@ -342,8 +246,7 @@ export default function Onboarding() {
 
   async function continueStep() {
     if (saving) return;
-    // Within step 3, advance through sub-steps before moving to step 4.
-    if (step === 3) {
+    if (step === 2) {
       if (catchupSubStep === "ask") {
         if (!catchupChoice) {
           toast.error("Pick an option to continue.");
@@ -359,103 +262,30 @@ export default function Onboarding() {
     }
     setSaving(true);
     try {
-      const nextStep = Math.min(4, step + 1);
+      const nextStep = Math.min(TOTAL_STEPS, step + 1);
       if (step === 1) {
         if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
-        if (!user) {
-          const normalizedEmail = email.trim().toLowerCase();
-          if (!normalizedEmail) throw new Error("Enter your email to continue.");
-          if (!isValidEmailFormat(normalizedEmail)) throw new Error("Enter a valid email address.");
-          if (!password) throw new Error("Enter a password to continue.");
-          if (password.length < 8) {
-            throw new Error("Password must be at least 8 characters.");
-          }
-          if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
-          setSignupDebugError(null);
-          setSignupState("idle");
-          const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { first_name: merged.firstName.trim() }, emailRedirectTo: window.location.origin } });
-          if (error) {
-            console.error("[onboarding] Supabase signup failed", { message: error.message, status: (error as any).status, code: (error as any).code, name: error.name, fullError: error });
-            setSignupDebugError(describeAuthError(error));
-            if (isDuplicateEmailError(error)) {
-              setSignupState("duplicate");
-              throw new Error(DUPLICATE_EMAIL_MESSAGE);
-            }
-            throw error;
-          }
-          const identities = (data.user as any)?.identities;
-          if (data.user && Array.isArray(identities) && identities.length === 0) {
-            setSignupState("duplicate");
-            throw new Error(DUPLICATE_EMAIL_MESSAGE);
-          }
-          if (!data.session) {
-            setSignupState("verify-email");
-            toast.success("Account created. Please check your email to verify your address.");
-            return;
-          }
-          // Auth user created. Wait for trigger-created rows before updating them.
-          const ready = await waitForUserSetupRows(data.user!.id);
-          if (!ready) {
-            setSignupState("setup-failed");
-            setSignupDebugError("Setup rows (profiles/tax_settings) not present after 5s. The handle_new_user trigger may have failed.");
-            toast.error(SETUP_NOT_READY_MESSAGE);
-            return;
-          }
-          try {
-            const { error: profileErr } = await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", data.user!.id);
-            if (profileErr) throw profileErr;
-            const { error: settingsErr } = await supabase.from("tax_settings").update({ onboarding_first_name: merged.firstName.trim(), onboarding_complete: false, onboarding_step: nextStep } as any).eq("user_id", data.user!.id);
-            if (settingsErr) throw settingsErr;
-          } catch (setupError: any) {
-            console.error("[onboarding] post-signup setup update failed", setupError);
-            setSignupState("setup-failed");
-            setSignupDebugError(describeAuthError(setupError));
-            toast.error(SETUP_FAILED_MESSAGE);
-            return;
-          }
-        } else {
-          await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user.id);
-          await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
-        }
-      } else if (step === 4) {
+        await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user!.id);
+        await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
+      } else if (step === 2) {
         await createOnboardingCompanies();
-        await persist({ onboardingComplete: true, onboardingStep: 4 });
+        await persist({ onboardingComplete: false, onboardingStep: nextStep });
+      } else if (step === 3) {
+        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
         sessionStorage.removeItem("paycheckmd-start-setup");
         sessionStorage.removeItem("paycheckmd-onboarding-step");
         navigate("/", { replace: true });
         return;
-      } else {
-        await persist({ onboardingComplete: false, onboardingStep: nextStep });
       }
       patch({ onboardingStep: nextStep });
       sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
       setStep(nextStep);
     } catch (error: any) {
-      if (step === 1 && !user) {
-        const message = String(error?.message || "");
-        const lowerMessage = message.toLowerCase();
-        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Password must be at least");
-        const isDuplicateError = message === DUPLICATE_EMAIL_MESSAGE || isDuplicateEmailError(error);
-        const isWeakPasswordError = /password|weak|strength|requirements|characters/.test(lowerMessage);
-        const errorMessage = isInputError
-          ? message
-          : isDuplicateError
-            ? DUPLICATE_EMAIL_MESSAGE
-            : isAuthRateLimitError(error)
-              ? "Too many signup attempts. Please wait a few minutes before trying again."
-              : isWeakPasswordError
-                ? "Password must be at least 8 characters."
-                : "Signup could not be completed. Please check your email and password and try again.";
-        toast.error(errorMessage);
-      } else {
-        toast.error(error.message || "Could not save onboarding.");
-      }
+      toast.error(error.message || "Could not save onboarding.");
     } finally {
       setSaving(false);
     }
   }
-
-  const deductions = deductionOptionsByProfile[merged.incomeProfileType];
 
   return (
     <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
@@ -463,113 +293,108 @@ export default function Onboarding() {
         <CardContent className="space-y-6 p-5 sm:p-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><PiggyBank className="h-5 w-5" /></div>
-            <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">Step {step} of 4</p><div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / 4) * 100}%` }} /></div></div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-muted-foreground">Step {step} of {TOTAL_STEPS}</p>
+              <div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} /></div>
+            </div>
           </div>
 
-          {step === 1 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Create your account</h1><p className="mt-1 text-sm text-muted-foreground">Let’s personalize PaycheckMD so you only see what applies to you.</p></div><div className="grid gap-4"><div><Label>First name</Label><Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" /></div>{!user && <><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></div><div><div className="flex items-center justify-between"><Label>Password</Label><Link to="/login" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div><div className="relative"><Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Use at least 8 characters.</p></div><Input aria-hidden="true" className="sr-only" name="companyWebsite" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} tabIndex={-1} autoComplete="off" /><p className="text-sm text-muted-foreground">Already have an account? <Link to="/login" className="font-medium text-primary hover:underline">Log in</Link></p>
-            {signupState === "duplicate" && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
-                <p className="font-medium text-destructive">{DUPLICATE_EMAIL_MESSAGE}</p>
-                <div className="mt-2 flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => navigate("/login")}>Log in</Button>
-                  <Button size="sm" variant="outline" onClick={() => navigate(`/login?reset=1&email=${encodeURIComponent(email.trim().toLowerCase())}`)}>Reset password</Button>
-                </div>
+          {step === 1 && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">Confirm your income setup</h1>
+                <p className="mt-1 text-sm text-muted-foreground">We pre-filled this from your estimate. Adjust if needed.</p>
               </div>
-            )}
-            {signupState === "verify-email" && (
-              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
-                <p className="font-medium text-foreground">Account created. Please check your email to verify your address, then log in.</p>
-                <div className="mt-2"><Button size="sm" onClick={() => navigate("/login")}>Go to login</Button></div>
+              <div>
+                <Label>First name</Label>
+                <Input value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
               </div>
-            )}
-            {signupState === "setup-failed" && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-50 p-3 text-sm dark:bg-amber-950/20">
-                <p className="font-medium text-foreground">{SETUP_FAILED_MESSAGE}</p>
-                <div className="mt-2"><Button size="sm" variant="outline" onClick={() => navigate("/login")}>Go to login</Button></div>
+              <div className="grid gap-3">
+                <SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} />
+                <SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} />
+                <SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} />
               </div>
-            )}
-            {signupDebugError && (IS_DEBUG_BUILD || showDebug) && (
-              <div className="rounded-md border border-border bg-muted/40 p-2 text-xs">
-                <button type="button" className="font-medium text-muted-foreground hover:text-foreground" onClick={() => setShowDebug((v) => !v)}>
-                  {showDebug ? "Hide" : "Show"} technical signup error
-                </button>
-                {(showDebug || IS_DEBUG_BUILD) && (
-                  <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">Technical signup error: {signupDebugError}</pre>
-                )}
-              </div>
-            )}
-            {!signupDebugError && !IS_DEBUG_BUILD && (
-              <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground underline" onClick={() => setShowDebug((v) => !v)}>{showDebug ? "Hide" : "Show"} technical details</button>
-            )}
-          </>}</div></div>}
-
-          {step === 2 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your income setup</h1><p className="mt-1 text-sm text-muted-foreground">What type of income do you want to track first?</p></div><div className="grid gap-3"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div><p className="text-xs text-muted-foreground">You can change this later in Settings. We’ll set sensible defaults so you don’t have to configure tax details now.</p></div>}
-
-          {step === 3 && catchupSubStep === "ask" && <div className="space-y-5">
-            <div>
-              <h1 className="text-2xl font-semibold text-foreground">Have you already earned income this year?</h1>
-              <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
+              <p className="text-xs text-muted-foreground">You can change this later in Settings.</p>
             </div>
-            <div className="grid gap-3">
-              <SelectCard
-                selected={catchupChoice === "yes"}
-                title="Yes, help me catch up"
-                description="Enter year-to-date income and withholdings from your most recent paystub."
-                onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }}
-              />
-              <SelectCard
-                selected={catchupChoice === "no"}
-                title="No, I’m starting fresh"
-                description="I haven’t earned income this year yet, or I’ll only track from now on."
-                onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }}
-              />
-              <SelectCard
-                selected={catchupChoice === "skip"}
-                title="Skip for now"
-                description="I’ll add this later from the Income tab."
-                onClick={async () => { patch({ ytdCatchupChoice: "skip" }); if (settingsId) await persist({ ytdCatchupChoice: "skip" }); setCatchupSubStep("company"); }}
-              />
-            </div>
-            {catchupChoice && (
-              <p className="text-xs text-muted-foreground">Saved — you can change this later in the Income tab.</p>
-            )}
-          </div>}
+          )}
 
-          {step === 3 && catchupSubStep === "form" && <div className="space-y-5">
-            <div>
-              <h1 className="text-2xl font-semibold text-foreground">{
-                merged.incomeProfileType === "w2_only"
-                  ? "Add your W-2 income from earlier this year"
-                  : merged.incomeProfileType === "business_only"
-                    ? "Add your business income earned so far this year"
+          {step === 2 && catchupSubStep === "ask" && (
+            <div className="space-y-5">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">Have you already earned income this year?</h1>
+                <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
+              </div>
+              <div className="grid gap-3">
+                <SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }} />
+                <SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }} />
+                <SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={async () => { patch({ ytdCatchupChoice: "skip" }); if (settingsId) await persist({ ytdCatchupChoice: "skip" }); setCatchupSubStep("company"); }} />
+              </div>
+            </div>
+          )}
+
+          {step === 2 && catchupSubStep === "form" && (
+            <div className="space-y-5">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">{
+                  merged.incomeProfileType === "w2_only" ? "Add your W-2 income from earlier this year"
+                    : merged.incomeProfileType === "business_only" ? "Add your business income earned so far this year"
                     : "Add your income earned so far this year"
-              }</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals so recommendations stay accurate. Add as many entries as you need.</p>
+                }</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals so recommendations stay accurate. Add as many entries as you need.</p>
+              </div>
+              <YtdCatchupRecap />
+              <div className="rounded-xl border border-border p-4">
+                {existingCatchups && existingCatchups.length > 0 && (
+                  <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
+                )}
+                <YtdCatchupForm incomeProfileType={merged.incomeProfileType} />
+              </div>
             </div>
-            <YtdCatchupRecap />
-            <div className="rounded-xl border border-border p-4">
-              {existingCatchups && existingCatchups.length > 0 && (
-                <p className="text-xs text-success mb-3">✓ {existingCatchups.length} catch-up {existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another or continue.</p>
-              )}
-              <YtdCatchupForm incomeProfileType={merged.incomeProfileType} />
-            </div>
-          </div>}
+          )}
 
-          {step === 3 && catchupSubStep === "company" && <div className="space-y-5">
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground">{companySetupCopy.title}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p>
+          {step === 2 && catchupSubStep === "company" && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-2xl font-semibold text-foreground">{companySetupCopy.title}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p>
+              </div>
+              <div className="space-y-3">
+                {companyDrafts.map((company, index) => (
+                  <div key={index} className="rounded-lg border border-border p-4">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_210px]">
+                      <div><Label>{companySetupCopy.nameLabel}</Label><Input value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} /></div>
+                      {allowedCompanyTypes.length > 1 && (
+                        <div><Label>Type</Label><Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>
+                      )}
+                    </div>
+                    <div className="mt-3"><Label>Optional description or nickname</Label><Input value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" /></div>
+                    <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button>
+                <p className="text-xs text-muted-foreground">You can add more later in Settings.</p>
+              </div>
             </div>
-            <div className="space-y-3">{companyDrafts.map((company, index) => <div key={index} className="rounded-lg border border-border p-4"><div className="grid gap-3 sm:grid-cols-[1fr_210px]"><div><Label>{companySetupCopy.nameLabel}</Label><Input value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} /></div>{allowedCompanyTypes.length > 1 && <div><Label>Type</Label><Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>}</div><div className="mt-3"><Label>Optional description or nickname</Label><Input value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" /></div><div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div></div>)}<Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button><p className="text-xs text-muted-foreground">You can add more later in Settings.</p></div>
-          </div>}
+          )}
 
-          {step === 4 && <div className="space-y-4"><div><h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1><p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p></div><div className="grid gap-3 sm:grid-cols-2"><SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, and deduction tracking.</SelectCard><SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard></div></div>}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1>
+                <p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, and deduction tracking.</SelectCard>
+                <SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            <Button variant="outline" onClick={goBack} disabled={saving}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
+            <Button variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
-              {step === 3 && catchupSubStep === "company" && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-              <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === 4 ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : step === 1 && !user ? "Create account" : "Continue"}</Button>
+              {step === 2 && catchupSubStep === "company" && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
+              <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>
         </CardContent>
