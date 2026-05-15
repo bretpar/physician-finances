@@ -263,6 +263,46 @@ export function usePlannerConversions() {
 }
 
 /* ─── Mutations ─── */
+
+/**
+ * Confirm a heuristic "suggested" projected→actual match by inserting a
+ * planner_conversion linking the projected occurrence to the existing actual
+ * income entry. After this, the projected entry renders as "Converted".
+ */
+export function useConfirmSuggestedMatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      streamId: string;
+      occurrenceDate: string;
+      incomeEntryId: string;
+      ledgerBucket: "personal" | "business";
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const orgId = await getUserOrgId();
+      const { error } = await supabase.from("planner_conversions").insert({
+        user_id: user.id,
+        organization_id: orgId,
+        stream_id: input.streamId,
+        occurrence_date: input.occurrenceDate,
+        ledger_bucket: input.ledgerBucket,
+        income_entry_id: input.ledgerBucket === "personal" ? input.incomeEntryId : null,
+        transaction_id: input.ledgerBucket === "business" ? input.incomeEntryId : null,
+        status: "converted",
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["personal_income"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      toast.success("Match confirmed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useAddStream() {
   const qc = useQueryClient();
   return useMutation({
