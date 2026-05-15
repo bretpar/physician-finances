@@ -213,6 +213,8 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const confirmSuggested = useConfirmSuggestedMatch();
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const deleteBonus = useDeleteBonus();
   const updateBonus = useUpdateBonus();
   const addIncome = useAddIncome();
