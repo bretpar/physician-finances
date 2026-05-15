@@ -1420,9 +1420,6 @@ export default function Transactions() {
                       <Badge variant="outline" className="text-[9px] px-1 py-0 border-muted text-muted-foreground">Excluded</Badge>
                     )}
                   </span>
-                  {isIncomeTx && tx.recommended_withholding > 0 && (
-                    <span className="text-[10px] text-muted-foreground">Set aside: {fmt(tx.recommended_withholding)}</span>
-                  )}
                 </div>
                 <span className="text-xs text-muted-foreground truncate">
                   {getTransactionCompanyLabel(tx)}
