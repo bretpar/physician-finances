@@ -7,8 +7,9 @@ import { toast } from "sonner";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
-import { runPlannerConversionForCurrentUser } from "@/lib/plannerConversion";
+import { runPlannerConversionForCurrentUser, getLastPlannerConversionRun } from "@/lib/plannerConversion";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 interface AutomationDraft {
   autoConvertFutureIncomeToLedger: boolean;
@@ -20,6 +21,10 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
   const qc = useQueryClient();
   const [savedTick, setSavedTick] = useState(false);
   const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState(() => getLastPlannerConversionRun());
+  useEffect(() => {
+    if (!running) setLastRun(getLastPlannerConversionRun());
+  }, [running]);
 
   const source: AutomationDraft = useMemo(
     () => ({
@@ -138,6 +143,16 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
                   </>
                 )}
               </Button>
+            </div>
+          </div>
+        )}
+
+        {isOn && lastRun && (import.meta as any).env?.DEV && (
+          <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            <div className="font-medium text-foreground mb-0.5">Last automation run (dev)</div>
+            <div>{new Date(lastRun.at).toLocaleString()}</div>
+            <div>
+              attempted={lastRun.attempted} · converted={lastRun.converted} · dup={lastRun.duplicateSkipped} · exists={lastRun.alreadyConverted} · errors={lastRun.errors}
             </div>
           </div>
         )}
