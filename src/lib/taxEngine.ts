@@ -5,10 +5,12 @@
 
 import {
   ORDINARY_BRACKETS,
+  LTCG_BRACKETS,
   STANDARD_DEDUCTION as ACTIVE_STANDARD_DEDUCTION,
   SS_WAGE_BASE,
   ADDITIONAL_MEDICARE_THRESHOLD,
   SE_INCOME_FACTOR as ACTIVE_SE_INCOME_FACTOR,
+  calcBracketTax,
 } from "@/lib/taxBrackets";
 
 export interface TaxBracket {
@@ -380,6 +382,11 @@ export function calculateFullEstimate(params: {
   withholdingOverrideType?: "none" | "percent" | "amount";
   withholdingOverridePercent?: number | null;
   withholdingOverrideAmount?: number | null;
+  /**
+   * Long-term capital gains + qualified dividends slice (already part of otherIncome / totalIncome).
+   * Carved out at the federal-tax step and taxed at LTCG brackets stacked on ordinary taxable income.
+   */
+  longTermCapitalGains?: number;
   stateTaxInputs?: StateTaxInputs;
 }): TaxEstimate {
   const {
@@ -401,6 +408,7 @@ export function calculateFullEstimate(params: {
     withholdingOverrideType = "none",
     withholdingOverridePercent = null,
     withholdingOverrideAmount = null,
+    longTermCapitalGains: longTermCapitalGainsParam = 0,
     stateTaxInputs = {},
   } = params;
 
@@ -436,9 +444,23 @@ export function calculateFullEstimate(params: {
     : standardDeduction;
   const taxableIncome = Math.max(0, agi - deductionApplied);
 
-  // Federal income tax (before credits)
+  // Federal income tax (before credits) — separate ordinary slice and LTCG slice.
+  // LTCG (long-term gains + qualified dividends) is taxed at LTCG brackets, stacked on top
+  // of ordinary taxable income. The slice is capped at the total taxable income (post-deductions)
+  // so deductions absorb LTCG last.
   const brackets = filingStatus === "married_filing_jointly" ? BRACKETS_MFJ : BRACKETS_SINGLE;
-  const federalTaxBeforeCredits = calculateProgressiveTax(taxableIncome, brackets);
+  const ltcgSlice = Math.min(taxableIncome, Math.max(0, longTermCapitalGainsParam));
+  const ordinaryTaxable = Math.max(0, taxableIncome - ltcgSlice);
+  const ordinaryFederalTax = calculateProgressiveTax(ordinaryTaxable, brackets);
+  const ltcgBrackets = LTCG_BRACKETS[filingStatus];
+  const ltcgFederalTax = ltcgSlice > 0
+    ? Math.max(
+        0,
+        calcBracketTax(ordinaryTaxable + ltcgSlice, ltcgBrackets).total
+          - calcBracketTax(ordinaryTaxable, ltcgBrackets).total,
+      )
+    : 0;
+  const federalTaxBeforeCredits = ordinaryFederalTax + ltcgFederalTax;
 
   // Dependent credits (reduce federal tax, not income)
   const taxCredits = calculateDependentCredits(qualifyingChildrenCount, otherDependentsCount, agi, filingStatus);

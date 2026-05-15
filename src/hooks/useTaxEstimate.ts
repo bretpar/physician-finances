@@ -432,8 +432,11 @@ export function useTaxEstimate(): {
         .filter((s) => Number(s.gain_loss) < 0)
         .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
       const investmentBuckets = aggregateInvestmentTaxBuckets(scope.investmentEntries || []);
-      const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses + investmentBuckets.netSalesForCurrentTaxEngine);
-      const investmentDividends = Math.max(0, investmentBuckets.dividends);
+      // Short-term sales (gain side), non-qualified dividends, and any net stock-transaction
+      // gains stay in the ordinary "other income" bucket alongside personal losses netting.
+      const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses) + investmentBuckets.ordinaryInvestmentIncome;
+      // Long-term sales (gain side) + qualified dividends are taxed at LTCG brackets.
+      const longTermCapitalGains = investmentBuckets.longTermCapitalGain;
 
       const businessExpenses = scope.transactions
         .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
@@ -555,14 +558,15 @@ export function useTaxEstimate(): {
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio),
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
-        personalIncome: totalPersonalIncome + investmentDividends + cuW2Gross + cuOtherGross,
+        personalIncome: totalPersonalIncome + cuW2Gross + cuOtherGross,
         personalW2: personalW2 + cuW2Gross,
-        personalNonW2Income: personalNonW2Income + investmentDividends + cuOtherGross,
+        personalNonW2Income: personalNonW2Income + cuOtherGross,
         personalFederalWithheld: personalFederalWithheld + cu.w2.federalWithheld + cu.other.federalWithheld,
         personalStateWithheld: personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld,
         personalPreTax: personalPreTax + cu.w2.preTax + cu.other.preTax,
         personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
+        longTermCapitalGains,
         businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses,
         mileageDeduction,
         annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,

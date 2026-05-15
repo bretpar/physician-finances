@@ -33,20 +33,26 @@ describe("investment income helpers", () => {
     expect(calculateInvestmentTaxableAmount({ type: "short_term_sale", saleProceeds: 20000, costBasis: 12000, taxableAmountOverride: 7500 })).toBe(7500);
   });
 
-  it("keeps dividends in ordinary investment income and uses taxable dividend amount", () => {
+  it("routes dividends by qualified flag and splits ordinary vs LTCG buckets", () => {
     expect(calculateInvestmentTaxableAmount({ type: "dividend", saleProceeds: 0, costBasis: 0, taxableAmountOverride: 450 })).toBe(450);
 
     const buckets = aggregateInvestmentTaxBuckets([
       investmentEntry({ investment_income_type: "short_term_sale", taxable_amount: 1000 }),
       investmentEntry({ investment_income_type: "long_term_sale", taxable_amount: -300 }),
-      investmentEntry({ investment_income_type: "dividend", taxable_amount: 250 }),
+      investmentEntry({ investment_income_type: "dividend", taxable_amount: 250, is_qualified_dividend: true }),
+      investmentEntry({ investment_income_type: "dividend", taxable_amount: 100, is_qualified_dividend: false }),
     ]);
 
     expect(buckets.shortTermSales).toBe(1000);
     expect(buckets.longTermSales).toBe(-300);
-    expect(buckets.dividends).toBe(250);
-    expect(buckets.totalTaxableIncome).toBe(950);
+    expect(buckets.dividends).toBe(350);
+    expect(buckets.qualifiedDividends).toBe(250);
+    expect(buckets.nonQualifiedDividends).toBe(100);
+    expect(buckets.totalTaxableIncome).toBe(1050);
     expect(buckets.netSalesForCurrentTaxEngine).toBe(700);
-    expect(buckets.ordinaryInvestmentIncome).toBe(1250);
+    // Short-term gain + non-qualified dividend → ordinary bucket.
+    expect(buckets.ordinaryInvestmentIncome).toBe(1100);
+    // Qualified dividend → LTCG bucket; long-term loss does not offset cross-bucket here.
+    expect(buckets.longTermCapitalGain).toBe(250);
   });
 });
