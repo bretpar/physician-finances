@@ -647,7 +647,7 @@ export default function ProjectedIncome() {
           icon={<DollarSign className="h-4 w-4" />}
           label="Expected Annual Income"
           value={fmt(expectedAnnual)}
-          sublabel={`${fmt(actualYTD.income)} actual + ${fmt(projectedTotals.grossIncome)} projected`}
+          sublabel={forecastDebug?.totalGrossIncome != null ? "Actual + projected (all income sources)" : `${fmt(actualYTD.income)} actual + ${fmt(projectedTotals.grossIncome)} projected`}
           highlight
         />
         <SummaryCard
