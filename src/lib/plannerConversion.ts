@@ -21,9 +21,17 @@ import {
   type ProjectedBonusEvent,
   type ProjectedIncomeOverride,
   type MatchableIncomeEntry,
+  type MatchableBusinessTransaction,
   type ProjectedPaycheck,
 } from "@/hooks/useProjectedIncome";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
+
+interface PlannerConversionRow {
+  stream_id: string | null;
+  bonus_event_id: string | null;
+  occurrence_date: string;
+  status: string;
+}
 
 export interface ConversionRunResult {
   attempted: number;
