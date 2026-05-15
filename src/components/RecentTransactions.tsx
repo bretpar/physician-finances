@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import type { DbTransaction } from "@/hooks/useTransactions";
 import type { DbTransaction } from "@/hooks/useTransactions";
 
 interface Props {
