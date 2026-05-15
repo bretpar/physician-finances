@@ -685,7 +685,11 @@ export default function PersonalIncome() {
             const status = ((entry as any).recommendation_status || "on_track") as keyof typeof STATUS_ICON;
             const StIcon = STATUS_ICON[status] || Minus;
             return (
-              <div key={entry.id} className="grid grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center">
+              <div
+                key={entry.id}
+                className="grid grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center cursor-pointer"
+                onClick={() => setDetailEntry(entry)}
+              >
                 <span className="text-sm text-muted-foreground tabular-nums">
                   {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 </span>
