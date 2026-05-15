@@ -7,8 +7,9 @@ import { toast } from "sonner";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
-import { runPlannerConversionForCurrentUser } from "@/lib/plannerConversion";
+import { runPlannerConversionForCurrentUser, getLastPlannerConversionRun } from "@/lib/plannerConversion";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 interface AutomationDraft {
   autoConvertFutureIncomeToLedger: boolean;
