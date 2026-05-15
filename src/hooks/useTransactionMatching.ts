@@ -319,7 +319,15 @@ export function useUnlinkTransactions() {
       // the Plaid side that was soft-marked as 'merged' at link time.
       const { error: e1 } = await supabase
         .from("transactions")
-        .update({ match_status: "unmatched", linked_group_id: null, source_type: "manual" })
+        .update({
+          match_status: "unmatched",
+          linked_group_id: null,
+          source_type: "manual",
+          linked_plaid_transaction_id: null,
+          linked_plaid_amount: null,
+          linked_plaid_posted_date: null,
+          linked_plaid_account: null,
+        } as any)
         .eq("linked_group_id", groupId)
         .eq("source_type", "merged")
         .eq("status", "active");
