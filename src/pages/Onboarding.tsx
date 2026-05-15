@@ -367,8 +367,8 @@ export default function Onboarding() {
           if (!normalizedEmail) throw new Error("Enter your email to continue.");
           if (!isValidEmailFormat(normalizedEmail)) throw new Error("Enter a valid email address.");
           if (!password) throw new Error("Enter a password to continue.");
-          if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-            throw new Error("That password is too weak. Use at least 8 characters with a mix of letters and numbers.");
+          if (password.length < 8) {
+            throw new Error("Password must be at least 8 characters.");
           }
           if (companyWebsite.trim()) throw new Error("Signup could not be completed. Please try again.");
           setSignupDebugError(null);
