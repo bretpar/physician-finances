@@ -797,11 +797,17 @@ export default function ProjectedIncome() {
                     )}
 
                     {entries.map((entry, i) => {
+                      const dismissKey = `${entry.streamId}:${entry.date}`;
+                      const isDismissed = dismissedSuggestions.has(dismissKey);
                       const isMatched = entry.matchStatus === "matched";
-                      const isSuggested = entry.matchStatus === "suggested";
-                      const isPastDue = entry.matchStatus === "past_due";
+                      const isSuggested = entry.matchStatus === "suggested" && !isDismissed;
+                      const isPastDue = entry.matchStatus === "past_due" || (entry.matchStatus === "suggested" && isDismissed && (() => {
+                        const pDate = new Date(entry.date);
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        return pDate < today;
+                      })());
                       const isSkipped = entry.matchStatus === "skipped";
-                      const isActive = entry.matchStatus === "active";
+                      const isActive = entry.matchStatus === "active" || (entry.matchStatus === "suggested" && isDismissed && !isPastDue);
                       const isAutoConverted = entry.matchStatus === "converted";
 
                       const override = overrideLookup.get(`${entry.streamId}:${entry.date}`);
