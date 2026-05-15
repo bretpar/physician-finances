@@ -434,7 +434,7 @@ export default function Onboarding() {
       if (step === 1 && !user) {
         const message = String(error?.message || "");
         const lowerMessage = message.toLowerCase();
-        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Use at least") || message.startsWith("That password is too weak");
+        const isInputError = message.startsWith("Enter your first name") || message.startsWith("Enter your email") || message.startsWith("Enter a valid email") || message.startsWith("Enter a password") || message.startsWith("Password must be at least");
         const isDuplicateError = message === DUPLICATE_EMAIL_MESSAGE || isDuplicateEmailError(error);
         const isWeakPasswordError = /password|weak|strength|requirements|characters/.test(lowerMessage);
         const errorMessage = isInputError
@@ -444,7 +444,7 @@ export default function Onboarding() {
             : isAuthRateLimitError(error)
               ? "Too many signup attempts. Please wait a few minutes before trying again."
               : isWeakPasswordError
-                ? "That password is too weak. Use at least 8 characters with a mix of letters and numbers."
+                ? "Password must be at least 8 characters."
                 : "Signup could not be completed. Please check your email and password and try again.";
         toast.error(errorMessage);
       } else {
