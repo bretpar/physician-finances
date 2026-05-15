@@ -146,6 +146,16 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
             </div>
           </div>
         )}
+
+        {isOn && lastRun && (import.meta as any).env?.DEV && (
+          <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            <div className="font-medium text-foreground mb-0.5">Last automation run (dev)</div>
+            <div>{new Date(lastRun.at).toLocaleString()}</div>
+            <div>
+              attempted={lastRun.attempted} · converted={lastRun.converted} · dup={lastRun.duplicateSkipped} · exists={lastRun.alreadyConverted} · errors={lastRun.errors}
+            </div>
+          </div>
+        )}
       </div>
     </SectionCard>
   );
