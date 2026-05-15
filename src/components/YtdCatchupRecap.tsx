@@ -1,11 +1,17 @@
 import { useMemo } from "react";
-import { useYtdCatchupEntries, useDeleteYtdCatchup } from "@/hooks/useYtdCatchup";
+import { useYtdCatchupEntries, useDeleteYtdCatchup, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 const fmt = (n: number) => `$${(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
-export function YtdCatchupRecap() {
+interface Props {
+  onEdit?: (entry: YtdCatchupEntry) => void;
+  editingId?: string | null;
+  defaultOpen?: boolean;
+}
+
+export function YtdCatchupRecap({ onEdit, editingId, defaultOpen }: Props = {}) {
   const { data: entries = [] } = useYtdCatchupEntries();
   const del = useDeleteYtdCatchup();
   const taxYear = new Date().getFullYear();
