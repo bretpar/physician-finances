@@ -13,6 +13,10 @@ export interface MatchableIncomeEntry {
   paycheck_amount: number;
   income_type: string;
   status: string;
+  /** Set when the entry was created via a confirmed planner conversion. */
+  origin_planner_conversion_id?: string | null;
+  /** "planner_conversion" indicates the entry is the confirmed actual for a projected paycheck. */
+  entry_kind?: string | null;
 }
 
 /* ─── Types ─── */
