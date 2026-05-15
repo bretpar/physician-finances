@@ -53,6 +53,8 @@ export function useTaxEstimate(): {
   const { data: mileageEntries, isLoading: milLoading } = useMileageYTD(currentYear);
   const { data: streams, isLoading: strLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonLoading } = useProjectedBonuses();
+  const { data: overrides } = useStreamOverrides();
+  const { data: plannerConversions } = usePlannerConversions();
   const { data: stockTxs, isLoading: stkLoading } = useStockTransactions();
   const { data: investmentEntries, isLoading: invLoading } = useInvestmentIncomeEntries();
   const { data: retirementContribs, isLoading: retLoading } = useRetirementContributions();
