@@ -432,8 +432,11 @@ export function useTaxEstimate(): {
         .filter((s) => Number(s.gain_loss) < 0)
         .reduce((sum, s) => sum + Math.abs(Number(s.gain_loss)), 0);
       const investmentBuckets = aggregateInvestmentTaxBuckets(scope.investmentEntries || []);
-      const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses + investmentBuckets.netSalesForCurrentTaxEngine);
-      const investmentDividends = Math.max(0, investmentBuckets.dividends);
+      // Short-term sales (gain side), non-qualified dividends, and any net stock-transaction
+      // gains stay in the ordinary "other income" bucket alongside personal losses netting.
+      const netStockGain = Math.max(0, stockGains - stockLosses - personalLosses) + investmentBuckets.ordinaryInvestmentIncome;
+      // Long-term sales (gain side) + qualified dividends are taxed at LTCG brackets.
+      const longTermCapitalGains = investmentBuckets.longTermCapitalGain;
 
       const businessExpenses = scope.transactions
         .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
