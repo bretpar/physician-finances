@@ -686,8 +686,12 @@ export default function PersonalIncome() {
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">From Income Planner</span>
                   )}
                 </div>
-                <Badge variant="secondary" className="text-[10px] w-fit">{typeLabel}</Badge>
-                <span className={`text-sm font-semibold tabular-nums text-right ${isLoss ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
+                <span className={`inline-flex w-fit text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                  isLoss
+                    ? "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400"
+                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                }`}>{typeLabel}</span>
+                <span className={`text-sm font-semibold tabular-nums text-right ${isLoss ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                   {isLoss ? "-" : "+"}{fmt(Math.abs(Number(entry.gross_amount)))}
                 </span>
                 <span className="text-sm tabular-nums text-right text-muted-foreground">
