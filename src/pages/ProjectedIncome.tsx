@@ -710,6 +710,8 @@ export default function ProjectedIncome() {
         />
       </div>
 
+      <DuplicateConversionsReview />
+
       {isW2Only && forecastDebug && (
         <Card>
           <CardContent className="p-5 space-y-4">
