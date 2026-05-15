@@ -796,6 +796,7 @@ export default function ProjectedIncome() {
 
                     {entries.map((entry, i) => {
                       const isMatched = entry.matchStatus === "matched";
+                      const isSuggested = entry.matchStatus === "suggested";
                       const isPastDue = entry.matchStatus === "past_due";
                       const isSkipped = entry.matchStatus === "skipped";
                       const isActive = entry.matchStatus === "active";
