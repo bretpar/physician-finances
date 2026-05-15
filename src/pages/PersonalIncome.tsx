@@ -774,12 +774,18 @@ export default function PersonalIncome() {
                     badges.push({ label: "Review", tone: "warning" });
                   }
 
+                  if ((entry as any).linked_ytd_catchup_id) {
+                    badges.push({ label: "YTD", tone: "info" });
+                  }
+
                   return (
                     <div key={entry.id}>
                       <LedgerRow
                         kind={isLoss ? "neutral" : "income"}
                         title={entry.name || "(No payor)"}
-                        subtitle={typeLabel}
+                        subtitle={(entry as any).linked_ytd_catchup_id
+                          ? `Setup income through ${new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+                          : typeLabel}
                         meta={entry.company || null}
                         date={dateStr}
                         amount={Number(entry.gross_amount) || 0}
