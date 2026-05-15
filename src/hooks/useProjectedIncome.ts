@@ -885,6 +885,7 @@ export function generateProjectedPaychecks(
   incomeEntries?: MatchableIncomeEntry[],
   overrides?: ProjectedIncomeOverride[],
   plannerConversions?: PlannerConversionRef[],
+  businessTransactions?: MatchableBusinessTransaction[],
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
@@ -899,17 +900,21 @@ export function generateProjectedPaychecks(
     }
   }
 
-  // Index planner conversions by stream_id + date so we can mark occurrences as "converted".
+  // Index planner conversions so we can mark occurrences as "converted".
+  // Tracks both per-stream/date paycheck conversions and per-bonus-event conversions.
   const convertedKeys = new Set<string>();
+  const convertedBonusIds = new Set<string>();
   if (plannerConversions) {
     for (const c of plannerConversions) {
       if (c.status !== "converted") continue;
-      if (c.stream_id) convertedKeys.add(`${c.stream_id}:${c.occurrence_date}`);
+      if (c.bonus_event_id) convertedBonusIds.add(c.bonus_event_id);
+      else if (c.stream_id) convertedKeys.add(`${c.stream_id}:${c.occurrence_date}`);
     }
   }
 
-  // Track which income entries have been used for matching
+  // Track which ledger rows have been used for matching (separate sets per bucket)
   const usedEntryIds = new Set<string>();
+  const usedTxIds = new Set<string>();
 
   // Collect all raw paychecks first (without matching)
   const rawPaychecks: Array<{
