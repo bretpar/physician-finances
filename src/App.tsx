@@ -76,6 +76,7 @@ function ProtectedRoutes() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/debug/transactions" element={<DebugTransactions />} />
+          <Route path="/admin/data-isolation" element={<DataIsolationReport />} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />
