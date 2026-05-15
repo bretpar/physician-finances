@@ -864,7 +864,10 @@ export default function ProjectedIncome() {
                       return (
                         <div
                           key={i}
-                          className={`flex items-start sm:items-center justify-between gap-2 px-3 py-2.5 rounded-md border bg-card ${
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setDetailEntry(entry)}
+                          className={`flex items-start sm:items-center justify-between gap-2 px-3 py-2.5 rounded-md border bg-card cursor-pointer hover:bg-muted/30 transition-colors ${
                             isConverted
                               ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20 opacity-70"
                               : isSkipped
