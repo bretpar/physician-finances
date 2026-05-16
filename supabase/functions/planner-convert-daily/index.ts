@@ -204,7 +204,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Compare planned-income dates against the user-facing local calendar date
+  // (default West Coast) rather than UTC. Without this, a cron run just after
+  // midnight UTC would convert a paycheck dated tomorrow-local.
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   const summary: Record<string, unknown>[] = [];
 
   for (const row of optedIn || []) {
