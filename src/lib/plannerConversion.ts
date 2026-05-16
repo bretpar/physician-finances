@@ -338,12 +338,12 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
         .eq("status", "active"),
       supabase
         .from("tax_settings")
-        .select("auto_convert_future_income_to_ledger, organization_id")
+        .select("auto_convert_future_income_to_ledger, organization_id, timezone")
         .limit(1)
         .maybeSingle(),
     ]);
 
-  const settings = settingsRes.data as { auto_convert_future_income_to_ledger?: boolean; organization_id?: string | null } | null;
+  const settings = settingsRes.data as { auto_convert_future_income_to_ledger?: boolean; organization_id?: string | null; timezone?: string | null } | null;
   if (!settings?.auto_convert_future_income_to_ledger) {
     persistLastRun(stats);
     return stats;
@@ -383,10 +383,10 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
     plannerConversions as any,
     businessTxs,
   );
-  // Use the user's local calendar date (West Coast default) so a paycheck
+  // Use the user's chosen timezone (Tax Profile → Timezone) so a paycheck
   // dated 5/16 doesn't get converted late on 5/15 just because UTC has
-  // already rolled over.
-  const today = getTodayLocalDateString();
+  // already rolled over. Falls back to America/Los_Angeles when unset.
+  const today = getTodayLocalDateString(settings.timezone || undefined);
 
   const streamById = new Map(streams.map((s) => [s.id, s] as const));
   const bonusByKey = new Map<string, ProjectedBonusEvent>();
