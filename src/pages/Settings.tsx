@@ -875,6 +875,23 @@ function TaxProfileSection() {
             </SelectContent>
           </Select>
         </div>
+        <div className="sm:col-span-2">
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Timezone</Label>
+          <Select
+            value={d.timezone ?? "__auto__"}
+            onValueChange={(v) => set({ timezone: v === "__auto__" ? null : v })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Determines what counts as "today" for planner auto-conversion. Defaults to Pacific time when auto-detect is unavailable.
+          </p>
+        </div>
       </div>
 
       {d.deductionType === "itemized" && (
