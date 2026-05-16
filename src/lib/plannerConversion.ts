@@ -25,6 +25,7 @@ import {
   type ProjectedPaycheck,
 } from "@/hooks/useProjectedIncome";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
+import { getTodayLocalDateString } from "@/lib/localDate";
 
 interface PlannerConversionRow {
   stream_id: string | null;
@@ -382,7 +383,10 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
     plannerConversions as any,
     businessTxs,
   );
-  const today = new Date().toISOString().slice(0, 10);
+  // Use the user's local calendar date (West Coast default) so a paycheck
+  // dated 5/16 doesn't get converted late on 5/15 just because UTC has
+  // already rolled over.
+  const today = getTodayLocalDateString();
 
   const streamById = new Map(streams.map((s) => [s.id, s] as const));
   const bonusByKey = new Map<string, ProjectedBonusEvent>();
