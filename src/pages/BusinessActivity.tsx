@@ -188,7 +188,7 @@ export default function Transactions() {
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
-  const [hideLinkedDupes, setHideLinkedDupes] = useState(true);
+  
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Bulk selection
@@ -388,7 +388,7 @@ export default function Transactions() {
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo, hideLinkedDupes]);
+  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo]);
 
   const needsReviewCount = useMemo(() =>
     transactions.filter((t) => t.needs_review).length
@@ -447,8 +447,7 @@ export default function Transactions() {
     filterReview !== "all",
     filterPlanner !== "all",
     !!filterDateFrom || !!filterDateTo,
-    hideLinkedDupes,
-  ].filter(Boolean).length, [filterCompany, filterSource, filterReview, filterPlanner, filterDateFrom, filterDateTo, hideLinkedDupes]);
+  ].filter(Boolean).length, [filterCompany, filterSource, filterReview, filterPlanner, filterDateFrom, filterDateTo]);
 
   const clearAdvancedFilters = () => {
     setFilterCompany("all");
@@ -457,7 +456,6 @@ export default function Transactions() {
     setFilterPlanner("all");
     setFilterDateFrom("");
     setFilterDateTo("");
-    setHideLinkedDupes(false);
   };
 
   // --- Smart withholding recommendation engine ---
@@ -1095,7 +1093,7 @@ export default function Transactions() {
             {filterReview !== "all" && <Badge variant="secondary" className="gap-1 text-[11px]">Needs Review<button onClick={() => setFilterReview("all")} className="ml-0.5">×</button></Badge>}
             {filterPlanner !== "all" && <Badge variant="secondary" className="gap-1 text-[11px]">From Planner<button onClick={() => setFilterPlanner("all")} className="ml-0.5">×</button></Badge>}
             {(filterDateFrom || filterDateTo) && <Badge variant="secondary" className="gap-1 text-[11px]">{filterDateFrom || "Start"}–{filterDateTo || "End"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }} className="ml-0.5">×</button></Badge>}
-            {hideLinkedDupes && <Badge variant="secondary" className="gap-1 text-[11px]">Hide duplicates<button onClick={() => setHideLinkedDupes(false)} className="ml-0.5">×</button></Badge>}
+            
           </div>
         )}
 
