@@ -235,18 +235,6 @@ Deno.serve(async (req) => {
       admin.from("projected_bonus_events").select("*").eq("user_id", userId),
       admin.from("projected_income_overrides").select("*").eq("user_id", userId),
     ]);
-  const summary: Record<string, unknown>[] = [];
-
-  for (const row of optedIn || []) {
-    const userId = (row as any).user_id as string;
-    const orgId = (row as any).organization_id as string | null;
-    const userStats = { user_id: userId, attempted: 0, converted: 0, duplicate_skipped: 0, exists: 0, errors: 0 };
-
-    const [streamsRes, bonusesRes, overridesRes] = await Promise.all([
-      admin.from("projected_income_streams").select("*").eq("user_id", userId),
-      admin.from("projected_bonus_events").select("*").eq("user_id", userId),
-      admin.from("projected_income_overrides").select("*").eq("user_id", userId),
-    ]);
     const streams = (streamsRes.data || []) as Stream[];
     const bonuses = (bonusesRes.data || []) as Bonus[];
     const overrides = (overridesRes.data || []) as Override[];
