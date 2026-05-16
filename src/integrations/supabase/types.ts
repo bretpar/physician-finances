@@ -1463,6 +1463,7 @@ export type Database = {
           subscription_tier: string
           tax_mode: string
           tax_recommendation_method: string
+          timezone: string | null
           updated_at: string
           user_id: string
           withholding_method: string
@@ -1522,6 +1523,7 @@ export type Database = {
           subscription_tier?: string
           tax_mode?: string
           tax_recommendation_method?: string
+          timezone?: string | null
           updated_at?: string
           user_id: string
           withholding_method?: string
@@ -1581,6 +1583,7 @@ export type Database = {
           subscription_tier?: string
           tax_mode?: string
           tax_recommendation_method?: string
+          timezone?: string | null
           updated_at?: string
           user_id?: string
           withholding_method?: string
