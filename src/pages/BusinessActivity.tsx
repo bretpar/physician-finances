@@ -1172,10 +1172,6 @@ export default function Transactions() {
                 <Label htmlFor="flt-from-planner" className="text-xs text-muted-foreground">From Planner only</Label>
                 <Switch id="flt-from-planner" checked={filterPlanner === "from_planner"} onCheckedChange={(v) => setFilterPlanner(v ? "from_planner" : "all")} />
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="flt-hide-dupes" className="text-xs text-muted-foreground">Hide linked duplicates</Label>
-                <Switch id="flt-hide-dupes" checked={hideLinkedDupes} onCheckedChange={setHideLinkedDupes} />
-              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-border">
