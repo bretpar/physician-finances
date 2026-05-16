@@ -788,7 +788,21 @@ type TaxProfileDraft = Pick<TaxRates,
   | "personalStateTaxRate" | "personalStateTaxAnnualEstimate"
   | "businessStateTaxEnabled" | "businessStateTaxRate"
   | "businessStateTaxBase" | "businessStateTaxApplicationMode"
+  | "timezone"
 >;
+
+/** Curated IANA timezones — common US zones plus UTC fallback. "" = auto (browser, falls back to PT). */
+const TIMEZONE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "__auto__", label: "Auto-detect (browser / Pacific fallback)" },
+  { value: "America/Los_Angeles", label: "Pacific — Los Angeles" },
+  { value: "America/Denver", label: "Mountain — Denver" },
+  { value: "America/Phoenix", label: "Mountain (no DST) — Phoenix" },
+  { value: "America/Chicago", label: "Central — Chicago" },
+  { value: "America/New_York", label: "Eastern — New York" },
+  { value: "America/Anchorage", label: "Alaska — Anchorage" },
+  { value: "Pacific/Honolulu", label: "Hawaii — Honolulu" },
+  { value: "UTC", label: "UTC" },
+];
 
 function TaxProfileSection() {
   const { data } = useTaxSettings();
@@ -813,6 +827,7 @@ function TaxProfileSection() {
     businessStateTaxRate: data?.businessStateTaxRate ?? 0,
     businessStateTaxBase: data?.businessStateTaxBase || "net_profit",
     businessStateTaxApplicationMode: data?.businessStateTaxApplicationMode || "all_business",
+    timezone: data?.timezone ?? null,
   }), [data]);
 
   const draft = useSectionDraft<TaxProfileDraft>({
@@ -859,6 +874,23 @@ function TaxProfileSection() {
               <SelectItem value="itemized">Itemized Deduction</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div className="sm:col-span-2">
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Timezone</Label>
+          <Select
+            value={d.timezone ?? "__auto__"}
+            onValueChange={(v) => set({ timezone: v === "__auto__" ? null : v })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Determines what counts as "today" for planner auto-conversion. Defaults to Pacific time when auto-detect is unavailable.
+          </p>
         </div>
       </div>
 

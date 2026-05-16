@@ -62,6 +62,8 @@ export interface TaxRates {
   // ─── Forecasting Automation ───
   /** Auto-convert future planned income into real ledger drafts on/after their date. */
   autoConvertFutureIncomeToLedger: boolean;
+  /** IANA timezone (e.g. America/Los_Angeles) used to decide what "today" means for planner conversion. Null = use browser default, falling back to America/Los_Angeles. */
+  timezone: string | null;
   // ─── Quarterly Tax Tracker ───
   /** How the dashboard Quarterly Tax Progress card computes each quarter's target. */
   quarterlyTrackerMethod: QuarterlyTrackerMethod;
@@ -121,6 +123,7 @@ const DEFAULT_RATES: TaxRates = {
     otherIncome: true,
   },
   autoConvertFutureIncomeToLedger: false,
+  timezone: null,
   quarterlyTrackerMethod: "even",
   onboardingComplete: null,
   onboardingBannerDismissed: false,
@@ -192,6 +195,7 @@ export function useTaxSettings(enabled = true) {
           otherIncome: d.household_other_income_enabled ?? true,
         },
         autoConvertFutureIncomeToLedger: !!d.auto_convert_future_income_to_ledger,
+        timezone: (d.timezone as string | null) ?? null,
         quarterlyTrackerMethod: (d.quarterly_tracker_method as QuarterlyTrackerMethod) || "even",
         onboardingComplete: d.onboarding_complete ?? null,
         onboardingBannerDismissed: !!d.onboarding_banner_dismissed,
@@ -265,6 +269,7 @@ export function useUpdateTaxSettings() {
         payload.household_other_income_enabled = rest.householdIncomeStreams.otherIncome;
       }
       if (rest.autoConvertFutureIncomeToLedger !== undefined) payload.auto_convert_future_income_to_ledger = rest.autoConvertFutureIncomeToLedger;
+      if (rest.timezone !== undefined) payload.timezone = rest.timezone;
       if ((rest as any).quarterlyTrackerMethod !== undefined) payload.quarterly_tracker_method = (rest as any).quarterlyTrackerMethod;
       if (rest.onboardingComplete !== undefined) payload.onboarding_complete = rest.onboardingComplete;
       if (rest.onboardingBannerDismissed !== undefined) payload.onboarding_banner_dismissed = rest.onboardingBannerDismissed;

@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
   // Find every user with the toggle ON.
   const { data: optedIn, error: settingsErr } = await admin
     .from("tax_settings")
-    .select("user_id, organization_id")
+    .select("user_id, organization_id, timezone")
     .eq("auto_convert_future_income_to_ledger", true);
   if (settingsErr) {
     console.error("planner-convert-daily settings error", settingsErr);
@@ -204,20 +204,30 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Compare planned-income dates against the user-facing local calendar date
-  // (default West Coast) rather than UTC. Without this, a cron run just after
-  // midnight UTC would convert a paycheck dated tomorrow-local.
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  // Helper: compute YYYY-MM-DD for `now` in the given IANA timezone, with
+  // safe fallback to America/Los_Angeles per product spec.
+  const todayInTimezone = (tz: string | null | undefined): string => {
+    const zone = tz || "America/Los_Angeles";
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: zone,
+        year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(new Date());
+    } catch {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Los_Angeles",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(new Date());
+    }
+  };
+
   const summary: Record<string, unknown>[] = [];
 
   for (const row of optedIn || []) {
     const userId = (row as any).user_id as string;
     const orgId = (row as any).organization_id as string | null;
+    const userTimezone = (row as any).timezone as string | null;
+    const today = todayInTimezone(userTimezone);
     const userStats = { user_id: userId, attempted: 0, converted: 0, duplicate_skipped: 0, exists: 0, errors: 0 };
 
     const [streamsRes, bonusesRes, overridesRes] = await Promise.all([
