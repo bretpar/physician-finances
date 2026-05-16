@@ -1,4 +1,5 @@
 import { Briefcase, Building2, LineChart, Coins } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -15,12 +16,19 @@ interface CellProps {
   label: string;
   value: number;
   Icon: typeof Briefcase;
+  to: string;
 }
 
-function Cell({ label, value, Icon }: CellProps) {
+function Cell({ label, value, Icon, to }: CellProps) {
+  const navigate = useNavigate();
   const negative = value < 0;
   return (
-    <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-4">
+    <button
+      type="button"
+      onClick={() => navigate(to)}
+      className="text-left rounded-2xl bg-card border border-border/60 shadow-sm p-4 transition hover:border-primary/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`View ${label}`}
+    >
       <div className="flex items-center gap-2 text-muted-foreground">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-success/10 text-success">
           <Icon className="h-3.5 w-3.5" />
@@ -35,7 +43,7 @@ function Cell({ label, value, Icon }: CellProps) {
       >
         {fmt(value)}
       </p>
-    </div>
+    </button>
   );
 }
 
@@ -46,10 +54,10 @@ function Cell({ label, value, Icon }: CellProps) {
 export default function IncomeBreakdownCards({ businessProfit, w2Total, investments, other }: Props) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4">
-      <Cell label="Business Profit" value={businessProfit} Icon={Briefcase} />
-      <Cell label="W-2 Total" value={w2Total} Icon={Building2} />
-      <Cell label="Investments" value={investments} Icon={LineChart} />
-      <Cell label="Other" value={other} Icon={Coins} />
+      <Cell label="Business Profit" value={businessProfit} Icon={Briefcase} to="/business-activity" />
+      <Cell label="W-2 Total" value={w2Total} Icon={Building2} to="/personal-income" />
+      <Cell label="Investments" value={investments} Icon={LineChart} to="/investments" />
+      <Cell label="Other" value={other} Icon={Coins} to="/personal-income" />
     </div>
   );
 }
