@@ -1011,46 +1011,46 @@ export default function Transactions() {
 
   return (
     <div className="space-y-4 max-w-4xl w-full mx-auto min-w-0">
-      {/* Header row */}
+      {/* Header row — Export moved into Filters & Export accordion */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-foreground">Business Activity</h1>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:justify-end">
-          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 w-full sm:w-auto">
-            <Download className="h-3.5 w-3.5" /> Export
-          </Button>
           <Button variant="outline" size="sm" onClick={openAddIncome} className="gap-1.5 w-full sm:w-auto">
             <DollarSign className="h-3.5 w-3.5" /> Add Income
           </Button>
-          <Button size="sm" onClick={openAddExpense} className="gap-1.5 col-span-2 sm:col-span-1 w-full sm:w-auto">
+          <Button size="sm" onClick={openAddExpense} className="gap-1.5 w-full sm:w-auto">
             <Receipt className="h-3.5 w-3.5" /> Add Expense
           </Button>
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* Primary focus: Business Profit hero card */}
+      <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center shadow-sm">
+        <p className="text-sm font-medium text-muted-foreground">Business Profit</p>
+        <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground/80">Revenue − Deductions</p>
+        <p className={`mt-3 text-4xl sm:text-5xl font-bold tracking-tight ${summaryStats.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+          {fmt(summaryStats.profit)}
+        </p>
+      </div>
+
+      {/* Revenue + Deductions row */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Total Business Revenue</p>
-          <p className="text-xl font-bold text-card-foreground">{fmt(summaryStats.revenue)}</p>
+          <p className="text-xs font-medium text-muted-foreground mb-1">Business Revenue</p>
+          <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(summaryStats.revenue)}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Total Business Expenses</p>
-          <p className="text-xl font-bold text-card-foreground">{fmt(summaryStats.expenses)}</p>
+          <p className="text-xs font-medium text-muted-foreground mb-1">Deductions</p>
+          <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(summaryStats.expenses)}</p>
           {summaryStats.mileageDeduction > 0 && (
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Includes <span className="font-medium text-foreground">{fmt(summaryStats.mileageDeduction)}</span> mileage deduction
+              Incl. <span className="font-medium text-foreground">{fmt(summaryStats.mileageDeduction)}</span> mileage
             </p>
           )}
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Business Profit</p>
-          <p className={`text-xl font-bold ${summaryStats.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-            {fmt(summaryStats.profit)}
-          </p>
-        </div>
       </div>
 
-      {/* Owner deductions summary (K-1 only) */}
+      {/* Owner deductions summary (K-1 only) — contextual, only shows when relevant */}
       {summaryStats.ownerDeductions > 0 && (
         <div className="rounded-lg border border-border bg-accent/30 p-4">
           <div className="flex items-center justify-between">
@@ -1062,6 +1062,7 @@ export default function Transactions() {
           </div>
         </div>
       )}
+
 
       {/* Search + filter tabs */}
       <div className="flex flex-col gap-3">
