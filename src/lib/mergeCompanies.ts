@@ -25,14 +25,6 @@ export function formatMergeSummary(
   duplicateCount: number,
 ): string {
   const parts: string[] = [];
-  const labels: Record<string, string> = {
-    projected_income_streams: "income stream",
-    income_entries: "income entry",
-    transactions: "transaction",
-    home_office_deductions: "home office deduction",
-    hsa_contributions: "HSA contribution",
-    mileage_entries: "mileage entry",
-  };
   const labels: Record<string, [string, string]> = {
     projected_income_streams: ["income stream", "income streams"],
     income_entries: ["income entry", "income entries"],
