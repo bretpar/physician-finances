@@ -256,9 +256,6 @@ export default function W4PaycheckAdjustmentCard() {
   // If only one employer, the entire gap goes to it.
   const totalRemainingW2Gross = employerRows.reduce((s, r) => s + r.remainingGross, 0);
 
-  function roundToNearest5(n: number): number {
-    return Math.round(n / 5) * 5;
-  }
 
   const allocations = useMemo(
     () => computeAllocations(employerRows, remainingW4Gap, totalRemainingW2Gross),
