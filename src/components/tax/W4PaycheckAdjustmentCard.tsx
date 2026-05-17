@@ -101,6 +101,89 @@ function roundToNearest5(n: number): number {
   return Math.round(n / 5) * 5;
 }
 
+/**
+ * Infer pay frequency from a series of paycheck dates (YYYY-MM-DD).
+ * Returns null when there isn't enough signal (<2 dates).
+ */
+export function detectFrequencyFromDates(
+  dates: string[],
+): { frequency: string | null; lastDate: string | null } {
+  if (!dates || dates.length === 0) return { frequency: null, lastDate: null };
+  const sorted = [...dates].filter(Boolean).sort();
+  const lastDate = sorted[sorted.length - 1] ?? null;
+  if (sorted.length < 2) return { frequency: null, lastDate };
+  const msPerDay = 86_400_000;
+  const gaps: number[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const a = new Date(sorted[i - 1] + "T00:00:00").getTime();
+    const b = new Date(sorted[i] + "T00:00:00").getTime();
+    const d = Math.round((b - a) / msPerDay);
+    if (d > 0 && d < 200) gaps.push(d);
+  }
+  if (gaps.length === 0) return { frequency: null, lastDate };
+  const sortedGaps = [...gaps].sort((a, b) => a - b);
+  const median = sortedGaps[Math.floor(sortedGaps.length / 2)];
+  let frequency: string;
+  if (median <= 9) frequency = "weekly";
+  else if (median <= 18) frequency = "biweekly";
+  else if (median <= 22) frequency = "semimonthly";
+  else if (median <= 45) frequency = "monthly";
+  else if (median <= 120) frequency = "quarterly";
+  else frequency = "annually";
+  return { frequency, lastDate };
+}
+
+/**
+ * Count remaining paydates in the current year, starting from the next
+ * occurrence after `lastDate`, given a pay frequency.
+ */
+export function paychecksFromLastDate(
+  frequency: string,
+  lastDate: string,
+  today: Date = new Date(),
+): number {
+  const year = today.getFullYear();
+  const yearEnd = new Date(year, 11, 31);
+  const last = new Date(lastDate + "T00:00:00");
+  if (isNaN(last.getTime())) return defaultRemainingPaychecks(frequency, today);
+  const msPerDay = 86_400_000;
+  const stepDays =
+    frequency === "weekly" ? 7 : frequency === "biweekly" ? 14 : null;
+  if (stepDays) {
+    let next = new Date(last.getTime() + stepDays * msPerDay);
+    let count = 0;
+    while (next <= yearEnd) {
+      if (next > today) count++;
+      next = new Date(next.getTime() + stepDays * msPerDay);
+    }
+    return count;
+  }
+  if (frequency === "semimonthly") {
+    let count = 0;
+    for (let m = last.getMonth(); m <= 11; m++) {
+      const mid = new Date(year, m, 15);
+      const end = new Date(year, m + 1, 0);
+      if (mid > last && mid > today) count++;
+      if (end > last && end > today) count++;
+    }
+    return count;
+  }
+  if (frequency === "monthly") {
+    let count = 0;
+    for (let m = last.getMonth(); m <= 11; m++) {
+      const end = new Date(year, m + 1, 0);
+      if (end > last && end > today) count++;
+    }
+    return count;
+  }
+  if (frequency === "quarterly") {
+    const quarterEnds = [2, 5, 8, 11].map((m) => new Date(year, m + 1, 0));
+    return quarterEnds.filter((d) => d > last && d > today).length;
+  }
+  if (frequency === "annually" || frequency === "single") return 0;
+  return defaultRemainingPaychecks(frequency, today);
+}
+
 export type EmployerRow = {
   streamId: string;
   company: string;
@@ -228,6 +311,25 @@ export default function W4PaycheckAdjustmentCard() {
     [streams, bonuses, incomeEntries, overrides, plannerConversions, transactions],
   );
 
+  // Per-stream detection from real past paychecks (income entries this year)
+  const detectionByStream = useMemo(() => {
+    const year = new Date().getFullYear().toString();
+    const byStream = new Map<string, string[]>();
+    for (const e of incomeEntries || []) {
+      const sid = (e as any).source_id as string | null;
+      if (!sid) continue;
+      const d = e.income_date;
+      if (!d || !d.startsWith(year)) continue;
+      if (!byStream.has(sid)) byStream.set(sid, []);
+      byStream.get(sid)!.push(d);
+    }
+    const out = new Map<string, { frequency: string | null; lastDate: string | null }>();
+    for (const [sid, dates] of byStream) {
+      out.set(sid, detectFrequencyFromDates(dates));
+    }
+    return out;
+  }, [incomeEntries]);
+
   // Per-employer rollup for active W-2 streams
   const employerRows = useMemo(() => {
     const w2Streams = (streams || []).filter((s) => s.is_active && isW2Stream(s));
@@ -237,6 +339,8 @@ export default function W4PaycheckAdjustmentCard() {
         streamId: string;
         company: string;
         payFrequency: string;
+        detectedFrequency: string | null;
+        lastPaycheckDate: string | null;
         remainingPaychecks: number;
         remainingGross: number;
         expectedNormalWithholding: number;
@@ -244,10 +348,13 @@ export default function W4PaycheckAdjustmentCard() {
     >();
 
     for (const s of w2Streams) {
+      const det = detectionByStream.get(s.id);
       byStream.set(s.id, {
         streamId: s.id,
         company: s.company,
         payFrequency: s.pay_frequency,
+        detectedFrequency: det?.frequency ?? null,
+        lastPaycheckDate: det?.lastDate ?? null,
         remainingPaychecks: 0,
         remainingGross: 0,
         expectedNormalWithholding: 0,
@@ -268,7 +375,7 @@ export default function W4PaycheckAdjustmentCard() {
     }
 
     return Array.from(byStream.values());
-  }, [streams, allProjected, todayStr]);
+  }, [streams, allProjected, todayStr, detectionByStream]);
 
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
@@ -311,19 +418,29 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [employerRows]);
 
-  // Apply overrides to produce effective rows used in allocation
+  // Apply overrides to produce effective rows used in allocation.
+  // Smart defaults: prefer auto-detected frequency from real paychecks over
+  // the stored stream pay_frequency. When a last-paycheck date is known,
+  // count remaining paydates by walking forward from it.
   const effectiveRows = useMemo(() => {
     return employerRows.map((r) => {
       const ov = streamOverrides[r.streamId] || {};
-      const frequency = ov.frequency ?? r.payFrequency;
+      const autoFrequency = r.detectedFrequency ?? r.payFrequency;
+      const frequency = ov.freqEdited ? (ov.frequency ?? autoFrequency) : autoFrequency;
       const detectedPaychecks = r.remainingPaychecks;
-      const fallbackPaychecks =
-        detectedPaychecks > 0 && !ov.freqEdited
-          ? detectedPaychecks
-          : defaultRemainingPaychecks(frequency);
+
+      let autoPaychecks: number;
+      if (r.lastPaycheckDate) {
+        autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
+      } else if (detectedPaychecks > 0 && !ov.freqEdited) {
+        autoPaychecks = detectedPaychecks;
+      } else {
+        autoPaychecks = defaultRemainingPaychecks(frequency);
+      }
+
       const remainingPaychecks = ov.paychecksEdited
         ? Math.max(0, Math.floor(ov.remainingPaychecks ?? 0))
-        : fallbackPaychecks;
+        : autoPaychecks;
       // Scale remaining gross proportionally if paycheck count changed
       const ratio =
         detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
@@ -453,6 +570,12 @@ export default function W4PaycheckAdjustmentCard() {
                         />
                       </div>
                     </div>
+                    {!ov.freqEdited && !ov.paychecksEdited && (r as any).detectedFrequency && (
+                      <p className="text-xs text-muted-foreground">
+                        Auto-detected from your recent paychecks
+                        {(r as any).lastPaycheckDate ? ` (last: ${(r as any).lastPaycheckDate})` : ""}.
+                      </p>
+                    )}
                     {r.remainingPaychecks === 0 && (
                       <p className="text-xs text-muted-foreground">
                         Set remaining paychecks above to get a per-paycheck recommendation.
