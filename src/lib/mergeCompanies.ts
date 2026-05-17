@@ -33,11 +33,19 @@ export function formatMergeSummary(
     hsa_contributions: "HSA contribution",
     mileage_entries: "mileage entry",
   };
+  const labels: Record<string, [string, string]> = {
+    projected_income_streams: ["income stream", "income streams"],
+    income_entries: ["income entry", "income entries"],
+    transactions: ["transaction", "transactions"],
+    home_office_deductions: ["home office deduction", "home office deductions"],
+    hsa_contributions: ["HSA contribution", "HSA contributions"],
+    mileage_entries: ["mileage entry", "mileage entries"],
+  };
   for (const [table] of COMPANY_REFERENCE_COLUMNS) {
     const n = counts[table] ?? 0;
     if (n > 0) {
-      const label = labels[table] ?? table;
-      parts.push(`${n} ${label}${n === 1 ? "" : "s"}`);
+      const [singular, plural] = labels[table] ?? [table, table];
+      parts.push(`${n} ${n === 1 ? singular : plural}`);
     }
   }
   const dupLabel = `${duplicateCount} duplicate record${duplicateCount === 1 ? "" : "s"}`;
