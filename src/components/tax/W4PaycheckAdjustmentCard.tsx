@@ -385,23 +385,82 @@ export default function W4PaycheckAdjustmentCard() {
               For your W-2 jobs, enter the following extra withholding amounts in Form W-4 Step 4(c):
             </p>
 
-            <div className="divide-y divide-border rounded-md border border-border">
-              {allocations.map((a) => (
-                <div key={a.streamId} className="flex items-center justify-between gap-4 p-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{a.company}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFrequencyLabel(a.payFrequency)} · {a.remainingPaychecks} remaining
-                    </p>
+            <div className="space-y-3">
+              {effectiveRows.map((r) => {
+                const a = allocations.find((x) => x.streamId === r.streamId);
+                const ov = streamOverrides[r.streamId] || {};
+                return (
+                  <div
+                    key={r.streamId}
+                    className="rounded-md border border-border p-3 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <p className="text-sm font-medium text-foreground truncate">{r.company}</p>
+                      <div className="text-right shrink-0">
+                        <p className="text-base font-semibold tabular-nums text-primary">
+                          Enter {fmt(a?.step4cPerPaycheck ?? 0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">in Step 4(c)</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Pay frequency</Label>
+                        <Select
+                          value={r.payFrequency}
+                          onValueChange={(val) =>
+                            updateOverride(r.streamId, {
+                              frequency: val,
+                              freqEdited: true,
+                              // reset paycheck count to new frequency default unless user edited it
+                              paychecksEdited: ov.paychecksEdited ? true : false,
+                              remainingPaychecks: ov.paychecksEdited
+                                ? ov.remainingPaychecks
+                                : undefined,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Biweekly</SelectItem>
+                            <SelectItem value="semimonthly">Semimonthly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="quarterly">Quarterly</SelectItem>
+                            <SelectItem value="annually">Annually</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Remaining paychecks this year
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={r.remainingPaychecks}
+                          onChange={(e) => {
+                            const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                            updateOverride(r.streamId, {
+                              remainingPaychecks: n,
+                              paychecksEdited: true,
+                            });
+                          }}
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                    {r.remainingPaychecks === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Set remaining paychecks above to get a per-paycheck recommendation.
+                      </p>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-base font-semibold tabular-nums text-primary">
-                      Enter {fmt(a.step4cPerPaycheck)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">in Step 4(c)</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <p className="text-sm text-muted-foreground">
