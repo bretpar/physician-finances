@@ -777,9 +777,12 @@ export default function W4PaycheckAdjustmentCard() {
                 <div className="mt-3 space-y-2">
                   <p className="text-xs font-medium text-foreground">Per employer breakdown</p>
                   {allocations.map((a) => {
-                    const row = employerRows.find((r) => r.streamId === a.streamId);
+                    const row = employerRows.find((r) => r.streamId === a.streamId) as
+                      | (EmployerRow & { uniqueSourceIds?: string[]; overlapDateCount?: number })
+                      | undefined;
                     const streamCount = row?.streamIds?.length ?? 1;
-                    const droppedCount = row?.droppedStreamIds?.length ?? 0;
+                    const sourceCount = row?.uniqueSourceIds?.length ?? 0;
+                    const overlapCount = row?.overlapDateCount ?? 0;
                     return (
                       <div
                         key={a.streamId}
@@ -799,9 +802,10 @@ export default function W4PaycheckAdjustmentCard() {
                           value={fmt(a.step4cPerPaycheck)}
                         />
                         <p className="text-[10px] text-muted-foreground/80">
-                          Group key: <span className="font-mono">{a.streamId}</span> · streams
-                          included: {streamCount}
-                          {droppedCount > 0 ? ` · collapsed duplicates: ${droppedCount}` : ""}
+                          Employer: <span className="font-medium">{a.company}</span> · key:{" "}
+                          <span className="font-mono">{a.streamId}</span> · streams: {streamCount}
+                          {" · "}source IDs: {sourceCount}
+                          {overlapCount > 0 ? ` · overlapping dates ignored: ${overlapCount}` : ""}
                         </p>
                       </div>
                     );
