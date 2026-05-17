@@ -5,6 +5,7 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { toast } from "sonner";
 import type { FilingType, ToggleKey } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { mergeCompanies as mergeCompaniesApi } from "@/lib/mergeCompanies";
 
 export type SetasideMethod = "recommended" | "flat_percentage" | "none";
 
@@ -47,6 +48,7 @@ interface CompanyContextValue {
   addCompany: (company: Omit<Company, "id">) => Promise<void>;
   updateCompany: (id: string, updates: Partial<Company>) => Promise<void>;
   removeCompany: (id: string) => Promise<void>;
+  mergeCompanies: (primaryId: string, duplicateIds: string[]) => Promise<void>;
   loading: boolean;
   refreshIncomeCounts: () => Promise<void>;
 }
@@ -65,6 +67,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase
       .from("companies")
       .select("*")
+      .is("archived_at", null)
       .order("name");
 
     if (error) {
@@ -160,8 +163,25 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     loadCompanies();
   }, [loadCompanies]);
 
+  const mergeCompanies = useCallback(async (primaryId: string, duplicateIds: string[]) => {
+    const primary = companies.find((c) => c.id === primaryId);
+    if (!primary) { toast.error("Primary company not found"); return; }
+    try {
+      await mergeCompaniesApi({
+        primaryId,
+        primaryName: primary.name,
+        duplicateIds,
+      });
+      toast.success(`Merged ${duplicateIds.length} duplicate${duplicateIds.length === 1 ? "" : "s"} into ${primary.name}`);
+      await loadCompanies();
+      await refreshIncomeCounts();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to merge companies");
+    }
+  }, [companies, loadCompanies, refreshIncomeCounts]);
+
   return (
-    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, loading, refreshIncomeCounts }}>
+    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, mergeCompanies, loading, refreshIncomeCounts }}>
       {children}
     </CompanyContext.Provider>
   );

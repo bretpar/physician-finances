@@ -47,6 +47,7 @@ import {
 import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
+import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
@@ -1150,9 +1151,12 @@ function CompaniesSection() {
         summary={`(${companies.length})`}
         description="Set the filing type for each company."
         headerAction={
-          <Button variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
-            <Plus className="h-4 w-4" /> Add
-          </Button>
+          <div className="flex items-center gap-2">
+            {companies.length > 1 && <MergeCompaniesDialog />}
+            <Button variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
         }
         headerActionOpenOnly
         isDirty={anyDirty}

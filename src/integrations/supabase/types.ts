@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           advanced_field_visibility: Json
           apply_business_state_tax: boolean
+          archived_at: string | null
           company_type: string
           created_at: string
           default_setaside_method: string
@@ -25,6 +26,7 @@ export type Database = {
           id: string
           include_in_tax: boolean
           include_se_tax_in_recommendation: boolean
+          merged_into_company_id: string | null
           name: string
           nickname: string
           notes: string
@@ -36,6 +38,7 @@ export type Database = {
         Insert: {
           advanced_field_visibility?: Json
           apply_business_state_tax?: boolean
+          archived_at?: string | null
           company_type?: string
           created_at?: string
           default_setaside_method?: string
@@ -43,6 +46,7 @@ export type Database = {
           id?: string
           include_in_tax?: boolean
           include_se_tax_in_recommendation?: boolean
+          merged_into_company_id?: string | null
           name?: string
           nickname?: string
           notes?: string
@@ -54,6 +58,7 @@ export type Database = {
         Update: {
           advanced_field_visibility?: Json
           apply_business_state_tax?: boolean
+          archived_at?: string | null
           company_type?: string
           created_at?: string
           default_setaside_method?: string
@@ -61,6 +66,7 @@ export type Database = {
           id?: string
           include_in_tax?: boolean
           include_se_tax_in_recommendation?: boolean
+          merged_into_company_id?: string | null
           name?: string
           nickname?: string
           notes?: string
