@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import TaxBreakdown from "@/components/tax-breakdown/TaxBreakdown";
+import W4PaycheckAdjustmentCard from "@/components/tax/W4PaycheckAdjustmentCard";
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
@@ -316,6 +317,8 @@ export default function Taxes() {
           </CardContent>
         </Card>
       )}
+
+      <W4PaycheckAdjustmentCard />
 
       {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
