@@ -102,7 +102,7 @@ export async function mergeCompanies(params: {
   const dupes = duplicateIds.filter((id) => id && id !== primaryId);
   if (dupes.length === 0) return;
 
-  // 1. Repoint linked rows.
+  // 1. Repoint scalar linked rows.
   for (const [table, column] of COMPANY_REFERENCE_COLUMNS) {
     const { error } = await supabase
       .from(table as any)
@@ -115,6 +115,34 @@ export async function mergeCompanies(params: {
       console.warn(`[mergeCompanies] repoint ${table}.${column} failed:`, error.message);
     }
   }
+
+  // 1b. Repoint array/JSON columns containing company id lists.
+  for (const [table, column] of COMPANY_ARRAY_COLUMNS) {
+    const { data: rows, error: fetchErr } = await supabase
+      .from(table as any)
+      .select(`id, ${column}`)
+      .overlaps(column, dupes);
+    if (fetchErr) {
+      // eslint-disable-next-line no-console
+      console.warn(`[mergeCompanies] fetch ${table}.${column} failed:`, fetchErr.message);
+      continue;
+    }
+    for (const row of (rows ?? []) as Array<Record<string, any>>) {
+      const current: string[] = Array.isArray(row[column]) ? row[column] : [];
+      const rewritten = Array.from(
+        new Set(current.map((id) => (dupes.includes(id) ? primaryId : id))),
+      );
+      const { error: updErr } = await supabase
+        .from(table as any)
+        .update({ [column]: rewritten } as any)
+        .eq("id", row.id);
+      if (updErr) {
+        // eslint-disable-next-line no-console
+        console.warn(`[mergeCompanies] update ${table}.${column} row ${row.id} failed:`, updErr.message);
+      }
+    }
+  }
+
 
   // 2. Archive duplicate company rows. Rename them so any legacy lookup
   //    by name surfaces the merge instead of looking like a real employer.
