@@ -435,20 +435,22 @@ export default function W4PaycheckAdjustmentCard() {
     [streams, bonuses, incomeEntries, overrides, plannerConversions, transactions],
   );
 
-  // Per-stream detection from real past paychecks (income entries this year)
-  const detectionByStream = useMemo(() => {
+  // Per-stream detection from real past paychecks (income entries this year).
+  // Keyed by source_id (matches stream.source_id). Streams without a
+  // source_id fall back to lookup by stream.id below.
+  const detectionBySourceId = useMemo(() => {
     const year = new Date().getFullYear().toString();
-    const byStream = new Map<string, string[]>();
+    const bySource = new Map<string, string[]>();
     for (const e of incomeEntries || []) {
       const sid = (e as any).source_id as string | null;
       if (!sid) continue;
       const d = e.income_date;
       if (!d || !d.startsWith(year)) continue;
-      if (!byStream.has(sid)) byStream.set(sid, []);
-      byStream.get(sid)!.push(d);
+      if (!bySource.has(sid)) bySource.set(sid, []);
+      bySource.get(sid)!.push(d);
     }
     const out = new Map<string, { frequency: string | null; lastDate: string | null }>();
-    for (const [sid, dates] of byStream) {
+    for (const [sid, dates] of bySource) {
       out.set(sid, detectFrequencyFromDates(dates));
     }
     return out;
@@ -457,49 +459,61 @@ export default function W4PaycheckAdjustmentCard() {
   // Per-employer rollup for active W-2 streams
   const employerRows = useMemo(() => {
     const w2Streams = (streams || []).filter((s) => s.is_active && isW2Stream(s));
-    const byStream = new Map<
-      string,
-      {
-        streamId: string;
-        company: string;
-        payFrequency: string;
-        detectedFrequency: string | null;
-        lastPaycheckDate: string | null;
-        remainingPaychecks: number;
-        remainingGross: number;
-        expectedNormalWithholding: number;
-      }
-    >();
 
-    for (const s of w2Streams) {
-      const det = detectionByStream.get(s.id);
-      byStream.set(s.id, {
-        streamId: s.id,
-        company: s.company,
-        payFrequency: s.pay_frequency,
-        detectedFrequency: det?.frequency ?? null,
-        lastPaycheckDate: det?.lastDate ?? null,
-        remainingPaychecks: 0,
-        remainingGross: 0,
-        expectedNormalWithholding: 0,
-      });
-    }
-
+    // Future, unmatched paycheck dates per stream — drives both dup detection
+    // and the per-employer paycheck rollup.
+    const futureDatesByStream = new Map<string, Set<string>>();
     for (const p of allProjected) {
-      const row = byStream.get(p.streamId);
-      if (!row) continue;
       if (p.isSkipped) continue;
       if (p.date <= todayStr) continue;
-      // Skip occurrences that already have a real ledger entry
       if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
-      row.remainingPaychecks += 1;
-      row.remainingGross += Number(p.grossAmount || 0);
-      row.expectedNormalWithholding +=
-        Number(p.taxesWithheld || 0); // stream-level taxes_withheld (fed+state aggregate)
+      if (p.type !== "paycheck") continue; // bonuses don't define the schedule
+      if (!futureDatesByStream.has(p.streamId)) futureDatesByStream.set(p.streamId, new Set());
+      futureDatesByStream.get(p.streamId)!.add(p.date);
     }
 
-    return Array.from(byStream.values());
-  }, [streams, allProjected, todayStr, detectionByStream]);
+    const groups = groupW2StreamsByEmployer(w2Streams, futureDatesByStream);
+
+    return groups.map((g) => {
+      const det =
+        (g.sourceId && detectionBySourceId.get(g.sourceId)) ||
+        detectionBySourceId.get(g.primaryStreamId) ||
+        null;
+
+      let remainingPaychecks = 0;
+      let remainingGross = 0;
+      let expectedNormalWithholding = 0;
+      const includedSet = new Set(g.includedStreamIds);
+
+      // Sum paychecks across all included (non-duplicate) streams.
+      for (const p of allProjected) {
+        if (!includedSet.has(p.streamId)) continue;
+        if (p.isSkipped) continue;
+        if (p.date <= todayStr) continue;
+        if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
+        if (p.type === "paycheck") {
+          remainingPaychecks += 1;
+        }
+        // Both paychecks and bonuses contribute gross + projected withholding.
+        remainingGross += Number(p.grossAmount || 0);
+        expectedNormalWithholding += Number(p.taxesWithheld || 0);
+      }
+
+      return {
+        streamId: g.employerKey,
+        employerKey: g.employerKey,
+        company: g.company,
+        payFrequency: g.payFrequency,
+        detectedFrequency: det?.frequency ?? null,
+        lastPaycheckDate: det?.lastDate ?? null,
+        remainingPaychecks,
+        remainingGross,
+        expectedNormalWithholding,
+        streamIds: g.includedStreamIds,
+        droppedStreamIds: g.droppedStreamIds,
+      };
+    });
+  }, [streams, allProjected, todayStr, detectionBySourceId]);
 
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
