@@ -29,6 +29,10 @@ export interface Company {
   applyBusinessStateTax: boolean;
   /** Include self-employment tax in per-entry savings recommendations. Default true. */
   includeSETaxInRecommendation: boolean;
+  /** W-2 paycheck pay frequency (weekly/biweekly/semimonthly/monthly). Null = unset. */
+  payFrequency: string | null;
+  /** Manual override for remaining paychecks this year. Null = auto-detect. */
+  remainingPaychecksOverride: number | null;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
