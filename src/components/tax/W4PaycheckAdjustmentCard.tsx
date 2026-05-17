@@ -272,6 +272,33 @@ export default function W4PaycheckAdjustmentCard() {
               />
               <div className="my-1 border-t border-border" />
               <Row label="Remaining W-4 gap" value={fmt(remainingW4Gap)} bold />
+
+              {allocations.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-medium text-foreground">Per employer breakdown</p>
+                  {allocations.map((a) => (
+                    <div
+                      key={a.streamId}
+                      className="rounded-md bg-muted/40 p-2 space-y-1"
+                    >
+                      <p className="text-xs font-medium text-foreground">{a.company}</p>
+                      <RowSmall
+                        label="Expected normal W-2 withholding (projected)"
+                        value={fmt(a.expectedNormalWithholding)}
+                      />
+                      <RowSmall
+                        label="Allocated share of remaining gap"
+                        value={fmt(a.employerGap)}
+                      />
+                      <RowSmall
+                        label="Step 4(c) per paycheck"
+                        value={fmt(a.step4cPerPaycheck)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="pt-2 text-xs text-muted-foreground">
                 Allocated across {allocations.length} W-2 job{allocations.length === 1 ? "" : "s"} by
                 remaining paycheck schedule and remaining gross W-2 income.
@@ -297,6 +324,15 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
       <span className={cn("tabular-nums", bold ? "font-semibold text-foreground" : "text-foreground")}>
         {value}
       </span>
+    </div>
+  );
+}
+
+function RowSmall({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="tabular-nums text-foreground">{value}</span>
     </div>
   );
 }
