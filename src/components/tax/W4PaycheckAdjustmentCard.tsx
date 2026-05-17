@@ -311,6 +311,25 @@ export default function W4PaycheckAdjustmentCard() {
     [streams, bonuses, incomeEntries, overrides, plannerConversions, transactions],
   );
 
+  // Per-stream detection from real past paychecks (income entries this year)
+  const detectionByStream = useMemo(() => {
+    const year = new Date().getFullYear().toString();
+    const byStream = new Map<string, string[]>();
+    for (const e of incomeEntries || []) {
+      const sid = (e as any).source_id as string | null;
+      if (!sid) continue;
+      const d = e.income_date;
+      if (!d || !d.startsWith(year)) continue;
+      if (!byStream.has(sid)) byStream.set(sid, []);
+      byStream.get(sid)!.push(d);
+    }
+    const out = new Map<string, { frequency: string | null; lastDate: string | null }>();
+    for (const [sid, dates] of byStream) {
+      out.set(sid, detectFrequencyFromDates(dates));
+    }
+    return out;
+  }, [incomeEntries]);
+
   // Per-employer rollup for active W-2 streams
   const employerRows = useMemo(() => {
     const w2Streams = (streams || []).filter((s) => s.is_active && isW2Stream(s));
@@ -320,6 +339,8 @@ export default function W4PaycheckAdjustmentCard() {
         streamId: string;
         company: string;
         payFrequency: string;
+        detectedFrequency: string | null;
+        lastPaycheckDate: string | null;
         remainingPaychecks: number;
         remainingGross: number;
         expectedNormalWithholding: number;
@@ -327,10 +348,13 @@ export default function W4PaycheckAdjustmentCard() {
     >();
 
     for (const s of w2Streams) {
+      const det = detectionByStream.get(s.id);
       byStream.set(s.id, {
         streamId: s.id,
         company: s.company,
         payFrequency: s.pay_frequency,
+        detectedFrequency: det?.frequency ?? null,
+        lastPaycheckDate: det?.lastDate ?? null,
         remainingPaychecks: 0,
         remainingGross: 0,
         expectedNormalWithholding: 0,
@@ -351,7 +375,7 @@ export default function W4PaycheckAdjustmentCard() {
     }
 
     return Array.from(byStream.values());
-  }, [streams, allProjected, todayStr]);
+  }, [streams, allProjected, todayStr, detectionByStream]);
 
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
