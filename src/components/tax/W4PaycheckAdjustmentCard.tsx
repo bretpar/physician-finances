@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -50,6 +53,48 @@ function formatFrequencyLabel(freq: string): string {
 function isW2Stream(s: ProjectedIncomeStream): boolean {
   const ft = normalizeFilingType(s.company_type);
   return ft === "w2" || ft === "scorp_w2";
+}
+
+export function defaultRemainingPaychecks(frequency: string, today: Date = new Date()): number {
+  const year = today.getFullYear();
+  const yearEnd = new Date(year, 11, 31);
+  const msPerDay = 86_400_000;
+  const daysLeft = Math.max(0, Math.ceil((yearEnd.getTime() - today.getTime()) / msPerDay));
+  switch (frequency) {
+    case "weekly":
+      return Math.max(0, Math.floor(daysLeft / 7));
+    case "biweekly":
+      return Math.max(0, Math.floor(daysLeft / 14));
+    case "semimonthly": {
+      // Count remaining 15th and end-of-month dates
+      let count = 0;
+      for (let m = today.getMonth(); m <= 11; m++) {
+        const mid = new Date(year, m, 15);
+        const end = new Date(year, m + 1, 0);
+        if (mid > today) count++;
+        if (end > today) count++;
+      }
+      return count;
+    }
+    case "monthly": {
+      // Count remaining month-end paydates
+      let count = 0;
+      for (let m = today.getMonth(); m <= 11; m++) {
+        const end = new Date(year, m + 1, 0);
+        if (end > today) count++;
+      }
+      return count;
+    }
+    case "quarterly": {
+      const quarterEnds = [2, 5, 8, 11].map((m) => new Date(year, m + 1, 0));
+      return quarterEnds.filter((d) => d > today).length;
+    }
+    case "annually":
+    case "single":
+      return 1;
+    default:
+      return Math.max(0, Math.floor(daysLeft / 14));
+  }
 }
 
 function roundToNearest5(n: number): number {
@@ -222,7 +267,7 @@ export default function W4PaycheckAdjustmentCard() {
         Number(p.taxesWithheld || 0); // stream-level taxes_withheld (fed+state aggregate)
     }
 
-    return Array.from(byStream.values()).filter((r) => r.remainingPaychecks > 0);
+    return Array.from(byStream.values());
   }, [streams, allProjected, todayStr]);
 
   // Future business gross = planner (forecast) gross business − actual gross business
@@ -252,15 +297,59 @@ export default function W4PaycheckAdjustmentCard() {
       plannedFutureBusinessReserves,
   );
 
-  // Allocate gap across employers proportionally to remaining gross W-2 income.
-  // If only one employer, the entire gap goes to it.
-  const totalRemainingW2Gross = employerRows.reduce((s, r) => s + r.remainingGross, 0);
+  // Per-stream user overrides for pay frequency + remaining paychecks
+  type StreamOverride = { frequency?: string; remainingPaychecks?: number; freqEdited?: boolean; paychecksEdited?: boolean };
+  const [streamOverrides, setStreamOverrides] = useState<Record<string, StreamOverride>>({});
 
+  // Drop stale entries when streams change
+  useEffect(() => {
+    setStreamOverrides((prev) => {
+      const ids = new Set(employerRows.map((r) => r.streamId));
+      const next: Record<string, StreamOverride> = {};
+      for (const [k, v] of Object.entries(prev)) if (ids.has(k)) next[k] = v;
+      return next;
+    });
+  }, [employerRows]);
+
+  // Apply overrides to produce effective rows used in allocation
+  const effectiveRows = useMemo(() => {
+    return employerRows.map((r) => {
+      const ov = streamOverrides[r.streamId] || {};
+      const frequency = ov.frequency ?? r.payFrequency;
+      const detectedPaychecks = r.remainingPaychecks;
+      const fallbackPaychecks =
+        detectedPaychecks > 0 && !ov.freqEdited
+          ? detectedPaychecks
+          : defaultRemainingPaychecks(frequency);
+      const remainingPaychecks = ov.paychecksEdited
+        ? Math.max(0, Math.floor(ov.remainingPaychecks ?? 0))
+        : fallbackPaychecks;
+      // Scale remaining gross proportionally if paycheck count changed
+      const ratio =
+        detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
+      const remainingGross =
+        detectedPaychecks > 0
+          ? r.remainingGross * ratio
+          : r.remainingGross; // 0 when unknown
+      return {
+        ...r,
+        payFrequency: frequency,
+        remainingPaychecks,
+        remainingGross,
+      };
+    });
+  }, [employerRows, streamOverrides]);
+
+  const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
   const allocations = useMemo(
-    () => computeAllocations(employerRows, remainingW4Gap, totalRemainingW2Gross),
-    [employerRows, totalRemainingW2Gross, remainingW4Gap],
+    () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
+    [effectiveRows, totalRemainingW2Gross, remainingW4Gap],
   );
+
+  function updateOverride(streamId: string, patch: StreamOverride) {
+    setStreamOverrides((prev) => ({ ...prev, [streamId]: { ...prev[streamId], ...patch } }));
+  }
 
   const totalExtraThroughYearEnd = allocations.reduce(
     (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
@@ -296,23 +385,82 @@ export default function W4PaycheckAdjustmentCard() {
               For your W-2 jobs, enter the following extra withholding amounts in Form W-4 Step 4(c):
             </p>
 
-            <div className="divide-y divide-border rounded-md border border-border">
-              {allocations.map((a) => (
-                <div key={a.streamId} className="flex items-center justify-between gap-4 p-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{a.company}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFrequencyLabel(a.payFrequency)} · {a.remainingPaychecks} remaining
-                    </p>
+            <div className="space-y-3">
+              {effectiveRows.map((r) => {
+                const a = allocations.find((x) => x.streamId === r.streamId);
+                const ov = streamOverrides[r.streamId] || {};
+                return (
+                  <div
+                    key={r.streamId}
+                    className="rounded-md border border-border p-3 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <p className="text-sm font-medium text-foreground truncate">{r.company}</p>
+                      <div className="text-right shrink-0">
+                        <p className="text-base font-semibold tabular-nums text-primary">
+                          Enter {fmt(a?.step4cPerPaycheck ?? 0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">in Step 4(c)</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Pay frequency</Label>
+                        <Select
+                          value={r.payFrequency}
+                          onValueChange={(val) =>
+                            updateOverride(r.streamId, {
+                              frequency: val,
+                              freqEdited: true,
+                              // reset paycheck count to new frequency default unless user edited it
+                              paychecksEdited: ov.paychecksEdited ? true : false,
+                              remainingPaychecks: ov.paychecksEdited
+                                ? ov.remainingPaychecks
+                                : undefined,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Biweekly</SelectItem>
+                            <SelectItem value="semimonthly">Semimonthly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="quarterly">Quarterly</SelectItem>
+                            <SelectItem value="annually">Annually</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Remaining paychecks this year
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={r.remainingPaychecks}
+                          onChange={(e) => {
+                            const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                            updateOverride(r.streamId, {
+                              remainingPaychecks: n,
+                              paychecksEdited: true,
+                            });
+                          }}
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                    {r.remainingPaychecks === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Set remaining paychecks above to get a per-paycheck recommendation.
+                      </p>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-base font-semibold tabular-nums text-primary">
-                      Enter {fmt(a.step4cPerPaycheck)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">in Step 4(c)</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <p className="text-sm text-muted-foreground">
