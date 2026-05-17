@@ -134,6 +134,8 @@ export function computeAllocations(
 
   return base;
 }
+
+export default function W4PaycheckAdjustmentCard() {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
   const { data: settings } = useTaxSettings();
   const { data: streams } = useProjectedStreams();
