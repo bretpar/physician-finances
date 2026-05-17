@@ -5,6 +5,7 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { toast } from "sonner";
 import type { FilingType, ToggleKey } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { mergeCompanies as mergeCompaniesApi } from "@/lib/mergeCompanies";
 
 export type SetasideMethod = "recommended" | "flat_percentage" | "none";
 
