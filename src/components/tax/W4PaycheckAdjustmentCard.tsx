@@ -418,19 +418,29 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [employerRows]);
 
-  // Apply overrides to produce effective rows used in allocation
+  // Apply overrides to produce effective rows used in allocation.
+  // Smart defaults: prefer auto-detected frequency from real paychecks over
+  // the stored stream pay_frequency. When a last-paycheck date is known,
+  // count remaining paydates by walking forward from it.
   const effectiveRows = useMemo(() => {
     return employerRows.map((r) => {
       const ov = streamOverrides[r.streamId] || {};
-      const frequency = ov.frequency ?? r.payFrequency;
+      const autoFrequency = r.detectedFrequency ?? r.payFrequency;
+      const frequency = ov.freqEdited ? (ov.frequency ?? autoFrequency) : autoFrequency;
       const detectedPaychecks = r.remainingPaychecks;
-      const fallbackPaychecks =
-        detectedPaychecks > 0 && !ov.freqEdited
-          ? detectedPaychecks
-          : defaultRemainingPaychecks(frequency);
+
+      let autoPaychecks: number;
+      if (r.lastPaycheckDate) {
+        autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
+      } else if (detectedPaychecks > 0 && !ov.freqEdited) {
+        autoPaychecks = detectedPaychecks;
+      } else {
+        autoPaychecks = defaultRemainingPaychecks(frequency);
+      }
+
       const remainingPaychecks = ov.paychecksEdited
         ? Math.max(0, Math.floor(ov.remainingPaychecks ?? 0))
-        : fallbackPaychecks;
+        : autoPaychecks;
       // Scale remaining gross proportionally if paycheck count changed
       const ratio =
         detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
