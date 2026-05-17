@@ -1366,6 +1366,53 @@ function CompaniesSection() {
                     </CollapsibleContent>
                   </Collapsible>
 
+                  {(() => {
+                    const ft = getValue(company, "companyType") as FilingType;
+                    if (ft !== "w2" && ft !== "scorp_w2") return null;
+                    const freq = (getValue(company, "payFrequency") as string | null) ?? "";
+                    const override = getValue(company, "remainingPaychecksOverride") as number | null;
+                    return (
+                      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                        <p className="text-xs font-semibold text-foreground">W-4 / paycheck settings</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Pay frequency</Label>
+                            <Select
+                              value={freq || "unset"}
+                              onValueChange={(v) => setField(company.id, "payFrequency", v === "unset" ? null : v)}
+                            >
+                              <SelectTrigger><SelectValue placeholder="Not set" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unset">Not set</SelectItem>
+                                <SelectItem value="weekly">Weekly</SelectItem>
+                                <SelectItem value="biweekly">Biweekly</SelectItem>
+                                <SelectItem value="semimonthly">Semimonthly</SelectItem>
+                                <SelectItem value="monthly">Monthly</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              placeholder="Auto"
+                              value={override ?? ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setField(company.id, "remainingPaychecksOverride", v === "" ? null : Math.max(0, Math.floor(Number(v) || 0)));
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Used by the W-4 Paycheck Adjustment worksheet. Leave remaining paychecks blank to auto-detect from your paycheck history.
+                        </p>
+                      </div>
+                    );
+                  })()}
+
                   {(dirty || saved) && (
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                       {saved && !dirty && (
