@@ -185,13 +185,127 @@ export function paychecksFromLastDate(
 }
 
 export type EmployerRow = {
+  /** Stable employer-grouping key (used as React key + override key). */
   streamId: string;
   company: string;
   payFrequency: string;
   remainingPaychecks: number;
   remainingGross: number;
   expectedNormalWithholding: number;
+  /** Underlying projected income stream IDs grouped into this employer row. */
+  streamIds?: string[];
+  /** Streams collapsed/ignored because they duplicated another schedule for the same employer. */
+  droppedStreamIds?: string[];
 };
+
+/**
+ * Build a stable employer-grouping key for a projected W-2 stream.
+ * Prefers source_id (companies.id); falls back to normalized company name +
+ * normalized company_type so two streams pointing at the same employer
+ * never produce two separate W-4 rows.
+ */
+export function employerKeyForStream(s: {
+  source_id?: string | null;
+  company?: string | null;
+  company_type?: string | null;
+}): string {
+  if (s.source_id) return `src:${s.source_id}`;
+  const name = (s.company || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const ft = normalizeFilingType(s.company_type || "") || "";
+  return `name:${name}|${ft}`;
+}
+
+export type GroupedStreamInput = {
+  id: string;
+  company: string;
+  company_type: string;
+  pay_frequency: string;
+  source_id: string | null;
+  updated_at: string;
+  is_active: boolean;
+};
+
+export type EmployerGroup = {
+  employerKey: string;
+  primaryStreamId: string;
+  includedStreamIds: string[];
+  droppedStreamIds: string[];
+  company: string;
+  payFrequency: string;
+  sourceId: string | null;
+};
+
+/**
+ * Group W-2 streams by employer key and collapse duplicate schedules.
+ *
+ * Within each employer group, the stream with the latest updated_at wins.
+ * Other streams in the group are only kept if they introduce paycheck dates
+ * that do not overlap any already-kept stream — otherwise they are treated
+ * as duplicates of the same paycheck schedule and dropped (with a dev warning).
+ */
+export function groupW2StreamsByEmployer(
+  w2Streams: GroupedStreamInput[],
+  futurePaycheckDatesByStream: Map<string, Set<string>>,
+): EmployerGroup[] {
+  const byKey = new Map<string, GroupedStreamInput[]>();
+  for (const s of w2Streams) {
+    const k = employerKeyForStream(s);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k)!.push(s);
+  }
+
+  const groups: EmployerGroup[] = [];
+  for (const [key, streams] of byKey) {
+    // Sort newest-updated first so it becomes the primary.
+    const sorted = [...streams].sort((a, b) =>
+      (b.updated_at || "").localeCompare(a.updated_at || ""),
+    );
+    const primary = sorted[0];
+    const included: string[] = [primary.id];
+    const dropped: string[] = [];
+    const seenDates = new Set<string>(
+      futurePaycheckDatesByStream.get(primary.id) ?? [],
+    );
+    for (const s of sorted.slice(1)) {
+      const dates = futurePaycheckDatesByStream.get(s.id) ?? new Set<string>();
+      let overlaps = false;
+      for (const d of dates) {
+        if (seenDates.has(d)) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps || dates.size === 0) {
+        // Duplicate paycheck schedule for the same employer, or no future
+        // paychecks of its own — collapse into the primary stream.
+        dropped.push(s.id);
+        if (
+          overlaps &&
+          typeof process !== "undefined" &&
+          process.env?.NODE_ENV !== "production"
+        ) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[W4PaycheckAdjustmentCard] Collapsing duplicate W-2 stream ${s.id} into ${primary.id} for employer key ${key} (overlapping future pay dates).`,
+          );
+        }
+      } else {
+        included.push(s.id);
+        for (const d of dates) seenDates.add(d);
+      }
+    }
+    groups.push({
+      employerKey: key,
+      primaryStreamId: primary.id,
+      includedStreamIds: included,
+      droppedStreamIds: dropped,
+      company: primary.company,
+      payFrequency: primary.pay_frequency,
+      sourceId: primary.source_id,
+    });
+  }
+  return groups;
+}
 
 export type Allocation = EmployerRow & {
   exactPerPaycheck: number;
@@ -321,20 +435,22 @@ export default function W4PaycheckAdjustmentCard() {
     [streams, bonuses, incomeEntries, overrides, plannerConversions, transactions],
   );
 
-  // Per-stream detection from real past paychecks (income entries this year)
-  const detectionByStream = useMemo(() => {
+  // Per-stream detection from real past paychecks (income entries this year).
+  // Keyed by source_id (matches stream.source_id). Streams without a
+  // source_id fall back to lookup by stream.id below.
+  const detectionBySourceId = useMemo(() => {
     const year = new Date().getFullYear().toString();
-    const byStream = new Map<string, string[]>();
+    const bySource = new Map<string, string[]>();
     for (const e of incomeEntries || []) {
       const sid = (e as any).source_id as string | null;
       if (!sid) continue;
       const d = e.income_date;
       if (!d || !d.startsWith(year)) continue;
-      if (!byStream.has(sid)) byStream.set(sid, []);
-      byStream.get(sid)!.push(d);
+      if (!bySource.has(sid)) bySource.set(sid, []);
+      bySource.get(sid)!.push(d);
     }
     const out = new Map<string, { frequency: string | null; lastDate: string | null }>();
-    for (const [sid, dates] of byStream) {
+    for (const [sid, dates] of bySource) {
       out.set(sid, detectFrequencyFromDates(dates));
     }
     return out;
@@ -343,49 +459,61 @@ export default function W4PaycheckAdjustmentCard() {
   // Per-employer rollup for active W-2 streams
   const employerRows = useMemo(() => {
     const w2Streams = (streams || []).filter((s) => s.is_active && isW2Stream(s));
-    const byStream = new Map<
-      string,
-      {
-        streamId: string;
-        company: string;
-        payFrequency: string;
-        detectedFrequency: string | null;
-        lastPaycheckDate: string | null;
-        remainingPaychecks: number;
-        remainingGross: number;
-        expectedNormalWithholding: number;
-      }
-    >();
 
-    for (const s of w2Streams) {
-      const det = detectionByStream.get(s.id);
-      byStream.set(s.id, {
-        streamId: s.id,
-        company: s.company,
-        payFrequency: s.pay_frequency,
-        detectedFrequency: det?.frequency ?? null,
-        lastPaycheckDate: det?.lastDate ?? null,
-        remainingPaychecks: 0,
-        remainingGross: 0,
-        expectedNormalWithholding: 0,
-      });
-    }
-
+    // Future, unmatched paycheck dates per stream — drives both dup detection
+    // and the per-employer paycheck rollup.
+    const futureDatesByStream = new Map<string, Set<string>>();
     for (const p of allProjected) {
-      const row = byStream.get(p.streamId);
-      if (!row) continue;
       if (p.isSkipped) continue;
       if (p.date <= todayStr) continue;
-      // Skip occurrences that already have a real ledger entry
       if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
-      row.remainingPaychecks += 1;
-      row.remainingGross += Number(p.grossAmount || 0);
-      row.expectedNormalWithholding +=
-        Number(p.taxesWithheld || 0); // stream-level taxes_withheld (fed+state aggregate)
+      if (p.type !== "paycheck") continue; // bonuses don't define the schedule
+      if (!futureDatesByStream.has(p.streamId)) futureDatesByStream.set(p.streamId, new Set());
+      futureDatesByStream.get(p.streamId)!.add(p.date);
     }
 
-    return Array.from(byStream.values());
-  }, [streams, allProjected, todayStr, detectionByStream]);
+    const groups = groupW2StreamsByEmployer(w2Streams, futureDatesByStream);
+
+    return groups.map((g) => {
+      const det =
+        (g.sourceId && detectionBySourceId.get(g.sourceId)) ||
+        detectionBySourceId.get(g.primaryStreamId) ||
+        null;
+
+      let remainingPaychecks = 0;
+      let remainingGross = 0;
+      let expectedNormalWithholding = 0;
+      const includedSet = new Set(g.includedStreamIds);
+
+      // Sum paychecks across all included (non-duplicate) streams.
+      for (const p of allProjected) {
+        if (!includedSet.has(p.streamId)) continue;
+        if (p.isSkipped) continue;
+        if (p.date <= todayStr) continue;
+        if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
+        if (p.type === "paycheck") {
+          remainingPaychecks += 1;
+        }
+        // Both paychecks and bonuses contribute gross + projected withholding.
+        remainingGross += Number(p.grossAmount || 0);
+        expectedNormalWithholding += Number(p.taxesWithheld || 0);
+      }
+
+      return {
+        streamId: g.employerKey,
+        employerKey: g.employerKey,
+        company: g.company,
+        payFrequency: g.payFrequency,
+        detectedFrequency: det?.frequency ?? null,
+        lastPaycheckDate: det?.lastDate ?? null,
+        remainingPaychecks,
+        remainingGross,
+        expectedNormalWithholding,
+        streamIds: g.includedStreamIds,
+        droppedStreamIds: g.droppedStreamIds,
+      };
+    });
+  }, [streams, allProjected, todayStr, detectionBySourceId]);
 
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
@@ -631,26 +759,36 @@ export default function W4PaycheckAdjustmentCard() {
               {allocations.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <p className="text-xs font-medium text-foreground">Per employer breakdown</p>
-                  {allocations.map((a) => (
-                    <div
-                      key={a.streamId}
-                      className="rounded-md bg-muted/40 p-2 space-y-1"
-                    >
-                      <p className="text-xs font-medium text-foreground">{a.company}</p>
-                      <RowSmall
-                        label="Expected normal W-2 withholding (projected)"
-                        value={fmt(a.expectedNormalWithholding)}
-                      />
-                      <RowSmall
-                        label="Allocated share of remaining gap"
-                        value={fmt(a.employerGap)}
-                      />
-                      <RowSmall
-                        label="Step 4(c) per paycheck"
-                        value={fmt(a.step4cPerPaycheck)}
-                      />
-                    </div>
-                  ))}
+                  {allocations.map((a) => {
+                    const row = employerRows.find((r) => r.streamId === a.streamId);
+                    const streamCount = row?.streamIds?.length ?? 1;
+                    const droppedCount = row?.droppedStreamIds?.length ?? 0;
+                    return (
+                      <div
+                        key={a.streamId}
+                        className="rounded-md bg-muted/40 p-2 space-y-1"
+                      >
+                        <p className="text-xs font-medium text-foreground">{a.company}</p>
+                        <RowSmall
+                          label="Expected normal W-2 withholding (projected)"
+                          value={fmt(a.expectedNormalWithholding)}
+                        />
+                        <RowSmall
+                          label="Allocated share of remaining gap"
+                          value={fmt(a.employerGap)}
+                        />
+                        <RowSmall
+                          label="Step 4(c) per paycheck"
+                          value={fmt(a.step4cPerPaycheck)}
+                        />
+                        <p className="text-[10px] text-muted-foreground/80">
+                          Group key: <span className="font-mono">{a.streamId}</span> · streams
+                          included: {streamCount}
+                          {droppedCount > 0 ? ` · collapsed duplicates: ${droppedCount}` : ""}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
