@@ -570,6 +570,12 @@ export default function W4PaycheckAdjustmentCard() {
                         />
                       </div>
                     </div>
+                    {!ov.freqEdited && !ov.paychecksEdited && (r as any).detectedFrequency && (
+                      <p className="text-xs text-muted-foreground">
+                        Auto-detected from your recent paychecks
+                        {(r as any).lastPaycheckDate ? ` (last: ${(r as any).lastPaycheckDate})` : ""}.
+                      </p>
+                    )}
                     {r.remainingPaychecks === 0 && (
                       <p className="text-xs text-muted-foreground">
                         Set remaining paychecks above to get a per-paycheck recommendation.
