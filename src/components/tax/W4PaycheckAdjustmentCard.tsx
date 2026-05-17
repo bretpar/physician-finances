@@ -52,6 +52,89 @@ function isW2Stream(s: ProjectedIncomeStream): boolean {
   return ft === "w2" || ft === "scorp_w2";
 }
 
+function roundToNearest5(n: number): number {
+  return Math.round(n / 5) * 5;
+}
+
+export type EmployerRow = {
+  streamId: string;
+  company: string;
+  payFrequency: string;
+  remainingPaychecks: number;
+  remainingGross: number;
+  expectedNormalWithholding: number;
+};
+
+export type Allocation = EmployerRow & {
+  exactPerPaycheck: number;
+  exactEmployerGap: number;
+  step4cPerPaycheck: number;
+  employerGap: number;
+};
+
+export function computeAllocations(
+  employerRows: EmployerRow[],
+  remainingW4Gap: number,
+  totalRemainingW2Gross: number,
+): Allocation[] {
+  if (!employerRows || employerRows.length === 0) return [];
+  const activeRows = employerRows.filter((r) => r.remainingPaychecks > 0);
+  if (activeRows.length === 0) return [];
+  if (!isFinite(remainingW4Gap) || remainingW4Gap <= 0) {
+    return activeRows.map((r) => ({
+      ...r,
+      exactPerPaycheck: 0,
+      exactEmployerGap: 0,
+      step4cPerPaycheck: 0,
+      employerGap: 0,
+    }));
+  }
+
+  const base: Allocation[] = activeRows.map((r) => {
+    const share =
+      activeRows.length === 1
+        ? 1
+        : totalRemainingW2Gross > 0
+          ? r.remainingGross / totalRemainingW2Gross
+          : 1 / activeRows.length;
+    const employerGap = remainingW4Gap * share;
+    const perPaycheck = r.remainingPaychecks > 0 ? employerGap / r.remainingPaychecks : 0;
+    const step4c = Math.max(0, roundToNearest5(perPaycheck));
+    return {
+      ...r,
+      exactPerPaycheck: perPaycheck,
+      exactEmployerGap: employerGap,
+      step4cPerPaycheck: step4c,
+      employerGap: step4c * r.remainingPaychecks,
+    };
+  });
+
+  // Single safe adjustment pass: if a one-step $5 change to the best employer
+  // reduces the absolute total difference, apply it. Never loop.
+  const totalRounded = base.reduce((s, a) => s + a.employerGap, 0);
+  const diff = remainingW4Gap - totalRounded;
+  if (Math.abs(diff) >= 2.5) {
+    const sorted = base
+      .map((a, i) => ({ i, paychecks: a.remainingPaychecks }))
+      .filter((c) => c.paychecks > 0)
+      .sort((a, b) => b.paychecks - a.paychecks);
+    if (sorted.length > 0) {
+      const target = sorted[0].i;
+      const increment = diff > 0 ? 5 : -5;
+      const nextVal = base[target].step4cPerPaycheck + increment;
+      if (nextVal >= 0) {
+        const newTotal = totalRounded + increment * base[target].remainingPaychecks;
+        if (Math.abs(remainingW4Gap - newTotal) < Math.abs(diff)) {
+          base[target].step4cPerPaycheck = nextVal;
+          base[target].employerGap = nextVal * base[target].remainingPaychecks;
+        }
+      }
+    }
+  }
+
+  return base;
+}
+
 export default function W4PaycheckAdjustmentCard() {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
   const { data: settings } = useTaxSettings();
@@ -173,59 +256,11 @@ export default function W4PaycheckAdjustmentCard() {
   // If only one employer, the entire gap goes to it.
   const totalRemainingW2Gross = employerRows.reduce((s, r) => s + r.remainingGross, 0);
 
-  function roundToNearest5(n: number): number {
-    return Math.round(n / 5) * 5;
-  }
 
-  const allocations = useMemo(() => {
-    const base = employerRows.map((r) => {
-      const share =
-        employerRows.length === 1
-          ? 1
-          : totalRemainingW2Gross > 0
-            ? r.remainingGross / totalRemainingW2Gross
-            : 1 / employerRows.length;
-      const employerGap = remainingW4Gap * share;
-      const perPaycheck = r.remainingPaychecks > 0 ? employerGap / r.remainingPaychecks : 0;
-      return {
-        ...r,
-        exactPerPaycheck: perPaycheck,
-        exactEmployerGap: employerGap,
-        step4cPerPaycheck: Math.max(0, roundToNearest5(perPaycheck)),
-      };
-    });
-
-    // Recalculate employerGap from rounded per-paycheck amounts
-    const withGaps = base.map((a) => ({
-      ...a,
-      employerGap: a.step4cPerPaycheck * a.remainingPaychecks,
-    }));
-
-    const totalRounded = withGaps.reduce((s, a) => s + a.employerGap, 0);
-    let diff = Math.round(remainingW4Gap - totalRounded);
-
-    // Adjust to close the gap: add/subtract $5 from the employer where it has the
-    // biggest total impact (most remaining paychecks), keeping per-paycheck >= 0.
-    while (diff !== 0) {
-      const candidates = withGaps
-        .map((a, i) => ({ i, paychecks: a.remainingPaychecks }))
-        .filter((c) => c.paychecks > 0)
-        .sort((a, b) => b.paychecks - a.paychecks);
-
-      if (candidates.length === 0) break;
-
-      const target = candidates[0].i;
-      const increment = diff > 0 ? 5 : -5;
-      const nextVal = withGaps[target].step4cPerPaycheck + increment;
-      if (nextVal < 0) break;
-
-      withGaps[target].step4cPerPaycheck = nextVal;
-      withGaps[target].employerGap = nextVal * withGaps[target].remainingPaychecks;
-      diff -= increment * withGaps[target].remainingPaychecks;
-    }
-
-    return withGaps;
-  }, [employerRows, totalRemainingW2Gross, remainingW4Gap]);
+  const allocations = useMemo(
+    () => computeAllocations(employerRows, remainingW4Gap, totalRemainingW2Gross),
+    [employerRows, totalRemainingW2Gross, remainingW4Gap],
+  );
 
   const totalExtraThroughYearEnd = allocations.reduce(
     (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
