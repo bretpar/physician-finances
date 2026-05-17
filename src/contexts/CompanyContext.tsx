@@ -67,6 +67,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase
       .from("companies")
       .select("*")
+      .is("archived_at", null)
       .order("name");
 
     if (error) {
