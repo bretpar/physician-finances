@@ -1132,6 +1132,7 @@ function CompaniesSection() {
       name: "", nickname: "", companyType: defaultCompanyType, includeInTax: true,
       defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
       advancedFieldVisibility: {}, applyBusinessStateTax: true, includeSETaxInRecommendation: true,
+      payFrequency: null, remainingPaychecksOverride: null,
     });
   }
 
