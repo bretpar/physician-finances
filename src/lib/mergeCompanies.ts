@@ -42,9 +42,13 @@ export function formatMergeSummary(
     projected_income_streams: ["income stream", "income streams"],
     income_entries: ["income entry", "income entries"],
     transactions: ["transaction", "transactions"],
+    transaction_attachments: ["receipt/attachment", "receipts/attachments"],
     home_office_deductions: ["home office deduction", "home office deductions"],
     hsa_contributions: ["HSA contribution", "HSA contributions"],
     mileage_entries: ["mileage entry", "mileage entries"],
+    ytd_catchup_entries: ["YTD catch-up entry", "YTD catch-up entries"],
+    plaid_accounts: ["linked bank account", "linked bank accounts"],
+    tax_settings: ["tax setting reference", "tax setting references"],
   };
   for (const [table] of COMPANY_REFERENCE_COLUMNS) {
     const n = counts[table] ?? 0;
