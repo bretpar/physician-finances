@@ -237,27 +237,37 @@ export function computeAllocations(
     };
   });
 
-  // Single safe adjustment pass: if a one-step $5 change to the best employer
-  // reduces the absolute total difference, apply it. Never loop.
-  const totalRounded = base.reduce((s, a) => s + a.employerGap, 0);
-  const diff = remainingW4Gap - totalRounded;
-  if (Math.abs(diff) >= 2.5) {
-    const sorted = base
-      .map((a, i) => ({ i, paychecks: a.remainingPaychecks }))
-      .filter((c) => c.paychecks > 0)
-      .sort((a, b) => b.paychecks - a.paychecks);
-    if (sorted.length > 0) {
-      const target = sorted[0].i;
-      const increment = diff > 0 ? 5 : -5;
-      const nextVal = base[target].step4cPerPaycheck + increment;
-      if (nextVal >= 0) {
-        const newTotal = totalRounded + increment * base[target].remainingPaychecks;
-        if (Math.abs(remainingW4Gap - newTotal) < Math.abs(diff)) {
-          base[target].step4cPerPaycheck = nextVal;
-          base[target].employerGap = nextVal * base[target].remainingPaychecks;
+  // Bounded greedy adjustment: at each step, pick the ±$5 change to any
+  // employer that most reduces |diff|. Stop when no change helps, or after
+  // a hard iteration cap so we can never loop indefinitely.
+  let totalRounded = base.reduce((s, a) => s + a.employerGap, 0);
+  const maxIters = base.length * 40 + 20;
+  for (let iter = 0; iter < maxIters; iter++) {
+    const diff = remainingW4Gap - totalRounded;
+    if (Math.abs(diff) < 2.5) break;
+    let bestIdx = -1;
+    let bestDelta = 0; // signed $5 change to apply
+    let bestNewAbsDiff = Math.abs(diff);
+    for (let i = 0; i < base.length; i++) {
+      const a = base[i];
+      if (a.remainingPaychecks <= 0) continue;
+      for (const inc of [5, -5]) {
+        const nextVal = a.step4cPerPaycheck + inc;
+        if (nextVal < 0) continue;
+        const newTotal = totalRounded + inc * a.remainingPaychecks;
+        const newAbs = Math.abs(remainingW4Gap - newTotal);
+        if (newAbs + 0.0001 < bestNewAbsDiff) {
+          bestNewAbsDiff = newAbs;
+          bestIdx = i;
+          bestDelta = inc;
         }
       }
     }
+    if (bestIdx < 0) break;
+    base[bestIdx].step4cPerPaycheck += bestDelta;
+    base[bestIdx].employerGap =
+      base[bestIdx].step4cPerPaycheck * base[bestIdx].remainingPaychecks;
+    totalRounded += bestDelta * base[bestIdx].remainingPaychecks;
   }
 
   return base;
