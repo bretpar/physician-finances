@@ -135,6 +135,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       advanced_field_visibility: company.advancedFieldVisibility ?? {},
       apply_business_state_tax: company.applyBusinessStateTax ?? true,
       include_se_tax_in_recommendation: company.includeSETaxInRecommendation ?? true,
+      pay_frequency: company.payFrequency ?? null,
+      remaining_paychecks_override: company.remainingPaychecksOverride ?? null,
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
