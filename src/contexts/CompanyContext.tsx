@@ -163,8 +163,25 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     loadCompanies();
   }, [loadCompanies]);
 
+  const mergeCompanies = useCallback(async (primaryId: string, duplicateIds: string[]) => {
+    const primary = companies.find((c) => c.id === primaryId);
+    if (!primary) { toast.error("Primary company not found"); return; }
+    try {
+      await mergeCompaniesApi({
+        primaryId,
+        primaryName: primary.name,
+        duplicateIds,
+      });
+      toast.success(`Merged ${duplicateIds.length} duplicate${duplicateIds.length === 1 ? "" : "s"} into ${primary.name}`);
+      await loadCompanies();
+      await refreshIncomeCounts();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to merge companies");
+    }
+  }, [companies, loadCompanies, refreshIncomeCounts]);
+
   return (
-    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, loading, refreshIncomeCounts }}>
+    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, mergeCompanies, loading, refreshIncomeCounts }}>
       {children}
     </CompanyContext.Provider>
   );
