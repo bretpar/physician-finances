@@ -8,9 +8,22 @@ export const COMPANY_REFERENCE_COLUMNS: ReadonlyArray<readonly [string, string]>
   ["projected_income_streams", "source_id"],
   ["income_entries", "source_id"],
   ["transactions", "source_id"],
+  ["transaction_attachments", "company_id"],
   ["home_office_deductions", "company_id"],
   ["hsa_contributions", "company_id"],
   ["mileage_entries", "company_id"],
+  ["ytd_catchup_entries", "company_id"],
+  ["plaid_accounts", "default_company_id"],
+  ["tax_settings", "hsa_source_company_id"],
+] as const;
+
+/**
+ * Array/JSON columns containing one or more company ids. These cannot use a
+ * simple `.update().in()` repoint — we fetch, rewrite the array, and write
+ * back per row.
+ */
+export const COMPANY_ARRAY_COLUMNS: ReadonlyArray<readonly [string, string]> = [
+  ["tax_settings", "business_state_tax_company_ids"],
 ] as const;
 
 export type MergeSummaryCounts = Record<string, number>;
