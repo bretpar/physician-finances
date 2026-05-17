@@ -101,6 +101,89 @@ function roundToNearest5(n: number): number {
   return Math.round(n / 5) * 5;
 }
 
+/**
+ * Infer pay frequency from a series of paycheck dates (YYYY-MM-DD).
+ * Returns null when there isn't enough signal (<2 dates).
+ */
+export function detectFrequencyFromDates(
+  dates: string[],
+): { frequency: string | null; lastDate: string | null } {
+  if (!dates || dates.length === 0) return { frequency: null, lastDate: null };
+  const sorted = [...dates].filter(Boolean).sort();
+  const lastDate = sorted[sorted.length - 1] ?? null;
+  if (sorted.length < 2) return { frequency: null, lastDate };
+  const msPerDay = 86_400_000;
+  const gaps: number[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const a = new Date(sorted[i - 1] + "T00:00:00").getTime();
+    const b = new Date(sorted[i] + "T00:00:00").getTime();
+    const d = Math.round((b - a) / msPerDay);
+    if (d > 0 && d < 200) gaps.push(d);
+  }
+  if (gaps.length === 0) return { frequency: null, lastDate };
+  const sortedGaps = [...gaps].sort((a, b) => a - b);
+  const median = sortedGaps[Math.floor(sortedGaps.length / 2)];
+  let frequency: string;
+  if (median <= 9) frequency = "weekly";
+  else if (median <= 18) frequency = "biweekly";
+  else if (median <= 22) frequency = "semimonthly";
+  else if (median <= 45) frequency = "monthly";
+  else if (median <= 120) frequency = "quarterly";
+  else frequency = "annually";
+  return { frequency, lastDate };
+}
+
+/**
+ * Count remaining paydates in the current year, starting from the next
+ * occurrence after `lastDate`, given a pay frequency.
+ */
+export function paychecksFromLastDate(
+  frequency: string,
+  lastDate: string,
+  today: Date = new Date(),
+): number {
+  const year = today.getFullYear();
+  const yearEnd = new Date(year, 11, 31);
+  const last = new Date(lastDate + "T00:00:00");
+  if (isNaN(last.getTime())) return defaultRemainingPaychecks(frequency, today);
+  const msPerDay = 86_400_000;
+  const stepDays =
+    frequency === "weekly" ? 7 : frequency === "biweekly" ? 14 : null;
+  if (stepDays) {
+    let next = new Date(last.getTime() + stepDays * msPerDay);
+    let count = 0;
+    while (next <= yearEnd) {
+      if (next > today) count++;
+      next = new Date(next.getTime() + stepDays * msPerDay);
+    }
+    return count;
+  }
+  if (frequency === "semimonthly") {
+    let count = 0;
+    for (let m = last.getMonth(); m <= 11; m++) {
+      const mid = new Date(year, m, 15);
+      const end = new Date(year, m + 1, 0);
+      if (mid > last && mid > today) count++;
+      if (end > last && end > today) count++;
+    }
+    return count;
+  }
+  if (frequency === "monthly") {
+    let count = 0;
+    for (let m = last.getMonth(); m <= 11; m++) {
+      const end = new Date(year, m + 1, 0);
+      if (end > last && end > today) count++;
+    }
+    return count;
+  }
+  if (frequency === "quarterly") {
+    const quarterEnds = [2, 5, 8, 11].map((m) => new Date(year, m + 1, 0));
+    return quarterEnds.filter((d) => d > last && d > today).length;
+  }
+  if (frequency === "annually" || frequency === "single") return 0;
+  return defaultRemainingPaychecks(frequency, today);
+}
+
 export type EmployerRow = {
   streamId: string;
   company: string;
