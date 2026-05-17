@@ -94,6 +94,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           (c.advanced_field_visibility as Partial<Record<ToggleKey, boolean>>) || {},
         applyBusinessStateTax: c.apply_business_state_tax !== false,
         includeSETaxInRecommendation: c.include_se_tax_in_recommendation !== false,
+        payFrequency: (c as any).pay_frequency ?? null,
+        remainingPaychecksOverride: (c as any).remaining_paychecks_override ?? null,
       }))
     );
     setLoading(false);
