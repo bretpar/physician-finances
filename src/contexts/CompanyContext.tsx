@@ -158,6 +158,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.advancedFieldVisibility !== undefined) dbUpdates.advanced_field_visibility = updates.advancedFieldVisibility;
     if (updates.applyBusinessStateTax !== undefined) dbUpdates.apply_business_state_tax = updates.applyBusinessStateTax;
     if (updates.includeSETaxInRecommendation !== undefined) dbUpdates.include_se_tax_in_recommendation = updates.includeSETaxInRecommendation;
+    if (updates.payFrequency !== undefined) dbUpdates.pay_frequency = updates.payFrequency;
+    if (updates.remainingPaychecksOverride !== undefined) dbUpdates.remaining_paychecks_override = updates.remainingPaychecksOverride;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
