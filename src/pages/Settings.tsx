@@ -1153,7 +1153,8 @@ function CompaniesSection() {
         description="Set the filing type for each company."
         headerAction={
           <div className="flex items-center gap-2">
-            {companies.length > 1 && <MergeCompaniesDialog />}
+            {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
+            {false && companies.length > 1 && <MergeCompaniesDialog />}
             <Button variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
               <Plus className="h-4 w-4" /> Add
             </Button>
