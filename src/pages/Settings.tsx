@@ -1194,14 +1194,28 @@ function CompaniesSection() {
                   "border rounded-lg p-4 space-y-3 transition-colors",
                   dirty ? "border-warning/40 bg-warning/5" : "border-border",
                 )}>
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px_auto] gap-3 items-end">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
-                      <Input
-                        value={getValue(company, "name") as string}
-                        onChange={(e) => setField(company.id, "name", e.target.value)}
-                        placeholder="e.g. Vituity"
-                      />
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
+                        <Input
+                          value={getValue(company, "name") as string}
+                          onChange={(e) => setField(company.id, "name", e.target.value)}
+                          placeholder="e.g. Vituity"
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 shrink-0 mt-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          if (dirty) { setConfirmDiscardId(company.id); return; }
+                          setDeleteCompanyId(company.id);
+                        }}
+                        aria-label="Delete company"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 mb-1.5">
@@ -1237,18 +1251,6 @@ function CompaniesSection() {
                         );
                       })()}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10 text-muted-foreground hover:text-destructive"
-                      onClick={() => {
-                        if (dirty) { setConfirmDiscardId(company.id); return; }
-                        setDeleteCompanyId(company.id);
-                      }}
-                      aria-label="Delete company"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
 
                   <Collapsible open={advOpen} onOpenChange={() => toggleAdvanced(company.id)}>
