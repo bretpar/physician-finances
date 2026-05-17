@@ -199,20 +199,36 @@ export type EmployerRow = {
 };
 
 /**
- * Build a stable employer-grouping key for a projected W-2 stream.
- * Prefers source_id (companies.id); falls back to normalized company name +
- * normalized company_type so two streams pointing at the same employer
- * never produce two separate W-4 rows.
+ * Normalize an employer/company display name for grouping. Lowercases,
+ * strips punctuation, and collapses whitespace so minor visible variants
+ * ("Optum", "OPTUM", " Optum, Inc. ") collapse to the same key.
+ */
+export function normalizeEmployerName(name: string | null | undefined): string {
+  return (name || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Build a stable W-4 employer-grouping key for a projected stream.
+ *
+ * Groups by canonical employer identity (normalized company name +
+ * W-2/non-W-2 bucket), NOT by source_id — multiple company/source records
+ * pointing at the same real employer should still produce one W-4 row.
+ * source_id is preserved as metadata on the grouped row.
  */
 export function employerKeyForStream(s: {
   source_id?: string | null;
   company?: string | null;
   company_type?: string | null;
 }): string {
-  if (s.source_id) return `src:${s.source_id}`;
-  const name = (s.company || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const name = normalizeEmployerName(s.company);
   const ft = normalizeFilingType(s.company_type || "") || "";
-  return `name:${name}|${ft}`;
+  // W-2 and scorp_w2 share the same W-4 bucket — both are W-2 employer rows.
+  const bucket = ft === "w2" || ft === "scorp_w2" ? "w2" : ft || "other";
+  return `emp:${name}|${bucket}`;
 }
 
 export type GroupedStreamInput = {
@@ -228,20 +244,24 @@ export type GroupedStreamInput = {
 export type EmployerGroup = {
   employerKey: string;
   primaryStreamId: string;
+  /** All streams belonging to this employer (no streams are dropped). */
   includedStreamIds: string[];
+  /** Kept for back-compat — always empty under canonical-name grouping. */
   droppedStreamIds: string[];
+  /** Distinct source_id values across all streams in the group. */
+  uniqueSourceIds: string[];
+  /** Number of duplicate (overlapping) future pay dates across grouped streams. */
+  overlapDateCount: number;
   company: string;
   payFrequency: string;
   sourceId: string | null;
 };
 
 /**
- * Group W-2 streams by employer key and collapse duplicate schedules.
- *
- * Within each employer group, the stream with the latest updated_at wins.
- * Other streams in the group are only kept if they introduce paycheck dates
- * that do not overlap any already-kept stream — otherwise they are treated
- * as duplicates of the same paycheck schedule and dropped (with a dev warning).
+ * Group W-2 streams by canonical employer key. All streams for the same
+ * employer collapse into a single row regardless of source_id. Per-date
+ * deduplication is handled later when summing gross/withholding so
+ * overlapping schedules never double-count the same paycheck.
  */
 export function groupW2StreamsByEmployer(
   w2Streams: GroupedStreamInput[],
@@ -256,49 +276,34 @@ export function groupW2StreamsByEmployer(
 
   const groups: EmployerGroup[] = [];
   for (const [key, streams] of byKey) {
-    // Sort newest-updated first so it becomes the primary.
     const sorted = [...streams].sort((a, b) =>
       (b.updated_at || "").localeCompare(a.updated_at || ""),
     );
     const primary = sorted[0];
-    const included: string[] = [primary.id];
-    const dropped: string[] = [];
-    const seenDates = new Set<string>(
-      futurePaycheckDatesByStream.get(primary.id) ?? [],
-    );
-    for (const s of sorted.slice(1)) {
+    const includedStreamIds = sorted.map((s) => s.id);
+
+    // Count overlapping future pay dates across all streams in this group.
+    const seenDates = new Set<string>();
+    let overlapDateCount = 0;
+    for (const s of sorted) {
       const dates = futurePaycheckDatesByStream.get(s.id) ?? new Set<string>();
-      let overlaps = false;
       for (const d of dates) {
-        if (seenDates.has(d)) {
-          overlaps = true;
-          break;
-        }
-      }
-      if (overlaps || dates.size === 0) {
-        // Duplicate paycheck schedule for the same employer, or no future
-        // paychecks of its own — collapse into the primary stream.
-        dropped.push(s.id);
-        if (
-          overlaps &&
-          typeof process !== "undefined" &&
-          process.env?.NODE_ENV !== "production"
-        ) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[W4PaycheckAdjustmentCard] Collapsing duplicate W-2 stream ${s.id} into ${primary.id} for employer key ${key} (overlapping future pay dates).`,
-          );
-        }
-      } else {
-        included.push(s.id);
-        for (const d of dates) seenDates.add(d);
+        if (seenDates.has(d)) overlapDateCount++;
+        else seenDates.add(d);
       }
     }
+
+    const uniqueSourceIds = Array.from(
+      new Set(sorted.map((s) => s.source_id).filter((v): v is string => !!v)),
+    );
+
     groups.push({
       employerKey: key,
       primaryStreamId: primary.id,
-      includedStreamIds: included,
-      droppedStreamIds: dropped,
+      includedStreamIds,
+      droppedStreamIds: [],
+      uniqueSourceIds,
+      overlapDateCount,
       company: primary.company,
       payFrequency: primary.pay_frequency,
       sourceId: primary.source_id,
