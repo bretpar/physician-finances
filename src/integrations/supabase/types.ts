@@ -31,6 +31,8 @@ export type Database = {
           nickname: string
           notes: string
           organization_id: string | null
+          pay_frequency: string | null
+          remaining_paychecks_override: number | null
           source_kind: string
           updated_at: string
           user_id: string
@@ -51,6 +53,8 @@ export type Database = {
           nickname?: string
           notes?: string
           organization_id?: string | null
+          pay_frequency?: string | null
+          remaining_paychecks_override?: number | null
           source_kind?: string
           updated_at?: string
           user_id: string
@@ -71,6 +75,8 @@ export type Database = {
           nickname?: string
           notes?: string
           organization_id?: string | null
+          pay_frequency?: string | null
+          remaining_paychecks_override?: number | null
           source_kind?: string
           updated_at?: string
           user_id?: string

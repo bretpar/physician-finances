@@ -29,6 +29,10 @@ export interface Company {
   applyBusinessStateTax: boolean;
   /** Include self-employment tax in per-entry savings recommendations. Default true. */
   includeSETaxInRecommendation: boolean;
+  /** W-2 paycheck pay frequency (weekly/biweekly/semimonthly/monthly). Null = unset. */
+  payFrequency: string | null;
+  /** Manual override for remaining paychecks this year. Null = auto-detect. */
+  remainingPaychecksOverride: number | null;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
@@ -90,6 +94,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           (c.advanced_field_visibility as Partial<Record<ToggleKey, boolean>>) || {},
         applyBusinessStateTax: c.apply_business_state_tax !== false,
         includeSETaxInRecommendation: c.include_se_tax_in_recommendation !== false,
+        payFrequency: (c as any).pay_frequency ?? null,
+        remainingPaychecksOverride: (c as any).remaining_paychecks_override ?? null,
       }))
     );
     setLoading(false);
@@ -129,6 +135,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       advanced_field_visibility: company.advancedFieldVisibility ?? {},
       apply_business_state_tax: company.applyBusinessStateTax ?? true,
       include_se_tax_in_recommendation: company.includeSETaxInRecommendation ?? true,
+      pay_frequency: company.payFrequency ?? null,
+      remaining_paychecks_override: company.remainingPaychecksOverride ?? null,
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
@@ -150,6 +158,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.advancedFieldVisibility !== undefined) dbUpdates.advanced_field_visibility = updates.advancedFieldVisibility;
     if (updates.applyBusinessStateTax !== undefined) dbUpdates.apply_business_state_tax = updates.applyBusinessStateTax;
     if (updates.includeSETaxInRecommendation !== undefined) dbUpdates.include_se_tax_in_recommendation = updates.includeSETaxInRecommendation;
+    if (updates.payFrequency !== undefined) dbUpdates.pay_frequency = updates.payFrequency;
+    if (updates.remainingPaychecksOverride !== undefined) dbUpdates.remaining_paychecks_override = updates.remainingPaychecksOverride;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }

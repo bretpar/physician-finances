@@ -1,14 +1,13 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChevronDown, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useCompanies } from "@/contexts/CompanyContext";
 import {
   useProjectedStreams,
   useProjectedBonuses,
@@ -559,58 +558,62 @@ export default function W4PaycheckAdjustmentCard() {
       plannedFutureBusinessReserves,
   );
 
-  // Per-stream user overrides for pay frequency + remaining paychecks
-  type StreamOverride = { frequency?: string; remainingPaychecks?: number; freqEdited?: boolean; paychecksEdited?: boolean };
-  const [streamOverrides, setStreamOverrides] = useState<Record<string, StreamOverride>>({});
+  // Read per-company W-4 settings from Settings > Companies.
+  const { companies } = useCompanies();
+  const companyByEmployerKey = useMemo(() => {
+    const map = new Map<string, { id: string; payFrequency: string | null; remainingOverride: number | null }>();
+    for (const c of companies) {
+      const ft = normalizeFilingType(c.companyType);
+      if (ft !== "w2" && ft !== "scorp_w2") continue;
+      const key = `emp:${normalizeEmployerName(c.name)}|w2`;
+      // Prefer the entry that has a pay frequency set, otherwise first seen.
+      const prev = map.get(key);
+      if (!prev || (!prev.payFrequency && c.payFrequency)) {
+        map.set(key, {
+          id: c.id,
+          payFrequency: c.payFrequency,
+          remainingOverride: c.remainingPaychecksOverride,
+        });
+      }
+    }
+    return map;
+  }, [companies]);
 
-  // Drop stale entries when streams change
-  useEffect(() => {
-    setStreamOverrides((prev) => {
-      const ids = new Set(employerRows.map((r) => r.streamId));
-      const next: Record<string, StreamOverride> = {};
-      for (const [k, v] of Object.entries(prev)) if (ids.has(k)) next[k] = v;
-      return next;
-    });
-  }, [employerRows]);
-
-  // Apply overrides to produce effective rows used in allocation.
-  // Smart defaults: prefer auto-detected frequency from real paychecks over
-  // the stored stream pay_frequency. When a last-paycheck date is known,
-  // count remaining paydates by walking forward from it.
+  // Apply company settings to produce effective rows used in allocation.
   const effectiveRows = useMemo(() => {
     return employerRows.map((r) => {
-      const ov = streamOverrides[r.streamId] || {};
+      const settings = companyByEmployerKey.get(r.streamId);
       const autoFrequency = r.detectedFrequency ?? r.payFrequency;
-      const frequency = ov.freqEdited ? (ov.frequency ?? autoFrequency) : autoFrequency;
+      const frequency = settings?.payFrequency || autoFrequency;
       const detectedPaychecks = r.remainingPaychecks;
 
       let autoPaychecks: number;
       if (r.lastPaycheckDate) {
         autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
-      } else if (detectedPaychecks > 0 && !ov.freqEdited) {
+      } else if (detectedPaychecks > 0 && !settings?.payFrequency) {
         autoPaychecks = detectedPaychecks;
       } else {
         autoPaychecks = defaultRemainingPaychecks(frequency);
       }
 
-      const remainingPaychecks = ov.paychecksEdited
-        ? Math.max(0, Math.floor(ov.remainingPaychecks ?? 0))
-        : autoPaychecks;
-      // Scale remaining gross proportionally if paycheck count changed
+      const remainingPaychecks =
+        settings?.remainingOverride != null
+          ? Math.max(0, Math.floor(settings.remainingOverride))
+          : autoPaychecks;
       const ratio =
         detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
       const remainingGross =
-        detectedPaychecks > 0
-          ? r.remainingGross * ratio
-          : r.remainingGross; // 0 when unknown
+        detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
+      const missingSettings = !settings?.payFrequency;
       return {
         ...r,
         payFrequency: frequency,
         remainingPaychecks,
         remainingGross,
+        missingSettings,
       };
     });
-  }, [employerRows, streamOverrides]);
+  }, [employerRows, companyByEmployerKey]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
@@ -618,10 +621,6 @@ export default function W4PaycheckAdjustmentCard() {
     () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
     [effectiveRows, totalRemainingW2Gross, remainingW4Gap],
   );
-
-  function updateOverride(streamId: string, patch: StreamOverride) {
-    setStreamOverrides((prev) => ({ ...prev, [streamId]: { ...prev[streamId], ...patch } }));
-  }
 
   const totalExtraThroughYearEnd = allocations.reduce(
     (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
@@ -660,11 +659,10 @@ export default function W4PaycheckAdjustmentCard() {
             <div className="space-y-3">
               {effectiveRows.map((r) => {
                 const a = allocations.find((x) => x.streamId === r.streamId);
-                const ov = streamOverrides[r.streamId] || {};
                 return (
                   <div
                     key={r.streamId}
-                    className="rounded-md border border-border p-3 space-y-3"
+                    className="rounded-md border border-border p-3 space-y-2"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <p className="text-sm font-medium text-foreground truncate">{r.company}</p>
@@ -675,65 +673,19 @@ export default function W4PaycheckAdjustmentCard() {
                         <p className="text-xs text-muted-foreground">in Step 4(c)</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Pay frequency</Label>
-                        <Select
-                          value={r.payFrequency}
-                          onValueChange={(val) =>
-                            updateOverride(r.streamId, {
-                              frequency: val,
-                              freqEdited: true,
-                              // reset paycheck count to new frequency default unless user edited it
-                              paychecksEdited: ov.paychecksEdited ? true : false,
-                              remainingPaychecks: ov.paychecksEdited
-                                ? ov.remainingPaychecks
-                                : undefined,
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="biweekly">Biweekly</SelectItem>
-                            <SelectItem value="semimonthly">Semimonthly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="quarterly">Quarterly</SelectItem>
-                            <SelectItem value="annually">Annually</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">
-                          Remaining paychecks this year
-                        </Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={r.remainingPaychecks}
-                          onChange={(e) => {
-                            const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
-                            updateOverride(r.streamId, {
-                              remainingPaychecks: n,
-                              paychecksEdited: true,
-                            });
-                          }}
-                          className="h-9"
-                        />
-                      </div>
-                    </div>
-                    {!ov.freqEdited && !ov.paychecksEdited && (r as any).detectedFrequency && (
-                      <p className="text-xs text-muted-foreground">
-                        Auto-detected from your recent paychecks
-                        {(r as any).lastPaycheckDate ? ` (last: ${(r as any).lastPaycheckDate})` : ""}.
-                      </p>
-                    )}
-                    {r.remainingPaychecks === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Set remaining paychecks above to get a per-paycheck recommendation.
+                    <p className="text-xs text-muted-foreground">
+                      Based on {formatFrequencyLabel(r.payFrequency).toLowerCase()} and{" "}
+                      {r.remainingPaychecks} remaining paycheck{r.remainingPaychecks === 1 ? "" : "s"} this year.
+                    </p>
+                    {(r as any).missingSettings && (
+                      <p className="text-xs text-warning flex items-start gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span>
+                          <Link to="/settings" className="underline hover:text-foreground">
+                            Add paycheck settings in Settings
+                          </Link>{" "}
+                          to improve this recommendation.
+                        </span>
                       </p>
                     )}
                   </div>
