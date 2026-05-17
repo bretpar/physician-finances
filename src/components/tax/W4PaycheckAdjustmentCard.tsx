@@ -267,7 +267,7 @@ export default function W4PaycheckAdjustmentCard() {
         Number(p.taxesWithheld || 0); // stream-level taxes_withheld (fed+state aggregate)
     }
 
-    return Array.from(byStream.values()).filter((r) => r.remainingPaychecks > 0);
+    return Array.from(byStream.values());
   }, [streams, allProjected, todayStr]);
 
   // Future business gross = planner (forecast) gross business − actual gross business
