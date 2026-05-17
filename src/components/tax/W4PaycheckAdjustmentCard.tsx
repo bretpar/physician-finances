@@ -55,6 +55,48 @@ function isW2Stream(s: ProjectedIncomeStream): boolean {
   return ft === "w2" || ft === "scorp_w2";
 }
 
+export function defaultRemainingPaychecks(frequency: string, today: Date = new Date()): number {
+  const year = today.getFullYear();
+  const yearEnd = new Date(year, 11, 31);
+  const msPerDay = 86_400_000;
+  const daysLeft = Math.max(0, Math.ceil((yearEnd.getTime() - today.getTime()) / msPerDay));
+  switch (frequency) {
+    case "weekly":
+      return Math.max(0, Math.floor(daysLeft / 7));
+    case "biweekly":
+      return Math.max(0, Math.floor(daysLeft / 14));
+    case "semimonthly": {
+      // Count remaining 15th and end-of-month dates
+      let count = 0;
+      for (let m = today.getMonth(); m <= 11; m++) {
+        const mid = new Date(year, m, 15);
+        const end = new Date(year, m + 1, 0);
+        if (mid > today) count++;
+        if (end > today) count++;
+      }
+      return count;
+    }
+    case "monthly": {
+      // Count remaining month-end paydates
+      let count = 0;
+      for (let m = today.getMonth(); m <= 11; m++) {
+        const end = new Date(year, m + 1, 0);
+        if (end > today) count++;
+      }
+      return count;
+    }
+    case "quarterly": {
+      const quarterEnds = [2, 5, 8, 11].map((m) => new Date(year, m + 1, 0));
+      return quarterEnds.filter((d) => d > today).length;
+    }
+    case "annually":
+    case "single":
+      return 1;
+    default:
+      return Math.max(0, Math.floor(daysLeft / 14));
+  }
+}
+
 function roundToNearest5(n: number): number {
   return Math.round(n / 5) * 5;
 }
