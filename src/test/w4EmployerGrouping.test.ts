@@ -3,6 +3,7 @@ import {
   employerKeyForStream,
   groupW2StreamsByEmployer,
   detectFrequencyFromDates,
+  normalizeEmployerName,
   type GroupedStreamInput,
 } from "@/components/tax/W4PaycheckAdjustmentCard";
 
@@ -17,34 +18,63 @@ const mkStream = (over: Partial<GroupedStreamInput> = {}): GroupedStreamInput =>
   ...over,
 });
 
-describe("employerKeyForStream", () => {
-  it("prefers source_id when present", () => {
-    expect(employerKeyForStream({ source_id: "abc", company: "X" })).toBe("src:abc");
+describe("normalizeEmployerName", () => {
+  it("lowercases, trims, strips punctuation, and collapses spaces", () => {
+    expect(normalizeEmployerName("  Optum, Inc. ")).toBe("optum inc");
+    expect(normalizeEmployerName("OPTUM")).toBe("optum");
+    expect(normalizeEmployerName(" Optum ")).toBe("optum");
   });
-  it("falls back to normalized company name + company_type", () => {
-    expect(employerKeyForStream({ source_id: null, company: "  Acme   Health ", company_type: "W2" }))
-      .toBe(employerKeyForStream({ source_id: null, company: "acme health", company_type: "w2" }));
+});
+
+describe("employerKeyForStream", () => {
+  it("groups by canonical employer name, not source_id", () => {
+    const a = employerKeyForStream({ source_id: "src-1", company: "Optum", company_type: "w2" });
+    const b = employerKeyForStream({ source_id: "src-2", company: "OPTUM", company_type: "w2" });
+    const c = employerKeyForStream({ source_id: "src-3", company: " Optum ", company_type: "w2" });
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+  });
+  it("buckets w2 and scorp_w2 together", () => {
+    expect(employerKeyForStream({ company: "Acme", company_type: "w2" }))
+      .toBe(employerKeyForStream({ company: "Acme", company_type: "scorp_w2" }));
+  });
+  it("separates different employer names", () => {
+    expect(employerKeyForStream({ company: "Optum", company_type: "w2" }))
+      .not.toBe(employerKeyForStream({ company: "Globex", company_type: "w2" }));
   });
 });
 
 describe("groupW2StreamsByEmployer", () => {
-  it("collapses two streams with same source_id and overlapping pay dates", () => {
-    const s1 = mkStream({ id: "a", source_id: "src1", updated_at: "2026-01-01" });
-    const s2 = mkStream({ id: "b", source_id: "src1", updated_at: "2026-05-01" });
+  it("collapses three Optum streams with different source_ids into ONE row", () => {
+    const s1 = mkStream({ id: "a", company: "Optum", source_id: "src-1" });
+    const s2 = mkStream({ id: "b", company: "OPTUM", source_id: "src-2" });
+    const s3 = mkStream({ id: "c", company: " Optum ", source_id: "src-3" });
     const dates = new Map([
-      ["a", new Set(["2026-06-15", "2026-06-30"])],
-      ["b", new Set(["2026-06-15", "2026-06-30"])],
+      ["a", new Set(["2026-06-15"])],
+      ["b", new Set(["2026-06-30"])],
+      ["c", new Set(["2026-07-15"])],
+    ]);
+    const groups = groupW2StreamsByEmployer([s1, s2, s3], dates);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].includedStreamIds.sort()).toEqual(["a", "b", "c"]);
+    expect(groups[0].uniqueSourceIds.sort()).toEqual(["src-1", "src-2", "src-3"]);
+  });
+
+  it("counts duplicate pay dates across grouped streams as overlaps (not double-counted)", () => {
+    const s1 = mkStream({ id: "a", company: "Optum", source_id: "src-1" });
+    const s2 = mkStream({ id: "b", company: "Optum", source_id: "src-2" });
+    const dates = new Map([
+      ["a", new Set(["2026-06-15", "2026-06-30", "2026-07-15"])],
+      ["b", new Set(["2026-06-15", "2026-06-30", "2026-07-15"])],
     ]);
     const groups = groupW2StreamsByEmployer([s1, s2], dates);
     expect(groups).toHaveLength(1);
-    expect(groups[0].primaryStreamId).toBe("b"); // newer updated_at wins
-    expect(groups[0].includedStreamIds).toEqual(["b"]);
-    expect(groups[0].droppedStreamIds).toEqual(["a"]);
+    expect(groups[0].overlapDateCount).toBe(3);
   });
 
-  it("produces two rows for two different employers", () => {
-    const s1 = mkStream({ id: "a", source_id: "src1", company: "Acme" });
-    const s2 = mkStream({ id: "b", source_id: "src2", company: "Globex" });
+  it("produces separate rows for two truly different employers", () => {
+    const s1 = mkStream({ id: "a", company: "Optum", source_id: "src-1" });
+    const s2 = mkStream({ id: "b", company: "Globex", source_id: "src-2" });
     const dates = new Map([
       ["a", new Set(["2026-06-15"])],
       ["b", new Set(["2026-06-20"])],
@@ -52,43 +82,19 @@ describe("groupW2StreamsByEmployer", () => {
     const groups = groupW2StreamsByEmployer([s1, s2], dates);
     expect(groups).toHaveLength(2);
   });
-
-  it("keeps both streams when same employer has truly distinct schedules (no overlap)", () => {
-    const s1 = mkStream({ id: "a", source_id: "src1", updated_at: "2026-05-01" });
-    const s2 = mkStream({ id: "b", source_id: "src1", updated_at: "2026-01-01" });
-    const dates = new Map([
-      ["a", new Set(["2026-06-15", "2026-06-30"])],
-      ["b", new Set(["2026-07-07", "2026-07-21"])], // no overlap
-    ]);
-    const groups = groupW2StreamsByEmployer([s1, s2], dates);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].includedStreamIds.sort()).toEqual(["a", "b"]);
-    expect(groups[0].droppedStreamIds).toEqual([]);
-  });
-
-  it("does not double-count identical pay dates across duplicate schedules", () => {
-    const s1 = mkStream({ id: "a", source_id: "src1", updated_at: "2026-05-01" });
-    const s2 = mkStream({ id: "b", source_id: "src1", updated_at: "2026-01-01" });
-    const dates = new Map([
-      ["a", new Set(["2026-06-15", "2026-06-30", "2026-07-15"])],
-      ["b", new Set(["2026-06-15", "2026-06-30", "2026-07-15"])],
-    ]);
-    const groups = groupW2StreamsByEmployer([s1, s2], dates);
-    expect(groups[0].includedStreamIds).toEqual(["a"]);
-    expect(groups[0].droppedStreamIds).toEqual(["b"]);
-  });
 });
 
 describe("detectFrequencyFromDates", () => {
-  it("detects monthly cadence from real ledger dates (does not default to biweekly)", () => {
-    const dates = ["2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30"];
-    const { frequency } = detectFrequencyFromDates(dates);
+  it("detects monthly cadence from real ledger dates", () => {
+    const { frequency } = detectFrequencyFromDates([
+      "2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30",
+    ]);
     expect(frequency).toBe("monthly");
   });
-
   it("detects weekly cadence", () => {
-    const dates = ["2026-01-02", "2026-01-09", "2026-01-16", "2026-01-23"];
-    const { frequency } = detectFrequencyFromDates(dates);
+    const { frequency } = detectFrequencyFromDates([
+      "2026-01-02", "2026-01-09", "2026-01-16", "2026-01-23",
+    ]);
     expect(frequency).toBe("weekly");
   });
 });
