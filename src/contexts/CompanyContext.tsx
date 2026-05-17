@@ -48,6 +48,7 @@ interface CompanyContextValue {
   addCompany: (company: Omit<Company, "id">) => Promise<void>;
   updateCompany: (id: string, updates: Partial<Company>) => Promise<void>;
   removeCompany: (id: string) => Promise<void>;
+  mergeCompanies: (primaryId: string, duplicateIds: string[]) => Promise<void>;
   loading: boolean;
   refreshIncomeCounts: () => Promise<void>;
 }
