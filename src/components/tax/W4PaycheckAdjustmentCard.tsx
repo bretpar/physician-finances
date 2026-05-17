@@ -297,15 +297,59 @@ export default function W4PaycheckAdjustmentCard() {
       plannedFutureBusinessReserves,
   );
 
-  // Allocate gap across employers proportionally to remaining gross W-2 income.
-  // If only one employer, the entire gap goes to it.
-  const totalRemainingW2Gross = employerRows.reduce((s, r) => s + r.remainingGross, 0);
+  // Per-stream user overrides for pay frequency + remaining paychecks
+  type StreamOverride = { frequency?: string; remainingPaychecks?: number; freqEdited?: boolean; paychecksEdited?: boolean };
+  const [streamOverrides, setStreamOverrides] = useState<Record<string, StreamOverride>>({});
 
+  // Drop stale entries when streams change
+  useEffect(() => {
+    setStreamOverrides((prev) => {
+      const ids = new Set(employerRows.map((r) => r.streamId));
+      const next: Record<string, StreamOverride> = {};
+      for (const [k, v] of Object.entries(prev)) if (ids.has(k)) next[k] = v;
+      return next;
+    });
+  }, [employerRows]);
+
+  // Apply overrides to produce effective rows used in allocation
+  const effectiveRows = useMemo(() => {
+    return employerRows.map((r) => {
+      const ov = streamOverrides[r.streamId] || {};
+      const frequency = ov.frequency ?? r.payFrequency;
+      const detectedPaychecks = r.remainingPaychecks;
+      const fallbackPaychecks =
+        detectedPaychecks > 0 && !ov.freqEdited
+          ? detectedPaychecks
+          : defaultRemainingPaychecks(frequency);
+      const remainingPaychecks = ov.paychecksEdited
+        ? Math.max(0, Math.floor(ov.remainingPaychecks ?? 0))
+        : fallbackPaychecks;
+      // Scale remaining gross proportionally if paycheck count changed
+      const ratio =
+        detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
+      const remainingGross =
+        detectedPaychecks > 0
+          ? r.remainingGross * ratio
+          : r.remainingGross; // 0 when unknown
+      return {
+        ...r,
+        payFrequency: frequency,
+        remainingPaychecks,
+        remainingGross,
+      };
+    });
+  }, [employerRows, streamOverrides]);
+
+  const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
   const allocations = useMemo(
-    () => computeAllocations(employerRows, remainingW4Gap, totalRemainingW2Gross),
-    [employerRows, totalRemainingW2Gross, remainingW4Gap],
+    () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
+    [effectiveRows, totalRemainingW2Gross, remainingW4Gap],
   );
+
+  function updateOverride(streamId: string, patch: StreamOverride) {
+    setStreamOverrides((prev) => ({ ...prev, [streamId]: { ...prev[streamId], ...patch } }));
+  }
 
   const totalExtraThroughYearEnd = allocations.reduce(
     (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
