@@ -480,26 +480,36 @@ export default function W4PaycheckAdjustmentCard() {
     const groups = groupW2StreamsByEmployer(w2Streams, futureDatesByStream);
 
     return groups.map((g) => {
-      const det =
-        (g.sourceId && detectionBySourceId.get(g.sourceId)) ||
-        detectionBySourceId.get(g.primaryStreamId) ||
-        null;
+      // Prefer detection from any source_id in this employer group; fall back
+      // to detection keyed by the primary stream id.
+      let det: { frequency: string | null; lastDate: string | null } | null = null;
+      for (const sid of g.uniqueSourceIds) {
+        const d = detectionBySourceId.get(sid);
+        if (d && (d.frequency || d.lastDate)) {
+          det = d;
+          break;
+        }
+      }
+      if (!det) det = detectionBySourceId.get(g.primaryStreamId) ?? null;
 
       let remainingPaychecks = 0;
       let remainingGross = 0;
       let expectedNormalWithholding = 0;
       const includedSet = new Set(g.includedStreamIds);
+      const seenPaycheckDates = new Set<string>();
 
-      // Sum paychecks across all included (non-duplicate) streams.
+      // Sum paychecks across all streams in the group, deduping by date so
+      // overlapping duplicate schedules don't double-count.
       for (const p of allProjected) {
         if (!includedSet.has(p.streamId)) continue;
         if (p.isSkipped) continue;
         if (p.date <= todayStr) continue;
         if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
         if (p.type === "paycheck") {
+          if (seenPaycheckDates.has(p.date)) continue;
+          seenPaycheckDates.add(p.date);
           remainingPaychecks += 1;
         }
-        // Both paychecks and bonuses contribute gross + projected withholding.
         remainingGross += Number(p.grossAmount || 0);
         expectedNormalWithholding += Number(p.taxesWithheld || 0);
       }
@@ -516,6 +526,8 @@ export default function W4PaycheckAdjustmentCard() {
         expectedNormalWithholding,
         streamIds: g.includedStreamIds,
         droppedStreamIds: g.droppedStreamIds,
+        uniqueSourceIds: g.uniqueSourceIds,
+        overlapDateCount: g.overlapDateCount,
       };
     });
   }, [streams, allProjected, todayStr, detectionBySourceId]);
