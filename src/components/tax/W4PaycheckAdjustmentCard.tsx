@@ -759,26 +759,36 @@ export default function W4PaycheckAdjustmentCard() {
               {allocations.length > 0 && (
                 <div className="mt-3 space-y-2">
                   <p className="text-xs font-medium text-foreground">Per employer breakdown</p>
-                  {allocations.map((a) => (
-                    <div
-                      key={a.streamId}
-                      className="rounded-md bg-muted/40 p-2 space-y-1"
-                    >
-                      <p className="text-xs font-medium text-foreground">{a.company}</p>
-                      <RowSmall
-                        label="Expected normal W-2 withholding (projected)"
-                        value={fmt(a.expectedNormalWithholding)}
-                      />
-                      <RowSmall
-                        label="Allocated share of remaining gap"
-                        value={fmt(a.employerGap)}
-                      />
-                      <RowSmall
-                        label="Step 4(c) per paycheck"
-                        value={fmt(a.step4cPerPaycheck)}
-                      />
-                    </div>
-                  ))}
+                  {allocations.map((a) => {
+                    const row = employerRows.find((r) => r.streamId === a.streamId);
+                    const streamCount = row?.streamIds?.length ?? 1;
+                    const droppedCount = row?.droppedStreamIds?.length ?? 0;
+                    return (
+                      <div
+                        key={a.streamId}
+                        className="rounded-md bg-muted/40 p-2 space-y-1"
+                      >
+                        <p className="text-xs font-medium text-foreground">{a.company}</p>
+                        <RowSmall
+                          label="Expected normal W-2 withholding (projected)"
+                          value={fmt(a.expectedNormalWithholding)}
+                        />
+                        <RowSmall
+                          label="Allocated share of remaining gap"
+                          value={fmt(a.employerGap)}
+                        />
+                        <RowSmall
+                          label="Step 4(c) per paycheck"
+                          value={fmt(a.step4cPerPaycheck)}
+                        />
+                        <p className="text-[10px] text-muted-foreground/80">
+                          Group key: <span className="font-mono">{a.streamId}</span> · streams
+                          included: {streamCount}
+                          {droppedCount > 0 ? ` · collapsed duplicates: ${droppedCount}` : ""}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
