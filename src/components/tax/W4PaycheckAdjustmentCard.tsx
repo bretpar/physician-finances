@@ -185,13 +185,127 @@ export function paychecksFromLastDate(
 }
 
 export type EmployerRow = {
+  /** Stable employer-grouping key (used as React key + override key). */
   streamId: string;
   company: string;
   payFrequency: string;
   remainingPaychecks: number;
   remainingGross: number;
   expectedNormalWithholding: number;
+  /** Underlying projected income stream IDs grouped into this employer row. */
+  streamIds?: string[];
+  /** Streams collapsed/ignored because they duplicated another schedule for the same employer. */
+  droppedStreamIds?: string[];
 };
+
+/**
+ * Build a stable employer-grouping key for a projected W-2 stream.
+ * Prefers source_id (companies.id); falls back to normalized company name +
+ * normalized company_type so two streams pointing at the same employer
+ * never produce two separate W-4 rows.
+ */
+export function employerKeyForStream(s: {
+  source_id?: string | null;
+  company?: string | null;
+  company_type?: string | null;
+}): string {
+  if (s.source_id) return `src:${s.source_id}`;
+  const name = (s.company || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const ft = normalizeFilingType(s.company_type || "") || "";
+  return `name:${name}|${ft}`;
+}
+
+export type GroupedStreamInput = {
+  id: string;
+  company: string;
+  company_type: string;
+  pay_frequency: string;
+  source_id: string | null;
+  updated_at: string;
+  is_active: boolean;
+};
+
+export type EmployerGroup = {
+  employerKey: string;
+  primaryStreamId: string;
+  includedStreamIds: string[];
+  droppedStreamIds: string[];
+  company: string;
+  payFrequency: string;
+  sourceId: string | null;
+};
+
+/**
+ * Group W-2 streams by employer key and collapse duplicate schedules.
+ *
+ * Within each employer group, the stream with the latest updated_at wins.
+ * Other streams in the group are only kept if they introduce paycheck dates
+ * that do not overlap any already-kept stream — otherwise they are treated
+ * as duplicates of the same paycheck schedule and dropped (with a dev warning).
+ */
+export function groupW2StreamsByEmployer(
+  w2Streams: GroupedStreamInput[],
+  futurePaycheckDatesByStream: Map<string, Set<string>>,
+): EmployerGroup[] {
+  const byKey = new Map<string, GroupedStreamInput[]>();
+  for (const s of w2Streams) {
+    const k = employerKeyForStream(s);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k)!.push(s);
+  }
+
+  const groups: EmployerGroup[] = [];
+  for (const [key, streams] of byKey) {
+    // Sort newest-updated first so it becomes the primary.
+    const sorted = [...streams].sort((a, b) =>
+      (b.updated_at || "").localeCompare(a.updated_at || ""),
+    );
+    const primary = sorted[0];
+    const included: string[] = [primary.id];
+    const dropped: string[] = [];
+    const seenDates = new Set<string>(
+      futurePaycheckDatesByStream.get(primary.id) ?? [],
+    );
+    for (const s of sorted.slice(1)) {
+      const dates = futurePaycheckDatesByStream.get(s.id) ?? new Set<string>();
+      let overlaps = false;
+      for (const d of dates) {
+        if (seenDates.has(d)) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps || dates.size === 0) {
+        // Duplicate paycheck schedule for the same employer, or no future
+        // paychecks of its own — collapse into the primary stream.
+        dropped.push(s.id);
+        if (
+          overlaps &&
+          typeof process !== "undefined" &&
+          process.env?.NODE_ENV !== "production"
+        ) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[W4PaycheckAdjustmentCard] Collapsing duplicate W-2 stream ${s.id} into ${primary.id} for employer key ${key} (overlapping future pay dates).`,
+          );
+        }
+      } else {
+        included.push(s.id);
+        for (const d of dates) seenDates.add(d);
+      }
+    }
+    groups.push({
+      employerKey: key,
+      primaryStreamId: primary.id,
+      includedStreamIds: included,
+      droppedStreamIds: dropped,
+      company: primary.company,
+      payFrequency: primary.pay_frequency,
+      sourceId: primary.source_id,
+    });
+  }
+  return groups;
+}
 
 export type Allocation = EmployerRow & {
   exactPerPaycheck: number;
