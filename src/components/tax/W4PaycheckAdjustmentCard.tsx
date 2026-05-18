@@ -634,17 +634,32 @@ export default function W4PaycheckAdjustmentCard() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">W-4 Paycheck Adjustment</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-2">
+          W-4 Paycheck Adjustment
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="About recommended plan"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-sm font-medium">Recommended plan</p>
+                <p className="mt-1 text-xs">
+                  Based on your current income and projected income, if you continue saving{" "}
+                  <span className="font-semibold">{businessReserveRate.toFixed(1)}%</span>{" "}
+                  from future 1099/business income, here is what to enter on your W-4.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="rounded-md bg-muted/40 p-3">
-          <p className="text-sm font-medium text-foreground">Recommended plan</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Based on your current income and projected income, if you continue saving{" "}
-            <span className="font-semibold text-foreground">{businessReserveRate.toFixed(1)}%</span>{" "}
-            from future 1099/business income, here is what to enter on your W-4.
-          </p>
-        </div>
 
         {remainingW4Gap <= 0 ? (
           <p className="text-sm text-foreground">
