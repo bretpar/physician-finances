@@ -811,11 +811,6 @@ export default function W4PaycheckAdjustmentCard() {
           </CollapsibleContent>
         </Collapsible>
 
-        <p className="text-xs text-muted-foreground">
-          This is an estimate based on your current income, projected income, withholding method, and
-          saved/paid tax entries. Confirm changes with your payroll system or the IRS withholding
-          estimator.
-        </p>
       </CardContent>
     </Card>
   );
