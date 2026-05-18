@@ -709,9 +709,31 @@ export default function W4PaycheckAdjustmentCard() {
               })}
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Total extra W-2 withholding planned through year-end:{" "}
-              <span className="font-semibold text-foreground">{fmt(totalExtraThroughYearEnd)}</span>
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
+              <span>
+                Total extra W-2 withholding planned through year-end:{" "}
+                <span className="font-semibold text-foreground">{fmt(totalExtraThroughYearEnd)}</span>
+              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="About this estimate"
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs">
+                      This is an estimate based on your current income, projected income, withholding
+                      method, and saved/paid tax entries. Confirm changes with your payroll system or
+                      the IRS withholding estimator.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </p>
           </>
         )}
