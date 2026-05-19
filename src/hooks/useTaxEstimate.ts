@@ -259,6 +259,7 @@ export function useTaxEstimate(): {
       businessFederalWithheld,
       businessStateWithheld,
       businessPreTax,
+      businessNonW2HsaAboveLine,
       businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
