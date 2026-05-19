@@ -1038,13 +1038,24 @@ export default function Transactions() {
           <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(summaryStats.revenue)}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Deductions</p>
+          <div className="flex items-center gap-1 mb-1">
+            <p className="text-xs font-medium text-muted-foreground">Deductions</p>
+            {summaryStats.mileageDeduction > 0 && (
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label="Deduction details" className="text-muted-foreground hover:text-foreground">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    Includes <span className="font-medium">{fmt(summaryStats.mileageDeduction)}</span> mileage deduction.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(summaryStats.expenses)}</p>
-          {summaryStats.mileageDeduction > 0 && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Incl. <span className="font-medium text-foreground">{fmt(summaryStats.mileageDeduction)}</span> mileage
-            </p>
-          )}
         </div>
       </div>
 
