@@ -337,7 +337,8 @@ export function useTaxEstimate(): {
           const overlapGross = overlapping.reduce((s: number, e: any) => s + Number(e.paycheck_amount || e.gross_amount || 0), 0);
           const overlapFedW = sum("federal_withholding");
           const overlapStateW = sum("state_withholding");
-          const overlapPreTax = sum("pre_tax_deductions") + sum("hsa_contribution");
+          const overlapPayrollPreTax = sum("pre_tax_deductions");
+          const overlapHsa = sum("hsa_contribution");
           const overlapRetire = sum("retirement_401k");
 
           // BUSINESS BUCKET ONLY: also subtract overlapping business income
@@ -367,11 +368,14 @@ export function useTaxEstimate(): {
           const cGross = Math.max(0, (Number(c.gross_income) || 0) - overlapGross - overlapTxGross);
           const cFedW = Math.max(0, (Number(c.federal_withholding) || 0) - overlapFedW);
           const cStateW = Math.max(0, (Number(c.state_withholding) || 0) - overlapStateW);
-          const cPreTaxRaw = (Number(c.healthcare_premiums) || 0)
+          // Payroll pre-tax (Section 125 — health/dental/other). HSA is tracked
+          // separately so it can be classified as W-2 payroll pre-tax or
+          // above-the-line based on source.
+          const cPayrollPreTaxRaw = (Number(c.healthcare_premiums) || 0)
             + (Number(c.dental_vision) || 0)
-            + (Number(c.other_pretax) || 0)
-            + (Number(c.hsa_contribution) || 0);
-          const cPreTax = Math.max(0, cPreTaxRaw - overlapPreTax);
+            + (Number(c.other_pretax) || 0);
+          const cPayrollPreTax = Math.max(0, cPayrollPreTaxRaw - overlapPayrollPreTax);
+          const cHsa = Math.max(0, (Number(c.hsa_contribution) || 0) - overlapHsa);
           const cRetire = Math.max(0, (Number(c.retirement_401k) || 0) - overlapRetire);
 
           if (overlapping.length > 0 || overlapTxGross > 0) {
@@ -389,14 +393,15 @@ export function useTaxEstimate(): {
           bucket.gross += cGross;
           bucket.federalWithheld += cFedW;
           bucket.stateWithheld += cStateW;
-          bucket.preTax += cPreTax;
+          bucket.payrollPreTax += cPayrollPreTax;
+          bucket.hsa += cHsa;
           bucket.retirement += cRetire;
           return acc;
         },
         {
-          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
-          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
-          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
+          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
+          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
+          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
         },
       );
 
