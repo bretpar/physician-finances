@@ -401,7 +401,14 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     otherIncome: estimate.otherIncome,
     totalReturnIncomeBeforeAdjustments: estimate.totalReturnIncomeBeforeAdjustments,
     preTaxDeductions: nonW2PreTaxDeductions,
-    deductionSourceBreakdown: `W-2 payroll pre-tax: ${w2PreTaxDeductions.toFixed(2)}; non-W-2 pre-tax: ${nonW2PreTaxDeductions.toFixed(2)}; retirement: ${combined401k.toFixed(2)}; health insurance: ${healthInsuranceDeduction.toFixed(2)}; half SE tax: ${estimate.halfSETaxDeduction.toFixed(2)}`,
+    nonW2HsaAboveLineDeduction,
+    selfEmployedHealthInsuranceDeduction: actualHealthInsuranceDeduction,
+    deductionSourceBreakdown:
+      `W-2 payroll pre-tax: ${w2PreTaxDeductions.toFixed(2)}; ` +
+      `individual/K-1 HSA above-line: ${nonW2HsaAboveLineDeduction.toFixed(2)}; ` +
+      `self-employed health insurance: ${actualHealthInsuranceDeduction.toFixed(2)}; ` +
+      `retirement: ${combined401k.toFixed(2)}; ` +
+      `1/2 SE tax: ${estimate.halfSETaxDeduction.toFixed(2)}`,
     retirementContributions: combined401k,
     healthInsuranceDeduction,
     actualHealthInsuranceDeduction,
