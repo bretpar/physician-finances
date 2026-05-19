@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, AlertTriangle, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { formatDateTime } from "@/lib/localDate";
 
 interface TableReport {
   total: number;
@@ -78,7 +79,7 @@ export default function DataIsolationReport() {
 
       {report && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Generated {new Date(report.generated_at).toLocaleString()}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Generated {formatDateTime(report.generated_at)}</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader>

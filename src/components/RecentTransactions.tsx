@@ -3,6 +3,7 @@ import type { DbTransaction } from "@/hooks/useTransactions";
 import { txTone, resolveTxTone } from "@/lib/transactionTones";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { useNavigate } from "react-router-dom";
+import { formatDate } from "@/lib/localDate";
 
 interface Props {
   transactions: DbTransaction[];
@@ -34,7 +35,7 @@ export default function RecentTransactions({ transactions }: Props) {
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-card-foreground truncate">{tx.vendor || "Unknown"}</p>
-                <p className="text-xs text-muted-foreground">{tx.transaction_date} · {tx.account_source || "—"}</p>
+                <p className="text-xs text-muted-foreground">{formatDate(tx.transaction_date)} · {tx.account_source || "—"}</p>
               </div>
               <div className="flex items-center gap-3 ml-4">
                 {(() => {
@@ -85,7 +86,7 @@ export default function RecentTransactions({ transactions }: Props) {
             onOpenChange={(o) => { if (!o) setDetailTx(null); }}
             header={{
               title: tx.vendor || "Unknown",
-              date: new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              date: formatDate(tx.transaction_date),
               amount: Math.abs(tx.amount),
               amountTone: isIncome ? "income" : "expense",
             }}

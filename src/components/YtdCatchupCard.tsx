@@ -17,9 +17,9 @@ import {
 import { useYtdCatchupEntries, useDeleteYtdCatchup, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { YtdCatchupForm } from "./YtdCatchupForm";
+import { formatDate as fmtDate } from "@/lib/localDate";
 
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
-const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 export function YtdCatchupCard() {
   const { data: entries } = useYtdCatchupEntries();

@@ -28,6 +28,7 @@ import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
+import { formatDate, formatDateShort, formatMonthYear } from "@/lib/localDate";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { isFeatureEnabled } from "@/lib/featureFlags";
@@ -691,7 +692,7 @@ export default function PersonalIncome() {
                 onClick={() => setDetailEntry(entry)}
               >
                 <span className="text-sm text-muted-foreground tabular-nums">
-                  {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {formatDateShort(entry.income_date)}
                 </span>
                 <div className="min-w-0">
                   <span className="text-sm font-medium text-foreground truncate block flex items-center gap-1.5">
@@ -705,7 +706,7 @@ export default function PersonalIncome() {
                   {entry.company && <span className="text-xs text-muted-foreground">{entry.company}</span>}
                   {(entry as any).linked_ytd_catchup_id && (
                     <span className="text-[10px] text-primary block">
-                      Setup income through {new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      Setup income through {formatMonthYear(entry.income_date)}
                     </span>
                   )}
                   {entry.notes?.includes("Converted from planned income") && (
@@ -784,10 +785,7 @@ export default function PersonalIncome() {
                   // shows so the ledger and Quarterly Tax Progress agree.
                   const withheld = getTotalFederalPaid(entry as any);
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
-                  const dateStr = new Date(entry.income_date + "T00:00:00").toLocaleDateString(
-                    "en-US",
-                    { month: "numeric", day: "numeric", year: "2-digit" },
-                  );
+                  const dateStr = formatDate(entry.income_date);
                   const badges: LedgerRowBadge[] = [];
                   const attCount = attachmentCounts?.get(entry.id) ?? 0;
                   if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
@@ -808,7 +806,7 @@ export default function PersonalIncome() {
                         kind={isLoss ? "neutral" : "income"}
                         title={entry.name || "(No payor)"}
                         subtitle={(entry as any).linked_ytd_catchup_id
-                          ? `Setup income through ${new Date(entry.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+                          ? `Setup income through ${formatMonthYear(entry.income_date)}`
                           : typeLabel}
                         meta={entry.company || null}
                         date={dateStr}
@@ -1253,7 +1251,7 @@ export default function PersonalIncome() {
             header={{
               title: e.name || "(No payor)",
               subtitle: e.company || undefined,
-              date: new Date(e.income_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              date: formatDate(e.income_date),
               amount: Number(e.gross_amount) || 0,
               amountTone: isLoss ? "expense" : "income",
               badges: [

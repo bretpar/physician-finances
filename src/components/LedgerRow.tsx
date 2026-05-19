@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { txTone, type TxTone } from "@/lib/transactionTones";
+import { formatMonthYear } from "@/lib/localDate";
 
 export type LedgerRowKind =
   | "income"
@@ -340,10 +341,7 @@ export function groupByMonth<T>(
     .sort(([a], [b]) => (a < b ? 1 : -1))
     .map(([key, items]) => {
       const [year, month] = key.split("-").map(Number);
-      const label = new Date(year, month - 1, 1).toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
+      const label = formatMonthYear(new Date(year, month - 1, 1));
       return { key, label, items };
     });
 }

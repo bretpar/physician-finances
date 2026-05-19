@@ -36,8 +36,8 @@ function getNext12Months(): string[] {
 
 function formatMonth(m: string): string {
   const [y, mo] = m.split("-");
-  const date = new Date(parseInt(y), parseInt(mo) - 1);
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const date = new Date(parseInt(y), parseInt(mo) - 1, 1);
+  return formatMonthYear(date);
 }
 
 function getQuarter(month: string): number {
