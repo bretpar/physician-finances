@@ -216,20 +216,6 @@ export default function MonthlyIncomeCard({ months, currentMonth, ytdIncome }: P
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border/60 pt-3 text-xs">
-        <div>
-          <p className="text-muted-foreground">This month</p>
-          <p className="font-semibold tabular-nums text-foreground">{fmt(earnedThisMonth)}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Planned remaining</p>
-          <p className="font-semibold tabular-nums text-foreground">{fmt(remainingThisMonth)}</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">YTD</p>
-          <p className="font-semibold tabular-nums text-foreground">{fmt(ytdIncome)}</p>
-        </div>
-      </div>
     </section>
   );
 }
