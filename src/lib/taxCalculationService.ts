@@ -28,6 +28,12 @@ export interface UnifiedTaxInput {
   /** State withholding actually withheld from business/1099 income to date. */
   businessStateWithheld: number;
   businessPreTax: number;
+  /**
+   * HSA contributions tied to non-W-2 business (K-1 partnership, 1099 / Schedule C,
+   * S-Corp distributions). These are above-the-line AGI adjustments — NOT W-2 Section
+   * 125 payroll pre-tax — and must NOT reduce the SE-tax base.
+   */
+  businessNonW2HsaAboveLine?: number;
   businessRetirement: number;
   ownerHealthcare: number;
   businessStateEligibleGross: number;
