@@ -18,7 +18,7 @@ import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
-import { aggregateByCategory } from "@/lib/incomeClassification";
+import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
