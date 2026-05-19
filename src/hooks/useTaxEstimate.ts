@@ -429,10 +429,23 @@ export function useTaxEstimate(): {
         r.source_type === "individual" && (incomeScope === "actualPlusPlanned" || r.contribution_date <= todayStr),
       );
       const individualHsaTotal = scopedHsaRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+      // Split HSA on personal entries by classification:
+      //   • W-2 personal income → HSA is Section 125 payroll pre-tax
+      //   • everything else (ordinary, capital gains, rental, etc.) → above-the-line
+      // Individual / manual HSA contributions are always above-the-line.
+      let personalHsaW2Pretax = 0;
+      let personalHsaAboveLine = 0;
+      for (const e of personal) {
+        const cat = classifyPersonalIncome(e as any);
+        const hsa = Number((e as any).hsa_contribution || 0);
+        if (cat === "w2") personalHsaW2Pretax += hsa;
+        else personalHsaAboveLine += hsa;
+      }
       const personalPreTax = personal.reduce(
-        (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
+        (s, e) => s + Number(e.pre_tax_deductions || 0),
         0,
-      ) + individualHsaTotal;
+      ) + personalHsaW2Pretax;
+      const personalNonW2HsaAboveLine = personalHsaAboveLine + individualHsaTotal;
       const personalRetirement = personal.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
       const totalPersonalIncome = personalW2 + personalOrdinary + personalCapGains + personalRental - personalLosses;
