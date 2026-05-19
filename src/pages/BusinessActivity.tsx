@@ -30,7 +30,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip } from "lucide-react";
+import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip, Info } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
 import { mapToScheduleC, SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
@@ -1038,13 +1038,24 @@ export default function Transactions() {
           <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(summaryStats.revenue)}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Deductions</p>
+          <div className="flex items-center gap-1 mb-1">
+            <p className="text-xs font-medium text-muted-foreground">Deductions</p>
+            {summaryStats.mileageDeduction > 0 && (
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label="Deduction details" className="text-muted-foreground hover:text-foreground">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    Includes <span className="font-medium">{fmt(summaryStats.mileageDeduction)}</span> mileage deduction.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(summaryStats.expenses)}</p>
-          {summaryStats.mileageDeduction > 0 && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Incl. <span className="font-medium text-foreground">{fmt(summaryStats.mileageDeduction)}</span> mileage
-            </p>
-          )}
         </div>
       </div>
 
