@@ -596,6 +596,7 @@ export function useTaxEstimate(): {
       const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
       const businessStateWithheld = canonicalBusiness.businessStateWithheld;
       const businessPreTax = canonicalBusiness.businessPreTax;
+      const businessNonW2HsaAboveLine = canonicalBusiness.businessNonW2HsaAboveLine;
       const businessRetirement = canonicalBusiness.businessRetirement;
       const ownerHealthcare = canonicalBusiness.ownerHealthcare;
       const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
