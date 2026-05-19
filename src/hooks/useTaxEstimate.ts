@@ -18,7 +18,7 @@ import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
-import { aggregateByCategory } from "@/lib/incomeClassification";
+import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
@@ -230,14 +230,19 @@ export function useTaxEstimate(): {
 
     const businessFederalWithheld = linkedEntries.reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
     const businessStateWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
-    // Pre-tax = `pre_tax_deductions` field + payroll HSA on the same paycheck.
-    // Payroll HSA is captured on income_entries.hsa_contribution and treated
-    // as pre-tax (Section 125) for AGI purposes. Individual HSA is added later
-    // as an above-the-line deduction via personalPreTax.
-    const businessPreTax = linkedEntries.reduce(
-      (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
-      0,
-    );
+    // Pre-tax = `pre_tax_deductions` field + (W-2-only) payroll HSA on the same paycheck.
+    // HSA on K-1 / 1099 / S-Corp distribution entries is NOT Section 125 payroll
+    // pre-tax — it's an above-the-line individual HSA deduction. We accumulate
+    // those separately so the engine can adjust AGI without reducing the SE-tax base.
+    let businessPreTax = 0;
+    let businessNonW2HsaAboveLine = 0;
+    for (const e of linkedEntries) {
+      const filing = normalizeFilingType((e as any).income_type);
+      const isW2 = filing === "w2" || filing === "scorp_w2";
+      const hsa = Number((e as any).hsa_contribution || 0);
+      businessPreTax += Number(e.pre_tax_deductions || 0) + (isW2 ? hsa : 0);
+      if (!isW2) businessNonW2HsaAboveLine += hsa;
+    }
     const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
     const ownerHealthcare = linkedEntries
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
@@ -254,6 +259,7 @@ export function useTaxEstimate(): {
       businessFederalWithheld,
       businessStateWithheld,
       businessPreTax,
+      businessNonW2HsaAboveLine,
       businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
@@ -331,7 +337,8 @@ export function useTaxEstimate(): {
           const overlapGross = overlapping.reduce((s: number, e: any) => s + Number(e.paycheck_amount || e.gross_amount || 0), 0);
           const overlapFedW = sum("federal_withholding");
           const overlapStateW = sum("state_withholding");
-          const overlapPreTax = sum("pre_tax_deductions") + sum("hsa_contribution");
+          const overlapPayrollPreTax = sum("pre_tax_deductions");
+          const overlapHsa = sum("hsa_contribution");
           const overlapRetire = sum("retirement_401k");
 
           // BUSINESS BUCKET ONLY: also subtract overlapping business income
@@ -361,11 +368,14 @@ export function useTaxEstimate(): {
           const cGross = Math.max(0, (Number(c.gross_income) || 0) - overlapGross - overlapTxGross);
           const cFedW = Math.max(0, (Number(c.federal_withholding) || 0) - overlapFedW);
           const cStateW = Math.max(0, (Number(c.state_withholding) || 0) - overlapStateW);
-          const cPreTaxRaw = (Number(c.healthcare_premiums) || 0)
+          // Payroll pre-tax (Section 125 — health/dental/other). HSA is tracked
+          // separately so it can be classified as W-2 payroll pre-tax or
+          // above-the-line based on source.
+          const cPayrollPreTaxRaw = (Number(c.healthcare_premiums) || 0)
             + (Number(c.dental_vision) || 0)
-            + (Number(c.other_pretax) || 0)
-            + (Number(c.hsa_contribution) || 0);
-          const cPreTax = Math.max(0, cPreTaxRaw - overlapPreTax);
+            + (Number(c.other_pretax) || 0);
+          const cPayrollPreTax = Math.max(0, cPayrollPreTaxRaw - overlapPayrollPreTax);
+          const cHsa = Math.max(0, (Number(c.hsa_contribution) || 0) - overlapHsa);
           const cRetire = Math.max(0, (Number(c.retirement_401k) || 0) - overlapRetire);
 
           if (overlapping.length > 0 || overlapTxGross > 0) {
@@ -383,14 +393,15 @@ export function useTaxEstimate(): {
           bucket.gross += cGross;
           bucket.federalWithheld += cFedW;
           bucket.stateWithheld += cStateW;
-          bucket.preTax += cPreTax;
+          bucket.payrollPreTax += cPayrollPreTax;
+          bucket.hsa += cHsa;
           bucket.retirement += cRetire;
           return acc;
         },
         {
-          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
-          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
-          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, preTax: 0, retirement: 0 },
+          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
+          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
+          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
         },
       );
 
@@ -418,10 +429,23 @@ export function useTaxEstimate(): {
         r.source_type === "individual" && (incomeScope === "actualPlusPlanned" || r.contribution_date <= todayStr),
       );
       const individualHsaTotal = scopedHsaRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+      // Split HSA on personal entries by classification:
+      //   • W-2 personal income → HSA is Section 125 payroll pre-tax
+      //   • everything else (ordinary, capital gains, rental, etc.) → above-the-line
+      // Individual / manual HSA contributions are always above-the-line.
+      let personalHsaW2Pretax = 0;
+      let personalHsaAboveLine = 0;
+      for (const e of personal) {
+        const cat = classifyPersonalIncome(e as any);
+        const hsa = Number((e as any).hsa_contribution || 0);
+        if (cat === "w2") personalHsaW2Pretax += hsa;
+        else personalHsaAboveLine += hsa;
+      }
       const personalPreTax = personal.reduce(
-        (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
+        (s, e) => s + Number(e.pre_tax_deductions || 0),
         0,
-      ) + individualHsaTotal;
+      ) + personalHsaW2Pretax;
+      const personalNonW2HsaAboveLine = personalHsaAboveLine + individualHsaTotal;
       const personalRetirement = personal.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
       const totalPersonalIncome = personalW2 + personalOrdinary + personalCapGains + personalRental - personalLosses;
@@ -572,6 +596,7 @@ export function useTaxEstimate(): {
       const businessFederalWithheld = canonicalBusiness.businessFederalWithheld;
       const businessStateWithheld = canonicalBusiness.businessStateWithheld;
       const businessPreTax = canonicalBusiness.businessPreTax;
+      const businessNonW2HsaAboveLine = canonicalBusiness.businessNonW2HsaAboveLine;
       const businessRetirement = canonicalBusiness.businessRetirement;
       const ownerHealthcare = canonicalBusiness.ownerHealthcare;
       const businessStateEligibleGross = canonicalBusiness.businessStateEligibleGross;
@@ -610,7 +635,8 @@ export function useTaxEstimate(): {
         businessW2,
         businessFederalWithheld: businessFederalWithheld + cu.business.federalWithheld,
         businessStateWithheld: businessStateWithheld + cu.business.stateWithheld,
-        businessPreTax: businessPreTax + cu.business.preTax,
+        businessPreTax: businessPreTax + cu.business.payrollPreTax,
+        businessNonW2HsaAboveLine: businessNonW2HsaAboveLine + cu.business.hsa,
         businessRetirement: businessRetirement + cu.business.retirement,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
@@ -622,7 +648,11 @@ export function useTaxEstimate(): {
         personalNonW2Income: personalNonW2Income + cuOtherGross,
         personalFederalWithheld: personalFederalWithheld + cu.w2.federalWithheld + cu.other.federalWithheld,
         personalStateWithheld: personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld,
-        personalPreTax: personalPreTax + cu.w2.preTax + cu.other.preTax,
+        // W-2 catch-up HSA stays in W-2 payroll pre-tax (Section 125).
+        // "Other" catch-up HSA + payroll items go to non-W-2 above-line HSA
+        // (HSA) and personalPreTax (non-HSA payroll fields) respectively.
+        personalPreTax: personalPreTax + cu.w2.payrollPreTax + cu.w2.hsa + cu.other.payrollPreTax,
+        personalNonW2HsaAboveLine: personalNonW2HsaAboveLine + cu.other.hsa,
         personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
         longTermCapitalGains,
@@ -690,6 +720,7 @@ export function useTaxEstimate(): {
       seEligibleMileageDeduction: (actual.seEligibleMileageDeduction ?? actual.mileageDeduction) * annualizationFactor,
       businessW2: actual.businessW2 * annualizationFactor,
       businessPreTax: actual.businessPreTax * annualizationFactor,
+      businessNonW2HsaAboveLine: (actual.businessNonW2HsaAboveLine ?? 0) * annualizationFactor,
       businessRetirement: actual.businessRetirement * annualizationFactor,
       ownerHealthcare: actual.ownerHealthcare * annualizationFactor,
       businessStateEligibleGross: actual.businessStateEligibleGross * annualizationFactor,
@@ -700,6 +731,7 @@ export function useTaxEstimate(): {
       personalW2: actual.personalW2 * annualizationFactor,
       personalNonW2Income: actual.personalNonW2Income * annualizationFactor,
       personalPreTax: actual.personalPreTax * annualizationFactor,
+      personalNonW2HsaAboveLine: (actual.personalNonW2HsaAboveLine ?? 0) * annualizationFactor,
       personalRetirement: actual.personalRetirement * annualizationFactor,
       netStockGain: actual.netStockGain * annualizationFactor,
       businessExpenses: actual.businessExpenses * annualizationFactor,

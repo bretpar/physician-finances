@@ -28,6 +28,12 @@ export interface UnifiedTaxInput {
   /** State withholding actually withheld from business/1099 income to date. */
   businessStateWithheld: number;
   businessPreTax: number;
+  /**
+   * HSA contributions tied to non-W-2 business (K-1 partnership, 1099 / Schedule C,
+   * S-Corp distributions). These are above-the-line AGI adjustments — NOT W-2 Section
+   * 125 payroll pre-tax — and must NOT reduce the SE-tax base.
+   */
+  businessNonW2HsaAboveLine?: number;
   businessRetirement: number;
   ownerHealthcare: number;
   businessStateEligibleGross: number;
@@ -44,6 +50,11 @@ export interface UnifiedTaxInput {
   /** State withholding actually withheld from personal income to date. */
   personalStateWithheld: number;
   personalPreTax: number;
+  /**
+   * HSA contributions that are individual / non-W-2 (manual HSA contributions,
+   * or HSA contributions on non-W-2 personal income entries). Above-the-line.
+   */
+  personalNonW2HsaAboveLine?: number;
   personalRetirement: number;
   netStockGain: number;
   /**
@@ -132,6 +143,10 @@ export interface TaxDebugBreakdown {
   totalReturnIncomeBeforeAdjustments: number;
   /** Non-W-2 pre-tax deductions only; W-2 pre-tax is reflected in w2TaxableIncomeBase. */
   preTaxDeductions: number;
+  /** Above-the-line HSA deduction from non-W-2 sources (manual individual HSA, K-1/1099 entries). */
+  nonW2HsaAboveLineDeduction: number;
+  /** Self-employed / partner health insurance deduction (= ownerHealthcare actual). */
+  selfEmployedHealthInsuranceDeduction: number;
   deductionSourceBreakdown: string;
   retirementContributions: number;
   /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
@@ -209,12 +224,14 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     businessW2,
     businessFederalWithheld, businessStateWithheld,
     businessPreTax, businessRetirement,
+    businessNonW2HsaAboveLine = 0,
     ownerHealthcare,
     businessStateEligibleGross, businessStateEligibleExpenses,
     businessStateEligibleMileage, businessStateEligibleOwnerAdjustments,
     personalIncome, personalW2, personalNonW2Income,
     personalFederalWithheld, personalStateWithheld,
     personalPreTax, personalRetirement,
+    personalNonW2HsaAboveLine = 0,
     netStockGain, longTermCapitalGains: longTermCapitalGainsParam = 0,
     businessExpenses, mileageDeduction, annualizedRetirement,
     txActualWithholding,
@@ -284,13 +301,15 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const ineligibleBusinessIncome = Math.max(0, businessIncome - seEligibleBusinessIncome);
   const otherIncome = personalNonW2Income + netStockGain + longTermCapitalGains + ineligibleBusinessIncome + projOther;
 
-  // combinedPreTax = ONLY W-2 payroll pre-tax deductions (NOT health insurance).
+  // combinedPreTax = ONLY W-2 payroll pre-tax deductions (NOT health insurance, NOT HSA from K-1/1099/individual).
   // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
-  // Actual healthcare always counts; projected healthcare only when includeProjectedIncome=true.
+  // Non-W-2 / individual / K-1 HSA contributions flow through `nonW2HsaAboveLineDeduction`
+  // into `preTaxDeductions` (above-the-line AGI adjustment) and must NEVER reduce SE-taxable income.
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
   const w2PreTaxDeductions = businessPreTax + personalPreTax + projPreTax;
   const w2TaxableIncomeBase = Math.max(0, w2Income - w2PreTaxDeductions);
-  const nonW2PreTaxDeductions = 0;
+  const nonW2HsaAboveLineDeduction = Math.max(0, businessNonW2HsaAboveLine) + Math.max(0, personalNonW2HsaAboveLine);
+  const nonW2PreTaxDeductions = nonW2HsaAboveLineDeduction;
   const actualHealthInsuranceDeduction = ownerHealthcare;
   const healthInsuranceDeduction = actualHealthInsuranceDeduction + projHealthInsurance;
   const combined401k = businessRetirement + personalRetirement + annualizedRetirement + projRetirement;
@@ -386,7 +405,14 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     otherIncome: estimate.otherIncome,
     totalReturnIncomeBeforeAdjustments: estimate.totalReturnIncomeBeforeAdjustments,
     preTaxDeductions: nonW2PreTaxDeductions,
-    deductionSourceBreakdown: `W-2 payroll pre-tax: ${w2PreTaxDeductions.toFixed(2)}; non-W-2 pre-tax: ${nonW2PreTaxDeductions.toFixed(2)}; retirement: ${combined401k.toFixed(2)}; health insurance: ${healthInsuranceDeduction.toFixed(2)}; half SE tax: ${estimate.halfSETaxDeduction.toFixed(2)}`,
+    nonW2HsaAboveLineDeduction,
+    selfEmployedHealthInsuranceDeduction: actualHealthInsuranceDeduction,
+    deductionSourceBreakdown:
+      `W-2 payroll pre-tax: ${w2PreTaxDeductions.toFixed(2)}; ` +
+      `individual/K-1 HSA above-line: ${nonW2HsaAboveLineDeduction.toFixed(2)}; ` +
+      `self-employed health insurance: ${actualHealthInsuranceDeduction.toFixed(2)}; ` +
+      `retirement: ${combined401k.toFixed(2)}; ` +
+      `1/2 SE tax: ${estimate.halfSETaxDeduction.toFixed(2)}`,
     retirementContributions: combined401k,
     healthInsuranceDeduction,
     actualHealthInsuranceDeduction,
