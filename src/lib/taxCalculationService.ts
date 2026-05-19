@@ -143,6 +143,10 @@ export interface TaxDebugBreakdown {
   totalReturnIncomeBeforeAdjustments: number;
   /** Non-W-2 pre-tax deductions only; W-2 pre-tax is reflected in w2TaxableIncomeBase. */
   preTaxDeductions: number;
+  /** Above-the-line HSA deduction from non-W-2 sources (manual individual HSA, K-1/1099 entries). */
+  nonW2HsaAboveLineDeduction: number;
+  /** Self-employed / partner health insurance deduction (= ownerHealthcare actual). */
+  selfEmployedHealthInsuranceDeduction: number;
   deductionSourceBreakdown: string;
   retirementContributions: number;
   /** Self-employed / partner / employee health insurance deduction (separate from pre-tax). */
