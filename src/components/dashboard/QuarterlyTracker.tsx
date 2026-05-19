@@ -465,13 +465,6 @@ export default function QuarterlyTracker({
           <span className="truncate">{message}</span>
         </div>
 
-        {/* Secondary line */}
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>Quarter target: <span className="tabular-nums text-foreground/70">{fmt(quarterTarget)}</span></span>
-          {remainingThisQuarter > 0 && (
-            <span>Still to fund: <span className="tabular-nums">{fmt(remainingThisQuarter)}</span></span>
-          )}
-        </div>
 
         {showTaxOverviewCta && (
           <Button
