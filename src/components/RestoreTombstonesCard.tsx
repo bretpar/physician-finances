@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { RotateCcw, Loader2 } from "lucide-react";
+import { formatDate } from "@/lib/localDate";
 
 /**
  * Lists Plaid transactions the user previously deleted (tombstoned).
@@ -182,7 +183,7 @@ export function RestoreTombstonesCard() {
                   </div>
                   <span className="w-20 text-right font-mono">{fmt(r.amount)}</span>
                   <span className="w-24 text-muted-foreground">
-                    {new Date(r.deleted_at).toLocaleDateString()}
+                    {formatDate(r.deleted_at)}
                   </span>
                 </label>
               ))}

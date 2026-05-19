@@ -28,6 +28,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { calculateInvestmentTaxRecommendation } from "@/lib/investmentTaxRecommendation";
 import { Badge } from "@/components/ui/badge";
+import { formatDate, formatDateShort } from "@/lib/localDate";
 import { Switch } from "@/components/ui/switch";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 
@@ -282,7 +283,7 @@ export default function InvestmentIncome() {
                             <TableCell className="pr-0">
                               {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
                             </TableCell>
-                            <TableCell className="whitespace-nowrap">{new Date(entry.entry_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
+                            <TableCell className="whitespace-nowrap">{formatDate(entry.entry_date)}</TableCell>
                             <TableCell className="font-medium max-w-[260px] truncate">{entry.asset_name_or_ticker}</TableCell>
                             <TableCell className="text-right whitespace-nowrap">{dividend || entry.sale_proceeds == null ? "—" : fmt(Number(entry.sale_proceeds || 0))}</TableCell>
                             <TableCell className={cn("text-right font-semibold whitespace-nowrap", dividend ? "text-foreground" : amount < 0 ? "text-destructive" : "text-success")}>{fmt(amount)}</TableCell>
@@ -329,9 +330,8 @@ export default function InvestmentIncome() {
                   const diff = actualSaved - recommended;
                   const isExpanded = expandedId === entry.id;
                   const toggle = () => setDetailEntry(entry);
-                  const dateObj = new Date(entry.entry_date + "T00:00:00");
-                  const shortDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                  const fullDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                  const shortDate = formatDateShort(entry.entry_date);
+                  const fullDate = formatDate(entry.entry_date);
                   return (
                     <li key={entry.id}>
                       <button
@@ -529,7 +529,7 @@ export default function InvestmentIncome() {
             header={{
               title: e.asset_name_or_ticker,
               subtitle: investmentIncomeTypeLabels[e.investment_income_type],
-              date: new Date(e.entry_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              date: formatDate(e.entry_date),
               amount: taxable,
               amountTone: dividend ? "neutral" : taxable < 0 ? "expense" : "income",
             }}

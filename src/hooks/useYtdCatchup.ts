@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { formatMonthYear } from "@/lib/localDate";
 
 export type YtdCatchupSourceType = "w2" | "1099_k1" | "other";
 
@@ -72,14 +73,7 @@ async function syncCatchupMirror(args: {
     + (Number(c.other_pretax) || 0);
   const postTax = Number(c.post_tax_deductions) || 0;
   const net = Math.max(0, gross - fedW - stateW - ssW - medW - r401k - hsa - preTax - postTax);
-  const periodLabel = (() => {
-    try {
-      const d = new Date(c.period_end + "T00:00:00");
-      return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-    } catch {
-      return c.period_end;
-    }
-  })();
+  const periodLabel = formatMonthYear(c.period_end) || c.period_end;
   const friendlyName = "YTD Catch-Up Entry";
   const friendlyNote = `Setup income through ${periodLabel}`;
 

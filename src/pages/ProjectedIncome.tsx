@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/accordion";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { formatDate } from "@/lib/localDate";
 import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
@@ -2006,7 +2007,7 @@ export default function ProjectedIncome() {
             onOpenChange={(o) => { if (!o) setDetailEntry(null); }}
             header={{
               title: e.label,
-              date: new Date(e.date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              date: formatDate(e.date),
               amount: e.grossAmount,
               amountTone: isSkipped ? "neutral" : "income",
               badges: [{ label: statusLabel, tone: statusTone }],
@@ -2145,7 +2146,7 @@ function CompanyAccordion({
                             <span>{PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}</span>
                             <span className="text-success font-medium">{fmtFull(s.paycheck_amount)}</span>
                             {nextDate && (
-                              <span>Next: {nextDate.toLocaleDateString()}</span>
+                              <span>Next: {formatDate(nextDate)}</span>
                             )}
                           </div>
                         </div>

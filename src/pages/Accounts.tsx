@@ -13,6 +13,7 @@ import {
   useBulkApplyAccountBusiness,
 } from "@/hooks/usePlaid";
 import { useCompanies } from "@/contexts/CompanyContext";
+import { formatDateTime } from "@/lib/localDate";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,7 +113,7 @@ export default function Accounts() {
 
   const formatDate = (d: string | null) => {
     if (!d) return "Never";
-    return new Date(d).toLocaleString();
+    return formatDateTime(d);
   };
 
   const formatRelative = (d: string | null) => {

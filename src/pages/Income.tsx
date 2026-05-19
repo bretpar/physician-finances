@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { YtdCatchupCard } from "@/components/YtdCatchupCard";
+import { parseLocalDate, formatMonthShort } from "@/lib/localDate";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -77,9 +78,9 @@ export default function Income() {
 
     // From income_entries (detailed)
     (entries || []).forEach((e) => {
-      const d = new Date(e.income_date + "T00:00:00");
-      if (d.getFullYear() !== currentYear) return;
-      const key = d.toLocaleDateString("en-US", { month: "short" });
+      const d = parseLocalDate(e.income_date);
+      if (!d || d.getFullYear() !== currentYear) return;
+      const key = formatMonthShort(d);
       if (!months[key]) months[key] = { income: 0, count: 0 };
       months[key].income += Number(e.paycheck_amount);
       months[key].count += 1;

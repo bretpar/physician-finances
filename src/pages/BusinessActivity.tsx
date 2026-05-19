@@ -44,6 +44,7 @@ import { txTone } from "@/lib/transactionTones";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { formatDate, formatDateShort } from "@/lib/localDate";
 import { DateField } from "@/components/DateField";
 import {
   getFilingMeta,
@@ -1280,7 +1281,7 @@ export default function Transactions() {
             {legacyExpenseReviewQueue.map((tx) => (
               <div key={tx.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[90px_1fr_110px_260px] sm:items-center">
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {formatDateShort(tx.transaction_date)}
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-card-foreground">{tx.vendor || "Legacy expense"}</p>
@@ -1320,7 +1321,7 @@ export default function Transactions() {
             {unassignedInterestReviewQueue.map((tx) => (
               <div key={tx.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[90px_1fr_110px_140px] sm:items-center">
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {formatDateShort(tx.transaction_date)}
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-card-foreground">{tx.vendor || "Interest income"}</p>
@@ -1403,7 +1404,7 @@ export default function Transactions() {
                   }}
                 />
                 <span className="text-sm text-muted-foreground tabular-nums">
-                  {new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {formatDateShort(tx.transaction_date)}
                 </span>
                 <div className="truncate">
                   <span className="text-sm font-medium text-foreground truncate flex items-center gap-1.5">
@@ -1511,11 +1512,7 @@ export default function Transactions() {
                       : -Math.abs(tx.amount);
                   const source = tx.source_type || "manual";
                   const kind = isIncomeTx ? "income" : isTransferTx ? "transfer" : "expense";
-                  const dateStr = new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", {
-                    month: "numeric",
-                    day: "numeric",
-                    year: "2-digit",
-                  });
+                  const dateStr = formatDate(tx.transaction_date);
                   // Primary badges (kept visible): type for transfers, review state
                   const badges: LedgerRowBadge[] = [];
                   if (isTransferTx) badges.push({ label: transferLabel, tone: "muted" });
@@ -1602,7 +1599,7 @@ export default function Transactions() {
                             {linkedSiblings.map((it) => {
                               const lt = it.transaction;
                               const ltType = (lt.transaction_type || "expense") as string;
-                              const ltDate = new Date(lt.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                              const ltDate = formatDateShort(lt.transaction_date);
                               const ltCategory = ltType === "income" ? "Income" : ltType === "transfer" ? "Transfer" : (mapLegacyCategory(lt.category) || "Uncategorized");
                               return (
                                 <div key={it.itemId} className="flex items-start gap-2 text-[12px]">
@@ -2332,7 +2329,7 @@ export default function Transactions() {
             header={{
               title: tx.vendor || "(No payee)",
               subtitle: getTransactionCompanyLabel(tx),
-              date: new Date(tx.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+              date: formatDate(tx.transaction_date),
               amount: Math.abs(Number(tx.amount) || 0),
               amountTone: isIncomeTx ? "income" : isTransferTx ? "neutral" : "expense",
               badges,
@@ -2343,7 +2340,7 @@ export default function Transactions() {
                 id: it.itemId,
                 label: it.transaction.vendor || "(No payee)",
                 amount: Math.abs(it.transaction.amount),
-                date: new Date(it.transaction.transaction_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                date: formatDateShort(it.transaction.transaction_date),
               })),
               onUnlink: tx.linked_group_id
                 ? (itemId) => unlinkMatchGroupItem.mutate({ itemId, groupId: tx.linked_group_id! })

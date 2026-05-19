@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { runPlannerConversionForCurrentUser, getLastPlannerConversionRun } from "@/lib/plannerConversion";
+import { formatDateTime } from "@/lib/localDate";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -150,7 +151,7 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
         {isOn && lastRun && (import.meta as any).env?.DEV && (
           <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             <div className="font-medium text-foreground mb-0.5">Last automation run (dev)</div>
-            <div>{new Date(lastRun.at).toLocaleString()}</div>
+            <div>{formatDateTime(lastRun.at)}</div>
             <div>
               attempted={lastRun.attempted} · converted={lastRun.converted} · dup={lastRun.duplicateSkipped} · exists={lastRun.alreadyConverted} · errors={lastRun.errors}
             </div>

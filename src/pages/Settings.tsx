@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
+import { formatDate as formatDateDisplay, formatDateTime } from "@/lib/localDate";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -471,7 +472,7 @@ function getEffectiveDate(choice: EffectiveDateChoice, customDate: string) {
 
 function formatPathwayDate(value: string) {
   if (!value) return "—";
-  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return formatDateDisplay(value);
 }
 
 function hasStreamData(key: keyof HouseholdIncomeStreams, personalRows: any[] = [], businessRows: any[] = []) {
@@ -1596,7 +1597,7 @@ function ConnectedAccountsSection() {
     if (diffHr < 24) return `${diffHr}h ago`;
     const diffDay = Math.floor(diffHr / 24);
     if (diffDay < 7) return `${diffDay}d ago`;
-    return date.toLocaleDateString();
+    return formatDateDisplay(date);
   };
 
   const getCompanyName = (companyId: string | null) => {
@@ -1746,7 +1747,7 @@ function ConnectedAccountsSection() {
                 const now = new Date();
                 const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 15, 0));
                 if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
-                const nextLabel = next.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+                const nextLabel = formatDateTime(next);
                 return (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <RefreshCw className="h-3.5 w-3.5" />
