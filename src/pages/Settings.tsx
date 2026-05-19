@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -695,7 +696,7 @@ function HouseholdIncomeStreamsSection() {
           {effectiveDateChoice === "custom" && (
             <div className="max-w-xs">
               <Label className="text-xs text-muted-foreground mb-1.5 block">Effective date</Label>
-              <Input type="date" value={customEffectiveDate} onChange={(event) => setCustomEffectiveDate(event.target.value)} />
+              <DateField value={customEffectiveDate} onChange={setCustomEffectiveDate} />
             </div>
           )}
         </div>

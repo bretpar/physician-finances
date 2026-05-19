@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -163,7 +164,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
         </div>
         <div>
           <Label>Period start</Label>
-          <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          <DateField value={periodStart} onChange={setPeriodStart} />
         </div>
         <div>
           <Label>Period end</Label>
