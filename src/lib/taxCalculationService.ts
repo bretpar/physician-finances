@@ -50,6 +50,11 @@ export interface UnifiedTaxInput {
   /** State withholding actually withheld from personal income to date. */
   personalStateWithheld: number;
   personalPreTax: number;
+  /**
+   * HSA contributions that are individual / non-W-2 (manual HSA contributions,
+   * or HSA contributions on non-W-2 personal income entries). Above-the-line.
+   */
+  personalNonW2HsaAboveLine?: number;
   personalRetirement: number;
   netStockGain: number;
   /**
