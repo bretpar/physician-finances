@@ -230,14 +230,19 @@ export function useTaxEstimate(): {
 
     const businessFederalWithheld = linkedEntries.reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
     const businessStateWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
-    // Pre-tax = `pre_tax_deductions` field + payroll HSA on the same paycheck.
-    // Payroll HSA is captured on income_entries.hsa_contribution and treated
-    // as pre-tax (Section 125) for AGI purposes. Individual HSA is added later
-    // as an above-the-line deduction via personalPreTax.
-    const businessPreTax = linkedEntries.reduce(
-      (s, e) => s + Number(e.pre_tax_deductions || 0) + Number((e as any).hsa_contribution || 0),
-      0,
-    );
+    // Pre-tax = `pre_tax_deductions` field + (W-2-only) payroll HSA on the same paycheck.
+    // HSA on K-1 / 1099 / S-Corp distribution entries is NOT Section 125 payroll
+    // pre-tax — it's an above-the-line individual HSA deduction. We accumulate
+    // those separately so the engine can adjust AGI without reducing the SE-tax base.
+    let businessPreTax = 0;
+    let businessNonW2HsaAboveLine = 0;
+    for (const e of linkedEntries) {
+      const filing = normalizeFilingType((e as any).income_type);
+      const isW2 = filing === "w2" || filing === "scorp_w2";
+      const hsa = Number((e as any).hsa_contribution || 0);
+      businessPreTax += Number(e.pre_tax_deductions || 0) + (isW2 ? hsa : 0);
+      if (!isW2) businessNonW2HsaAboveLine += hsa;
+    }
     const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
     const ownerHealthcare = linkedEntries
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
