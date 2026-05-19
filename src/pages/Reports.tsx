@@ -11,6 +11,7 @@ import { mapLegacyCategory, EXPENSE_CATEGORIES } from "@/components/ExpenseCateg
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/DateField";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, FileText, Building2 } from "lucide-react";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -369,9 +370,9 @@ export default function Reports() {
             </div>
             {quickRange === "custom" && (
               <div className="flex gap-2 items-center">
-                <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-8 text-xs w-[130px]" />
+                <DateField value={customFrom} onChange={setCustomFrom} className="w-[150px]" />
                 <span className="text-xs text-muted-foreground">to</span>
-                <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-8 text-xs w-[130px]" />
+                <DateField value={customTo} onChange={setCustomTo} className="w-[150px]" />
               </div>
             )}
             <Button variant="outline" size="sm" className="gap-1.5 ml-auto" onClick={exportPLCSV}>

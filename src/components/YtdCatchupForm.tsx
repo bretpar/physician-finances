@@ -168,7 +168,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
         </div>
         <div>
           <Label>Period end</Label>
-          <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          <DateField value={periodEnd} onChange={setPeriodEnd} />
         </div>
         <div className="sm:col-span-2">
           <Label>Total gross income YTD</Label>
