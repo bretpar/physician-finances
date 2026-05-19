@@ -1166,9 +1166,9 @@ export default function Transactions() {
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Date range</Label>
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9 text-xs" />
+                <DateField value={filterDateFrom} onChange={setFilterDateFrom} />
                 <span className="text-xs text-muted-foreground">to</span>
-                <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9 text-xs" />
+                <DateField value={filterDateTo} onChange={setFilterDateTo} />
               </div>
             </div>
 

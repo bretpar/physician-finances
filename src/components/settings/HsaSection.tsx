@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/DateField";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -309,10 +310,9 @@ export function HsaLedgerSection() {
           <div className="space-y-3">
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
-              <Input
-                type="date"
+              <DateField
                 value={form.contribution_date}
-                onChange={(e) => setForm((f) => ({ ...f, contribution_date: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, contribution_date: v }))}
               />
             </div>
             <div>

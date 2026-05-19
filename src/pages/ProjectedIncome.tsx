@@ -8,6 +8,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -1359,19 +1360,17 @@ export default function ProjectedIncome() {
             <div className={`grid ${isOneTime ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
               <div className="space-y-1.5">
                 <Label>{isOneTime ? "Date" : "Start Date"}</Label>
-                <Input
-                  type="date"
+                <DateField
                   value={form.start_date}
-                  onChange={(e) => setField("start_date", e.target.value)}
+                  onChange={(v) => setField("start_date", v)}
                 />
               </div>
               {!isOneTime && (
                 <div className="space-y-1.5">
                   <Label>End Date <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                  <Input
-                    type="date"
+                  <DateField
                     value={form.end_date}
-                    onChange={(e) => setField("end_date", e.target.value)}
+                    onChange={(v) => setField("end_date", v)}
                   />
                 </div>
               )}
@@ -1605,10 +1604,9 @@ export default function ProjectedIncome() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>Date</Label>
-              <Input
-                type="date"
+              <DateField
                 value={overrideForm.new_date}
-                onChange={(e) => setOverrideForm((p) => ({ ...p, new_date: e.target.value }))}
+                onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
               />
               {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
                 <p className="text-xs text-muted-foreground">
@@ -1718,10 +1716,9 @@ export default function ProjectedIncome() {
             </div>
             <div className="space-y-1.5">
               <Label>Date</Label>
-              <Input
-                type="date"
+              <DateField
                 value={bonusEditForm.scheduled_date}
-                onChange={(e) => setBonusEditForm((p) => ({ ...p, scheduled_date: e.target.value }))}
+                onChange={(v) => setBonusEditForm((p) => ({ ...p, scheduled_date: v }))}
               />
             </div>
           </div>

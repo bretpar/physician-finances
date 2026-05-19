@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -551,11 +552,11 @@ export default function Mileage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Start Date</Label>
-                    <Input type="date" value={contribForm.start_date} onChange={(e) => setContribField("start_date", e.target.value)} />
+                    <DateField value={contribForm.start_date} onChange={(v) => setContribField("start_date", v)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>End Date (optional)</Label>
-                    <Input type="date" value={contribForm.end_date} onChange={(e) => setContribField("end_date", e.target.value)} />
+                    <DateField value={contribForm.end_date} onChange={(v) => setContribField("end_date", v)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Employer Match (optional)</Label>
