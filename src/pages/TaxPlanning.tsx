@@ -10,6 +10,7 @@ import { Plus, Trash2, DollarSign, TrendingUp, PiggyBank, Receipt, AlertCircle }
 import StatCard from "@/components/StatCard";
 import { useCompanies } from "@/contexts/CompanyContext";
 import type { FilingType } from "@/lib/filingTypes";
+import { formatMonthYear } from "@/lib/localDate";
 
 interface ForecastRow {
   id: string;
