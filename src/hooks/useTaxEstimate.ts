@@ -648,7 +648,11 @@ export function useTaxEstimate(): {
         personalNonW2Income: personalNonW2Income + cuOtherGross,
         personalFederalWithheld: personalFederalWithheld + cu.w2.federalWithheld + cu.other.federalWithheld,
         personalStateWithheld: personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld,
-        personalPreTax: personalPreTax + cu.w2.preTax + cu.other.preTax,
+        // W-2 catch-up HSA stays in W-2 payroll pre-tax (Section 125).
+        // "Other" catch-up HSA + payroll items go to non-W-2 above-line HSA
+        // (HSA) and personalPreTax (non-HSA payroll fields) respectively.
+        personalPreTax: personalPreTax + cu.w2.payrollPreTax + cu.w2.hsa + cu.other.payrollPreTax,
+        personalNonW2HsaAboveLine: personalNonW2HsaAboveLine + cu.other.hsa,
         personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
         longTermCapitalGains,
