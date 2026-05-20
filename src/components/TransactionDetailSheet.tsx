@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Pencil, Trash2, Link2, Unlink2, X } from "lucide-react";
+import { Pencil, Trash2, Link2, Unlink2, X, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type DetailField = {
