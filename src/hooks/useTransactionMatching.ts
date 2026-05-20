@@ -365,29 +365,25 @@ export interface MatchGroupItem {
 }
 
 /**
- * Returns a Map keyed by match_group_id with all items (incl. their
- * transaction rows even if status='merged') for active groups belonging
- * to the current user.
+ * Returns a Map keyed by linked_group_id with only real user-created links.
+ * Suggested/import/planner match groups are intentionally ignored here so they
+ * never show as linked transactions in the ledger or detail sheet.
  */
 export function useMatchGroups() {
   return useQuery({
     queryKey: ["match-groups"],
     queryFn: async () => {
-      const { data: groups, error: gErr } = await supabase
-        .from("transaction_match_groups")
-        .select("id, status")
-        .eq("status", "active");
-      if (gErr) throw gErr;
-      const groupIds = (groups || []).map((g: any) => g.id as string);
-      if (groupIds.length === 0) return new Map<string, MatchGroupItem[]>();
+      const { data: links, error: lErr } = await supabase
+        .from("transaction_links")
+        .select("id, linked_group_id, manual_transaction_id, plaid_transaction_record_id")
+        .eq("status", "linked")
+        .eq("created_by_user", true);
+      if (lErr) throw lErr;
 
-      const { data: items, error: iErr } = await supabase
-        .from("transaction_match_group_items")
-        .select("id, match_group_id, transaction_id, transaction_source")
-        .in("match_group_id", groupIds);
-      if (iErr) throw iErr;
+      const groupIds = Array.from(new Set((links || []).map((l: any) => l.linked_group_id as string)));
+      const txIds = Array.from(new Set((links || []).flatMap((l: any) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean)));
+      if (groupIds.length === 0 || txIds.length === 0) return new Map<string, MatchGroupItem[]>();
 
-      const txIds = Array.from(new Set((items || []).map((i: any) => i.transaction_id)));
       let txById = new Map<string, DbTransaction>();
       if (txIds.length > 0) {
         // Need merged rows too — bypass the status='active' filter used by useTransactions().
@@ -400,16 +396,22 @@ export function useMatchGroups() {
       }
 
       const map = new Map<string, MatchGroupItem[]>();
-      for (const it of items || []) {
-        const tx = txById.get((it as any).transaction_id);
-        if (!tx) continue;
-        const arr = map.get((it as any).match_group_id) || [];
-        arr.push({
-          itemId: (it as any).id,
-          transaction: tx,
-          source: ((it as any).transaction_source as "manual" | "imported"),
-        });
-        map.set((it as any).match_group_id, arr);
+      for (const link of links || []) {
+        const groupId = (link as any).linked_group_id as string;
+        const arr = map.get(groupId) || [];
+        const seen = new Set(arr.map((it) => it.transaction.id));
+        for (const txId of [(link as any).manual_transaction_id, (link as any).plaid_transaction_record_id].filter(Boolean)) {
+          if (seen.has(txId)) continue;
+          const tx = txById.get(txId);
+          if (!tx) continue;
+          arr.push({
+            itemId: tx.id,
+            transaction: tx,
+            source: isImportedSource(tx.source_type) ? "imported" : "manual",
+          });
+          seen.add(tx.id);
+        }
+        map.set(groupId, arr);
       }
       return map;
     },
@@ -451,37 +453,20 @@ export function useCreateMatchGroup() {
 
       console.log("[LinkTx] selected ids:", transactionIds);
 
-      // Verify "already linked" against the ACTUAL active link records, not
-      // stale denormalized flags like linked_group_id / match_status. A tx is
-      // only considered linked if it appears in an active match group with
-      // ≥2 items, or in a transaction_links row with status='linked'.
-      const [activeGroupItemsRes, activeLinksRes] = await Promise.all([
-        supabase
-          .from("transaction_match_group_items")
-          .select("transaction_id, match_group_id, transaction_match_groups!inner(status)")
-          .in("transaction_id", transactionIds)
-          .eq("transaction_match_groups.status", "active"),
-        supabase
-          .from("transaction_links")
-          .select("manual_transaction_id, plaid_transaction_record_id, linked_group_id, status")
-          .or(
-            `manual_transaction_id.in.(${transactionIds.join(",")}),plaid_transaction_record_id.in.(${transactionIds.join(",")})`
-          )
-          .eq("status", "linked"),
-      ]);
+      // Verify "already linked" against real user-created transaction_links
+      // only. Active match groups are suggestions/import states and must not
+      // block a user-created link.
+      const { data: activeLinks } = await supabase
+        .from("transaction_links")
+        .select("manual_transaction_id, plaid_transaction_record_id, linked_group_id, status, created_by_user")
+        .or(
+          `manual_transaction_id.in.(${transactionIds.join(",")}),plaid_transaction_record_id.in.(${transactionIds.join(",")})`
+        )
+        .eq("status", "linked")
+        .eq("created_by_user", true);
 
-      const groupCounts = new Map<string, number>();
-      for (const it of (activeGroupItemsRes.data || []) as any[]) {
-        groupCounts.set(it.match_group_id, (groupCounts.get(it.match_group_id) || 0) + 1);
-      }
-      const txInValidGroup = new Set<string>();
-      for (const it of (activeGroupItemsRes.data || []) as any[]) {
-        if ((groupCounts.get(it.match_group_id) || 0) >= 2) {
-          txInValidGroup.add(it.transaction_id);
-        }
-      }
       const txInActiveLink = new Set<string>();
-      for (const l of (activeLinksRes.data || []) as any[]) {
+      for (const l of (activeLinks || []) as any[]) {
         if (l.manual_transaction_id) txInActiveLink.add(l.manual_transaction_id);
         if (l.plaid_transaction_record_id) txInActiveLink.add(l.plaid_transaction_record_id);
       }
@@ -489,11 +474,11 @@ export function useCreateMatchGroup() {
       const trulyLinked: string[] = [];
       const stale: string[] = [];
       for (const r of rows as any[]) {
-        const isReallyLinked = txInValidGroup.has(r.id) || txInActiveLink.has(r.id);
+        const isReallyLinked = txInActiveLink.has(r.id);
         console.log("[LinkTx] tx", r.id, {
           linked_group_id: r.linked_group_id,
           match_status: r.match_status,
-          inActiveGroup: txInValidGroup.has(r.id),
+          blockingField: isReallyLinked ? "transaction_links" : r.linked_group_id ? "matched_group_ignored" : r.match_status === "linked" ? "stale_match_status_ignored" : "none",
           inActiveLink: txInActiveLink.has(r.id),
           decision: isReallyLinked ? "linked" : "free",
         });
@@ -520,38 +505,18 @@ export function useCreateMatchGroup() {
       const hasManual = rows.some((r: any) => (r.source_type || "manual") === "manual");
       const hasImported = rows.some((r: any) => isImportedSource(r.source_type));
 
-      const manualTotal = rows
-        .filter((r: any) => (r.source_type || "manual") === "manual")
-        .reduce((sum: number, r: any) => sum + Math.abs(Number(r.amount) || 0), 0);
-      const importedTotal = rows
-        .filter((r: any) => isImportedSource(r.source_type))
-        .reduce((sum: number, r: any) => sum + Math.abs(Number(r.amount) || 0), 0);
-
-      const { data: groupRow, error: gErr } = await supabase
-        .from("transaction_match_groups")
-        .insert({
-          user_id: user.id,
-          organization_id: orgId,
-          status: "active",
-          manual_total: manualTotal,
-          imported_total: importedTotal,
-          difference: Math.abs(manualTotal - importedTotal),
-        } as any)
-        .select("id")
-        .single();
-      if (gErr || !groupRow) throw gErr || new Error("Could not create match group");
-      const groupId = (groupRow as any).id as string;
-
-      const itemRows = rows.map((r: any) => ({
-        match_group_id: groupId,
-        transaction_id: r.id,
-        transaction_source: (r.source_type || "manual") === "manual" ? "manual" : "imported",
+      const groupId = crypto.randomUUID();
+      const anchorId = transactionIds[0];
+      const linkRows = transactionIds.slice(1).map((txId) => ({
         user_id: user.id,
         organization_id: orgId,
+        linked_group_id: groupId,
+        manual_transaction_id: anchorId,
+        plaid_transaction_record_id: txId,
+        status: "linked",
+        created_by_user: true,
       }));
-      const { error: iErr } = await supabase
-        .from("transaction_match_group_items")
-        .insert(itemRows as any);
+      const { error: iErr } = await supabase.from("transaction_links").insert(linkRows as any);
       if (iErr) throw iErr;
 
       // Flip imported rows to 'merged' only if a manual row anchors the group.
@@ -578,6 +543,7 @@ export function useCreateMatchGroup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["match-groups"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       toast.success("Transactions linked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not link transactions"),
@@ -597,21 +563,25 @@ export function useUnlinkMatchGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (groupId: string) => {
-      const { data: items } = await supabase
-        .from("transaction_match_group_items")
-        .select("transaction_id")
-        .eq("match_group_id", groupId);
-      const ids = (items || []).map((i: any) => i.transaction_id as string);
+      const { data: links } = await supabase
+        .from("transaction_links")
+        .select("manual_transaction_id, plaid_transaction_record_id")
+        .eq("linked_group_id", groupId)
+        .eq("status", "linked")
+        .eq("created_by_user", true);
+      const ids = Array.from(new Set((links || []).flatMap((l: any) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean)));
       await restoreTransactions(ids);
       const { error } = await supabase
-        .from("transaction_match_groups")
+        .from("transaction_links")
         .update({ status: "unlinked" } as any)
-        .eq("id", groupId);
+        .eq("linked_group_id", groupId)
+        .eq("created_by_user", true);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["match-groups"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       toast.success("Transactions unlinked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not unlink"),
@@ -622,35 +592,36 @@ export function useUnlinkMatchGroupItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ itemId, groupId }: { itemId: string; groupId: string }) => {
-      const { data: item } = await supabase
-        .from("transaction_match_group_items")
-        .select("transaction_id")
-        .eq("id", itemId)
-        .maybeSingle();
-      if (!item) throw new Error("Item not found");
-      await supabase.from("transaction_match_group_items").delete().eq("id", itemId);
-      await restoreTransactions([(item as any).transaction_id]);
+      const { error } = await supabase
+        .from("transaction_links")
+        .update({ status: "unlinked" } as any)
+        .eq("linked_group_id", groupId)
+        .eq("status", "linked")
+        .eq("created_by_user", true)
+        .or(`manual_transaction_id.eq.${itemId},plaid_transaction_record_id.eq.${itemId}`);
+      if (error) throw error;
+      await restoreTransactions([itemId]);
 
-      // If the group now has fewer than 2 items, dissolve it entirely.
-      const { data: remaining } = await supabase
-        .from("transaction_match_group_items")
-        .select("id, transaction_id")
-        .eq("match_group_id", groupId);
-      if ((remaining || []).length < 2) {
-        const remainingIds = (remaining || []).map((r: any) => r.transaction_id as string);
+      const { data: remainingLinks } = await supabase
+        .from("transaction_links")
+        .select("manual_transaction_id, plaid_transaction_record_id")
+        .eq("linked_group_id", groupId)
+        .eq("status", "linked")
+        .eq("created_by_user", true);
+      const remainingIds = Array.from(new Set((remainingLinks || []).flatMap((l: any) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean)));
+      if (remainingIds.length < 2) {
         await restoreTransactions(remainingIds);
-        if ((remaining || []).length > 0) {
-          await supabase.from("transaction_match_group_items").delete().eq("match_group_id", groupId);
-        }
         await supabase
-          .from("transaction_match_groups")
+          .from("transaction_links")
           .update({ status: "unlinked" } as any)
-          .eq("id", groupId);
+          .eq("linked_group_id", groupId)
+          .eq("created_by_user", true);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["match-groups"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       toast.success("Unlinked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not unlink"),
