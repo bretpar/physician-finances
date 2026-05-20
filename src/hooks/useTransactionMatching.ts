@@ -448,10 +448,74 @@ export function useCreateMatchGroup() {
       if (!rows || rows.length !== transactionIds.length) {
         throw new Error("Some transactions no longer exist. Please refresh.");
       }
-      const alreadyLinked = rows.find((r: any) => r.linked_group_id);
-      if (alreadyLinked) {
+
+      console.log("[LinkTx] selected ids:", transactionIds);
+
+      // Verify "already linked" against the ACTUAL active link records, not
+      // stale denormalized flags like linked_group_id / match_status. A tx is
+      // only considered linked if it appears in an active match group with
+      // ≥2 items, or in a transaction_links row with status='linked'.
+      const [activeGroupItemsRes, activeLinksRes] = await Promise.all([
+        supabase
+          .from("transaction_match_group_items")
+          .select("transaction_id, match_group_id, transaction_match_groups!inner(status)")
+          .in("transaction_id", transactionIds)
+          .eq("transaction_match_groups.status", "active"),
+        supabase
+          .from("transaction_links")
+          .select("manual_transaction_id, plaid_transaction_record_id, linked_group_id, status")
+          .or(
+            `manual_transaction_id.in.(${transactionIds.join(",")}),plaid_transaction_record_id.in.(${transactionIds.join(",")})`
+          )
+          .eq("status", "linked"),
+      ]);
+
+      const groupCounts = new Map<string, number>();
+      for (const it of (activeGroupItemsRes.data || []) as any[]) {
+        groupCounts.set(it.match_group_id, (groupCounts.get(it.match_group_id) || 0) + 1);
+      }
+      const txInValidGroup = new Set<string>();
+      for (const it of (activeGroupItemsRes.data || []) as any[]) {
+        if ((groupCounts.get(it.match_group_id) || 0) >= 2) {
+          txInValidGroup.add(it.transaction_id);
+        }
+      }
+      const txInActiveLink = new Set<string>();
+      for (const l of (activeLinksRes.data || []) as any[]) {
+        if (l.manual_transaction_id) txInActiveLink.add(l.manual_transaction_id);
+        if (l.plaid_transaction_record_id) txInActiveLink.add(l.plaid_transaction_record_id);
+      }
+
+      const trulyLinked: string[] = [];
+      const stale: string[] = [];
+      for (const r of rows as any[]) {
+        const isReallyLinked = txInValidGroup.has(r.id) || txInActiveLink.has(r.id);
+        console.log("[LinkTx] tx", r.id, {
+          linked_group_id: r.linked_group_id,
+          match_status: r.match_status,
+          inActiveGroup: txInValidGroup.has(r.id),
+          inActiveLink: txInActiveLink.has(r.id),
+          decision: isReallyLinked ? "linked" : "free",
+        });
+        if (isReallyLinked) trulyLinked.push(r.id);
+        else if (r.linked_group_id || r.match_status === "linked") stale.push(r.id);
+      }
+
+      if (trulyLinked.length > 0) {
+        console.log("[LinkTx] BLOCK — truly linked ids:", trulyLinked);
         throw new Error("One or more selected transactions are already linked. Unlink them first.");
       }
+
+      // Clear stale denormalized flags so future loads reflect reality.
+      if (stale.length > 0) {
+        console.log("[LinkTx] clearing stale link flags on:", stale);
+        await supabase
+          .from("transactions")
+          .update({ match_status: "unmatched", linked_group_id: null } as any)
+          .in("id", stale);
+      }
+
+      console.log("[LinkTx] ALLOW link for:", transactionIds);
 
       const hasManual = rows.some((r: any) => (r.source_type || "manual") === "manual");
       const hasImported = rows.some((r: any) => isImportedSource(r.source_type));
