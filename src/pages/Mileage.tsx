@@ -696,7 +696,6 @@ export default function Mileage() {
 
         {/* ─── HSA TAB ────────────────────────────── */}
         <TabsContent value="hsa" className="space-y-6 mt-6">
-          <HsaSettingsSection />
           <HsaLedgerSection />
         </TabsContent>
       </Tabs>
