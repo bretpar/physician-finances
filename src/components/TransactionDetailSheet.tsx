@@ -48,6 +48,7 @@ export type TransactionDetailSheetProps = {
     canLink?: boolean;
   };
   primaryActions?: React.ReactNode;
+  extraContent?: React.ReactNode;
   onEdit?: () => void;
   onDelete?: () => void;
   onMarkReviewed?: () => void;
