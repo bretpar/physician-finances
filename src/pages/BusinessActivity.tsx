@@ -2323,6 +2323,29 @@ export default function Transactions() {
               badges,
             }}
             sections={sections}
+            extraContent={
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Receipts
+                </h3>
+                <TransactionAttachments
+                  transactionId={tx.id}
+                  companyId={(tx as any).source_id || null}
+                  label="Receipts"
+                />
+                {linkedSiblings.length > 0 && (
+                  <div className="space-y-2">
+                    {linkedSiblings.map((it) => (
+                      <SiblingReceiptsList
+                        key={it.transaction.id}
+                        transactionId={it.transaction.id}
+                        label={it.transaction.vendor || "(No payee)"}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            }
             linked={{
               items: linkedSiblings.map((it) => ({
                 id: it.itemId,
