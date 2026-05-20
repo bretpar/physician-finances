@@ -505,13 +505,6 @@ export function useCreateMatchGroup() {
       const hasManual = rows.some((r: any) => (r.source_type || "manual") === "manual");
       const hasImported = rows.some((r: any) => isImportedSource(r.source_type));
 
-      const manualTotal = rows
-        .filter((r: any) => (r.source_type || "manual") === "manual")
-        .reduce((sum: number, r: any) => sum + Math.abs(Number(r.amount) || 0), 0);
-      const importedTotal = rows
-        .filter((r: any) => isImportedSource(r.source_type))
-        .reduce((sum: number, r: any) => sum + Math.abs(Number(r.amount) || 0), 0);
-
       const groupId = crypto.randomUUID();
       const anchorId = transactionIds[0];
       const linkRows = transactionIds.slice(1).map((txId) => ({
