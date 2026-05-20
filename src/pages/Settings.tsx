@@ -47,7 +47,6 @@ import {
   useReviewAccounts,
 } from "@/hooks/usePlaid";
 import { SectionCard } from "@/components/settings/SectionCard";
-import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
 import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
@@ -2247,8 +2246,6 @@ export default function Settings() {
         <ProfileSection justSavedFlag={justSavedFlag} />
         <Separator className="my-2" />
         <TaxProfileSection />
-        <Separator className="my-2" />
-        <HsaSettingsSection bare />
         <Separator className="my-2" />
         <ForecastingAutomationSection bare />
       </SectionCard>
