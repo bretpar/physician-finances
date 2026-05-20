@@ -421,6 +421,58 @@ export function useMatchGroups() {
 const isImportedSource = (s: string | null | undefined) =>
   s === "plaid" || s === "merged";
 
+const isManualLikeSource = (s: string | null | undefined) =>
+  !s || s === "manual" || s === "planner";
+
+/**
+ * Canonical row selector for a linked group.
+ *
+ * Rule order (highest wins):
+ *  A) Most-complete tax/accounting data: counts non-empty enrichment fields
+ *     on the transaction row itself AND on its linked income_entry (if any).
+ *  B) Origin: manual/planner beats imported (plaid).
+ *  C) Earliest created_at.
+ *
+ * Exported for unit testing.
+ */
+export interface CanonicalCandidate {
+  id: string;
+  source_type: string | null;
+  created_at: string;
+  category?: string | null;
+  source_id?: string | null;
+  vendor?: string | null;
+  notes?: string | null;
+  recommended_withholding?: number | null;
+  actual_withholding?: number | null;
+  receipt_url?: string | null;
+  /** Optional enrichment from a linked income_entry (gross/withholding/etc). */
+  incomeEnrichmentScore?: number;
+}
+
+export function pickCanonicalLinkedRow<T extends CanonicalCandidate>(rows: T[]): T {
+  if (rows.length === 0) throw new Error("pickCanonicalLinkedRow: empty rows");
+  const scored = rows.map((r) => {
+    let completeness = 0;
+    if (r.category && r.category !== "Uncategorized") completeness++;
+    if (r.source_id) completeness++;
+    if (r.vendor && r.vendor.trim()) completeness++;
+    if (r.notes && r.notes.trim()) completeness++;
+    if (Number(r.recommended_withholding || 0) > 0) completeness++;
+    if (Number(r.actual_withholding || 0) > 0) completeness++;
+    if (r.receipt_url) completeness++;
+    completeness += Math.max(0, Number(r.incomeEnrichmentScore || 0));
+    const originRank = isManualLikeSource(r.source_type) ? 1 : 0;
+    return { row: r, completeness, originRank, createdAt: r.created_at };
+  });
+  scored.sort((a, b) => {
+    if (b.completeness !== a.completeness) return b.completeness - a.completeness;
+    if (b.originRank !== a.originRank) return b.originRank - a.originRank;
+    return a.createdAt.localeCompare(b.createdAt);
+  });
+  return scored[0].row;
+}
+
 /**
  * Create a many-to-many match group from a free-form selection of
  * transactions. Rules:
