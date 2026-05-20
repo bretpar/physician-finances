@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip, Info } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
-import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
+import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
 import { mapToScheduleC, SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
@@ -2323,6 +2323,29 @@ export default function Transactions() {
               badges,
             }}
             sections={sections}
+            extraContent={
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Receipts
+                </h3>
+                <TransactionAttachments
+                  transactionId={tx.id}
+                  companyId={(tx as any).source_id || null}
+                  label="Receipts"
+                />
+                {linkedSiblings.length > 0 && (
+                  <div className="space-y-2">
+                    {linkedSiblings.map((it) => (
+                      <SiblingReceiptsList
+                        key={it.transaction.id}
+                        transactionId={it.transaction.id}
+                        label={it.transaction.vendor || "(No payee)"}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            }
             linked={{
               items: linkedSiblings.map((it) => ({
                 id: it.itemId,

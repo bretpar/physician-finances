@@ -48,6 +48,7 @@ export type TransactionDetailSheetProps = {
     canLink?: boolean;
   };
   primaryActions?: React.ReactNode;
+  extraContent?: React.ReactNode;
   onEdit?: () => void;
   onDelete?: () => void;
   onMarkReviewed?: () => void;
@@ -86,6 +87,7 @@ export function TransactionDetailSheet({
   sections,
   linked,
   primaryActions,
+  extraContent,
   onEdit,
   onDelete,
   onMarkReviewed,
@@ -160,6 +162,8 @@ export function TransactionDetailSheet({
                 </dl>
               </section>
             ))}
+
+          {extraContent}
 
           {linked && (
             <section className="space-y-2.5">

@@ -581,3 +581,73 @@ export function MobileAttachmentViewer({
     </Dialog>
   );
 }
+
+/* ─────────── Read-only sibling receipts (linked transactions) ─────────── */
+
+function SiblingReceiptRow({ attachment }: { attachment: TransactionAttachment }) {
+  const url = useSignedAttachmentUrl(attachment.file_path);
+  const isImage =
+    (attachment.file_type || "").startsWith("image/") ||
+    /\.(jpe?g|png|heic|heif|webp)$/i.test(attachment.file_name);
+  const isPdf =
+    attachment.file_type === "application/pdf" || /\.pdf$/i.test(attachment.file_name);
+  return (
+    <li className="flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted">
+        {isImage && url ? (
+          <img src={url} alt={attachment.file_name} className="h-full w-full object-cover" loading="lazy" />
+        ) : isPdf ? (
+          <FileText className="h-4 w-4 text-destructive" />
+        ) : (
+          <ImageOff className="h-4 w-4 text-muted-foreground" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium text-foreground" title={attachment.file_name}>
+          {attachment.file_name}
+        </div>
+        {attachment.caption && (
+          <div className="truncate text-[10px] text-muted-foreground">{attachment.caption}</div>
+        )}
+      </div>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Open"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+    </li>
+  );
+}
+
+export function SiblingReceiptsList({
+  transactionId,
+  label,
+}: {
+  transactionId: string;
+  label: string;
+}) {
+  const { data: attachments = [], isLoading } = useTransactionAttachments(transactionId);
+  if (isLoading || attachments.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <Paperclip className="h-3 w-3 text-muted-foreground" />
+        <span className="text-[11px] text-muted-foreground">
+          From linked: <span className="text-foreground">{label}</span>
+          <span className="ml-1 text-muted-foreground/70">({attachments.length})</span>
+        </span>
+      </div>
+      <ul className="space-y-1">
+        {attachments.map((a) => (
+          <SiblingReceiptRow key={a.id} attachment={a} />
+        ))}
+      </ul>
+    </div>
+  );
+}
