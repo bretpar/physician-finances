@@ -2248,8 +2248,6 @@ export default function Settings() {
         <Separator className="my-2" />
         <TaxProfileSection />
         <Separator className="my-2" />
-        <HsaSettingsSection bare />
-        <Separator className="my-2" />
         <ForecastingAutomationSection bare />
       </SectionCard>
 
