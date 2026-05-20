@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info, Wallet } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
-import { HsaSettingsSection, HsaLedgerSection } from "@/components/settings/HsaSection";
+import { HsaLedgerSection } from "@/components/settings/HsaSection";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
@@ -696,7 +696,6 @@ export default function Mileage() {
 
         {/* ─── HSA TAB ────────────────────────────── */}
         <TabsContent value="hsa" className="space-y-6 mt-6">
-          <HsaSettingsSection />
           <HsaLedgerSection />
         </TabsContent>
       </Tabs>
