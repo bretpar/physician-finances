@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -26,6 +26,7 @@ import {
   type HsaContribution,
 } from "@/hooks/useHsaContributions";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { cn } from "@/lib/utils";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -144,7 +145,7 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
             )}
             {selectedCompany && !eligible.find((e) => e.id === selectedCompany.id) && selectedCompanyType !== "1099_schedule_c" && (
               <span className="block mt-1.5 text-warning">
-                <strong>{selectedCompany.name}</strong> isn't a payroll-style company. The paycheck
+                <strong>{selectedCompany.name}</strong> isn&apos;t a payroll-style company. The paycheck
                 HSA field will not show; use Individual Contribution instead.
               </span>
             )}
@@ -156,8 +157,35 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
 }
 
 /* ─────────────────────────────────────────────────────────── */
-/*  HSA Contributions Ledger Section                             */
+/*  HSA Contributions Ledger Section                         */
 /* ─────────────────────────────────────────────────────────── */
+
+function SourceChip({ source_type, company_id, companyName }: { source_type: string; company_id: string | null; companyName: (id: string | null) => string }) {
+  if (source_type === "payroll") {
+    const name = companyName(company_id);
+    const unassigned = !company_id || name === "—";
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+        <Link2 className="h-3 w-3" />
+        {unassigned ? "Payroll source not assigned" : name}
+      </span>
+    );
+  }
+  const name = companyName(company_id);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+      {name === "—" || !company_id ? "Individual" : name}
+    </span>
+  );
+}
+
+function LinkedChip() {
+  return (
+    <span className="inline-flex items-center rounded bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground">
+      Linked
+    </span>
+  );
+}
 
 export function HsaLedgerSection() {
   const { data: settings } = useTaxSettings();
@@ -208,96 +236,174 @@ export function HsaLedgerSection() {
     });
   };
 
-  const summary = `Payroll ${fmt(totals.payroll)} · Individual ${fmt(totals.individual)} · Total ${fmt(totals.total)}`;
-
   return (
     <>
-      <SectionCard
-        title="HSA Contributions"
-        icon={<HeartPulse className="h-5 w-5" />}
-        summary={`(${rows.length})`}
-        description={`${currentYear} contribution ledger. ${summary}`}
-        headerAction={
-          hsaEnabled && (
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Individual Contribution
+      <Card className="border-border shadow-none">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-foreground">HSA Contributions</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{currentYear} contribution year</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                  Payroll <span className="font-medium text-foreground">{fmt(totals.payroll)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                  Individual <span className="font-medium text-foreground">{fmt(totals.individual)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-foreground font-medium">
+                  Total <span>{fmt(totals.total)}</span>
+                </span>
+              </div>
+            </div>
+            {hsaEnabled && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAddOpen(true)}
+                className="shrink-0 hidden sm:inline-flex"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Individual
+              </Button>
+            )}
+          </div>
+          {hsaEnabled && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAddOpen(true)}
+              className="sm:hidden mt-2 w-full"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add
             </Button>
-          )
-        }
-        hideActionBar
-      >
-        {!hsaEnabled && rows.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            HSA tracking is off. Turn it on above to start adding contributions.
-          </p>
-        )}
+          )}
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!hsaEnabled && rows.length === 0 && (
+            <p className="text-xs text-muted-foreground py-4">
+              HSA tracking is off. Turn it on in Settings to start adding contributions.
+            </p>
+          )}
 
-        {!hsaEnabled && rows.length > 0 && (
-          <p className="text-xs text-warning">
-            HSA tracking is currently off. Historical contributions are shown for reference.
-          </p>
-        )}
+          {!hsaEnabled && rows.length > 0 && (
+            <p className="text-xs text-warning py-3">
+              HSA tracking is currently off. Historical contributions are shown for reference.
+            </p>
+          )}
 
-        {isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
+          {isLoading && <p className="text-xs text-muted-foreground py-4">Loading…</p>}
 
-        {!isLoading && rows.length > 0 && (
-          <div className="overflow-x-auto -mx-1 sm:mx-0">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-muted-foreground border-b border-border">
-                  <th className="py-2 px-2 font-medium">Date</th>
-                  <th className="py-2 px-2 font-medium">Type</th>
-                  <th className="py-2 px-2 font-medium">Company</th>
-                  <th className="py-2 px-2 font-medium text-right">Amount</th>
-                  <th className="py-2 px-2 font-medium">Notes</th>
-                  <th className="py-2 px-2 font-medium w-8"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r: HsaContribution) => (
-                  <tr key={r.id} className="border-b border-border/60 hover:bg-muted/20">
-                    <td className="py-2 px-2 tabular-nums whitespace-nowrap">{r.contribution_date}</td>
-                    <td className="py-2 px-2">
-                      <Badge variant={r.source_type === "payroll" ? "secondary" : "default"} className="text-[10px]">
-                        {r.source_type === "payroll" ? (
-                          <><Link2 className="h-2.5 w-2.5 mr-1" /> Payroll</>
+          {/* Desktop table */}
+          {!isLoading && rows.length > 0 && (
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-muted-foreground border-b border-border">
+                    <th className="py-1.5 px-2 font-medium">Date</th>
+                    <th className="py-1.5 px-2 font-medium">Type</th>
+                    <th className="py-1.5 px-2 font-medium">Source</th>
+                    <th className="py-1.5 px-2 font-medium text-right">Amount</th>
+                    <th className="py-1.5 px-2 font-medium w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r: HsaContribution) => (
+                    <tr key={r.id} className="border-b border-border/40 hover:bg-muted/20">
+                      <td className="py-1.5 px-2 tabular-nums whitespace-nowrap text-muted-foreground">{r.contribution_date}</td>
+                      <td className="py-1.5 px-2">
+                        <span className={cn(
+                          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          r.source_type === "payroll" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                        )}>
+                          {r.source_type === "payroll" ? (
+                            <><Link2 className="h-2.5 w-2.5" /> Payroll</>
+                          ) : (
+                            "Individual"
+                          )}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-2">
+                        <SourceChip source_type={r.source_type} company_id={r.company_id} companyName={companyName} />
+                      </td>
+                      <td className="py-1.5 px-2 tabular-nums text-right">
+                        <span className="text-sm font-semibold text-foreground">{fmt(Number(r.amount))}</span>
+                      </td>
+                      <td className="py-1.5 px-2 text-right">
+                        {r.source_type === "individual" ? (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(r.id)}
+                            className="text-muted-foreground hover:text-destructive"
+                            aria-label="Delete contribution"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         ) : (
-                          "Individual"
+                          <LinkedChip />
                         )}
-                      </Badge>
-                    </td>
-                    <td className="py-2 px-2 truncate max-w-[140px]">{companyName(r.company_id)}</td>
-                    <td className="py-2 px-2 tabular-nums text-right font-medium">{fmt(Number(r.amount))}</td>
-                    <td className="py-2 px-2 text-muted-foreground truncate max-w-[180px]">{r.notes || ""}</td>
-                    <td className="py-2 px-2 text-right">
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Mobile cards */}
+          {!isLoading && rows.length > 0 && (
+            <div className="md:hidden space-y-2 mt-2">
+              {rows.map((r: HsaContribution) => (
+                <div key={r.id} className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-foreground">{fmt(Number(r.amount))}</span>
+                        <span className={cn(
+                          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          r.source_type === "payroll" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                        )}>
+                          {r.source_type === "payroll" ? (
+                            <><Link2 className="h-2.5 w-2.5" /> Payroll</>
+                          ) : (
+                            "Individual"
+                          )}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] text-muted-foreground">{r.contribution_date}</span>
+                        <SourceChip source_type={r.source_type} company_id={r.company_id} companyName={companyName} />
+                      </div>
+                      {r.notes && (
+                        <p className="text-[11px] text-muted-foreground mt-1.5">{r.notes}</p>
+                      )}
+                    </div>
+                    <div className="shrink-0">
                       {r.source_type === "individual" ? (
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteId(r.id)}
-                          className="text-muted-foreground hover:text-destructive"
+                          className="text-muted-foreground hover:text-destructive p-1"
                           aria-label="Delete contribution"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground" title="Edit on the linked income entry">
-                          linked
-                        </span>
+                        <LinkedChip />
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-        {!isLoading && rows.length === 0 && hsaEnabled && (
-          <p className="text-xs text-muted-foreground">
-            No contributions yet for {currentYear}.
-          </p>
-        )}
-      </SectionCard>
+          {!isLoading && rows.length === 0 && hsaEnabled && (
+            <p className="text-xs text-muted-foreground py-4">
+              No contributions yet for {currentYear}.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
