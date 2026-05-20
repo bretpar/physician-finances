@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Link2, Unlink, AlertCircle, Building2, Tag, EyeOff, CheckCircle2, ArrowLeftRight, ChevronDown, ChevronRight, Receipt, Lock, Paperclip, Info } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
-import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
+import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
 import { mapToScheduleC, SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
