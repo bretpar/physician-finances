@@ -87,6 +87,7 @@ export function TransactionDetailSheet({
   sections,
   linked,
   primaryActions,
+  extraContent,
   onEdit,
   onDelete,
   onMarkReviewed,
