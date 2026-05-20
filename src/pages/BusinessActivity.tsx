@@ -1060,18 +1060,6 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* Owner deductions summary (K-1 only) — contextual, only shows when relevant */}
-      {summaryStats.ownerDeductions > 0 && (
-        <div className="rounded-lg border border-border bg-accent/30 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-foreground">Owner Deductions / K-1 Adjustments</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Healthcare, retirement, & pre-tax deductions — reduce taxable income, not business profit</p>
-            </div>
-            <p className="text-lg font-bold text-foreground">{fmt(summaryStats.ownerDeductions)}</p>
-          </div>
-        </div>
-      )}
 
 
       {/* Search bar — always visible above the list */}
