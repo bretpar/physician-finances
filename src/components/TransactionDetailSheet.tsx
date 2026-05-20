@@ -223,12 +223,24 @@ export function TransactionDetailSheet({
 
         <Separator />
 
-        <div className="flex items-center justify-between gap-2 px-6 py-4 bg-background">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-4 bg-background">
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1.5">
             <X className="h-4 w-4" />
             Close
           </Button>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onMarkReviewed && needsReview && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onMarkReviewed}
+                disabled={markReviewedPending}
+                className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/30"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Mark as reviewed
+              </Button>
+            )}
             {!hideDelete && onDelete && (
               <Button variant="outline" size="sm" onClick={onDelete} className="gap-1.5 text-destructive hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
