@@ -50,6 +50,9 @@ export type TransactionDetailSheetProps = {
   primaryActions?: React.ReactNode;
   onEdit?: () => void;
   onDelete?: () => void;
+  onMarkReviewed?: () => void;
+  needsReview?: boolean;
+  markReviewedPending?: boolean;
   editLabel?: string;
   deleteLabel?: string;
   hideEdit?: boolean;
