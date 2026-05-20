@@ -453,37 +453,20 @@ export function useCreateMatchGroup() {
 
       console.log("[LinkTx] selected ids:", transactionIds);
 
-      // Verify "already linked" against the ACTUAL active link records, not
-      // stale denormalized flags like linked_group_id / match_status. A tx is
-      // only considered linked if it appears in an active match group with
-      // ≥2 items, or in a transaction_links row with status='linked'.
-      const [activeGroupItemsRes, activeLinksRes] = await Promise.all([
-        supabase
-          .from("transaction_match_group_items")
-          .select("transaction_id, match_group_id, transaction_match_groups!inner(status)")
-          .in("transaction_id", transactionIds)
-          .eq("transaction_match_groups.status", "active"),
-        supabase
-          .from("transaction_links")
-          .select("manual_transaction_id, plaid_transaction_record_id, linked_group_id, status")
-          .or(
-            `manual_transaction_id.in.(${transactionIds.join(",")}),plaid_transaction_record_id.in.(${transactionIds.join(",")})`
-          )
-          .eq("status", "linked"),
-      ]);
+      // Verify "already linked" against real user-created transaction_links
+      // only. Active match groups are suggestions/import states and must not
+      // block a user-created link.
+      const { data: activeLinks } = await supabase
+        .from("transaction_links")
+        .select("manual_transaction_id, plaid_transaction_record_id, linked_group_id, status, created_by_user")
+        .or(
+          `manual_transaction_id.in.(${transactionIds.join(",")}),plaid_transaction_record_id.in.(${transactionIds.join(",")})`
+        )
+        .eq("status", "linked")
+        .eq("created_by_user", true);
 
-      const groupCounts = new Map<string, number>();
-      for (const it of (activeGroupItemsRes.data || []) as any[]) {
-        groupCounts.set(it.match_group_id, (groupCounts.get(it.match_group_id) || 0) + 1);
-      }
-      const txInValidGroup = new Set<string>();
-      for (const it of (activeGroupItemsRes.data || []) as any[]) {
-        if ((groupCounts.get(it.match_group_id) || 0) >= 2) {
-          txInValidGroup.add(it.transaction_id);
-        }
-      }
       const txInActiveLink = new Set<string>();
-      for (const l of (activeLinksRes.data || []) as any[]) {
+      for (const l of (activeLinks || []) as any[]) {
         if (l.manual_transaction_id) txInActiveLink.add(l.manual_transaction_id);
         if (l.plaid_transaction_record_id) txInActiveLink.add(l.plaid_transaction_record_id);
       }
@@ -491,11 +474,11 @@ export function useCreateMatchGroup() {
       const trulyLinked: string[] = [];
       const stale: string[] = [];
       for (const r of rows as any[]) {
-        const isReallyLinked = txInValidGroup.has(r.id) || txInActiveLink.has(r.id);
+        const isReallyLinked = txInActiveLink.has(r.id);
         console.log("[LinkTx] tx", r.id, {
           linked_group_id: r.linked_group_id,
           match_status: r.match_status,
-          inActiveGroup: txInValidGroup.has(r.id),
+          blockingField: isReallyLinked ? "transaction_links" : r.linked_group_id ? "matched_group_ignored" : r.match_status === "linked" ? "stale_match_status_ignored" : "none",
           inActiveLink: txInActiveLink.has(r.id),
           decision: isReallyLinked ? "linked" : "free",
         });
