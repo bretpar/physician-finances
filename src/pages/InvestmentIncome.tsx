@@ -236,12 +236,6 @@ export default function InvestmentIncome() {
         <Card><CardContent className="pt-3 pb-2"><p className="text-xs text-muted-foreground">Dividends</p><p className="text-lg font-bold">{fmt(summary.dividends)}</p></CardContent></Card>
       </div>
 
-      <div className="rounded-md border border-border bg-muted/30 p-2 text-[11px] text-muted-foreground flex items-start gap-2">
-        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-        <span>
-          Per-entry recommended tax and the Tax Overview impact now share the same engine — short-term gains and non-qualified dividends are taxed as ordinary income, long-term gains and qualified dividends use LTCG brackets. Cross-bucket capital loss netting and the $3,000 annual loss limit aren't fully modeled yet, so deeply negative scenarios may differ slightly from a final return.
-        </span>
-      </div>
 
       <Card>
         <CardContent className="p-0">
