@@ -365,29 +365,25 @@ export interface MatchGroupItem {
 }
 
 /**
- * Returns a Map keyed by match_group_id with all items (incl. their
- * transaction rows even if status='merged') for active groups belonging
- * to the current user.
+ * Returns a Map keyed by linked_group_id with only real user-created links.
+ * Suggested/import/planner match groups are intentionally ignored here so they
+ * never show as linked transactions in the ledger or detail sheet.
  */
 export function useMatchGroups() {
   return useQuery({
     queryKey: ["match-groups"],
     queryFn: async () => {
-      const { data: groups, error: gErr } = await supabase
-        .from("transaction_match_groups")
-        .select("id, status")
-        .eq("status", "active");
-      if (gErr) throw gErr;
-      const groupIds = (groups || []).map((g: any) => g.id as string);
-      if (groupIds.length === 0) return new Map<string, MatchGroupItem[]>();
+      const { data: links, error: lErr } = await supabase
+        .from("transaction_links")
+        .select("id, linked_group_id, manual_transaction_id, plaid_transaction_record_id")
+        .eq("status", "linked")
+        .eq("created_by_user", true);
+      if (lErr) throw lErr;
 
-      const { data: items, error: iErr } = await supabase
-        .from("transaction_match_group_items")
-        .select("id, match_group_id, transaction_id, transaction_source")
-        .in("match_group_id", groupIds);
-      if (iErr) throw iErr;
+      const groupIds = Array.from(new Set((links || []).map((l: any) => l.linked_group_id as string)));
+      const txIds = Array.from(new Set((links || []).flatMap((l: any) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean)));
+      if (groupIds.length === 0 || txIds.length === 0) return new Map<string, MatchGroupItem[]>();
 
-      const txIds = Array.from(new Set((items || []).map((i: any) => i.transaction_id)));
       let txById = new Map<string, DbTransaction>();
       if (txIds.length > 0) {
         // Need merged rows too — bypass the status='active' filter used by useTransactions().
@@ -400,16 +396,22 @@ export function useMatchGroups() {
       }
 
       const map = new Map<string, MatchGroupItem[]>();
-      for (const it of items || []) {
-        const tx = txById.get((it as any).transaction_id);
-        if (!tx) continue;
-        const arr = map.get((it as any).match_group_id) || [];
-        arr.push({
-          itemId: (it as any).id,
-          transaction: tx,
-          source: ((it as any).transaction_source as "manual" | "imported"),
-        });
-        map.set((it as any).match_group_id, arr);
+      for (const link of links || []) {
+        const groupId = (link as any).linked_group_id as string;
+        const arr = map.get(groupId) || [];
+        const seen = new Set(arr.map((it) => it.transaction.id));
+        for (const txId of [(link as any).manual_transaction_id, (link as any).plaid_transaction_record_id].filter(Boolean)) {
+          if (seen.has(txId)) continue;
+          const tx = txById.get(txId);
+          if (!tx) continue;
+          arr.push({
+            itemId: tx.id,
+            transaction: tx,
+            source: isImportedSource(tx.source_type) ? "imported" : "manual",
+          });
+          seen.add(tx.id);
+        }
+        map.set(groupId, arr);
       }
       return map;
     },
