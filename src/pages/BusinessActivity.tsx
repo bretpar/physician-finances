@@ -2337,6 +2337,18 @@ export default function Transactions() {
             }}
             onEdit={() => { const t = tx; setDetailTx(null); openEdit(t); }}
             onDelete={() => { setDetailTx(null); confirmDelete(tx.id); }}
+            needsReview={!!tx.needs_review}
+            markReviewedPending={updateMutation.isPending}
+            onMarkReviewed={() => {
+              updateMutation.mutate(
+                { id: tx.id, needs_review: false } as any,
+                {
+                  onSuccess: () => {
+                    setDetailTx((curr) => (curr && curr.id === tx.id ? { ...curr, needs_review: false } : curr));
+                  },
+                },
+              );
+            }}
           />
         );
       })()}
