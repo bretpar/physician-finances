@@ -496,7 +496,9 @@ export function useCreateMatchGroup() {
 
       const { data: rows, error: fErr } = await supabase
         .from("transactions")
-        .select("id, amount, source_type, transaction_type, linked_group_id, match_status")
+        .select(
+          "id, amount, source_type, transaction_type, linked_group_id, match_status, created_at, category, source_id, vendor, notes, recommended_withholding, actual_withholding, receipt_url"
+        )
         .in("id", transactionIds);
       if (fErr) throw fErr;
       if (!rows || rows.length !== transactionIds.length) {
@@ -527,43 +529,68 @@ export function useCreateMatchGroup() {
       const stale: string[] = [];
       for (const r of rows as any[]) {
         const isReallyLinked = txInActiveLink.has(r.id);
-        console.log("[LinkTx] tx", r.id, {
-          linked_group_id: r.linked_group_id,
-          match_status: r.match_status,
-          blockingField: isReallyLinked ? "transaction_links" : r.linked_group_id ? "matched_group_ignored" : r.match_status === "linked" ? "stale_match_status_ignored" : "none",
-          inActiveLink: txInActiveLink.has(r.id),
-          decision: isReallyLinked ? "linked" : "free",
-        });
         if (isReallyLinked) trulyLinked.push(r.id);
         else if (r.linked_group_id || r.match_status === "linked") stale.push(r.id);
       }
 
       if (trulyLinked.length > 0) {
-        console.log("[LinkTx] BLOCK — truly linked ids:", trulyLinked);
         throw new Error("One or more selected transactions are already linked. Unlink them first.");
       }
 
       // Clear stale denormalized flags so future loads reflect reality.
       if (stale.length > 0) {
-        console.log("[LinkTx] clearing stale link flags on:", stale);
         await supabase
           .from("transactions")
           .update({ match_status: "unmatched", linked_group_id: null } as any)
           .in("id", stale);
       }
 
-      console.log("[LinkTx] ALLOW link for:", transactionIds);
+      // Pull income_entry enrichment for any rows that have one — used to
+      // boost completeness score of the canonical candidate.
+      const { data: incomeRows } = await supabase
+        .from("income_entries")
+        .select(
+          "linked_transaction_id, paycheck_amount, federal_withholding, state_withholding, retirement_401k, hsa_contribution, healthcare_deduction, notes, company"
+        )
+        .in("linked_transaction_id", transactionIds);
+      const enrichmentByTx = new Map<string, number>();
+      for (const ie of (incomeRows || []) as any[]) {
+        let score = 0;
+        if (Number(ie.paycheck_amount || 0) > 0) score++;
+        if (Number(ie.federal_withholding || 0) > 0) score++;
+        if (Number(ie.state_withholding || 0) > 0) score++;
+        if (Number(ie.retirement_401k || 0) > 0) score++;
+        if (Number(ie.hsa_contribution || 0) > 0) score++;
+        if (Number(ie.healthcare_deduction || 0) > 0) score++;
+        if (ie.notes && String(ie.notes).trim()) score++;
+        if (ie.company && String(ie.company).trim()) score++;
+        enrichmentByTx.set(ie.linked_transaction_id, (enrichmentByTx.get(ie.linked_transaction_id) || 0) + score);
+      }
 
-      const hasManual = rows.some((r: any) => (r.source_type || "manual") === "manual");
-      const hasImported = rows.some((r: any) => isImportedSource(r.source_type));
+      const candidates: CanonicalCandidate[] = (rows as any[]).map((r) => ({
+        id: r.id,
+        source_type: r.source_type,
+        created_at: r.created_at,
+        category: r.category,
+        source_id: r.source_id,
+        vendor: r.vendor,
+        notes: r.notes,
+        recommended_withholding: r.recommended_withholding,
+        actual_withholding: r.actual_withholding,
+        receipt_url: r.receipt_url,
+        incomeEnrichmentScore: enrichmentByTx.get(r.id) || 0,
+      }));
+      const canonical = pickCanonicalLinkedRow(candidates);
+      const mergedIds = candidates.filter((c) => c.id !== canonical.id).map((c) => c.id);
+
+      console.log("[LinkTx] canonical:", canonical.id, "merged:", mergedIds);
 
       const groupId = crypto.randomUUID();
-      const anchorId = transactionIds[0];
-      const linkRows = transactionIds.slice(1).map((txId) => ({
+      const linkRows = mergedIds.map((txId) => ({
         user_id: user.id,
         organization_id: orgId,
         linked_group_id: groupId,
-        manual_transaction_id: anchorId,
+        manual_transaction_id: canonical.id,
         plaid_transaction_record_id: txId,
         status: "linked",
         created_by_user: true,
@@ -571,23 +598,20 @@ export function useCreateMatchGroup() {
       const { error: iErr } = await supabase.from("transaction_links").insert(linkRows as any);
       if (iErr) throw iErr;
 
-      // Flip imported rows to 'merged' only if a manual row anchors the group.
-      const manualIds = rows.filter((r: any) => (r.source_type || "manual") === "manual").map((r: any) => r.id);
-      const importedIds = rows.filter((r: any) => isImportedSource(r.source_type)).map((r: any) => r.id);
+      // Canonical row stays active and owns the link metadata; every other
+      // row in the group becomes status='merged' so all downstream totals
+      // (ledger, dashboard, tax, reports, exports) count the group once.
+      const { error: e1 } = await supabase
+        .from("transactions")
+        .update({ match_status: "linked", linked_group_id: groupId } as any)
+        .eq("id", canonical.id);
+      if (e1) throw e1;
 
-      if (manualIds.length > 0) {
-        const { error: e1 } = await supabase
-          .from("transactions")
-          .update({ match_status: "linked", linked_group_id: groupId } as any)
-          .in("id", manualIds);
-        if (e1) throw e1;
-      }
-      if (importedIds.length > 0) {
-        const newStatus = hasManual && hasImported ? "merged" : "active";
+      if (mergedIds.length > 0) {
         const { error: e2 } = await supabase
           .from("transactions")
-          .update({ match_status: "linked", linked_group_id: groupId, status: newStatus } as any)
-          .in("id", importedIds);
+          .update({ match_status: "linked", linked_group_id: groupId, status: "merged" } as any)
+          .in("id", mergedIds);
         if (e2) throw e2;
       }
       return groupId;
