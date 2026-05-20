@@ -512,31 +512,18 @@ export function useCreateMatchGroup() {
         .filter((r: any) => isImportedSource(r.source_type))
         .reduce((sum: number, r: any) => sum + Math.abs(Number(r.amount) || 0), 0);
 
-      const { data: groupRow, error: gErr } = await supabase
-        .from("transaction_match_groups")
-        .insert({
-          user_id: user.id,
-          organization_id: orgId,
-          status: "active",
-          manual_total: manualTotal,
-          imported_total: importedTotal,
-          difference: Math.abs(manualTotal - importedTotal),
-        } as any)
-        .select("id")
-        .single();
-      if (gErr || !groupRow) throw gErr || new Error("Could not create match group");
-      const groupId = (groupRow as any).id as string;
-
-      const itemRows = rows.map((r: any) => ({
-        match_group_id: groupId,
-        transaction_id: r.id,
-        transaction_source: (r.source_type || "manual") === "manual" ? "manual" : "imported",
+      const groupId = crypto.randomUUID();
+      const anchorId = transactionIds[0];
+      const linkRows = transactionIds.slice(1).map((txId) => ({
         user_id: user.id,
         organization_id: orgId,
+        linked_group_id: groupId,
+        manual_transaction_id: anchorId,
+        plaid_transaction_record_id: txId,
+        status: "linked",
+        created_by_user: true,
       }));
-      const { error: iErr } = await supabase
-        .from("transaction_match_group_items")
-        .insert(itemRows as any);
+      const { error: iErr } = await supabase.from("transaction_links").insert(linkRows as any);
       if (iErr) throw iErr;
 
       // Flip imported rows to 'merged' only if a manual row anchors the group.
@@ -563,6 +550,7 @@ export function useCreateMatchGroup() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["match-groups"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       toast.success("Transactions linked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not link transactions"),
