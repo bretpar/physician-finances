@@ -570,21 +570,25 @@ export function useUnlinkMatchGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (groupId: string) => {
-      const { data: items } = await supabase
-        .from("transaction_match_group_items")
-        .select("transaction_id")
-        .eq("match_group_id", groupId);
-      const ids = (items || []).map((i: any) => i.transaction_id as string);
+      const { data: links } = await supabase
+        .from("transaction_links")
+        .select("manual_transaction_id, plaid_transaction_record_id")
+        .eq("linked_group_id", groupId)
+        .eq("status", "linked")
+        .eq("created_by_user", true);
+      const ids = Array.from(new Set((links || []).flatMap((l: any) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean)));
       await restoreTransactions(ids);
       const { error } = await supabase
-        .from("transaction_match_groups")
+        .from("transaction_links")
         .update({ status: "unlinked" } as any)
-        .eq("id", groupId);
+        .eq("linked_group_id", groupId)
+        .eq("created_by_user", true);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["match-groups"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       toast.success("Transactions unlinked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not unlink"),
@@ -595,35 +599,36 @@ export function useUnlinkMatchGroupItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ itemId, groupId }: { itemId: string; groupId: string }) => {
-      const { data: item } = await supabase
-        .from("transaction_match_group_items")
-        .select("transaction_id")
-        .eq("id", itemId)
-        .maybeSingle();
-      if (!item) throw new Error("Item not found");
-      await supabase.from("transaction_match_group_items").delete().eq("id", itemId);
-      await restoreTransactions([(item as any).transaction_id]);
+      const { error } = await supabase
+        .from("transaction_links")
+        .update({ status: "unlinked" } as any)
+        .eq("linked_group_id", groupId)
+        .eq("status", "linked")
+        .eq("created_by_user", true)
+        .or(`manual_transaction_id.eq.${itemId},plaid_transaction_record_id.eq.${itemId}`);
+      if (error) throw error;
+      await restoreTransactions([itemId]);
 
-      // If the group now has fewer than 2 items, dissolve it entirely.
-      const { data: remaining } = await supabase
-        .from("transaction_match_group_items")
-        .select("id, transaction_id")
-        .eq("match_group_id", groupId);
-      if ((remaining || []).length < 2) {
-        const remainingIds = (remaining || []).map((r: any) => r.transaction_id as string);
+      const { data: remainingLinks } = await supabase
+        .from("transaction_links")
+        .select("manual_transaction_id, plaid_transaction_record_id")
+        .eq("linked_group_id", groupId)
+        .eq("status", "linked")
+        .eq("created_by_user", true);
+      const remainingIds = Array.from(new Set((remainingLinks || []).flatMap((l: any) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean)));
+      if (remainingIds.length < 2) {
         await restoreTransactions(remainingIds);
-        if ((remaining || []).length > 0) {
-          await supabase.from("transaction_match_group_items").delete().eq("match_group_id", groupId);
-        }
         await supabase
-          .from("transaction_match_groups")
+          .from("transaction_links")
           .update({ status: "unlinked" } as any)
-          .eq("id", groupId);
+          .eq("linked_group_id", groupId)
+          .eq("created_by_user", true);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["match-groups"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       toast.success("Unlinked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not unlink"),
