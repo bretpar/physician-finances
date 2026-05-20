@@ -163,6 +163,8 @@ export function TransactionDetailSheet({
               </section>
             ))}
 
+          {extraContent}
+
           {linked && (
             <section className="space-y-2.5">
               <div className="flex items-center justify-between">
