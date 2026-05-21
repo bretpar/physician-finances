@@ -1,53 +1,48 @@
-# Linked-transaction dedupe audit & fix
+# Personal Income parity with Business Activity
 
-## Current model (confirmed)
+Bring the Personal Income ledger to feature parity with Business Activity, and clean up the inline list view.
 
-- **`transactions` table** is the canonical source of truth for ledger, Business Activity, Tax Overview, Dashboard, Reports. All reads filter by `status = 'active'`.
-- **`income_entries`** is an enrichment layer keyed by `linked_transaction_id`. Orphans are filtered out at read time.
-- Linking model:
-  - **Suggested match / matched group** (`transaction_match_groups` + items) = system suggestion only. Already excluded from "is linked" checks after the last fix.
-  - **User link** (`transaction_links` with `status='linked'` and `created_by_user=true`) = the real source of truth for "these N rows represent one event."
-- Dedupe mechanism at link time (in `useLinkTransactions`):
-  - Imported (Plaid) rows get flipped to `status='merged'` only when a manual row also exists in the group → they disappear from `useTransactions`.
-  - Manual rows stay `status='active'`.
+## What changes
 
-## The actual bug
+### 1. Income detail card (when a row is tapped)
+Match the Business Activity detail sheet exactly:
+- **Receipts section** at the top of `extraContent` — upload/view receipts on the canonical income entry, plus a read-only list of receipts from any linked sibling entries (same `SiblingReceiptsList` pattern).
+- **Linked transactions section** — show siblings, allow Unlink, and an "+ Link transaction" action that drops the user into multi-select mode.
+- **Mark as reviewed button** — visible only when `needs_review === true`; clicking flips it to false and refreshes the row.
+- Keep the existing Edit / Delete buttons and all the existing tax-detail badges/fields inside the expanded card.
 
-The dedupe **only works for mixed manual + imported links**. Two failure cases double-count today:
+### 2. Income ledger (list view)
+Remove the inline badges from each `LedgerRow`:
+- `Withheld $X`
+- `Reserve $X`
+- `From Planner`
+- `Review`
+- `YTD`
+- `📎 N` (attachment count chip)
 
-1. **Manual + manual link**: both stay `status='active'` → both appear in every total (Business Activity, Dashboard, Tax Overview, Reports, exports).
-2. **Imported + imported link** (no manual anchor): branch `newStatus = hasManual && hasImported ? "merged" : "active"` keeps both active → double-count.
+These all disappear from the ledger row. They remain visible inside the detail card (badges in the sheet header + fields in the Tax Details section) so nothing is lost — the list just gets quieter and matches Business Activity's cleaner look.
 
-So Test A passes (3 unlinked = $150 ✅), Test C passes (manual+plaid = $50 ✅), but **Test B fails** (3 manual linked → $150 instead of $50).
+The "View Receipts" button under a row also goes away; receipts move into the detail card.
 
-## Fix
+### 3. Long-press to multi-select + Link
+Same UX as Business Activity:
+- Long-press an income row → enters mobile selection mode.
+- Tap additional rows to add them to the selection.
+- A floating "Link N transactions" action bar appears; tapping creates a linked match group.
+- The match-group system already supports cross-source linking via `transaction_match_group_items.transaction_source`; we extend it with `transaction_source = 'income_entry'` so the same group/unlink/double-count protection logic applies. No double-counting in tax totals — when entries are linked, only the canonical entry contributes.
 
-Pick a canonical row at link time using the hierarchy the user specified, then flip every other row in the group to `status='merged'`. This keeps the existing "single source of truth = `transactions WHERE status='active'`" model — every existing total automatically dedupes without touching every consumer.
+### 4. Filter chip cleanup
+The "Needs Review" filter chip at the top of the ledger stays — it's how users find rows that still need review now that the inline yellow badge is gone.
 
-### Canonical selection (in `useLinkTransactions`)
+## Technical details
 
-For the N rows being linked, score each row by:
-1. **Completeness** of tax/accounting fields: non-empty `category`, `source_id`, non-zero `recommended_withholding`, `actual_withholding`, presence of linked `income_entry` (gross, withholding, retirement, hsa, owner_healthcare, notes).
-2. **Origin preference**: `source_type === 'manual'` or planner-derived (`source_type === 'planner'`) beats imported (`plaid` / other imported).
-3. **Tiebreak**: earliest `created_at`.
+Files touched:
+- `src/pages/PersonalIncome.tsx` — strip badges from the mobile `LedgerRow`, wire `extraContent` (Receipts + sibling receipts), `linked` prop, `onMarkReviewed`, `needsReview`, and long-press selection state into the existing `TransactionDetailSheet`. Reuse the `enterMobileSelectionWith` / selection-bar pattern from Business Activity.
+- `src/hooks/useTransactionMatching.ts` — accept `transaction_source = 'income_entry'` when creating/loading match group items so income entries can participate in linked groups alongside transactions. Keep the "already in an active matched group" guard.
+- `src/hooks/usePersonalIncome.ts` — when computing totals (`totalIncome`, `w2Income`, `totalWithheld`), de-dupe by linked group so linked siblings count once. Mirrors the dedupe logic already in Business Activity.
+- New migration: allow `'income_entry'` as a valid `transaction_source` value on `transaction_match_group_items` (text column today, but add a CHECK constraint or update the existing one if present).
 
-Highest-scoring row → stays `status='active'` and owns the user link. All others → `status='merged'`. On unlink (`useUnlinkMatchGroup` / `useUnlinkMatchGroupItem`), `restoreTransactions` already flips merged rows back to `status='active'` — no change needed there.
-
-### Net-vs-gross preservation (Test D)
-
-The manual income row already carries `paycheck_amount` / withholding via the linked `income_entry`. The Plaid row is flipped to `merged` and hidden, so net deposit is no longer summed. The UI detail card still reads all linked rows from `transaction_links` (independent of status), so users can still see the $12,500 actual deposit when expanding a link.
-
-## Files to change
-
-- `src/hooks/useTransactionMatching.ts` — add `pickCanonical()` helper; rewrite the status-flipping block in `useLinkTransactions` to use it for all link shapes (manual+manual, manual+plaid, plaid+plaid, N≥3).
-- `src/test/transactionLinkingDedupe.test.ts` — new file with Tests A–E expressed against a small in-memory model of the canonical selector + the `status='active'` filter that every total uses.
-
-## Out of scope (verified safe, no change needed)
-
-- Per-consumer dedupe in `useExpenseSummary`, `useTaxEstimate`, `useTaxBreakdown`, `useDashboardSummary`, `useBusinessLedger`, exports, monthly/quarterly charts. All of them read from `transactions` filtered to `status='active'`, so once the link step picks one canonical row, every downstream total dedupes for free.
-- `income_entries.linked_transaction_id` orphan handling — already correct.
-- Matched-group vs. user-link separation — already correct after the prior fix.
-
-## Report (to deliver in chat after implementation)
-
-- Files inspected, current logic, where double-counting exists today (manual+manual and plaid+plaid links), the one code change that fixes all totals, and the test file covering A–E.
+## Out of scope
+- No changes to the Add/Edit income dialog.
+- No changes to tax engine math beyond the dedupe-by-link rule already used for business transactions.
+- No new desktop-only UI; long-press behavior matches mobile-first Business Activity.
