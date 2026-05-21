@@ -1092,6 +1092,12 @@ export default function Transactions() {
 
         <CollapsibleContent>
           <div className="mt-2 rounded-lg border border-border bg-card p-4 space-y-4">
+            {/* Search bar — at the top of the Filters & Export section */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Transaction type</Label>
               <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-muted/30 w-full sm:w-fit">
