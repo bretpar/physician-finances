@@ -236,6 +236,7 @@ export type Database = {
           linked_ytd_catchup_id: string | null
           medicare_withholding: number
           name: string
+          needs_review: boolean
           notes: string | null
           organization_id: string | null
           origin_planner_conversion_id: string | null
@@ -281,6 +282,7 @@ export type Database = {
           linked_ytd_catchup_id?: string | null
           medicare_withholding?: number
           name?: string
+          needs_review?: boolean
           notes?: string | null
           organization_id?: string | null
           origin_planner_conversion_id?: string | null
@@ -326,6 +328,7 @@ export type Database = {
           linked_ytd_catchup_id?: string | null
           medicare_withholding?: number
           name?: string
+          needs_review?: boolean
           notes?: string | null
           organization_id?: string | null
           origin_planner_conversion_id?: string | null
@@ -363,6 +366,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      income_entry_links: {
+        Row: {
+          canonical_entry_id: string
+          created_at: string
+          created_by_user: boolean
+          id: string
+          linked_group_id: string
+          merged_entry_id: string
+          organization_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          canonical_entry_id: string
+          created_at?: string
+          created_by_user?: boolean
+          id?: string
+          linked_group_id: string
+          merged_entry_id: string
+          organization_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          canonical_entry_id?: string
+          created_at?: string
+          created_by_user?: boolean
+          id?: string
+          linked_group_id?: string
+          merged_entry_id?: string
+          organization_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       income_forecasts: {
         Row: {

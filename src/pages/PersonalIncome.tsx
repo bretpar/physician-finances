@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip, Link2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,8 @@ import {
 import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { txTone } from "@/lib/transactionTones";
-import { TransactionAttachments, MobileAttachmentViewer } from "@/components/TransactionAttachments";
+import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
+import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem } from "@/hooks/useIncomeMatching";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
@@ -158,7 +159,7 @@ export default function PersonalIncome() {
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   const entries = useMemo(() => {
     return rawEntries.filter((e: any) => {
-      if (filterReview === "needs_review" && !e.needs_review && e.origin_type !== "planner_converted") return false;
+      if (filterReview === "needs_review" && !e.needs_review) return false;
       if (filterPlanner === "from_planner" && e.origin_type !== "planner_converted") return false;
       return true;
     });
@@ -188,6 +189,26 @@ export default function PersonalIncome() {
   const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<PersonalIncomeEntry | null>(null);
   const uploadAttachments = useUploadAttachments();
+
+  // ─── Mobile multi-select / linking ───
+  const { data: incomeMatchGroups } = useIncomeMatchGroups();
+  const createIncomeMatchGroup = useCreateIncomeMatchGroup();
+  const unlinkIncomeMatchItem = useUnlinkIncomeMatchGroupItem();
+  const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
+  const [mobileSelectedOrder, setMobileSelectedOrder] = useState<string[]>([]);
+  const exitMobileSelection = () => {
+    setMobileSelectionMode(false);
+    setMobileSelectedOrder([]);
+  };
+  const toggleMobileSelect = (id: string) => {
+    setMobileSelectedOrder((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+  const enterMobileSelectionWith = (id: string) => {
+    setMobileSelectionMode(true);
+    setMobileSelectedOrder((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
 
   // Per-transaction tax-savings reminder state
   const [showRecommendation, setShowRecommendation] = useState(false);
@@ -784,18 +805,10 @@ export default function PersonalIncome() {
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = formatDate(entry.income_date);
                   const badges: LedgerRowBadge[] = [];
-                  const attCount = attachmentCounts?.get(entry.id) ?? 0;
-                  if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
-                  if (withheld > 0) badges.push({ label: `Withheld ${fmt(withheld)}`, tone: "muted" });
-                  if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
-                  if ((entry as any).origin_type === "planner_converted") {
-                    badges.push({ label: "From Planner", tone: "info" });
+                  if ((entry as any).needs_review) {
                     badges.push({ label: "Review", tone: "warning" });
                   }
-
-                  if ((entry as any).linked_ytd_catchup_id) {
-                    badges.push({ label: "YTD", tone: "info" });
-                  }
+                  const isMobileSelected = mobileSelectedOrder.includes(entry.id);
 
                   return (
                     <div key={entry.id}>
@@ -811,22 +824,12 @@ export default function PersonalIncome() {
                         amountTone={isLoss ? "negative" : "positive"}
                         amountPrefix={isLoss ? "-" : "+"}
                         badges={badges}
+                        selected={mobileSelectionMode ? isMobileSelected : false}
+                        selectionMode={mobileSelectionMode}
+                        onToggleSelect={() => toggleMobileSelect(entry.id)}
+                        onLongPress={() => enterMobileSelectionWith(entry.id)}
                         onClick={() => setDetailEntry(entry)}
                       />
-                      {attCount > 0 && (
-                        <div className="px-4 pb-3 -mt-1">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMobileViewerEntryId(entry.id);
-                            }}
-                          >
-                            <Paperclip className="h-3 w-3" /> View Receipt{attCount > 1 ? `s (${attCount})` : ""}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -840,6 +843,45 @@ export default function PersonalIncome() {
           )}
         </div>
       </div>
+
+      {/* Mobile selection action bar — only visible in selection mode */}
+      {mobileSelectionMode && (() => {
+        const count = mobileSelectedOrder.length;
+        const canLink = count >= 2;
+        const helper = count === 0
+          ? "Tap an entry to select it"
+          : count === 1
+            ? "Select one more to link"
+            : `${count} entries ready to link`;
+        return (
+          <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+            <div className="px-4 pt-2.5 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-foreground">{count} selected</div>
+                <div className="text-[11px] text-muted-foreground truncate">{helper}</div>
+              </div>
+              <Button variant="ghost" size="sm" className="h-9 text-sm" onClick={exitMobileSelection}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-9 text-sm gap-1.5"
+                disabled={!canLink || createIncomeMatchGroup.isPending}
+                onClick={() => {
+                  if (!canLink) return;
+                  createIncomeMatchGroup.mutate(
+                    { entryIds: [...mobileSelectedOrder] },
+                    { onSuccess: () => exitMobileSelection() },
+                  );
+                }}
+              >
+                <Link2 className="h-4 w-4" /> Link
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+      {mobileSelectionMode && <div className="sm:hidden h-20" aria-hidden />}
 
       {/* Modal 1: Add/Edit Income Entry */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); } }}>
@@ -1241,6 +1283,14 @@ export default function PersonalIncome() {
             ],
           },
         ];
+        const linkedGroupId = e.id
+          ? Array.from(incomeMatchGroups?.entries?.() || []).find(([, items]) =>
+              items.some((it) => it.entry.id === e.id),
+            )?.[0]
+          : undefined;
+        const linkedSiblings = (linkedGroupId ? incomeMatchGroups?.get(linkedGroupId) || [] : []).filter(
+          (it) => it.entry.id !== e.id,
+        );
         return (
           <TransactionDetailSheet
             open={!!detailEntry}
@@ -1252,13 +1302,63 @@ export default function PersonalIncome() {
               amount: Number(e.gross_amount) || 0,
               amountTone: isLoss ? "expense" : "income",
               badges: [
+                ...((e as any).needs_review ? [{ label: "Review", tone: "warning" as const }] : []),
                 ...(isYtd ? [{ label: "YTD Catch-Up", tone: "muted" as const }] : []),
                 ...(fromPlanner ? [{ label: "From Planner", tone: "success" as const }] : []),
+                ...(withheld > 0 ? [{ label: `Withheld ${fmt(withheld)}`, tone: "muted" as const }] : []),
+                ...(reserve > 0 ? [{ label: `Reserve ${fmt(reserve)}`, tone: "default" as const }] : []),
               ],
             }}
             sections={sections}
+            extraContent={
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Receipts</h3>
+                <TransactionAttachments
+                  transactionId={e.id}
+                  companyId={(e as any).source_id || null}
+                  label="Receipts"
+                />
+                {linkedSiblings.length > 0 && (
+                  <div className="space-y-2">
+                    {linkedSiblings.map((it) => (
+                      <SiblingReceiptsList
+                        key={it.entry.id}
+                        transactionId={it.entry.id}
+                        label={it.entry.name || "(No payor)"}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            }
+            linked={{
+              items: linkedSiblings.map((it) => ({
+                id: it.itemId,
+                label: it.entry.name || "(No payor)",
+                amount: Number(it.entry.gross_amount) || 0,
+                date: formatDateShort(it.entry.income_date),
+              })),
+              onUnlink: linkedGroupId
+                ? (itemId) => unlinkIncomeMatchItem.mutate({ itemId, groupId: linkedGroupId })
+                : undefined,
+              onLink: () => { setDetailEntry(null); enterMobileSelectionWith(e.id); },
+            }}
             onEdit={() => { const target = e; setDetailEntry(null); openEdit(target); }}
             onDelete={isYtd ? undefined : () => { setDeleteId(e.id); setDetailEntry(null); }}
+            needsReview={!!(e as any).needs_review}
+            markReviewedPending={updateMutation.isPending}
+            onMarkReviewed={() => {
+              updateMutation.mutate(
+                { id: e.id, needs_review: false } as any,
+                {
+                  onSuccess: () => {
+                    setDetailEntry((curr) =>
+                      curr && curr.id === e.id ? ({ ...curr, needs_review: false } as any) : curr,
+                    );
+                  },
+                },
+              );
+            }}
           />
         );
       })()}

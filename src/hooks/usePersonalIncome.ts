@@ -41,7 +41,9 @@ export interface PersonalIncomeEntry {
   updated_at: string;
 }
 
-/** Fetch only personal (non-business, actual) income entries */
+/** Fetch only personal (non-business, actual) income entries.
+ *  Entries that have been linked to another entry (status='merged') are
+ *  hidden so totals/ledger count the linked group once. */
 export function usePersonalIncomeEntries() {
   return useQuery({
     queryKey: ["personal_income_entries"],
@@ -51,6 +53,7 @@ export function usePersonalIncomeEntries() {
         .select("*")
         .eq("source_bucket", "personal")
         .eq("is_actual", true)
+        .neq("status", "merged")
         .order("income_date", { ascending: false });
       if (error) throw error;
       const rows = (data || []) as PersonalIncomeEntry[];
