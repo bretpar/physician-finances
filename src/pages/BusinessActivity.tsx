@@ -1062,13 +1062,6 @@ export default function Transactions() {
 
 
 
-      {/* Search bar — always visible above the list */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-      </div>
-
-      {/* Filters & Export — collapsed by default to keep the list clean */}
       <Collapsible open={showMobileFilters} onOpenChange={setShowMobileFilters}>
         <CollapsibleTrigger asChild>
           <button
