@@ -1306,7 +1306,7 @@ export default function PersonalIncome() {
                 ...(isYtd ? [{ label: "YTD Catch-Up", tone: "muted" as const }] : []),
                 ...(fromPlanner ? [{ label: "From Planner", tone: "success" as const }] : []),
                 ...(withheld > 0 ? [{ label: `Withheld ${fmt(withheld)}`, tone: "muted" as const }] : []),
-                ...(reserve > 0 ? [{ label: `Reserve ${fmt(reserve)}`, tone: "info" as const }] : []),
+                ...(reserve > 0 ? [{ label: `Reserve ${fmt(reserve)}`, tone: "default" as const }] : []),
               ],
             }}
             sections={sections}
