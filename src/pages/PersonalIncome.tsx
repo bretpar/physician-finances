@@ -159,7 +159,7 @@ export default function PersonalIncome() {
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   const entries = useMemo(() => {
     return rawEntries.filter((e: any) => {
-      if (filterReview === "needs_review" && !e.needs_review && e.origin_type !== "planner_converted") return false;
+      if (filterReview === "needs_review" && !e.needs_review) return false;
       if (filterPlanner === "from_planner" && e.origin_type !== "planner_converted") return false;
       return true;
     });
