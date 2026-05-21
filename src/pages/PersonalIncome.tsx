@@ -805,18 +805,10 @@ export default function PersonalIncome() {
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = formatDate(entry.income_date);
                   const badges: LedgerRowBadge[] = [];
-                  const attCount = attachmentCounts?.get(entry.id) ?? 0;
-                  if (attCount > 0) badges.push({ label: `📎 ${attCount}`, tone: "muted" });
-                  if (withheld > 0) badges.push({ label: `Withheld ${fmt(withheld)}`, tone: "muted" });
-                  if (reserve > 0) badges.push({ label: `Reserve ${fmt(reserve)}`, tone: "info" });
-                  if ((entry as any).origin_type === "planner_converted") {
-                    badges.push({ label: "From Planner", tone: "info" });
+                  if ((entry as any).needs_review) {
                     badges.push({ label: "Review", tone: "warning" });
                   }
-
-                  if ((entry as any).linked_ytd_catchup_id) {
-                    badges.push({ label: "YTD", tone: "info" });
-                  }
+                  const isMobileSelected = mobileSelectedOrder.includes(entry.id);
 
                   return (
                     <div key={entry.id}>
@@ -832,22 +824,12 @@ export default function PersonalIncome() {
                         amountTone={isLoss ? "negative" : "positive"}
                         amountPrefix={isLoss ? "-" : "+"}
                         badges={badges}
+                        selected={mobileSelectionMode ? isMobileSelected : false}
+                        selectionMode={mobileSelectionMode}
+                        onToggleSelect={() => toggleMobileSelect(entry.id)}
+                        onLongPress={() => enterMobileSelectionWith(entry.id)}
                         onClick={() => setDetailEntry(entry)}
                       />
-                      {attCount > 0 && (
-                        <div className="px-4 pb-3 -mt-1">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted/40 active:bg-muted/60"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMobileViewerEntryId(entry.id);
-                            }}
-                          >
-                            <Paperclip className="h-3 w-3" /> View Receipt{attCount > 1 ? `s (${attCount})` : ""}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
