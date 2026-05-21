@@ -844,6 +844,45 @@ export default function PersonalIncome() {
         </div>
       </div>
 
+      {/* Mobile selection action bar — only visible in selection mode */}
+      {mobileSelectionMode && (() => {
+        const count = mobileSelectedOrder.length;
+        const canLink = count >= 2;
+        const helper = count === 0
+          ? "Tap an entry to select it"
+          : count === 1
+            ? "Select one more to link"
+            : `${count} entries ready to link`;
+        return (
+          <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+            <div className="px-4 pt-2.5 pb-[max(env(safe-area-inset-bottom),0.75rem)] flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-foreground">{count} selected</div>
+                <div className="text-[11px] text-muted-foreground truncate">{helper}</div>
+              </div>
+              <Button variant="ghost" size="sm" className="h-9 text-sm" onClick={exitMobileSelection}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-9 text-sm gap-1.5"
+                disabled={!canLink || createIncomeMatchGroup.isPending}
+                onClick={() => {
+                  if (!canLink) return;
+                  createIncomeMatchGroup.mutate(
+                    { entryIds: [...mobileSelectedOrder] },
+                    { onSuccess: () => exitMobileSelection() },
+                  );
+                }}
+              >
+                <Link2 className="h-4 w-4" /> Link
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+      {mobileSelectionMode && <div className="sm:hidden h-20" aria-hidden />}
+
       {/* Modal 1: Add/Edit Income Entry */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
