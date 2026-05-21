@@ -635,7 +635,6 @@ export default function PersonalIncome() {
       {/* Primary focus: Total Personal Income hero card */}
       <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center shadow-sm">
         <p className="text-sm font-medium text-muted-foreground">Total Personal Income</p>
-        <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground/80">W2 + other personal income</p>
         <p className="mt-3 text-4xl sm:text-5xl font-bold tracking-tight text-foreground">
           {fmt(totals.totalIncome)}
         </p>
