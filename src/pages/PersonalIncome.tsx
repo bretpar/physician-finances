@@ -1283,6 +1283,14 @@ export default function PersonalIncome() {
             ],
           },
         ];
+        const linkedGroupId = e.id
+          ? Array.from(incomeMatchGroups?.entries?.() || []).find(([, items]) =>
+              items.some((it) => it.entry.id === e.id),
+            )?.[0]
+          : undefined;
+        const linkedSiblings = (linkedGroupId ? incomeMatchGroups?.get(linkedGroupId) || [] : []).filter(
+          (it) => it.entry.id !== e.id,
+        );
         return (
           <TransactionDetailSheet
             open={!!detailEntry}
@@ -1294,13 +1302,63 @@ export default function PersonalIncome() {
               amount: Number(e.gross_amount) || 0,
               amountTone: isLoss ? "expense" : "income",
               badges: [
+                ...((e as any).needs_review ? [{ label: "Review", tone: "warning" as const }] : []),
                 ...(isYtd ? [{ label: "YTD Catch-Up", tone: "muted" as const }] : []),
                 ...(fromPlanner ? [{ label: "From Planner", tone: "success" as const }] : []),
+                ...(withheld > 0 ? [{ label: `Withheld ${fmt(withheld)}`, tone: "muted" as const }] : []),
+                ...(reserve > 0 ? [{ label: `Reserve ${fmt(reserve)}`, tone: "info" as const }] : []),
               ],
             }}
             sections={sections}
+            extraContent={
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Receipts</h3>
+                <TransactionAttachments
+                  transactionId={e.id}
+                  companyId={(e as any).source_id || null}
+                  label="Receipts"
+                />
+                {linkedSiblings.length > 0 && (
+                  <div className="space-y-2">
+                    {linkedSiblings.map((it) => (
+                      <SiblingReceiptsList
+                        key={it.entry.id}
+                        transactionId={it.entry.id}
+                        label={it.entry.name || "(No payor)"}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            }
+            linked={{
+              items: linkedSiblings.map((it) => ({
+                id: it.itemId,
+                label: it.entry.name || "(No payor)",
+                amount: Number(it.entry.gross_amount) || 0,
+                date: formatDateShort(it.entry.income_date),
+              })),
+              onUnlink: linkedGroupId
+                ? (itemId) => unlinkIncomeMatchItem.mutate({ itemId, groupId: linkedGroupId })
+                : undefined,
+              onLink: () => { setDetailEntry(null); enterMobileSelectionWith(e.id); },
+            }}
             onEdit={() => { const target = e; setDetailEntry(null); openEdit(target); }}
             onDelete={isYtd ? undefined : () => { setDeleteId(e.id); setDetailEntry(null); }}
+            needsReview={!!(e as any).needs_review}
+            markReviewedPending={updateMutation.isPending}
+            onMarkReviewed={() => {
+              updateMutation.mutate(
+                { id: e.id, needs_review: false } as any,
+                {
+                  onSuccess: () => {
+                    setDetailEntry((curr) =>
+                      curr && curr.id === e.id ? ({ ...curr, needs_review: false } as any) : curr,
+                    );
+                  },
+                },
+              );
+            }}
           />
         );
       })()}
