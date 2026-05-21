@@ -602,7 +602,7 @@ export default function PersonalIncome() {
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-primary" />
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Personal & External Income</h1>
+            <h1 className="text-xl font-semibold text-foreground">Personal Income</h1>
             <p className="text-xs text-muted-foreground">Actual non-business income affecting your taxes</p>
           </div>
         </div>
@@ -611,28 +611,25 @@ export default function PersonalIncome() {
         </Button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">Total Personal Income</p>
-          <p className="text-lg font-bold">{fmt(totals.totalIncome)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">W2 Income</p>
-          <p className="text-lg font-bold">{fmt(totals.w2Income)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">Capital Gains</p>
-          <p className="text-lg font-bold">{fmt(totals.capitalGains)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">Passive Income</p>
-          <p className="text-lg font-bold">{fmt(totals.passiveIncome)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-3 pb-2">
-          <p className="text-xs text-muted-foreground">Taxes Withheld</p>
-          <p className="text-lg font-bold text-emerald-600">{fmt(totals.totalWithheld)}</p>
-        </CardContent></Card>
+      {/* Primary focus: Total Personal Income hero card */}
+      <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center shadow-sm">
+        <p className="text-sm font-medium text-muted-foreground">Total Personal Income</p>
+        <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground/80">W2 + other personal income</p>
+        <p className="mt-3 text-4xl sm:text-5xl font-bold tracking-tight text-foreground">
+          {fmt(totals.totalIncome)}
+        </p>
+      </div>
+
+      {/* W2 + Taxes Withheld row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-1">W2 Income</p>
+          <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(totals.w2Income)}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Taxes Withheld</p>
+          <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{fmt(totals.totalWithheld)}</p>
+        </div>
       </div>
 
       {/* Filters */}
