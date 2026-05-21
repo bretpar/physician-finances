@@ -190,6 +190,26 @@ export default function PersonalIncome() {
   const [detailEntry, setDetailEntry] = useState<PersonalIncomeEntry | null>(null);
   const uploadAttachments = useUploadAttachments();
 
+  // ─── Mobile multi-select / linking ───
+  const { data: incomeMatchGroups } = useIncomeMatchGroups();
+  const createIncomeMatchGroup = useCreateIncomeMatchGroup();
+  const unlinkIncomeMatchItem = useUnlinkIncomeMatchGroupItem();
+  const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
+  const [mobileSelectedOrder, setMobileSelectedOrder] = useState<string[]>([]);
+  const exitMobileSelection = () => {
+    setMobileSelectionMode(false);
+    setMobileSelectedOrder([]);
+  };
+  const toggleMobileSelect = (id: string) => {
+    setMobileSelectedOrder((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+  const enterMobileSelectionWith = (id: string) => {
+    setMobileSelectionMode(true);
+    setMobileSelectedOrder((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
+
   // Per-transaction tax-savings reminder state
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [savedEntryId, setSavedEntryId] = useState<string | null>(null);
