@@ -75,6 +75,89 @@ function buildEmail(label: string): string {
   return `e2e+${label}-${ts}-${rand}@${E2E_EMAIL_DOMAIN}`;
 }
 
+/**
+ * Patterns that indicate a transient network/DNS/fetch failure worth retrying.
+ * Real validation errors (invalid email, weak password, duplicate user) are
+ * NOT matched here and will surface immediately.
+ */
+const TRANSIENT_NETWORK_PATTERNS = [
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "EPIPE",
+  "fetch failed",
+  "network timeout",
+  "network request failed",
+  "socket hang up",
+  "and89", // no-op guard; keep list extensible
+].map((s) => s.toLowerCase());
+
+function isTransientNetworkError(err: unknown): boolean {
+  if (!err) return false;
+  const parts: string[] = [];
+  const e = err as { message?: unknown; code?: unknown; cause?: unknown; name?: unknown };
+  if (typeof e.message === "string") parts.push(e.message);
+  if (typeof e.code === "string") parts.push(e.code);
+  if (typeof e.name === "string") parts.push(e.name);
+  if (e.cause) {
+    const c = e.cause as { message?: unknown; code?: unknown };
+    if (typeof c.message === "string") parts.push(c.message);
+    if (typeof c.code === "string") parts.push(c.code);
+  }
+  const hay = parts.join(" | ").toLowerCase();
+  return TRANSIENT_NETWORK_PATTERNS.some((p) => p !== "and89" && hay.includes(p));
+}
+
+type SignUpArgs = Parameters<SupabaseClient["auth"]["signUp"]>[0];
+type SignUpResult = Awaited<ReturnType<SupabaseClient["auth"]["signUp"]>>;
+
+async function signUpWithRetry(
+  client: SupabaseClient,
+  args: SignUpArgs,
+  maxAttempts = 4,
+): Promise<SignUpResult> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await client.auth.signUp(args);
+      // supabase-js returns errors in `result.error` rather than throwing.
+      if (result.error && isTransientNetworkError(result.error)) {
+        lastErr = result.error;
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[e2e/seed] signUp transient error attempt ${attempt}/${maxAttempts}: ${
+            (result.error as { code?: string }).code ?? ""
+          } ${result.error.message}`,
+        );
+      } else {
+        return result;
+      }
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientNetworkError(err)) throw err;
+      const e = err as { code?: string; message?: string };
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[e2e/seed] signUp threw transient error attempt ${attempt}/${maxAttempts}: ${
+          e.code ?? ""
+        } ${e.message ?? ""}`,
+      );
+    }
+    if (attempt < maxAttempts) {
+      const base = 400 * Math.pow(2, attempt - 1); // 400, 800, 1600...
+      const jitter = Math.floor(Math.random() * 250);
+      await new Promise((r) => setTimeout(r, base + jitter));
+    }
+  }
+  const e = lastErr as { code?: string; message?: string } | undefined;
+  throw new Error(
+    `Network transient: Supabase signup failed after retries (${maxAttempts}). ` +
+      `Last error: ${e?.code ?? ""} ${e?.message ?? String(lastErr ?? "unknown")}`.trim(),
+  );
+}
+
 async function waitForProvisioning(
   client: SupabaseClient,
   userId: string,
