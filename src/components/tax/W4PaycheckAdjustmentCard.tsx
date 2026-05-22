@@ -534,12 +534,29 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [streams, allProjected, todayStr, detectionBySourceId]);
 
-  // Whether to count *planned/recommended* future tax savings (e.g. expected
-  // future 1099/business reserves) as if they were already covered. Per app
-  // policy, we do NOT count recommendations as actual savings — only money the
-  // user has actually entered as withheld/paid/saved reduces the W-4 gap.
-  // Flip this only if a future setting explicitly opts the user in.
-  const COUNT_PLANNED_FUTURE_RESERVES = false;
+  // User-facing toggle: whether to assume the user will save the recommended
+  // future 1099/business/K-1 tax reserves. Defaults ON because most app users
+  // are being told to save reserves from non-W-2 income. Persisted locally so
+  // the choice survives reloads without requiring a backend change.
+  const TOGGLE_KEY = "w4.countPlannedNonW2Reserves";
+  const [countPlannedNonW2Reserves, setCountPlannedNonW2Reserves] = useState<boolean>(true);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(TOGGLE_KEY);
+      if (raw === "false") setCountPlannedNonW2Reserves(false);
+      else if (raw === "true") setCountPlannedNonW2Reserves(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const handleToggleChange = (next: boolean) => {
+    setCountPlannedNonW2Reserves(next);
+    try {
+      localStorage.setItem(TOGGLE_KEY, next ? "true" : "false");
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
@@ -548,7 +565,7 @@ export default function W4PaycheckAdjustmentCard() {
   );
   const projectedPlannedFutureBusinessReserves =
     futureBusinessGross * (businessReserveRate / 100);
-  const plannedFutureBusinessReservesCounted = COUNT_PLANNED_FUTURE_RESERVES
+  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
     ? projectedPlannedFutureBusinessReserves
     : 0;
 
