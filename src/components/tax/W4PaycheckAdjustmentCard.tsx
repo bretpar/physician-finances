@@ -690,6 +690,25 @@ export default function W4PaycheckAdjustmentCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
+              Count planned 1099/business/K-1 tax reserves
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              When on, we assume you will save the recommended tax reserve from
+              future non-W-2 income, so your W-4 only needs to cover the remaining
+              gap. When off, your W-4 will try to cover more of your total annual
+              tax burden.
+            </p>
+          </div>
+          <Switch
+            id="w4-count-nonw2"
+            checked={countPlannedNonW2Reserves}
+            onCheckedChange={handleToggleChange}
+          />
+        </div>
+
 
         {remainingW4Gap <= 0 ? (
           <div className="space-y-1 text-sm text-foreground">
