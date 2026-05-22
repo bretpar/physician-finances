@@ -773,21 +773,25 @@ export default function W4PaycheckAdjustmentCard() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="mt-2 space-y-1 rounded-md border border-border p-3 text-sm">
-              <Row label="Projected total tax" value={fmt(projectedTotalTax)} />
+              <Row label="Annual estimated tax liability" value={fmt(projectedTotalTax)} />
+              <Row label="Actual W-2 withholding YTD" value={fmt(taxesAlreadyWithheld)} />
               <Row
-                label="Already withheld / saved / paid"
-                value={fmt(taxesAlreadyWithheld + actualTaxSavedOrPaid + estPaymentsAlreadyMade)}
-              />
-              <Row
-                label="Expected future normal W-2 withholding"
+                label="Projected future W-2 withholding"
                 value={fmt(expectedFutureNormalW2Withholding)}
               />
+              <Row label="Actual tax saved YTD (user-entered)" value={fmt(actualTaxSavedOrPaid)} />
+              <Row label="Estimated payments already made" value={fmt(estPaymentsAlreadyMade)} />
               <Row
-                label={`Planned future 1099/business reserves (${businessReserveRate.toFixed(1)}%)`}
-                value={fmt(plannedFutureBusinessReserves)}
+                label={`Planned future 1099/business reserves counted (${businessReserveRate.toFixed(1)}%)`}
+                value={
+                  COUNT_PLANNED_FUTURE_RESERVES
+                    ? fmt(plannedFutureBusinessReservesCounted)
+                    : `${fmt(0)} (not counted; ~${fmt(projectedPlannedFutureBusinessReserves)} recommended)`
+                }
               />
               <div className="my-1 border-t border-border" />
-              <Row label="Remaining W-4 gap" value={fmt(remainingW4Gap)} bold />
+              <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
+
 
               {allocations.length > 0 && (
                 <div className="mt-3 space-y-2">
