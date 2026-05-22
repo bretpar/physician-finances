@@ -532,12 +532,23 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [streams, allProjected, todayStr, detectionBySourceId]);
 
+  // Whether to count *planned/recommended* future tax savings (e.g. expected
+  // future 1099/business reserves) as if they were already covered. Per app
+  // policy, we do NOT count recommendations as actual savings — only money the
+  // user has actually entered as withheld/paid/saved reduces the W-4 gap.
+  // Flip this only if a future setting explicitly opts the user in.
+  const COUNT_PLANNED_FUTURE_RESERVES = false;
+
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
     0,
     Number(forecastDebug?.grossBusinessIncome ?? 0) - Number(actualDebug?.grossBusinessIncome ?? 0),
   );
-  const plannedFutureBusinessReserves = futureBusinessGross * (businessReserveRate / 100);
+  const projectedPlannedFutureBusinessReserves =
+    futureBusinessGross * (businessReserveRate / 100);
+  const plannedFutureBusinessReservesCounted = COUNT_PLANNED_FUTURE_RESERVES
+    ? projectedPlannedFutureBusinessReserves
+    : 0;
 
   const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
@@ -556,7 +567,7 @@ export default function W4PaycheckAdjustmentCard() {
       actualTaxSavedOrPaid -
       estPaymentsAlreadyMade -
       expectedFutureNormalW2Withholding -
-      plannedFutureBusinessReserves,
+      plannedFutureBusinessReservesCounted,
   );
 
   // Read per-company W-4 settings from Settings > Companies.
