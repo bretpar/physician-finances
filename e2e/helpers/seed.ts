@@ -11,6 +11,7 @@
  * the project's chosen cleanup strategy ("Keep + tag with timestamp").
  * Run scripts/cleanup-e2e-users.ts to inspect / purge later.
  */
+import { createRequire } from "node:module";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL =
@@ -18,6 +19,27 @@ const SUPABASE_URL =
 const SUPABASE_ANON_KEY =
   process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpcW54cHJodnNhZGNxaWNjemtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjQ1OTIsImV4cCI6MjA5MTI0MDU5Mn0.zLfB4BgxOjdFt4BYdmIZ_j3UpMkadSiU_LezbC35XP0";
+
+/**
+ * Node 20 (and older) does not ship a global `WebSocket` constructor, which
+ * supabase-js's realtime client requires at import time. The seed harness
+ * never opens realtime channels, but the client still constructs the
+ * transport eagerly. Provide a `ws`-backed shim when missing so the import
+ * doesn't throw "Node.js 20 detected without native WebSocket support".
+ *
+ * Browser/spec runs are unaffected — the browser has a native WebSocket and
+ * this block is a no-op there.
+ */
+if (typeof globalThis !== "undefined" && typeof (globalThis as { WebSocket?: unknown }).WebSocket === "undefined") {
+  try {
+    const nodeRequire = createRequire(import.meta.url);
+    const ws = nodeRequire("ws");
+    (globalThis as { WebSocket?: unknown }).WebSocket = ws.WebSocket ?? ws;
+  } catch {
+    // If `ws` isn't installed, fall through — createClient below disables
+    // realtime auto-connect so the missing global won't be exercised.
+  }
+}
 
 export const E2E_EMAIL_DOMAIN = "paycheckmd-e2e.test";
 export const E2E_PASSWORD = "Test1234!";
@@ -81,6 +103,7 @@ export async function createDisposableUser(label = "user"): Promise<{
 }> {
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { params: { eventsPerSecond: 1 } },
   });
   const email = buildEmail(label);
   const password = E2E_PASSWORD;
