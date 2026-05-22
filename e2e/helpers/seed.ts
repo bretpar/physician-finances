@@ -11,6 +11,7 @@
  * the project's chosen cleanup strategy ("Keep + tag with timestamp").
  * Run scripts/cleanup-e2e-users.ts to inspect / purge later.
  */
+import { createRequire } from "node:module";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL =
