@@ -493,6 +493,7 @@ export default function Onboarding() {
                       setLastSavedName(name);
                       setEditingCatchup(null);
                       setShowCatchupForm(false);
+                      setLocalSavedCatchups((n) => n + 1);
                     }}
                     onCancel={editingCatchup ? () => {
                       setEditingCatchup(null);
