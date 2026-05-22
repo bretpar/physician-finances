@@ -20,6 +20,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import ResetPassword from "@/pages/ResetPassword";
 import Onboarding from "@/pages/Onboarding";
+import { OnboardingErrorBoundary } from "@/components/OnboardingErrorBoundary";
 import Estimate from "@/pages/Estimate";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
@@ -54,7 +55,7 @@ function ProtectedRoutes() {
   }
 
   if (location.pathname === "/onboarding") {
-    return <Onboarding />;
+    return <OnboardingErrorBoundary><Onboarding /></OnboardingErrorBoundary>;
   }
 
   if (taxSettings?.onboardingComplete !== true) {
@@ -109,7 +110,7 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/signup" element={user ? <Navigate to="/onboarding" replace /> : <Estimate />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/onboarding" element={<OnboardingErrorBoundary><Onboarding /></OnboardingErrorBoundary>} />
       <Route path="/estimate" element={<Estimate />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
     </Routes>

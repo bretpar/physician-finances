@@ -267,6 +267,15 @@ export default function Onboarding() {
         return;
       }
       if (catchupSubStep === "form") {
+        // Require at least one saved YTD entry before advancing, so Continue
+        // never silently dead-ends. Then move forward to the company step.
+        const savedCount = existingCatchups?.length ?? 0;
+        if (savedCount === 0) {
+          toast.error("Save at least one year-to-date entry, or click Back to skip.");
+          return;
+        }
+        setEditingCatchup(null);
+        setShowCatchupForm(false);
         setCatchupSubStep("company");
         return;
       }
@@ -550,10 +559,10 @@ export default function Onboarding() {
           )}
 
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            <Button variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
+            <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
-              {step === 2 && catchupSubStep === "company" && <Button variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-              <Button onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+              {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
+              <Button type="button" onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>
         </CardContent>

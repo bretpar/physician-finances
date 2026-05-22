@@ -243,8 +243,8 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-2">
-        {onCancel && <Button variant="ghost" onClick={onCancel} disabled={upsert.isPending}>Cancel</Button>}
-        <Button onClick={submit} disabled={upsert.isPending}>{upsert.isPending ? "Saving…" : initial ? "Save changes" : "Save catch-up"}</Button>
+        {onCancel && <Button type="button" variant="ghost" onClick={onCancel} disabled={upsert.isPending}>Cancel</Button>}
+        <Button type="button" onClick={submit} disabled={upsert.isPending}>{upsert.isPending ? "Saving…" : initial ? "Save changes" : "Save catch-up"}</Button>
       </div>
     </div>
   );
