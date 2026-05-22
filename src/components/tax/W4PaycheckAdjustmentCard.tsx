@@ -701,13 +701,13 @@ export default function W4PaycheckAdjustmentCard() {
               estimated payments ({fmt(estPaymentsAlreadyMade)}), and
               user-entered tax savings ({fmt(actualTaxSavedOrPaid)}).
             </p>
-            {projectedPlannedFutureBusinessReserves > 0 && !COUNT_PLANNED_FUTURE_RESERVES && (
+            {projectedPlannedFutureBusinessReserves > 0 && !countPlannedNonW2Reserves && (
               <p className="text-xs text-muted-foreground">
                 Note: ~{fmt(projectedPlannedFutureBusinessReserves)} of
-                recommended future 1099/business reserves is intentionally
+                recommended future 1099/business/K-1 reserves is intentionally
                 <span className="italic"> not</span> counted as already saved.
-                If a paycheck recommends saving more, enter that amount as
-                actually saved/reserved to keep this in sync.
+                Turn on the toggle below to assume you will save those reserves,
+                or enter actual saved/reserved amounts.
               </p>
             )}
           </div>
