@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, AlertCircle, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -532,12 +534,29 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [streams, allProjected, todayStr, detectionBySourceId]);
 
-  // Whether to count *planned/recommended* future tax savings (e.g. expected
-  // future 1099/business reserves) as if they were already covered. Per app
-  // policy, we do NOT count recommendations as actual savings — only money the
-  // user has actually entered as withheld/paid/saved reduces the W-4 gap.
-  // Flip this only if a future setting explicitly opts the user in.
-  const COUNT_PLANNED_FUTURE_RESERVES = false;
+  // User-facing toggle: whether to assume the user will save the recommended
+  // future 1099/business/K-1 tax reserves. Defaults ON because most app users
+  // are being told to save reserves from non-W-2 income. Persisted locally so
+  // the choice survives reloads without requiring a backend change.
+  const TOGGLE_KEY = "w4.countPlannedNonW2Reserves";
+  const [countPlannedNonW2Reserves, setCountPlannedNonW2Reserves] = useState<boolean>(true);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(TOGGLE_KEY);
+      if (raw === "false") setCountPlannedNonW2Reserves(false);
+      else if (raw === "true") setCountPlannedNonW2Reserves(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const handleToggleChange = (next: boolean) => {
+    setCountPlannedNonW2Reserves(next);
+    try {
+      localStorage.setItem(TOGGLE_KEY, next ? "true" : "false");
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
@@ -546,7 +565,7 @@ export default function W4PaycheckAdjustmentCard() {
   );
   const projectedPlannedFutureBusinessReserves =
     futureBusinessGross * (businessReserveRate / 100);
-  const plannedFutureBusinessReservesCounted = COUNT_PLANNED_FUTURE_RESERVES
+  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
     ? projectedPlannedFutureBusinessReserves
     : 0;
 
@@ -671,6 +690,25 @@ export default function W4PaycheckAdjustmentCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
+              Count planned 1099/business/K-1 tax reserves
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              When on, we assume you will save the recommended tax reserve from
+              future non-W-2 income, so your W-4 only needs to cover the remaining
+              gap. When off, your W-4 will try to cover more of your total annual
+              tax burden.
+            </p>
+          </div>
+          <Switch
+            id="w4-count-nonw2"
+            checked={countPlannedNonW2Reserves}
+            onCheckedChange={handleToggleChange}
+          />
+        </div>
+
 
         {remainingW4Gap <= 0 ? (
           <div className="space-y-1 text-sm text-foreground">
@@ -682,13 +720,13 @@ export default function W4PaycheckAdjustmentCard() {
               estimated payments ({fmt(estPaymentsAlreadyMade)}), and
               user-entered tax savings ({fmt(actualTaxSavedOrPaid)}).
             </p>
-            {projectedPlannedFutureBusinessReserves > 0 && !COUNT_PLANNED_FUTURE_RESERVES && (
+            {projectedPlannedFutureBusinessReserves > 0 && !countPlannedNonW2Reserves && (
               <p className="text-xs text-muted-foreground">
                 Note: ~{fmt(projectedPlannedFutureBusinessReserves)} of
-                recommended future 1099/business reserves is intentionally
+                recommended future 1099/business/K-1 reserves is intentionally
                 <span className="italic"> not</span> counted as already saved.
-                If a paycheck recommends saving more, enter that amount as
-                actually saved/reserved to keep this in sync.
+                Turn on the toggle below to assume you will save those reserves,
+                or enter actual saved/reserved amounts.
               </p>
             )}
           </div>
@@ -782,12 +820,16 @@ export default function W4PaycheckAdjustmentCard() {
               <Row label="Actual tax saved YTD (user-entered)" value={fmt(actualTaxSavedOrPaid)} />
               <Row label="Estimated payments already made" value={fmt(estPaymentsAlreadyMade)} />
               <Row
-                label={`Planned future 1099/business reserves counted (${businessReserveRate.toFixed(1)}%)`}
+                label={`Planned future 1099/business/K-1 reserves counted (${businessReserveRate.toFixed(1)}%)`}
                 value={
-                  COUNT_PLANNED_FUTURE_RESERVES
+                  countPlannedNonW2Reserves
                     ? fmt(plannedFutureBusinessReservesCounted)
-                    : `${fmt(0)} (not counted; ~${fmt(projectedPlannedFutureBusinessReserves)} recommended)`
+                    : `${fmt(0)} (toggle off)`
                 }
+              />
+              <Row
+                label="Planned future 1099/business/K-1 reserves recommended"
+                value={fmt(projectedPlannedFutureBusinessReserves)}
               />
               <div className="my-1 border-t border-border" />
               <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
