@@ -74,6 +74,7 @@ export default function Onboarding() {
   const [catchupFormKey, setCatchupFormKey] = useState(0);
   const [showCatchupForm, setShowCatchupForm] = useState(true);
   const [lastSavedName, setLastSavedName] = useState<string | null>(null);
+  const [localSavedCatchups, setLocalSavedCatchups] = useState(0);
   const catchupFormRef = useRef<HTMLDivElement | null>(null);
 
   const settingsId = taxSettings?.id;
