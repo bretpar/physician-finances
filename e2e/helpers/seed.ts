@@ -103,6 +103,7 @@ export async function createDisposableUser(label = "user"): Promise<{
 }> {
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { params: { eventsPerSecond: 1 } },
   });
   const email = buildEmail(label);
   const password = E2E_PASSWORD;
