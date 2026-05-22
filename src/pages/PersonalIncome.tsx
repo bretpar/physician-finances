@@ -640,15 +640,15 @@ export default function PersonalIncome() {
         </p>
       </div>
 
-      {/* W2 + Taxes Withheld row */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">W2 Income</p>
-          <p className="text-lg sm:text-xl font-bold text-card-foreground">{fmt(totals.w2Income)}</p>
+      {/* W2 + Taxes Withheld row — compact on mobile */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
+          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">W2 Income</p>
+          <p className="text-sm sm:text-xl font-bold text-card-foreground truncate">{fmt(totals.w2Income)}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Taxes Withheld</p>
-          <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400">{fmt(totals.totalWithheld)}</p>
+        <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
+          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">Taxes Withheld</p>
+          <p className="text-sm sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{fmt(totals.totalWithheld)}</p>
         </div>
       </div>
 
