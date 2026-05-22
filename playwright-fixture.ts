@@ -30,4 +30,4 @@ try {
 
 export const test = _test as TestType<any, any>;
 export const expect = _expect as Expect;
-export type { Page } from "@playwright/test";
+export type { Page, Locator } from "@playwright/test";
