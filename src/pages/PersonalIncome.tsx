@@ -1100,6 +1100,7 @@ export default function PersonalIncome() {
               const status = paycheckSavings.status;
               const isUnder = status === "under_withheld";
               const isOver = status === "over_withheld";
+              const isW2 = isW2Type(form.income_type);
               // Distinguish a true payroll over-withholding from a surplus
               // created by the user's additional tax reserve. Real
               // over-withholding = payroll alone exceeds the target. A
@@ -1116,26 +1117,40 @@ export default function PersonalIncome() {
                   ? ` • Includes $${Math.round(reserveApplied).toLocaleString()} additional tax reserve (not actual withholding)`
                   : "";
 
+              // Per-paycheck guide language differs by income type:
+              //   • W-2 paychecks have actual payroll withholding, so we frame
+              //     this as a per-paycheck tax target / extra needed on THIS check.
+              //   • 1099 / K-1 / business income has no payroll withholding, so
+              //     we frame it as a recommended tax reserve to set aside.
+              const underPrimary = isW2
+                ? `Extra needed for this paycheck: ${amountDisplay}`
+                : `Recommended to set aside: ${amountDisplay}`;
+              const onTrackPrimary = isW2
+                ? "Paycheck tax target met"
+                : "Tax reserve on track";
+
               const primary = isOver
                 ? isReserveDrivenOver
                   ? `You're ahead by ${amountDisplay} (payroll + reserve surplus)`
                   : `You're ahead by ${amountDisplay}`
                 : isUnder
-                ? `Save ${amountDisplay} more this paycheck`
-                : "You're on track";
+                ? underPrimary
+                : onTrackPrimary;
               const secondary = isOver
                 ? isReserveDrivenOver
                   ? `Your payroll withholding plus your additional tax reserve exceed this paycheck's tax target. Actual payroll withholding alone is not over • Based on effective tax rate of ${rateDisplay}${reserveNote}`
                   : `Payroll withholding alone exceeds this paycheck's tax target • Based on effective tax rate of ${rateDisplay}${reserveNote}`
                 : isUnder
-                ? `To stay on track • Based on effective tax rate of ${rateDisplay}${reserveNote}`
+                ? isW2
+                  ? `Per-paycheck target = gross × ${rateDisplay} − withholding − amount already saved${reserveNote}`
+                  : `Recommended tax reserve based on effective tax rate of ${rateDisplay}${reserveNote}`
                 : `Withholding matches your target • Based on effective tax rate of ${rateDisplay}${reserveNote}`;
               const rightLabel = isOver
                 ? isReserveDrivenOver
                   ? "Over-withheld (payroll + reserve)"
                   : "Over-withheld (payroll)"
                 : isUnder
-                ? "Under-saving"
+                ? isW2 ? "Extra needed" : "Recommended reserve"
                 : "On track";
               const rightColor = isOver
                 ? "text-emerald-600 dark:text-emerald-400"
@@ -1145,7 +1160,9 @@ export default function PersonalIncome() {
 
               return (
                 <div className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground">Paycheck tax savings guide</p>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {isW2 ? "Paycheck tax target" : "Recommended tax reserve"}
+                  </p>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="text-base sm:text-lg font-semibold text-foreground leading-snug">
