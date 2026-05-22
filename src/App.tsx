@@ -55,7 +55,7 @@ function ProtectedRoutes() {
   }
 
   if (location.pathname === "/onboarding") {
-    return <Onboarding />;
+    return <OnboardingErrorBoundary><Onboarding /></OnboardingErrorBoundary>;
   }
 
   if (taxSettings?.onboardingComplete !== true) {
