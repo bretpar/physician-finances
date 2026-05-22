@@ -25,9 +25,39 @@ Disposable users are **kept and tagged with a timestamp** (per project preferenc
 
 ## Running
 
+Inside the Lovable agent environment (preview wiring auto-loaded via
+`lovable-agent-playwright-config`):
+
 ```
 bunx playwright test e2e/disposable-user.spec.ts
 ```
+
+### Running from Codex / standard environments
+
+`playwright.config.ts` falls back to a standard Chromium-only config when the
+Lovable agent config package is not installed, so the same specs run anywhere:
+
+```
+corepack enable
+pnpm install
+npx playwright install --with-deps chromium
+npx playwright test
+```
+
+Environment variables:
+
+- `PLAYWRIGHT_BASE_URL` or `BASE_URL` — target app URL. Defaults to
+  `https://app.paycheckmd.com`.
+- `TEST_SEED_ADMIN_TOKEN` — required only when invoking the
+  `test-seed-users` / `test-verify-user` edge functions (see below).
+- `SUPABASE_URL` — required for the seed/verify curl examples below.
+
+The fallback config:
+
+- Runs Chromium only
+- 60s test timeout, 10s expect timeout, 15s action / 30s navigation timeouts
+- Captures screenshots, videos, and traces on failure
+- Picks up every `e2e/*.spec.ts`
 
 ---
 
