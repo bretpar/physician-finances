@@ -532,12 +532,23 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [streams, allProjected, todayStr, detectionBySourceId]);
 
+  // Whether to count *planned/recommended* future tax savings (e.g. expected
+  // future 1099/business reserves) as if they were already covered. Per app
+  // policy, we do NOT count recommendations as actual savings — only money the
+  // user has actually entered as withheld/paid/saved reduces the W-4 gap.
+  // Flip this only if a future setting explicitly opts the user in.
+  const COUNT_PLANNED_FUTURE_RESERVES = false;
+
   // Future business gross = planner (forecast) gross business − actual gross business
   const futureBusinessGross = Math.max(
     0,
     Number(forecastDebug?.grossBusinessIncome ?? 0) - Number(actualDebug?.grossBusinessIncome ?? 0),
   );
-  const plannedFutureBusinessReserves = futureBusinessGross * (businessReserveRate / 100);
+  const projectedPlannedFutureBusinessReserves =
+    futureBusinessGross * (businessReserveRate / 100);
+  const plannedFutureBusinessReservesCounted = COUNT_PLANNED_FUTURE_RESERVES
+    ? projectedPlannedFutureBusinessReserves
+    : 0;
 
   const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
@@ -556,7 +567,7 @@ export default function W4PaycheckAdjustmentCard() {
       actualTaxSavedOrPaid -
       estPaymentsAlreadyMade -
       expectedFutureNormalW2Withholding -
-      plannedFutureBusinessReserves,
+      plannedFutureBusinessReservesCounted,
   );
 
   // Read per-company W-4 settings from Settings > Companies.
@@ -662,10 +673,25 @@ export default function W4PaycheckAdjustmentCard() {
       <CardContent className="space-y-4">
 
         {remainingW4Gap <= 0 ? (
-          <p className="text-sm text-foreground">
-            You're projected to be fully covered by current withholding, payments, and planned reserves. No
-            extra W-4 Step 4(c) withholding is needed right now.
-          </p>
+          <div className="space-y-1 text-sm text-foreground">
+            <p>
+              No W-4 change is recommended because your projected annual tax
+              ({fmt(projectedTotalTax)}) is already covered by actual
+              withholding ({fmt(taxesAlreadyWithheld)}), expected future W-2
+              withholding ({fmt(expectedFutureNormalW2Withholding)}),
+              estimated payments ({fmt(estPaymentsAlreadyMade)}), and
+              user-entered tax savings ({fmt(actualTaxSavedOrPaid)}).
+            </p>
+            {projectedPlannedFutureBusinessReserves > 0 && !COUNT_PLANNED_FUTURE_RESERVES && (
+              <p className="text-xs text-muted-foreground">
+                Note: ~{fmt(projectedPlannedFutureBusinessReserves)} of
+                recommended future 1099/business reserves is intentionally
+                <span className="italic"> not</span> counted as already saved.
+                If a paycheck recommends saving more, enter that amount as
+                actually saved/reserved to keep this in sync.
+              </p>
+            )}
+          </div>
         ) : (
           <>
             <p className="text-sm text-foreground">
@@ -747,21 +773,25 @@ export default function W4PaycheckAdjustmentCard() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="mt-2 space-y-1 rounded-md border border-border p-3 text-sm">
-              <Row label="Projected total tax" value={fmt(projectedTotalTax)} />
+              <Row label="Annual estimated tax liability" value={fmt(projectedTotalTax)} />
+              <Row label="Actual W-2 withholding YTD" value={fmt(taxesAlreadyWithheld)} />
               <Row
-                label="Already withheld / saved / paid"
-                value={fmt(taxesAlreadyWithheld + actualTaxSavedOrPaid + estPaymentsAlreadyMade)}
-              />
-              <Row
-                label="Expected future normal W-2 withholding"
+                label="Projected future W-2 withholding"
                 value={fmt(expectedFutureNormalW2Withholding)}
               />
+              <Row label="Actual tax saved YTD (user-entered)" value={fmt(actualTaxSavedOrPaid)} />
+              <Row label="Estimated payments already made" value={fmt(estPaymentsAlreadyMade)} />
               <Row
-                label={`Planned future 1099/business reserves (${businessReserveRate.toFixed(1)}%)`}
-                value={fmt(plannedFutureBusinessReserves)}
+                label={`Planned future 1099/business reserves counted (${businessReserveRate.toFixed(1)}%)`}
+                value={
+                  COUNT_PLANNED_FUTURE_RESERVES
+                    ? fmt(plannedFutureBusinessReservesCounted)
+                    : `${fmt(0)} (not counted; ~${fmt(projectedPlannedFutureBusinessReserves)} recommended)`
+                }
               />
               <div className="my-1 border-t border-border" />
-              <Row label="Remaining W-4 gap" value={fmt(remainingW4Gap)} bold />
+              <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
+
 
               {allocations.length > 0 && (
                 <div className="mt-3 space-y-2">
