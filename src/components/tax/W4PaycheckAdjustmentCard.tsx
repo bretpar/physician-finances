@@ -690,6 +690,12 @@ export default function W4PaycheckAdjustmentCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Per-paycheck targets can show extra needed on individual checks, but
+          W-4 changes are based on your full annual tax picture after counting
+          W-2 withholding, estimated payments, actual savings, and optional
+          planned non-W-2 reserves.
+        </p>
         <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
           <div className="space-y-1">
             <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
