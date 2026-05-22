@@ -690,6 +690,12 @@ export default function W4PaycheckAdjustmentCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Per-paycheck targets can show extra needed on individual checks, but
+          W-4 changes are based on your full annual tax picture after counting
+          W-2 withholding, estimated payments, actual savings, and optional
+          planned non-W-2 reserves.
+        </p>
         <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
           <div className="space-y-1">
             <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
@@ -819,18 +825,34 @@ export default function W4PaycheckAdjustmentCard() {
               />
               <Row label="Actual tax saved YTD (user-entered)" value={fmt(actualTaxSavedOrPaid)} />
               <Row label="Estimated payments already made" value={fmt(estPaymentsAlreadyMade)} />
-              <Row
-                label={`Planned future 1099/business/K-1 reserves counted (${businessReserveRate.toFixed(1)}%)`}
-                value={
-                  countPlannedNonW2Reserves
-                    ? fmt(plannedFutureBusinessReservesCounted)
-                    : `${fmt(0)} (toggle off)`
+              {(() => {
+                const counted = plannedFutureBusinessReservesCounted;
+                const recommended = projectedPlannedFutureBusinessReserves;
+                const sameAmount = Math.abs(counted - recommended) < 0.5;
+                if (countPlannedNonW2Reserves && sameAmount) {
+                  // Toggle on and counted equals recommended — show once.
+                  return (
+                    <Row
+                      label={`Planned future 1099/business/K-1 reserves (${businessReserveRate.toFixed(1)}%)`}
+                      value={fmt(counted)}
+                    />
+                  );
                 }
-              />
-              <Row
-                label="Planned future 1099/business/K-1 reserves recommended"
-                value={fmt(projectedPlannedFutureBusinessReserves)}
-              />
+                return (
+                  <>
+                    <Row
+                      label={`Planned future 1099/business/K-1 reserves counted (${businessReserveRate.toFixed(1)}%)`}
+                      value={
+                        countPlannedNonW2Reserves ? fmt(counted) : `${fmt(0)} (toggle off)`
+                      }
+                    />
+                    <Row
+                      label="Planned future 1099/business/K-1 reserves recommended"
+                      value={fmt(recommended)}
+                    />
+                  </>
+                );
+              })()}
               <div className="my-1 border-t border-border" />
               <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
 
