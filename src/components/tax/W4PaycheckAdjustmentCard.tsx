@@ -801,12 +801,16 @@ export default function W4PaycheckAdjustmentCard() {
               <Row label="Actual tax saved YTD (user-entered)" value={fmt(actualTaxSavedOrPaid)} />
               <Row label="Estimated payments already made" value={fmt(estPaymentsAlreadyMade)} />
               <Row
-                label={`Planned future 1099/business reserves counted (${businessReserveRate.toFixed(1)}%)`}
+                label={`Planned future 1099/business/K-1 reserves counted (${businessReserveRate.toFixed(1)}%)`}
                 value={
-                  COUNT_PLANNED_FUTURE_RESERVES
+                  countPlannedNonW2Reserves
                     ? fmt(plannedFutureBusinessReservesCounted)
-                    : `${fmt(0)} (not counted; ~${fmt(projectedPlannedFutureBusinessReserves)} recommended)`
+                    : `${fmt(0)} (toggle off)`
                 }
+              />
+              <Row
+                label="Planned future 1099/business/K-1 reserves recommended"
+                value={fmt(projectedPlannedFutureBusinessReserves)}
               />
               <div className="my-1 border-t border-border" />
               <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
