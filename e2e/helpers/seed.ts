@@ -32,8 +32,8 @@ const SUPABASE_ANON_KEY =
  */
 if (typeof globalThis !== "undefined" && typeof (globalThis as { WebSocket?: unknown }).WebSocket === "undefined") {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const ws = require("ws");
+    const nodeRequire = createRequire(import.meta.url);
+    const ws = nodeRequire("ws");
     (globalThis as { WebSocket?: unknown }).WebSocket = ws.WebSocket ?? ws;
   } catch {
     // If `ws` isn't installed, fall through — createClient below disables
