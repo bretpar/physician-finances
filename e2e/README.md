@@ -128,3 +128,13 @@ Browser tests can target:
 Seeded rows are tagged with `[test-seed]` in their `notes` field. Re-running
 `test-seed-users` with the default `reset: true` wipes prior seed rows for
 the three test accounts before reseeding.
+
+### Transient network retries during seeding
+
+`e2e/helpers/seed.ts` wraps `client.auth.signUp` with a bounded retry +
+exponential backoff (≤4 attempts, jittered). It retries only transient
+network/DNS/fetch errors — `EAI_AGAIN`, `ENOTFOUND`, `ECONNRESET`,
+`ETIMEDOUT`, `fetch failed`, `network timeout`, etc. Real auth/validation
+errors (invalid email, weak password, duplicate user) surface immediately.
+If all retries fail you'll see: `Network transient: Supabase signup failed
+after retries`. Secrets like `TEST_SEED_ADMIN_TOKEN` are never logged.
