@@ -270,7 +270,10 @@ export default function Onboarding() {
       if (catchupSubStep === "form") {
         // Require at least one saved YTD entry before advancing, so Continue
         // never silently dead-ends. Then move forward to the company step.
-        const savedCount = existingCatchups?.length ?? 0;
+        // Require at least one saved YTD entry before advancing. Use a local
+        // counter in addition to the query result so Continue works immediately
+        // after onSaved fires, without waiting for the query cache to refresh.
+        const savedCount = Math.max(existingCatchups?.length ?? 0, localSavedCatchups);
         if (savedCount === 0) {
           toast.error("Save at least one year-to-date entry, or click Back to skip.");
           return;
