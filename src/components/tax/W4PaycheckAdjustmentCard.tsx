@@ -673,10 +673,25 @@ export default function W4PaycheckAdjustmentCard() {
       <CardContent className="space-y-4">
 
         {remainingW4Gap <= 0 ? (
-          <p className="text-sm text-foreground">
-            You're projected to be fully covered by current withholding, payments, and planned reserves. No
-            extra W-4 Step 4(c) withholding is needed right now.
-          </p>
+          <div className="space-y-1 text-sm text-foreground">
+            <p>
+              No W-4 change is recommended because your projected annual tax
+              ({fmt(projectedTotalTax)}) is already covered by actual
+              withholding ({fmt(taxesAlreadyWithheld)}), expected future W-2
+              withholding ({fmt(expectedFutureNormalW2Withholding)}),
+              estimated payments ({fmt(estPaymentsAlreadyMade)}), and
+              user-entered tax savings ({fmt(actualTaxSavedOrPaid)}).
+            </p>
+            {projectedPlannedFutureBusinessReserves > 0 && !COUNT_PLANNED_FUTURE_RESERVES && (
+              <p className="text-xs text-muted-foreground">
+                Note: ~{fmt(projectedPlannedFutureBusinessReserves)} of
+                recommended future 1099/business reserves is intentionally
+                <span className="italic"> not</span> counted as already saved.
+                If a paycheck recommends saving more, enter that amount as
+                actually saved/reserved to keep this in sync.
+              </p>
+            )}
+          </div>
         ) : (
           <>
             <p className="text-sm text-foreground">
