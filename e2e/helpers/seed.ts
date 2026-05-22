@@ -19,6 +19,27 @@ const SUPABASE_ANON_KEY =
   process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpcW54cHJodnNhZGNxaWNjemtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjQ1OTIsImV4cCI6MjA5MTI0MDU5Mn0.zLfB4BgxOjdFt4BYdmIZ_j3UpMkadSiU_LezbC35XP0";
 
+/**
+ * Node 20 (and older) does not ship a global `WebSocket` constructor, which
+ * supabase-js's realtime client requires at import time. The seed harness
+ * never opens realtime channels, but the client still constructs the
+ * transport eagerly. Provide a `ws`-backed shim when missing so the import
+ * doesn't throw "Node.js 20 detected without native WebSocket support".
+ *
+ * Browser/spec runs are unaffected — the browser has a native WebSocket and
+ * this block is a no-op there.
+ */
+if (typeof globalThis !== "undefined" && typeof (globalThis as { WebSocket?: unknown }).WebSocket === "undefined") {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ws = require("ws");
+    (globalThis as { WebSocket?: unknown }).WebSocket = ws.WebSocket ?? ws;
+  } catch {
+    // If `ws` isn't installed, fall through — createClient below disables
+    // realtime auto-connect so the missing global won't be exercised.
+  }
+}
+
 export const E2E_EMAIL_DOMAIN = "paycheckmd-e2e.test";
 export const E2E_PASSWORD = "Test1234!";
 
