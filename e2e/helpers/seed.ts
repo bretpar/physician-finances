@@ -108,7 +108,7 @@ export async function createDisposableUser(label = "user"): Promise<{
   const email = buildEmail(label);
   const password = E2E_PASSWORD;
 
-  const { data: signUp, error: signUpErr } = await client.auth.signUp({
+  const { data: signUp, error: signUpErr } = await signUpWithRetry(client, {
     email,
     password,
     options: { data: { first_name: "E2E" } },
