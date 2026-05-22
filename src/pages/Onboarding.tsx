@@ -267,6 +267,15 @@ export default function Onboarding() {
         return;
       }
       if (catchupSubStep === "form") {
+        // Require at least one saved YTD entry before advancing, so Continue
+        // never silently dead-ends. Then move forward to the company step.
+        const savedCount = existingCatchups?.length ?? 0;
+        if (savedCount === 0) {
+          toast.error("Save at least one year-to-date entry, or click Back to skip.");
+          return;
+        }
+        setEditingCatchup(null);
+        setShowCatchupForm(false);
         setCatchupSubStep("company");
         return;
       }
