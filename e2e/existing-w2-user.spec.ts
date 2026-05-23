@@ -338,8 +338,7 @@ test.describe("Existing W-2-only user — live app", () => {
     }
 
     // ---- Dashboard ----
-    await page.goto(abs("/"));
-    await dismissOnboardingIfPresent(page, "/");
+    await gotoAppPath(page, "/");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     expect(new URL(page.url()).pathname).not.toMatch(/\/login/);
     const dashSummary = page
@@ -350,8 +349,7 @@ test.describe("Existing W-2-only user — live app", () => {
     }
 
     // ---- Personal income / paycheck ledger ----
-    await page.goto(abs("/personal-income"));
-    await dismissOnboardingIfPresent(page, "/personal-income");
+    await gotoAppPath(page, "/personal-income");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     const ledger = page.locator('[data-testid="paychecks-ledger"]').first();
     if (await exists(ledger)) {
@@ -369,8 +367,7 @@ test.describe("Existing W-2-only user — live app", () => {
     }
 
     // ---- Dashboard: W-2-only should not surface non-zero SE figures ----
-    await page.goto(abs("/"));
-    await dismissOnboardingIfPresent(page, "/");
+    await gotoAppPath(page, "/");
     const dashText = (await page.locator("body").textContent()) ?? "";
     expect(
       /self[- ]?employment/i.test(dashText)
@@ -380,8 +377,7 @@ test.describe("Existing W-2-only user — live app", () => {
     ).toBeTruthy();
 
     // ---- Tax overview ----
-    await page.goto(abs("/taxes"));
-    await dismissOnboardingIfPresent(page, "/taxes");
+    await gotoAppPath(page, "/taxes");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     const taxSummary = page
       .locator('[data-testid="tax-overview-summary"]')
