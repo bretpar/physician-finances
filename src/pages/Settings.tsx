@@ -50,6 +50,7 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
 import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
+import { DangerZoneSection } from "@/components/settings/DangerZoneSection";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
