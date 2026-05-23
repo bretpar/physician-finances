@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e:existing-w2": "playwright test e2e/existing-w2-user.spec.ts --project=chromium"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
