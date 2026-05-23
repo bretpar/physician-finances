@@ -475,7 +475,7 @@ export default function Onboarding() {
                 editingId={editingCatchup?.id ?? null}
               />
               {lastSavedName && !showCatchupForm && (
-                <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+                <div data-testid="ytd-catchup-saved-banner" role="status" aria-live="polite" className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
                   ✓ Saved — {lastSavedName} added.
                 </div>
               )}
