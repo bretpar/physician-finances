@@ -166,8 +166,14 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           </div>
         )}
         <div className={showSourceDropdown ? "" : "sm:col-span-2"}>
-          <Label>{companyLabel}</Label>
-          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder={companyPlaceholder} />
+          <Label htmlFor="ytd-company-name">{companyLabel}</Label>
+          <Input
+            id="ytd-company-name"
+            data-testid="ytd-catchup-company-name"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder={companyPlaceholder}
+          />
         </div>
         <div>
           <Label>Period start</Label>
@@ -178,28 +184,28 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           <DateField value={periodEnd} onChange={setPeriodEnd} />
         </div>
         <div className="sm:col-span-2">
-          <Label>Total gross income YTD</Label>
-          <Input data-testid="onboarding-ytd-income" type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
+          <Label htmlFor="ytd-gross-income">Total gross income YTD</Label>
+          <Input id="ytd-gross-income" data-testid="ytd-catchup-gross-income" type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
         </div>
         <div>
-          <Label>{fedLabel}</Label>
-          <Input type="number" inputMode="decimal" value={fedWh} onChange={(e) => setFedWh(e.target.value)} placeholder="0.00" />
+          <Label htmlFor="ytd-fed-withheld">{fedLabel}</Label>
+          <Input id="ytd-fed-withheld" data-testid="ytd-catchup-federal-withheld" type="number" inputMode="decimal" value={fedWh} onChange={(e) => setFedWh(e.target.value)} placeholder="0.00" />
         </div>
         {stateEnabled && (
           <div>
-            <Label>{stateLabel}</Label>
-            <Input type="number" inputMode="decimal" value={stateWh} onChange={(e) => setStateWh(e.target.value)} placeholder="0.00" />
+            <Label htmlFor="ytd-state-withheld">{stateLabel}</Label>
+            <Input id="ytd-state-withheld" data-testid="ytd-catchup-state-withheld" type="number" inputMode="decimal" value={stateWh} onChange={(e) => setStateWh(e.target.value)} placeholder="0.00" />
           </div>
         )}
         {isW2Source && (
           <>
             <div>
-              <Label>Social Security YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
-              <Input type="number" inputMode="decimal" value={ssWh} onChange={(e) => setSsWh(e.target.value)} placeholder="0.00" />
+              <Label htmlFor="ytd-ss-withheld">Social Security YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
+              <Input id="ytd-ss-withheld" data-testid="ytd-catchup-ss-withheld" type="number" inputMode="decimal" value={ssWh} onChange={(e) => setSsWh(e.target.value)} placeholder="0.00" />
             </div>
             <div>
-              <Label>Medicare YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
-              <Input type="number" inputMode="decimal" value={medWh} onChange={(e) => setMedWh(e.target.value)} placeholder="0.00" />
+              <Label htmlFor="ytd-medicare-withheld">Medicare YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
+              <Input id="ytd-medicare-withheld" data-testid="ytd-catchup-medicare-withheld" type="number" inputMode="decimal" value={medWh} onChange={(e) => setMedWh(e.target.value)} placeholder="0.00" />
             </div>
           </>
         )}
