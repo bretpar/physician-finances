@@ -393,12 +393,14 @@ export default function Dashboard() {
         </section>
       )}
 
-      <AnnualIncomeHero
-        amount={annualIncomeValue}
-        modeLabel={projection ? "Includes planned/future income" : "Income received so far this year"}
-        subtext={methodLabel}
-        toggle={<IncomeModeToggle alwaysShow={isW2Only} />}
-      />
+      <div data-testid="dashboard-summary">
+        <AnnualIncomeHero
+          amount={annualIncomeValue}
+          modeLabel={projection ? "Includes planned/future income" : "Income received so far this year"}
+          subtext={methodLabel}
+          toggle={<IncomeModeToggle alwaysShow={isW2Only} />}
+        />
+      </div>
 
       {isW2Only && forecastDebug && (
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">

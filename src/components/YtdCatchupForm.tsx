@@ -91,11 +91,18 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   const stateLabel = isW2Source ? "State withheld YTD" : "State estimated taxes paid YTD";
 
   const submit = async () => {
+    if (upsert.isPending) return; // guard against duplicate submits from repeated clicks
     setError(null);
-    if (!companyName.trim()) return setError("Enter the employer or company name.");
+    if (!companyName.trim()) {
+      return setError(isW2Source ? "Enter the employer name." : "Enter the company or business name.");
+    }
     if (periodEnd < periodStart) return setError("End date cannot be before start date.");
+    if (grossIncome.trim() === "") return setError("Enter your total gross income year-to-date.");
     const gross = num(grossIncome);
-    if (gross < 0) return setError("Gross income cannot be negative.");
+    if (gross <= 0) return setError("Gross income must be greater than zero.");
+    if (isW2Source && fedWh.trim() === "") {
+      return setError("Enter federal tax withheld year-to-date (enter 0 if none).");
+    }
     const negs = [fedWh, stateWh, ssWh, medWh, r401k, hsa, healthcare, dental, otherPretax, postTax].map(num);
     if (negs.some((n) => n < 0)) return setError("Withholdings and deductions cannot be negative.");
 
@@ -159,8 +166,14 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           </div>
         )}
         <div className={showSourceDropdown ? "" : "sm:col-span-2"}>
-          <Label>{companyLabel}</Label>
-          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder={companyPlaceholder} />
+          <Label htmlFor="ytd-company-name">{companyLabel}</Label>
+          <Input
+            id="ytd-company-name"
+            data-testid="ytd-catchup-company-name"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder={companyPlaceholder}
+          />
         </div>
         <div>
           <Label>Period start</Label>
@@ -171,28 +184,28 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           <DateField value={periodEnd} onChange={setPeriodEnd} />
         </div>
         <div className="sm:col-span-2">
-          <Label>Total gross income YTD</Label>
-          <Input data-testid="onboarding-ytd-income" type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
+          <Label htmlFor="ytd-gross-income">Total gross income YTD</Label>
+          <Input id="ytd-gross-income" data-testid="ytd-catchup-gross-income" type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
         </div>
         <div>
-          <Label>{fedLabel}</Label>
-          <Input type="number" inputMode="decimal" value={fedWh} onChange={(e) => setFedWh(e.target.value)} placeholder="0.00" />
+          <Label htmlFor="ytd-fed-withheld">{fedLabel}</Label>
+          <Input id="ytd-fed-withheld" data-testid="ytd-catchup-federal-withheld" type="number" inputMode="decimal" value={fedWh} onChange={(e) => setFedWh(e.target.value)} placeholder="0.00" />
         </div>
         {stateEnabled && (
           <div>
-            <Label>{stateLabel}</Label>
-            <Input type="number" inputMode="decimal" value={stateWh} onChange={(e) => setStateWh(e.target.value)} placeholder="0.00" />
+            <Label htmlFor="ytd-state-withheld">{stateLabel}</Label>
+            <Input id="ytd-state-withheld" data-testid="ytd-catchup-state-withheld" type="number" inputMode="decimal" value={stateWh} onChange={(e) => setStateWh(e.target.value)} placeholder="0.00" />
           </div>
         )}
         {isW2Source && (
           <>
             <div>
-              <Label>Social Security YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
-              <Input type="number" inputMode="decimal" value={ssWh} onChange={(e) => setSsWh(e.target.value)} placeholder="0.00" />
+              <Label htmlFor="ytd-ss-withheld">Social Security YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
+              <Input id="ytd-ss-withheld" data-testid="ytd-catchup-ss-withheld" type="number" inputMode="decimal" value={ssWh} onChange={(e) => setSsWh(e.target.value)} placeholder="0.00" />
             </div>
             <div>
-              <Label>Medicare YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
-              <Input type="number" inputMode="decimal" value={medWh} onChange={(e) => setMedWh(e.target.value)} placeholder="0.00" />
+              <Label htmlFor="ytd-medicare-withheld">Medicare YTD <span className="text-xs text-muted-foreground">(optional)</span></Label>
+              <Input id="ytd-medicare-withheld" data-testid="ytd-catchup-medicare-withheld" type="number" inputMode="decimal" value={medWh} onChange={(e) => setMedWh(e.target.value)} placeholder="0.00" />
             </div>
           </>
         )}
@@ -240,11 +253,11 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
         </Alert>
       )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p data-testid="ytd-catchup-error" role="alert" className="text-sm text-destructive">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-2">
         {onCancel && <Button type="button" variant="ghost" onClick={onCancel} disabled={upsert.isPending}>Cancel</Button>}
-        <Button type="button" onClick={submit} disabled={upsert.isPending}>{upsert.isPending ? "Saving…" : initial ? "Save changes" : "Save catch-up"}</Button>
+        <Button type="button" data-testid="ytd-catchup-save" onClick={submit} disabled={upsert.isPending}>{upsert.isPending ? "Saving…" : initial ? "Save changes" : "Save catch-up"}</Button>
       </div>
     </div>
   );

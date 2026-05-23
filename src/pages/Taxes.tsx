@@ -225,7 +225,7 @@ export default function Taxes() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div data-testid="tax-overview-summary" className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2">

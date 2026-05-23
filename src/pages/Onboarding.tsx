@@ -434,9 +434,9 @@ export default function Onboarding() {
                 <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
               </div>
               <div className="grid gap-3">
-                <SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }} />
-                <SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }} />
-                <SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={async () => {
+                <div data-testid="onboarding-ytd-yes"><SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }} /></div>
+                <div data-testid="onboarding-ytd-no"><SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }} /></div>
+                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={async () => {
                   if (saving) return;
                   setSaving(true);
                   try {
@@ -449,7 +449,7 @@ export default function Onboarding() {
                   } finally {
                     setSaving(false);
                   }
-                }} />
+                }} /></div>
               </div>
             </div>
           )}
@@ -475,7 +475,7 @@ export default function Onboarding() {
                 editingId={editingCatchup?.id ?? null}
               />
               {lastSavedName && !showCatchupForm && (
-                <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
+                <div data-testid="ytd-catchup-saved-banner" role="status" aria-live="polite" className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
                   ✓ Saved — {lastSavedName} added.
                 </div>
               )}
@@ -567,7 +567,7 @@ export default function Onboarding() {
             <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
               {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-              <Button type="button" onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+              <Button type="button" data-testid="onboarding-continue" onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>
         </CardContent>
