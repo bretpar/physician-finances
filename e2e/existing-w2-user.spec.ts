@@ -122,6 +122,57 @@ async function loginThroughUI(page: Page) {
   });
 }
 
+/**
+ * Already-onboarded users can still be bounced into a "Confirm your income
+ * setup" re-onboarding screen (Step 1 of 3) when a deep link is opened before
+ * the profile has hydrated. This helper detects that state and clicks through
+ * Continue/Confirm/Skip a few times so deep-link pages (Dashboard, Taxes,
+ * Personal Income) get a chance to render before we assert.
+ */
+async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
+  for (let i = 0; i < 10; i++) {
+    const url = new URL(page.url());
+    const onOnboarding = /\/onboarding/.test(url.pathname);
+    const bodyText = (await page.locator("body").textContent().catch(() => "")) ?? "";
+    const looksLikeReonboarding =
+      /step\s*\d+\s*of\s*\d+/i.test(bodyText) ||
+      /confirm your income setup/i.test(bodyText);
+
+    if (!onOnboarding && !looksLikeReonboarding) return;
+
+    // Make sure W-2 selection is set on Step 1 if visible.
+    await tryClick(page, "onboarding-income-type-w2", [
+      /w-?2 only/i,
+      /employee income only/i,
+      /^w-?2$/i,
+    ]).catch(() => {});
+
+    // If asked about YTD catch-up, skip it — the account already has data.
+    await tryClick(page, "onboarding-ytd-skip", [
+      /skip( for now)?/i,
+      /no,?\s*(thanks|skip|i'?ll do this later)/i,
+    ]).catch(() => {});
+
+    const moved = await tryClick(page, "onboarding-continue", [
+      /^continue$/i,
+      /^confirm$/i,
+      /next/i,
+      /finish/i,
+      /complete/i,
+      /go to dashboard/i,
+    ]);
+    if (!moved) {
+      // Nothing to click — bail to navigation.
+      break;
+    }
+    await page.waitForTimeout(500);
+  }
+  // Re-navigate to the desired deep link once onboarding is cleared.
+  if (/\/onboarding/.test(new URL(page.url()).pathname)) {
+    await page.goto(abs(targetPath));
+  }
+}
+
 test.describe("Existing W-2-only user — live app", () => {
   test.skip(
     !EMAIL || !PASSWORD,
