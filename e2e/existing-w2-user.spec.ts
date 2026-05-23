@@ -330,6 +330,7 @@ async function dismissOnboardingIfPresent(page: Page): Promise<boolean> {
 }
 
 async function resetUserDataViaSettingsFallback(page: Page): Promise<boolean> {
+  await waitForPostOnboarding(page, 10_000);
   await page.goto(abs("/settings"), { waitUntil: "domcontentloaded" });
   const openReset = page.getByRole("button", { name: /delete\/erase account/i }).first();
   if (!(await exists(openReset)) || !(await openReset.isVisible().catch(() => false))) return false;
@@ -377,115 +378,8 @@ test.describe("Existing W-2-only user — live app", () => {
 
     if (onboardingAvailable) {
       console.log("Onboarding detected — running W-2-only flow.");
-
-      // Step 1: select W-2 only profile.
-      await tryClick(page, "onboarding-income-type-w2", [
-        /w-?2 only/i,
-        /employee income only/i,
-        /^w-?2$/i,
-      ]);
-      await fillOnboardingFirstNameIfPresent(page);
-      await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
-
-      // Step 2 ask: "Yes, help me catch up"
-      await tryClick(page, "onboarding-ytd-yes", [/yes,?\s*help me catch up/i]);
-
-      // ---- W-2-only path: no 1099/K-1 fields should be visible ----
-      const formText = (await page.locator("body").textContent()) ?? "";
-      expect(
-        /1099|k-?1|self[- ]?employment|business income/i.test(formText)
-          ? /w-?2 only|hidden because you selected w-?2/i.test(formText)
-          : true,
-        "W-2-only catch-up form should not expose 1099/K-1 fields",
-      ).toBeTruthy();
-
-      // YTD W-2 fields.
-      await tryFill(
-        page,
-        "ytd-catchup-company-name",
-        [/employer name/i, /employer/i, /company name/i],
-        "Test Hospital W2",
-      );
-      await tryFill(
-        page,
-        "ytd-catchup-gross-income",
-        [/total gross income ytd/i, /gross income/i, /gross wages/i],
-        "80000",
-      );
-      await tryFill(
-        page,
-        "ytd-catchup-federal-withheld",
-        [/federal (income )?(tax )?withheld/i, /federal withholding/i],
-        "14000",
-      );
-      await tryFill(
-        page,
-        "ytd-catchup-ss-withheld",
-        [/social security ytd/i, /social security (tax )?withheld/i],
-        "4960",
-      );
-      await tryFill(
-        page,
-        "ytd-catchup-medicare-withheld",
-        [/medicare ytd/i, /medicare (tax )?withheld/i],
-        "1160",
-      );
-      await tryFill(
-        page,
-        "ytd-catchup-state-withheld",
-        [/state (tax )?withheld/i, /state withholding/i],
-        "0",
-      );
-
-      // Save YTD entry — clicking twice should not create a duplicate
-      // because the form button disables itself while saving.
-      const saved = await tryClick(page, "ytd-catchup-save", [
-        /save catch-?up/i,
-        /save( ytd)?/i,
-        /add ytd/i,
-      ]);
-      expect(saved, "Save catch-up button should exist").toBeTruthy();
-      // Second click immediately after — should be a no-op (disabled).
-      await tryClick(page, "ytd-catchup-save", [/save catch-?up/i]).catch(
-        () => {},
-      );
-
-      // Saved confirmation should appear without requiring a refresh.
-      const savedBanner = page
-        .locator('[data-testid="ytd-catchup-saved-banner"]')
-        .first();
-      if (await exists(savedBanner)) {
-        await expect(savedBanner).toBeVisible({ timeout: 10_000 });
-      }
-
-      // Immediately try Continue — should not get stuck.
-      const continued = await tryClick(page, "onboarding-continue", [
-        /^continue$/i,
-        /next/i,
-        /finish/i,
-        /complete/i,
-      ]);
-      expect(
-        continued,
-        "Continue button should be reachable after saving YTD W-2 entry",
-      ).toBeTruthy();
-
-      // Best-effort: keep clicking continue until we leave onboarding.
-      for (let i = 0; i < 8; i++) {
-        if (!/\/onboarding/.test(new URL(page.url()).pathname)) break;
-        await fillOnboardingFirstNameIfPresent(page);
-        const moved = await tryClick(page, "onboarding-continue", [
-          /^continue$/i,
-          /next/i,
-          /finish/i,
-          /complete/i,
-          /go to dashboard/i,
-          /start with free/i,
-          /continue with premium/i,
-        ]);
-        if (!moved) break;
-        await page.waitForTimeout(500);
-      }
+      const completed = await completeW2OnboardingCleanly(page);
+      expect(completed, "W-2 onboarding should complete before page assertions").toBeTruthy();
     } else {
       console.log(
         "Onboarding was not available — account is already onboarded. Continuing to dashboard/income/tax checks.",
