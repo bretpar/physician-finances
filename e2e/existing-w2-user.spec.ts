@@ -10,8 +10,12 @@
  *   - E2E_TEST_PASSWORD
  *
  * Base URL from PLAYWRIGHT_BASE_URL, defaults to https://app.paycheckmd.com.
+ *
+ * Selector strategy: prefer data-testid selectors added in the W-2-only
+ * onboarding hardening pass. Fall back to label / role-based heuristics so
+ * the spec still works against older deploys.
  */
-import { test, expect, type Page } from "../playwright-fixture";
+import { test, expect, type Page, type Locator } from "../playwright-fixture";
 
 const EMAIL = process.env.E2E_TEST_EMAIL ?? "";
 const PASSWORD = process.env.E2E_TEST_PASSWORD ?? "";
@@ -22,14 +26,30 @@ function abs(path: string): string {
   return new URL(path, BASE_URL).toString();
 }
 
+async function exists(loc: Locator): Promise<boolean> {
+  return (await loc.count().catch(() => 0)) > 0;
+}
+
 async function tryFill(
   page: Page,
+  testid: string | null,
   labelPatterns: RegExp[],
   value: string,
 ): Promise<boolean> {
+  if (testid) {
+    const byTestId = page.locator(`[data-testid="${testid}"]`).first();
+    if (await exists(byTestId)) {
+      try {
+        await byTestId.fill(value, { timeout: 2000 });
+        return true;
+      } catch {
+        /* keep trying */
+      }
+    }
+  }
   for (const re of labelPatterns) {
     const byLabel = page.getByLabel(re).first();
-    if (await byLabel.count().catch(() => 0)) {
+    if (await exists(byLabel)) {
       try {
         await byLabel.fill(value, { timeout: 2000 });
         return true;
@@ -38,7 +58,7 @@ async function tryFill(
       }
     }
     const byPlaceholder = page.getByPlaceholder(re).first();
-    if (await byPlaceholder.count().catch(() => 0)) {
+    if (await exists(byPlaceholder)) {
       try {
         await byPlaceholder.fill(value, { timeout: 2000 });
         return true;
@@ -50,10 +70,25 @@ async function tryFill(
   return false;
 }
 
-async function tryClick(page: Page, patterns: RegExp[]): Promise<boolean> {
+async function tryClick(
+  page: Page,
+  testid: string | null,
+  patterns: RegExp[],
+): Promise<boolean> {
+  if (testid) {
+    const byTestId = page.locator(`[data-testid="${testid}"]`).first();
+    if (await exists(byTestId)) {
+      try {
+        await byTestId.click({ timeout: 2000 });
+        return true;
+      } catch {
+        /* keep trying */
+      }
+    }
+  }
   for (const re of patterns) {
     const btn = page.getByRole("button", { name: re }).first();
-    if (await btn.count().catch(() => 0)) {
+    if (await exists(btn)) {
       try {
         await btn.click({ timeout: 2000 });
         return true;
@@ -62,7 +97,7 @@ async function tryClick(page: Page, patterns: RegExp[]): Promise<boolean> {
       }
     }
     const link = page.getByRole("link", { name: re }).first();
-    if (await link.count().catch(() => 0)) {
+    if (await exists(link)) {
       try {
         await link.click({ timeout: 2000 });
         return true;
@@ -93,7 +128,9 @@ test.describe("Existing W-2-only user — live app", () => {
     "E2E_TEST_EMAIL and E2E_TEST_PASSWORD must be set",
   );
 
-  test("login, optional onboarding, and core pages render", async ({ page }) => {
+  test("login, optional W-2 onboarding, and core pages render", async ({
+    page,
+  }) => {
     await loginThroughUI(page);
 
     // App must render something — guard against blank page.
@@ -106,102 +143,87 @@ test.describe("Existing W-2-only user — live app", () => {
     if (onboardingAvailable) {
       console.log("Onboarding detected — running W-2-only flow.");
 
-      // Select W-2 / employee income only if such a control exists.
-      await tryClick(page, [
+      // Step 1: select W-2 only profile.
+      await tryClick(page, "onboarding-income-type-w2", [
         /w-?2 only/i,
         /employee income only/i,
         /^w-?2$/i,
-        /employee/i,
       ]);
+      await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
 
-      // Employer / company name.
-      await tryFill(
-        page,
-        [/employer/i, /company name/i, /company/i],
-        "Test Hospital W2",
-      );
+      // Step 2 ask: "Yes, help me catch up"
+      await tryClick(page, "onboarding-ytd-yes", [/yes,?\s*help me catch up/i]);
 
-      // State — try as select / combobox first, then plain input.
-      const stateCombo = page
-        .getByRole("combobox", { name: /state/i })
-        .first();
-      if (await stateCombo.count().catch(() => 0)) {
-        try {
-          await stateCombo.click({ timeout: 2000 });
-          await page
-            .getByRole("option", { name: /washington/i })
-            .first()
-            .click({ timeout: 2000 });
-        } catch {
-          await tryFill(page, [/state/i], "Washington");
-        }
-      } else {
-        await tryFill(page, [/state/i], "Washington");
-      }
-
-      // Filing status.
-      const filingCombo = page
-        .getByRole("combobox", { name: /filing status/i })
-        .first();
-      if (await filingCombo.count().catch(() => 0)) {
-        try {
-          await filingCombo.click({ timeout: 2000 });
-          await page
-            .getByRole("option", { name: /^single$/i })
-            .first()
-            .click({ timeout: 2000 });
-        } catch {
-          await tryFill(page, [/filing status/i], "Single");
-        }
-      }
-
-      // Pay frequency.
-      const freqCombo = page
-        .getByRole("combobox", { name: /pay frequency|frequency/i })
-        .first();
-      if (await freqCombo.count().catch(() => 0)) {
-        try {
-          await freqCombo.click({ timeout: 2000 });
-          await page
-            .getByRole("option", { name: /biweekly|bi-weekly/i })
-            .first()
-            .click({ timeout: 2000 });
-        } catch {
-          /* ignore */
-        }
-      }
+      // ---- W-2-only path: no 1099/K-1 fields should be visible ----
+      const formText = (await page.locator("body").textContent()) ?? "";
+      expect(
+        /1099|k-?1|self[- ]?employment|business income/i.test(formText)
+          ? /w-?2 only|hidden because you selected w-?2/i.test(formText)
+          : true,
+        "W-2-only catch-up form should not expose 1099/K-1 fields",
+      ).toBeTruthy();
 
       // YTD W-2 fields.
       await tryFill(
         page,
-        [/ytd gross|gross income|gross wages|gross pay/i],
+        "ytd-catchup-company-name",
+        [/employer name/i, /employer/i, /company name/i],
+        "Test Hospital W2",
+      );
+      await tryFill(
+        page,
+        "ytd-catchup-gross-income",
+        [/total gross income ytd/i, /gross income/i, /gross wages/i],
         "80000",
       );
       await tryFill(
         page,
-        [/federal (income )?(tax )?withheld|federal withholding/i],
+        "ytd-catchup-federal-withheld",
+        [/federal (income )?(tax )?withheld/i, /federal withholding/i],
         "14000",
       );
       await tryFill(
         page,
-        [/social security (tax )?withheld|ss withheld/i],
+        "ytd-catchup-ss-withheld",
+        [/social security ytd/i, /social security (tax )?withheld/i],
         "4960",
       );
-      await tryFill(page, [/medicare (tax )?withheld/i], "1160");
-      await tryFill(page, [/state (tax )?withheld|state withholding/i], "0");
-      await tryFill(page, [/401\(?k\)?/i], "8000");
-      await tryFill(page, [/\bhsa\b/i], "2000");
       await tryFill(
         page,
-        [/health insurance|health premiums?/i],
-        "1500",
+        "ytd-catchup-medicare-withheld",
+        [/medicare ytd/i, /medicare (tax )?withheld/i],
+        "1160",
+      );
+      await tryFill(
+        page,
+        "ytd-catchup-state-withheld",
+        [/state (tax )?withheld/i, /state withholding/i],
+        "0",
       );
 
-      // Save YTD entry.
-      await tryClick(page, [/save( ytd)?|add entry|add ytd/i]);
+      // Save YTD entry — clicking twice should not create a duplicate
+      // because the form button disables itself while saving.
+      const saved = await tryClick(page, "ytd-catchup-save", [
+        /save catch-?up/i,
+        /save( ytd)?/i,
+        /add ytd/i,
+      ]);
+      expect(saved, "Save catch-up button should exist").toBeTruthy();
+      // Second click immediately after — should be a no-op (disabled).
+      await tryClick(page, "ytd-catchup-save", [/save catch-?up/i]).catch(
+        () => {},
+      );
+
+      // Saved confirmation should appear without requiring a refresh.
+      const savedBanner = page
+        .locator('[data-testid="ytd-catchup-saved-banner"]')
+        .first();
+      if (await exists(savedBanner)) {
+        await expect(savedBanner).toBeVisible({ timeout: 10_000 });
+      }
 
       // Immediately try Continue — should not get stuck.
-      const continued = await tryClick(page, [
+      const continued = await tryClick(page, "onboarding-continue", [
         /^continue$/i,
         /next/i,
         /finish/i,
@@ -215,12 +237,14 @@ test.describe("Existing W-2-only user — live app", () => {
       // Best-effort: keep clicking continue until we leave onboarding.
       for (let i = 0; i < 8; i++) {
         if (!/\/onboarding/.test(new URL(page.url()).pathname)) break;
-        const moved = await tryClick(page, [
+        const moved = await tryClick(page, "onboarding-continue", [
           /^continue$/i,
           /next/i,
           /finish/i,
           /complete/i,
           /go to dashboard/i,
+          /start with free/i,
+          /continue with premium/i,
         ]);
         if (!moved) break;
         await page.waitForTimeout(500);
@@ -234,17 +258,24 @@ test.describe("Existing W-2-only user — live app", () => {
     // ---- Dashboard ----
     await page.goto(abs("/"));
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
-    // URL should not have bounced back to /login.
     expect(new URL(page.url()).pathname).not.toMatch(/\/login/);
+    const dashSummary = page
+      .locator('[data-testid="dashboard-summary"]')
+      .first();
+    if (await exists(dashSummary)) {
+      await expect(dashSummary).toBeVisible({ timeout: 10_000 });
+    }
 
     // ---- Personal income / paycheck ledger ----
     await page.goto(abs("/personal-income"));
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
+    const ledger = page.locator('[data-testid="paychecks-ledger"]').first();
+    if (await exists(ledger)) {
+      await expect(ledger).toBeVisible({ timeout: 10_000 });
+    }
     const personalText = (await page.locator("body").textContent()) ?? "";
 
     if (onboardingAvailable) {
-      // If we seeded the YTD entry through onboarding, the employer or the
-      // gross amount should appear somewhere on the personal income page.
       const employerVisible = /Test Hospital W2/i.test(personalText);
       const grossVisible = /\$?80[,]?000/.test(personalText);
       expect(
@@ -253,9 +284,7 @@ test.describe("Existing W-2-only user — live app", () => {
       ).toBeTruthy();
     }
 
-    // ---- Business activity should be hidden/de-emphasized for W-2-only ----
-    // We don't assert the route is blocked (some apps allow viewing), but we
-    // do assert that no 1099/business income figures pollute the dashboard.
+    // ---- Dashboard: W-2-only should not surface non-zero SE figures ----
     await page.goto(abs("/"));
     const dashText = (await page.locator("body").textContent()) ?? "";
     expect(
@@ -268,12 +297,16 @@ test.describe("Existing W-2-only user — live app", () => {
     // ---- Tax overview ----
     await page.goto(abs("/taxes"));
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
+    const taxSummary = page
+      .locator('[data-testid="tax-overview-summary"]')
+      .first();
+    if (await exists(taxSummary)) {
+      await expect(taxSummary).toBeVisible({ timeout: 10_000 });
+    }
     const taxText = (await page.locator("body").textContent()) ?? "";
 
-    // Federal tax line should be present.
     expect(taxText).toMatch(/federal/i);
 
-    // SE tax should be $0 (or absent) for a W-2-only user.
     const seMatch = taxText.match(
       /self[- ]?employment tax[^$\n]*\$([\d,]+(?:\.\d+)?)/i,
     );
@@ -285,8 +318,6 @@ test.describe("Existing W-2-only user — live app", () => {
       ).toBe(0);
     }
 
-    // W-2 withheld should be reflected somewhere as paid/withheld (only
-    // meaningful if we onboarded this run).
     if (onboardingAvailable) {
       expect(
         /\$?14[,]?000|withheld|withholding/i.test(taxText),
