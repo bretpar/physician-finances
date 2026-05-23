@@ -231,6 +231,7 @@ test.describe("Existing W-2-only user — live app", () => {
         /employee income only/i,
         /^w-?2$/i,
       ]);
+      await fillOnboardingFirstNameIfPresent(page);
       await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
 
       // Step 2 ask: "Yes, help me catch up"
@@ -319,6 +320,7 @@ test.describe("Existing W-2-only user — live app", () => {
       // Best-effort: keep clicking continue until we leave onboarding.
       for (let i = 0; i < 8; i++) {
         if (!/\/onboarding/.test(new URL(page.url()).pathname)) break;
+        await fillOnboardingFirstNameIfPresent(page);
         const moved = await tryClick(page, "onboarding-continue", [
           /^continue$/i,
           /next/i,
