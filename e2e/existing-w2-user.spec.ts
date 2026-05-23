@@ -321,15 +321,6 @@ test.describe("Existing W-2-only user — live app", () => {
     // ---- Personal income / paycheck ledger ----
     await page.goto(abs("/personal-income"));
     await dismissOnboardingIfPresent(page, "/personal-income");
-    const dashSummary = page
-      .locator('[data-testid="dashboard-summary"]')
-      .first();
-    if (await exists(dashSummary)) {
-      await expect(dashSummary).toBeVisible({ timeout: 10_000 });
-    }
-
-    // ---- Personal income / paycheck ledger ----
-    await page.goto(abs("/personal-income"));
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     const ledger = page.locator('[data-testid="paychecks-ledger"]').first();
     if (await exists(ledger)) {
