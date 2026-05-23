@@ -91,11 +91,18 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   const stateLabel = isW2Source ? "State withheld YTD" : "State estimated taxes paid YTD";
 
   const submit = async () => {
+    if (upsert.isPending) return; // guard against duplicate submits from repeated clicks
     setError(null);
-    if (!companyName.trim()) return setError("Enter the employer or company name.");
+    if (!companyName.trim()) {
+      return setError(isW2Source ? "Enter the employer name." : "Enter the company or business name.");
+    }
     if (periodEnd < periodStart) return setError("End date cannot be before start date.");
+    if (grossIncome.trim() === "") return setError("Enter your total gross income year-to-date.");
     const gross = num(grossIncome);
-    if (gross < 0) return setError("Gross income cannot be negative.");
+    if (gross <= 0) return setError("Gross income must be greater than zero.");
+    if (isW2Source && fedWh.trim() === "") {
+      return setError("Enter federal tax withheld year-to-date (enter 0 if none).");
+    }
     const negs = [fedWh, stateWh, ssWh, medWh, r401k, hsa, healthcare, dental, otherPretax, postTax].map(num);
     if (negs.some((n) => n < 0)) return setError("Withholdings and deductions cannot be negative.");
 
