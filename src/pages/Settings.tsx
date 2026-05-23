@@ -2270,6 +2270,7 @@ export default function Settings() {
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
+      <DangerZoneSection />
     </div>
   );
 }
