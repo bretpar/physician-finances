@@ -339,6 +339,7 @@ test.describe("Existing W-2-only user — live app", () => {
 
     // ---- Dashboard: W-2-only should not surface non-zero SE figures ----
     await page.goto(abs("/"));
+    await dismissOnboardingIfPresent(page, "/");
     const dashText = (await page.locator("body").textContent()) ?? "";
     expect(
       /self[- ]?employment/i.test(dashText)
@@ -349,6 +350,7 @@ test.describe("Existing W-2-only user — live app", () => {
 
     // ---- Tax overview ----
     await page.goto(abs("/taxes"));
+    await dismissOnboardingIfPresent(page, "/taxes");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     const taxSummary = page
       .locator('[data-testid="tax-overview-summary"]')
