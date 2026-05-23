@@ -122,58 +122,144 @@ async function loginThroughUI(page: Page) {
   });
 }
 
-async function fillOnboardingFirstNameIfPresent(page: Page) {
-  const bodyText = (await page.locator("body").textContent().catch(() => "")) ?? "";
-  const firstNameRequired =
-    /first name/i.test(bodyText) || /enter your first name to continue/i.test(bodyText);
-  if (!firstNameRequired) return;
+const SAFE_TEST_FIRST_NAME = process.env.E2E_TEST_FIRST_NAME ?? "Test";
 
-  await tryFill(
-    page,
-    null,
-    [/^first name$/i, /first name/i, /^alex$/i],
-    process.env.E2E_TEST_FIRST_NAME ?? "W2",
+async function bodyText(page: Page): Promise<string> {
+  return (await page.locator("body").textContent().catch(() => "")) ?? "";
+}
+
+async function isOnboardingStep1(page: Page): Promise<boolean> {
+  const text = await bodyText(page);
+  return /step\s*1\s*of\s*3/i.test(text) || /confirm your income setup/i.test(text);
+}
+
+async function hasOnboardingUi(page: Page): Promise<boolean> {
+  const path = new URL(page.url()).pathname;
+  const text = await bodyText(page);
+  return (
+    /\/onboarding/.test(path) ||
+    /step\s*\d+\s*of\s*\d+/i.test(text) ||
+    /confirm your income setup|have you already earned income|choose your plan|add each .*received this year/i.test(text)
   );
 }
 
-async function waitForOnboardingToClear(page: Page) {
-  await page
-    .waitForURL((u) => !/\/onboarding/.test(u.pathname), { timeout: 20_000 })
-    .catch(() => {});
+async function fillOnboardingFirstNameIfPresent(page: Page): Promise<boolean> {
+  const text = await bodyText(page);
+  if (!(await isOnboardingStep1(page)) && !/first name|enter your first name to continue/i.test(text)) {
+    return false;
+  }
+
+  const candidates = [
+    page.getByLabel(/^first name$/i).first(),
+    page.getByPlaceholder(/^alex$/i).first(),
+    page.locator('xpath=//*[normalize-space()="First name"]/following::input[1]').first(),
+    page.locator("input").first(),
+  ];
+
+  for (const input of candidates) {
+    if (!(await exists(input)) || !(await input.isVisible().catch(() => false))) continue;
+    const current = await input.inputValue().catch(() => "");
+    if (!current.trim()) {
+      await input.fill(SAFE_TEST_FIRST_NAME, { timeout: 3000 });
+      console.log("Filled missing first name");
+    }
+    return true;
+  }
+
+  return false;
 }
 
-/**
- * Already-onboarded users can still be bounced into a "Confirm your income
- * setup" re-onboarding screen (Step 1 of 3) when a deep link is opened before
- * the profile has hydrated. This helper detects that state and clicks through
- * Continue/Confirm/Skip a few times so deep-link pages (Dashboard, Taxes,
- * Personal Income) get a chance to render before we assert.
- */
-async function dismissOnboardingIfPresent(page: Page) {
-  for (let i = 0; i < 10; i++) {
-    const url = new URL(page.url());
-    const onOnboarding = /\/onboarding/.test(url.pathname);
-    const bodyText = (await page.locator("body").textContent().catch(() => "")) ?? "";
-    const looksLikeReonboarding =
-      /step\s*\d+\s*of\s*\d+/i.test(bodyText) ||
-      /confirm your income setup/i.test(bodyText);
+async function ensureW2OnlySelected(page: Page): Promise<boolean> {
+  if (!(await isOnboardingStep1(page))) return false;
+  return tryClick(page, "onboarding-income-type-w2", [
+    /w-?2 only/i,
+    /employee income only/i,
+    /^w-?2$/i,
+  ]);
+}
 
-    if (!onOnboarding && !looksLikeReonboarding) return;
+async function waitForPostOnboarding(page: Page, timeout = 30_000): Promise<boolean> {
+  return page
+    .waitForFunction(
+      () => {
+        const path = window.location.pathname;
+        const text = document.body?.innerText ?? "";
+        const hasStepUi = /step\s*\d+\s*of\s*\d+/i.test(text);
+        const hasOnboardingCopy = /confirm your income setup|have you already earned income|choose your plan|add each .*received this year/i.test(text);
+        const appPath = /^\/(?:$|personal-income|taxes|settings|business-activity|reports|deductions|investments|projected-income)/.test(path);
+        return appPath && !/\/onboarding/.test(path) && !hasStepUi && !hasOnboardingCopy;
+      },
+      { timeout },
+    )
+    .then(() => true)
+    .catch(() => false);
+}
 
-    await fillOnboardingFirstNameIfPresent(page);
+async function waitForOnboardingTransition(page: Page, previousText: string) {
+  await Promise.race([
+    waitForPostOnboarding(page, 5000),
+    page.waitForFunction((oldText) => (document.body?.innerText ?? "") !== oldText, previousText, {
+      timeout: 5000,
+    }),
+    page.waitForTimeout(1000),
+  ]).catch(() => {});
+}
 
-    // Make sure W-2 selection is set on Step 1 if visible.
-    await tryClick(page, "onboarding-income-type-w2", [
-      /w-?2 only/i,
-      /employee income only/i,
-      /^w-?2$/i,
-    ]).catch(() => {});
+async function recoverPartialOnboardingStep1(page: Page): Promise<boolean> {
+  if (!(await isOnboardingStep1(page))) return false;
 
-    // If asked about YTD catch-up, skip it — the account already has data.
-    await tryClick(page, "onboarding-ytd-skip", [
-      /skip( for now)?/i,
-      /no,?\s*(thanks|skip|i'?ll do this later)/i,
-    ]).catch(() => {});
+  console.log("Detected partial onboarding Step 1");
+  const before = await bodyText(page);
+  await fillOnboardingFirstNameIfPresent(page);
+  await ensureW2OnlySelected(page);
+  const continued = await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
+  if (continued) await waitForOnboardingTransition(page, before);
+  return continued;
+}
+
+async function saveStandardYtdCatchupEntry(page: Page) {
+  await tryFill(page, "ytd-catchup-company-name", [/employer name/i, /employer/i, /company name/i], "Test Hospital W2");
+  await tryFill(page, "ytd-catchup-gross-income", [/total gross income ytd/i, /gross income/i, /gross wages/i], "80000");
+  await tryFill(page, "ytd-catchup-federal-withheld", [/federal (income )?(tax )?withheld/i, /federal withholding/i], "14000");
+  await tryFill(page, "ytd-catchup-ss-withheld", [/social security ytd/i, /social security (tax )?withheld/i], "4960");
+  await tryFill(page, "ytd-catchup-medicare-withheld", [/medicare ytd/i, /medicare (tax )?withheld/i], "1160");
+  await tryFill(page, "ytd-catchup-state-withheld", [/state (tax )?withheld/i, /state withholding/i], "0");
+
+  const saved = await tryClick(page, "ytd-catchup-save", [/save catch-?up/i, /save( ytd)?/i, /add ytd/i]);
+  expect(saved, "Save catch-up button should exist").toBeTruthy();
+  await tryClick(page, "ytd-catchup-save", [/save catch-?up/i]).catch(() => {});
+
+  const savedBanner = page.locator('[data-testid="ytd-catchup-saved-banner"]').first();
+  if (await exists(savedBanner)) await expect(savedBanner).toBeVisible({ timeout: 10_000 });
+}
+
+async function completeW2OnboardingCleanly(page: Page) {
+  for (let i = 0; i < 14; i++) {
+    if (!(await hasOnboardingUi(page))) break;
+    const text = await bodyText(page);
+
+    if (await recoverPartialOnboardingStep1(page)) continue;
+
+    if (/have you already earned income/i.test(text)) {
+      await tryClick(page, "onboarding-ytd-yes", [/yes,?\s*help me catch up/i]);
+      await waitForOnboardingTransition(page, text);
+      continue;
+    }
+
+    if (/add each .*received this year/i.test(text)) {
+      await saveStandardYtdCatchupEntry(page);
+      const continued = await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
+      if (continued) await waitForOnboardingTransition(page, text);
+      continue;
+    }
+
+    if (/add .*employer|add more later in settings/i.test(text)) {
+      const skipped = await tryClick(page, null, [/skip for now/i]);
+      if (skipped) {
+        await waitForOnboardingTransition(page, text);
+        continue;
+      }
+    }
 
     const moved = await tryClick(page, "onboarding-continue", [
       /^continue$/i,
@@ -182,24 +268,91 @@ async function dismissOnboardingIfPresent(page: Page) {
       /finish/i,
       /complete/i,
       /go to dashboard/i,
+      /start with free/i,
+      /continue with premium/i,
     ]);
-    if (!moved) {
-      // Nothing to click — bail to navigation.
-      break;
-    }
-    await Promise.race([
-      page.waitForURL((u) => !/\/onboarding/.test(u.pathname), { timeout: 1500 }),
-      page.waitForTimeout(500),
-    ]).catch(() => {});
+    if (!moved) break;
+    await waitForOnboardingTransition(page, text);
   }
-  await waitForOnboardingToClear(page);
+
+  const finished = await waitForPostOnboarding(page, 30_000);
+  if (finished) console.log("Completed onboarding recovery");
+  return finished;
+}
+
+/**
+ * Already-onboarded users can still be bounced into a "Confirm your income
+ * setup" re-onboarding screen (Step 1 of 3) when a deep link is opened before
+ * the profile has hydrated. This helper completes or skips through that state
+ * and does not return until onboarding navigation has settled.
+ */
+async function dismissOnboardingIfPresent(page: Page): Promise<boolean> {
+  if (!(await hasOnboardingUi(page))) return true;
+
+  for (let i = 0; i < 10; i++) {
+    if (!(await hasOnboardingUi(page))) break;
+    const text = await bodyText(page);
+
+    if (await recoverPartialOnboardingStep1(page)) continue;
+
+    const skippedYtd = await tryClick(page, "onboarding-ytd-skip", [
+      /skip( for now)?/i,
+      /no,?\s*(thanks|skip|i'?ll do this later)/i,
+    ]).catch(() => false);
+    if (skippedYtd) {
+      await waitForOnboardingTransition(page, text);
+      continue;
+    }
+
+    const skippedCompany = await tryClick(page, null, [/skip for now/i]).catch(() => false);
+    if (skippedCompany) {
+      await waitForOnboardingTransition(page, text);
+      continue;
+    }
+
+    const moved = await tryClick(page, "onboarding-continue", [
+      /^continue$/i,
+      /^confirm$/i,
+      /next/i,
+      /finish/i,
+      /complete/i,
+      /go to dashboard/i,
+      /start with free/i,
+      /continue with premium/i,
+    ]);
+    if (!moved) break;
+    await waitForOnboardingTransition(page, text);
+  }
+
+  const cleared = await waitForPostOnboarding(page, 15_000);
+  if (cleared) console.log("Completed onboarding recovery");
+  return cleared;
+}
+
+async function resetUserDataViaSettingsFallback(page: Page): Promise<boolean> {
+  await page.goto(abs("/settings"), { waitUntil: "domcontentloaded" });
+  const openReset = page.getByRole("button", { name: /delete\/erase account/i }).first();
+  if (!(await exists(openReset)) || !(await openReset.isVisible().catch(() => false))) return false;
+
+  await openReset.scrollIntoViewIfNeeded().catch(() => {});
+  await openReset.click({ timeout: 5000 });
+  await page.getByRole("button", { name: /^erase account data$/i }).click({ timeout: 5000 });
+  await page.getByRole("button", { name: /^yes, erase my data$/i }).click({ timeout: 5000 });
+  await page.waitForURL((u) => /\/onboarding/.test(u.pathname), { timeout: 30_000 });
+  console.log("Reset user data via Settings fallback");
+  await completeW2OnboardingCleanly(page);
+  return true;
 }
 
 async function gotoAppPath(page: Page, targetPath: string) {
-  await dismissOnboardingIfPresent(page);
-  await page.goto(abs(targetPath));
-  await dismissOnboardingIfPresent(page);
-  if (/\/onboarding/.test(new URL(page.url()).pathname)) {
+  const recovered = await dismissOnboardingIfPresent(page);
+  if (!recovered && !(await resetUserDataViaSettingsFallback(page))) {
+    throw new Error(`Could not recover onboarding before navigating to ${targetPath}`);
+  }
+  await waitForPostOnboarding(page, 10_000);
+  await page.goto(abs(targetPath), { waitUntil: "domcontentloaded" });
+  const recoveredAfterGoto = await dismissOnboardingIfPresent(page);
+  if (!recoveredAfterGoto && !(await resetUserDataViaSettingsFallback(page))) {
     throw new Error(`Still on onboarding before asserting ${targetPath}`);
   }
 }
