@@ -189,6 +189,7 @@ async function waitForPostOnboarding(page: Page, timeout = 30_000): Promise<bool
         const appPath = /^\/(?:$|personal-income|taxes|settings|business-activity|reports|deductions|investments|projected-income)/.test(path);
         return appPath && !/\/onboarding/.test(path) && !hasStepUi && !hasOnboardingCopy;
       },
+      undefined,
       { timeout },
     )
     .then(() => true)
