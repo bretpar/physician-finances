@@ -135,7 +135,13 @@ Browser tests can target:
 
 - `signup-email`, `signup-password`, `signup-submit`
 - `onboarding-income-type-w2`, `onboarding-income-type-w2-1099`, `onboarding-income-type-1099`
-- `onboarding-ytd-income`
+- `onboarding-ytd-yes`, `onboarding-ytd-no`, `onboarding-ytd-skip`
+- `onboarding-continue`
+- `ytd-catchup-company-name`, `ytd-catchup-gross-income`,
+  `ytd-catchup-federal-withheld`, `ytd-catchup-state-withheld`,
+  `ytd-catchup-ss-withheld`, `ytd-catchup-medicare-withheld`,
+  `ytd-catchup-save`, `ytd-catchup-error`, `ytd-catchup-saved-banner`
+- `dashboard-summary`, `paychecks-ledger`, `tax-overview-summary`
 - `investment-add-entry`, `investment-entry-type`, `investment-taxable-amount`
 - `tax-overview-total-gross-income`, `tax-overview-total-tax`,
   `tax-overview-effective-rate`, `tax-overview-federal-tax`,
