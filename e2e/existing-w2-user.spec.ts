@@ -122,6 +122,26 @@ async function loginThroughUI(page: Page) {
   });
 }
 
+async function fillOnboardingFirstNameIfPresent(page: Page) {
+  const bodyText = (await page.locator("body").textContent().catch(() => "")) ?? "";
+  const firstNameRequired =
+    /first name/i.test(bodyText) || /enter your first name to continue/i.test(bodyText);
+  if (!firstNameRequired) return;
+
+  await tryFill(
+    page,
+    null,
+    [/^first name$/i, /first name/i, /^alex$/i],
+    process.env.E2E_TEST_FIRST_NAME ?? "W2",
+  );
+}
+
+async function waitForOnboardingToClear(page: Page) {
+  await page
+    .waitForURL((u) => !/\/onboarding/.test(u.pathname), { timeout: 20_000 })
+    .catch(() => {});
+}
+
 /**
  * Already-onboarded users can still be bounced into a "Confirm your income
  * setup" re-onboarding screen (Step 1 of 3) when a deep link is opened before
@@ -139,6 +159,8 @@ async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
       /confirm your income setup/i.test(bodyText);
 
     if (!onOnboarding && !looksLikeReonboarding) return;
+
+    await fillOnboardingFirstNameIfPresent(page);
 
     // Make sure W-2 selection is set on Step 1 if visible.
     await tryClick(page, "onboarding-income-type-w2", [
@@ -165,12 +187,14 @@ async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
       // Nothing to click — bail to navigation.
       break;
     }
-    await page.waitForTimeout(500);
+    await Promise.race([
+      page.waitForURL((u) => !/\/onboarding/.test(u.pathname), { timeout: 1500 }),
+      page.waitForTimeout(500),
+    ]).catch(() => {});
   }
   // Re-navigate to the desired deep link once onboarding is cleared.
-  if (/\/onboarding/.test(new URL(page.url()).pathname)) {
-    await page.goto(abs(targetPath));
-  }
+  await waitForOnboardingToClear(page);
+  if (!/\/onboarding/.test(new URL(page.url()).pathname)) await page.goto(abs(targetPath));
 }
 
 test.describe("Existing W-2-only user — live app", () => {
