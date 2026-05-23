@@ -40,8 +40,26 @@ Lovable agent config package is not installed, so the same specs run anywhere:
 ```
 corepack enable
 pnpm install
-npx playwright install --with-deps chromium
-npx playwright test
+pnpm exec playwright install --with-deps chromium
+pnpm exec playwright test
+```
+
+### Playwright dependency expectations
+
+Both packages are declared as devDependencies and must resolve at runtime:
+
+- `@playwright/test` — the test runner / fixture API used by every spec
+  (`import { test, expect } from "@playwright/test"`).
+- `playwright` — the core browser-automation runtime. The CLI shim
+  (`pnpm exec playwright ...`) works without it, but `require('playwright')`
+  / scripted Chromium harnesses need the package installed.
+
+Sanity checks after `pnpm install`:
+
+```
+pnpm exec playwright --version
+pnpm exec node -e "require('playwright'); console.log('playwright runtime ok')"
+pnpm exec node -e "require('@playwright/test'); console.log('@playwright/test runtime ok')"
 ```
 
 Environment variables:
