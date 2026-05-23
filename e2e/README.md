@@ -66,6 +66,10 @@ Environment variables:
 
 - `PLAYWRIGHT_BASE_URL` or `BASE_URL` — target app URL. Defaults to
   `https://app.paycheckmd.com`.
+- `PLAYWRIGHT_IGNORE_HTTPS_ERRORS` — `1` to force `ignoreHTTPSErrors: true`,
+  `0` to force it off. When unset, defaults to `true` in CI (where containers
+  often lack an up-to-date root CA bundle and would otherwise fail with
+  `ERR_CERT_AUTHORITY_INVALID`) and `false` locally.
 - `TEST_SEED_ADMIN_TOKEN` — required only when invoking the
   `test-seed-users` / `test-verify-user` edge functions (see below).
 - `SUPABASE_URL` — required for the seed/verify curl examples below.
