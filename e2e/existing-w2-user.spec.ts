@@ -122,6 +122,26 @@ async function loginThroughUI(page: Page) {
   });
 }
 
+async function fillOnboardingFirstNameIfPresent(page: Page) {
+  const bodyText = (await page.locator("body").textContent().catch(() => "")) ?? "";
+  const firstNameRequired =
+    /first name/i.test(bodyText) || /enter your first name to continue/i.test(bodyText);
+  if (!firstNameRequired) return;
+
+  await tryFill(
+    page,
+    null,
+    [/^first name$/i, /first name/i, /^alex$/i],
+    process.env.E2E_TEST_FIRST_NAME ?? "W2",
+  );
+}
+
+async function waitForOnboardingToClear(page: Page) {
+  await page
+    .waitForURL((u) => !/\/onboarding/.test(u.pathname), { timeout: 20_000 })
+    .catch(() => {});
+}
+
 /**
  * Already-onboarded users can still be bounced into a "Confirm your income
  * setup" re-onboarding screen (Step 1 of 3) when a deep link is opened before
@@ -129,7 +149,7 @@ async function loginThroughUI(page: Page) {
  * Continue/Confirm/Skip a few times so deep-link pages (Dashboard, Taxes,
  * Personal Income) get a chance to render before we assert.
  */
-async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
+async function dismissOnboardingIfPresent(page: Page) {
   for (let i = 0; i < 10; i++) {
     const url = new URL(page.url());
     const onOnboarding = /\/onboarding/.test(url.pathname);
@@ -139,6 +159,8 @@ async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
       /confirm your income setup/i.test(bodyText);
 
     if (!onOnboarding && !looksLikeReonboarding) return;
+
+    await fillOnboardingFirstNameIfPresent(page);
 
     // Make sure W-2 selection is set on Step 1 if visible.
     await tryClick(page, "onboarding-income-type-w2", [
@@ -165,11 +187,20 @@ async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
       // Nothing to click — bail to navigation.
       break;
     }
-    await page.waitForTimeout(500);
+    await Promise.race([
+      page.waitForURL((u) => !/\/onboarding/.test(u.pathname), { timeout: 1500 }),
+      page.waitForTimeout(500),
+    ]).catch(() => {});
   }
-  // Re-navigate to the desired deep link once onboarding is cleared.
+  await waitForOnboardingToClear(page);
+}
+
+async function gotoAppPath(page: Page, targetPath: string) {
+  await dismissOnboardingIfPresent(page);
+  await page.goto(abs(targetPath));
+  await dismissOnboardingIfPresent(page);
   if (/\/onboarding/.test(new URL(page.url()).pathname)) {
-    await page.goto(abs(targetPath));
+    throw new Error(`Still on onboarding before asserting ${targetPath}`);
   }
 }
 
@@ -200,6 +231,7 @@ test.describe("Existing W-2-only user — live app", () => {
         /employee income only/i,
         /^w-?2$/i,
       ]);
+      await fillOnboardingFirstNameIfPresent(page);
       await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
 
       // Step 2 ask: "Yes, help me catch up"
@@ -288,6 +320,7 @@ test.describe("Existing W-2-only user — live app", () => {
       // Best-effort: keep clicking continue until we leave onboarding.
       for (let i = 0; i < 8; i++) {
         if (!/\/onboarding/.test(new URL(page.url()).pathname)) break;
+        await fillOnboardingFirstNameIfPresent(page);
         const moved = await tryClick(page, "onboarding-continue", [
           /^continue$/i,
           /next/i,
@@ -307,8 +340,7 @@ test.describe("Existing W-2-only user — live app", () => {
     }
 
     // ---- Dashboard ----
-    await page.goto(abs("/"));
-    await dismissOnboardingIfPresent(page, "/");
+    await gotoAppPath(page, "/");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     expect(new URL(page.url()).pathname).not.toMatch(/\/login/);
     const dashSummary = page
@@ -319,8 +351,7 @@ test.describe("Existing W-2-only user — live app", () => {
     }
 
     // ---- Personal income / paycheck ledger ----
-    await page.goto(abs("/personal-income"));
-    await dismissOnboardingIfPresent(page, "/personal-income");
+    await gotoAppPath(page, "/personal-income");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     const ledger = page.locator('[data-testid="paychecks-ledger"]').first();
     if (await exists(ledger)) {
@@ -338,8 +369,7 @@ test.describe("Existing W-2-only user — live app", () => {
     }
 
     // ---- Dashboard: W-2-only should not surface non-zero SE figures ----
-    await page.goto(abs("/"));
-    await dismissOnboardingIfPresent(page, "/");
+    await gotoAppPath(page, "/");
     const dashText = (await page.locator("body").textContent()) ?? "";
     expect(
       /self[- ]?employment/i.test(dashText)
@@ -349,8 +379,7 @@ test.describe("Existing W-2-only user — live app", () => {
     ).toBeTruthy();
 
     // ---- Tax overview ----
-    await page.goto(abs("/taxes"));
-    await dismissOnboardingIfPresent(page, "/taxes");
+    await gotoAppPath(page, "/taxes");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     const taxSummary = page
       .locator('[data-testid="tax-overview-summary"]')
