@@ -308,8 +308,19 @@ test.describe("Existing W-2-only user — live app", () => {
 
     // ---- Dashboard ----
     await page.goto(abs("/"));
+    await dismissOnboardingIfPresent(page, "/");
     await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
     expect(new URL(page.url()).pathname).not.toMatch(/\/login/);
+    const dashSummary = page
+      .locator('[data-testid="dashboard-summary"]')
+      .first();
+    if (await exists(dashSummary)) {
+      await expect(dashSummary).toBeVisible({ timeout: 10_000 });
+    }
+
+    // ---- Personal income / paycheck ledger ----
+    await page.goto(abs("/personal-income"));
+    await dismissOnboardingIfPresent(page, "/personal-income");
     const dashSummary = page
       .locator('[data-testid="dashboard-summary"]')
       .first();
