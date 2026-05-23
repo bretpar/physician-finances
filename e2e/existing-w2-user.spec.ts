@@ -149,7 +149,7 @@ async function waitForOnboardingToClear(page: Page) {
  * Continue/Confirm/Skip a few times so deep-link pages (Dashboard, Taxes,
  * Personal Income) get a chance to render before we assert.
  */
-async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
+async function dismissOnboardingIfPresent(page: Page) {
   for (let i = 0; i < 10; i++) {
     const url = new URL(page.url());
     const onOnboarding = /\/onboarding/.test(url.pathname);
@@ -192,9 +192,16 @@ async function dismissOnboardingIfPresent(page: Page, targetPath: string) {
       page.waitForTimeout(500),
     ]).catch(() => {});
   }
-  // Re-navigate to the desired deep link once onboarding is cleared.
   await waitForOnboardingToClear(page);
-  if (!/\/onboarding/.test(new URL(page.url()).pathname)) await page.goto(abs(targetPath));
+}
+
+async function gotoAppPath(page: Page, targetPath: string) {
+  await dismissOnboardingIfPresent(page);
+  await page.goto(abs(targetPath));
+  await dismissOnboardingIfPresent(page);
+  if (/\/onboarding/.test(new URL(page.url()).pathname)) {
+    throw new Error(`Still on onboarding before asserting ${targetPath}`);
+  }
 }
 
 test.describe("Existing W-2-only user — live app", () => {
