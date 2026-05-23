@@ -42,13 +42,20 @@ const fallbackConfig: PlaywrightTestConfig = defineConfig({
     navigationTimeout: 30_000,
     // CI/dev containers (e.g. Codex sandbox) often lack an up-to-date root CA
     // bundle, so the live app's cert chain trips ERR_CERT_AUTHORITY_INVALID.
-    // Allow opting in via PLAYWRIGHT_IGNORE_HTTPS_ERRORS=1, and default to
-    // true in CI so the existing-user spec can reach https://app.paycheckmd.com.
-    // For local dev against trusted hosts, set PLAYWRIGHT_IGNORE_HTTPS_ERRORS=0.
-    ignoreHTTPSErrors:
-      process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS === "0"
-        ? false
-        : process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS === "1" || !!process.env.CI,
+    // Allow opting in via PLAYWRIGHT_IGNORE_HTTPS_ERRORS or E2E_IGNORE_HTTPS_ERRORS.
+    // Both accept "1" or "true". Defaults to true in CI so the existing-user
+    // spec can reach https://app.paycheckmd.com. For local dev against trusted
+    // hosts, set either variable to "0" or "false".
+    ignoreHTTPSErrors: (() => {
+      const envVal =
+        process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS ||
+        process.env.E2E_IGNORE_HTTPS_ERRORS ||
+        "";
+      const lower = envVal.toLowerCase();
+      if (lower === "0" || lower === "false") return false;
+      if (lower === "1" || lower === "true") return true;
+      return !!process.env.CI;
+    })(),
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     trace: "retain-on-failure",
