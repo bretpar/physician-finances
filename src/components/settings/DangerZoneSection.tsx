@@ -29,7 +29,9 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-type Step = "choose" | "confirmErase" | "confirmDelete";
+type Step = "choose" | "confirmErase" | "confirmDelete" | "erased";
+
+const ERASE_COMPLETE_MARKER = "paycheckmd:erase-complete";
 
 export function DangerZoneSection() {
   const navigate = useNavigate();
