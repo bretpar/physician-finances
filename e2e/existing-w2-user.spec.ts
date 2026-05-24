@@ -537,8 +537,11 @@ async function forceResetFromSettingsAndOnboard(page: Page): Promise<void> {
   }
 
   // 3. Confirm we're now on the onboarding/first-setup screen.
-  const onboardingNow = /\/onboarding/.test(new URL(page.url()).pathname) || (await hasOnboardingUi(page));
-  expect(onboardingNow, "After force reset, app should redirect to onboarding").toBeTruthy();
+  const onboardingNow = await waitForOnboardingEntryState(page, 15_000);
+  if (!onboardingNow) {
+    await logOnboardingResetDiagnostics(page, "Force reset: onboarding entry not reached");
+  }
+  expect(onboardingNow, "After force reset, app should reach onboarding or first setup").toBeTruthy();
   console.log("Force reset: confirmed onboarding entry point");
 
   // 4. Complete W-2-only onboarding in the same run.
