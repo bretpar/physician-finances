@@ -114,7 +114,7 @@ export function DangerZoneSection() {
 
   return (
     <SectionCard
-      title="Danger Zone"
+      title="Delete/Erase Account"
       icon={<AlertTriangle className="h-5 w-5 text-destructive" />}
       description="Permanently erase your data or delete your account."
       hideActionBar
