@@ -1,18 +1,30 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { YtdCatchupForm } from "./YtdCatchupForm";
+import { aggregateYtdCatchup, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
+
+const mutateAsync = vi.fn().mockResolvedValue(undefined);
 
 // Stub hooks the form depends on so we can render it in isolation.
-vi.mock("@/hooks/useYtdCatchup", () => ({
-  useUpsertYtdCatchup: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}));
+vi.mock("@/hooks/useYtdCatchup", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useYtdCatchup")>(
+    "@/hooks/useYtdCatchup",
+  );
+  return {
+    ...actual,
+    useUpsertYtdCatchup: () => ({ mutateAsync, isPending: false }),
+    useYtdCatchupEntries: () => ({ data: [] }),
+    useDeleteYtdCatchup: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  };
+});
 vi.mock("@/hooks/useIncome", () => ({
   useIncomeEntries: () => ({ data: [] }),
 }));
 vi.mock("@/hooks/useTaxSettings", () => ({
   useTaxSettings: () => ({ data: { stateTaxEnabled: true } }),
 }));
+
 
 function renderForm(profile?: "w2_only" | "w2_plus_business" | "business_only") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
