@@ -116,6 +116,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
       period_start: periodStart,
       period_end: periodEnd,
       gross_income: gross,
+      business_expenses: sourceType === "1099_k1" ? Math.max(0, num(businessExpenses)) : 0,
       federal_withholding: num(fedWh),
       state_withholding: num(stateWh),
       ss_withholding: isW2Source ? num(ssWh) : 0,
@@ -128,6 +129,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
       post_tax_deductions: num(postTax),
     });
     onSaved?.();
+
   };
 
   const lockedLabel = lockedSource === "w2"
