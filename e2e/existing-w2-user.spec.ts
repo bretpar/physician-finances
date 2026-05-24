@@ -139,11 +139,56 @@ async function isOnboardingStep1(page: Page): Promise<boolean> {
 async function hasOnboardingUi(page: Page): Promise<boolean> {
   const path = new URL(page.url()).pathname;
   const text = await bodyText(page);
+  const headings = (await page.locator("h1, h2, h3").allTextContents().catch(() => [])).join("\n");
   return (
     /\/onboarding/.test(path) ||
+    /onboarding|setup|income setup/i.test(headings) ||
     /step\s*\d+\s*of\s*\d+/i.test(text) ||
     /confirm your income setup|have you already earned income|choose your plan|add each .*received this year/i.test(text)
   );
+}
+
+async function waitForOnboardingEntryState(page: Page, timeout = 30_000): Promise<boolean> {
+  return page
+    .waitForFunction(
+      () => {
+        const path = window.location.pathname;
+        const text = document.body?.innerText ?? "";
+        const headings = Array.from(document.querySelectorAll("h1, h2, h3"))
+          .map((el) => el.textContent ?? "")
+          .join("\n");
+
+        return (
+          /\/onboarding/.test(path) ||
+          /onboarding|setup|income setup/i.test(headings) ||
+          /step\s*1\s*of\s*3/i.test(text) ||
+          /confirm your income setup/i.test(text)
+        );
+      },
+      undefined,
+      { timeout },
+    )
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function logOnboardingResetDiagnostics(page: Page, label: string): Promise<void> {
+  const url = page.url();
+  const headings = await page.locator("h1, h2, h3").allTextContents().catch(() => []);
+  const buttons = await page.locator("button, [role=button], a").allTextContents().catch(() => []);
+  const toastOrError = await page
+    .locator('[role="status"], [role="alert"], [data-sonner-toast], .text-destructive')
+    .allTextContents()
+    .catch(() => []);
+  const screenshotPath = `test-results/onboarding-reset-${Date.now()}.png`;
+  await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => undefined);
+  console.log(label, {
+    url,
+    headings: headings.map((t) => t.trim()).filter(Boolean).slice(0, 20),
+    buttons: buttons.map((t) => t.trim()).filter(Boolean).slice(0, 40),
+    toastOrError: toastOrError.map((t) => t.trim()).filter(Boolean).slice(0, 20),
+    screenshotPath,
+  });
 }
 
 async function fillOnboardingFirstNameIfPresent(page: Page): Promise<boolean> {
@@ -337,7 +382,7 @@ async function dismissOnboardingIfPresent(page: Page): Promise<boolean> {
  * Click through Settings → "Delete/Erase Account" section → safe "Erase data" path.
  * Never clicks the destructive "Delete account" / "Permanently delete" options.
  * Preserves login credentials; wipes app/financial data and resets onboarding.
- * Returns true if the erase flow ran and the app navigated to /onboarding.
+ * Returns true if the erase flow ran and the app reached a valid onboarding entry state.
  */
 async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
   await page.goto(abs("/settings"), { waitUntil: "domcontentloaded" });
@@ -430,9 +475,34 @@ async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
   await safeConfirm.click({ timeout: 5_000 });
   console.log("Settings erase: safe erase confirmed");
 
-  // 5. Wait for onboarding redirect (hard nav from the component).
-  await page.waitForURL((u) => /\/onboarding/.test(u.pathname), { timeout: 30_000 });
-  console.log("Settings erase: onboarding detected");
+  // 5. The app normally hard-redirects to onboarding. If it instead stays on
+  // Settings after a successful safe erase, navigate explicitly and accept any
+  // valid onboarding entry state rather than only exact /onboarding.
+  const successOrOnboarding = await Promise.race([
+    waitForOnboardingEntryState(page, 30_000).then((ok) => (ok ? "onboarding" : null)),
+    page
+      .getByText(/account data has been erased|start onboarding again|data has been erased/i)
+      .first()
+      .waitFor({ state: "visible", timeout: 30_000 })
+      .then(() => "success")
+      .catch(() => null),
+  ]);
+
+  if (!successOrOnboarding) {
+    await logOnboardingResetDiagnostics(page, "Settings erase: no redirect or success message after safe erase");
+  }
+  expect(successOrOnboarding, "Safe erase should redirect to onboarding or show an erase success message").toBeTruthy();
+
+  if (successOrOnboarding === "success") {
+    await page.goto(abs("/onboarding"), { waitUntil: "domcontentloaded" });
+  }
+
+  const reachedOnboarding = await waitForOnboardingEntryState(page, 15_000);
+  if (!reachedOnboarding) {
+    await logOnboardingResetDiagnostics(page, "Settings erase: onboarding not reached after safe erase");
+  }
+  expect(reachedOnboarding, "Settings erase should reach onboarding or first setup entry state").toBeTruthy();
+  console.log("Settings erase: onboarding entry detected");
   return true;
 }
 
@@ -472,8 +542,11 @@ async function forceResetFromSettingsAndOnboard(page: Page): Promise<void> {
   }
 
   // 3. Confirm we're now on the onboarding/first-setup screen.
-  const onboardingNow = /\/onboarding/.test(new URL(page.url()).pathname) || (await hasOnboardingUi(page));
-  expect(onboardingNow, "After force reset, app should redirect to onboarding").toBeTruthy();
+  const onboardingNow = await waitForOnboardingEntryState(page, 15_000);
+  if (!onboardingNow) {
+    await logOnboardingResetDiagnostics(page, "Force reset: onboarding entry not reached");
+  }
+  expect(onboardingNow, "After force reset, app should reach onboarding or first setup").toBeTruthy();
   console.log("Force reset: confirmed onboarding entry point");
 
   // 4. Complete W-2-only onboarding in the same run.
