@@ -70,11 +70,7 @@ export default function Dashboard() {
   }, [user]);
 
   const projectedPaychecks = useMemo(
-    () =>
-      generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries).map((p) => ({
-        date: p.date,
-        grossAmount: Number(p.grossAmount || 0),
-      })),
+    () => generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries),
     [streams, bonuses, incomeEntries],
   );
 
