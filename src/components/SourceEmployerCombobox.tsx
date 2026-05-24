@@ -297,7 +297,12 @@ export function SourceEmployerCombobox({
                     )}
                   >
                     <Check className={cn("h-3.5 w-3.5 shrink-0", sourceId === s.id ? "opacity-100" : "opacity-0")} />
-                    <span className="flex-1 text-left truncate">{s.nickname || s.name}</span>
+                    <span className="flex-1 min-w-0 text-left">
+                      <span className="block truncate">{s.name || s.nickname || "Unnamed source"}</span>
+                      {s.nickname && s.nickname !== s.name && (
+                        <span className="block truncate text-[11px] text-muted-foreground">{s.nickname}</span>
+                      )}
+                    </span>
                     <span className="text-[10px] text-muted-foreground shrink-0">
                       {SOURCE_KIND_LABEL[s.source_kind] || s.source_kind}
                     </span>
