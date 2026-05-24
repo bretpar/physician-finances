@@ -40,11 +40,13 @@ export function DangerZoneSection() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("choose");
   const [busy, setBusy] = useState(false);
+  const [eraseError, setEraseError] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   function reset() {
     setStep("choose");
     setDeleteConfirmText("");
+    setEraseError("");
     setBusy(false);
   }
 
@@ -64,9 +66,16 @@ export function DangerZoneSection() {
   }
 
   async function handleErase() {
+    if (busy) return;
+    console.info("Settings erase: safe erase clicked");
+    setEraseError("");
     setBusy(true);
     try {
-      await callCleanup("erase");
+      const result = await callCleanup("erase");
+      console.info("Settings erase: erase-account-data function completed", {
+        action: (result as any)?.action,
+        partialErrorCount: Array.isArray((result as any)?.partial_errors) ? (result as any).partial_errors.length : 0,
+      });
       // Clear any cached query state and local/session caches.
       try {
         queryClient.clear();
@@ -85,20 +94,28 @@ export function DangerZoneSection() {
       // Deterministic post-erase signal for E2E + humans.
       try {
         localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
+        sessionStorage.setItem("paycheckmd-onboarding-step", "1");
       } catch {
         // best effort
       }
       toast.success("Your account data has been erased. Start onboarding again.");
-      setStep("erased");
       setBusy(false);
-      // Hard-navigate so cached state is dropped. Small delay lets the
-      // success state render so tests can latch onto either the URL change
-      // or the visible "erase-success" marker.
+      setStep("erased");
+      setOpen(false);
+      console.info("Settings erase: erase success detected");
+      navigate("/onboarding", { replace: true });
+      // Hard-navigate fallback so cached state is dropped if the SPA transition
+      // is blocked. The timeout also gives tests a stable success toast/marker.
       window.setTimeout(() => {
-        window.location.assign("/onboarding?reset=1");
-      }, 250);
+        if (!/\/onboarding\b/.test(window.location.pathname)) {
+          window.location.assign("/onboarding?reset=1");
+        }
+      }, 750);
     } catch (err: any) {
-      toast.error(err?.message || "Failed to erase account data");
+      const message = err?.message || "Failed to erase account data";
+      console.error("Settings erase: safe erase failed", { message });
+      setEraseError(message);
+      toast.error(message);
       setBusy(false);
     }
   }
@@ -191,6 +208,11 @@ export function DangerZoneSection() {
                   This will remove all app data and Plaid links but keep your login. Continue?
                 </DialogDescription>
               </DialogHeader>
+              {eraseError && (
+                <p className="text-sm text-destructive" role="alert" data-testid="erase-error">
+                  {eraseError}
+                </p>
+              )}
               <DialogFooter className="gap-2">
                 <Button variant="secondary" onClick={() => setStep("choose")} disabled={busy}>
                   Back
@@ -200,9 +222,11 @@ export function DangerZoneSection() {
                   className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={handleErase}
                   disabled={busy}
+                  data-testid="safe-erase-data-confirm"
+                  aria-busy={busy}
                 >
                   {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Yes, erase my data
+                  {busy ? "Erasing data…" : "Yes, erase my data"}
                 </Button>
               </DialogFooter>
             </>

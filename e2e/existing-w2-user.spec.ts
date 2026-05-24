@@ -452,7 +452,10 @@ async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
   }
 
   // 4. Safe confirm button inside the dialog.
-  const safeConfirm = dialog.getByRole("button", { name: /^yes,\s*erase my data$/i });
+  const safeConfirm = page
+    .locator('[data-testid="safe-erase-data-confirm"]')
+    .or(dialog.getByRole("button", { name: /^yes,\s*erase my data$/i }))
+    .first();
   const safeVisible = await safeConfirm
     .waitFor({ state: "visible", timeout: 5_000 })
     .then(() => true)
@@ -473,36 +476,25 @@ async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
     return false;
   }
   await safeConfirm.click({ timeout: 5_000 });
-  console.log("Settings erase: safe erase confirmed");
+  console.log("Settings erase: safe erase clicked");
 
-  // 5. The app normally hard-redirects to onboarding. If it instead stays on
-  // Settings after a successful safe erase, navigate explicitly and accept any
-  // valid onboarding entry state rather than only exact /onboarding.
-  const successOrOnboarding = await Promise.race([
-    waitForOnboardingEntryState(page, 30_000).then((ok) => (ok ? "onboarding" : null)),
-    page
-      .getByText(/account data has been erased|start onboarding again|data has been erased/i)
-      .first()
-      .waitFor({ state: "visible", timeout: 30_000 })
-      .then(() => "success")
-      .catch(() => null),
-  ]);
+  // 5. The app must transition out of the confirm modal and reach onboarding.
+  // Do not treat a still-open "Erase all account data?" dialog as success.
+  const successOrOnboarding = await waitForOnboardingEntryState(page, 30_000)
+    .then((ok) => (ok ? "onboarding" : null));
 
   if (!successOrOnboarding) {
     await logOnboardingResetDiagnostics(page, "Settings erase: no redirect or success message after safe erase");
   }
-  expect(successOrOnboarding, "Safe erase should redirect to onboarding or show an erase success message").toBeTruthy();
-
-  if (successOrOnboarding === "success") {
-    await page.goto(abs("/onboarding"), { waitUntil: "domcontentloaded" });
-  }
+  expect(successOrOnboarding, "Safe erase should redirect to onboarding or show an onboarding entry state").toBeTruthy();
+  console.log("Settings erase: erase success detected");
 
   const reachedOnboarding = await waitForOnboardingEntryState(page, 15_000);
   if (!reachedOnboarding) {
     await logOnboardingResetDiagnostics(page, "Settings erase: onboarding not reached after safe erase");
   }
   expect(reachedOnboarding, "Settings erase should reach onboarding or first setup entry state").toBeTruthy();
-  console.log("Settings erase: onboarding entry detected");
+  console.log("Settings erase: onboarding detected");
   return true;
 }
 
