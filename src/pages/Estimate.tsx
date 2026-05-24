@@ -74,12 +74,14 @@ function SelectCard({ selected, title, description, onClick }: { selected: boole
 }
 
 function NumberField({ label, value, onChange, hint, prefix = "$" }: { label: string; value: number; onChange: (n: number) => void; hint?: string; prefix?: string }) {
+  const id = React.useId();
   return (
     <div>
-      <Label>{label}</Label>
+      <Label htmlFor={id}>{label}</Label>
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{prefix}</span>
         <Input
+          id={id}
           type="number" inputMode="decimal" min={0} className="pl-7"
           value={value === 0 ? "" : String(value)}
           placeholder="0"
