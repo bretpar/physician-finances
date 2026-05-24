@@ -15,6 +15,70 @@ export interface SuggestedMatch {
   reasons: string[];
 }
 
+/**
+ * Pure helper for the linking eligibility check. Determines which selected
+ * transactions are truly already linked (and thus must be unlinked before
+ * being re-linked) versus which link rows are stale (single-sided / orphan
+ * group with no live partner) and can be cleaned up silently.
+ *
+ * A link group counts as "active" only when ≥2 distinct partner transactions
+ * referenced by the group still exist. Review status, possible-match status,
+ * duplicate flags, Plaid metadata, and stale denormalized
+ * `transactions.linked_group_id` are NOT considered "linked".
+ */
+export function computeLinkEligibility(args: {
+  selectedTxIds: string[];
+  directLinks: Array<{
+    id: string;
+    manual_transaction_id: string | null;
+    plaid_transaction_record_id: string | null;
+    linked_group_id: string;
+  }>;
+  groupRows: Array<{
+    id: string;
+    manual_transaction_id: string | null;
+    plaid_transaction_record_id: string | null;
+    linked_group_id: string;
+  }>;
+  liveTxIds: Set<string>;
+}): {
+  trulyLinked: Array<{ txId: string; groupId: string; reason: string }>;
+  staleLinkIds: string[];
+  activeGroupIds: Set<string>;
+} {
+  const groupPartnerIds = new Map<string, Set<string>>();
+  for (const l of args.groupRows) {
+    const set = groupPartnerIds.get(l.linked_group_id) || new Set<string>();
+    if (l.manual_transaction_id) set.add(l.manual_transaction_id);
+    if (l.plaid_transaction_record_id) set.add(l.plaid_transaction_record_id);
+    groupPartnerIds.set(l.linked_group_id, set);
+  }
+  const activeGroupIds = new Set<string>();
+  for (const [gid, partners] of groupPartnerIds.entries()) {
+    const liveCount = [...partners].filter((p) => args.liveTxIds.has(p)).length;
+    if (liveCount >= 2) activeGroupIds.add(gid);
+  }
+  const trulyLinked: Array<{ txId: string; groupId: string; reason: string }> = [];
+  const staleLinkIds: string[] = [];
+  for (const l of args.directLinks) {
+    const selectedSide =
+      (l.manual_transaction_id && args.selectedTxIds.includes(l.manual_transaction_id) && l.manual_transaction_id) ||
+      (l.plaid_transaction_record_id && args.selectedTxIds.includes(l.plaid_transaction_record_id) && l.plaid_transaction_record_id) ||
+      null;
+    if (!selectedSide) continue;
+    if (activeGroupIds.has(l.linked_group_id)) {
+      trulyLinked.push({
+        txId: selectedSide,
+        groupId: l.linked_group_id,
+        reason: "active_link_group_with_live_partners",
+      });
+    } else {
+      staleLinkIds.push(l.id);
+    }
+  }
+  return { trulyLinked, staleLinkIds, activeGroupIds };
+}
+
 // ---- Transaction Links ----
 export function useTransactionLinks() {
   return useQuery({
@@ -508,41 +572,82 @@ export function useCreateMatchGroup() {
       console.log("[LinkTx] selected ids:", transactionIds);
 
       // Verify "already linked" against real user-created transaction_links
-      // only. Active match groups are suggestions/import states and must not
-      // block a user-created link.
-      const { data: activeLinks } = await supabase
+      // only. A transaction is "truly linked" ONLY if it belongs to an
+      // active linked_group_id that still references ≥2 live partner
+      // transactions. Single-sided / orphan link rows (where the other
+      // side was deleted) are stale and must NOT block re-linking.
+      const { data: directLinks } = await supabase
         .from("transaction_links")
-        .select("manual_transaction_id, plaid_transaction_record_id, linked_group_id, status, created_by_user")
+        .select("id, manual_transaction_id, plaid_transaction_record_id, linked_group_id, status, created_by_user")
         .or(
           `manual_transaction_id.in.(${transactionIds.join(",")}),plaid_transaction_record_id.in.(${transactionIds.join(",")})`
         )
         .eq("status", "linked")
         .eq("created_by_user", true);
 
-      const txInActiveLink = new Set<string>();
-      for (const l of (activeLinks || []) as any[]) {
-        if (l.manual_transaction_id) txInActiveLink.add(l.manual_transaction_id);
-        if (l.plaid_transaction_record_id) txInActiveLink.add(l.plaid_transaction_record_id);
+      const touchedGroupIds = Array.from(
+        new Set(((directLinks || []) as any[]).map((l) => l.linked_group_id).filter(Boolean))
+      );
+
+      let groupRows: any[] = [];
+      if (touchedGroupIds.length > 0) {
+        const { data: allGroupLinks } = await supabase
+          .from("transaction_links")
+          .select("id, manual_transaction_id, plaid_transaction_record_id, linked_group_id")
+          .in("linked_group_id", touchedGroupIds)
+          .eq("status", "linked")
+          .eq("created_by_user", true);
+        groupRows = (allGroupLinks || []) as any[];
       }
 
-      const trulyLinked: string[] = [];
-      const stale: string[] = [];
+      const allPartnerIds = Array.from(
+        new Set(groupRows.flatMap((l) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean) as string[])
+      );
+      let livePartnerIds = new Set<string>();
+      if (allPartnerIds.length > 0) {
+        const { data: liveTxs } = await supabase
+          .from("transactions")
+          .select("id")
+          .in("id", allPartnerIds);
+        livePartnerIds = new Set(((liveTxs || []) as any[]).map((r) => r.id));
+      }
+
+      const { trulyLinked, staleLinkIds } = computeLinkEligibility({
+        selectedTxIds: transactionIds,
+        directLinks: (directLinks || []) as any[],
+        groupRows,
+        liveTxIds: livePartnerIds,
+      });
+
+      const staleTxIds: string[] = [];
       for (const r of rows as any[]) {
-        const isReallyLinked = txInActiveLink.has(r.id);
-        if (isReallyLinked) trulyLinked.push(r.id);
-        else if (r.linked_group_id || r.match_status === "linked") stale.push(r.id);
+        const isActive = trulyLinked.some((t) => t.txId === r.id);
+        if (!isActive && (r.linked_group_id || r.match_status === "linked")) {
+          staleTxIds.push(r.id);
+        }
       }
 
       if (trulyLinked.length > 0) {
+        console.warn("[LinkTx] BLOCKED — truly linked:", trulyLinked);
         throw new Error("One or more selected transactions are already linked. Unlink them first.");
       }
 
+      // Clean up stale single-sided link rows so they never block again.
+      if (staleLinkIds.length > 0) {
+        console.log("[LinkTx] cleaning stale link rows:", staleLinkIds);
+        await supabase
+          .from("transaction_links")
+          .update({ status: "unlinked" } as any)
+          .in("id", staleLinkIds);
+      }
+
       // Clear stale denormalized flags so future loads reflect reality.
-      if (stale.length > 0) {
+      if (staleTxIds.length > 0) {
+        console.log("[LinkTx] clearing stale tx link flags:", staleTxIds);
         await supabase
           .from("transactions")
           .update({ match_status: "unmatched", linked_group_id: null } as any)
-          .in("id", stale);
+          .in("id", staleTxIds);
       }
 
       // Pull income_entry enrichment for any rows that have one — used to
