@@ -1,0 +1,104 @@
+import { describe, it, expect } from "vitest";
+import {
+  generateProjectedPaychecks,
+  getMonthlyPlannerBreakdown,
+  type ProjectedIncomeStream,
+  type PlannerConversionRef,
+  type ProjectedIncomeOverride,
+} from "@/hooks/useProjectedIncome";
+
+const YEAR = new Date().getFullYear();
+const MAY_15 = `${YEAR}-05-15`;
+
+function stream(overrides: Partial<ProjectedIncomeStream> = {}): ProjectedIncomeStream {
+  return {
+    id: "stream-1",
+    user_id: "u1",
+    organization_id: null,
+    company: "Acme",
+    company_type: "W2",
+    pay_frequency: "single",
+    custom_interval_days: null,
+    start_date: MAY_15,
+    end_date: null,
+    paycheck_amount: 2100,
+    taxes_withheld: 0,
+    retirement_401k: 0,
+    pre_tax_deductions: 0,
+    is_active: true,
+    include_in_tax: true,
+    source_id: null,
+    ui_income_subtype: null,
+    federal_withholding: 0,
+    state_withholding: 0,
+    ss_withholding: 0,
+    medicare_withholding: 0,
+    healthcare_deduction: 0,
+    hsa_contribution: 0,
+    additional_tax_reserve: 0,
+    notes: "",
+    forecast_expense_per_period: 0,
+    forecast_expense_notes: "",
+    created_at: "",
+    updated_at: "",
+    ...overrides,
+  };
+}
+
+describe("Dashboard planned aggregation parity with Income Planner accordion", () => {
+  it("active stream occurrence counts as Planned and is visible", () => {
+    const paychecks = generateProjectedPaychecks([stream()], [], [], [], [], []);
+    const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
+    expect(byMonth[4].plannedIncome).toBe(2100);
+    const may = paychecks.filter((p) => p.date.startsWith(`${YEAR}-05`));
+    expect(may.some((p) => p.matchStatus === "active" && p.grossAmount === 2100)).toBe(true);
+  });
+
+  it("converted occurrence does NOT count as Planned (Dashboard parity)", () => {
+    const conversions: PlannerConversionRef[] = [
+      { stream_id: "stream-1", bonus_event_id: null, occurrence_date: MAY_15, status: "converted" },
+    ];
+    const paychecks = generateProjectedPaychecks([stream()], [], [], [], conversions, []);
+    const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
+    expect(byMonth[4].plannedIncome).toBe(0);
+    expect(byMonth[4].convertedPlannerIncome).toBe(2100);
+  });
+
+  it("skipped occurrence (via override) does NOT count as Planned", () => {
+    const overrides: ProjectedIncomeOverride[] = [{
+      id: "o1", stream_id: "stream-1", user_id: "u1", organization_id: null,
+      override_date: MAY_15, new_date: null, action: "skip",
+      paycheck_amount: 0, taxes_withheld: 0, retirement_401k: 0, pre_tax_deductions: 0,
+      notes: "", created_at: "", updated_at: "",
+    }];
+    const paychecks = generateProjectedPaychecks([stream()], [], [], overrides, [], []);
+    const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
+    expect(byMonth[4].plannedIncome).toBe(0);
+  });
+
+  it("inactive stream does NOT generate planned occurrences", () => {
+    const paychecks = generateProjectedPaychecks(
+      [stream({ is_active: false })], [], [], [], [], [],
+    );
+    const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
+    expect(byMonth[4].plannedIncome).toBe(0);
+  });
+
+  it("Dashboard chart total matches accordion 'active' total for May", () => {
+    // Two streams: one active, one converted. Chart Planned must equal
+    // the planner accordion's active-only total.
+    const conversions: PlannerConversionRef[] = [
+      { stream_id: "stream-2", bonus_event_id: null, occurrence_date: MAY_15, status: "converted" },
+    ];
+    const paychecks = generateProjectedPaychecks(
+      [stream(), stream({ id: "stream-2", paycheck_amount: 5000 })],
+      [], [], [], conversions, [],
+    );
+    const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
+    const accordionActiveTotal = paychecks
+      .filter((p) => p.date.startsWith(`${YEAR}-05`) && p.matchStatus === "active")
+      .reduce((s, p) => s + p.grossAmount, 0);
+    expect(byMonth[4].plannedIncome).toBe(accordionActiveTotal);
+    expect(byMonth[4].plannedIncome).toBe(2100);
+  });
+});
