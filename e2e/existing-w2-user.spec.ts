@@ -21,6 +21,9 @@ const EMAIL = process.env.E2E_TEST_EMAIL ?? "";
 const PASSWORD = process.env.E2E_TEST_PASSWORD ?? "";
 const BASE_URL =
   process.env.PLAYWRIGHT_BASE_URL ?? "https://app.paycheckmd.com";
+const FORCE_RESET_FROM_SETTINGS = /^(1|true|yes)$/i.test(
+  process.env.FORCE_RESET_FROM_SETTINGS ?? "",
+);
 
 function abs(path: string): string {
   return new URL(path, BASE_URL).toString();
