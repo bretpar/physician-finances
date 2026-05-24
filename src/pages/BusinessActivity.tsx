@@ -968,11 +968,24 @@ export default function Transactions() {
   const summaryStats = useMemo(() => {
     // CANONICAL EXCLUSION: personal / excluded / transfer rows never count
     // toward business revenue or deductible business expense.
+    //
+    // YTD catch-up mirror rows (origin_type='ytd_catchup', business types
+    // only) MUST count toward Business Revenue even before the user has
+    // linked them to a company via source_id — they are unambiguously
+    // business income (the catch-up form gates them on 1099/K-1) and
+    // dropping them would understate revenue / profit for 1099-only users.
+    const isBusinessMirrorCatchup = (t: any): boolean => {
+      if (t?.origin_type !== "ytd_catchup") return false;
+      const ct = String(t?.company_type || "");
+      return ct === "1099_schedule_c" || ct === "k1_partnership" || ct === "k1_s_corp";
+    };
     const businessFiltered = filtered.filter((t) =>
       !isExcludedFromBusiness(t as any) &&
-      !!t.source_id &&
-      companyById.has(t.source_id) &&
-      !isUnassignedOrAutoAssignedInterest(t)
+      !isUnassignedOrAutoAssignedInterest(t) &&
+      (
+        (!!t.source_id && companyById.has(t.source_id)) ||
+        isBusinessMirrorCatchup(t)
+      )
     );
     const revenue = businessFiltered
       .filter((t) => t.transaction_type === "income")
