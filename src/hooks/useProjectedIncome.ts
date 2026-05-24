@@ -1237,3 +1237,65 @@ export function getProjectedTotals(
 
   return acc;
 }
+
+/**
+ * Source-of-truth for planner-side monthly breakdown. Use everywhere the
+ * Income Planner monthly totals are surfaced (Dashboard "Monthly Income"
+ * chart and the Income Planner accordion).
+ *
+ * `plannedIncome` is the only value that should feed the chart's "Planned"
+ * segment — it excludes converted, matched/suggested, skipped, and past_due
+ * occurrences so we never double count with the ledger.
+ */
+export interface MonthlyPlannerBreakdown {
+  month: number;
+  unconvertedPlannerIncome: number;
+  convertedPlannerIncome: number;
+  matchedPlannerIncome: number;
+  skippedPlannerIncome: number;
+  pastDuePlannerIncome: number;
+  /** Single source-of-truth for the chart's "Planned" segment. */
+  plannedIncome: number;
+}
+
+export function getMonthlyPlannerBreakdown(
+  paychecks: ProjectedPaycheck[],
+  year: number,
+): MonthlyPlannerBreakdown[] {
+  const months: MonthlyPlannerBreakdown[] = Array.from({ length: 12 }, (_, m) => ({
+    month: m,
+    unconvertedPlannerIncome: 0,
+    convertedPlannerIncome: 0,
+    matchedPlannerIncome: 0,
+    skippedPlannerIncome: 0,
+    pastDuePlannerIncome: 0,
+    plannedIncome: 0,
+  }));
+  for (const p of paychecks) {
+    const [y, mm] = p.date.split("-");
+    if (parseInt(y, 10) !== year) continue;
+    const m = parseInt(mm, 10) - 1;
+    if (m < 0 || m > 11) continue;
+    const amt = Number(p.grossAmount || 0);
+    switch (p.matchStatus) {
+      case "active":
+        months[m].unconvertedPlannerIncome += amt;
+        months[m].plannedIncome += amt;
+        break;
+      case "converted":
+        months[m].convertedPlannerIncome += amt;
+        break;
+      case "matched":
+      case "suggested":
+        months[m].matchedPlannerIncome += amt;
+        break;
+      case "skipped":
+        months[m].skippedPlannerIncome += amt;
+        break;
+      case "past_due":
+        months[m].pastDuePlannerIncome += amt;
+        break;
+    }
+  }
+  return months;
+}
