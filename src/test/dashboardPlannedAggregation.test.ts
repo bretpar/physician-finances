@@ -36,7 +36,7 @@ function stream(overrides: Partial<ProjectedIncomeStream> = {}): ProjectedIncome
     company_type: "W2",
     pay_frequency: "single",
     custom_interval_days: null,
-    start_date: MAY_15,
+    start_date: FUTURE,
     end_date: null,
     paycheck_amount: 2100,
     taxes_withheld: 0,
@@ -66,31 +66,31 @@ describe("Dashboard planned aggregation parity with Income Planner accordion", (
   it("active stream occurrence counts as Planned and is visible", () => {
     const paychecks = generateProjectedPaychecks([stream()], [], [], [], [], []);
     const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
-    expect(byMonth[4].plannedIncome).toBe(2100);
-    const may = paychecks.filter((p) => p.date.startsWith(`${YEAR}-05`));
+    expect(byMonth[FUTURE_MONTH].plannedIncome).toBe(2100);
+    const may = paychecks.filter((p) => p.date.startsWith(`${YEAR}-${String(FUTURE_MONTH+1).padStart(2,"0")}`));
     expect(may.some((p) => p.matchStatus === "active" && p.grossAmount === 2100)).toBe(true);
   });
 
   it("converted occurrence does NOT count as Planned (Dashboard parity)", () => {
     const conversions: PlannerConversionRef[] = [
-      { stream_id: "stream-1", bonus_event_id: null, occurrence_date: MAY_15, status: "converted" },
+      { stream_id: "stream-1", bonus_event_id: null, occurrence_date: FUTURE, status: "converted" },
     ];
     const paychecks = generateProjectedPaychecks([stream()], [], [], [], conversions, []);
     const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
-    expect(byMonth[4].plannedIncome).toBe(0);
-    expect(byMonth[4].convertedPlannerIncome).toBe(2100);
+    expect(byMonth[FUTURE_MONTH].plannedIncome).toBe(0);
+    expect(byMonth[FUTURE_MONTH].convertedPlannerIncome).toBe(2100);
   });
 
   it("skipped occurrence (via override) does NOT count as Planned", () => {
     const overrides: ProjectedIncomeOverride[] = [{
       id: "o1", stream_id: "stream-1", user_id: "u1", organization_id: null,
-      override_date: MAY_15, new_date: null, action: "skip",
+      override_date: FUTURE, new_date: null, action: "skip",
       paycheck_amount: 0, taxes_withheld: 0, retirement_401k: 0, pre_tax_deductions: 0,
       notes: "", created_at: "", updated_at: "",
     }];
     const paychecks = generateProjectedPaychecks([stream()], [], [], overrides, [], []);
     const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
-    expect(byMonth[4].plannedIncome).toBe(0);
+    expect(byMonth[FUTURE_MONTH].plannedIncome).toBe(0);
   });
 
   it("inactive stream does NOT generate planned occurrences", () => {
@@ -98,14 +98,14 @@ describe("Dashboard planned aggregation parity with Income Planner accordion", (
       [stream({ is_active: false })], [], [], [], [], [],
     );
     const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
-    expect(byMonth[4].plannedIncome).toBe(0);
+    expect(byMonth[FUTURE_MONTH].plannedIncome).toBe(0);
   });
 
   it("Dashboard chart total matches accordion 'active' total for May", () => {
     // Two streams: one active, one converted. Chart Planned must equal
     // the planner accordion's active-only total.
     const conversions: PlannerConversionRef[] = [
-      { stream_id: "stream-2", bonus_event_id: null, occurrence_date: MAY_15, status: "converted" },
+      { stream_id: "stream-2", bonus_event_id: null, occurrence_date: FUTURE, status: "converted" },
     ];
     const paychecks = generateProjectedPaychecks(
       [stream(), stream({ id: "stream-2", paycheck_amount: 5000 })],
@@ -113,9 +113,9 @@ describe("Dashboard planned aggregation parity with Income Planner accordion", (
     );
     const byMonth = getMonthlyPlannerBreakdown(paychecks, YEAR);
     const accordionActiveTotal = paychecks
-      .filter((p) => p.date.startsWith(`${YEAR}-05`) && p.matchStatus === "active")
+      .filter((p) => p.date.startsWith(`${YEAR}-${String(FUTURE_MONTH+1).padStart(2,"0")}`) && p.matchStatus === "active")
       .reduce((s, p) => s + p.grossAmount, 0);
-    expect(byMonth[4].plannedIncome).toBe(accordionActiveTotal);
-    expect(byMonth[4].plannedIncome).toBe(2100);
+    expect(byMonth[FUTURE_MONTH].plannedIncome).toBe(accordionActiveTotal);
+    expect(byMonth[FUTURE_MONTH].plannedIncome).toBe(2100);
   });
 });
