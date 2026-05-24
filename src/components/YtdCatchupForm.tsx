@@ -54,6 +54,8 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   const [periodStart, setPeriodStart] = useState(initial?.period_start ?? yearStart);
   const [periodEnd, setPeriodEnd] = useState(initial?.period_end ?? today);
   const [grossIncome, setGrossIncome] = useState(String(initial?.gross_income ?? ""));
+  const [businessExpenses, setBusinessExpenses] = useState(String(initial?.business_expenses ?? ""));
+
   const [fedWh, setFedWh] = useState(String(initial?.federal_withholding ?? ""));
   const [stateWh, setStateWh] = useState(String(initial?.state_withholding ?? ""));
   const [ssWh, setSsWh] = useState(String(initial?.ss_withholding ?? ""));
@@ -114,6 +116,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
       period_start: periodStart,
       period_end: periodEnd,
       gross_income: gross,
+      business_expenses: sourceType === "1099_k1" ? Math.max(0, num(businessExpenses)) : 0,
       federal_withholding: num(fedWh),
       state_withholding: num(stateWh),
       ss_withholding: isW2Source ? num(ssWh) : 0,
@@ -126,6 +129,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
       post_tax_deductions: num(postTax),
     });
     onSaved?.();
+
   };
 
   const lockedLabel = lockedSource === "w2"
@@ -184,9 +188,40 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           <DateField value={periodEnd} onChange={setPeriodEnd} />
         </div>
         <div className="sm:col-span-2">
-          <Label htmlFor="ytd-gross-income">Total gross income YTD</Label>
+          <Label htmlFor="ytd-gross-income">{sourceType === "1099_k1" ? "Total gross business revenue YTD" : "Total gross income YTD"}</Label>
           <Input id="ytd-gross-income" data-testid="ytd-catchup-gross-income" type="number" inputMode="decimal" value={grossIncome} onChange={(e) => setGrossIncome(e.target.value)} placeholder="0.00" />
         </div>
+        {sourceType === "1099_k1" && (
+          <>
+            <div className="sm:col-span-2">
+              <Label htmlFor="ytd-business-expenses">YTD business expenses</Label>
+              <Input
+                id="ytd-business-expenses"
+                data-testid="ytd-catchup-business-expenses"
+                type="number"
+                inputMode="decimal"
+                value={businessExpenses}
+                onChange={(e) => setBusinessExpenses(e.target.value)}
+                placeholder="0.00"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Deductible business expenses already incurred this year (mileage, supplies, fees, etc.).
+              </p>
+            </div>
+            <div className="sm:col-span-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">YTD net business profit</span>
+                <span data-testid="ytd-catchup-net-profit" className="font-semibold text-foreground">
+                  {(Math.max(0, num(grossIncome) - num(businessExpenses))).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Gross revenue minus business expenses. Tax estimates use this net profit, not gross revenue.
+              </p>
+            </div>
+          </>
+        )}
+
         <div>
           <Label htmlFor="ytd-fed-withheld">{fedLabel}</Label>
           <Input id="ytd-fed-withheld" data-testid="ytd-catchup-federal-withheld" type="number" inputMode="decimal" value={fedWh} onChange={(e) => setFedWh(e.target.value)} placeholder="0.00" />

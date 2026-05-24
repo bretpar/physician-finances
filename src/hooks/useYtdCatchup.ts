@@ -17,8 +17,10 @@ export interface YtdCatchupEntry {
   period_start: string;
   period_end: string;
   gross_income: number;
+  business_expenses: number;
   federal_withholding: number;
   state_withholding: number;
+
   ss_withholding: number;
   medicare_withholding: number;
   retirement_401k: number;
@@ -277,6 +279,8 @@ export function useDeleteYtdCatchup() {
  */
 export interface YtdCatchupTotals {
   grossIncome: number;
+  businessExpenses: number;
+  netBusinessProfit: number;
   federalWithholding: number;
   stateWithholding: number;
   ssWithholding: number;
@@ -289,9 +293,11 @@ export interface YtdCatchupTotals {
   latestPeriodEnd: string | null;
 }
 
+
 export function aggregateYtdCatchup(entries: YtdCatchupEntry[] | undefined, taxYear?: number): YtdCatchupTotals {
   const empty: YtdCatchupTotals = {
-    grossIncome: 0, federalWithholding: 0, stateWithholding: 0,
+    grossIncome: 0, businessExpenses: 0, netBusinessProfit: 0,
+    federalWithholding: 0, stateWithholding: 0,
     ssWithholding: 0, medicareWithholding: 0, preTaxDeductions: 0,
     retirement401k: 0, hsaContribution: 0, postTaxDeductions: 0,
     latestPeriodEnd: null,
@@ -299,8 +305,11 @@ export function aggregateYtdCatchup(entries: YtdCatchupEntry[] | undefined, taxY
   if (!entries?.length) return empty;
   const year = taxYear ?? new Date().getFullYear();
   const filtered = entries.filter((e) => e.tax_year === year);
-  return filtered.reduce<YtdCatchupTotals>((acc, e) => {
+  const totals = filtered.reduce<YtdCatchupTotals>((acc, e) => {
     acc.grossIncome += Number(e.gross_income) || 0;
+    if (e.source_type === "1099_k1") {
+      acc.businessExpenses += Number(e.business_expenses) || 0;
+    }
     acc.federalWithholding += Number(e.federal_withholding) || 0;
     acc.stateWithholding += Number(e.state_withholding) || 0;
     acc.ssWithholding += Number(e.ss_withholding) || 0;
@@ -316,4 +325,7 @@ export function aggregateYtdCatchup(entries: YtdCatchupEntry[] | undefined, taxY
     if (!acc.latestPeriodEnd || e.period_end > acc.latestPeriodEnd) acc.latestPeriodEnd = e.period_end;
     return acc;
   }, empty);
+  totals.netBusinessProfit = Math.max(0, totals.grossIncome - totals.businessExpenses);
+  return totals;
 }
+
