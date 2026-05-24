@@ -483,6 +483,11 @@ export default function Onboarding() {
                     : "Add each paystub or 1099 source you've earned from this year"
                 }</h1>
                 <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals so recommendations stay accurate. Add one entry per employer or company — you can add as many as you need.</p>
+                {merged.incomeProfileType === "business_only" && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Planned remaining-year business revenue and expenses are entered later in the Income Planner, not here. This step captures actual year-to-date income only.
+                  </p>
+                )}
               </div>
               <YtdCatchupRecap
                 onEdit={(entry) => {
