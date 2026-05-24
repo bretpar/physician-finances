@@ -147,10 +147,13 @@ export function SourceEmployerCombobox({
   }
 
   const displayLabel = linkedSource
-    ? linkedSource.nickname || linkedSource.name
+    ? linkedSource.name || linkedSource.nickname || "Unnamed source"
     : isOther
       ? `Other: ${otherName}`
       : "Select source / employer…";
+  const displaySubLabel = linkedSource && linkedSource.nickname && linkedSource.nickname !== linkedSource.name
+    ? linkedSource.nickname
+    : "";
 
   const triggerInvalid = invalid && !linkedSource && !otherName;
 
