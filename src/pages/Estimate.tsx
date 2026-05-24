@@ -252,15 +252,25 @@ export default function Estimate() {
                   <NumberField label="Itemized deduction amount" value={input.itemizedAmount} onChange={(n) => patch({ itemizedAmount: n })} />
                 )}
               </div>
-              <div className="rounded-lg border border-border p-4">
-                <p className="text-sm font-medium text-foreground">Pre-tax deductions (optional)</p>
-                <p className="text-xs text-muted-foreground">If you contribute to any of these, add the annual amounts.</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <NumberField label="401(k) / retirement" value={input.retirement401k} onChange={(n) => patch({ retirement401k: n })} />
-                  <NumberField label="HSA" value={input.hsa} onChange={(n) => patch({ hsa: n })} />
-                  <NumberField label="Other pre-tax" value={input.otherPretax} onChange={(n) => patch({ otherPretax: n })} />
+              {input.incomeKind === "business_only" ? (
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-sm font-medium text-foreground">Self-employed retirement & deductions (optional)</p>
+                  <p className="text-xs text-muted-foreground">W-2 payroll deductions (401(k), HSA via payroll) don't apply to 1099/K-1 income. You can add SEP-IRA, Solo 401(k), or other pre-tax amounts here.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-1">
+                    <NumberField label="Other pre-tax (SEP-IRA, Solo 401(k), etc.)" value={input.otherPretax} onChange={(n) => patch({ otherPretax: n })} />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-sm font-medium text-foreground">Pre-tax deductions (optional)</p>
+                  <p className="text-xs text-muted-foreground">If you contribute to any of these, add the annual amounts.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <NumberField label="401(k) / retirement" value={input.retirement401k} onChange={(n) => patch({ retirement401k: n })} />
+                    <NumberField label="HSA" value={input.hsa} onChange={(n) => patch({ hsa: n })} />
+                    <NumberField label="Other pre-tax" value={input.otherPretax} onChange={(n) => patch({ otherPretax: n })} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
