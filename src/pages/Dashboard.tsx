@@ -11,7 +11,7 @@ import { aggregateInvestmentTaxBuckets, useInvestmentIncomeEntries } from "@/hoo
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
+import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
@@ -70,11 +70,7 @@ export default function Dashboard() {
   }, [user]);
 
   const projectedPaychecks = useMemo(
-    () =>
-      generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries).map((p) => ({
-        date: p.date,
-        grossAmount: Number(p.grossAmount || 0),
-      })),
+    () => generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries),
     [streams, bonuses, incomeEntries],
   );
 
@@ -326,10 +322,13 @@ export default function Dashboard() {
       const taxable = aggregateInvestmentTaxBuckets([e]).totalTaxableIncome;
       months[monthOf(e.entry_date)].actual += taxable;
     }
-    for (const p of projectedPaychecks) {
-      if (!inYear(p.date)) continue;
-      if (isPastOrCurrent(p.date)) continue;
-      months[monthOf(p.date)].planned += Number(p.grossAmount || 0);
+    // Single source-of-truth for planner monthly totals — matches the
+    // Income Planner accordion's "active" filter and excludes converted,
+    // matched/suggested, skipped, and past_due occurrences. Prevents
+    // double counting against ledger entries summed into `actual` above.
+    const plannerByMonth = getMonthlyPlannerBreakdown(projectedPaychecks, currentYear);
+    for (let m = 0; m < 12; m++) {
+      months[m].planned += plannerByMonth[m].plannedIncome;
     }
     return months;
   })();
