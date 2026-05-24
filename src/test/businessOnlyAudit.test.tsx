@@ -140,7 +140,7 @@ function businessOnlyEngineInput(
 
 describe("business_only tax engine behavior", () => {
   it("applies self-employment tax on 1099 income", () => {
-    const r = computeUnifiedTaxEstimate(businessOnlyEngineInput());
+    const r = computeUnifiedTaxEstimate(businessOnlyEngineInput()).debug;
     expect(r.selfEmploymentTax).toBeGreaterThan(0);
     expect(r.federalIncomeTax).toBeGreaterThan(0);
     expect(r.totalEstimatedTax).toBeGreaterThan(0);
@@ -153,7 +153,7 @@ describe("business_only tax engine behavior", () => {
         personalStateTaxMode: "none",
         businessStateTaxEnabled: false,
       }),
-    );
+    ).debug;
     expect(wa.stateTax).toBe(0);
     expect(wa.personalStateTax).toBe(0);
     expect(wa.businessStateTax).toBe(0);
@@ -162,10 +162,10 @@ describe("business_only tax engine behavior", () => {
   it("treats taxSavingsSetAside as a reserve — NOT credited against tax owed", () => {
     const withReserve = computeUnifiedTaxEstimate(
       businessOnlyEngineInput({ taxSavingsSetAside: 10_000 }),
-    );
+    ).debug;
     const withoutReserve = computeUnifiedTaxEstimate(
       businessOnlyEngineInput({ taxSavingsSetAside: 0 }),
-    );
+    ).debug;
     expect(withReserve.remainingTaxDue).toBe(withoutReserve.remainingTaxDue);
     expect(withReserve.countedCreditsTotal).toBe(0);
     expect(withReserve.taxSavingsSetAside).toBe(10_000);
