@@ -277,12 +277,23 @@ export default function Onboarding() {
         return;
       }
       if (catchupSubStep === "form") {
-        // Require at least one saved YTD entry before advancing, so Continue
-        // never silently dead-ends. Then move forward to the company step.
         // Require at least one saved YTD entry before advancing. Use a local
         // counter in addition to the query result so Continue works immediately
         // after onSaved fires, without waiting for the query cache to refresh.
-        const savedCount = Math.max(existingCatchups?.length ?? 0, localSavedCatchups);
+        let savedCount = Math.max(existingCatchups?.length ?? 0, localSavedCatchups);
+        if (savedCount === 0) {
+          // Defensive: the cached query may still be loading after a reload
+          // even though entries exist in the DB. Do a direct count query
+          // before failing so users with persisted entries can advance.
+          try {
+            const { count } = await (supabase as any)
+              .from("ytd_catchup_entries")
+              .select("id", { count: "exact", head: true });
+            savedCount = count ?? 0;
+          } catch (e) {
+            console.warn("[onboarding] ytd catch-up count fallback failed", e);
+          }
+        }
         if (savedCount === 0) {
           toast.error("Save at least one year-to-date entry, or click Back to skip.");
           return;
