@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { YtdCatchupForm } from "@/components/YtdCatchupForm";
 import { YtdCatchupRecap } from "@/components/YtdCatchupRecap";
-import { useYtdCatchupEntries } from "@/hooks/useYtdCatchup";
+import { useYtdCatchupEntries, backfillYtdCatchupCompanies } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
