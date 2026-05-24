@@ -7,8 +7,25 @@ import {
   type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";
 
-const YEAR = new Date().getFullYear();
-const MAY_15 = `${YEAR}-05-15`;
+// Pick a stable future date in this calendar year so the occurrence is
+// not classified as past_due regardless of when the test runs. Falls back
+// to Dec 28 of the previous year only if today is literally Dec 31.
+function futureDateThisYear(): string {
+  const today = new Date();
+  const candidate = new Date(today);
+  candidate.setDate(candidate.getDate() + 14);
+  // If we wrapped into next year, clamp to Dec 28 of current year.
+  if (candidate.getFullYear() !== today.getFullYear()) {
+    return `${today.getFullYear()}-12-28`;
+  }
+  const y = candidate.getFullYear();
+  const m = String(candidate.getMonth() + 1).padStart(2, "0");
+  const d = String(candidate.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+const FUTURE = futureDateThisYear();
+const FUTURE_MONTH = parseInt(FUTURE.split("-")[1], 10) - 1;
+const YEAR = parseInt(FUTURE.split("-")[0], 10);
 
 function stream(overrides: Partial<ProjectedIncomeStream> = {}): ProjectedIncomeStream {
   return {
