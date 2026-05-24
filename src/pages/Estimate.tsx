@@ -198,9 +198,10 @@ export default function Estimate() {
                 <p className="mt-1 text-sm text-muted-foreground">We'll tailor the estimate to your situation. No account needed yet.</p>
               </div>
               <div className="grid gap-3">
-                <SelectCard selected={input.incomeKind === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => patch({ incomeKind: "w2_only" })} />
+                <SelectCard selected={input.incomeKind === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => patch({ incomeKind: "w2_only", businessIncome: 0 })} />
                 <SelectCard selected={input.incomeKind === "w2_plus_business"} title="W-2 + 1099/K-1" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => patch({ incomeKind: "w2_plus_business" })} />
-                <SelectCard selected={input.incomeKind === "business_only"} title="1099/K-1 only" description="Self-employed, contractor, partnership, or pass-through income only." onClick={() => patch({ incomeKind: "business_only" })} />
+                <SelectCard selected={input.incomeKind === "business_only"} title="1099/K-1 only" description="Self-employed, contractor, partnership, or pass-through income only." onClick={() => patch({ incomeKind: "business_only", w2Income: 0, retirement401k: 0, hsa: 0 })} />
+
               </div>
             </div>
           )}
