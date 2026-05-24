@@ -17,7 +17,8 @@ export interface YtdCatchupEntry {
   period_start: string;
   period_end: string;
   gross_income: number;
-  federal_withholding: number;
+  business_expenses: number;
+
   state_withholding: number;
   ss_withholding: number;
   medicare_withholding: number;
