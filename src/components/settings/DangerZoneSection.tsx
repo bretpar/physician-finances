@@ -29,7 +29,9 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-type Step = "choose" | "confirmErase" | "confirmDelete";
+type Step = "choose" | "confirmErase" | "confirmDelete" | "erased";
+
+const ERASE_COMPLETE_MARKER = "paycheckmd:erase-complete";
 
 export function DangerZoneSection() {
   const navigate = useNavigate();
@@ -80,11 +82,21 @@ export function DangerZoneSection() {
       } catch {
         // best effort
       }
+      // Deterministic post-erase signal for E2E + humans.
+      try {
+        localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
+      } catch {
+        // best effort
+      }
       toast.success("Your account data has been erased. Start onboarding again.");
-      setOpen(false);
-      reset();
-      // Hard-navigate so cached state is dropped.
-      window.location.assign("/onboarding");
+      setStep("erased");
+      setBusy(false);
+      // Hard-navigate so cached state is dropped. Small delay lets the
+      // success state render so tests can latch onto either the URL change
+      // or the visible "erase-success" marker.
+      window.setTimeout(() => {
+        window.location.assign("/onboarding?reset=1");
+      }, 250);
     } catch (err: any) {
       toast.error(err?.message || "Failed to erase account data");
       setBusy(false);
@@ -195,6 +207,26 @@ export function DangerZoneSection() {
               </DialogFooter>
             </>
           )}
+          {step === "erased" && (
+            <div data-testid="erase-success" data-erase-complete="true">
+              <DialogHeader>
+                <DialogTitle>Account data erased</DialogTitle>
+                <DialogDescription>
+                  Your account data has been erased. Redirecting you to onboarding…
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 pt-4">
+                <Button
+                  variant="default"
+                  onClick={() => window.location.assign("/onboarding?reset=1")}
+                  data-testid="erase-success-continue"
+                >
+                  Continue to onboarding
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
 
           {step === "confirmDelete" && (
             <>
