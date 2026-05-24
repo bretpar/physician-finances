@@ -208,6 +208,11 @@ export function DangerZoneSection() {
                   This will remove all app data and Plaid links but keep your login. Continue?
                 </DialogDescription>
               </DialogHeader>
+              {eraseError && (
+                <p className="text-sm text-destructive" role="alert" data-testid="erase-error">
+                  {eraseError}
+                </p>
+              )}
               <DialogFooter className="gap-2">
                 <Button variant="secondary" onClick={() => setStep("choose")} disabled={busy}>
                   Back
@@ -217,9 +222,11 @@ export function DangerZoneSection() {
                   className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={handleErase}
                   disabled={busy}
+                  data-testid="safe-erase-data-confirm"
+                  aria-busy={busy}
                 >
                   {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Yes, erase my data
+                  {busy ? "Erasing data…" : "Yes, erase my data"}
                 </Button>
               </DialogFooter>
             </>
