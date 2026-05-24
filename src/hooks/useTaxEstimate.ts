@@ -661,7 +661,7 @@ export function useTaxEstimate(): {
         personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
         longTermCapitalGains,
-        businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses,
+        businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses + cu.business.expenses,
         mileageDeduction,
         annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,
         txActualWithholding,
