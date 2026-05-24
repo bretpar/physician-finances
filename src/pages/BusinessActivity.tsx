@@ -2229,6 +2229,7 @@ export default function Transactions() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Assign Category to {selectedIds.size} transactions</DialogTitle>
+            <DialogDescription className="sr-only">Choose a category to apply to all selected transactions.</DialogDescription>
           </DialogHeader>
           <ExpenseCategoryCombobox
             value={bulkCategory}
