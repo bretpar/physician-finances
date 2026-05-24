@@ -58,7 +58,20 @@ export function DangerZoneSection() {
     const { data, error } = await supabase.functions.invoke("account-cleanup", {
       body: { action },
     });
-    if (error) throw new Error(error.message || "Cleanup failed");
+    if (error) {
+      const status = (error as any)?.context?.status ?? (error as any)?.status;
+      const rawMsg = (error as any)?.message || "Cleanup failed";
+      console.error("account-cleanup invoke failed", { action, status, message: rawMsg });
+      const friendly =
+        status === 401 || status === 403
+          ? "Your session has expired. Please log out and back in, then try again."
+          : status >= 500
+          ? "The server could not erase your data right now. Please try again in a moment."
+          : !status
+          ? "Could not reach the erase service. Check your connection and try again."
+          : rawMsg;
+      throw new Error(friendly);
+    }
     if (data && (data as any).ok === false) {
       throw new Error((data as any).error || "Cleanup failed");
     }
