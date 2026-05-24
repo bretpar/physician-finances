@@ -707,7 +707,7 @@ Deno.serve(async (req) => {
     }
 
     const account_logs = Object.values(stats);
-    console.log("Plaid sync account summary", { user_id: user.id, mode, account_logs });
+    console.log("Plaid sync account summary", { user_id: user.id, mode, account_logs, balances_refreshed: balancesRefreshed, balance_warnings: balanceWarnings });
     for (const s of account_logs) console.log("Plaid account sync", s);
 
     return new Response(JSON.stringify({
@@ -723,6 +723,8 @@ Deno.serve(async (req) => {
       transactions_tombstoned: totalTombstoned,
       tombstoned_transactions: totalTombstoned,
       duplicate_routes: totalDuplicates,
+      balances_refreshed: balancesRefreshed,
+      balance_warnings: balanceWarnings,
       account_logs,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
