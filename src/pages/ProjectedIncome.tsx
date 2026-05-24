@@ -1577,6 +1577,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Income Stream</DialogTitle>
+            <DialogDescription className="sr-only">Confirm deletion of this projected income stream and all its paychecks.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             This will remove the income stream and all projected paychecks. This cannot be undone.
