@@ -139,11 +139,56 @@ async function isOnboardingStep1(page: Page): Promise<boolean> {
 async function hasOnboardingUi(page: Page): Promise<boolean> {
   const path = new URL(page.url()).pathname;
   const text = await bodyText(page);
+  const headings = (await page.locator("h1, h2, h3").allTextContents().catch(() => [])).join("\n");
   return (
     /\/onboarding/.test(path) ||
+    /onboarding|setup|income setup/i.test(headings) ||
     /step\s*\d+\s*of\s*\d+/i.test(text) ||
     /confirm your income setup|have you already earned income|choose your plan|add each .*received this year/i.test(text)
   );
+}
+
+async function waitForOnboardingEntryState(page: Page, timeout = 30_000): Promise<boolean> {
+  return page
+    .waitForFunction(
+      () => {
+        const path = window.location.pathname;
+        const text = document.body?.innerText ?? "";
+        const headings = Array.from(document.querySelectorAll("h1, h2, h3"))
+          .map((el) => el.textContent ?? "")
+          .join("\n");
+
+        return (
+          /\/onboarding/.test(path) ||
+          /onboarding|setup|income setup/i.test(headings) ||
+          /step\s*1\s*of\s*3/i.test(text) ||
+          /confirm your income setup/i.test(text)
+        );
+      },
+      undefined,
+      { timeout },
+    )
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function logOnboardingResetDiagnostics(page: Page, label: string): Promise<void> {
+  const url = page.url();
+  const headings = await page.locator("h1, h2, h3").allTextContents().catch(() => []);
+  const buttons = await page.locator("button, [role=button], a").allTextContents().catch(() => []);
+  const toastOrError = await page
+    .locator('[role="status"], [role="alert"], [data-sonner-toast], .text-destructive')
+    .allTextContents()
+    .catch(() => []);
+  const screenshotPath = `test-results/onboarding-reset-${Date.now()}.png`;
+  await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => undefined);
+  console.log(label, {
+    url,
+    headings: headings.map((t) => t.trim()).filter(Boolean).slice(0, 20),
+    buttons: buttons.map((t) => t.trim()).filter(Boolean).slice(0, 40),
+    toastOrError: toastOrError.map((t) => t.trim()).filter(Boolean).slice(0, 20),
+    screenshotPath,
+  });
 }
 
 async function fillOnboardingFirstNameIfPresent(page: Page): Promise<boolean> {
