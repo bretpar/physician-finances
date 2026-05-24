@@ -54,6 +54,8 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   const [periodStart, setPeriodStart] = useState(initial?.period_start ?? yearStart);
   const [periodEnd, setPeriodEnd] = useState(initial?.period_end ?? today);
   const [grossIncome, setGrossIncome] = useState(String(initial?.gross_income ?? ""));
+  const [businessExpenses, setBusinessExpenses] = useState(String(initial?.business_expenses ?? ""));
+
   const [fedWh, setFedWh] = useState(String(initial?.federal_withholding ?? ""));
   const [stateWh, setStateWh] = useState(String(initial?.state_withholding ?? ""));
   const [ssWh, setSsWh] = useState(String(initial?.ss_withholding ?? ""));
