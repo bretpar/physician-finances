@@ -380,6 +380,94 @@ Deno.serve(async (req) => {
 
     const routeContextFor = (item: any): RouteContext => ({ adminClient, user, orgId, item, accounts, accountBizMap, newlyAdded });
 
+    // Resolve access tokens for all items up-front so we can refresh balances
+    // independently of mode and reuse the token for /transactions/sync below.
+    const accessTokens = new Map<string, string>();
+    for (const item of plaidItems) {
+      let accessToken = item.access_token;
+      if (item.vault_secret_id) {
+        const { data: vaultToken, error: vaultErr } = await adminClient.rpc("get_plaid_access_token", { _item_id: item.id });
+        if (!vaultErr && vaultToken) accessToken = vaultToken;
+        else console.error("Failed to retrieve token from vault for item:", item.id, vaultErr);
+      }
+      if (accessToken) accessTokens.set(item.id, accessToken);
+    }
+
+    // Refresh account balances for every item BEFORE transaction sync.
+    // Failures here must NOT block transaction sync — surface as warnings.
+    let balancesRefreshed = 0;
+    const balanceWarnings: Array<{ item_id: string; institution_name?: string; error: string }> = [];
+    for (const item of plaidItems) {
+      const accessToken = accessTokens.get(item.id);
+      if (!accessToken) {
+        balanceWarnings.push({ item_id: item.id, institution_name: item.institution_name, error: "missing access token" });
+        continue;
+      }
+      try {
+        const balRes = await fetch(`${plaidHost}/accounts/balance/get`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: PLAID_CLIENT_ID, secret: PLAID_SECRET, access_token: accessToken }),
+        });
+        let balData = await balRes.json();
+        if (!balRes.ok) {
+          const fbRes = await fetch(`${plaidHost}/accounts/get`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ client_id: PLAID_CLIENT_ID, secret: PLAID_SECRET, access_token: accessToken }),
+          });
+          balData = await fbRes.json();
+          if (!fbRes.ok) {
+            console.error("Plaid balance refresh failed", { item_id: item.id, error: balData });
+            balanceWarnings.push({
+              item_id: item.id,
+              institution_name: item.institution_name,
+              error: balData?.error_message || balData?.error_code || "balance refresh failed",
+            });
+            continue;
+          }
+        }
+
+        for (const acct of (balData.accounts || [])) {
+          const current = acct?.balances?.current ?? null;
+          const available = acct?.balances?.available ?? null;
+          const updates: Record<string, unknown> = {
+            current_balance: current,
+            available_balance: available,
+            updated_at: new Date().toISOString(),
+          };
+          if (acct.name) updates.account_name = acct.name;
+          if (acct.mask) updates.account_mask = acct.mask;
+          if (acct.type) updates.account_type = acct.type;
+          if (acct.subtype !== undefined) updates.account_subtype = acct.subtype;
+
+          const { error: updErr, count } = await adminClient
+            .from("plaid_accounts")
+            .update(updates, { count: "exact" })
+            .eq("user_id", user.id)
+            .eq("plaid_item_id", item.id)
+            .eq("plaid_account_id", acct.account_id);
+          if (updErr) {
+            console.error("Plaid balance row update failed", { item_id: item.id, account_id: acct.account_id, error: updErr });
+            balanceWarnings.push({
+              item_id: item.id,
+              institution_name: item.institution_name,
+              error: `account ${acct.account_id}: ${updErr.message}`,
+            });
+          } else if ((count ?? 0) > 0) {
+            balancesRefreshed++;
+          }
+        }
+      } catch (e) {
+        console.error("Plaid balance refresh exception", { item_id: item.id, error: e });
+        balanceWarnings.push({
+          item_id: item.id,
+          institution_name: item.institution_name,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+
     if (mode === "backfill") {
       let rawQuery = adminClient
         .from("plaid_transactions")
