@@ -396,14 +396,18 @@ export function useTaxEstimate(): {
           bucket.payrollPreTax += cPayrollPreTax;
           bucket.hsa += cHsa;
           bucket.retirement += cRetire;
+          if (targetBucket === "business") {
+            bucket.expenses += Math.max(0, Number((c as any).business_expenses) || 0);
+          }
           return acc;
         },
         {
-          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
-          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
-          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0 },
+          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0 },
+          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0 },
+          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0 },
         },
       );
+
 
     if (overlapDebug.length > 0 && typeof window !== "undefined") {
       // eslint-disable-next-line no-console
