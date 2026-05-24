@@ -15,6 +15,70 @@ export interface SuggestedMatch {
   reasons: string[];
 }
 
+/**
+ * Pure helper for the linking eligibility check. Determines which selected
+ * transactions are truly already linked (and thus must be unlinked before
+ * being re-linked) versus which link rows are stale (single-sided / orphan
+ * group with no live partner) and can be cleaned up silently.
+ *
+ * A link group counts as "active" only when ≥2 distinct partner transactions
+ * referenced by the group still exist. Review status, possible-match status,
+ * duplicate flags, Plaid metadata, and stale denormalized
+ * `transactions.linked_group_id` are NOT considered "linked".
+ */
+export function computeLinkEligibility(args: {
+  selectedTxIds: string[];
+  directLinks: Array<{
+    id: string;
+    manual_transaction_id: string | null;
+    plaid_transaction_record_id: string | null;
+    linked_group_id: string;
+  }>;
+  groupRows: Array<{
+    id: string;
+    manual_transaction_id: string | null;
+    plaid_transaction_record_id: string | null;
+    linked_group_id: string;
+  }>;
+  liveTxIds: Set<string>;
+}): {
+  trulyLinked: Array<{ txId: string; groupId: string; reason: string }>;
+  staleLinkIds: string[];
+  activeGroupIds: Set<string>;
+} {
+  const groupPartnerIds = new Map<string, Set<string>>();
+  for (const l of args.groupRows) {
+    const set = groupPartnerIds.get(l.linked_group_id) || new Set<string>();
+    if (l.manual_transaction_id) set.add(l.manual_transaction_id);
+    if (l.plaid_transaction_record_id) set.add(l.plaid_transaction_record_id);
+    groupPartnerIds.set(l.linked_group_id, set);
+  }
+  const activeGroupIds = new Set<string>();
+  for (const [gid, partners] of groupPartnerIds.entries()) {
+    const liveCount = [...partners].filter((p) => args.liveTxIds.has(p)).length;
+    if (liveCount >= 2) activeGroupIds.add(gid);
+  }
+  const trulyLinked: Array<{ txId: string; groupId: string; reason: string }> = [];
+  const staleLinkIds: string[] = [];
+  for (const l of args.directLinks) {
+    const selectedSide =
+      (l.manual_transaction_id && args.selectedTxIds.includes(l.manual_transaction_id) && l.manual_transaction_id) ||
+      (l.plaid_transaction_record_id && args.selectedTxIds.includes(l.plaid_transaction_record_id) && l.plaid_transaction_record_id) ||
+      null;
+    if (!selectedSide) continue;
+    if (activeGroupIds.has(l.linked_group_id)) {
+      trulyLinked.push({
+        txId: selectedSide,
+        groupId: l.linked_group_id,
+        reason: "active_link_group_with_live_partners",
+      });
+    } else {
+      staleLinkIds.push(l.id);
+    }
+  }
+  return { trulyLinked, staleLinkIds, activeGroupIds };
+}
+
 // ---- Transaction Links ----
 export function useTransactionLinks() {
   return useQuery({
