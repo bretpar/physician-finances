@@ -167,11 +167,19 @@ async function syncCatchupMirror(args: {
   const friendlyNote = `Setup income through ${periodLabel}`;
 
   // ── Business mirror in `transactions` ───────────────────────────────────
-  const { data: existingTx } = await (supabase as any)
+  const { data: existingTxRows } = await (supabase as any)
     .from("transactions")
-    .select("id")
+    .select("id, created_at")
     .eq("origin_ytd_catchup_id", c.id)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
+  const existingTx = (existingTxRows && existingTxRows[0]) || null;
+  // Defensive dedupe — if multiple mirror rows exist, drop the extras.
+  if (existingTxRows && existingTxRows.length > 1) {
+    await (supabase as any)
+      .from("transactions")
+      .delete()
+      .in("id", existingTxRows.slice(1).map((r: any) => r.id));
+  }
 
   if (isBusiness) {
     const txRow: any = {
