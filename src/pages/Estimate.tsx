@@ -310,17 +310,17 @@ export default function Estimate() {
               </div>
               <div className="grid gap-4">
                 <div>
-                  <Label>First name</Label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Alex" />
+                  <Label htmlFor="signup-first-name">First name</Label>
+                  <Input id="signup-first-name" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Alex" />
                 </div>
                 <div>
-                  <Label>Email</Label>
-                  <Input data-testid="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input id="signup-email" data-testid="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
                 </div>
                 <div>
-                  <Label>Password</Label>
+                  <Label htmlFor="signup-password">Password</Label>
                   <div className="relative">
-                    <Input data-testid="signup-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" />
+                    <Input id="signup-password" data-testid="signup-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" />
                     <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
