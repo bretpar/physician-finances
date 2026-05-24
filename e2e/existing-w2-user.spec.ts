@@ -334,24 +334,85 @@ async function dismissOnboardingIfPresent(page: Page): Promise<boolean> {
 }
 
 /**
- * Click through Settings → Danger Zone → "Erase account data" (NOT delete).
+ * Click through Settings → "Delete/Erase Account" section → safe "Erase data" path.
+ * Never clicks the destructive "Delete account" / "Permanently delete" options.
  * Preserves login credentials; wipes app/financial data and resets onboarding.
  * Returns true if the erase flow ran and the app navigated to /onboarding.
  */
 async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
   await page.goto(abs("/settings"), { waitUntil: "domcontentloaded" });
-  const openReset = page.getByRole("button", { name: /delete\/erase account/i }).first();
-  if (!(await exists(openReset)) || !(await openReset.isVisible().catch(() => false))) {
-    console.log("Settings erase: Danger Zone trigger not found");
+  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+
+  // 1. Locate the "Delete/Erase Account" section (heading or text).
+  const sectionHeading = page
+    .getByRole("heading", { name: /delete\/erase account/i })
+    .first();
+  const sectionVisible = await sectionHeading
+    .waitFor({ state: "visible", timeout: 8_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!sectionVisible) {
+    console.log("Settings erase: 'Delete/Erase Account' section not found");
     return false;
   }
-  await openReset.scrollIntoViewIfNeeded().catch(() => {});
-  await openReset.click({ timeout: 5000 });
-  // Choose "Erase account data" (NOT "Delete account").
-  await page.getByRole("button", { name: /^erase account data$/i }).click({ timeout: 5000 });
-  await page.getByRole("button", { name: /^yes, erase my data$/i }).click({ timeout: 5000 });
+  console.log("Settings erase: section found");
+  await sectionHeading.scrollIntoViewIfNeeded().catch(() => {});
+
+  // If the section is collapsed, expand it (best-effort).
+  const expandToggle = sectionHeading.locator(
+    'xpath=ancestor::*[self::section or self::div][1]//button[@aria-expanded="false"]',
+  );
+  if (await expandToggle.first().isVisible().catch(() => false)) {
+    await expandToggle.first().click().catch(() => {});
+    console.log("Settings erase: expanded collapsed section");
+  }
+
+  // 2. Click the inner red "Delete/Erase Account" trigger button (not the heading).
+  const triggerBtn = page.getByRole("button", { name: /^delete\/erase account$/i }).first();
+  await triggerBtn.waitFor({ state: "visible", timeout: 5_000 });
+  await triggerBtn.scrollIntoViewIfNeeded().catch(() => {});
+  await triggerBtn.click({ timeout: 5_000 });
+  console.log("Settings erase: trigger button clicked");
+
+  // 3. Scope all subsequent lookups to the open dialog.
+  const dialog = page.getByRole("dialog").first();
+  await dialog.waitFor({ state: "visible", timeout: 5_000 });
+
+  // The dialog first shows a choose step; if "Erase account data" option exists,
+  // click it to advance to the confirm step. Never click "Delete account" /
+  // "Permanently delete account".
+  const eraseChoice = dialog.getByRole("button", { name: /^erase account data$/i });
+  if (await eraseChoice.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await eraseChoice.click({ timeout: 5_000 });
+  }
+
+  // 4. Safe confirm button inside the dialog.
+  const safeConfirm = dialog.getByRole("button", { name: /^yes,\s*erase my data$/i });
+  const safeVisible = await safeConfirm
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!safeVisible) {
+    // Guardrail: only destructive options present → fail loudly instead of clicking them.
+    const dangerousOnly = await dialog
+      .getByRole("button", { name: /permanently delete|delete account/i })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (dangerousOnly) {
+      throw new Error(
+        "Settings erase: only destructive delete-account options visible; refusing to click",
+      );
+    }
+    console.log("Settings erase: safe confirm button not found");
+    return false;
+  }
+  await safeConfirm.click({ timeout: 5_000 });
+  console.log("Settings erase: safe erase confirmed");
+
+  // 5. Wait for onboarding redirect (hard nav from the component).
   await page.waitForURL((u) => /\/onboarding/.test(u.pathname), { timeout: 30_000 });
-  console.log("Settings erase: account data erased, app redirected to onboarding");
+  console.log("Settings erase: onboarding detected");
   return true;
 }
 
