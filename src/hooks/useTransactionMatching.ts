@@ -600,15 +600,8 @@ export function useCreateMatchGroup() {
         groupRows = (allGroupLinks || []) as any[];
       }
 
-      const groupPartnerIds = new Map<string, Set<string>>();
-      for (const l of groupRows) {
-        const set = groupPartnerIds.get(l.linked_group_id) || new Set<string>();
-        if (l.manual_transaction_id) set.add(l.manual_transaction_id);
-        if (l.plaid_transaction_record_id) set.add(l.plaid_transaction_record_id);
-        groupPartnerIds.set(l.linked_group_id, set);
-      }
       const allPartnerIds = Array.from(
-        new Set([...groupPartnerIds.values()].flatMap((s) => [...s]))
+        new Set(groupRows.flatMap((l) => [l.manual_transaction_id, l.plaid_transaction_record_id]).filter(Boolean) as string[])
       );
       let livePartnerIds = new Set<string>();
       if (allPartnerIds.length > 0) {
@@ -619,30 +612,12 @@ export function useCreateMatchGroup() {
         livePartnerIds = new Set(((liveTxs || []) as any[]).map((r) => r.id));
       }
 
-      const activeGroupIds = new Set<string>();
-      for (const [gid, partners] of groupPartnerIds.entries()) {
-        const liveCount = [...partners].filter((p) => livePartnerIds.has(p)).length;
-        if (liveCount >= 2) activeGroupIds.add(gid);
-      }
-
-      const trulyLinked: { txId: string; groupId: string; reason: string }[] = [];
-      const staleLinkIds: string[] = [];
-      for (const l of (directLinks || []) as any[]) {
-        const selectedSide =
-          (l.manual_transaction_id && transactionIds.includes(l.manual_transaction_id) && l.manual_transaction_id) ||
-          (l.plaid_transaction_record_id && transactionIds.includes(l.plaid_transaction_record_id) && l.plaid_transaction_record_id) ||
-          null;
-        if (!selectedSide) continue;
-        if (activeGroupIds.has(l.linked_group_id)) {
-          trulyLinked.push({
-            txId: selectedSide,
-            groupId: l.linked_group_id,
-            reason: "active_link_group_with_live_partners",
-          });
-        } else {
-          staleLinkIds.push(l.id);
-        }
-      }
+      const { trulyLinked, staleLinkIds } = computeLinkEligibility({
+        selectedTxIds: transactionIds,
+        directLinks: (directLinks || []) as any[],
+        groupRows,
+        liveTxIds: livePartnerIds,
+      });
 
       const staleTxIds: string[] = [];
       for (const r of rows as any[]) {
