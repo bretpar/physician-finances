@@ -1,5 +1,6 @@
 const explicitAllowedOrigins = new Set([
   "https://admin.paycheckmd.com",
+  "https://app.paycheckmd.com",
   "https://id-preview--91cd514c-bc9c-4e4d-8b9d-4db90589140c.lovable.app",
   "https://physician-finances.lovable.app",
   "https://www.paycheckmd.com",
@@ -8,19 +9,25 @@ const explicitAllowedOrigins = new Set([
 
 function getAllowedOrigin(req: Request) {
   const origin = req.headers.get("Origin");
-  if (!origin) return "https://admin.paycheckmd.com";
+  if (!origin) return "https://app.paycheckmd.com";
   if (explicitAllowedOrigins.has(origin)) return origin;
 
   try {
     const hostname = new URL(origin).hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".lovable.app")) {
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".lovable.app") ||
+      hostname === "paycheckmd.com" ||
+      hostname.endsWith(".paycheckmd.com")
+    ) {
       return origin;
     }
   } catch {
-    return "https://admin.paycheckmd.com";
+    return "https://app.paycheckmd.com";
   }
 
-  return "https://admin.paycheckmd.com";
+  return "https://app.paycheckmd.com";
 }
 
 export function corsHeaders(req: Request) {
