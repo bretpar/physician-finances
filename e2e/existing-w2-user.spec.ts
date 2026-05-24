@@ -437,13 +437,26 @@ test.describe("Existing W-2-only user — live app", () => {
 
     const readinessTimeout = 30_000;
     let taxReady = false;
+    let readinessBranch: string | null = null;
+
     try {
-      await Promise.race([
-        taxSummary.waitFor({ state: "visible", timeout: readinessTimeout }),
-        overviewTab.waitFor({ state: "visible", timeout: readinessTimeout }),
-        breakdownTab.waitFor({ state: "visible", timeout: readinessTimeout }),
-        plannedToggle.waitFor({ state: "visible", timeout: readinessTimeout }),
+      // Race the four readiness signals so we can log which branch won.
+      readinessBranch = await Promise.race([
+        taxSummary
+          .waitFor({ state: "visible", timeout: readinessTimeout })
+          .then(() => "summary"),
+        overviewTab
+          .waitFor({ state: "visible", timeout: readinessTimeout })
+          .then(() => "overview-tab"),
+        breakdownTab
+          .waitFor({ state: "visible", timeout: readinessTimeout })
+          .then(() => "breakdown-tab"),
+        plannedToggle
+          .waitFor({ state: "visible", timeout: readinessTimeout })
+          .then(() => "planned-toggle"),
       ]);
+      console.log(`Tax readiness resolved: branch=${readinessBranch}`);
+
       // Ensure the "Loading…" placeholder is gone.
       await expect
         .poll(
@@ -455,6 +468,7 @@ test.describe("Existing W-2-only user — live app", () => {
         )
         .toBeFalsy();
       taxReady = true;
+      console.log(`Tax Overview ready (branch=${readinessBranch}, loading cleared)`);
     } catch (err) {
       const url = page.url();
       const headings = await page.locator("h1, h2, h3").allTextContents();
@@ -475,13 +489,17 @@ test.describe("Existing W-2-only user — live app", () => {
     // Assert tax content. Prefer the Tax Breakdown tab where "Federal" is reliably rendered.
     let federalFound = false;
     if (await exists(breakdownTab)) {
+      console.log("Tax assertion: clicking breakdown tab (preferred)");
       await breakdownTab.click().catch(() => undefined);
       try {
         await expect(page.getByText(/federal/i).first()).toBeVisible({ timeout: 15_000 });
         federalFound = true;
+        console.log("Tax assertion: federal text found on breakdown tab");
       } catch {
-        // fall through to overview text check below
+        console.log("Tax assertion: federal text NOT found on breakdown tab, falling back to overview");
       }
+    } else {
+      console.log("Tax assertion: breakdown tab not present, will use overview fallback");
     }
     if (!federalFound) {
       // Fallback: check overview content for federal/withholding terminology.
@@ -489,6 +507,7 @@ test.describe("Existing W-2-only user — live app", () => {
         await overviewTab.click().catch(() => undefined);
       }
       await expect(page.getByText(/federal|withhold/i).first()).toBeVisible({ timeout: 15_000 });
+      console.log("Tax assertion: federal text found via overview fallback");
     }
 
     // Switch back to overview for the remaining assertions.
@@ -497,23 +516,31 @@ test.describe("Existing W-2-only user — live app", () => {
       await taxSummary.waitFor({ state: "visible", timeout: 10_000 }).catch(() => undefined);
     }
     const taxText = (await page.locator("body").textContent()) ?? "";
+    console.log(`Tax text collected (length=${taxText.length})`);
 
     const seMatch = taxText.match(
       /self[- ]?employment tax[^$\n]*\$([\d,]+(?:\.\d+)?)/i,
     );
     if (seMatch) {
       const seVal = Number(seMatch[1].replace(/,/g, ""));
+      console.log(`Self-employment tax parsed: ${seVal}`);
       expect(
         seVal,
         "Self-employment tax should be 0 for a W-2-only user",
       ).toBe(0);
+    } else {
+      console.log("Self-employment tax line not found in tax text (OK if UI omits zero-value rows)");
     }
 
     if (onboardingAvailable && taxReady) {
+      const withholdingFound = /\$?14[,]?000|withheld|withholding/i.test(taxText);
+      console.log(`W-2 withholding assertion: found=${withholdingFound}`);
       expect(
-        /\$?14[,]?000|withheld|withholding/i.test(taxText),
+        withholdingFound,
         "Tax overview should reflect W-2 federal withholding",
       ).toBeTruthy();
+    } else {
+      console.log(`W-2 withholding assertion skipped: onboardingAvailable=${onboardingAvailable}, taxReady=${taxReady}`);
     }
   });
 });
