@@ -1865,6 +1865,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete this income?</DialogTitle>
+            <DialogDescription className="sr-only">Skip this projected paycheck on its scheduled date. You can restore it later.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             This will skip <span className="font-medium text-foreground">{mobileSkipConfirm?.label}</span> on {mobileSkipConfirm?.date}. You can restore it later.
