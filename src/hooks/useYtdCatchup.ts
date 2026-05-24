@@ -290,11 +290,26 @@ export function useUpsertYtdCatchup() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
-      const row = {
+      const row: any = {
         ...input,
         user_id: user.id,
         organization_id: orgId,
       };
+      // Auto-resolve company_id for 1099/K-1 entries when an unambiguous
+      // company already exists with the same normalized name. Prevents
+      // "Unassigned" Business Activity rows when the user saves catch-up
+      // after creating the company.
+      if (row.source_type === "1099_k1" && !row.company_id && row.company_name) {
+        const { data: companies } = await supabase
+          .from("companies")
+          .select("id, name, company_type");
+        const normTarget = normalizeCompanyName(row.company_name);
+        const matches = (companies || []).filter((c: any) =>
+          ["1099_schedule_c", "k1_partnership", "k1_s_corp"].includes(String(c.company_type)) &&
+          normalizeCompanyName(c.name) === normTarget,
+        );
+        if (matches.length === 1) row.company_id = matches[0].id;
+      }
       let saved: any;
       if (input.id) {
         const { data, error } = await supabase
