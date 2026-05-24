@@ -544,12 +544,24 @@ export default function Onboarding() {
                 {companyDrafts.map((company, index) => (
                   <div key={index} className="rounded-lg border border-border p-4">
                     <div className="grid gap-3 sm:grid-cols-[1fr_210px]">
-                      <div><Label>{companySetupCopy.nameLabel}</Label><Input value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} /></div>
+                      <div>
+                        <Label htmlFor={`company-name-${index}`}>{companySetupCopy.nameLabel}</Label>
+                        <Input id={`company-name-${index}`} data-testid={`company-name-${index}`} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
+                      </div>
                       {allowedCompanyTypes.length > 1 && (
-                        <div><Label>Type</Label><Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>
+                        <div>
+                          <Label htmlFor={`company-type-${index}`}>Type</Label>
+                          <Select value={company.type} onValueChange={(value) => updateCompanyDraft(index, { type: value as OnboardingCompanyType })}>
+                            <SelectTrigger id={`company-type-${index}`}><SelectValue /></SelectTrigger>
+                            <SelectContent>{allowedCompanyTypes.map((type) => <SelectItem key={type} value={type}>{companyTypeLabels[type]}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
                       )}
                     </div>
-                    <div className="mt-3"><Label>Optional description or nickname</Label><Input value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" /></div>
+                    <div className="mt-3">
+                      <Label htmlFor={`company-desc-${index}`}>Optional description or nickname</Label>
+                      <Input id={`company-desc-${index}`} value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" />
+                    </div>
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
                   </div>
                 ))}
