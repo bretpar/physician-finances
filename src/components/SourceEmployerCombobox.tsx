@@ -222,8 +222,11 @@ export function SourceEmployerCombobox({
               triggerInvalid && "border-destructive",
             )}
           >
-            <span className={cn("truncate", !linkedSource && !isOther && "text-muted-foreground")}>
-              {displayLabel}
+            <span className={cn("truncate flex-1 text-left", !linkedSource && !isOther && "text-muted-foreground")}>
+              <span className="truncate">{displayLabel}</span>
+              {displaySubLabel && (
+                <span className="ml-1.5 text-xs text-muted-foreground truncate">· {displaySubLabel}</span>
+              )}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
