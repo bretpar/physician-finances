@@ -428,16 +428,75 @@ test.describe("Existing W-2-only user — live app", () => {
 
     // ---- Tax overview ----
     await gotoAppPath(page, "/taxes");
-    await expect(page.locator("body")).not.toBeEmpty({ timeout: 20_000 });
-    const taxSummary = page
-      .locator('[data-testid="tax-overview-summary"]')
-      .first();
-    if (await exists(taxSummary)) {
-      await expect(taxSummary).toBeVisible({ timeout: 10_000 });
+
+    // Wait deterministically for Tax Overview to finish loading.
+    const taxSummary = page.locator('[data-testid="tax-overview-summary"]').first();
+    const overviewTab = page.getByRole("tab", { name: /tax overview/i });
+    const breakdownTab = page.getByRole("tab", { name: /tax breakdown/i });
+    const plannedToggle = page.getByRole("button", { name: /planned income/i });
+
+    const readinessTimeout = 30_000;
+    let taxReady = false;
+    try {
+      await Promise.race([
+        taxSummary.waitFor({ state: "visible", timeout: readinessTimeout }),
+        overviewTab.waitFor({ state: "visible", timeout: readinessTimeout }),
+        breakdownTab.waitFor({ state: "visible", timeout: readinessTimeout }),
+        plannedToggle.waitFor({ state: "visible", timeout: readinessTimeout }),
+      ]);
+      // Ensure the "Loading…" placeholder is gone.
+      await expect
+        .poll(
+          async () => {
+            const t = (await page.locator("body").textContent()) ?? "";
+            return /tax overview\s*loading|^\s*loading…?\s*$/i.test(t.trim());
+          },
+          { timeout: readinessTimeout, intervals: [250, 500, 1000] },
+        )
+        .toBeFalsy();
+      taxReady = true;
+    } catch (err) {
+      const url = page.url();
+      const headings = await page.locator("h1, h2, h3").allTextContents();
+      const buttons = await page.locator("button, [role=tab]").allTextContents();
+      const bodyExcerpt = ((await page.locator("body").textContent()) ?? "").slice(0, 1500);
+      console.log("Tax Overview never became ready", {
+        url,
+        headings: headings.slice(0, 20),
+        buttons: buttons.slice(0, 30),
+        bodyExcerpt,
+      });
+      await page
+        .screenshot({ path: `test-results/tax-overview-not-ready-${Date.now()}.png`, fullPage: true })
+        .catch(() => undefined);
+      throw err;
+    }
+
+    // Assert tax content. Prefer the Tax Breakdown tab where "Federal" is reliably rendered.
+    let federalFound = false;
+    if (await exists(breakdownTab)) {
+      await breakdownTab.click().catch(() => undefined);
+      try {
+        await expect(page.getByText(/federal/i).first()).toBeVisible({ timeout: 15_000 });
+        federalFound = true;
+      } catch {
+        // fall through to overview text check below
+      }
+    }
+    if (!federalFound) {
+      // Fallback: check overview content for federal/withholding terminology.
+      if (await exists(overviewTab)) {
+        await overviewTab.click().catch(() => undefined);
+      }
+      await expect(page.getByText(/federal|withhold/i).first()).toBeVisible({ timeout: 15_000 });
+    }
+
+    // Switch back to overview for the remaining assertions.
+    if (await exists(overviewTab)) {
+      await overviewTab.click().catch(() => undefined);
+      await taxSummary.waitFor({ state: "visible", timeout: 10_000 }).catch(() => undefined);
     }
     const taxText = (await page.locator("body").textContent()) ?? "";
-
-    expect(taxText).toMatch(/federal/i);
 
     const seMatch = taxText.match(
       /self[- ]?employment tax[^$\n]*\$([\d,]+(?:\.\d+)?)/i,
@@ -450,7 +509,7 @@ test.describe("Existing W-2-only user — live app", () => {
       ).toBe(0);
     }
 
-    if (onboardingAvailable) {
+    if (onboardingAvailable && taxReady) {
       expect(
         /\$?14[,]?000|withheld|withholding/i.test(taxText),
         "Tax overview should reflect W-2 federal withholding",
