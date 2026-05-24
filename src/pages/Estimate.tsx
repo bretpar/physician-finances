@@ -74,7 +74,7 @@ function SelectCard({ selected, title, description, onClick }: { selected: boole
 }
 
 function NumberField({ label, value, onChange, hint, prefix = "$" }: { label: string; value: number; onChange: (n: number) => void; hint?: string; prefix?: string }) {
-  const id = React.useId();
+  const id = useId();
   return (
     <div>
       <Label htmlFor={id}>{label}</Label>
