@@ -11,7 +11,7 @@ import { aggregateInvestmentTaxBuckets, useInvestmentIncomeEntries } from "@/hoo
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown } from "@/hooks/useProjectedIncome";
+import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
@@ -41,6 +41,8 @@ export default function Dashboard() {
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
+  const { data: overrides } = useStreamOverrides();
+  const { data: plannerConversions } = usePlannerConversions();
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries, investmentEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
@@ -69,9 +71,38 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, [user]);
 
+  // Map business income transactions to the matchable shape so projected
+  // paychecks tied to business streams correctly tag converted/matched.
+  const businessTxsForMatching = useMemo(() => {
+    return (transactions || [])
+      .filter((t) => t.transaction_type === "income")
+      .map((t) => ({
+        id: t.id,
+        transaction_date: t.transaction_date,
+        vendor: (t as any).vendor ?? "",
+        amount: Number(t.amount),
+        source_id: (t as any).source_id ?? null,
+        status: t.status,
+        transaction_type: t.transaction_type,
+        origin_type: (t as any).origin_type ?? null,
+        origin_planner_conversion_id: (t as any).origin_planner_conversion_id ?? null,
+      }));
+  }, [transactions]);
+
+  // IMPORTANT: pass overrides + planner conversions + business transactions so
+  // the chart's "Planned" total uses the same matchStatus tagging as the
+  // Income Planner accordion. Without these, converted/skipped/matched
+  // occurrences fall back to "active" and inflate chart Planned totals.
   const projectedPaychecks = useMemo(
-    () => generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries),
-    [streams, bonuses, incomeEntries],
+    () => generateProjectedPaychecks(
+      streams || [],
+      bonuses || [],
+      incomeEntries,
+      overrides || [],
+      plannerConversions || [],
+      businessTxsForMatching,
+    ),
+    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching],
   );
 
   const now = useMemo(() => new Date(), []);
