@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { YtdCatchupForm } from "@/components/YtdCatchupForm";
 import { YtdCatchupRecap } from "@/components/YtdCatchupRecap";
-import { useYtdCatchupEntries } from "@/hooks/useYtdCatchup";
+import { useYtdCatchupEntries, backfillYtdCatchupCompanies } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import {
   DEFAULT_ONBOARDING_SETTINGS,
@@ -224,9 +224,18 @@ export default function Onboarding() {
         include_se_tax_in_recommendation: true,
       };
     }).filter((company) => !existingKeys.has(`${company.name.toLowerCase()}::${company.company_type}`));
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      // Even when no new rows are inserted, backfill in case prior catch-ups
+      // were saved before the company existed.
+      try { await backfillYtdCatchupCompanies(); } catch (e) { console.warn("[onboarding] backfill ytd catch-up failed", e); }
+      return;
+    }
     const { error } = await supabase.from("companies").insert(rows as any);
     if (error) throw error;
+    // Link any pre-existing YTD catch-up entries (saved before the company
+    // existed) to the newly-created company by normalized name, and update
+    // their mirror transactions so Business Activity shows the company name.
+    try { await backfillYtdCatchupCompanies(); } catch (e) { console.warn("[onboarding] backfill ytd catch-up failed", e); }
   }
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}) {
