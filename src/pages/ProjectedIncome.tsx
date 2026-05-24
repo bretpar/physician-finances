@@ -1755,6 +1755,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Bonus</DialogTitle>
+            <DialogDescription className="sr-only">Confirm deletion of this projected bonus.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Are you sure you want to delete <span className="font-medium text-foreground">{bonusDeleteConfirm?.label}</span>? This cannot be undone.
