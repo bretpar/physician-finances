@@ -430,18 +430,26 @@ test.describe("Existing W-2-only user — live app", () => {
     const body = page.locator("body");
     await expect(body).not.toBeEmpty({ timeout: 20_000 });
 
-    // ---- Onboarding (only if currently on /onboarding) ----
-    let onboardingAvailable = /\/onboarding/.test(new URL(page.url()).pathname);
-
-    if (onboardingAvailable) {
-      console.log("Onboarding detected — running W-2-only flow.");
-      const completed = await completeW2OnboardingCleanly(page);
-      expect(completed, "W-2 onboarding should complete before page assertions").toBeTruthy();
+    // ---- Optional deterministic force-reset path ----
+    // When FORCE_RESET_FROM_SETTINGS=true, erase account data via Settings
+    // (preserving credentials) and complete W-2 onboarding from a clean state.
+    let onboardingAvailable = false;
+    if (FORCE_RESET_FROM_SETTINGS) {
+      await forceResetFromSettingsAndOnboard(page);
+      onboardingAvailable = true;
     } else {
-      console.log(
-        "Onboarding was not available — account is already onboarded. Continuing to dashboard/income/tax checks.",
-      );
+      onboardingAvailable = /\/onboarding/.test(new URL(page.url()).pathname);
+      if (onboardingAvailable) {
+        console.log("Onboarding detected — running W-2-only flow.");
+        const completed = await completeW2OnboardingCleanly(page);
+        expect(completed, "W-2 onboarding should complete before page assertions").toBeTruthy();
+      } else {
+        console.log(
+          "Onboarding was not available — account is already onboarded. Continuing to dashboard/income/tax checks.",
+        );
+      }
     }
+
 
     // ---- Dashboard ----
     await gotoAppPath(page, "/");
