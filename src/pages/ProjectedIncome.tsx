@@ -1885,6 +1885,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Convert to Actual Income</DialogTitle>
+            <DialogDescription className="sr-only">Record this projected paycheck as actual income in your ledger.</DialogDescription>
           </DialogHeader>
           {convertTarget && (
             <div className="space-y-4 py-2">
