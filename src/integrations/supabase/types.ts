@@ -2110,6 +2110,7 @@ export type Database = {
       }
       ytd_catchup_entries: {
         Row: {
+          business_expenses: number
           company_id: string | null
           company_name: string
           created_at: string
@@ -2135,6 +2136,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          business_expenses?: number
           company_id?: string | null
           company_name?: string
           created_at?: string
@@ -2160,6 +2162,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          business_expenses?: number
           company_id?: string | null
           company_name?: string
           created_at?: string
