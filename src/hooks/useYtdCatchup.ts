@@ -38,6 +38,93 @@ export type YtdCatchupInput = Partial<Omit<YtdCatchupEntry, "id" | "user_id" | "
 
 const KEY = ["ytd_catchup_entries"] as const;
 
+/** Normalize a company/business name for safe fuzzy matching. */
+function normalizeCompanyName(name: string | null | undefined): string {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Backfill 1099 YTD catch-up entries with the right company_id once a
+ * matching company exists. Updates:
+ *   - ytd_catchup_entries.company_id
+ *   - mirrored transactions.source_id + entity (so Business Activity shows
+ *     the company name instead of "Unassigned")
+ * Also dedupes mirror rows (keeps the oldest, removes the rest) so repeated
+ * onboarding runs don't create duplicate Business Activity entries.
+ */
+export async function backfillYtdCatchupCompanies(): Promise<void> {
+  const { data: entries, error: entriesErr } = await (supabase as any)
+    .from("ytd_catchup_entries")
+    .select("id, company_id, company_name, source_type, organization_id, user_id")
+    .eq("source_type", "1099_k1");
+  if (entriesErr || !entries?.length) return;
+
+  const { data: companies, error: companiesErr } = await supabase
+    .from("companies")
+    .select("id, name, company_type, organization_id, user_id");
+  if (companiesErr || !companies?.length) return;
+
+  // Build a normalized-name -> company[] index, restricted to business types.
+  const businessCompanies = companies.filter((c: any) =>
+    ["1099_schedule_c", "k1_partnership", "k1_s_corp"].includes(String(c.company_type)),
+  );
+  const byNormName = new Map<string, any[]>();
+  for (const c of businessCompanies) {
+    const key = normalizeCompanyName(c.name);
+    if (!key) continue;
+    const list = byNormName.get(key) || [];
+    list.push(c);
+    byNormName.set(key, list);
+  }
+
+  for (const entry of entries as any[]) {
+    const normEntryName = normalizeCompanyName(entry.company_name);
+    if (!normEntryName) continue;
+    const matches = byNormName.get(normEntryName) || [];
+    // Only match when unambiguous and either entry has no company_id yet or
+    // currently points at a missing company.
+    if (matches.length !== 1) continue;
+    const match = matches[0];
+    if (entry.company_id === match.id) {
+      // Still ensure the mirror row reflects the company.
+    } else {
+      const { error: updErr } = await (supabase as any)
+        .from("ytd_catchup_entries")
+        .update({ company_id: match.id })
+        .eq("id", entry.id);
+      if (updErr) {
+        console.warn("[backfillYtdCatchupCompanies] update entry failed", updErr);
+        continue;
+      }
+    }
+
+    // Dedupe + update mirror transactions for this catch-up entry.
+    const { data: mirrors } = await (supabase as any)
+      .from("transactions")
+      .select("id, created_at")
+      .eq("origin_ytd_catchup_id", entry.id)
+      .order("created_at", { ascending: true });
+    const rows = (mirrors || []) as any[];
+    const keep = rows[0];
+    const dupes = rows.slice(1);
+    if (dupes.length > 0) {
+      await (supabase as any)
+        .from("transactions")
+        .delete()
+        .in("id", dupes.map((r) => r.id));
+    }
+    if (keep?.id) {
+      await (supabase as any)
+        .from("transactions")
+        .update({ source_id: match.id, entity: match.name })
+        .eq("id", keep.id);
+    }
+  }
+}
+
 /**
  * Sync paired ledger rows for a YTD catch-up entry so the entry shows up
  * in the right ledger:
