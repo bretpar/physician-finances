@@ -96,3 +96,75 @@ describe("Step 3 heading copy by income profile", () => {
     expect(headingFor("w2_plus_business")).toBe("Add your income earned so far this year");
   });
 });
+
+describe("YtdCatchupForm — 1099-only business expenses & net profit", () => {
+  it("shows business expenses field and computes net profit (85000 - 18000 = 67000)", async () => {
+    mutateAsync.mockClear();
+    renderForm("business_only");
+
+    fireEvent.change(screen.getByTestId("ytd-catchup-company-name"), {
+      target: { value: "Consulting LLC" },
+    });
+    fireEvent.change(screen.getByTestId("ytd-catchup-gross-income"), {
+      target: { value: "85000" },
+    });
+    const expensesInput = screen.getByTestId("ytd-catchup-business-expenses");
+    fireEvent.change(expensesInput, { target: { value: "18000" } });
+
+    // Net profit shown to user
+    expect(screen.getByTestId("ytd-catchup-net-profit").textContent).toMatch(/\$67,000/);
+
+    fireEvent.click(screen.getByTestId("ytd-catchup-save"));
+    // wait a tick for the async submit
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mutateAsync).toHaveBeenCalledTimes(1);
+    const payload = mutateAsync.mock.calls[0][0];
+    expect(payload.source_type).toBe("1099_k1");
+    expect(payload.gross_income).toBe(85000);
+    expect(payload.business_expenses).toBe(18000);
+  });
+
+  it("aggregateYtdCatchup returns netBusinessProfit = gross - business_expenses for 1099/K-1 entries", () => {
+    const year = new Date().getFullYear();
+    const entry: YtdCatchupEntry = {
+      id: "1",
+      user_id: "u",
+      organization_id: null,
+      tax_year: year,
+      source_type: "1099_k1",
+      company_id: null,
+      company_name: "Consulting LLC",
+      period_start: `${year}-01-01`,
+      period_end: `${year}-06-30`,
+      gross_income: 85000,
+      business_expenses: 18000,
+      federal_withholding: 0,
+      state_withholding: 0,
+      ss_withholding: 0,
+      medicare_withholding: 0,
+      retirement_401k: 0,
+      hsa_contribution: 0,
+      healthcare_premiums: 0,
+      dental_vision: 0,
+      other_pretax: 0,
+      post_tax_deductions: 0,
+      notes: "",
+      created_at: "",
+      updated_at: "",
+    };
+    const totals = aggregateYtdCatchup([entry], year);
+    expect(totals.grossIncome).toBe(85000);
+    expect(totals.businessExpenses).toBe(18000);
+    expect(totals.netBusinessProfit).toBe(67000);
+  });
+
+  it("does not show W-2 payroll fields when business_only", () => {
+    renderForm("business_only");
+    expect(screen.queryByTestId("ytd-catchup-ss-withheld")).toBeNull();
+    expect(screen.queryByTestId("ytd-catchup-medicare-withheld")).toBeNull();
+    expect(screen.queryByText(/Pre-tax deductions YTD/i)).not.toBeInTheDocument();
+  });
+});
+
