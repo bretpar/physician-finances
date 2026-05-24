@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e:existing-w2": "playwright test e2e/existing-w2-user.spec.ts --project=chromium",
-    "e2e:existing-w2:codex": "E2E_IGNORE_HTTPS_ERRORS=true playwright test e2e/existing-w2-user.spec.ts --project=chromium"
+    "e2e:existing-w2:codex": "E2E_IGNORE_HTTPS_ERRORS=true playwright test e2e/existing-w2-user.spec.ts --project=chromium",
+    "e2e:existing-w2:reset": "FORCE_RESET_FROM_SETTINGS=true PLAYWRIGHT_IGNORE_HTTPS_ERRORS=1 PLAYWRIGHT_BASE_URL=https://app.paycheckmd.com playwright test e2e/existing-w2-user.spec.ts --project=chromium"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
