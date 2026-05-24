@@ -887,6 +887,9 @@ export default function PersonalIncome() {
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Income Entry" : "Add Personal Income"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {isEditing ? "Edit details for this personal income entry." : "Add a personal income entry, including date, type, amount, and any tax withholdings."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
