@@ -1246,6 +1246,9 @@ export default function ProjectedIncome() {
                 ? (isOneTime ? "Edit One-Time Income" : "Edit Income Stream")
                 : (isOneTime ? "Add One-Time Income" : "Add Income Stream")}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Configure a projected income stream — pick a source, income type, amount, frequency, and dates. Withholding and pre-tax fields appear for W-2 sources.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
