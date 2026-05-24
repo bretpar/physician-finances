@@ -1752,6 +1752,9 @@ export default function Transactions() {
         <DialogContent className="max-h-[85vh] overflow-y-auto max-w-lg" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditingIncome ? "Edit Income" : "Add Income"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {isEditingIncome ? "Edit details for this business income entry." : "Add a new business income entry, including amount, date, company, and tax withholdings."}
+            </DialogDescription>
           </DialogHeader>
           <TooltipProvider delayDuration={150}>
           <div className="space-y-4">
