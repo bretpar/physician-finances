@@ -343,7 +343,7 @@ async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
   await page.goto(abs("/settings"), { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
 
-  // 1. Locate the "Delete/Erase Account" section (heading or text).
+  // 1. Locate the "Delete/Erase Account" section heading.
   const sectionHeading = page
     .getByRole("heading", { name: /delete\/erase account/i })
     .first();
@@ -358,17 +358,37 @@ async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
   console.log("Settings erase: section found");
   await sectionHeading.scrollIntoViewIfNeeded().catch(() => {});
 
-  // If the section is collapsed, expand it (best-effort).
-  const expandToggle = sectionHeading.locator(
-    'xpath=ancestor::*[self::section or self::div][1]//button[@aria-expanded="false"]',
+  // The SectionCard wraps content in a clickable <header role="button"
+  // aria-expanded="…"> whose children are only rendered when expanded.
+  // Find that header via the heading's ancestor and expand if needed.
+  const sectionHeader = sectionHeading.locator(
+    'xpath=ancestor::*[@role="button" and @aria-expanded][1]',
   );
-  if (await expandToggle.first().isVisible().catch(() => false)) {
-    await expandToggle.first().click().catch(() => {});
-    console.log("Settings erase: expanded collapsed section");
+  const headerCount = await sectionHeader.count();
+  if (headerCount > 0) {
+    const expanded = await sectionHeader.first().getAttribute("aria-expanded");
+    if (expanded !== "true") {
+      await sectionHeader.first().click({ timeout: 5_000 }).catch(() => {});
+      // Wait for aria-expanded to flip to true.
+      await page
+        .waitForFunction(
+          (el) => el?.getAttribute("aria-expanded") === "true",
+          await sectionHeader.first().elementHandle(),
+          { timeout: 5_000 },
+        )
+        .catch(() => {});
+      console.log("Settings erase: expanded collapsed section");
+    } else {
+      console.log("Settings erase: section already expanded");
+    }
   }
 
   // 2. Click the inner red "Delete/Erase Account" trigger button (not the heading).
-  const triggerBtn = page.getByRole("button", { name: /^delete\/erase account$/i }).first();
+  // Scope to a <button> element to avoid matching the role=button header.
+  const triggerBtn = page
+    .locator('button:has-text("Delete/Erase Account")')
+    .filter({ hasNotText: /permanently/i })
+    .last();
   await triggerBtn.waitFor({ state: "visible", timeout: 5_000 });
   await triggerBtn.scrollIntoViewIfNeeded().catch(() => {});
   await triggerBtn.click({ timeout: 5_000 });
