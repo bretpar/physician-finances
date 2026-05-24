@@ -2051,6 +2051,9 @@ export default function Transactions() {
         <DialogContent className="max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditingExpense ? "Edit Expense" : "Add Expense"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {isEditingExpense ? "Edit details for this business expense." : "Add a new business expense, including amount, date, category, and company."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {/* Transfer toggle */}
