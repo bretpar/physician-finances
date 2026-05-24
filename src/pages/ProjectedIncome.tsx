@@ -1693,6 +1693,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Bonus</DialogTitle>
+            <DialogDescription className="sr-only">Edit name, amount, withholding, and date for this projected bonus.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
