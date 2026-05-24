@@ -279,6 +279,8 @@ export function useDeleteYtdCatchup() {
  */
 export interface YtdCatchupTotals {
   grossIncome: number;
+  businessExpenses: number;
+  netBusinessProfit: number;
   federalWithholding: number;
   stateWithholding: number;
   ssWithholding: number;
@@ -290,6 +292,7 @@ export interface YtdCatchupTotals {
   /** Latest catch-up period_end across all entries — actual income should be summed AFTER this date. */
   latestPeriodEnd: string | null;
 }
+
 
 export function aggregateYtdCatchup(entries: YtdCatchupEntry[] | undefined, taxYear?: number): YtdCatchupTotals {
   const empty: YtdCatchupTotals = {
