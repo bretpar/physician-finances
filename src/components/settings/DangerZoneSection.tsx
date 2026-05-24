@@ -207,6 +207,26 @@ export function DangerZoneSection() {
               </DialogFooter>
             </>
           )}
+          {step === "erased" && (
+            <div data-testid="erase-success" data-erase-complete="true">
+              <DialogHeader>
+                <DialogTitle>Account data erased</DialogTitle>
+                <DialogDescription>
+                  Your account data has been erased. Redirecting you to onboarding…
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 pt-4">
+                <Button
+                  variant="default"
+                  onClick={() => window.location.assign("/onboarding?reset=1")}
+                  data-testid="erase-success-continue"
+                >
+                  Continue to onboarding
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
 
           {step === "confirmDelete" && (
             <>
