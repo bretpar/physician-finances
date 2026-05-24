@@ -634,7 +634,7 @@ export function useTaxEstimate(): {
       return {
         businessIncome: businessIncome + cuBizGross,
         seEligibleBusinessIncome: seEligibleBusinessIncome + cuBizGross,
-        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction + forecastBusinessExpenses,
+        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction + forecastBusinessExpenses + cu.business.expenses,
         seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
         businessFederalWithheld: businessFederalWithheld + cu.business.federalWithheld,
@@ -644,9 +644,10 @@ export function useTaxEstimate(): {
         businessRetirement: businessRetirement + cu.business.retirement,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
-        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio),
+        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
+
         personalIncome: totalPersonalIncome + cuW2Gross + cuOtherGross,
         personalW2: personalW2 + cuW2Gross,
         personalNonW2Income: personalNonW2Income + cuOtherGross,
