@@ -82,11 +82,21 @@ export function DangerZoneSection() {
       } catch {
         // best effort
       }
+      // Deterministic post-erase signal for E2E + humans.
+      try {
+        localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
+      } catch {
+        // best effort
+      }
       toast.success("Your account data has been erased. Start onboarding again.");
-      setOpen(false);
-      reset();
-      // Hard-navigate so cached state is dropped.
-      window.location.assign("/onboarding");
+      setStep("erased");
+      setBusy(false);
+      // Hard-navigate so cached state is dropped. Small delay lets the
+      // success state render so tests can latch onto either the URL change
+      // or the visible "erase-success" marker.
+      window.setTimeout(() => {
+        window.location.assign("/onboarding?reset=1");
+      }, 250);
     } catch (err: any) {
       toast.error(err?.message || "Failed to erase account data");
       setBusy(false);
