@@ -488,7 +488,12 @@ async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
       .catch(() => null),
   ]);
 
-  if (successOrOnboarding !== "onboarding") {
+  if (!successOrOnboarding) {
+    await logOnboardingResetDiagnostics(page, "Settings erase: no redirect or success message after safe erase");
+  }
+  expect(successOrOnboarding, "Safe erase should redirect to onboarding or show an erase success message").toBeTruthy();
+
+  if (successOrOnboarding === "success") {
     await page.goto(abs("/onboarding"), { waitUntil: "domcontentloaded" });
   }
 
