@@ -1602,6 +1602,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Paycheck — {overrideTarget?.date}</DialogTitle>
+            <DialogDescription className="sr-only">Override gross amount, withholding, deductions, and notes for this single paycheck date.</DialogDescription>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
             Override the default amounts for this specific date only. The rest of the stream stays unchanged.
