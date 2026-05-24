@@ -147,10 +147,13 @@ export function SourceEmployerCombobox({
   }
 
   const displayLabel = linkedSource
-    ? linkedSource.nickname || linkedSource.name
+    ? linkedSource.name || linkedSource.nickname || "Unnamed source"
     : isOther
       ? `Other: ${otherName}`
       : "Select source / employer…";
+  const displaySubLabel = linkedSource && linkedSource.nickname && linkedSource.nickname !== linkedSource.name
+    ? linkedSource.nickname
+    : "";
 
   const triggerInvalid = invalid && !linkedSource && !otherName;
 
@@ -219,8 +222,11 @@ export function SourceEmployerCombobox({
               triggerInvalid && "border-destructive",
             )}
           >
-            <span className={cn("truncate", !linkedSource && !isOther && "text-muted-foreground")}>
-              {displayLabel}
+            <span className={cn("truncate flex-1 text-left", !linkedSource && !isOther && "text-muted-foreground")}>
+              <span className="truncate">{displayLabel}</span>
+              {displaySubLabel && (
+                <span className="ml-1.5 text-xs text-muted-foreground truncate">· {displaySubLabel}</span>
+              )}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -261,7 +267,12 @@ export function SourceEmployerCombobox({
                     )}
                   >
                     <Check className={cn("h-3.5 w-3.5 shrink-0", sourceId === s.id ? "opacity-100" : "opacity-0")} />
-                    <span className="flex-1 text-left truncate">{s.nickname || s.name}</span>
+                    <span className="flex-1 min-w-0 text-left">
+                      <span className="block truncate">{s.name || s.nickname || "Unnamed source"}</span>
+                      {s.nickname && s.nickname !== s.name && (
+                        <span className="block truncate text-[11px] text-muted-foreground">{s.nickname}</span>
+                      )}
+                    </span>
                     <span className="text-[10px] text-muted-foreground shrink-0">
                       {SOURCE_KIND_LABEL[s.source_kind] || s.source_kind}
                     </span>
@@ -286,7 +297,12 @@ export function SourceEmployerCombobox({
                     )}
                   >
                     <Check className={cn("h-3.5 w-3.5 shrink-0", sourceId === s.id ? "opacity-100" : "opacity-0")} />
-                    <span className="flex-1 text-left truncate">{s.nickname || s.name}</span>
+                    <span className="flex-1 min-w-0 text-left">
+                      <span className="block truncate">{s.name || s.nickname || "Unnamed source"}</span>
+                      {s.nickname && s.nickname !== s.name && (
+                        <span className="block truncate text-[11px] text-muted-foreground">{s.nickname}</span>
+                      )}
+                    </span>
                     <span className="text-[10px] text-muted-foreground shrink-0">
                       {SOURCE_KIND_LABEL[s.source_kind] || s.source_kind}
                     </span>
