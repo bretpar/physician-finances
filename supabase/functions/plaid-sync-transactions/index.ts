@@ -509,12 +509,7 @@ Deno.serve(async (req) => {
         let cursorToSave = item.cursor || undefined;
         let itemHadPersistError = false;
 
-        let accessToken = item.access_token;
-        if (item.vault_secret_id) {
-          const { data: vaultToken, error: vaultErr } = await adminClient.rpc("get_plaid_access_token", { _item_id: item.id });
-          if (!vaultErr && vaultToken) accessToken = vaultToken;
-          else console.error("Failed to retrieve token from vault for item:", item.id, vaultErr);
-        }
+        let accessToken = accessTokens.get(item.id) || item.access_token;
 
         while (hasMore && !itemHadPersistError) {
           const syncBody: Record<string, unknown> = {
