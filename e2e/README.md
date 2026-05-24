@@ -75,6 +75,34 @@ Environment variables:
   `test-seed-users` / `test-verify-user` edge functions (see below).
 - `SUPABASE_URL` — required for the seed/verify curl examples below.
 
+### Force-reset path for `existing-w2-user.spec.ts`
+
+Set `FORCE_RESET_FROM_SETTINGS=true` to make the existing-user W-2 spec start
+from a guaranteed-clean state. After logging in with `E2E_TEST_EMAIL` /
+`E2E_TEST_PASSWORD`, the test navigates to Settings → Danger Zone, clicks
+**Erase account data** (NOT Delete account), confirms, and then completes the
+W-2-only onboarding flow in the same run.
+
+> ⚠️ This **erases all app/financial data** (Plaid links, paychecks, income
+> sources, onboarding values, tax inputs, etc.) for the configured test
+> account. It must **not** delete the account itself — only the
+> "Erase account data" button is used, and the user remains logged in (or is
+> re-logged in if the session is dropped) with the same credentials.
+
+Required env vars:
+
+- `E2E_TEST_EMAIL` — login email for the persistent W-2 test account.
+- `E2E_TEST_PASSWORD` — password (never logged).
+- `PLAYWRIGHT_BASE_URL` — target app, e.g. `https://app.paycheckmd.com`.
+- `PLAYWRIGHT_IGNORE_HTTPS_ERRORS=1` — bypass invalid TLS chains in CI/Codex.
+
+Convenience script:
+
+```
+pnpm run e2e:existing-w2:reset
+```
+
+
 The fallback config:
 
 - Runs Chromium only

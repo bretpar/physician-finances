@@ -21,6 +21,9 @@ const EMAIL = process.env.E2E_TEST_EMAIL ?? "";
 const PASSWORD = process.env.E2E_TEST_PASSWORD ?? "";
 const BASE_URL =
   process.env.PLAYWRIGHT_BASE_URL ?? "https://app.paycheckmd.com";
+const FORCE_RESET_FROM_SETTINGS = /^(1|true|yes)$/i.test(
+  process.env.FORCE_RESET_FROM_SETTINGS ?? "",
+);
 
 function abs(path: string): string {
   return new URL(path, BASE_URL).toString();
@@ -330,21 +333,74 @@ async function dismissOnboardingIfPresent(page: Page): Promise<boolean> {
   return cleared;
 }
 
-async function resetUserDataViaSettingsFallback(page: Page): Promise<boolean> {
-  await waitForPostOnboarding(page, 10_000);
+/**
+ * Click through Settings → Danger Zone → "Erase account data" (NOT delete).
+ * Preserves login credentials; wipes app/financial data and resets onboarding.
+ * Returns true if the erase flow ran and the app navigated to /onboarding.
+ */
+async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
   await page.goto(abs("/settings"), { waitUntil: "domcontentloaded" });
   const openReset = page.getByRole("button", { name: /delete\/erase account/i }).first();
-  if (!(await exists(openReset)) || !(await openReset.isVisible().catch(() => false))) return false;
-
+  if (!(await exists(openReset)) || !(await openReset.isVisible().catch(() => false))) {
+    console.log("Settings erase: Danger Zone trigger not found");
+    return false;
+  }
   await openReset.scrollIntoViewIfNeeded().catch(() => {});
   await openReset.click({ timeout: 5000 });
+  // Choose "Erase account data" (NOT "Delete account").
   await page.getByRole("button", { name: /^erase account data$/i }).click({ timeout: 5000 });
   await page.getByRole("button", { name: /^yes, erase my data$/i }).click({ timeout: 5000 });
   await page.waitForURL((u) => /\/onboarding/.test(u.pathname), { timeout: 30_000 });
+  console.log("Settings erase: account data erased, app redirected to onboarding");
+  return true;
+}
+
+async function resetUserDataViaSettingsFallback(page: Page): Promise<boolean> {
+  await waitForPostOnboarding(page, 10_000);
+  const erased = await eraseAccountDataViaSettings(page).catch(() => false);
+  if (!erased) return false;
   console.log("Reset user data via Settings fallback");
   await completeW2OnboardingCleanly(page);
   return true;
 }
+
+/**
+ * Deterministic force-reset path used when FORCE_RESET_FROM_SETTINGS=true.
+ * Assumes the user is already logged in. Erases data via Settings (does NOT
+ * delete the account), verifies the user is still signed in, then completes
+ * W-2-only onboarding from a clean state.
+ */
+async function forceResetFromSettingsAndOnboard(page: Page): Promise<void> {
+  console.log("FORCE_RESET_FROM_SETTINGS=true — running deterministic reset path");
+
+  // 1. Make sure we're in the app (not on /login/onboarding) before opening Settings.
+  await page.goto(abs("/"), { waitUntil: "domcontentloaded" });
+  // Tolerate landing on onboarding — Settings is reachable from there too via direct nav.
+  const erased = await eraseAccountDataViaSettings(page);
+  if (!erased) {
+    throw new Error(
+      "FORCE_RESET_FROM_SETTINGS: could not trigger Settings → Erase account data flow",
+    );
+  }
+
+  // 2. Verify the account still exists / user is still logged in. If the erase
+  //    flow signed us out, log back in with the same credentials.
+  if (/\/login/.test(new URL(page.url()).pathname)) {
+    console.log("Force reset: session lost after erase, re-logging in");
+    await loginThroughUI(page);
+  }
+
+  // 3. Confirm we're now on the onboarding/first-setup screen.
+  const onboardingNow = /\/onboarding/.test(new URL(page.url()).pathname) || (await hasOnboardingUi(page));
+  expect(onboardingNow, "After force reset, app should redirect to onboarding").toBeTruthy();
+  console.log("Force reset: confirmed onboarding entry point");
+
+  // 4. Complete W-2-only onboarding in the same run.
+  const completed = await completeW2OnboardingCleanly(page);
+  expect(completed, "Force-reset W-2 onboarding should complete cleanly").toBeTruthy();
+  console.log("Force reset: W-2 onboarding completed");
+}
+
 
 async function gotoAppPath(page: Page, targetPath: string) {
   const recovered = await dismissOnboardingIfPresent(page);
@@ -374,18 +430,26 @@ test.describe("Existing W-2-only user — live app", () => {
     const body = page.locator("body");
     await expect(body).not.toBeEmpty({ timeout: 20_000 });
 
-    // ---- Onboarding (only if currently on /onboarding) ----
-    let onboardingAvailable = /\/onboarding/.test(new URL(page.url()).pathname);
-
-    if (onboardingAvailable) {
-      console.log("Onboarding detected — running W-2-only flow.");
-      const completed = await completeW2OnboardingCleanly(page);
-      expect(completed, "W-2 onboarding should complete before page assertions").toBeTruthy();
+    // ---- Optional deterministic force-reset path ----
+    // When FORCE_RESET_FROM_SETTINGS=true, erase account data via Settings
+    // (preserving credentials) and complete W-2 onboarding from a clean state.
+    let onboardingAvailable = false;
+    if (FORCE_RESET_FROM_SETTINGS) {
+      await forceResetFromSettingsAndOnboard(page);
+      onboardingAvailable = true;
     } else {
-      console.log(
-        "Onboarding was not available — account is already onboarded. Continuing to dashboard/income/tax checks.",
-      );
+      onboardingAvailable = /\/onboarding/.test(new URL(page.url()).pathname);
+      if (onboardingAvailable) {
+        console.log("Onboarding detected — running W-2-only flow.");
+        const completed = await completeW2OnboardingCleanly(page);
+        expect(completed, "W-2 onboarding should complete before page assertions").toBeTruthy();
+      } else {
+        console.log(
+          "Onboarding was not available — account is already onboarded. Continuing to dashboard/income/tax checks.",
+        );
+      }
     }
+
 
     // ---- Dashboard ----
     await gotoAppPath(page, "/");
