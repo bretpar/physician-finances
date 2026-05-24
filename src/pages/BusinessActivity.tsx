@@ -25,7 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -1752,6 +1752,9 @@ export default function Transactions() {
         <DialogContent className="max-h-[85vh] overflow-y-auto max-w-lg" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditingIncome ? "Edit Income" : "Add Income"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {isEditingIncome ? "Edit details for this business income entry." : "Add a new business income entry, including amount, date, company, and tax withholdings."}
+            </DialogDescription>
           </DialogHeader>
           <TooltipProvider delayDuration={150}>
           <div className="space-y-4">
@@ -2048,6 +2051,9 @@ export default function Transactions() {
         <DialogContent className="max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditingExpense ? "Edit Expense" : "Add Expense"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {isEditingExpense ? "Edit details for this business expense." : "Add a new business expense, including amount, date, category, and company."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {/* Transfer toggle */}
@@ -2223,6 +2229,7 @@ export default function Transactions() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Assign Category to {selectedIds.size} transactions</DialogTitle>
+            <DialogDescription className="sr-only">Choose a category to apply to all selected transactions.</DialogDescription>
           </DialogHeader>
           <ExpenseCategoryCombobox
             value={bulkCategory}

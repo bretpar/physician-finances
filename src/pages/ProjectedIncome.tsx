@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -1246,6 +1246,9 @@ export default function ProjectedIncome() {
                 ? (isOneTime ? "Edit One-Time Income" : "Edit Income Stream")
                 : (isOneTime ? "Add One-Time Income" : "Add Income Stream")}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Configure a projected income stream — pick a source, income type, amount, frequency, and dates. Withholding and pre-tax fields appear for W-2 sources.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
@@ -1574,6 +1577,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Income Stream</DialogTitle>
+            <DialogDescription className="sr-only">Confirm deletion of this projected income stream and all its paychecks.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             This will remove the income stream and all projected paychecks. This cannot be undone.
@@ -1598,6 +1602,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Paycheck — {overrideTarget?.date}</DialogTitle>
+            <DialogDescription className="sr-only">Override gross amount, withholding, deductions, and notes for this single paycheck date.</DialogDescription>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
             Override the default amounts for this specific date only. The rest of the stream stays unchanged.
@@ -1688,6 +1693,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Bonus</DialogTitle>
+            <DialogDescription className="sr-only">Edit name, amount, withholding, and date for this projected bonus.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
@@ -1749,6 +1755,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Bonus</DialogTitle>
+            <DialogDescription className="sr-only">Confirm deletion of this projected bonus.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Are you sure you want to delete <span className="font-medium text-foreground">{bonusDeleteConfirm?.label}</span>? This cannot be undone.
@@ -1858,6 +1865,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete this income?</DialogTitle>
+            <DialogDescription className="sr-only">Skip this projected paycheck on its scheduled date. You can restore it later.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             This will skip <span className="font-medium text-foreground">{mobileSkipConfirm?.label}</span> on {mobileSkipConfirm?.date}. You can restore it later.
@@ -1877,6 +1885,7 @@ export default function ProjectedIncome() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Convert to Actual Income</DialogTitle>
+            <DialogDescription className="sr-only">Record this projected paycheck as actual income in your ledger.</DialogDescription>
           </DialogHeader>
           {convertTarget && (
             <div className="space-y-4 py-2">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Eye, EyeOff, PiggyBank, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,12 +74,14 @@ function SelectCard({ selected, title, description, onClick }: { selected: boole
 }
 
 function NumberField({ label, value, onChange, hint, prefix = "$" }: { label: string; value: number; onChange: (n: number) => void; hint?: string; prefix?: string }) {
+  const id = useId();
   return (
     <div>
-      <Label>{label}</Label>
+      <Label htmlFor={id}>{label}</Label>
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{prefix}</span>
         <Input
+          id={id}
           type="number" inputMode="decimal" min={0} className="pl-7"
           value={value === 0 ? "" : String(value)}
           placeholder="0"
@@ -310,17 +312,17 @@ export default function Estimate() {
               </div>
               <div className="grid gap-4">
                 <div>
-                  <Label>First name</Label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Alex" />
+                  <Label htmlFor="signup-first-name">First name</Label>
+                  <Input id="signup-first-name" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Alex" />
                 </div>
                 <div>
-                  <Label>Email</Label>
-                  <Input data-testid="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input id="signup-email" data-testid="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
                 </div>
                 <div>
-                  <Label>Password</Label>
+                  <Label htmlFor="signup-password">Password</Label>
                   <div className="relative">
-                    <Input data-testid="signup-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" />
+                    <Input id="signup-password" data-testid="signup-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className="pr-10" />
                     <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((v) => !v)}>
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
