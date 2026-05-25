@@ -893,8 +893,8 @@ export default function W4PaycheckAdjustmentCard() {
                           value={fmt(a.employerGap)}
                         />
                         <RowSmall
-                          label="Step 4(c) per paycheck"
-                          value={fmt(a.step4cPerPaycheck)}
+                          label="Step 4(c) extra withholding per paycheck"
+                          value={`${fmt(a.step4cPerPaycheck)} / paycheck`}
                         />
                         <p className="text-[10px] text-muted-foreground/80">
                           Employer: <span className="font-medium">{a.company}</span> · key:{" "}
