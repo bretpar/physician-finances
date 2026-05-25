@@ -975,6 +975,7 @@ export default function PersonalIncome() {
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
                   <Input
+                    data-testid="pi-net"
                     type="number" min="0" step="0.01"
                     placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution)))}
                     value={form.net_received}
