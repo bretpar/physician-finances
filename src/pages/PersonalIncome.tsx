@@ -241,26 +241,32 @@ export default function PersonalIncome() {
 
   const showField = (key: ToggleKey) => !!visibleFields[key];
 
-  // Summary stats
+  // CANONICAL withholding total — sourced from the unified tax engine so this
+  // matches Tax Overview and the Withholding Guide exactly. Do NOT re-aggregate
+  // federal_withholding / taxes_withheld here. See src/lib/canonicalWithholding.ts.
+  const canonicalWithholding = useCanonicalWithholding("PersonalIncome");
+
+  // Summary stats (income breakdown only — withholding handled by canonical hook).
   const totals = useMemo(() => {
-    return entries.reduce(
+    const stats = entries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);
-        // Federal total via shared helper + state (kept here so the summary
-        // card still reflects "all taxes withheld"); the dashboard tracker is
-        // federal-only.
-        const withheld = getTotalFederalPaid(e as any) + (stateIncomeTaxEnabled ? Number(e.state_withholding || 0) : 0);
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
-          totalWithheld: acc.totalWithheld + withheld,
           w2Income: acc.w2Income + (isW2Type(hydrateIncomeType(e)) ? amt : 0),
           capitalGains: acc.capitalGains + (isStockType(hydrateIncomeType(e)) ? amt : 0),
           passiveIncome: acc.passiveIncome + (hydrateIncomeType(e) === "rental" ? amt : 0),
         };
       },
-      { totalIncome: 0, totalWithheld: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0 }
+      { totalIncome: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0 }
     );
-  }, [entries]);
+    return {
+      ...stats,
+      totalWithheld: stateIncomeTaxEnabled
+        ? canonicalWithholding.actual.total
+        : canonicalWithholding.actual.federal,
+    };
+  }, [entries, canonicalWithholding, stateIncomeTaxEnabled]);
 
   // Base withholding recommendation for Modal 1
   const grossAmount = num(form.gross_amount);
