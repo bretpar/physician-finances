@@ -218,6 +218,8 @@ export default function ProjectedIncome() {
   const { data: businessTransactions } = useTransactions();
   const { data: taxSettings } = useTaxSettings();
   const { forecastEstimate, forecastDebug } = useTaxEstimate();
+  // CANONICAL withholding — shared with Personal Income + Tax Overview.
+  const canonicalWithholding = useCanonicalWithholding("ProjectedIncome");
 
   const addStream = useAddStream();
   const updateStream = useUpdateStream();
