@@ -166,7 +166,13 @@ const emptyExpenseForm: ExpenseFormState = {
 export default function Transactions() {
   const { companies } = useCompanies();
   const queryClient = useQueryClient();
-  const { data: transactions = [], isLoading } = useTransactions();
+  const { data: rawTransactions = [], isLoading } = useTransactions();
+  // CANONICAL: collapse duplicate YTD catch-up mirror transactions so each
+  // catch-up event renders exactly once in the business ledger.
+  const transactions = useMemo(
+    () => dedupeYtdBusinessMirrors(rawTransactions as unknown as Array<DbTransaction & { origin_ytd_catchup_id?: string | null; created_at?: string | null }>) as unknown as DbTransaction[],
+    [rawTransactions],
+  );
   const deleteMutation = useDeleteTransaction();
   const addMutation = useAddTransaction();
   const updateMutation = useUpdateTransaction();
