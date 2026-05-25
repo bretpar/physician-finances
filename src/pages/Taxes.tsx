@@ -55,6 +55,8 @@ const PAYMENT_QUARTERS = [
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug } = useTaxEstimate();
+  // CANONICAL withholding — single source of truth shared with Paychecks and Withholding Guide.
+  const canonicalWithholding = useCanonicalWithholding("Taxes");
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
   const { data: transactions, isLoading: txLoading } = useTransactions();
