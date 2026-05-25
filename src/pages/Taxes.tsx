@@ -406,11 +406,11 @@ export default function Taxes() {
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
                   <span>Total Estimated Tax</span><span>{fmt(debug.totalEstimatedTax)}</span>
                 </div>
-                {debug.federalWithheld > 0 && (
-                  <div className="flex justify-between text-primary"><span>Federal withholding paid</span><span>−{fmt(debug.federalWithheld)}</span></div>
+                {(taxMode === "actual" ? canonicalWithholding.actual.federal : canonicalWithholding.forecast.federal) > 0 && (
+                  <div className="flex justify-between text-primary"><span>Federal withholding paid</span><span>−{fmt(taxMode === "actual" ? canonicalWithholding.actual.federal : canonicalWithholding.forecast.federal)}</span></div>
                 )}
-                {debug.stateWithheld > 0 && (
-                  <div className="flex justify-between text-primary"><span>State withholding paid</span><span>−{fmt(debug.stateWithheld)}</span></div>
+                {(taxMode === "actual" ? canonicalWithholding.actual.state : canonicalWithholding.forecast.state) > 0 && (
+                  <div className="flex justify-between text-primary"><span>State withholding paid</span><span>−{fmt(taxMode === "actual" ? canonicalWithholding.actual.state : canonicalWithholding.forecast.state)}</span></div>
                 )}
                 {estPaymentsMade > 0 && (
                   <div className="flex justify-between text-primary"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
