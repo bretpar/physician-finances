@@ -160,8 +160,8 @@ export default function PersonalIncome() {
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   // CANONICAL: defensive dedupe so a transient sync hiccup or replication lag
   // can never render two semantic income events for the same YTD catch-up.
-  const rawEntries = useMemo(
-    () => dedupeYtdPersonalMirrors(rawEntriesUnsafe),
+  const rawEntries = useMemo<PersonalIncomeEntry[]>(
+    () => dedupeYtdPersonalMirrors(rawEntriesUnsafe as unknown as Array<PersonalIncomeEntry & { linked_ytd_catchup_id?: string | null; created_at?: string | null }>) as unknown as PersonalIncomeEntry[],
     [rawEntriesUnsafe],
   );
   const entries = useMemo(() => {
