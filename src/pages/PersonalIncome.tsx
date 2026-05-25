@@ -27,6 +27,7 @@ import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGr
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { formatDate, formatDateShort, formatMonthYear } from "@/lib/localDate";
