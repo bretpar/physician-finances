@@ -53,8 +53,10 @@ export function selectCanonicalWithholding(
   actualDebug: TaxDebugBreakdown | null | undefined,
   forecastDebug: TaxDebugBreakdown | null | undefined,
 ): CanonicalWithholding {
-  const aF = Number(actualDebug?.actualFederalWithheld ?? actualDebug?.federalWithheld ?? 0);
-  const aS = Number(actualDebug?.actualStateWithheld ?? actualDebug?.stateWithheld ?? 0);
+  const actualFedField = Number(actualDebug?.actualFederalWithheld ?? 0);
+  const actualStateField = Number(actualDebug?.actualStateWithheld ?? 0);
+  const aF = actualFedField > 0 ? actualFedField : Number(actualDebug?.federalWithheld ?? 0);
+  const aS = actualStateField > 0 ? actualStateField : Number(actualDebug?.stateWithheld ?? 0);
   const pF = Number(forecastDebug?.projectedFederalWithheld ?? 0);
   const pS = Number(forecastDebug?.projectedStateWithheld ?? 0);
 
