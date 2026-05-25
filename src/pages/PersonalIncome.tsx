@@ -160,9 +160,8 @@ export default function PersonalIncome() {
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   // CANONICAL: defensive dedupe so a transient sync hiccup or replication lag
   // can never render two semantic income events for the same YTD catch-up.
-  // See src/lib/ytdCatchupLedger.ts.
   const rawEntries = useMemo(
-    () => dedupeYtdPersonalMirrors(rawEntriesUnsafe as any[]),
+    () => dedupeYtdPersonalMirrors(rawEntriesUnsafe),
     [rawEntriesUnsafe],
   );
   const entries = useMemo(() => {
