@@ -35,6 +35,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useAddIncome } from "@/hooks/useIncome";
 import { useAddPersonalIncome } from "@/hooks/usePersonalIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
 import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
   useAddStream, useUpdateStream, useDeleteStream,
