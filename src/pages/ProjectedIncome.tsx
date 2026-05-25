@@ -697,32 +697,27 @@ export default function ProjectedIncome() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Hero summary: one large card + two side-by-side cards */}
+      <div className="space-y-4">
         <SummaryCard
-          icon={<DollarSign className="h-4 w-4" />}
+          icon={<DollarSign className="h-5 w-5" />}
           label="Expected Annual Income"
           value={fmt(expectedAnnual)}
-          sublabel={forecastDebug?.totalGrossIncome != null ? "Actual + projected (all income sources)" : `${fmt(actualYTD.income)} actual + ${fmt(projectedTotals.grossIncome)} projected`}
           highlight
+          hero
         />
-        <SummaryCard
-          icon={<TrendingUp className="h-4 w-4" />}
-          label="Projected Remaining"
-          value={fmt(projectedTotals.grossIncome)}
-          sublabel={`${projectedTotals.count} upcoming payments`}
-        />
-        <SummaryCard
-          icon={<Shield className="h-4 w-4" />}
-          label="Estimated Annual Tax"
-          value={fmt(forecastEstimate?.totalTaxLiability || 0)}
-          sublabel="Based on actual + projected income"
-        />
-        <SummaryCard
-          icon={<PiggyBank className="h-4 w-4" />}
-          label={isW2Only ? "Federal Withholding" : "Projected Withholding"}
-          value={fmt(projectedWithholding)}
-          sublabel={projected401k > 0 ? `+ ${fmt(projected401k)} in 401(k)` : undefined}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <SummaryCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="Projected Remaining"
+            value={fmt(projectedTotals.grossIncome)}
+          />
+          <SummaryCard
+            icon={<Shield className="h-4 w-4" />}
+            label="Estimated Annual Tax"
+            value={fmt(forecastEstimate?.totalTaxLiability || 0)}
+          />
+        </div>
       </div>
 
       <DuplicateConversionsReview />
@@ -780,10 +775,10 @@ export default function ProjectedIncome() {
         </Card>
       )}
 
-        <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
-          <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Add Income Stream
+          <Button size="sm" className="shrink-0" onClick={() => { resetForm(); setShowForm(true); }}>
+            <Plus className="h-4 w-4 mr-1 shrink-0" /> Add Income Stream
           </Button>
         </div>
 
@@ -2204,21 +2199,23 @@ function SummaryCard({
   value,
   sublabel,
   highlight,
+  hero,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   sublabel?: string;
   highlight?: boolean;
+  hero?: boolean;
 }) {
   return (
     <Card className={highlight ? "border-primary/20 bg-primary/5" : ""}>
-      <CardContent className="pt-4 pb-4 space-y-1">
+      <CardContent className={`space-y-1 ${hero ? "pt-6 pb-6" : "pt-4 pb-4"}`}>
         <div className="flex items-center gap-2 text-muted-foreground">
           {icon}
-          <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
+          <span className={`font-medium uppercase tracking-wider ${hero ? "text-sm" : "text-xs"}`}>{label}</span>
         </div>
-        <p className={`text-2xl font-bold ${highlight ? "text-primary" : "text-foreground"}`}>
+        <p className={`font-bold ${hero ? "text-4xl" : "text-2xl"} ${highlight ? "text-primary" : "text-foreground"}`}>
           {value}
         </p>
         {sublabel && (
