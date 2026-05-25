@@ -24,6 +24,7 @@ import W4PaycheckAdjustmentCard from "@/components/tax/W4PaycheckAdjustmentCard"
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
 import TaxDebugPanel from "@/components/TaxDebugPanel";
 import TaxBreakdownDebugToggle from "@/components/TaxBreakdownDebugToggle";
 import { useTaxSavings, useAddTaxSaving, useUpdateTaxSaving, useDeleteTaxSaving } from "@/hooks/useTaxSavings";
@@ -54,6 +55,8 @@ const PAYMENT_QUARTERS = [
 export default function Taxes() {
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug } = useTaxEstimate();
+  // CANONICAL withholding — single source of truth shared with Paychecks and Withholding Guide.
+  const canonicalWithholding = useCanonicalWithholding("Taxes");
   const { data: savings = [] } = useTaxSavings();
   const { data: payments = [] } = useTaxPayments();
   const { data: transactions, isLoading: txLoading } = useTransactions();
@@ -403,11 +406,11 @@ export default function Taxes() {
                 <div className="border-t border-border pt-2 flex justify-between font-semibold">
                   <span>Total Estimated Tax</span><span>{fmt(debug.totalEstimatedTax)}</span>
                 </div>
-                {debug.federalWithheld > 0 && (
-                  <div className="flex justify-between text-primary"><span>Federal withholding paid</span><span>−{fmt(debug.federalWithheld)}</span></div>
+                {(taxMode === "actual" ? canonicalWithholding.actual.federal : canonicalWithholding.forecast.federal) > 0 && (
+                  <div className="flex justify-between text-primary"><span>Federal withholding paid</span><span>−{fmt(taxMode === "actual" ? canonicalWithholding.actual.federal : canonicalWithholding.forecast.federal)}</span></div>
                 )}
-                {debug.stateWithheld > 0 && (
-                  <div className="flex justify-between text-primary"><span>State withholding paid</span><span>−{fmt(debug.stateWithheld)}</span></div>
+                {(taxMode === "actual" ? canonicalWithholding.actual.state : canonicalWithholding.forecast.state) > 0 && (
+                  <div className="flex justify-between text-primary"><span>State withholding paid</span><span>−{fmt(taxMode === "actual" ? canonicalWithholding.actual.state : canonicalWithholding.forecast.state)}</span></div>
                 )}
                 {estPaymentsMade > 0 && (
                   <div className="flex justify-between text-primary"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
