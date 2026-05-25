@@ -6,8 +6,37 @@ import {
 } from "@/components/ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TaxBreakdownResult } from "@/hooks/useTaxBreakdown";
+import { calcW2PayrollTax } from "@/lib/w2PayrollTax";
+
+function InfoHint({ text }: { text: string }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="More info"
+            className="inline-flex items-center text-muted-foreground hover:text-foreground"
+          >
+            <Info className="h-3 w-3" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -21,12 +50,14 @@ function Step({
   op,
   bold,
   planned,
+  hint,
 }: {
   label: string;
   value: string;
   op?: "add" | "subtract" | "equals";
   bold?: boolean;
   planned?: boolean;
+  hint?: string;
 }) {
   return (
     <div className="flex items-center justify-between text-sm py-1.5">
@@ -37,6 +68,7 @@ function Step({
           </span>
         )}
         <span className={cn(bold ? "font-semibold" : "text-muted-foreground", planned && "italic")}>{label}</span>
+        {hint && <InfoHint text={hint} />}
       </div>
       <span className={cn("tabular-nums", bold ? "font-bold" : "font-medium", planned && "text-primary")}>{value}</span>
     </div>
@@ -221,10 +253,98 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
             </AccordionContent>
           </AccordionItem>
 
-          {/* C. SE tax */}
+          {/* C. W-2 payroll tax (employee FICA) */}
+          {data.totalW2Income > 0 && (() => {
+            const fica = calcW2PayrollTax(data.totalW2Income, data.filingStatus);
+            return (
+              <AccordionItem value="w2-payroll">
+                <AccordionTrigger className="text-sm">
+                  C. W-2 payroll tax (Social Security &amp; Medicare)
+                </AccordionTrigger>
+                <AccordionContent className="space-y-0">
+                  <p className="text-xs text-muted-foreground pb-2">
+                    Employee-side FICA shown for audit transparency. These amounts are
+                    typically withheld by your employer and are <em>separate</em> from
+                    federal/state income-tax withholding.
+                  </p>
+
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+                    Social Security
+                  </p>
+                  <Step
+                    label="Social Security taxable wages used"
+                    value={fmt(fica.ssTaxableWages)}
+                    op="equals"
+                    hint="Gross W-2 wages, capped at the annual Social Security wage base. Pre-tax 401(k) is still FICA-taxable; only Section 125 items (HSA via payroll, qualified health premiums) are excluded from wages."
+                  />
+                  <Step
+                    label="Social Security annual wage cap applied"
+                    value={fmt(fica.ssWageCap)}
+                    op="equals"
+                    hint="Statutory annual wage base for the active tax year. Wages above this cap are not subject to the 6.2% Social Security tax."
+                  />
+                  {fica.ssWagesAboveCap > 0 && (
+                    <Step
+                      label="Wages above SS cap (not SS-taxed)"
+                      value={fmt(fica.ssWagesAboveCap)}
+                      op="equals"
+                      hint="These wages are excluded from Social Security but still flow into Medicare below."
+                    />
+                  )}
+                  <Step
+                    label={`Social Security tax (6.2% × taxable wages)${fica.ssCapReached ? " — capped" : ""}`}
+                    value={fmt(fica.ssTax)}
+                    op="add"
+                    bold
+                    hint="Employee share: 6.2% of Social Security taxable wages. Employer pays a matching 6.2% (not shown)."
+                  />
+
+                  <div className="border-t border-border my-2" />
+
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+                    Medicare
+                  </p>
+                  <Step
+                    label="Medicare taxable wages used"
+                    value={fmt(fica.medicareTaxableWages)}
+                    op="equals"
+                    hint="Medicare has no wage cap — it continues on all wages, including those above the Social Security cap."
+                  />
+                  <Step
+                    label="Medicare tax (1.45% × all wages)"
+                    value={fmt(fica.medicareTax)}
+                    op="add"
+                    bold
+                    hint="Employee share: 1.45% of all Medicare-taxable wages. Employer pays a matching 1.45% (not shown)."
+                  />
+                  {fica.additionalMedicareTax > 0 && (
+                    <Step
+                      label={`Additional Medicare (0.9% on wages over ${fmt(fica.additionalMedicareThreshold)})`}
+                      value={fmt(fica.additionalMedicareTax)}
+                      op="add"
+                      hint="Employee-only 0.9% surtax on wages above the filing-status threshold ($200k single, $250k MFJ). Not matched by employer."
+                    />
+                  )}
+
+                  <div className="border-t border-border my-1" />
+                  <Step
+                    label="Total employee payroll tax"
+                    value={fmt(fica.totalPayrollTax)}
+                    op="equals"
+                    bold
+                  />
+                  <p className="text-[11px] text-muted-foreground pt-2">
+                    Shown separately from federal and state income-tax withholding above.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })()}
+
+          {/* D. SE tax */}
           {data.seTax.total > 0 && (
             <AccordionItem value="se">
-              <AccordionTrigger className="text-sm">C. Self-employment tax breakdown</AccordionTrigger>
+              <AccordionTrigger className="text-sm">D. Self-employment tax breakdown</AccordionTrigger>
               <AccordionContent className="space-y-0">
                 <p className="text-xs text-muted-foreground pb-2">
                   Estimated · based on current inputs{showPlanned && " (includes planned income)"}
@@ -241,10 +361,12 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
             </AccordionItem>
           )}
 
-          {/* D. Capital gains */}
+
+
+          {/* E. Capital gains */}
           {(data.totalShortTermGains > 0 || data.totalLongTermGains > 0) && (
             <AccordionItem value="capgains">
-              <AccordionTrigger className="text-sm">D. Capital gains breakdown</AccordionTrigger>
+              <AccordionTrigger className="text-sm">E. Capital gains breakdown</AccordionTrigger>
               <AccordionContent className="space-y-0">
                 {data.totalShortTermGains > 0 && (
                   <Step label="Short-term gains (taxed as ordinary income)" value={fmt(data.totalShortTermGains)} />
