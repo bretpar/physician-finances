@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, Loader2 } from "lucide-react";
@@ -34,7 +34,7 @@ type Step = "choose" | "confirmErase" | "confirmDelete" | "erased";
 const ERASE_COMPLETE_MARKER = "paycheckmd:erase-complete";
 
 export function DangerZoneSection() {
-  const navigate = useNavigate();
+  
   const queryClient = useQueryClient();
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
@@ -108,6 +108,10 @@ export function DangerZoneSection() {
       try {
         localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
         sessionStorage.setItem("paycheckmd-onboarding-step", "1");
+        // Bypass the Onboarding guard that redirects to "/" when a stale
+        // React Query cache still reports onboardingComplete=true during the
+        // post-erase refetch race.
+        sessionStorage.setItem("paycheckmd-start-setup", "1");
       } catch {
         // best effort
       }
@@ -116,14 +120,10 @@ export function DangerZoneSection() {
       setStep("erased");
       setOpen(false);
       console.info("Settings erase: erase success detected");
-      navigate("/onboarding", { replace: true });
-      // Hard-navigate fallback so cached state is dropped if the SPA transition
-      // is blocked. The timeout also gives tests a stable success toast/marker.
-      window.setTimeout(() => {
-        if (!/\/onboarding\b/.test(window.location.pathname)) {
-          window.location.assign("/onboarding?reset=1");
-        }
-      }, 750);
+      // Hard navigation guarantees the URL changes and React Query / hook
+      // state is fully reset, regardless of any in-flight SPA renders on
+      // /settings or stale cached `onboardingComplete` values.
+      window.location.assign("/onboarding?reset=1");
     } catch (err: any) {
       const message = err?.message || "Failed to erase account data";
       console.error("Settings erase: safe erase failed", { message });
