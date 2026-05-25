@@ -697,32 +697,27 @@ export default function ProjectedIncome() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Hero summary: one large card + two side-by-side cards */}
+      <div className="space-y-4">
         <SummaryCard
-          icon={<DollarSign className="h-4 w-4" />}
+          icon={<DollarSign className="h-5 w-5" />}
           label="Expected Annual Income"
           value={fmt(expectedAnnual)}
-          sublabel={forecastDebug?.totalGrossIncome != null ? "Actual + projected (all income sources)" : `${fmt(actualYTD.income)} actual + ${fmt(projectedTotals.grossIncome)} projected`}
           highlight
+          hero
         />
-        <SummaryCard
-          icon={<TrendingUp className="h-4 w-4" />}
-          label="Projected Remaining"
-          value={fmt(projectedTotals.grossIncome)}
-          sublabel={`${projectedTotals.count} upcoming payments`}
-        />
-        <SummaryCard
-          icon={<Shield className="h-4 w-4" />}
-          label="Estimated Annual Tax"
-          value={fmt(forecastEstimate?.totalTaxLiability || 0)}
-          sublabel="Based on actual + projected income"
-        />
-        <SummaryCard
-          icon={<PiggyBank className="h-4 w-4" />}
-          label={isW2Only ? "Federal Withholding" : "Projected Withholding"}
-          value={fmt(projectedWithholding)}
-          sublabel={projected401k > 0 ? `+ ${fmt(projected401k)} in 401(k)` : undefined}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <SummaryCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="Projected Remaining"
+            value={fmt(projectedTotals.grossIncome)}
+          />
+          <SummaryCard
+            icon={<Shield className="h-4 w-4" />}
+            label="Estimated Annual Tax"
+            value={fmt(forecastEstimate?.totalTaxLiability || 0)}
+          />
+        </div>
       </div>
 
       <DuplicateConversionsReview />
