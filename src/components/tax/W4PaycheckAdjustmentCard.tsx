@@ -739,12 +739,17 @@ export default function W4PaycheckAdjustmentCard() {
         ) : (
           <>
             <p className="text-sm text-foreground">
-              For your W-2 jobs, enter the following extra withholding amounts in Form W-4 Step 4(c):
+              For your W-2 jobs, enter the following extra withholding amounts in Form W-4 Step 4(c).{" "}
+              <span className="text-muted-foreground">
+                Annual gap remaining: <span className="font-semibold text-foreground">{fmt(remainingW4Gap)}</span>.
+              </span>
             </p>
 
             <div className="space-y-3">
               {effectiveRows.map((r) => {
                 const a = allocations.find((x) => x.streamId === r.streamId);
+                const perPaycheck = a?.step4cPerPaycheck ?? 0;
+                const annualForEmployer = perPaycheck * r.remainingPaychecks;
                 return (
                   <div
                     key={r.streamId}
@@ -754,14 +759,20 @@ export default function W4PaycheckAdjustmentCard() {
                       <p className="text-sm font-medium text-foreground truncate">{r.company}</p>
                       <div className="text-right shrink-0">
                         <p className="text-base font-semibold tabular-nums text-primary">
-                          Enter {fmt(a?.step4cPerPaycheck ?? 0)}
+                          {fmt(perPaycheck)}{" "}
+                          <span className="text-xs font-normal text-muted-foreground">/ paycheck</span>
                         </p>
-                        <p className="text-xs text-muted-foreground">in Step 4(c)</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Enter in W-4 Step 4(c) · ≈ {fmt(annualForEmployer)} annual
+                        </p>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Based on {formatFrequencyLabel(r.payFrequency).toLowerCase()} and{" "}
-                      {r.remainingPaychecks} remaining paycheck{r.remainingPaychecks === 1 ? "" : "s"} this year.
+                      {r.remainingPaychecks} remaining paycheck{r.remainingPaychecks === 1 ? "" : "s"} this year
+                      {r.remainingPaychecks > 0
+                        ? ` (annual ${fmt(annualForEmployer)} ÷ ${r.remainingPaychecks} = ${fmt(perPaycheck)} per paycheck).`
+                        : "."}
                     </p>
                     {(r as any).missingSettings && (
                       <p className="text-xs text-warning flex items-start gap-1.5">
