@@ -34,7 +34,7 @@ type Step = "choose" | "confirmErase" | "confirmDelete" | "erased";
 const ERASE_COMPLETE_MARKER = "paycheckmd:erase-complete";
 
 export function DangerZoneSection() {
-  const navigate = useNavigate();
+  
   const queryClient = useQueryClient();
   const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
