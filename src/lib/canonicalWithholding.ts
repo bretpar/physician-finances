@@ -58,9 +58,11 @@ export function selectCanonicalWithholding(
   const pF = Number(forecastDebug?.projectedFederalWithheld ?? 0);
   const pS = Number(forecastDebug?.projectedStateWithheld ?? 0);
 
-  // Forecast totals: prefer engine's combined total, otherwise actual + projected.
-  const fF = Number(forecastDebug?.federalWithheld ?? aF + pF);
-  const fS = Number(forecastDebug?.stateWithheld ?? aS + pS);
+  // Forecast totals: engine-combined when populated, otherwise actual+projected.
+  const engineFF = Number(forecastDebug?.federalWithheld ?? 0);
+  const engineFS = Number(forecastDebug?.stateWithheld ?? 0);
+  const fF = engineFF > 0 ? engineFF : aF + pF;
+  const fS = engineFS > 0 ? engineFS : aS + pS;
 
   return {
     actual: { federal: aF, state: aS, total: aF + aS },
