@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
 import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, useBulkDeleteTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
+import { dedupeYtdBusinessMirrors } from "@/lib/ytdCatchupLedger";
 import { useAddIncome, useUpdateIncome, type IncomeEntry } from "@/hooks/useIncome";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserOrgId } from "@/hooks/useOrgId";
