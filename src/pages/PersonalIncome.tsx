@@ -27,6 +27,7 @@ import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGr
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { formatDate, formatDateShort, formatMonthYear } from "@/lib/localDate";
@@ -154,10 +155,16 @@ const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown }
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
-  const { data: rawEntries = [], isLoading } = usePersonalIncomeEntries();
+  const { data: rawEntriesUnsafe = [], isLoading } = usePersonalIncomeEntries();
   const { companies } = useCompanies();
   const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
+  // CANONICAL: defensive dedupe so a transient sync hiccup or replication lag
+  // can never render two semantic income events for the same YTD catch-up.
+  const rawEntries = useMemo<PersonalIncomeEntry[]>(
+    () => dedupeYtdPersonalMirrors(rawEntriesUnsafe as unknown as Array<PersonalIncomeEntry & { linked_ytd_catchup_id?: string | null; created_at?: string | null }>) as unknown as PersonalIncomeEntry[],
+    [rawEntriesUnsafe],
+  );
   const entries = useMemo(() => {
     return rawEntries.filter((e: any) => {
       if (filterReview === "needs_review" && !e.needs_review) return false;
