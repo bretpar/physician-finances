@@ -2199,21 +2199,23 @@ function SummaryCard({
   value,
   sublabel,
   highlight,
+  hero,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   sublabel?: string;
   highlight?: boolean;
+  hero?: boolean;
 }) {
   return (
     <Card className={highlight ? "border-primary/20 bg-primary/5" : ""}>
-      <CardContent className="pt-4 pb-4 space-y-1">
+      <CardContent className={`space-y-1 ${hero ? "pt-6 pb-6" : "pt-4 pb-4"}`}>
         <div className="flex items-center gap-2 text-muted-foreground">
           {icon}
-          <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
+          <span className={`font-medium uppercase tracking-wider ${hero ? "text-sm" : "text-xs"}`}>{label}</span>
         </div>
-        <p className={`text-2xl font-bold ${highlight ? "text-primary" : "text-foreground"}`}>
+        <p className={`font-bold ${hero ? "text-4xl" : "text-2xl"} ${highlight ? "text-primary" : "text-foreground"}`}>
           {value}
         </p>
         {sublabel && (
