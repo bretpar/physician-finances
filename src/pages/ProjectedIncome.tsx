@@ -323,11 +323,17 @@ export default function ProjectedIncome() {
     const ytd = incomeEntries.filter((e) => e.income_date.startsWith(String(year)));
     return {
       income: ytd.reduce((s, e) => s + Number(e.paycheck_amount), 0),
-      withheld: ytd.reduce((s, e) => s + Number(e.taxes_withheld), 0),
+      // CANONICAL: federal withholding from unified tax engine (handles
+      // legacy rows, YTD catch-up overlap, business + personal entries).
+      // Falls back to per-entry sum during initial load only.
+      withheld:
+        canonicalWithholding.actual.federal > 0
+          ? canonicalWithholding.actual.federal
+          : ytd.reduce((s, e) => s + Number(e.taxes_withheld), 0),
       retirement: ytd.reduce((s, e) => s + Number(e.retirement_401k), 0),
       deductions: ytd.reduce((s, e) => s + Number(e.pre_tax_deductions), 0),
     };
-  }, [incomeEntries]);
+  }, [incomeEntries, canonicalWithholding]);
 
   const byMonth = useMemo(() => {
     const map = new Map<number, ProjectedPaycheck[]>();
@@ -343,7 +349,11 @@ export default function ProjectedIncome() {
   // Use centralized tax-engine total when available so this matches Dashboard
   // (includes investments, personal/W-2, business, and planned income).
   const expectedAnnual = forecastDebug?.totalGrossIncome ?? localExpectedAnnual;
-  const projectedWithholding = actualYTD.withheld + projectedTotals.taxesWithheld;
+  // CANONICAL forecast withholding (actual YTD + projected future paychecks).
+  const projectedWithholding =
+    canonicalWithholding.forecast.federal > 0
+      ? canonicalWithholding.forecast.federal
+      : actualYTD.withheld + projectedTotals.taxesWithheld;
   const projected401k = actualYTD.retirement + projectedTotals.retirement401k;
   const projectedRefund = forecastDebug ? Math.max(0, forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax) : 0;
   const projectedGap = forecastDebug?.remainingTaxDue ?? 0;
