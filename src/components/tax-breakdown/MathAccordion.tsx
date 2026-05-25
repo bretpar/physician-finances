@@ -50,12 +50,14 @@ function Step({
   op,
   bold,
   planned,
+  hint,
 }: {
   label: string;
   value: string;
   op?: "add" | "subtract" | "equals";
   bold?: boolean;
   planned?: boolean;
+  hint?: string;
 }) {
   return (
     <div className="flex items-center justify-between text-sm py-1.5">
@@ -66,6 +68,7 @@ function Step({
           </span>
         )}
         <span className={cn(bold ? "font-semibold" : "text-muted-foreground", planned && "italic")}>{label}</span>
+        {hint && <InfoHint text={hint} />}
       </div>
       <span className={cn("tabular-nums", bold ? "font-bold" : "font-medium", planned && "text-primary")}>{value}</span>
     </div>
