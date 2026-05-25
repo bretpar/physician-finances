@@ -363,10 +363,10 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
 
 
 
-          {/* D. Capital gains */}
+          {/* E. Capital gains */}
           {(data.totalShortTermGains > 0 || data.totalLongTermGains > 0) && (
             <AccordionItem value="capgains">
-              <AccordionTrigger className="text-sm">D. Capital gains breakdown</AccordionTrigger>
+              <AccordionTrigger className="text-sm">E. Capital gains breakdown</AccordionTrigger>
               <AccordionContent className="space-y-0">
                 {data.totalShortTermGains > 0 && (
                   <Step label="Short-term gains (taxed as ordinary income)" value={fmt(data.totalShortTermGains)} />
