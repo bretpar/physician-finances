@@ -46,6 +46,7 @@ import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
