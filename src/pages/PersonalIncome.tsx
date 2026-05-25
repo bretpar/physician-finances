@@ -154,10 +154,17 @@ const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown }
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
-  const { data: rawEntries = [], isLoading } = usePersonalIncomeEntries();
+  const { data: rawEntriesUnsafe = [], isLoading } = usePersonalIncomeEntries();
   const { companies } = useCompanies();
   const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
+  // CANONICAL: defensive dedupe so a transient sync hiccup or replication lag
+  // can never render two semantic income events for the same YTD catch-up.
+  // See src/lib/ytdCatchupLedger.ts.
+  const rawEntries = useMemo(
+    () => dedupeYtdPersonalMirrors(rawEntriesUnsafe as any[]),
+    [rawEntriesUnsafe],
+  );
   const entries = useMemo(() => {
     return rawEntries.filter((e: any) => {
       if (filterReview === "needs_review" && !e.needs_review) return false;
