@@ -62,6 +62,67 @@ export function usePersonalIncomeEntries() {
   });
 }
 
+/** Numeric coercion that preserves explicit 0 and rejects NaN.
+ *  IMPORTANT: never use `||` for money fields — it turns a legit $0 into a
+ *  fallback value and breaks lossless round-tripping of W-2 paychecks. */
+function money(v: unknown): number {
+  if (v === null || v === undefined || v === "") return 0;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Build the canonical income_entries row from a partial entry. Used by both
+ *  add (insert) and update (spread) paths so every W-2 / paycheck field is
+ *  guaranteed to persist and round-trip losslessly. */
+export function buildIncomeEntryRow(
+  entry: Partial<PersonalIncomeEntry> & { ui_income_subtype?: string | null; additional_tax_reserve?: number; base_tax_estimate?: number; dynamic_tax_recommendation?: number; quarterly_adjustment_amount?: number; recommendation_status?: string },
+) {
+  const gross = money(entry.gross_amount);
+  // paycheck_amount mirrors gross when the caller did not provide it
+  // explicitly (e.g. older code paths). Use ?? so an explicit 0 is preserved.
+  const paycheck = entry.paycheck_amount ?? gross;
+  // deposited_amount falls back to paycheck → gross only when undefined.
+  const deposited = entry.deposited_amount ?? paycheck ?? gross;
+  // taxes_withheld is the canonical "Total Federal Payroll Taxes" total.
+  // Preserve explicit values (including 0) — do NOT fall back to a split
+  // component, which would double-count or hide the user's intent.
+  const taxesWithheld = entry.taxes_withheld ?? 0;
+  return {
+    name: entry.name ?? "",
+    company: entry.company ?? "",
+    source_id: entry.source_id ?? null,
+    income_type: toCanonicalIncomeType(entry.income_type),
+    ui_income_subtype: entry.ui_income_subtype ?? entry.income_type ?? null,
+    income_date: entry.income_date || new Date().toISOString().split("T")[0],
+    gross_amount: gross,
+    paycheck_amount: money(paycheck),
+    deposited_amount: money(deposited),
+    cost_basis: entry.cost_basis ?? null,
+    realized_gain_loss: entry.realized_gain_loss ?? null,
+    federal_withholding: money(entry.federal_withholding),
+    state_withholding: money(entry.state_withholding),
+    ss_withholding: money(entry.ss_withholding),
+    medicare_withholding: money(entry.medicare_withholding),
+    taxes_withheld: money(taxesWithheld),
+    pre_tax_deductions: money(entry.pre_tax_deductions),
+    retirement_401k: money(entry.retirement_401k),
+    healthcare_deduction: money(entry.healthcare_deduction),
+    hsa_contribution: money(entry.hsa_contribution),
+    additional_tax_reserve: money(entry.additional_tax_reserve),
+    base_tax_estimate: money(entry.base_tax_estimate),
+    dynamic_tax_recommendation: money(entry.dynamic_tax_recommendation),
+    quarterly_adjustment_amount: money(entry.quarterly_adjustment_amount),
+    recommendation_status: entry.recommendation_status ?? "on_track",
+    source_bucket: "personal",
+    tax_category: entry.tax_category ?? "ordinary",
+    is_actual: true,
+    include_in_tax_estimate: entry.include_in_tax_estimate ?? true,
+    include_in_cash_flow: entry.include_in_cash_flow ?? false,
+    notes: entry.notes ?? "",
+    status: entry.status ?? "received",
+  };
+}
+
 export function useAddPersonalIncome() {
   const qc = useQueryClient();
   return useMutation({
@@ -74,37 +135,12 @@ export function useAddPersonalIncome() {
         );
       }
       const orgId = await getUserOrgId();
-      const { data, error } = await supabase.from("income_entries").insert({
-        user_id: user.id,
-        organization_id: orgId,
-        name: entry.name || "",
-        company: entry.company || "",
-        source_id: entry.source_id ?? null,
-        income_type: toCanonicalIncomeType(entry.income_type),
-        ui_income_subtype: entry.ui_income_subtype ?? entry.income_type ?? null,
-        income_date: entry.income_date || new Date().toISOString().split("T")[0],
-        gross_amount: entry.gross_amount || 0,
-        paycheck_amount: entry.paycheck_amount || entry.gross_amount || 0,
-        deposited_amount: entry.deposited_amount ?? entry.paycheck_amount ?? entry.gross_amount ?? 0,
-        cost_basis: entry.cost_basis ?? null,
-        realized_gain_loss: entry.realized_gain_loss ?? null,
-        federal_withholding: entry.federal_withholding || 0,
-        state_withholding: entry.state_withholding || 0,
-        ss_withholding: entry.ss_withholding || 0,
-        medicare_withholding: entry.medicare_withholding || 0,
-        taxes_withheld: entry.taxes_withheld || entry.federal_withholding || 0,
-        pre_tax_deductions: entry.pre_tax_deductions || 0,
-        retirement_401k: entry.retirement_401k || 0,
-        healthcare_deduction: entry.healthcare_deduction || 0,
-        hsa_contribution: entry.hsa_contribution || 0,
-        source_bucket: "personal",
-        tax_category: entry.tax_category || "ordinary",
-        is_actual: true,
-        include_in_tax_estimate: true,
-        include_in_cash_flow: false,
-        notes: entry.notes || "",
-        status: "received",
-      } as any).select("id").single();
+      const row = buildIncomeEntryRow(entry);
+      const { data, error } = await supabase
+        .from("income_entries")
+        .insert({ user_id: user.id, organization_id: orgId, ...row } as any)
+        .select("id")
+        .single();
       if (error) throw error;
       return data as { id: string } | null;
     },
@@ -116,6 +152,7 @@ export function useAddPersonalIncome() {
     onError: (e) => toast.error(e.message),
   });
 }
+
 
 export function useUpdatePersonalIncome() {
   const qc = useQueryClient();

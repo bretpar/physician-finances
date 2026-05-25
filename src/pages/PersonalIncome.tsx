@@ -960,12 +960,12 @@ export default function PersonalIncome() {
 
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Title / Description</Label>
-              <Input placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
+              <Input data-testid="pi-title" placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
             </div>
 
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Income *</Label>
-              <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.gross_amount} onChange={(e) => setField("gross_amount", e.target.value)} />
+              <Input data-testid="pi-gross" type="number" min="0" step="0.01" placeholder="0.00" value={form.gross_amount} onChange={(e) => setField("gross_amount", e.target.value)} />
               <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
             </div>
 
@@ -975,6 +975,7 @@ export default function PersonalIncome() {
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
                   <Input
+                    data-testid="pi-net"
                     type="number" min="0" step="0.01"
                     placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution)))}
                     value={form.net_received}
@@ -1044,25 +1045,25 @@ export default function PersonalIncome() {
                       {showField("retirement_401k") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
+                          <Input data-testid="pi-401k" type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
                         </div>
                       )}
                       {showField("healthcare_deduction") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
+                          <Input data-testid="pi-health" type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
                         </div>
                       )}
                       {showField("hsa_contribution") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">HSA Contribution</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
+                          <Input data-testid="pi-hsa" type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
+                          <Input data-testid="pi-pretax-other" type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
                         </div>
                       )}
                     </div>
