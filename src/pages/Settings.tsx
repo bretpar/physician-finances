@@ -1150,7 +1150,7 @@ function CompaniesSection() {
 
   return (
     <>
-      <div data-testid="companies-section">
+      <div data-testid="companies-section" data-testid-alias="settings-companies-section" id="settings-companies-section">
       <SectionCard
         title="Companies"
         icon={<Building2 className="h-5 w-5" />}
