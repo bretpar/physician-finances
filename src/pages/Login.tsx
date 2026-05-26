@@ -124,14 +124,14 @@ export default function Login() {
             {!resetMode && <div className="text-right"><button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => setResetMode(true)}>Forgot password?</button></div>}
             {loginCooldownSeconds > 0 && !resetMode && <p className="text-sm text-muted-foreground">Too many attempts. Please try again in {loginCooldownSeconds} seconds.</p>}
             {resetCooldownSeconds > 0 && resetMode && <p className="text-sm text-muted-foreground">Too many attempts. Please try again in {resetCooldownSeconds} seconds.</p>}
-            <Button type="submit" className="w-full" disabled={loading || resetLoading || (!resetMode && loginCooldownSeconds > 0) || (resetMode && resetCooldownSeconds > 0)}>
+            <Button type="submit" data-testid="login-submit" className="w-full" disabled={loading || resetLoading || (!resetMode && loginCooldownSeconds > 0) || (resetMode && resetCooldownSeconds > 0)}>
               {resetMode ? (resetLoading ? "Sending…" : "Send reset link") : (loading ? "Signing in…" : "Sign In")}
             </Button>
           </form>
           {resetMode && <button type="button" className="mt-4 w-full text-center text-sm font-medium text-primary hover:underline" onClick={() => setResetMode(false)}>Back to sign in</button>}
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-primary hover:underline font-medium">
+            <Link to="/signup" data-testid="create-account-cta" className="text-primary hover:underline font-medium">
               Sign up
             </Link>
           </p>
