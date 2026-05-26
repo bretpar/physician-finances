@@ -1060,25 +1060,25 @@ export default function PersonalIncome() {
                       {showField("retirement_401k") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label>
-                          <Input data-testid="pi-401k" type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
+                          <Input data-testid="paycheck-401k-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
                         </div>
                       )}
                       {showField("healthcare_deduction") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label>
-                          <Input data-testid="pi-health" type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
+                          <Input data-testid="paycheck-health-insurance-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
                         </div>
                       )}
                       {showField("hsa_contribution") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">HSA Contribution</Label>
-                          <Input data-testid="pi-hsa" type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
+                          <Input data-testid="paycheck-hsa-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label>
-                          <Input data-testid="pi-pretax-other" type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
+                          <Input data-testid="paycheck-pretax-other-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
                         </div>
                       )}
                     </div>
