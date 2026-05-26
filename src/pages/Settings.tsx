@@ -1200,15 +1200,21 @@ function CompaniesSection() {
               const saved = !!savedFlash[company.id];
 
               return (
-                <div key={company.id} className={cn(
-                  "border rounded-lg p-4 space-y-3 transition-colors",
-                  dirty ? "border-warning/40 bg-warning/5" : "border-border",
-                )}>
+                <div
+                  key={company.id}
+                  data-testid="company-form"
+                  data-company-id={company.id}
+                  className={cn(
+                    "border rounded-lg p-4 space-y-3 transition-colors",
+                    dirty ? "border-warning/40 bg-warning/5" : "border-border",
+                  )}
+                >
                   <div className="space-y-3">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
                         <Input
+                          data-testid="company-name-input"
                           value={getValue(company, "name") as string}
                           onChange={(e) => setField(company.id, "name", e.target.value)}
                           placeholder="e.g. Vituity"
