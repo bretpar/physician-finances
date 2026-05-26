@@ -241,6 +241,7 @@ export function SourceEmployerCombobox({
           <div className="p-2 border-b border-border">
             <Input
               ref={inputRef}
+              data-testid="paycheck-employer-search"
               placeholder="Search sources / employers…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -262,6 +263,8 @@ export function SourceEmployerCombobox({
                   <button
                     key={s.id}
                     type="button"
+                    data-testid={`paycheck-employer-option-${s.id}`}
+                    data-employer-name={s.name || s.nickname || ""}
                     onClick={() => selectSource(s)}
                     className={cn(
                       "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer hover:bg-muted/60",
@@ -292,6 +295,8 @@ export function SourceEmployerCombobox({
                   <button
                     key={s.id}
                     type="button"
+                    data-testid={`paycheck-employer-option-${s.id}`}
+                    data-employer-name={s.name || s.nickname || ""}
                     onClick={() => selectSource(s)}
                     className={cn(
                       "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer hover:bg-muted/60",

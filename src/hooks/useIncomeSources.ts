@@ -43,11 +43,23 @@ export function useIncomeSources() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("id, name, nickname, source_kind, company_type")
+        .select("id, name, nickname, source_kind, company_type, archived_at")
+        .is("archived_at", null)
         .order("name");
       if (error) throw error;
-      return (data || []) as IncomeSource[];
+      return ((data || []) as any[])
+        .filter((c) => !!(c.name || c.nickname))
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          nickname: c.nickname,
+          source_kind: c.source_kind,
+          company_type: c.company_type,
+        })) as IncomeSource[];
     },
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 }
 
