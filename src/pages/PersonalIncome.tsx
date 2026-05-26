@@ -1036,6 +1036,7 @@ export default function PersonalIncome() {
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">State tax withheld</Label>
                 <Input
+                  data-testid="paycheck-state-withholding-input"
                   type="number" min="0" step="0.01" placeholder="0.00"
                   value={form.state_withholding}
                   onChange={(e) => setField("state_withholding", e.target.value)}
