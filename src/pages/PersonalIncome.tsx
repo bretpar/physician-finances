@@ -753,6 +753,12 @@ export default function PersonalIncome() {
             return (
               <div
                 key={entry.id}
+                data-testid="paycheck-row"
+                data-paycheck-id={entry.id}
+                data-company-id={entry.source_id ?? ""}
+                data-employer={entry.company ?? ""}
+                data-income-type={entry.income_type}
+                data-gross={Number(entry.gross_amount) || 0}
                 className="grid grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center cursor-pointer"
                 onClick={() => setDetailEntry(entry)}
               >
