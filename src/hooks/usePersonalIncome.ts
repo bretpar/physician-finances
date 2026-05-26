@@ -184,9 +184,11 @@ export function useUpdatePersonalIncome() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+      ]);
       toast.success("Income entry updated");
     },
     onError: (e) => toast.error(e.message),
