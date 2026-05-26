@@ -215,6 +215,7 @@ export function SourceEmployerCombobox({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            data-testid="paycheck-employer-trigger"
             variant="outline"
             role="combobox"
             aria-expanded={open}
