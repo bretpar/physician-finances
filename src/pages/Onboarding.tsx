@@ -429,14 +429,14 @@ export default function Onboarding() {
           </div>
 
           {step === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-4" data-testid="onboarding-step-1">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground">Confirm your income setup</h1>
                 <p className="mt-1 text-sm text-muted-foreground">We pre-filled this from your estimate. Adjust if needed.</p>
               </div>
               <div>
                 <Label htmlFor="onboarding-first-name">First name</Label>
-                <Input id="onboarding-first-name" autoComplete="given-name" value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
+                <Input id="onboarding-first-name" data-testid="onboarding-first-name-input" autoComplete="given-name" value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
               </div>
               <div className="grid gap-3">
                 <div data-testid="onboarding-income-type-w2"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /></div>
