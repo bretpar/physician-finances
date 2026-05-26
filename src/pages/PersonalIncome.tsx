@@ -641,7 +641,7 @@ export default function PersonalIncome() {
             <p className="text-xs text-muted-foreground">Actual non-business income affecting your taxes</p>
           </div>
         </div>
-        <Button size="sm" onClick={openAdd} className="gap-1.5">
+        <Button data-testid="add-paycheck-button" size="sm" onClick={openAdd} className="gap-1.5">
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </div>
