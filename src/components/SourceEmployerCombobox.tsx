@@ -159,9 +159,10 @@ export function SourceEmployerCombobox({
 
   if (isOther) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" data-testid="paycheck-employer-other-mode">
         <Input
           ref={otherInputRef}
+          data-testid="paycheck-employer-input"
           autoFocus
           placeholder="Enter employer or income source"
           value={otherName}
