@@ -404,6 +404,23 @@ export default function W4PaycheckAdjustmentCard() {
   const { data: incomeEntries } = useIncomeEntries();
   const { data: transactions } = useTransactions();
 
+  // Resolve an employee label (primary user vs spouse) for each W-2 employer
+  // from the most recent income entry tied to that employer's source_id.
+  // ui_income_subtype "w2_partner" → Spouse, otherwise Primary.
+  const employeeBySourceId = useMemo(() => {
+    const map = new Map<string, "primary" | "spouse">();
+    const byDate = [...(incomeEntries || [])].sort((a, b) =>
+      (b.income_date || "").localeCompare(a.income_date || ""),
+    );
+    for (const e of byDate) {
+      const sid = (e as any).source_id as string | null;
+      if (!sid || map.has(sid)) continue;
+      const subtype = ((e as any).ui_income_subtype || (e as any).income_type || "") as string;
+      map.set(sid, subtype === "w2_partner" ? "spouse" : "primary");
+    }
+    return map;
+  }, [incomeEntries]);
+
   const [showHow, setShowHow] = useState(false);
 
   const businessRateSel = getSavingsRateForIncomeBucket({
