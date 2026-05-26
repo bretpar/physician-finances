@@ -1136,6 +1136,7 @@ function CompaniesSection() {
       defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
       advancedFieldVisibility: {}, applyBusinessStateTax: true, includeSETaxInRecommendation: true,
       payFrequency: null, remainingPaychecksOverride: null,
+      employeeRole: null, projectedAnnualGross: null, expectedFederalWithholdingPerPaycheck: null,
     });
   }
 
