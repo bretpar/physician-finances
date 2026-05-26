@@ -222,6 +222,8 @@ export default function PersonalIncome() {
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [savedEntryId, setSavedEntryId] = useState<string | null>(null);
   const [savedEntryTitle, setSavedEntryTitle] = useState("");
+  const [savedEntryAt, setSavedEntryAt] = useState<string | null>(null);
+  const [savedEntryMode, setSavedEntryMode] = useState<"create" | "update" | null>(null);
   const [reminderRecommended, setReminderRecommended] = useState(0);
   const [reminderActualSaved, setReminderActualSaved] = useState(0);
 
@@ -567,8 +569,18 @@ export default function PersonalIncome() {
     const showModal2 = isFeatureEnabled("recommendation_modal") && !isEditing;
 
     if (isEditing) {
-      updateMutation.mutate({ id: editingId!, ...finalPayload } as any, {
-        onSuccess: () => { setShowForm(false); setEditingId(null); },
+      const editId = editingId!;
+      updateMutation.mutate({ id: editId, ...finalPayload } as any, {
+        onSuccess: () => {
+          // Explicit success signal for automated audits — the ledger refetch
+          // has already completed (see useUpdatePersonalIncome.onSuccess).
+          setSavedEntryId(editId);
+          setSavedEntryTitle(form.title);
+          setSavedEntryAt(new Date().toISOString());
+          setSavedEntryMode("update");
+          setShowForm(false);
+          setEditingId(null);
+        },
       });
     } else {
       addMutation.mutate(finalPayload as any, {
@@ -583,6 +595,12 @@ export default function PersonalIncome() {
           }
           setPendingAttachments([]);
           setShowForm(false);
+          // Explicit success signal — newId is guaranteed and the ledger has
+          // already been refetched (see useAddPersonalIncome.onSuccess).
+          setSavedEntryId(newId);
+          setSavedEntryTitle(form.title);
+          setSavedEntryAt(new Date().toISOString());
+          setSavedEntryMode("create");
           if (showModal2 && recommendation) {
             // Per-transaction reminder: compare amount saved on THIS entry
             // against the per-transaction recommended savings (baseTaxEstimate).
@@ -595,7 +613,6 @@ export default function PersonalIncome() {
               num(form.additional_tax_reserve);
             // Only nudge when meaningfully behind (< 90% of recommended).
             if (recommended > 0 && actualSaved < recommended * 0.9) {
-              setSavedEntryTitle(form.title);
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
               setShowRecommendation(true);
@@ -696,7 +713,24 @@ export default function PersonalIncome() {
       )}
 
       {/* Entries table */}
-      <div data-testid="paychecks-ledger" className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Explicit post-save success marker for automated audits. Hidden from
+          users but stable in the DOM. The presence of `data-entry-id` (with
+          the new row already present in the ledger) confirms that the save
+          flow completed AND the ledger refetch settled. */}
+      {savedEntryId && (
+        <div
+          data-testid="paycheck-save-success"
+          data-entry-id={savedEntryId}
+          data-entry-title={savedEntryTitle}
+          data-entry-mode={savedEntryMode ?? ""}
+          data-saved-at={savedEntryAt ?? ""}
+          data-ledger-count={entries.length}
+          className="sr-only"
+          aria-hidden="true"
+        />
+      )}
+
+      <div data-testid="paychecks-ledger" data-ledger-count={entries.length} className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="hidden sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>Date</span>
           <span>Description</span>
@@ -719,6 +753,12 @@ export default function PersonalIncome() {
             return (
               <div
                 key={entry.id}
+                data-testid="paycheck-row"
+                data-paycheck-id={entry.id}
+                data-company-id={entry.source_id ?? ""}
+                data-employer={entry.company ?? ""}
+                data-income-type={entry.income_type}
+                data-gross={Number(entry.gross_amount) || 0}
                 className="grid grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-3 hover:bg-muted/30 transition-colors items-center cursor-pointer"
                 onClick={() => setDetailEntry(entry)}
               >
@@ -824,7 +864,15 @@ export default function PersonalIncome() {
                   const isMobileSelected = mobileSelectedOrder.includes(entry.id);
 
                   return (
-                    <div key={entry.id}>
+                    <div
+                      key={entry.id}
+                      data-testid="paycheck-row"
+                      data-paycheck-id={entry.id}
+                      data-company-id={entry.source_id ?? ""}
+                      data-employer={entry.company ?? ""}
+                      data-income-type={entry.income_type}
+                      data-gross={Number(entry.gross_amount) || 0}
+                    >
                       <LedgerRow
                         kind={isLoss ? "neutral" : "income"}
                         title={entry.name || "(No payor)"}
