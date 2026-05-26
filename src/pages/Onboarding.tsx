@@ -86,8 +86,16 @@ export default function Onboarding() {
   } : draft, [draft, taxSettings]);
   const catchupChoice = merged.ytdCatchupChoice ?? null;
 
+  // Hydrate local draft/step from server ONCE on initial load. Subsequent
+  // refetches (triggered by our own persist() calls) must NOT overwrite the
+  // user's in-progress local state — otherwise clicking Continue can race the
+  // refetch and snap the UI back to a previous step or reset the income-type
+  // selection the user just made.
+  const hydratedRef = useRef(false);
   useEffect(() => {
+    if (hydratedRef.current) return;
     if (!user || isLoading || !taxSettings) return;
+    hydratedRef.current = true;
     const savedStep = Math.min(TOTAL_STEPS, Math.max(1, taxSettings.onboardingStep || 1));
     setStep(savedStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(savedStep));
