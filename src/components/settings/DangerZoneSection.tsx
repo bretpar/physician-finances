@@ -200,6 +200,7 @@ export function DangerZoneSection() {
                 <Button
                   variant="outline"
                   className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  data-testid="settings-safe-erase-option"
                   onClick={() => setStep("confirmErase")}
                 >
                   Erase account data
