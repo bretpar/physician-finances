@@ -213,6 +213,12 @@ export function normalizeEmployerName(name: string | null | undefined): string {
     .trim();
 }
 
+/** URL/testid-safe slug for an employer name. Falls back to "employer". */
+export function employerSlug(name: string | null | undefined): string {
+  const slug = normalizeEmployerName(name).replace(/\s+/g, "-");
+  return slug || "employer";
+}
+
 /**
  * Build a stable W-4 employer-grouping key for a projected stream.
  *
@@ -404,6 +410,23 @@ export default function W4PaycheckAdjustmentCard() {
   const { data: incomeEntries } = useIncomeEntries();
   const { data: transactions } = useTransactions();
 
+  // Resolve an employee label (primary user vs spouse) for each W-2 employer
+  // from the most recent income entry tied to that employer's source_id.
+  // ui_income_subtype "w2_partner" → Spouse, otherwise Primary.
+  const employeeBySourceId = useMemo(() => {
+    const map = new Map<string, "primary" | "spouse">();
+    const byDate = [...(incomeEntries || [])].sort((a, b) =>
+      (b.income_date || "").localeCompare(a.income_date || ""),
+    );
+    for (const e of byDate) {
+      const sid = (e as any).source_id as string | null;
+      if (!sid || map.has(sid)) continue;
+      const subtype = ((e as any).ui_income_subtype || (e as any).income_type || "") as string;
+      map.set(sid, subtype === "w2_partner" ? "spouse" : "primary");
+    }
+    return map;
+  }, [incomeEntries]);
+
   const [showHow, setShowHow] = useState(false);
 
   const businessRateSel = getSavingsRateForIncomeBucket({
@@ -589,6 +612,26 @@ export default function W4PaycheckAdjustmentCard() {
       plannedFutureBusinessReservesCounted,
   );
 
+  // ── Stable testable summary numbers ──
+  // projectedHouseholdGross = full forecast household gross (W-2 + business +
+  // other), so audits can verify the full-picture input the W-4 math uses.
+  const projectedHouseholdGross = Number(forecastDebug?.totalGrossIncome ?? 0);
+  // projectedFederalWithholding = actual YTD federal + projected future federal
+  // withholding (excludes state on purpose so the testid name matches reality).
+  const projectedFederalWithholding =
+    Number(forecastDebug?.actualFederalWithheld ?? 0) +
+    Number(forecastDebug?.projectedFederalWithheld ?? 0);
+  // Signed annual gap: positive when under-withheld, negative when over.
+  const signedAnnualGap =
+    projectedTotalTax -
+    taxesAlreadyWithheld -
+    actualTaxSavedOrPaid -
+    estPaymentsAlreadyMade -
+    expectedFutureNormalW2Withholding -
+    plannedFutureBusinessReservesCounted;
+  const annualTaxGap = Math.max(0, signedAnnualGap);
+  const annualTaxSurplus = Math.max(0, -signedAnnualGap);
+
   // Read per-company W-4 settings from Settings > Companies.
   const { companies } = useCompanies();
   const companyByEmployerKey = useMemo(() => {
@@ -690,6 +733,27 @@ export default function W4PaycheckAdjustmentCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Stable, machine-readable W-4 summary outputs. Hidden from sighted
+            users (sr-only) but always present so automated audits can assert
+            calculator correctness without scraping fragile visual copy. */}
+        <div className="sr-only" aria-hidden="true" data-testid="w4-summary-outputs">
+          <span data-testid="w4-projected-household-gross" data-value={projectedHouseholdGross}>
+            {fmt(projectedHouseholdGross)}
+          </span>
+          <span data-testid="w4-projected-federal-withholding" data-value={projectedFederalWithholding}>
+            {fmt(projectedFederalWithholding)}
+          </span>
+          <span data-testid="w4-annual-tax-gap" data-value={annualTaxGap}>
+            {fmt(annualTaxGap)}
+          </span>
+          <span data-testid="w4-annual-tax-surplus" data-value={annualTaxSurplus}>
+            {fmt(annualTaxSurplus)}
+          </span>
+          <span data-testid="w4-total-extra-withholding-needed" data-value={totalExtraThroughYearEnd}>
+            {fmt(totalExtraThroughYearEnd)}
+          </span>
+        </div>
+
         <p className="text-xs text-muted-foreground leading-relaxed">
           Per-paycheck targets can show extra needed on individual checks, but
           W-4 changes are based on your full annual tax picture after counting
@@ -713,6 +777,91 @@ export default function W4PaycheckAdjustmentCard() {
             checked={countPlannedNonW2Reserves}
             onCheckedChange={handleToggleChange}
           />
+        </div>
+
+        {/* Per-employer W-4 allocation table — always rendered so automated
+            audits can locate every W-2 job row regardless of gap/surplus
+            state. The label makes it unambiguous that the "Extra" column is
+            per paycheck, not annual. */}
+        <div
+          data-testid="w4-recommendation-table"
+          data-row-count={effectiveRows.length}
+          data-annual-tax-gap={annualTaxGap}
+          data-annual-tax-surplus={annualTaxSurplus}
+          className="overflow-x-auto rounded-md border border-border"
+        >
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 text-muted-foreground">
+              <tr>
+                <th className="text-left font-medium px-2 py-1.5">Employer</th>
+                <th className="text-left font-medium px-2 py-1.5">Employee</th>
+                <th className="text-left font-medium px-2 py-1.5">Pay frequency</th>
+                <th className="text-right font-medium px-2 py-1.5">Remaining paychecks</th>
+                <th className="text-right font-medium px-2 py-1.5">Projected gross</th>
+                <th className="text-right font-medium px-2 py-1.5">Projected fed. withholding</th>
+                <th className="text-right font-medium px-2 py-1.5">Extra / paycheck</th>
+              </tr>
+            </thead>
+            <tbody>
+              {effectiveRows.map((r) => {
+                const a = allocations.find((x) => x.streamId === r.streamId);
+                const perPaycheck = a?.step4cPerPaycheck ?? 0;
+                const slug = employerSlug(r.company);
+                // Determine employee (primary/spouse) from any source_id that
+                // grouped into this employer row.
+                const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
+                let employee: "primary" | "spouse" = "primary";
+                for (const sid of sourceIds) {
+                  const tag = employeeBySourceId.get(sid);
+                  if (tag === "spouse") { employee = "spouse"; break; }
+                  if (tag === "primary") employee = "primary";
+                }
+                const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
+                return (
+                  <tr
+                    key={`tbl-${r.streamId}`}
+                    className="border-t border-border"
+                    data-testid={`w4-job-row-${slug}`}
+                    data-employer={r.company}
+                    data-employee={employee}
+                    data-frequency={r.payFrequency}
+                    data-remaining-paychecks={r.remainingPaychecks}
+                    data-projected-gross={r.remainingGross}
+                    data-projected-fed-withholding={r.expectedNormalWithholding}
+                    data-extra-per-paycheck={perPaycheck}
+                  >
+                    <td className="px-2 py-1.5 text-foreground truncate max-w-[160px]">{r.company}</td>
+                    <td className="px-2 py-1.5 text-foreground" data-testid={`w4-job-employee-${slug}`}>{employeeLabel}</td>
+                    <td className="px-2 py-1.5 text-foreground" data-testid={`w4-job-frequency-${slug}`}>
+                      {formatFrequencyLabel(r.payFrequency).replace(" paycheck", "")}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums" data-testid={`w4-job-remaining-paychecks-${slug}`}>
+                      {r.remainingPaychecks}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums" data-testid={`w4-job-projected-gross-${slug}`}>
+                      {fmt(r.remainingGross)}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums" data-testid={`w4-job-projected-fed-withholding-${slug}`}>
+                      {fmt(r.expectedNormalWithholding)}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary" data-testid={`w4-job-extra-per-paycheck-${slug}`}>
+                      {fmt(perPaycheck)} <span className="text-[10px] font-normal text-muted-foreground">/ paycheck</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {effectiveRows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-2 py-3 text-center text-muted-foreground">
+                    No active W-2 employers to allocate withholding across.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <p className="px-2 py-1.5 text-[10px] text-muted-foreground border-t border-border">
+            Extra column is the recommended additional withholding <span className="font-semibold">per paycheck</span> (not annual).
+          </p>
         </div>
 
 

@@ -648,24 +648,48 @@ export default function PersonalIncome() {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
   }
 
+  // Detect a strict W-2-only household — drives copy on this page so users
+  // who never opted into 1099/K-1/S-corp/business income don't see business
+  // language. Mixed-income users retain the original copy and full inputs.
+  const streams = taxSettings?.householdIncomeStreams;
+  const isW2OnlyHousehold = !!(
+    streams &&
+    (streams.w2Income || streams.spouseW2Income || streams.additionalW2Job) &&
+    !streams.business1099Income &&
+    !streams.k1PartnershipIncome &&
+    !streams.sCorpIncome
+  );
+
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
+    <div
+      className="space-y-4 max-w-4xl mx-auto"
+      data-testid="personal-income-page"
+      data-household-type={isW2OnlyHousehold ? "w2_only" : "mixed"}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-primary" />
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Personal Income</h1>
-            <p className="text-xs text-muted-foreground">Actual non-business income affecting your taxes</p>
+            <h1 className="text-xl font-semibold text-foreground">
+              {isW2OnlyHousehold ? "W-2 Paychecks" : "Personal Income"}
+            </h1>
+            <p className="text-xs text-muted-foreground" data-testid="personal-income-subtitle">
+              {isW2OnlyHousehold
+                ? "Your W-2 paychecks and payroll withholding"
+                : "Actual non-business income affecting your taxes"}
+            </p>
           </div>
         </div>
         <Button data-testid="add-paycheck-button" size="sm" onClick={openAdd} className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" /> Add
+          <Plus className="h-3.5 w-3.5" /> {isW2OnlyHousehold ? "Add Paycheck" : "Add"}
         </Button>
       </div>
 
       {/* Primary focus: Total Personal Income hero card */}
       <div className="rounded-xl border border-border bg-card px-4 py-3 sm:p-8 text-center shadow-sm">
-        <p className="text-[11px] sm:text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Personal Income</p>
+        <p className="text-[11px] sm:text-sm font-medium text-muted-foreground uppercase tracking-wide">
+          {isW2OnlyHousehold ? "Total W-2 Income" : "Total Personal Income"}
+        </p>
         <p className="mt-0.5 sm:mt-3 text-2xl sm:text-5xl font-bold tracking-tight text-foreground leading-tight">
           {fmt(totals.totalIncome)}
         </p>
