@@ -146,6 +146,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       include_se_tax_in_recommendation: company.includeSETaxInRecommendation ?? true,
       pay_frequency: company.payFrequency ?? null,
       remaining_paychecks_override: company.remainingPaychecksOverride ?? null,
+      employee_role: company.employeeRole ?? null,
+      projected_annual_gross: company.projectedAnnualGross ?? null,
+      expected_federal_withholding_per_paycheck: company.expectedFederalWithholdingPerPaycheck ?? null,
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
