@@ -898,7 +898,7 @@ export default function PersonalIncome() {
 
       {/* Modal 1: Add/Edit Income Entry */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); } }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent data-testid="paycheck-form-modal" className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Income Entry" : "Add Personal Income"}</DialogTitle>
             <DialogDescription className="sr-only">
@@ -914,10 +914,10 @@ export default function PersonalIncome() {
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
                 <Select value={form.income_type} onValueChange={(v) => setField("income_type", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger data-testid="paycheck-income-type-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {filterIncomeTypeOptions(INCOME_TYPES, taxSettings?.householdIncomeStreams, form.income_type).map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      <SelectItem key={t.value} value={t.value} data-testid={`paycheck-income-type-option-${t.value}`}>{t.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
