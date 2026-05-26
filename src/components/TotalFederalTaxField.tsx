@@ -93,6 +93,7 @@ export function TotalFederalTaxField({
         </TooltipProvider>
       </div>
       <Input
+        data-testid="paycheck-total-federal-input"
         type="number"
         min="0"
         step="0.01"
