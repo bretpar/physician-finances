@@ -456,14 +456,13 @@ export default function Onboarding() {
               <div className="grid gap-3">
                 <div data-testid="onboarding-ytd-yes"><SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }} /></div>
                 <div data-testid="onboarding-ytd-no"><SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }} /></div>
-                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={async () => {
+                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab. Continue to company/business setup." onClick={async () => {
                   if (saving) return;
                   setSaving(true);
                   try {
                     patch({ ytdCatchupChoice: "skip" });
-                    await persist({ ytdCatchupChoice: "skip", onboardingComplete: true, onboardingStep: 3 });
-                    sessionStorage.removeItem("paycheckmd-onboarding-step");
-                    navigate("/", { replace: true });
+                    if (settingsId) await persist({ ytdCatchupChoice: "skip", onboardingComplete: false });
+                    setCatchupSubStep("company");
                   } catch (error: any) {
                     toast.error(error.message || "Could not save onboarding.");
                   } finally {
