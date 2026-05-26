@@ -237,7 +237,7 @@ export function DangerZoneSection() {
                   className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={handleErase}
                   disabled={busy}
-                  data-testid="safe-erase-data-confirm"
+                  data-testid="settings-safe-erase-confirm-button"
                   aria-busy={busy}
                 >
                   {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
