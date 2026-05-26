@@ -1160,12 +1160,12 @@ function CompaniesSection() {
             ? `Set the filing type for each company. Currently tracking: ${companies.map((c) => c.name || "Unnamed").join(", ")}.`
             : "Set the filing type for each company."
         }
-        defaultOpen={companies.length > 0}
+        defaultOpen={true}
         headerAction={
           <div className="flex items-center gap-2">
             {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
             {false && companies.length > 1 && <MergeCompaniesDialog />}
-            <Button data-testid="add-company-button" variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
+            <Button data-testid="settings-companies-add-button" variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
               <Plus className="h-4 w-4" /> Add
             </Button>
           </div>
@@ -1179,7 +1179,7 @@ function CompaniesSection() {
           <div className="text-center py-8">
             <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No companies added yet.</p>
-            <Button data-testid="add-company-button-empty" onClick={handleAdd} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Add Company</Button>
+            <Button data-testid="settings-companies-add-button-empty" onClick={handleAdd} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Add Company</Button>
           </div>
         )}
 
