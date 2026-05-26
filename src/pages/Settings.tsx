@@ -1415,7 +1415,7 @@ function CompaniesSection() {
                               value={freq || "unset"}
                               onValueChange={(v) => setField(company.id, "payFrequency", v === "unset" ? null : v)}
                             >
-                              <SelectTrigger data-testid="company-pay-frequency-select"><SelectValue placeholder="Not set" /></SelectTrigger>
+                              <SelectTrigger data-testid="settings-company-frequency-select"><SelectValue placeholder="Not set" /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="unset">Not set</SelectItem>
                                 <SelectItem value="weekly" data-testid="company-pay-frequency-option-weekly">Weekly</SelectItem>
