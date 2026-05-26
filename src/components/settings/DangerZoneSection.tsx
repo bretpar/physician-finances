@@ -247,9 +247,9 @@ export function DangerZoneSection() {
             </>
           )}
           {step === "erased" && (
-            <div data-testid="erase-success" data-erase-complete="true">
+            <div data-testid="settings-safe-erase-success" data-erase-complete="true">
               <DialogHeader>
-                <DialogTitle>Account data erased</DialogTitle>
+                <DialogTitle>Account data erased. Restarting onboarding…</DialogTitle>
                 <DialogDescription>
                   Your account data has been erased. Redirecting you to onboarding…
                 </DialogDescription>
