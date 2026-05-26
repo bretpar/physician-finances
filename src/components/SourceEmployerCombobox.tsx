@@ -315,6 +315,7 @@ export function SourceEmployerCombobox({
             <div className="my-1 border-t border-border" />
             <button
               type="button"
+              data-testid="paycheck-employer-other-button"
               onClick={selectOther}
               className={cn(
                 "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer hover:bg-muted/60",
