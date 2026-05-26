@@ -119,6 +119,7 @@ export function TotalFederalTaxField({
             <div>
               <Label className="text-[11px] text-muted-foreground mb-1 block">Federal income tax</Label>
               <Input
+                data-testid="paycheck-federal-withholding-input"
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={federal}
                 onChange={(e) => onFederalChange(e.target.value)}
@@ -127,6 +128,7 @@ export function TotalFederalTaxField({
             <div>
               <Label className="text-[11px] text-muted-foreground mb-1 block">Social Security</Label>
               <Input
+                data-testid="paycheck-social-security-input"
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={ss}
                 onChange={(e) => onSsChange(e.target.value)}
@@ -135,6 +137,7 @@ export function TotalFederalTaxField({
             <div>
               <Label className="text-[11px] text-muted-foreground mb-1 block">Medicare</Label>
               <Input
+                data-testid="paycheck-medicare-input"
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={medicare}
                 onChange={(e) => onMedicareChange(e.target.value)}
