@@ -213,6 +213,12 @@ export function normalizeEmployerName(name: string | null | undefined): string {
     .trim();
 }
 
+/** URL/testid-safe slug for an employer name. Falls back to "employer". */
+export function employerSlug(name: string | null | undefined): string {
+  const slug = normalizeEmployerName(name).replace(/\s+/g, "-");
+  return slug || "employer";
+}
+
 /**
  * Build a stable W-4 employer-grouping key for a projected stream.
  *
