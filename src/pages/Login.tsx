@@ -90,6 +90,7 @@ export default function Login() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                data-testid="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
