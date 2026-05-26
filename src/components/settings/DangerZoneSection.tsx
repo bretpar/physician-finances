@@ -118,12 +118,15 @@ export function DangerZoneSection() {
       toast.success("Your account data has been erased. Start onboarding again.");
       setBusy(false);
       setStep("erased");
-      setOpen(false);
+      // Keep the dialog open so the success state is mounted and assertable
+      // by E2E tests before the hard navigation kicks in.
       console.info("Settings erase: erase success detected");
       // Hard navigation guarantees the URL changes and React Query / hook
       // state is fully reset, regardless of any in-flight SPA renders on
       // /settings or stale cached `onboardingComplete` values.
-      window.location.assign("/onboarding?reset=1");
+      setTimeout(() => {
+        window.location.assign("/onboarding?reset=1");
+      }, 250);
     } catch (err: any) {
       const message = err?.message || "Failed to erase account data";
       console.error("Settings erase: safe erase failed", { message });
