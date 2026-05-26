@@ -713,7 +713,24 @@ export default function PersonalIncome() {
       )}
 
       {/* Entries table */}
-      <div data-testid="paychecks-ledger" className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Explicit post-save success marker for automated audits. Hidden from
+          users but stable in the DOM. The presence of `data-entry-id` (with
+          the new row already present in the ledger) confirms that the save
+          flow completed AND the ledger refetch settled. */}
+      {savedEntryId && (
+        <div
+          data-testid="paycheck-save-success"
+          data-entry-id={savedEntryId}
+          data-entry-title={savedEntryTitle}
+          data-entry-mode={savedEntryMode ?? ""}
+          data-saved-at={savedEntryAt ?? ""}
+          data-ledger-count={entries.length}
+          className="sr-only"
+          aria-hidden="true"
+        />
+      )}
+
+      <div data-testid="paychecks-ledger" data-ledger-count={entries.length} className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="hidden sm:grid sm:grid-cols-[90px_1fr_100px_100px_120px_80px_40px] gap-2 px-4 py-2.5 border-b border-border bg-muted/40 text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>Date</span>
           <span>Description</span>
