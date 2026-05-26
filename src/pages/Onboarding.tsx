@@ -308,9 +308,16 @@ export default function Onboarding() {
     try {
       const nextStep = Math.min(TOTAL_STEPS, step + 1);
       if (step === 1) {
-        if (!merged.firstName.trim()) throw new Error("Enter your first name to continue.");
-        await supabase.from("profiles").update({ first_name: merged.firstName.trim() }).eq("user_id", user!.id);
-        await persist({ firstName: merged.firstName.trim(), onboardingComplete: false, onboardingStep: nextStep });
+        // First name is encouraged but not required to advance — fall back to
+        // auth metadata or the email local-part so brand-new signups (e.g.
+        // automated flows that skip the optional name field) are not stuck on
+        // Step 1. The user can update their name later in Settings.
+        const metadataFirst = (user?.user_metadata as any)?.first_name as string | undefined;
+        const emailLocal = user?.email ? user.email.split("@")[0] : "";
+        const finalFirstName = merged.firstName.trim() || (metadataFirst?.trim() || "") || emailLocal || "Friend";
+        await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
+        await persist({ firstName: finalFirstName, onboardingComplete: false, onboardingStep: nextStep });
+        patch({ firstName: finalFirstName });
       } else if (step === 2) {
         await createOnboardingCompanies();
         await persist({ onboardingComplete: false, onboardingStep: nextStep });
@@ -435,7 +442,7 @@ export default function Onboarding() {
                 <p className="mt-1 text-sm text-muted-foreground">We pre-filled this from your estimate. Adjust if needed.</p>
               </div>
               <div>
-                <Label htmlFor="onboarding-first-name">First name</Label>
+                <Label htmlFor="onboarding-first-name">First name <span className="text-xs text-muted-foreground">(optional)</span></Label>
                 <Input id="onboarding-first-name" data-testid="onboarding-first-name-input" autoComplete="given-name" value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
               </div>
               <div className="grid gap-3">
