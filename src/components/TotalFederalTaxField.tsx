@@ -110,7 +110,7 @@ export function TotalFederalTaxField({
       )}
 
       <Collapsible open={open} onOpenChange={setOpen} className="mt-2">
-        <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+        <CollapsibleTrigger data-testid="paycheck-federal-breakdown-toggle" className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
           {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           {open ? "Hide breakdown" : "Show federal/SS/Medicare breakdown"}
         </CollapsibleTrigger>
