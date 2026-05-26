@@ -569,8 +569,18 @@ export default function PersonalIncome() {
     const showModal2 = isFeatureEnabled("recommendation_modal") && !isEditing;
 
     if (isEditing) {
-      updateMutation.mutate({ id: editingId!, ...finalPayload } as any, {
-        onSuccess: () => { setShowForm(false); setEditingId(null); },
+      const editId = editingId!;
+      updateMutation.mutate({ id: editId, ...finalPayload } as any, {
+        onSuccess: () => {
+          // Explicit success signal for automated audits — the ledger refetch
+          // has already completed (see useUpdatePersonalIncome.onSuccess).
+          setSavedEntryId(editId);
+          setSavedEntryTitle(form.title);
+          setSavedEntryAt(new Date().toISOString());
+          setSavedEntryMode("update");
+          setShowForm(false);
+          setEditingId(null);
+        },
       });
     } else {
       addMutation.mutate(finalPayload as any, {
@@ -585,6 +595,12 @@ export default function PersonalIncome() {
           }
           setPendingAttachments([]);
           setShowForm(false);
+          // Explicit success signal — newId is guaranteed and the ledger has
+          // already been refetched (see useAddPersonalIncome.onSuccess).
+          setSavedEntryId(newId);
+          setSavedEntryTitle(form.title);
+          setSavedEntryAt(new Date().toISOString());
+          setSavedEntryMode("create");
           if (showModal2 && recommendation) {
             // Per-transaction reminder: compare amount saved on THIS entry
             // against the per-transaction recommended savings (baseTaxEstimate).
@@ -597,7 +613,6 @@ export default function PersonalIncome() {
               num(form.additional_tax_reserve);
             // Only nudge when meaningfully behind (< 90% of recommended).
             if (recommended > 0 && actualSaved < recommended * 0.9) {
-              setSavedEntryTitle(form.title);
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
               setShowRecommendation(true);
