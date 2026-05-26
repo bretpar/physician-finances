@@ -28,7 +28,11 @@ export default function Signup() {
   if (user) return <Navigate to="/onboarding" replace />;
 
   function goOnboarding() {
-    sessionStorage.setItem("paycheckmd-onboarding-start", "income-method");
+    // Brand-new signups go through the full onboarding flow (income type →
+    // YTD catch-up → company setup). Do NOT set the income-method shortcut
+    // flag here — that picker marks onboarding complete and skips YTD/business
+    // setup, which breaks 1099-only users.
+    sessionStorage.removeItem("paycheckmd-onboarding-start");
     sessionStorage.setItem("paycheckmd-onboarding-step", "1");
     navigate("/onboarding", { replace: true });
     // Hard fallback in case route guard intercepts before auth state propagates
