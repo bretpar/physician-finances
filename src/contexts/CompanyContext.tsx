@@ -68,6 +68,7 @@ const CompanyContext = createContext<CompanyContextValue | null>(null);
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [incomeCountByCompanyName, setIncomeCountByCompanyName] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
