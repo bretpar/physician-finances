@@ -261,7 +261,7 @@ async function recoverPartialOnboardingStep1(page: Page): Promise<boolean> {
   const before = await bodyText(page);
   await fillOnboardingFirstNameIfPresent(page);
   await ensureW2OnlySelected(page);
-  const continued = await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
+  const continued = await tryClick(page, "onboarding-continue-button", [/^continue$/i, /next/i]);
   if (continued) await waitForOnboardingTransition(page, before);
   return continued;
 }
@@ -297,7 +297,7 @@ async function completeW2OnboardingCleanly(page: Page) {
 
     if (/add each .*received this year/i.test(text)) {
       await saveStandardYtdCatchupEntry(page);
-      const continued = await tryClick(page, "onboarding-continue", [/^continue$/i, /next/i]);
+      const continued = await tryClick(page, "onboarding-continue-button", [/^continue$/i, /next/i]);
       if (continued) await waitForOnboardingTransition(page, text);
       continue;
     }
@@ -310,7 +310,7 @@ async function completeW2OnboardingCleanly(page: Page) {
       }
     }
 
-    const moved = await tryClick(page, "onboarding-continue", [
+    const moved = await tryClick(page, "onboarding-continue-button", [
       /^continue$/i,
       /^confirm$/i,
       /next/i,
@@ -359,7 +359,7 @@ async function dismissOnboardingIfPresent(page: Page): Promise<boolean> {
       continue;
     }
 
-    const moved = await tryClick(page, "onboarding-continue", [
+    const moved = await tryClick(page, "onboarding-continue-button", [
       /^continue$/i,
       /^confirm$/i,
       /next/i,
@@ -453,7 +453,7 @@ async function eraseAccountDataViaSettings(page: Page): Promise<boolean> {
 
   // 4. Safe confirm button inside the dialog.
   const safeConfirm = page
-    .locator('[data-testid="safe-erase-data-confirm"]')
+    .locator('[data-testid="settings-safe-erase-confirm-button"]')
     .or(dialog.getByRole("button", { name: /^yes,\s*erase my data$/i }))
     .first();
   const safeVisible = await safeConfirm
