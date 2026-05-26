@@ -1150,6 +1150,7 @@ function CompaniesSection() {
 
   return (
     <>
+      <div data-testid="companies-section">
       <SectionCard
         title="Companies"
         icon={<Building2 className="h-5 w-5" />}
@@ -1164,7 +1165,7 @@ function CompaniesSection() {
           <div className="flex items-center gap-2">
             {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
             {false && companies.length > 1 && <MergeCompaniesDialog />}
-            <Button variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
+            <Button data-testid="add-company-button" variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
               <Plus className="h-4 w-4" /> Add
             </Button>
           </div>
@@ -1178,7 +1179,7 @@ function CompaniesSection() {
           <div className="text-center py-8">
             <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No companies added yet.</p>
-            <Button onClick={handleAdd} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Add Company</Button>
+            <Button data-testid="add-company-button-empty" onClick={handleAdd} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Add Company</Button>
           </div>
         )}
 
