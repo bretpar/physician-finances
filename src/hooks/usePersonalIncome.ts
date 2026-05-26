@@ -144,9 +144,16 @@ export function useAddPersonalIncome() {
       if (error) throw error;
       return data as { id: string } | null;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
+    onSuccess: async () => {
+      // Await the personal-income refetch so the ledger is guaranteed to be
+      // reconciled by the time the mutation Promise resolves. Automated audits
+      // (and the post-save success marker on PersonalIncome) rely on this
+      // ordering — otherwise the row may not yet be visible when the test
+      // queries for it.
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+      ]);
       toast.success("Personal income added");
     },
     onError: (e) => toast.error(e.message),
