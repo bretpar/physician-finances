@@ -687,7 +687,9 @@ export default function PersonalIncome() {
 
       {/* Primary focus: Total Personal Income hero card */}
       <div className="rounded-xl border border-border bg-card px-4 py-3 sm:p-8 text-center shadow-sm">
-        <p className="text-[11px] sm:text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Personal Income</p>
+        <p className="text-[11px] sm:text-sm font-medium text-muted-foreground uppercase tracking-wide">
+          {isW2OnlyHousehold ? "Total W-2 Income" : "Total Personal Income"}
+        </p>
         <p className="mt-0.5 sm:mt-3 text-2xl sm:text-5xl font-bold tracking-tight text-foreground leading-tight">
           {fmt(totals.totalIncome)}
         </p>
