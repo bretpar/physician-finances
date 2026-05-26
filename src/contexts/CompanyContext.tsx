@@ -33,6 +33,12 @@ export interface Company {
   payFrequency: string | null;
   /** Manual override for remaining paychecks this year. Null = auto-detect. */
   remainingPaychecksOverride: number | null;
+  /** Which household member works this W-2 job ("primary" | "spouse"). Null = unset. */
+  employeeRole: "primary" | "spouse" | null;
+  /** Optional user-supplied projected annual gross income for this employer. */
+  projectedAnnualGross: number | null;
+  /** Optional user-supplied expected federal withholding per paycheck. */
+  expectedFederalWithholdingPerPaycheck: number | null;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
