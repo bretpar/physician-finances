@@ -1136,6 +1136,7 @@ function CompaniesSection() {
       defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
       advancedFieldVisibility: {}, applyBusinessStateTax: true, includeSETaxInRecommendation: true,
       payFrequency: null, remainingPaychecksOverride: null,
+      employeeRole: null, projectedAnnualGross: null, expectedFederalWithholdingPerPaycheck: null,
     });
   }
 
@@ -1149,6 +1150,7 @@ function CompaniesSection() {
 
   return (
     <>
+      <div data-testid="companies-section">
       <SectionCard
         title="Companies"
         icon={<Building2 className="h-5 w-5" />}
@@ -1163,7 +1165,7 @@ function CompaniesSection() {
           <div className="flex items-center gap-2">
             {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
             {false && companies.length > 1 && <MergeCompaniesDialog />}
-            <Button variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
+            <Button data-testid="add-company-button" variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
               <Plus className="h-4 w-4" /> Add
             </Button>
           </div>
@@ -1177,7 +1179,7 @@ function CompaniesSection() {
           <div className="text-center py-8">
             <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No companies added yet.</p>
-            <Button onClick={handleAdd} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Add Company</Button>
+            <Button data-testid="add-company-button-empty" onClick={handleAdd} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Add Company</Button>
           </div>
         )}
 
@@ -1198,15 +1200,21 @@ function CompaniesSection() {
               const saved = !!savedFlash[company.id];
 
               return (
-                <div key={company.id} className={cn(
-                  "border rounded-lg p-4 space-y-3 transition-colors",
-                  dirty ? "border-warning/40 bg-warning/5" : "border-border",
-                )}>
+                <div
+                  key={company.id}
+                  data-testid="company-form"
+                  data-company-id={company.id}
+                  className={cn(
+                    "border rounded-lg p-4 space-y-3 transition-colors",
+                    dirty ? "border-warning/40 bg-warning/5" : "border-border",
+                  )}
+                >
                   <div className="space-y-3">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
                         <Input
+                          data-testid="company-name-input"
                           value={getValue(company, "name") as string}
                           onChange={(e) => setField(company.id, "name", e.target.value)}
                           placeholder="e.g. Vituity"
@@ -1242,7 +1250,7 @@ function CompaniesSection() {
                         onValueChange={(v) => setField(company.id, "companyType", v as FilingType)}
                         disabled={filingTypeLocked}
                       >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger data-testid="company-income-type-select"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {companyTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
@@ -1381,29 +1389,46 @@ function CompaniesSection() {
                     if (ft !== "w2" && ft !== "scorp_w2") return null;
                     const freq = (getValue(company, "payFrequency") as string | null) ?? "";
                     const override = getValue(company, "remainingPaychecksOverride") as number | null;
+                    const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
+                    const projGross = getValue(company, "projectedAnnualGross") as number | null;
+                    const expFedWh = getValue(company, "expectedFederalWithholdingPerPaycheck") as number | null;
                     return (
                       <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
                         <p className="text-xs font-semibold text-foreground">W-4 / paycheck settings</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Employee role</Label>
+                            <Select
+                              value={role ?? "primary"}
+                              onValueChange={(v) => setField(company.id, "employeeRole", v as "primary" | "spouse")}
+                            >
+                              <SelectTrigger data-testid="company-employee-role-select"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="primary" data-testid="company-employee-role-option-primary">Primary</SelectItem>
+                                <SelectItem value="spouse" data-testid="company-employee-role-option-spouse">Spouse</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Pay frequency</Label>
                             <Select
                               value={freq || "unset"}
                               onValueChange={(v) => setField(company.id, "payFrequency", v === "unset" ? null : v)}
                             >
-                              <SelectTrigger><SelectValue placeholder="Not set" /></SelectTrigger>
+                              <SelectTrigger data-testid="company-pay-frequency-select"><SelectValue placeholder="Not set" /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="unset">Not set</SelectItem>
-                                <SelectItem value="weekly">Weekly</SelectItem>
-                                <SelectItem value="biweekly">Biweekly</SelectItem>
-                                <SelectItem value="semimonthly">Semimonthly</SelectItem>
-                                <SelectItem value="monthly">Monthly</SelectItem>
+                                <SelectItem value="weekly" data-testid="company-pay-frequency-option-weekly">Weekly</SelectItem>
+                                <SelectItem value="biweekly" data-testid="company-pay-frequency-option-biweekly">Biweekly</SelectItem>
+                                <SelectItem value="semimonthly" data-testid="company-pay-frequency-option-semimonthly">Semimonthly</SelectItem>
+                                <SelectItem value="monthly" data-testid="company-pay-frequency-option-monthly">Monthly</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
                             <Input
+                              data-testid="company-remaining-paychecks-input"
                               type="number"
                               min={0}
                               inputMode="numeric"
@@ -1412,6 +1437,38 @@ function CompaniesSection() {
                               onChange={(e) => {
                                 const v = e.target.value;
                                 setField(company.id, "remainingPaychecksOverride", v === "" ? null : Math.max(0, Math.floor(Number(v) || 0)));
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Projected annual gross (optional)</Label>
+                            <Input
+                              data-testid="company-projected-annual-gross-input"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              inputMode="decimal"
+                              placeholder="e.g. 250000"
+                              value={projGross ?? ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setField(company.id, "projectedAnnualGross", v === "" ? null : Math.max(0, Number(v) || 0));
+                              }}
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <Label className="text-xs text-muted-foreground mb-1.5 block">Expected federal withholding per paycheck (optional)</Label>
+                            <Input
+                              data-testid="company-expected-federal-withholding-input"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              inputMode="decimal"
+                              placeholder="e.g. 1200"
+                              value={expFedWh ?? ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setField(company.id, "expectedFederalWithholdingPerPaycheck", v === "" ? null : Math.max(0, Number(v) || 0));
                               }}
                             />
                           </div>
@@ -1431,7 +1488,7 @@ function CompaniesSection() {
                       {dirty && (
                         <>
                           <Button variant="ghost" size="sm" onClick={() => cancelCompany(company.id)} disabled={saving}>Cancel</Button>
-                          <Button size="sm" onClick={() => saveCompany(company)} disabled={saving}>
+                          <Button data-testid="company-save-button" size="sm" onClick={() => saveCompany(company)} disabled={saving}>
                             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                             Save Changes
                           </Button>
@@ -1445,6 +1502,8 @@ function CompaniesSection() {
           </div>
         </TooltipProvider>
       </SectionCard>
+      </div>
+
 
       <AlertDialog open={!!deleteCompanyId} onOpenChange={(open) => !open && setDeleteCompanyId(null)}>
         <AlertDialogContent>

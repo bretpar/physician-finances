@@ -988,9 +988,20 @@ export default function PersonalIncome() {
                 <Select value={form.income_type} onValueChange={(v) => setField("income_type", v)}>
                   <SelectTrigger data-testid="paycheck-income-type-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {filterIncomeTypeOptions(INCOME_TYPES, taxSettings?.householdIncomeStreams, form.income_type).map((t) => (
-                      <SelectItem key={t.value} value={t.value} data-testid={`paycheck-income-type-option-${t.value}`}>{t.label}</SelectItem>
-                    ))}
+                    {filterIncomeTypeOptions(INCOME_TYPES, taxSettings?.householdIncomeStreams, form.income_type).map((t) => {
+                      // Map W-2 user/partner to friendly primary/spouse aliases for E2E selectors.
+                      const alias = t.value === "w2_user" ? "primary" : t.value === "w2_partner" ? "spouse" : t.value;
+                      return (
+                        <SelectItem
+                          key={t.value}
+                          value={t.value}
+                          data-testid={`paycheck-income-type-option-${alias}`}
+                          data-testid-value={`paycheck-income-type-option-${t.value}`}
+                        >
+                          {t.label}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 {isIncomeEntryTypeDisabled(taxSettings?.householdIncomeStreams, form.income_type) && (

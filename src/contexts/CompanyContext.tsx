@@ -33,6 +33,12 @@ export interface Company {
   payFrequency: string | null;
   /** Manual override for remaining paychecks this year. Null = auto-detect. */
   remainingPaychecksOverride: number | null;
+  /** Which household member works this W-2 job ("primary" | "spouse"). Null = unset. */
+  employeeRole: "primary" | "spouse" | null;
+  /** Optional user-supplied projected annual gross income for this employer. */
+  projectedAnnualGross: number | null;
+  /** Optional user-supplied expected federal withholding per paycheck. */
+  expectedFederalWithholdingPerPaycheck: number | null;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
@@ -96,6 +102,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         includeSETaxInRecommendation: c.include_se_tax_in_recommendation !== false,
         payFrequency: (c as any).pay_frequency ?? null,
         remainingPaychecksOverride: (c as any).remaining_paychecks_override ?? null,
+        employeeRole: ((c as any).employee_role ?? null) as "primary" | "spouse" | null,
+        projectedAnnualGross: (c as any).projected_annual_gross != null ? Number((c as any).projected_annual_gross) : null,
+        expectedFederalWithholdingPerPaycheck: (c as any).expected_federal_withholding_per_paycheck != null ? Number((c as any).expected_federal_withholding_per_paycheck) : null,
       }))
     );
     setLoading(false);
@@ -137,6 +146,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       include_se_tax_in_recommendation: company.includeSETaxInRecommendation ?? true,
       pay_frequency: company.payFrequency ?? null,
       remaining_paychecks_override: company.remainingPaychecksOverride ?? null,
+      employee_role: company.employeeRole ?? null,
+      projected_annual_gross: company.projectedAnnualGross ?? null,
+      expected_federal_withholding_per_paycheck: company.expectedFederalWithholdingPerPaycheck ?? null,
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
@@ -160,6 +172,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.includeSETaxInRecommendation !== undefined) dbUpdates.include_se_tax_in_recommendation = updates.includeSETaxInRecommendation;
     if (updates.payFrequency !== undefined) dbUpdates.pay_frequency = updates.payFrequency;
     if (updates.remainingPaychecksOverride !== undefined) dbUpdates.remaining_paychecks_override = updates.remainingPaychecksOverride;
+    if (updates.employeeRole !== undefined) dbUpdates.employee_role = updates.employeeRole;
+    if (updates.projectedAnnualGross !== undefined) dbUpdates.projected_annual_gross = updates.projectedAnnualGross;
+    if (updates.expectedFederalWithholdingPerPaycheck !== undefined) dbUpdates.expected_federal_withholding_per_paycheck = updates.expectedFederalWithholdingPerPaycheck;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }

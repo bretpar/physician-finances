@@ -23,6 +23,8 @@ export type Database = {
           created_at: string
           default_setaside_method: string
           default_setaside_pct: number | null
+          employee_role: string | null
+          expected_federal_withholding_per_paycheck: number | null
           id: string
           include_in_tax: boolean
           include_se_tax_in_recommendation: boolean
@@ -32,6 +34,7 @@ export type Database = {
           notes: string
           organization_id: string | null
           pay_frequency: string | null
+          projected_annual_gross: number | null
           remaining_paychecks_override: number | null
           source_kind: string
           updated_at: string
@@ -45,6 +48,8 @@ export type Database = {
           created_at?: string
           default_setaside_method?: string
           default_setaside_pct?: number | null
+          employee_role?: string | null
+          expected_federal_withholding_per_paycheck?: number | null
           id?: string
           include_in_tax?: boolean
           include_se_tax_in_recommendation?: boolean
@@ -54,6 +59,7 @@ export type Database = {
           notes?: string
           organization_id?: string | null
           pay_frequency?: string | null
+          projected_annual_gross?: number | null
           remaining_paychecks_override?: number | null
           source_kind?: string
           updated_at?: string
@@ -67,6 +73,8 @@ export type Database = {
           created_at?: string
           default_setaside_method?: string
           default_setaside_pct?: number | null
+          employee_role?: string | null
+          expected_federal_withholding_per_paycheck?: number | null
           id?: string
           include_in_tax?: boolean
           include_se_tax_in_recommendation?: boolean
@@ -76,6 +84,7 @@ export type Database = {
           notes?: string
           organization_id?: string | null
           pay_frequency?: string | null
+          projected_annual_gross?: number | null
           remaining_paychecks_override?: number | null
           source_kind?: string
           updated_at?: string
