@@ -104,6 +104,7 @@ export default function Login() {
               <div className="relative">
                 <Input
                   id="password"
+                  data-testid="login-password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
