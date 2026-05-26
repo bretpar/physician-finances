@@ -733,6 +733,27 @@ export default function W4PaycheckAdjustmentCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Stable, machine-readable W-4 summary outputs. Hidden from sighted
+            users (sr-only) but always present so automated audits can assert
+            calculator correctness without scraping fragile visual copy. */}
+        <div className="sr-only" aria-hidden="true" data-testid="w4-summary-outputs">
+          <span data-testid="w4-projected-household-gross" data-value={projectedHouseholdGross}>
+            {fmt(projectedHouseholdGross)}
+          </span>
+          <span data-testid="w4-projected-federal-withholding" data-value={projectedFederalWithholding}>
+            {fmt(projectedFederalWithholding)}
+          </span>
+          <span data-testid="w4-annual-tax-gap" data-value={annualTaxGap}>
+            {fmt(annualTaxGap)}
+          </span>
+          <span data-testid="w4-annual-tax-surplus" data-value={annualTaxSurplus}>
+            {fmt(annualTaxSurplus)}
+          </span>
+          <span data-testid="w4-total-extra-withholding-needed" data-value={totalExtraThroughYearEnd}>
+            {fmt(totalExtraThroughYearEnd)}
+          </span>
+        </div>
+
         <p className="text-xs text-muted-foreground leading-relaxed">
           Per-paycheck targets can show extra needed on individual checks, but
           W-4 changes are based on your full annual tax picture after counting
