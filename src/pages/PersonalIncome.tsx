@@ -641,7 +641,7 @@ export default function PersonalIncome() {
             <p className="text-xs text-muted-foreground">Actual non-business income affecting your taxes</p>
           </div>
         </div>
-        <Button size="sm" onClick={openAdd} className="gap-1.5">
+        <Button data-testid="add-paycheck-button" size="sm" onClick={openAdd} className="gap-1.5">
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </div>
@@ -898,7 +898,7 @@ export default function PersonalIncome() {
 
       {/* Modal 1: Add/Edit Income Entry */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); } }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <DialogContent data-testid="paycheck-form-modal" className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Income Entry" : "Add Personal Income"}</DialogTitle>
             <DialogDescription className="sr-only">
@@ -914,10 +914,10 @@ export default function PersonalIncome() {
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Income Type</Label>
                 <Select value={form.income_type} onValueChange={(v) => setField("income_type", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger data-testid="paycheck-income-type-select"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {filterIncomeTypeOptions(INCOME_TYPES, taxSettings?.householdIncomeStreams, form.income_type).map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      <SelectItem key={t.value} value={t.value} data-testid={`paycheck-income-type-option-${t.value}`}>{t.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -974,12 +974,12 @@ export default function PersonalIncome() {
 
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Title / Description</Label>
-              <Input data-testid="pi-title" placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
+              <Input data-testid="paycheck-title-input" placeholder="e.g. March Paycheck" value={form.title} onChange={(e) => setField("title", e.target.value)} />
             </div>
 
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Gross Income *</Label>
-              <Input data-testid="pi-gross" type="number" min="0" step="0.01" placeholder="0.00" value={form.gross_amount} onChange={(e) => setField("gross_amount", e.target.value)} />
+              <Input data-testid="paycheck-gross-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.gross_amount} onChange={(e) => setField("gross_amount", e.target.value)} />
               <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
             </div>
 
@@ -989,7 +989,7 @@ export default function PersonalIncome() {
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received (Optional)</Label>
                   <Input
-                    data-testid="pi-net"
+                    data-testid="paycheck-net-input"
                     type="number" min="0" step="0.01"
                     placeholder={fmt(Math.max(0, grossAmount - num(form.federal_withholding) - num(form.state_withholding) - num(form.ss_withholding) - num(form.medicare_withholding) - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution)))}
                     value={form.net_received}
@@ -1036,6 +1036,7 @@ export default function PersonalIncome() {
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">State tax withheld</Label>
                 <Input
+                  data-testid="paycheck-state-withholding-input"
                   type="number" min="0" step="0.01" placeholder="0.00"
                   value={form.state_withholding}
                   onChange={(e) => setField("state_withholding", e.target.value)}
@@ -1059,25 +1060,25 @@ export default function PersonalIncome() {
                       {showField("retirement_401k") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label>
-                          <Input data-testid="pi-401k" type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
+                          <Input data-testid="paycheck-401k-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
                         </div>
                       )}
                       {showField("healthcare_deduction") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label>
-                          <Input data-testid="pi-health" type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
+                          <Input data-testid="paycheck-health-insurance-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
                         </div>
                       )}
                       {showField("hsa_contribution") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">HSA Contribution</Label>
-                          <Input data-testid="pi-hsa" type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
+                          <Input data-testid="paycheck-hsa-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label>
-                          <Input data-testid="pi-pretax-other" type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
+                          <Input data-testid="paycheck-pretax-other-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
                         </div>
                       )}
                     </div>
@@ -1224,13 +1225,17 @@ export default function PersonalIncome() {
 
             <div className="flex justify-between">
               {isEditing ? (
-                <Button variant="destructive" size="sm" onClick={() => { setDeleteId(editingId!); setShowForm(false); }}>
+                <Button data-testid="paycheck-delete-button" variant="destructive" size="sm" onClick={() => { setDeleteId(editingId!); setShowForm(false); }}>
                   <Trash2 className="h-4 w-4 mr-1" /> Delete
                 </Button>
               ) : <div />}
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button onClick={saveForm} disabled={!form.title.trim() || !form.date}>
+                <Button data-testid="paycheck-cancel-button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                <Button
+                  data-testid="paycheck-save-button"
+                  onClick={saveForm}
+                  disabled={!form.title.trim() || !form.date || num(form.gross_amount) <= 0 || (isW2Type(form.income_type) && !form.source_id && !form.source_name.trim())}
+                >
                   {isEditing ? "Save" : "Save Income"}
                 </Button>
               </div>

@@ -159,9 +159,10 @@ export function SourceEmployerCombobox({
 
   if (isOther) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" data-testid="paycheck-employer-other-mode">
         <Input
           ref={otherInputRef}
+          data-testid="paycheck-employer-input"
           autoFocus
           placeholder="Enter employer or income source"
           value={otherName}
@@ -214,6 +215,7 @@ export function SourceEmployerCombobox({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            data-testid="paycheck-employer-trigger"
             variant="outline"
             role="combobox"
             aria-expanded={open}
@@ -313,6 +315,7 @@ export function SourceEmployerCombobox({
             <div className="my-1 border-t border-border" />
             <button
               type="button"
+              data-testid="paycheck-employer-other-button"
               onClick={selectOther}
               className={cn(
                 "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer hover:bg-muted/60",

@@ -93,6 +93,7 @@ export function TotalFederalTaxField({
         </TooltipProvider>
       </div>
       <Input
+        data-testid="paycheck-total-federal-input"
         type="number"
         min="0"
         step="0.01"
@@ -109,7 +110,7 @@ export function TotalFederalTaxField({
       )}
 
       <Collapsible open={open} onOpenChange={setOpen} className="mt-2">
-        <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+        <CollapsibleTrigger data-testid="paycheck-federal-breakdown-toggle" className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
           {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           {open ? "Hide breakdown" : "Show federal/SS/Medicare breakdown"}
         </CollapsibleTrigger>
@@ -118,6 +119,7 @@ export function TotalFederalTaxField({
             <div>
               <Label className="text-[11px] text-muted-foreground mb-1 block">Federal income tax</Label>
               <Input
+                data-testid="paycheck-federal-withholding-input"
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={federal}
                 onChange={(e) => onFederalChange(e.target.value)}
@@ -126,6 +128,7 @@ export function TotalFederalTaxField({
             <div>
               <Label className="text-[11px] text-muted-foreground mb-1 block">Social Security</Label>
               <Input
+                data-testid="paycheck-social-security-input"
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={ss}
                 onChange={(e) => onSsChange(e.target.value)}
@@ -134,6 +137,7 @@ export function TotalFederalTaxField({
             <div>
               <Label className="text-[11px] text-muted-foreground mb-1 block">Medicare</Label>
               <Input
+                data-testid="paycheck-medicare-input"
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={medicare}
                 onChange={(e) => onMedicareChange(e.target.value)}
