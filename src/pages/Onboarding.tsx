@@ -442,7 +442,7 @@ export default function Onboarding() {
                 <p className="mt-1 text-sm text-muted-foreground">We pre-filled this from your estimate. Adjust if needed.</p>
               </div>
               <div>
-                <Label htmlFor="onboarding-first-name">First name</Label>
+                <Label htmlFor="onboarding-first-name">First name <span className="text-xs text-muted-foreground">(optional)</span></Label>
                 <Input id="onboarding-first-name" data-testid="onboarding-first-name-input" autoComplete="given-name" value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
               </div>
               <div className="grid gap-3">
