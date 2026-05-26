@@ -1214,7 +1214,7 @@ function CompaniesSection() {
                       <div className="flex-1 min-w-0">
                         <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
                         <Input
-                          data-testid="company-name-input"
+                          data-testid="settings-company-name-input"
                           value={getValue(company, "name") as string}
                           onChange={(e) => setField(company.id, "name", e.target.value)}
                           placeholder="e.g. Vituity"
