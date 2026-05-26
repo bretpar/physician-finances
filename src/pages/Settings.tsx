@@ -1488,7 +1488,7 @@ function CompaniesSection() {
                       {dirty && (
                         <>
                           <Button variant="ghost" size="sm" onClick={() => cancelCompany(company.id)} disabled={saving}>Cancel</Button>
-                          <Button data-testid="company-save-button" size="sm" onClick={() => saveCompany(company)} disabled={saving}>
+                          <Button data-testid="settings-company-save-button" size="sm" onClick={() => saveCompany(company)} disabled={saving}>
                             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                             Save Changes
                           </Button>
