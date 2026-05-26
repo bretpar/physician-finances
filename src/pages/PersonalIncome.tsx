@@ -864,7 +864,15 @@ export default function PersonalIncome() {
                   const isMobileSelected = mobileSelectedOrder.includes(entry.id);
 
                   return (
-                    <div key={entry.id}>
+                    <div
+                      key={entry.id}
+                      data-testid="paycheck-row"
+                      data-paycheck-id={entry.id}
+                      data-company-id={entry.source_id ?? ""}
+                      data-employer={entry.company ?? ""}
+                      data-income-type={entry.income_type}
+                      data-gross={Number(entry.gross_amount) || 0}
+                    >
                       <LedgerRow
                         kind={isLoss ? "neutral" : "income"}
                         title={entry.name || "(No payor)"}
