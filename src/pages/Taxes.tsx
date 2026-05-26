@@ -188,10 +188,24 @@ export default function Taxes() {
         <TabsList>
           <TabsTrigger value="overview">Tax Overview</TabsTrigger>
           <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>
+          <TabsTrigger value="w4-calculator">W-4 Calculator</TabsTrigger>
         </TabsList>
 
         <TabsContent value="breakdown" className="mt-0">
           <TaxBreakdown />
+        </TabsContent>
+
+        <TabsContent value="w4-calculator" className="space-y-6 mt-0">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">W-4 Calculator</h1>
+            <p className="text-sm text-muted-foreground">
+              Estimate extra withholding needed on each W-2 paycheck.
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This calculator looks at your full-year tax picture after W-2 withholding, estimated payments, actual tax savings, and optional planned non-W-2 reserves. Use the extra per paycheck amount when updating your W-4.
+          </p>
+          <W4PaycheckAdjustmentCard />
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6 mt-0">
