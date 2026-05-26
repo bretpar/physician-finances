@@ -167,6 +167,7 @@ export function DangerZoneSection() {
         </p>
         <Button
           variant="destructive"
+          data-testid="settings-delete-erase-account-button"
           onClick={() => {
             reset();
             setOpen(true);
