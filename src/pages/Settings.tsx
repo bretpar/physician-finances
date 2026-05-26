@@ -1202,7 +1202,7 @@ function CompaniesSection() {
               return (
                 <div
                   key={company.id}
-                  data-testid="company-form"
+                  data-testid="settings-company-form"
                   data-company-id={company.id}
                   className={cn(
                     "border rounded-lg p-4 space-y-3 transition-colors",
