@@ -108,7 +108,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/signup" element={user ? <Navigate to="/onboarding" replace /> : <Estimate />} />
+      <Route path="/signup" element={user ? <Navigate to="/onboarding" replace /> : <Signup />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<OnboardingErrorBoundary><Onboarding /></OnboardingErrorBoundary>} />
       <Route path="/estimate" element={<Estimate />} />
