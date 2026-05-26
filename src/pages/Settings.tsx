@@ -1447,6 +1447,8 @@ function CompaniesSection() {
           </div>
         </TooltipProvider>
       </SectionCard>
+      </div>
+
 
       <AlertDialog open={!!deleteCompanyId} onOpenChange={(open) => !open && setDeleteCompanyId(null)}>
         <AlertDialogContent>
