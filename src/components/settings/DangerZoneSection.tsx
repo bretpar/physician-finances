@@ -163,6 +163,7 @@ export function DangerZoneSection() {
       icon={<AlertTriangle className="h-5 w-5 text-destructive" />}
       description="Permanently erase your data or delete your account."
       hideActionBar
+      collapsible={false}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
