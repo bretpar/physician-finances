@@ -865,7 +865,7 @@ function TaxProfileSection() {
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="single">Single</SelectItem>
-              <SelectItem value="married_filing_jointly">Married Filing Jointly</SelectItem>
+              <SelectItem value="married_filing_jointly" data-testid="onboarding-filing-status-mfj">Married Filing Jointly</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -2243,7 +2243,7 @@ export default function Settings() {
   const justSavedFlag = (_key: string) => false; // reserved for future use
 
   return (
-    <div className="space-y-4 max-w-3xl mx-auto pb-12">
+    <div data-testid="settings-root" className="space-y-4 max-w-3xl mx-auto pb-12">
       <SectionCard
         title="Profile & Tax Profile"
         icon={<UserCircle className="h-5 w-5" />}
