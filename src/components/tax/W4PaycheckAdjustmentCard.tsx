@@ -606,6 +606,26 @@ export default function W4PaycheckAdjustmentCard() {
       plannedFutureBusinessReservesCounted,
   );
 
+  // ── Stable testable summary numbers ──
+  // projectedHouseholdGross = full forecast household gross (W-2 + business +
+  // other), so audits can verify the full-picture input the W-4 math uses.
+  const projectedHouseholdGross = Number(forecastDebug?.totalGrossIncome ?? 0);
+  // projectedFederalWithholding = actual YTD federal + projected future federal
+  // withholding (excludes state on purpose so the testid name matches reality).
+  const projectedFederalWithholding =
+    Number(forecastDebug?.actualFederalWithheld ?? 0) +
+    Number(forecastDebug?.projectedFederalWithheld ?? 0);
+  // Signed annual gap: positive when under-withheld, negative when over.
+  const signedAnnualGap =
+    projectedTotalTax -
+    taxesAlreadyWithheld -
+    actualTaxSavedOrPaid -
+    estPaymentsAlreadyMade -
+    expectedFutureNormalW2Withholding -
+    plannedFutureBusinessReservesCounted;
+  const annualTaxGap = Math.max(0, signedAnnualGap);
+  const annualTaxSurplus = Math.max(0, -signedAnnualGap);
+
   // Read per-company W-4 settings from Settings > Companies.
   const { companies } = useCompanies();
   const companyByEmployerKey = useMemo(() => {
