@@ -222,6 +222,8 @@ export default function PersonalIncome() {
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [savedEntryId, setSavedEntryId] = useState<string | null>(null);
   const [savedEntryTitle, setSavedEntryTitle] = useState("");
+  const [savedEntryAt, setSavedEntryAt] = useState<string | null>(null);
+  const [savedEntryMode, setSavedEntryMode] = useState<"create" | "update" | null>(null);
   const [reminderRecommended, setReminderRecommended] = useState(0);
   const [reminderActualSaved, setReminderActualSaved] = useState(0);
 
