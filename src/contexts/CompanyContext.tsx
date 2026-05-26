@@ -172,6 +172,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.includeSETaxInRecommendation !== undefined) dbUpdates.include_se_tax_in_recommendation = updates.includeSETaxInRecommendation;
     if (updates.payFrequency !== undefined) dbUpdates.pay_frequency = updates.payFrequency;
     if (updates.remainingPaychecksOverride !== undefined) dbUpdates.remaining_paychecks_override = updates.remainingPaychecksOverride;
+    if (updates.employeeRole !== undefined) dbUpdates.employee_role = updates.employeeRole;
+    if (updates.projectedAnnualGross !== undefined) dbUpdates.projected_annual_gross = updates.projectedAnnualGross;
+    if (updates.expectedFederalWithholdingPerPaycheck !== undefined) dbUpdates.expected_federal_withholding_per_paycheck = updates.expectedFederalWithholdingPerPaycheck;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
