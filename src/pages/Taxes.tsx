@@ -335,8 +335,6 @@ export default function Taxes() {
         </Card>
       )}
 
-      <W4PaycheckAdjustmentCard />
-
       {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
           annualTaxLiability={annualTaxLiability}
