@@ -102,6 +102,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         includeSETaxInRecommendation: c.include_se_tax_in_recommendation !== false,
         payFrequency: (c as any).pay_frequency ?? null,
         remainingPaychecksOverride: (c as any).remaining_paychecks_override ?? null,
+        employeeRole: ((c as any).employee_role ?? null) as "primary" | "spouse" | null,
+        projectedAnnualGross: (c as any).projected_annual_gross != null ? Number((c as any).projected_annual_gross) : null,
+        expectedFederalWithholdingPerPaycheck: (c as any).expected_federal_withholding_per_paycheck != null ? Number((c as any).expected_federal_withholding_per_paycheck) : null,
       }))
     );
     setLoading(false);
