@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserOrgId } from "@/hooks/useOrgId";
@@ -67,6 +68,7 @@ const CompanyContext = createContext<CompanyContextValue | null>(null);
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [incomeCountByCompanyName, setIncomeCountByCompanyName] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       }))
     );
     setLoading(false);
-  }, [user]);
+    qc.invalidateQueries({ queryKey: ["income_sources"] });
+  }, [user, qc]);
 
   const refreshIncomeCounts = useCallback(async () => {
     if (!user) return;
