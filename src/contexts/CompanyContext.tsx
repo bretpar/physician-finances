@@ -110,6 +110,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       }))
     );
     setLoading(false);
+    qc.invalidateQueries({ queryKey: ["income_sources"] });
   }, [user]);
 
   const refreshIncomeCounts = useCallback(async () => {
