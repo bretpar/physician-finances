@@ -27,6 +27,18 @@ export default function Signup() {
 
   if (user) return <Navigate to="/onboarding" replace />;
 
+  function goOnboarding() {
+    sessionStorage.setItem("paycheckmd-onboarding-start", "income-method");
+    sessionStorage.setItem("paycheckmd-onboarding-step", "1");
+    navigate("/onboarding", { replace: true });
+    // Hard fallback in case route guard intercepts before auth state propagates
+    setTimeout(() => {
+      if (window.location.pathname === "/signup") {
+        window.location.assign("/onboarding");
+      }
+    }, 400);
+  }
+
   async function handleCreateAccount() {
     if (saving) return;
     const trimmedFirst = firstName.trim();
@@ -48,22 +60,58 @@ export default function Signup() {
         },
       });
       if (error) {
-        if (isAuthRateLimitError(error)) toast.error("Too many signup attempts. Please wait a few minutes.");
-        else toast.error(error.message || "Could not create account.");
+        if (isAuthRateLimitError(error)) {
+          toast.error("Too many signup attempts. Please wait a few minutes.");
+          return;
+        }
+        // If user already exists, try logging them in with provided password
+        const msg = (error.message || "").toLowerCase();
+        if (msg.includes("registered") || msg.includes("already")) {
+          const { data: signIn, error: signInErr } = await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
+          if (!signInErr && signIn.session) {
+            goOnboarding();
+            return;
+          }
+          toast.error("That email is already registered. Redirecting to login.");
+          navigate(`/login?email=${encodeURIComponent(normalizedEmail)}`, { replace: true });
+          return;
+        }
+        toast.error(error.message || "Could not create account.");
         return;
       }
       const identities = (data.user as any)?.identities;
       if (data.user && Array.isArray(identities) && identities.length === 0) {
-        toast.error("That email is already registered. Please log in instead.");
+        // Existing account — try sign-in then fall back to login redirect
+        const { data: signIn } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+        if (signIn?.session) {
+          goOnboarding();
+          return;
+        }
+        toast.error("That email is already registered. Redirecting to login.");
+        navigate(`/login?email=${encodeURIComponent(normalizedEmail)}`, { replace: true });
         return;
       }
       if (!data.session) {
-        toast.success("Account created. Please log in to continue.");
-        navigate("/login");
+        // No session returned (email confirmation required) — attempt immediate sign-in
+        const { data: signIn } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+        if (signIn?.session) {
+          goOnboarding();
+          return;
+        }
+        toast.success("Account created. Please verify your email, then log in.");
+        navigate(`/login?email=${encodeURIComponent(normalizedEmail)}`, { replace: true });
         return;
       }
-      sessionStorage.setItem("paycheckmd-onboarding-start", "income-method");
-      navigate("/onboarding", { replace: true });
+      goOnboarding();
     } catch (e: any) {
       toast.error(e?.message || "Could not create account.");
     } finally {
