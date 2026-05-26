@@ -118,12 +118,15 @@ export function DangerZoneSection() {
       toast.success("Your account data has been erased. Start onboarding again.");
       setBusy(false);
       setStep("erased");
-      setOpen(false);
+      // Keep the dialog open so the success state is mounted and assertable
+      // by E2E tests before the hard navigation kicks in.
       console.info("Settings erase: erase success detected");
       // Hard navigation guarantees the URL changes and React Query / hook
       // state is fully reset, regardless of any in-flight SPA renders on
       // /settings or stale cached `onboardingComplete` values.
-      window.location.assign("/onboarding?reset=1");
+      setTimeout(() => {
+        window.location.assign("/onboarding?reset=1");
+      }, 250);
     } catch (err: any) {
       const message = err?.message || "Failed to erase account data";
       console.error("Settings erase: safe erase failed", { message });
@@ -167,6 +170,7 @@ export function DangerZoneSection() {
         </p>
         <Button
           variant="destructive"
+          data-testid="settings-delete-erase-account-button"
           onClick={() => {
             reset();
             setOpen(true);
@@ -199,6 +203,7 @@ export function DangerZoneSection() {
                 <Button
                   variant="outline"
                   className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  data-testid="settings-safe-erase-option"
                   onClick={() => setStep("confirmErase")}
                 >
                   Erase account data
@@ -235,7 +240,7 @@ export function DangerZoneSection() {
                   className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={handleErase}
                   disabled={busy}
-                  data-testid="safe-erase-data-confirm"
+                  data-testid="settings-safe-erase-confirm-button"
                   aria-busy={busy}
                 >
                   {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -245,9 +250,9 @@ export function DangerZoneSection() {
             </>
           )}
           {step === "erased" && (
-            <div data-testid="erase-success" data-erase-complete="true">
+            <div data-testid="settings-safe-erase-success" data-erase-complete="true">
               <DialogHeader>
-                <DialogTitle>Account data erased</DialogTitle>
+                <DialogTitle>Account data erased. Restarting onboarding…</DialogTitle>
                 <DialogDescription>
                   Your account data has been erased. Redirecting you to onboarding…
                 </DialogDescription>

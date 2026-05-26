@@ -357,7 +357,7 @@ export default function Onboarding() {
 
   if (showIncomeMethodPicker) {
     return (
-      <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
+      <div data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
         <Card className="mx-auto w-full max-w-2xl">
           <CardContent className="space-y-6 p-5 sm:p-8">
             <div className="flex items-center gap-3">
@@ -417,7 +417,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
+    <div data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
       <Card className="mx-auto w-full max-w-2xl">
         <CardContent className="space-y-6 p-5 sm:p-8">
           <div className="flex items-center gap-3">
@@ -429,14 +429,14 @@ export default function Onboarding() {
           </div>
 
           {step === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-4" data-testid="onboarding-step-1">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground">Confirm your income setup</h1>
                 <p className="mt-1 text-sm text-muted-foreground">We pre-filled this from your estimate. Adjust if needed.</p>
               </div>
               <div>
                 <Label htmlFor="onboarding-first-name">First name</Label>
-                <Input id="onboarding-first-name" autoComplete="given-name" value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
+                <Input id="onboarding-first-name" data-testid="onboarding-first-name-input" autoComplete="given-name" value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
               </div>
               <div className="grid gap-3">
                 <div data-testid="onboarding-income-type-w2"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /></div>
@@ -604,7 +604,7 @@ export default function Onboarding() {
             <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
               {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-              <Button type="button" data-testid="onboarding-continue" onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+              <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>
         </CardContent>
