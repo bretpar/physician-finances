@@ -708,7 +708,7 @@ export default function W4PaycheckAdjustmentCard() {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
-          W-4 Paycheck Adjustment
+          Recommended Extra Withholding
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -788,18 +788,18 @@ export default function W4PaycheckAdjustmentCard() {
           data-row-count={effectiveRows.length}
           data-annual-tax-gap={annualTaxGap}
           data-annual-tax-surplus={annualTaxSurplus}
-          className="overflow-x-auto rounded-md border border-border"
+          className="overflow-x-auto rounded-md border border-border hidden sm:block"
         >
           <table className="w-full text-xs">
             <thead className="bg-muted/40 text-muted-foreground">
               <tr>
-                <th className="text-left font-medium px-2 py-1.5">Employer</th>
-                <th className="text-left font-medium px-2 py-1.5">Employee</th>
-                <th className="text-left font-medium px-2 py-1.5">Pay frequency</th>
-                <th className="text-right font-medium px-2 py-1.5">Remaining paychecks</th>
-                <th className="text-right font-medium px-2 py-1.5">Projected gross</th>
-                <th className="text-right font-medium px-2 py-1.5">Projected fed. withholding</th>
-                <th className="text-right font-medium px-2 py-1.5">Extra / paycheck</th>
+                <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap">Employer</th>
+                <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap">Employee</th>
+                <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap">Pay frequency</th>
+                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Remaining paychecks</th>
+                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Projected gross</th>
+                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Projected fed. withholding</th>
+                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Extra / paycheck</th>
               </tr>
             </thead>
             <tbody>
@@ -862,6 +862,60 @@ export default function W4PaycheckAdjustmentCard() {
           <p className="px-2 py-1.5 text-[10px] text-muted-foreground border-t border-border">
             Extra column is the recommended additional withholding <span className="font-semibold">per paycheck</span> (not annual).
           </p>
+        </div>
+
+        {/* Mobile employer cards — same data as the table, collapsed for small screens */}
+        <div className="sm:hidden space-y-3">
+          {effectiveRows.map((r) => {
+            const a = allocations.find((x) => x.streamId === r.streamId);
+            const perPaycheck = a?.step4cPerPaycheck ?? 0;
+            const slug = employerSlug(r.company);
+            const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
+            let employee: "primary" | "spouse" = "primary";
+            for (const sid of sourceIds) {
+              const tag = employeeBySourceId.get(sid);
+              if (tag === "spouse") { employee = "spouse"; break; }
+              if (tag === "primary") employee = "primary";
+            }
+            const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
+            return (
+              <div
+                key={`mob-${r.streamId}`}
+                className="rounded-md border border-border p-3 space-y-2 bg-background"
+                data-testid={`w4-mobile-card-${slug}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{r.company}</p>
+                    <p className="text-xs text-muted-foreground">{employeeLabel} · {formatFrequencyLabel(r.payFrequency).replace(" paycheck", "")}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-base font-semibold tabular-nums text-primary">{fmt(perPaycheck)}</p>
+                    <p className="text-[10px] text-muted-foreground">extra / paycheck</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Remaining</p>
+                    <p className="font-medium tabular-nums text-foreground">{r.remainingPaychecks}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Projected gross</p>
+                    <p className="font-medium tabular-nums text-foreground">{fmt(r.remainingGross)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Fed. withholding</p>
+                    <p className="font-medium tabular-nums text-foreground">{fmt(r.expectedNormalWithholding)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {effectiveRows.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No active W-2 employers to allocate withholding across.
+            </p>
+          )}
         </div>
 
 
