@@ -103,7 +103,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
           isW2 && remainingPaychecks.trim() !== ""
             ? Number(remainingPaychecks)
             : null,
-        employeeRole: isMFJ ? role : "primary",
+        employeeRole: role,
         projectedAnnualGross:
           projectedGross.trim() !== "" ? Number(projectedGross) : null,
         expectedFederalWithholdingPerPaycheck:
@@ -132,45 +132,51 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3 sm:space-y-4">
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">
-              Company / employer name
-            </Label>
-            <Input
-              data-testid="settings-company-name-input"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (nameError) setNameError(null);
-              }}
-              placeholder="e.g. W2 Primary Hospital"
-              autoFocus
-            />
-            {nameError && (
-              <p className="text-xs text-destructive mt-1">{nameError}</p>
-            )}
-          </div>
-
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Income type</Label>
-            <Select value={incomeType} onValueChange={(v) => setIncomeType(v as IncomeTypeOption)}>
-              <SelectTrigger data-testid="settings-company-income-type-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {INCOME_TYPE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {isMFJ && (
+        <form
+          data-testid="settings-company-form"
+          onSubmit={(e) => { e.preventDefault(); handleSave(); }}
+          className="flex flex-col flex-1 overflow-hidden"
+        >
+          <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3 sm:space-y-4">
             <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Employee role</Label>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Company / employer name
+              </Label>
+              <Input
+                data-testid="settings-company-name-input"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (nameError) setNameError(null);
+                }}
+                placeholder="e.g. W2 Primary Hospital"
+                autoFocus
+              />
+              {nameError && (
+                <p data-testid="settings-company-name-error" className="text-xs text-destructive mt-1">{nameError}</p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Income type</Label>
+              <Select value={incomeType} onValueChange={(v) => setIncomeType(v as IncomeTypeOption)}>
+                <SelectTrigger data-testid="settings-company-income-type-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INCOME_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Employee role{isMFJ ? "" : " (defaults to You)"}
+              </Label>
               <Select value={role} onValueChange={(v) => setRole(v as "primary" | "spouse")}>
                 <SelectTrigger data-testid="settings-company-role-select">
                   <SelectValue />
@@ -181,58 +187,53 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
                 </SelectContent>
               </Select>
             </div>
-          )}
 
-          {isW2 && (
-            <>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Pay frequency</Label>
-                <Select value={frequency} onValueChange={setFrequency}>
-                  <SelectTrigger data-testid="settings-company-frequency-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FREQUENCY_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className={isW2 ? "" : "opacity-60"}>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Pay frequency</Label>
+              <Select value={frequency} onValueChange={setFrequency} disabled={!isW2}>
+                <SelectTrigger data-testid="settings-company-frequency-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FREQUENCY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  Remaining paychecks this year
-                </Label>
-                <Input
-                  data-testid="settings-company-remaining-paychecks-input"
-                  type="number"
-                  inputMode="numeric"
-                  value={remainingPaychecks}
-                  onChange={(e) => setRemainingPaychecks(e.target.value)}
-                  placeholder="Auto"
-                />
-              </div>
-            </>
-          )}
+            <div className={isW2 ? "" : "opacity-60"}>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Remaining paychecks this year
+              </Label>
+              <Input
+                data-testid="settings-company-remaining-paychecks-input"
+                type="number"
+                inputMode="numeric"
+                value={remainingPaychecks}
+                onChange={(e) => setRemainingPaychecks(e.target.value)}
+                placeholder="Auto"
+                disabled={!isW2}
+              />
+            </div>
 
-          <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">
-              Projected annual gross income (optional)
-            </Label>
-            <Input
-              data-testid="settings-company-projected-annual-gross-input"
-              type="number"
-              inputMode="decimal"
-              value={projectedGross}
-              onChange={(e) => setProjectedGross(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-
-          {isW2 && (
             <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Projected annual gross income (optional)
+              </Label>
+              <Input
+                data-testid="settings-company-projected-annual-gross-input"
+                type="number"
+                inputMode="decimal"
+                value={projectedGross}
+                onChange={(e) => setProjectedGross(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+
+            <div className={isW2 ? "" : "opacity-60"}>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
                 Expected federal withholding per paycheck (optional)
               </Label>
@@ -243,30 +244,30 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
                 value={expectedWithholding}
                 onChange={(e) => setExpectedWithholding(e.target.value)}
                 placeholder="0"
+                disabled={!isW2}
               />
             </div>
-          )}
-        </div>
+          </div>
 
-        <DialogFooter className="px-5 py-3 border-t bg-background shrink-0 flex-row justify-end gap-2 sm:space-x-0">
-          <Button
-            type="button"
-            variant="outline"
-            data-testid="settings-company-cancel-button"
-            onClick={resetAndClose}
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            data-testid="settings-company-save-button"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "Saving…" : "Save Company"}
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="px-5 py-3 border-t bg-background shrink-0 flex-row justify-end gap-2 sm:space-x-0">
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="settings-company-cancel-button"
+              onClick={resetAndClose}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              data-testid="settings-company-save-button"
+              disabled={saving}
+            >
+              {saving ? "Saving…" : "Save Company"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
