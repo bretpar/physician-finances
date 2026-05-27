@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import type { DeductionStrategy, EnabledIncomeSources, IncomeProfileType, OnboardingSubscriptionTier, TaxRecommendationMethod } from "@/lib/onboarding";
+
 
 export type WithholdingMethod = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
 export type QuarterlyTrackerMethod = "even" | "dynamic";
