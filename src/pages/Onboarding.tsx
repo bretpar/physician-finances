@@ -122,6 +122,32 @@ export default function Onboarding() {
     else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
   }, [step, catchupChoice]);
 
+  // Auto-seed the first company draft when we land on the company sub-step so
+  // the employer-name input is rendered without requiring a click on
+  // "Add another...". Keeps the manual UI behavior identical when the user
+  // has already added drafts.
+  useEffect(() => {
+    if (step !== 2) return;
+    if (catchupSubStep !== "company") return;
+    setCompanyDrafts((current) => (current.length === 0
+      ? [{ name: "", type: getAllowedCompanyTypes(merged.incomeProfileType)[0], description: "" }]
+      : current));
+  }, [step, catchupSubStep, merged.incomeProfileType]);
+
+  // Stable marker for safe-erase completion. Rendered on the onboarding page
+  // whenever ?reset=1 is present in the URL or the post-erase localStorage
+  // marker is set. Used by Playwright to confirm safe-erase succeeded
+  // without relying on a DOM element that may unmount during navigation.
+  const safeEraseMarkerVisible = (() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("reset") === "1") return true;
+      if (window.localStorage.getItem("paycheckmd:erase-complete")) return true;
+    } catch { /* ignore */ }
+    return false;
+  })();
+
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
