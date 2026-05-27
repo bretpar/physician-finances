@@ -268,7 +268,8 @@ export function SourceEmployerCombobox({
           <div className="p-2 border-b border-border">
             <Input
               ref={inputRef}
-              data-testid="paycheck-employer-search"
+              data-testid="paycheck-employer-search-input"
+              data-testid-alt="paycheck-employer-search"
               placeholder="Search sources / employers…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
