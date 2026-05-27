@@ -36,6 +36,18 @@ export function isPersonalKind(kind: SourceKind | string | null | undefined): bo
   return kind === "w2_employer" || kind === "personal";
 }
 
+/** Map a legacy `company_type` value to its canonical `source_kind`. */
+function deriveSourceKind(companyType: string | null | undefined): SourceKind {
+  const t = (companyType || "").toLowerCase();
+  if (t === "w2" || t === "w2_employer") return "w2_employer";
+  if (t === "personal") return "personal";
+  if (t === "k1" || t === "k1_partnership") return "k1_partnership";
+  if (t === "scorp_w2" || t === "scorp_distribution" || t === "s_corp") return "s_corp";
+  if (t === "other" || t === "other_business") return "other_business";
+  if (t === "1099" || t === "1099_schedule_c") return "1099_schedule_c";
+  return "1099_schedule_c";
+}
+
 /** Fetch all income sources (companies table) usable in the unified dropdown. */
 export function useIncomeSources() {
   return useQuery({
@@ -48,12 +60,14 @@ export function useIncomeSources() {
         .order("name");
       if (error) throw error;
       return ((data || []) as any[])
-        .filter((c) => !!(c.name || c.nickname))
+        .filter((c) => !!((c.name && String(c.name).trim()) || (c.nickname && String(c.nickname).trim())))
         .map((c) => ({
           id: c.id,
-          name: c.name,
-          nickname: c.nickname,
-          source_kind: c.source_kind,
+          name: c.name || c.nickname || "",
+          nickname: c.nickname || "",
+          // Backfill source_kind from company_type when missing/unknown so older
+          // rows still appear in the Add Paycheck dropdown.
+          source_kind: (c.source_kind as SourceKind) || deriveSourceKind(c.company_type),
           company_type: c.company_type,
         })) as IncomeSource[];
     },
