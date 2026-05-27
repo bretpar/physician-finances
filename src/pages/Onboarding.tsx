@@ -624,7 +624,7 @@ export default function Onboarding() {
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
                   </div>
                 ))}
-                <Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button>
+                <Button type="button" variant="outline" data-testid="onboarding-add-employer-button" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button>
                 <p className="text-xs text-muted-foreground">You can add more later in Settings.</p>
               </div>
             </div>
