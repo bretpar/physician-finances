@@ -216,6 +216,7 @@ export function SectionCard({
   return (
     <section className="glass-card rounded-xl overflow-hidden">
       <header
+        data-testid={headerTestId}
         className={cn(
           "flex items-start gap-3 p-4 sm:p-6",
           collapsible && "cursor-pointer select-none",
