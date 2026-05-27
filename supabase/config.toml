@@ -8,5 +8,8 @@ verify_jwt = false
 
 # admin-delete-user intentionally not implemented yet; future write actions require super_admin-only safeguards.
 
+[functions.account-cleanup]
+verify_jwt = false
+
 [functions.onboarding-signup]
 verify_jwt = false
