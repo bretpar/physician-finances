@@ -1399,7 +1399,7 @@ function CompaniesSection() {
                               value={role ?? "primary"}
                               onValueChange={(v) => setField(company.id, "employeeRole", v as "primary" | "spouse")}
                             >
-                              <SelectTrigger data-testid="settings-company-role-select"><SelectValue /></SelectTrigger>
+                              <SelectTrigger data-testid="settings-company-row-role-select"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="primary" data-testid="company-employee-role-option-primary">Primary</SelectItem>
                                 <SelectItem value="spouse" data-testid="company-employee-role-option-spouse">Spouse</SelectItem>
