@@ -1456,7 +1456,7 @@ function CompaniesSection() {
                           <div className="sm:col-span-2">
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Expected federal withholding per paycheck (optional)</Label>
                             <Input
-                              data-testid="settings-company-expected-federal-withholding-input"
+                              data-testid="settings-company-row-expected-federal-withholding-input"
                               type="number"
                               min={0}
                               step="0.01"
