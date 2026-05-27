@@ -232,6 +232,7 @@ export default function ProjectedIncome() {
   const updateBonus = useUpdateBonus();
   const addIncome = useAddIncome();
   const addPersonalIncome = useAddPersonalIncome();
+  const manualConvert = useManualPlannerConvert();
   const createSource = useCreateIncomeSource();
 
   const [showForm, setShowForm] = useState(false);
