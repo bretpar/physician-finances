@@ -100,6 +100,9 @@ export function SectionCard({
     setOpen((o) => !o);
   };
 
+  const contentOpen = !collapsible || open;
+  const bareContentOpen = !collapsible || bareOpen;
+
   const showActionBar = !hideActionBar && isDirty && (onSave || onCancel);
 
   if (bare) {
