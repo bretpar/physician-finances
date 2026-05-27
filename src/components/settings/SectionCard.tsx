@@ -166,8 +166,8 @@ export function SectionCard({
             )}
           </div>
         </div>
-        {bareOpen && <div className="space-y-5">{children}</div>}
-        {bareOpen && showActionBar && (
+        {bareContentOpen && <div className="space-y-5">{children}</div>}
+        {bareContentOpen && showActionBar && (
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
             {onCancel && (
               <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
