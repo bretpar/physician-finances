@@ -50,6 +50,7 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
 import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
+import AddCompanyDialog from "@/components/settings/AddCompanyDialog";
 import { DangerZoneSection } from "@/components/settings/DangerZoneSection";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
@@ -1130,14 +1131,9 @@ function CompaniesSection() {
     toast.success("Company deleted");
   }
 
+  const [addCompanyOpen, setAddCompanyOpen] = useState(false);
   function handleAdd() {
-    addCompany({
-      name: "", nickname: "", companyType: defaultCompanyType, includeInTax: true,
-      defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
-      advancedFieldVisibility: {}, applyBusinessStateTax: true, includeSETaxInRecommendation: true,
-      payFrequency: null, remainingPaychecksOverride: null,
-      employeeRole: null, projectedAnnualGross: null, expectedFederalWithholdingPerPaycheck: null,
-    });
+    setAddCompanyOpen(true);
   }
 
   function toggleAdvanced(id: string) {
@@ -1150,11 +1146,13 @@ function CompaniesSection() {
 
   return (
     <>
+      <AddCompanyDialog open={addCompanyOpen} onOpenChange={setAddCompanyOpen} />
       <div data-testid="settings-companies-section">
       <SectionCard
         title="Companies"
         icon={<Building2 className="h-5 w-5" />}
         summary={`(${companies.length})`}
+        headerTestId="settings-companies-trigger"
         description={
           companies.length > 0
             ? `Set the filing type for each company. Currently tracking: ${companies.map((c) => c.name || "Unnamed").join(", ")}.`
@@ -1166,7 +1164,7 @@ function CompaniesSection() {
             {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
             {false && companies.length > 1 && <MergeCompaniesDialog />}
             <Button data-testid="settings-companies-add-button" variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
-              <Plus className="h-4 w-4" /> Add
+              <Plus className="h-4 w-4" /> Add Company
             </Button>
           </div>
         }

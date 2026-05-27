@@ -26,6 +26,8 @@ interface SectionCardProps {
   headerAction?: ReactNode;
   /** When true, only render headerAction while the section is expanded. */
   headerActionOpenOnly?: boolean;
+  /** Optional data-testid applied to the clickable header (used for stable E2E selectors). */
+  headerTestId?: string;
   /** Whether section is collapsible. Defaults true. */
   collapsible?: boolean;
   /** Initial open state. Defaults false so sections start collapsed. */
@@ -54,6 +56,7 @@ export function SectionCard({
   description,
   headerAction,
   headerActionOpenOnly = false,
+  headerTestId,
   collapsible = true,
   defaultOpen = false,
   isDirty = false,
@@ -213,6 +216,7 @@ export function SectionCard({
   return (
     <section className="glass-card rounded-xl overflow-hidden">
       <header
+        data-testid={headerTestId}
         className={cn(
           "flex items-start gap-3 p-4 sm:p-6",
           collapsible && "cursor-pointer select-none",
