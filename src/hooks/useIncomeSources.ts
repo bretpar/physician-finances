@@ -59,17 +59,37 @@ export function useIncomeSources() {
         .is("archived_at", null)
         .order("name");
       if (error) throw error;
-      return ((data || []) as any[])
-        .filter((c) => !!((c.name && String(c.name).trim()) || (c.nickname && String(c.nickname).trim())))
-        .map((c) => ({
-          id: c.id,
-          name: c.name || c.nickname || "",
-          nickname: c.nickname || "",
-          // Backfill source_kind from company_type when missing/unknown so older
-          // rows still appear in the Add Paycheck dropdown.
-          source_kind: (c.source_kind as SourceKind) || deriveSourceKind(c.company_type),
-          company_type: c.company_type,
-        })) as IncomeSource[];
+      const rows = (data || []) as any[];
+      // Keep only rows with a usable display name (name OR nickname after trim).
+      const named = rows.filter(
+        (c) => !!((c.name && String(c.name).trim()) || (c.nickname && String(c.nickname).trim())),
+      );
+      // De-duplicate by id first (defensive), then by (lowercased name + source_kind)
+      // so duplicate Settings rows do not produce duplicate dropdown options.
+      const byId = new Map<string, any>();
+      for (const c of named) if (!byId.has(c.id)) byId.set(c.id, c);
+      const dedupedByName = new Map<string, any>();
+      for (const c of byId.values()) {
+        const key = `${String(c.name || c.nickname || "").trim().toLowerCase()}::${c.source_kind || c.company_type || ""}`;
+        if (!dedupedByName.has(key)) dedupedByName.set(key, c);
+      }
+      const mapped = Array.from(dedupedByName.values()).map((c) => ({
+        id: c.id,
+        name: c.name || c.nickname || "",
+        nickname: c.nickname || "",
+        source_kind: (c.source_kind as SourceKind) || deriveSourceKind(c.company_type),
+        company_type: c.company_type,
+      })) as IncomeSource[];
+      if (typeof window !== "undefined") {
+        // eslint-disable-next-line no-console
+        console.log("[useIncomeSources]", {
+          fetched: rows.length,
+          named: named.length,
+          deduped: mapped.length,
+          sample: mapped.slice(0, 5).map((m) => ({ id: m.id, name: m.name, source_kind: m.source_kind })),
+        });
+      }
+      return mapped;
     },
     staleTime: 0,
     refetchOnWindowFocus: true,
