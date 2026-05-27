@@ -647,7 +647,7 @@ export default function Onboarding() {
             <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
             <div className="flex items-center gap-2">
               {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-              <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+              <Button type="button" data-testid={step === 2 && catchupSubStep === "company" ? "onboarding-employer-save-button" : "onboarding-continue-button"} {...(step === 2 && catchupSubStep === "company" ? { "data-testid-secondary": "onboarding-continue-button" } : {})} onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
             </div>
           </div>
         </CardContent>
