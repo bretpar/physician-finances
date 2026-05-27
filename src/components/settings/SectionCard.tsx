@@ -100,6 +100,9 @@ export function SectionCard({
     setOpen((o) => !o);
   };
 
+  const contentOpen = !collapsible || open;
+  const bareContentOpen = !collapsible || bareOpen;
+
   const showActionBar = !hideActionBar && isDirty && (onSave || onCancel);
 
   if (bare) {
@@ -150,7 +153,7 @@ export function SectionCard({
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            {(!headerActionOpenOnly || bareOpen) && headerAction}
+            {(!headerActionOpenOnly || bareContentOpen) && headerAction}
             {collapsible && (
               <button
                 type="button"
@@ -163,8 +166,8 @@ export function SectionCard({
             )}
           </div>
         </div>
-        {bareOpen && <div className="space-y-5">{children}</div>}
-        {bareOpen && showActionBar && (
+        {bareContentOpen && <div className="space-y-5">{children}</div>}
+        {bareContentOpen && showActionBar && (
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
             {onCancel && (
               <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
@@ -261,7 +264,7 @@ export function SectionCard({
           className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0"
           onClick={(e) => e.stopPropagation()}
         >
-          {(!headerActionOpenOnly || open) && headerAction}
+          {(!headerActionOpenOnly || contentOpen) && headerAction}
           {collapsible && (
             <button
               type="button"
@@ -280,11 +283,11 @@ export function SectionCard({
         </div>
       </header>
 
-      {open && (
+      {contentOpen && (
         <div className="px-4 sm:px-6 pb-5 sm:pb-6 space-y-5">{children}</div>
       )}
 
-      {open && showActionBar && (
+      {contentOpen && showActionBar && (
         <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
           {onCancel && (
             <Button
