@@ -1130,14 +1130,9 @@ function CompaniesSection() {
     toast.success("Company deleted");
   }
 
+  const [addCompanyOpen, setAddCompanyOpen] = useState(false);
   function handleAdd() {
-    addCompany({
-      name: "", nickname: "", companyType: defaultCompanyType, includeInTax: true,
-      defaultSetasideMethod: "recommended", defaultSetasidePct: null, notes: "",
-      advancedFieldVisibility: {}, applyBusinessStateTax: true, includeSETaxInRecommendation: true,
-      payFrequency: null, remainingPaychecksOverride: null,
-      employeeRole: null, projectedAnnualGross: null, expectedFederalWithholdingPerPaycheck: null,
-    });
+    setAddCompanyOpen(true);
   }
 
   function toggleAdvanced(id: string) {
