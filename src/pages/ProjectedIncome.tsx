@@ -41,7 +41,7 @@ import {
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useDeleteOverride,
-  usePlannerConversions, useConfirmSuggestedMatch,
+  usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
   generateProjectedPaychecks, getProjectedTotals,
   isStreamExpired,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
