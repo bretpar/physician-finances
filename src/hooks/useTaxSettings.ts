@@ -144,10 +144,13 @@ const DEFAULT_RATES: TaxRates = {
 };
 
 export function useTaxSettings(enabled = true) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   return useQuery({
-    queryKey: ["tax_settings"],
-    enabled,
+    queryKey: ["tax_settings", userId],
+    enabled: enabled && !!userId,
     queryFn: async () => {
+
       const { data, error } = await supabase
         .from("tax_settings")
         .select("*")
