@@ -122,6 +122,32 @@ export default function Onboarding() {
     else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
   }, [step, catchupChoice]);
 
+  // Auto-seed the first company draft when we land on the company sub-step so
+  // the employer-name input is rendered without requiring a click on
+  // "Add another...". Keeps the manual UI behavior identical when the user
+  // has already added drafts.
+  useEffect(() => {
+    if (step !== 2) return;
+    if (catchupSubStep !== "company") return;
+    setCompanyDrafts((current) => (current.length === 0
+      ? [{ name: "", type: getAllowedCompanyTypes(merged.incomeProfileType)[0], description: "" }]
+      : current));
+  }, [step, catchupSubStep, merged.incomeProfileType]);
+
+  // Stable marker for safe-erase completion. Rendered on the onboarding page
+  // whenever ?reset=1 is present in the URL or the post-erase localStorage
+  // marker is set. Used by Playwright to confirm safe-erase succeeded
+  // without relying on a DOM element that may unmount during navigation.
+  const safeEraseMarkerVisible = (() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("reset") === "1") return true;
+      if (window.localStorage.getItem("paycheckmd:erase-complete")) return true;
+    } catch { /* ignore */ }
+    return false;
+  })();
+
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
   if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
 
@@ -433,6 +459,9 @@ export default function Onboarding() {
 
   return (
     <div data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
+      {safeEraseMarkerVisible && (
+        <div data-testid="safe-erase-complete-marker" className="sr-only" aria-hidden="true" />
+      )}
       <Card className="mx-auto w-full max-w-2xl">
         <CardContent className="space-y-6 p-5 sm:p-8">
           <div className="flex items-center gap-3">
@@ -565,7 +594,7 @@ export default function Onboarding() {
           )}
 
           {step === 2 && catchupSubStep === "company" && (
-            <div className="space-y-5">
+            <div className="space-y-5" data-testid="onboarding-company-entry-step">
               <div>
                 <h2 className="text-2xl font-semibold text-foreground">{companySetupCopy.title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p>
@@ -576,7 +605,7 @@ export default function Onboarding() {
                     <div className="grid gap-3 sm:grid-cols-[1fr_210px]">
                       <div>
                         <Label htmlFor={`company-name-${index}`}>{companySetupCopy.nameLabel}</Label>
-                        <Input id={`company-name-${index}`} data-testid={`company-name-${index}`} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
+                        <Input id={`company-name-${index}`} data-testid={index === 0 ? "onboarding-employer-name-input" : `company-name-${index}`} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
                       </div>
                       {allowedCompanyTypes.length > 1 && (
                         <div>

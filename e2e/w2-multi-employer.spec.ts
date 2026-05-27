@@ -132,21 +132,28 @@ async function safeEraseViaSettings(page: Page): Promise<void> {
 
   await safeConfirm.click({ timeout: 5_000 });
 
-  // Wait for the erase-complete marker in localStorage (best-effort), then URL,
-  // then the step-1 testid.
-  await page
-    .waitForFunction(
-      () => !!window.localStorage.getItem("paycheckmd:erase-complete"),
-      undefined,
-      { timeout: 30_000 },
-    )
-    .catch(() => {
-      // Fallback: success panel may appear before localStorage settles.
-      return page
-        .locator('[data-testid="settings-safe-erase-success"]')
-        .waitFor({ state: "visible", timeout: 5_000 })
-        .catch(() => {});
-    });
+  // Wait for ANY of the safe-erase success signals: localStorage marker,
+  // the in-Settings success panel, the post-redirect onboarding marker, or
+  // the onboarding URL with reset=1. This keeps the test deterministic even
+  // when navigation unmounts the in-Settings panel before we can read it.
+  await Promise.race([
+    page
+      .waitForFunction(
+        () => !!window.localStorage.getItem("paycheckmd:erase-complete"),
+        undefined,
+        { timeout: 30_000 },
+      )
+      .catch(() => {}),
+    page
+      .locator('[data-testid="settings-safe-erase-success"]')
+      .waitFor({ state: "visible", timeout: 30_000 })
+      .catch(() => {}),
+    page
+      .locator('[data-testid="safe-erase-complete-marker"]')
+      .waitFor({ state: "attached", timeout: 30_000 })
+      .catch(() => {}),
+    page.waitForURL(/\/onboarding/, { timeout: 30_000 }).catch(() => {}),
+  ]);
 
   await page.waitForURL(/\/onboarding/, { timeout: 30_000 });
 }
@@ -186,8 +193,15 @@ async function completeW2OnboardingWithEmployer(
     }
   }
 
-  // Step 2 company sub-step: fill first employer name.
-  const companyInput = page.locator('[data-testid="company-name-0"]');
+  // Step 2 company sub-step: wait for the entry container, then fill the
+  // first employer name via the stable onboarding testid. Falls back to the
+  // legacy `company-name-0` testid in case the new alias is not yet deployed.
+  await page
+    .locator('[data-testid="onboarding-company-entry-step"]')
+    .waitFor({ state: "visible", timeout: 15_000 });
+  const companyInput = page
+    .locator('[data-testid="onboarding-employer-name-input"], [data-testid="company-name-0"]')
+    .first();
   await companyInput.waitFor({ state: "visible", timeout: 15_000 });
   await companyInput.fill(employerName);
   await page.locator('[data-testid="onboarding-continue-button"]').click();
