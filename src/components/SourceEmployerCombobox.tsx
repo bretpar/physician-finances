@@ -56,7 +56,8 @@ export function SourceEmployerCombobox({
   required,
   invalid,
 }: Props) {
-  const { data: sources = [] } = useIncomeSources();
+  const { data: sources = [], refetch } = useIncomeSources();
+  const qc = useQueryClient();
   const createMutation = useCreateIncomeSource();
 
   const [open, setOpen] = useState(false);
