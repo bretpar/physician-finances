@@ -605,7 +605,7 @@ export default function Onboarding() {
                     <div className="grid gap-3 sm:grid-cols-[1fr_210px]">
                       <div>
                         <Label htmlFor={`company-name-${index}`}>{companySetupCopy.nameLabel}</Label>
-                        <Input id={`company-name-${index}`} data-testid={index === 0 ? "onboarding-employer-name-input" : `company-name-${index}`} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
+                        <Input id={`company-name-${index}`} data-testid={index === 0 ? "onboarding-employer-name-input" : `onboarding-employer-name-input-${index}`} data-employer-index={index} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
                       </div>
                       {allowedCompanyTypes.length > 1 && (
                         <div>
