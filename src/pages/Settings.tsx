@@ -1168,7 +1168,6 @@ function CompaniesSection() {
             </Button>
           </div>
         }
-        headerActionOpenOnly
         isDirty={anyDirty}
         // Section-level save bar is hidden — each company has its own.
         hideActionBar
