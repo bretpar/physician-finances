@@ -1199,7 +1199,7 @@ function CompaniesSection() {
               return (
                 <div
                   key={company.id}
-                  data-testid="settings-company-form"
+                  data-testid="settings-company-row"
                   data-company-id={company.id}
                   className={cn(
                     "border rounded-lg p-4 space-y-3 transition-colors",
@@ -1211,7 +1211,7 @@ function CompaniesSection() {
                       <div className="flex-1 min-w-0">
                         <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
                         <Input
-                          data-testid="settings-company-name-input"
+                          data-testid="settings-company-row-name-input"
                           value={getValue(company, "name") as string}
                           onChange={(e) => setField(company.id, "name", e.target.value)}
                           placeholder="e.g. Vituity"
@@ -1247,7 +1247,7 @@ function CompaniesSection() {
                         onValueChange={(v) => setField(company.id, "companyType", v as FilingType)}
                         disabled={filingTypeLocked}
                       >
-                        <SelectTrigger data-testid="settings-company-income-type-select"><SelectValue /></SelectTrigger>
+                        <SelectTrigger data-testid="settings-company-row-income-type-select"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {companyTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
@@ -1399,7 +1399,7 @@ function CompaniesSection() {
                               value={role ?? "primary"}
                               onValueChange={(v) => setField(company.id, "employeeRole", v as "primary" | "spouse")}
                             >
-                              <SelectTrigger data-testid="settings-company-role-select"><SelectValue /></SelectTrigger>
+                              <SelectTrigger data-testid="settings-company-row-role-select"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="primary" data-testid="company-employee-role-option-primary">Primary</SelectItem>
                                 <SelectItem value="spouse" data-testid="company-employee-role-option-spouse">Spouse</SelectItem>
@@ -1412,7 +1412,7 @@ function CompaniesSection() {
                               value={freq || "unset"}
                               onValueChange={(v) => setField(company.id, "payFrequency", v === "unset" ? null : v)}
                             >
-                              <SelectTrigger data-testid="settings-company-frequency-select"><SelectValue placeholder="Not set" /></SelectTrigger>
+                              <SelectTrigger data-testid="settings-company-row-frequency-select"><SelectValue placeholder="Not set" /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="unset">Not set</SelectItem>
                                 <SelectItem value="weekly" data-testid="company-pay-frequency-option-weekly">Weekly</SelectItem>
@@ -1425,7 +1425,7 @@ function CompaniesSection() {
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
                             <Input
-                              data-testid="settings-company-remaining-paychecks-input"
+                              data-testid="settings-company-row-remaining-paychecks-input"
                               type="number"
                               min={0}
                               inputMode="numeric"
@@ -1440,7 +1440,7 @@ function CompaniesSection() {
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Projected annual gross (optional)</Label>
                             <Input
-                              data-testid="settings-company-projected-annual-gross-input"
+                              data-testid="settings-company-row-projected-annual-gross-input"
                               type="number"
                               min={0}
                               step="0.01"
@@ -1456,7 +1456,7 @@ function CompaniesSection() {
                           <div className="sm:col-span-2">
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Expected federal withholding per paycheck (optional)</Label>
                             <Input
-                              data-testid="settings-company-expected-federal-withholding-input"
+                              data-testid="settings-company-row-expected-federal-withholding-input"
                               type="number"
                               min={0}
                               step="0.01"
@@ -1485,7 +1485,7 @@ function CompaniesSection() {
                       {dirty && (
                         <>
                           <Button variant="ghost" size="sm" onClick={() => cancelCompany(company.id)} disabled={saving}>Cancel</Button>
-                          <Button data-testid="settings-company-save-button" size="sm" onClick={() => saveCompany(company)} disabled={saving}>
+                          <Button data-testid="settings-company-row-save-button" size="sm" onClick={() => saveCompany(company)} disabled={saving}>
                             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                             Save Changes
                           </Button>
