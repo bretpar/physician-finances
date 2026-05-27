@@ -450,4 +450,44 @@ test.describe("W-2 multi-employer flow — live app", () => {
       throw err;
     }
   });
+
+  test("safe-erase, then add both employers in onboarding (UI advances between entries)", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+
+    try {
+      await loginThroughUI(page);
+
+      await safeEraseViaSettings(page);
+      await waitForOnboardingStep1(page);
+
+      await completeW2OnboardingWithTwoEmployers(
+        page,
+        EMPLOYER_ONE,
+        EMPLOYER_TWO,
+      );
+
+      await page.goto(abs("/settings"), { waitUntil: "domcontentloaded" });
+      const settingsBody = page.locator("body");
+      await expect(settingsBody).toContainText(EMPLOYER_ONE, {
+        timeout: 15_000,
+      });
+      await expect(settingsBody).toContainText(EMPLOYER_TWO, {
+        timeout: 15_000,
+      });
+    } catch (err) {
+      await logFailureContext(page, "multi-employer-onboarding-failure");
+      const shot = await page
+        .screenshot({ fullPage: true })
+        .catch(() => null);
+      if (shot) {
+        await testInfo.attach("failure-screenshot.png", {
+          body: shot,
+          contentType: "image/png",
+        });
+      }
+      throw err;
+    }
+  });
 });
