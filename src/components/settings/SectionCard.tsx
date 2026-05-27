@@ -26,6 +26,8 @@ interface SectionCardProps {
   headerAction?: ReactNode;
   /** When true, only render headerAction while the section is expanded. */
   headerActionOpenOnly?: boolean;
+  /** Optional data-testid applied to the clickable header (used for stable E2E selectors). */
+  headerTestId?: string;
   /** Whether section is collapsible. Defaults true. */
   collapsible?: boolean;
   /** Initial open state. Defaults false so sections start collapsed. */
