@@ -283,11 +283,11 @@ export function SectionCard({
         </div>
       </header>
 
-      {open && (
+      {contentOpen && (
         <div className="px-4 sm:px-6 pb-5 sm:pb-6 space-y-5">{children}</div>
       )}
 
-      {open && showActionBar && (
+      {contentOpen && showActionBar && (
         <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
           {onCancel && (
             <Button
