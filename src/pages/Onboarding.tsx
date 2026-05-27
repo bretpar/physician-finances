@@ -591,7 +591,7 @@ export default function Onboarding() {
           )}
 
           {step === 2 && catchupSubStep === "company" && (
-            <div className="space-y-5">
+            <div className="space-y-5" data-testid="onboarding-company-entry-step">
               <div>
                 <h2 className="text-2xl font-semibold text-foreground">{companySetupCopy.title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{companySetupCopy.subtitle}</p>
@@ -602,7 +602,7 @@ export default function Onboarding() {
                     <div className="grid gap-3 sm:grid-cols-[1fr_210px]">
                       <div>
                         <Label htmlFor={`company-name-${index}`}>{companySetupCopy.nameLabel}</Label>
-                        <Input id={`company-name-${index}`} data-testid={`company-name-${index}`} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
+                        <Input id={`company-name-${index}`} data-testid={index === 0 ? "onboarding-employer-name-input" : `company-name-${index}`} {...(index === 0 ? { "data-testid-alias": "company-name-0" } : {})} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
                       </div>
                       {allowedCompanyTypes.length > 1 && (
                         <div>
