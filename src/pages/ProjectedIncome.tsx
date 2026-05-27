@@ -634,47 +634,36 @@ export default function ProjectedIncome() {
     if (!convertTarget) return;
     const entry = convertTarget;
     const dest = convertDestination;
-    const notes = "Converted from planned income";
+    const isBusiness = dest === "business";
 
-    const onSuccess = () => {
-      // Mark as "skip" override so it's excluded from projections
-      addOverride.mutate({
-        stream_id: entry.streamId,
-        override_date: entry.date,
-        action: "skip",
-        notes: "Converted to actual income",
-      });
-      setConvertTarget(null);
-    };
-
-    if (dest === "personal") {
-      addPersonalIncome.mutate({
-        name: entry.label,
-        company: entry.label,
-        income_type: entry.streamCompanyType || "w2",
-        income_date: entry.date,
-        gross_amount: entry.grossAmount,
-        paycheck_amount: entry.grossAmount,
-        taxes_withheld: entry.taxesWithheld,
-        pre_tax_deductions: entry.preTaxDeductions,
-        retirement_401k: entry.retirement401k,
-        notes,
-      } as any, { onSuccess });
-    } else {
-      addIncome.mutate({
-        name: entry.label,
-        company: entry.label,
-        income_type: entry.streamCompanyType || "1099_schedule_c",
-        income_date: entry.date,
-        paycheck_amount: entry.grossAmount,
-        deposited_amount: entry.netAmount,
-        taxes_withheld: entry.taxesWithheld,
-        pre_tax_deductions: entry.preTaxDeductions,
-        retirement_401k: entry.retirement401k,
-        notes,
-        status: "received" as any,
-      }, { onSuccess });
-    }
+    manualConvert.mutate(
+      {
+        streamId: entry.streamId,
+        bonusEventId: entry.bonusEventId ?? null,
+        occurrenceDate: entry.date,
+        ledgerBucket: isBusiness ? "business" : "personal",
+        label: entry.label,
+        sourceId: entry.streamSourceId ?? null,
+        incomeType: entry.streamCompanyType || (isBusiness ? "1099_schedule_c" : "w2"),
+        uiIncomeSubtype: entry.streamCompanyType ?? null,
+        grossAmount: entry.grossAmount,
+        taxesWithheld: entry.taxesWithheld,
+        preTaxDeductions: entry.preTaxDeductions,
+        retirement401k: entry.retirement401k,
+        healthcareDeduction: entry.healthcareDeduction,
+        hsaContribution: entry.hsaContribution,
+        federalWithholding: 0,
+        stateWithholding: 0,
+        ssWithholding: 0,
+        medicareWithholding: 0,
+        isBonus: entry.type === "bonus",
+      },
+      {
+        onSuccess: () => {
+          setConvertTarget(null);
+        },
+      },
+    );
   };
 
   const currentMonth = new Date().getMonth();
