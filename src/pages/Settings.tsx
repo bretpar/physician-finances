@@ -1425,7 +1425,7 @@ function CompaniesSection() {
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
                             <Input
-                              data-testid="settings-company-remaining-paychecks-input"
+                              data-testid="settings-company-row-remaining-paychecks-input"
                               type="number"
                               min={0}
                               inputMode="numeric"
