@@ -1199,7 +1199,7 @@ function CompaniesSection() {
               return (
                 <div
                   key={company.id}
-                  data-testid="settings-company-form"
+                  data-testid="settings-company-row"
                   data-company-id={company.id}
                   className={cn(
                     "border rounded-lg p-4 space-y-3 transition-colors",
@@ -1211,7 +1211,7 @@ function CompaniesSection() {
                       <div className="flex-1 min-w-0">
                         <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
                         <Input
-                          data-testid="settings-company-name-input"
+                          data-testid="settings-company-row-name-input"
                           value={getValue(company, "name") as string}
                           onChange={(e) => setField(company.id, "name", e.target.value)}
                           placeholder="e.g. Vituity"
