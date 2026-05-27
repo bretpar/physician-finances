@@ -121,15 +121,18 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : resetAndClose())}>
-      <DialogContent data-testid="settings-company-modal" className="max-w-lg">
-        <DialogHeader>
+      <DialogContent
+        data-testid="settings-company-modal"
+        className="max-w-lg w-[calc(100vw-24px)] sm:w-full p-0 gap-0 max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden"
+      >
+        <DialogHeader className="px-5 pt-5 pb-3 border-b shrink-0">
           <DialogTitle>Add Company</DialogTitle>
           <DialogDescription>
             Create an employer or income source so paychecks and tax estimates can be organized correctly.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3 sm:space-y-4">
           <div>
             <Label className="text-xs text-muted-foreground mb-1.5 block">
               Company / employer name
@@ -245,7 +248,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-5 py-3 border-t bg-background shrink-0 flex-row justify-end gap-2 sm:space-x-0">
           <Button
             type="button"
             variant="outline"
