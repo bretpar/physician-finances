@@ -605,7 +605,7 @@ export default function Onboarding() {
                     <div className="grid gap-3 sm:grid-cols-[1fr_210px]">
                       <div>
                         <Label htmlFor={`company-name-${index}`}>{companySetupCopy.nameLabel}</Label>
-                        <Input id={`company-name-${index}`} data-testid={index === 0 ? "onboarding-employer-name-input" : `company-name-${index}`} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
+                        <Input id={`company-name-${index}`} data-testid={index === 0 ? "onboarding-employer-name-input" : `onboarding-employer-name-input-${index}`} data-employer-index={index} value={company.name} onChange={(e) => updateCompanyDraft(index, { name: e.target.value })} placeholder={companySetupCopy.namePlaceholder} />
                       </div>
                       {allowedCompanyTypes.length > 1 && (
                         <div>
@@ -624,7 +624,7 @@ export default function Onboarding() {
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
                   </div>
                 ))}
-                <Button type="button" variant="outline" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button>
+                <Button type="button" variant="outline" data-testid="onboarding-add-employer-button" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button>
                 <p className="text-xs text-muted-foreground">You can add more later in Settings.</p>
               </div>
             </div>
