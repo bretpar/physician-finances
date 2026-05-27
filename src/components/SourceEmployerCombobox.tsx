@@ -117,9 +117,16 @@ export function SourceEmployerCombobox({
   }, [sources, search]);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 0);
-    else setSearch("");
-  }, [open]);
+    if (open) {
+      // Force a fresh fetch every time the dropdown opens so newly-created
+      // companies (e.g. just added in Settings) always show up.
+      qc.invalidateQueries({ queryKey: ["income_sources"] });
+      refetch();
+      setTimeout(() => inputRef.current?.focus(), 0);
+    } else {
+      setSearch("");
+    }
+  }, [open, qc, refetch]);
 
   function selectSource(s: IncomeSource) {
     onChange({
