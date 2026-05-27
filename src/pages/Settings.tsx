@@ -1440,7 +1440,7 @@ function CompaniesSection() {
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Projected annual gross (optional)</Label>
                             <Input
-                              data-testid="settings-company-projected-annual-gross-input"
+                              data-testid="settings-company-row-projected-annual-gross-input"
                               type="number"
                               min={0}
                               step="0.01"
