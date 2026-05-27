@@ -186,8 +186,15 @@ async function completeW2OnboardingWithEmployer(
     }
   }
 
-  // Step 2 company sub-step: fill first employer name.
-  const companyInput = page.locator('[data-testid="company-name-0"]');
+  // Step 2 company sub-step: wait for the entry container, then fill the
+  // first employer name via the stable onboarding testid. Falls back to the
+  // legacy `company-name-0` testid in case the new alias is not yet deployed.
+  await page
+    .locator('[data-testid="onboarding-company-entry-step"]')
+    .waitFor({ state: "visible", timeout: 15_000 });
+  const companyInput = page
+    .locator('[data-testid="onboarding-employer-name-input"], [data-testid="company-name-0"]')
+    .first();
   await companyInput.waitFor({ state: "visible", timeout: 15_000 });
   await companyInput.fill(employerName);
   await page.locator('[data-testid="onboarding-continue-button"]').click();
