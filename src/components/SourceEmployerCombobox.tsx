@@ -78,8 +78,13 @@ export function SourceEmployerCombobox({
 
   const { personalSources, businessSources } = useMemo(() => {
     const q = search.trim().toLowerCase();
-    // Defensive: require at least one display label, then match by name OR nickname.
-    const named = sources.filter((s) => {
+    // Defensive dedupe by id in case the hook ever yields duplicates.
+    const byId = new Map<string, IncomeSource>();
+    for (const s of sources) if (s && s.id && !byId.has(s.id)) byId.set(s.id, s);
+    const unique = Array.from(byId.values());
+    // Require a usable label (name OR nickname after trim) so empty rows can never
+    // break rendering of valid companies.
+    const named = unique.filter((s) => {
       const n = (s.name || "").trim();
       const nick = (s.nickname || "").trim();
       return n.length > 0 || nick.length > 0;
@@ -91,20 +96,19 @@ export function SourceEmployerCombobox({
       return n.includes(q) || nick.includes(q);
     });
     // Bucketing: treat w2_employer/personal as Personal; anything else (incl.
-    // unknown/missing source_kind) as Business — but never drop a named row.
+    // unknown/missing source_kind) as Business — never drop a named row.
     const personal = filtered.filter((s) => s.source_kind === "w2_employer" || s.source_kind === "personal");
     const business = filtered.filter((s) => s.source_kind !== "w2_employer" && s.source_kind !== "personal");
-    if (typeof window !== "undefined" && (window as any).__DEBUG_PAYCHECK_DROPDOWN) {
+    if (typeof window !== "undefined") {
       // eslint-disable-next-line no-console
       console.log("[paycheck-employer-dropdown]", {
         fetched_count: sources.length,
+        unique_count: unique.length,
         named_count: named.length,
         filtered_count: filtered.length,
         personal_count: personal.length,
         business_count: business.length,
-        rejected: sources
-          .filter((s) => !((s.name || "").trim() || (s.nickname || "").trim()))
-          .map((s) => ({ id: s.id, reason: "empty_name_and_nickname" })),
+        search: q,
       });
     }
     return { personalSources: personal, businessSources: business };
