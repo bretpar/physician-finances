@@ -1247,7 +1247,7 @@ function CompaniesSection() {
                         onValueChange={(v) => setField(company.id, "companyType", v as FilingType)}
                         disabled={filingTypeLocked}
                       >
-                        <SelectTrigger data-testid="settings-company-income-type-select"><SelectValue /></SelectTrigger>
+                        <SelectTrigger data-testid="settings-company-row-income-type-select"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {companyTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
