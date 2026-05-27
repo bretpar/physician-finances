@@ -218,6 +218,91 @@ async function completeW2OnboardingWithEmployer(
   });
 }
 
+/**
+ * Multi-employer variant of the onboarding company sub-step:
+ * fills employer #1, clicks "Add another", verifies a new entry row
+ * is rendered, fills employer #2, and then continues through the rest
+ * of onboarding. This proves the UI advances correctly between entries.
+ */
+async function completeW2OnboardingWithTwoEmployers(
+  page: Page,
+  employerOne: string,
+  employerTwo: string,
+): Promise<void> {
+  await waitForOnboardingStep1(page);
+
+  const firstNameInput = page.locator(
+    '[data-testid="onboarding-first-name-input"]',
+  );
+  if (await firstNameInput.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await firstNameInput.fill("MultiTest").catch(() => {});
+  }
+
+  await page.locator('[data-testid="onboarding-income-type-w2"]').click();
+  await page.locator('[data-testid="onboarding-continue-button"]').click();
+
+  const ytdSkip = page.locator('[data-testid="onboarding-ytd-skip"]');
+  if (await ytdSkip.isVisible({ timeout: 10_000 }).catch(() => false)) {
+    await ytdSkip.click();
+  } else {
+    const ytdNo = page.locator('[data-testid="onboarding-ytd-no"]');
+    if (await ytdNo.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await ytdNo.click();
+    }
+  }
+
+  await page
+    .locator('[data-testid="onboarding-company-entry-step"]')
+    .waitFor({ state: "visible", timeout: 15_000 });
+
+  // Fill employer #1.
+  const firstEmployerInput = page
+    .locator('[data-testid="onboarding-employer-name-input"], [data-testid="company-name-0"]')
+    .first();
+  await firstEmployerInput.waitFor({ state: "visible", timeout: 15_000 });
+  await firstEmployerInput.fill(employerOne);
+  await expect(firstEmployerInput).toHaveValue(employerOne);
+
+  // Count existing employer rows before clicking "Add another".
+  const employerRows = page.locator('[data-employer-index]');
+  const beforeCount = await employerRows.count();
+  expect(beforeCount).toBeGreaterThanOrEqual(1);
+
+  // Click "Add another W-2 employer" and verify a NEW entry row appears.
+  const addAnother = page.locator(
+    '[data-testid="onboarding-add-employer-button"]',
+  );
+  await addAnother.waitFor({ state: "visible", timeout: 5_000 });
+  await addAnother.scrollIntoViewIfNeeded().catch(() => {});
+  await addAnother.click();
+
+  await expect
+    .poll(() => employerRows.count(), { timeout: 5_000 })
+    .toBe(beforeCount + 1);
+
+  // The first employer's value must persist after the UI advances.
+  await expect(firstEmployerInput).toHaveValue(employerOne);
+
+  // Fill employer #2 using its index-based attribute.
+  const secondEmployerInput = page.locator(
+    `[data-employer-index="${beforeCount}"]`,
+  );
+  await secondEmployerInput.waitFor({ state: "visible", timeout: 5_000 });
+  await secondEmployerInput.fill(employerTwo);
+  await expect(secondEmployerInput).toHaveValue(employerTwo);
+
+  await page.locator('[data-testid="onboarding-continue-button"]').click();
+
+  await page
+    .locator('[data-testid="onboarding-continue-button"]')
+    .waitFor({ state: "visible", timeout: 15_000 });
+  await page.locator('[data-testid="onboarding-continue-button"]').click();
+
+  await page.waitForURL((u) => !/\/onboarding/.test(u.pathname), {
+    timeout: 30_000,
+  });
+}
+
 async function addCompanyFromSettings(
   page: Page,
   employerName: string,
