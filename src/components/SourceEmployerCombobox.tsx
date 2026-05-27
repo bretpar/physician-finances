@@ -77,14 +77,37 @@ export function SourceEmployerCombobox({
   );
 
   const { personalSources, businessSources } = useMemo(() => {
-    const q = search.toLowerCase();
-    const filtered = sources.filter((s) =>
-      !q || s.name.toLowerCase().includes(q) || (s.nickname || "").toLowerCase().includes(q),
-    );
-    return {
-      personalSources: filtered.filter((s) => s.source_kind === "w2_employer" || s.source_kind === "personal"),
-      businessSources: filtered.filter((s) => s.source_kind !== "w2_employer" && s.source_kind !== "personal"),
-    };
+    const q = search.trim().toLowerCase();
+    // Defensive: require at least one display label, then match by name OR nickname.
+    const named = sources.filter((s) => {
+      const n = (s.name || "").trim();
+      const nick = (s.nickname || "").trim();
+      return n.length > 0 || nick.length > 0;
+    });
+    const filtered = named.filter((s) => {
+      if (!q) return true;
+      const n = (s.name || "").toLowerCase();
+      const nick = (s.nickname || "").toLowerCase();
+      return n.includes(q) || nick.includes(q);
+    });
+    // Bucketing: treat w2_employer/personal as Personal; anything else (incl.
+    // unknown/missing source_kind) as Business — but never drop a named row.
+    const personal = filtered.filter((s) => s.source_kind === "w2_employer" || s.source_kind === "personal");
+    const business = filtered.filter((s) => s.source_kind !== "w2_employer" && s.source_kind !== "personal");
+    if (typeof window !== "undefined" && (window as any).__DEBUG_PAYCHECK_DROPDOWN) {
+      // eslint-disable-next-line no-console
+      console.log("[paycheck-employer-dropdown]", {
+        fetched_count: sources.length,
+        named_count: named.length,
+        filtered_count: filtered.length,
+        personal_count: personal.length,
+        business_count: business.length,
+        rejected: sources
+          .filter((s) => !((s.name || "").trim() || (s.nickname || "").trim()))
+          .map((s) => ({ id: s.id, reason: "empty_name_and_nickname" })),
+      });
+    }
+    return { personalSources: personal, businessSources: business };
   }, [sources, search]);
 
   useEffect(() => {
