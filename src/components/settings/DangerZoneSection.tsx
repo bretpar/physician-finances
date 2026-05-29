@@ -42,25 +42,47 @@ export function DangerZoneSection() {
       if (sessErr || !sessionData.session) {
         throw new Error("You must be logged in.");
       }
-      const { data, error } = await supabase.functions.invoke("account-cleanup", {
-        body: { action: "delete" },
-      });
-      if (error) {
-        const status = (error as any)?.context?.status ?? (error as any)?.status;
-        const rawMsg = (error as any)?.message || "Failed to delete account";
-        console.error("account-cleanup delete failed", { status, message: rawMsg });
-        const friendly =
-          status === 401 || status === 403
-            ? "Your session has expired. Please log out and back in, then try again."
-            : status >= 500
-            ? "The server could not delete your account right now. Please try again in a moment."
-            : !status
-            ? "Could not reach the delete service. Check your connection and try again."
-            : rawMsg;
-        throw new Error(friendly);
+      const accessToken = sessionData.session.access_token;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+      let response: Response;
+      try {
+        response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/account-cleanup`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ action: "delete" }),
+            signal: controller.signal,
+          },
+        );
+      } catch (fetchErr: any) {
+        if (fetchErr?.name === "AbortError") {
+          throw new Error("Account deletion timed out. Please try again.");
+        }
+        throw new Error("Could not reach the delete service. Check your connection and try again.");
+      } finally {
+        clearTimeout(timeoutId);
       }
-      if (data && (data as any).ok === false) {
-        throw new Error((data as any).error || "Failed to delete account");
+
+      let payload: any = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok || (payload && payload.ok === false)) {
+        const detail =
+          payload?.detail || payload?.error || `Failed to delete account (status ${response.status})`;
+        console.error("account-cleanup delete failed", { status: response.status, payload });
+        throw new Error(detail);
       }
 
       try {
