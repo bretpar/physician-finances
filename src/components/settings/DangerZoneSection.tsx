@@ -108,10 +108,6 @@ export function DangerZoneSection() {
       try {
         localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
         sessionStorage.setItem("paycheckmd-onboarding-step", "1");
-        // Bypass the Onboarding guard that redirects to "/" when a stale
-        // React Query cache still reports onboardingComplete=true during the
-        // post-erase refetch race.
-        sessionStorage.setItem("paycheckmd-start-setup", "1");
       } catch {
         // best effort
       }
