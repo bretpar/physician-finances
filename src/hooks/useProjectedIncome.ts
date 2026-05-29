@@ -843,10 +843,27 @@ export function useAddOverride() {
         new_date: override.new_date ?? null,
       });
       if (error) throw error;
+      // If user skipped a single occurrence, remove any planner-created
+      // ledger row created for it so false "actual" income doesn't remain.
+      let cleanupSummary = null;
+      if (override.action === "skip") {
+        cleanupSummary = await cleanupConvertedLedgerForOccurrence({
+          streamId: override.stream_id,
+          occurrenceDate: override.override_date,
+        });
+      }
+      return cleanupSummary;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
-      toast.success("Override saved");
+    onSuccess: (summary) => {
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+      const removed = (summary?.incomeEntriesDeleted || 0) + (summary?.transactionsDeleted || 0);
+      toast.success(
+        removed > 0
+          ? `Skipped. Removed ${removed} planner-created ledger ${removed === 1 ? "entry" : "entries"}`
+          : "Override saved",
+      );
     },
     onError: (e) => toast.error(e.message),
   });
