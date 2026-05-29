@@ -25,6 +25,7 @@ import {
   taxRecommendationToWithholdingMethod,
   type OnboardingCompanyDraft,
   type OnboardingCompanyType,
+  type OnboardingPayFrequency,
   type IncomeProfileType,
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
