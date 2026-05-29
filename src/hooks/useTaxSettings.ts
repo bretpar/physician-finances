@@ -295,9 +295,12 @@ export function useUpdateTaxSettings() {
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tax_settings"] });
-      qc.invalidateQueries({ queryKey: ["tax_settings", "auto_convert_flag"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["tax_settings"] }),
+        qc.refetchQueries({ queryKey: ["tax_settings"] }),
+        qc.invalidateQueries({ queryKey: ["tax_settings", "auto_convert_flag"] }),
+      ]);
       toast.success("Tax settings saved", { duration: 1500 });
     },
     onError: (e) => toast.error(e.message),
