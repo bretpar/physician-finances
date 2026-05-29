@@ -28,6 +28,7 @@ import {
 import { SectionCard } from "@/components/settings/SectionCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { clearSafeEraseBrowserStorage, invalidateSafeEraseQueries } from "@/lib/safeErase";
 
 type Step = "choose" | "confirmErase" | "confirmDelete" | "erased";
 
@@ -86,43 +87,15 @@ export function DangerZoneSection() {
     try {
       const result = await callCleanup("erase");
       if (!user?.id) throw new Error("You must be logged in.");
-      const resetPayload = {
-        onboarding_complete: false,
-        onboarding_step: 1,
-        onboarding_banner_dismissed: false,
-        onboarding_first_name: "",
-        income_profile_type: "w2_plus_business",
-        enabled_income_sources: { w2: true, form1099: true, k1: true },
-        enabled_personal_income_types: [],
-        ytd_catchup_choice: null,
-      };
-      const { error: resetError } = await supabase
-        .from("tax_settings")
-        .update(resetPayload as any)
-        .eq("user_id", user.id);
-      if (resetError) throw resetError;
-      await supabase
-        .from("profiles")
-        .update({ first_name: "", last_name: "" })
-        .eq("user_id", user.id);
       console.info("Settings erase: erase-account-data function completed", {
         action: (result as any)?.action,
         partialErrorCount: Array.isArray((result as any)?.partial_errors) ? (result as any).partial_errors.length : 0,
       });
       // Clear any cached query state and local/session caches.
       try {
+        await invalidateSafeEraseQueries(queryClient);
         queryClient.clear();
-        Object.keys(sessionStorage).forEach((k) => {
-          if (k.startsWith("paycheckmd-") || k.startsWith("paycheckmd:")) sessionStorage.removeItem(k);
-        });
-        // Preserve auth-related localStorage; clear app caches.
-        Object.keys(localStorage).forEach((k) => {
-          if (k.startsWith("paycheckmd-") || k.startsWith("paycheckmd:") || k.startsWith("w4.")) {
-            localStorage.removeItem(k);
-          }
-        });
-        await queryClient.invalidateQueries({ queryKey: ["tax_settings"] });
-        await queryClient.refetchQueries({ queryKey: ["tax_settings", user.id] });
+        clearSafeEraseBrowserStorage();
       } catch {
         // best effort
       }
