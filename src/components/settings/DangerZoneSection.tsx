@@ -84,43 +84,68 @@ export function DangerZoneSection() {
     console.info("Settings erase: safe erase clicked");
     setEraseError("");
     setBusy(true);
+
+    // Hard safety net: under no circumstances may the modal stay stuck on
+    // "Erasing data…" forever. If anything past the network call hangs, we
+    // still force-navigate to onboarding (the route guard will re-check
+    // onboarding_complete from the server).
+    const hardTimeout = window.setTimeout(() => {
+      console.warn("Settings erase: hard timeout reached, forcing navigation");
+      try {
+        localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
+      } catch {
+        /* ignore */
+      }
+      window.location.assign("/onboarding?reset=1");
+    }, 8000);
+
     try {
+      console.info("Settings erase: invoking account-cleanup");
       const result = await callCleanup("erase");
       if (!user?.id) throw new Error("You must be logged in.");
-      console.info("Settings erase: erase-account-data function completed", {
+      console.info("Settings erase: account-cleanup returned", {
         action: (result as any)?.action,
-        partialErrorCount: Array.isArray((result as any)?.partial_errors) ? (result as any).partial_errors.length : 0,
+        partialErrorCount: Array.isArray((result as any)?.partial_errors)
+          ? (result as any).partial_errors.length
+          : 0,
       });
-      // Clear any cached query state and local/session caches.
-      try {
-        await invalidateSafeEraseQueries(queryClient);
-        queryClient.clear();
-        clearSafeEraseBrowserStorage();
-      } catch {
-        // best effort
-      }
-      // Deterministic post-erase signal for E2E + humans.
+
+      // Mark erase complete + onboarding hint BEFORE any other work so route
+      // guards see the signal even if the rest is interrupted.
       try {
         localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
         sessionStorage.setItem("paycheckmd-onboarding-step", "1");
       } catch {
-        // best effort
+        /* ignore */
       }
+
+      // Fire-and-forget query invalidation. We MUST NOT await this — the
+      // settings page has many active queries and refetches can stall right
+      // after wiping tax_settings/companies, which previously kept the modal
+      // pinned to "Erasing data…" forever. A hard navigation below tears
+      // down the React tree anyway, so any in-flight refetch is irrelevant.
+      try {
+        void invalidateSafeEraseQueries(queryClient).catch(() => {});
+        queryClient.clear();
+        clearSafeEraseBrowserStorage();
+      } catch (cacheErr) {
+        console.warn("Settings erase: cache clear failed (non-fatal)", cacheErr);
+      }
+
       toast.success("Your account data has been erased. Start onboarding again.");
-      setBusy(false);
+      console.info("Settings erase: success, navigating to onboarding");
       setStep("erased");
-      // Keep the dialog open so the success state is mounted and assertable
-      // by E2E tests before the hard navigation kicks in.
-      console.info("Settings erase: erase success detected");
+      setBusy(false);
+      window.clearTimeout(hardTimeout);
       // Hard navigation guarantees the URL changes and React Query / hook
-      // state is fully reset, regardless of any in-flight SPA renders on
-      // /settings or stale cached `onboardingComplete` values.
+      // state is fully reset.
       setTimeout(() => {
         window.location.assign("/onboarding?reset=1");
-      }, 250);
+      }, 150);
     } catch (err: any) {
+      window.clearTimeout(hardTimeout);
       const message = err?.message || "Failed to erase account data";
-      console.error("Settings erase: safe erase failed", { message });
+      console.error("Settings erase: safe erase failed", { message, err });
       setEraseError(message);
       toast.error(message);
       setBusy(false);
