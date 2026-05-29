@@ -13,6 +13,7 @@ describe("safe erase client cleanup", () => {
 
     localStorage.setItem("paycheckmd:taxMode", "forecast");
     localStorage.setItem("paycheckmd-household-income-profile-reviewed", "true");
+    localStorage.setItem("dashboard:annual-income", "132000");
     localStorage.setItem("w4.paycheck-adjustment", "true");
     localStorage.setItem("debug:withholding", "1");
     localStorage.setItem("sb-fiqnxprhvsadcqicczkg-auth-token", "keep-auth");
@@ -22,6 +23,7 @@ describe("safe erase client cleanup", () => {
 
     expect(localStorage.getItem("paycheckmd:taxMode")).toBeNull();
     expect(localStorage.getItem("paycheckmd-household-income-profile-reviewed")).toBeNull();
+    expect(localStorage.getItem("dashboard:annual-income")).toBeNull();
     expect(localStorage.getItem("w4.paycheck-adjustment")).toBeNull();
     expect(localStorage.getItem("debug:withholding")).toBeNull();
     expect(sessionStorage.getItem("paycheckmd-onboarding-step")).toBeNull();
@@ -45,6 +47,7 @@ describe("safe erase client cleanup", () => {
   it("classifies only app cache keys for safe erase storage cleanup", () => {
     expect(shouldClearSafeEraseStorageKey("paycheckmd:erase-complete")).toBe(true);
     expect(shouldClearSafeEraseStorageKey("paycheckmd-dashboard-prev-total")).toBe(true);
+    expect(shouldClearSafeEraseStorageKey("dashboard:w2-total")).toBe(true);
     expect(shouldClearSafeEraseStorageKey("w4.adjustment.hidden")).toBe(true);
     expect(shouldClearSafeEraseStorageKey("debug:taxBreakdown")).toBe(true);
     expect(shouldClearSafeEraseStorageKey("sb-project-auth-token")).toBe(false);
