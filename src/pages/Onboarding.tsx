@@ -25,6 +25,7 @@ import {
   taxRecommendationToWithholdingMethod,
   type OnboardingCompanyDraft,
   type OnboardingCompanyType,
+  type OnboardingPayFrequency,
   type IncomeProfileType,
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
@@ -656,25 +657,47 @@ export default function Onboarding() {
                       <Input id={`company-desc-${index}`} value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" />
                     </div>
                     {company.type === "w2" && (
-                      <div className="mt-3">
-                        <Label htmlFor={`company-pay-frequency-${index}`}>Pay frequency</Label>
-                        <Select
-                          value={company.payFrequency || "biweekly"}
-                          onValueChange={(value) => updateCompanyDraft(index, { payFrequency: value as any })}
-                        >
-                          <SelectTrigger id={`company-pay-frequency-${index}`} data-testid={`onboarding-pay-frequency-${index}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
-                            <SelectItem value="semimonthly">Semi-monthly (twice a month)</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="quarterly">Quarterly</SelectItem>
-                            <SelectItem value="annual">Annual</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <>
+                        <div className="mt-3">
+                          <Label htmlFor={`company-pay-frequency-${index}`}>Pay frequency</Label>
+                          <Select
+                            value={company.payFrequency || "biweekly"}
+                            onValueChange={(value) => updateCompanyDraft(index, { payFrequency: value as OnboardingPayFrequency })}
+                          >
+                            <SelectTrigger id={`company-pay-frequency-${index}`} data-testid={`onboarding-pay-frequency-${index}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="weekly" data-testid={`onboarding-pay-frequency-${index}-option-weekly`}>Weekly (every week)</SelectItem>
+                              <SelectItem value="biweekly" data-testid={`onboarding-pay-frequency-${index}-option-biweekly`}>Biweekly (every 2 weeks)</SelectItem>
+                              <SelectItem value="semimonthly" data-testid={`onboarding-pay-frequency-${index}-option-semimonthly`}>Semi-monthly (twice per month, e.g. 15th &amp; 30th)</SelectItem>
+                              <SelectItem value="monthly" data-testid={`onboarding-pay-frequency-${index}-option-monthly`}>Monthly (once per month)</SelectItem>
+                              <SelectItem value="quarterly" data-testid={`onboarding-pay-frequency-${index}-option-quarterly`}>Quarterly</SelectItem>
+                              <SelectItem value="annual" data-testid={`onboarding-pay-frequency-${index}-option-annual`}>Annual</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="mt-3">
+                          <Label htmlFor={`company-annual-gross-${index}`}>
+                            Expected annual gross income <span className="text-xs text-muted-foreground">(optional)</span>
+                          </Label>
+                          <Input
+                            id={`company-annual-gross-${index}`}
+                            data-testid={`onboarding-annual-gross-${index}`}
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="e.g. 180000"
+                            value={company.projectedAnnualGross ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              updateCompanyDraft(index, { projectedAnnualGross: v === "" ? null : Math.max(0, Number(v) || 0) });
+                            }}
+                          />
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Used by Tax Overview to project remaining-year withholding. You can change this in Settings.
+                          </p>
+                        </div>
+                      </>
                     )}
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
                   </div>
