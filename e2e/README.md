@@ -86,6 +86,63 @@ The fallback config:
 
 ---
 
+## Reusable scenario accounts — reset model
+
+The app **does not** support partial "safe erase" / "erase account data".
+Resetting a reusable scenario user means **full account deletion**
+(deletes the auth account and all user financial data) followed by signing
+up the same email/password again.
+
+Use the helper `e2e/helpers/ensureFreshScenarioAccount.ts`:
+
+```ts
+import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+
+const result = await ensureFreshScenarioAccount(page, {
+  email: "brendantparker+codexw2@gmail.com",
+  password: "Test123!",
+});
+
+// result.state is one of:
+//   "already_onboarding" — login worked, user still in /onboarding; continue.
+//   "recreated"          — login worked into completed app with old data;
+//                          account was deleted via Settings and signed up again;
+//                          complete onboarding fresh.
+//   "created"            — login failed (no such user); we signed up;
+//                          complete onboarding fresh.
+```
+
+State machine:
+
+1. Try login with scenario email/password.
+2. If login succeeds and lands on `/onboarding` → return `already_onboarding`.
+3. If login succeeds and lands on dashboard/settings/etc. (completed account):
+   - Navigate to `/settings`.
+   - Click `settings-delete-account-button` (the **Delete Account** button —
+     there is no "Erase data" option anymore).
+   - Type `DELETE` into `settings-delete-account-confirm-input`.
+   - Click `settings-delete-account-confirm-button`.
+   - Wait for redirect to `/login` (sign-out is automatic).
+   - Navigate to `/signup` and recreate the same email/password.
+   - Return `recreated`.
+4. If login fails (invalid credentials / user not found):
+   - Navigate to `/signup` and create the account.
+   - Return `created`.
+
+After deletion, **expect the login/signup flow** — do **not** expect to land
+on `/onboarding` directly or to remain logged in.
+
+### Running the W-2 scenario with this reset model
+
+```
+E2E_TEST_EMAIL="brendantparker+codexw2@gmail.com" \
+E2E_TEST_PASSWORD="Test123!" \
+PLAYWRIGHT_BASE_URL="https://app.paycheckmd.com" \
+pnpm exec playwright test e2e/w2-calculation-audit.spec.ts
+```
+
+---
+
 ## Test seed harness (Codex / non-Playwright automation)
 
 Two token-gated edge functions let external automation (e.g. Codex) verify
