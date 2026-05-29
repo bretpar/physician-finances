@@ -336,11 +336,33 @@ export function useUpsertYtdCatchup() {
         if (matches.length === 1) row.company_id = matches[0].id;
       }
       let saved: any;
-      if (input.id) {
+      let effectiveId = input.id;
+
+      // Idempotency for onboarding-created YTD entries: if no explicit id was
+      // passed, look up an existing entry for the same
+      // (user_id, tax_year, source_type, normalized company_name) and update
+      // it in place instead of inserting a duplicate. This prevents repeated
+      // or partial onboarding runs from producing multiple YTD catch-up rows
+      // (and the resulting duplicate ledger mirrors) for the same employer.
+      if (!effectiveId && row.company_name && row.tax_year && row.source_type) {
+        const normTarget = normalizeCompanyName(row.company_name);
+        const { data: existingRows } = await (supabase as any)
+          .from("ytd_catchup_entries")
+          .select("id, company_name, source_type, tax_year")
+          .eq("user_id", user.id)
+          .eq("tax_year", row.tax_year)
+          .eq("source_type", row.source_type);
+        const match = ((existingRows || []) as any[]).find(
+          (r) => normalizeCompanyName(r.company_name) === normTarget,
+        );
+        if (match?.id) effectiveId = match.id;
+      }
+
+      if (effectiveId) {
         const { data, error } = await supabase
           .from("ytd_catchup_entries" as any)
           .update(row as any)
-          .eq("id", input.id)
+          .eq("id", effectiveId)
           .select()
           .single();
         if (error) throw error;
