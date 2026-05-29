@@ -3,18 +3,23 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { runPlannerConversionForCurrentUser } from "@/lib/plannerConversion";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Read-only hook: fetch the user's current auto-convert preference.
  * Returns false until tax_settings is loaded, so consumers fail-safe to OFF.
  */
 export function useAutoConvertEnabled(): boolean {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const { data } = useQuery({
-    queryKey: ["tax_settings", "auto_convert_flag"],
+    queryKey: ["tax_settings", "auto_convert_flag", userId],
+    enabled: !!userId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tax_settings")
         .select("auto_convert_future_income_to_ledger")
+        .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
       if (error) throw error;

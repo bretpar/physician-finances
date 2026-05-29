@@ -154,6 +154,7 @@ export function useTaxSettings(enabled = true) {
       const { data, error } = await supabase
         .from("tax_settings")
         .select("*")
+        .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
       if (error) throw error;
