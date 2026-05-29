@@ -174,7 +174,7 @@ export async function eraseUserData(admin: any, userId: string) {
   return errors;
 }
 
-Deno.serve(async (req) => {
+export async function handler(req: Request) {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   if (req.method !== "POST") return jsonResponse(req, { error: "Method not allowed" }, 405);
 
@@ -238,4 +238,8 @@ Deno.serve(async (req) => {
     console.error("account-cleanup error", error);
     return jsonResponse(req, { error: "Internal error", detail: (error as Error).message }, 500);
   }
-});
+}
+
+if (import.meta.main) {
+  Deno.serve(handler);
+}
