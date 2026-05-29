@@ -254,7 +254,7 @@ export default function Onboarding() {
         name: String(entry.company_name || ""),
         type: entry.source_type === "w2" ? "w2" : entry.source_type === "1099_k1" ? "1099" : allowed[0],
         description: "",
-        payFrequency: entry.source_type === "w2" ? "biweekly" : undefined,
+        payFrequency: entry.source_type === "w2" ? ("biweekly" as const) : undefined,
         projectedAnnualGross: Number(entry.gross_income) > 0 ? Number(entry.gross_income) : null,
       }))
       .filter((company) => allowed.includes(company.type));
