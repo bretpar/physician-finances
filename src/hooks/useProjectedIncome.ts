@@ -5,6 +5,12 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isBusinessIncomeType } from "@/lib/ledgerRouting";
+import {
+  cleanupConvertedLedgerForStream,
+  cleanupConvertedLedgerForOccurrence,
+  cleanupConvertedLedgerForBonus,
+  PLANNER_CLEANUP_INVALIDATION_KEYS,
+} from "@/lib/plannerCleanup";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
