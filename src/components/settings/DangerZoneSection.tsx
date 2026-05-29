@@ -15,185 +15,96 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { clearSafeEraseBrowserStorage, invalidateSafeEraseQueries } from "@/lib/safeErase";
-
-type Step = "choose" | "confirmErase" | "confirmDelete" | "erased";
-
-const ERASE_COMPLETE_MARKER = "paycheckmd:erase-complete";
 
 export function DangerZoneSection() {
-  
   const queryClient = useQueryClient();
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>("choose");
   const [busy, setBusy] = useState(false);
-  const [eraseError, setEraseError] = useState("");
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [confirmText, setConfirmText] = useState("");
 
   function reset() {
-    setStep("choose");
-    setDeleteConfirmText("");
-    setEraseError("");
+    setConfirmText("");
+    setDeleteError("");
     setBusy(false);
   }
 
-  async function callCleanup(action: "erase" | "delete") {
-    const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
-    if (sessErr || !sessionData.session) {
-      throw new Error("You must be logged in.");
-    }
-    const { data, error } = await supabase.functions.invoke("account-cleanup", {
-      body: { action },
-    });
-    if (error) {
-      const status = (error as any)?.context?.status ?? (error as any)?.status;
-      const rawMsg = (error as any)?.message || "Cleanup failed";
-      console.error("account-cleanup invoke failed", { action, status, message: rawMsg });
-      const friendly =
-        status === 401 || status === 403
-          ? "Your session has expired. Please log out and back in, then try again."
-          : status >= 500
-          ? "The server could not erase your data right now. Please try again in a moment."
-          : !status
-          ? "Could not reach the erase service. Check your connection and try again."
-          : rawMsg;
-      throw new Error(friendly);
-    }
-    if (data && (data as any).ok === false) {
-      throw new Error((data as any).error || "Cleanup failed");
-    }
-    return data;
-  }
-
-  async function handleErase() {
-    if (busy) return;
-    console.info("Settings erase: safe erase clicked");
-    setEraseError("");
-    setBusy(true);
-
-    // Hard safety net: under no circumstances may the modal stay stuck on
-    // "Erasing data…" forever. If anything past the network call hangs, we
-    // still force-navigate to onboarding (the route guard will re-check
-    // onboarding_complete from the server).
-    const hardTimeout = window.setTimeout(() => {
-      console.warn("Settings erase: hard timeout reached, forcing navigation");
-      try {
-        localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
-      } catch {
-        /* ignore */
-      }
-      window.location.assign("/onboarding?reset=1");
-    }, 8000);
-
-    try {
-      console.info("Settings erase: invoking account-cleanup");
-      const result = await callCleanup("erase");
-      if (!user?.id) throw new Error("You must be logged in.");
-      console.info("Settings erase: account-cleanup returned", {
-        action: (result as any)?.action,
-        partialErrorCount: Array.isArray((result as any)?.partial_errors)
-          ? (result as any).partial_errors.length
-          : 0,
-      });
-
-      // Mark erase complete + onboarding hint BEFORE any other work so route
-      // guards see the signal even if the rest is interrupted.
-      try {
-        localStorage.setItem(ERASE_COMPLETE_MARKER, String(Date.now()));
-        sessionStorage.setItem("paycheckmd-onboarding-step", "1");
-      } catch {
-        /* ignore */
-      }
-
-      // Fire-and-forget query invalidation. We MUST NOT await this — the
-      // settings page has many active queries and refetches can stall right
-      // after wiping tax_settings/companies, which previously kept the modal
-      // pinned to "Erasing data…" forever. A hard navigation below tears
-      // down the React tree anyway, so any in-flight refetch is irrelevant.
-      try {
-        void invalidateSafeEraseQueries(queryClient).catch(() => {});
-        queryClient.clear();
-        clearSafeEraseBrowserStorage();
-      } catch (cacheErr) {
-        console.warn("Settings erase: cache clear failed (non-fatal)", cacheErr);
-      }
-
-      toast.success("Your account data has been erased. Start onboarding again.");
-      console.info("Settings erase: success, navigating to onboarding");
-      setStep("erased");
-      setBusy(false);
-      window.clearTimeout(hardTimeout);
-      // Hard navigation guarantees the URL changes and React Query / hook
-      // state is fully reset.
-      setTimeout(() => {
-        window.location.assign("/onboarding?reset=1");
-      }, 150);
-    } catch (err: any) {
-      window.clearTimeout(hardTimeout);
-      const message = err?.message || "Failed to erase account data";
-      console.error("Settings erase: safe erase failed", { message, err });
-      setEraseError(message);
-      toast.error(message);
-      setBusy(false);
-    }
-  }
-
   async function handleDelete() {
+    if (busy) return;
+    setDeleteError("");
     setBusy(true);
     try {
-      await callCleanup("delete");
-      toast.success("Your account has been permanently deleted.");
+      const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr || !sessionData.session) {
+        throw new Error("You must be logged in.");
+      }
+      const { data, error } = await supabase.functions.invoke("account-cleanup", {
+        body: { action: "delete" },
+      });
+      if (error) {
+        const status = (error as any)?.context?.status ?? (error as any)?.status;
+        const rawMsg = (error as any)?.message || "Failed to delete account";
+        console.error("account-cleanup delete failed", { status, message: rawMsg });
+        const friendly =
+          status === 401 || status === 403
+            ? "Your session has expired. Please log out and back in, then try again."
+            : status >= 500
+            ? "The server could not delete your account right now. Please try again in a moment."
+            : !status
+            ? "Could not reach the delete service. Check your connection and try again."
+            : rawMsg;
+        throw new Error(friendly);
+      }
+      if (data && (data as any).ok === false) {
+        throw new Error((data as any).error || "Failed to delete account");
+      }
+
       try {
         queryClient.clear();
         sessionStorage.clear();
-        // Note: supabase auth tokens live in localStorage; clearing them ends the session.
+        // Supabase auth tokens live in localStorage; clearing them ends the session.
         localStorage.clear();
       } catch {
         // best effort
       }
+
       await signOut().catch(() => {});
+      toast.success("Your account has been permanently deleted.");
       window.location.assign("/login");
     } catch (err: any) {
-      toast.error(err?.message || "Failed to delete account");
+      const message = err?.message || "Failed to delete account";
+      console.error("Settings delete: failed", { message, err });
+      setDeleteError(message);
+      toast.error(message);
       setBusy(false);
     }
   }
 
   return (
     <SectionCard
-      title="Delete/Erase Account"
+      title="Delete Account"
       icon={<AlertTriangle className="h-5 w-5 text-destructive" />}
-      description="Permanently erase your data or delete your account."
+      description="Permanently delete your account and all associated data."
       hideActionBar
       collapsible={false}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          These actions cannot be undone. Erasing keeps your login; deleting removes everything.
+          This permanently deletes your account and all financial data. This cannot be undone.
         </p>
         <Button
           variant="destructive"
-          data-testid="settings-delete-erase-account-button"
+          data-testid="settings-delete-account-button"
           onClick={() => {
             reset();
             setOpen(true);
           }}
         >
-          Delete/Erase Account
+          Delete Account
         </Button>
       </div>
 
@@ -207,121 +118,49 @@ export function DangerZoneSection() {
         }}
       >
         <DialogContent>
-          {step === "choose" && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Delete or erase account?</DialogTitle>
-                <DialogDescription>
-                  You can erase your data and restart onboarding while keeping your login, or
-                  permanently delete your account.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  data-testid="settings-safe-erase-option"
-                  onClick={() => setStep("confirmErase")}
-                >
-                  Erase account data
-                </Button>
-                <Button variant="destructive" onClick={() => setStep("confirmDelete")}>
-                  Delete account
-                </Button>
-                <Button variant="secondary" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </>
+          <DialogHeader>
+            <DialogTitle>Delete your account?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes your account and all associated financial data. This cannot
+              be undone. To use PaycheckMD again, you will need to create a new account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="delete-confirm">Type DELETE to confirm</Label>
+            <Input
+              id="delete-confirm"
+              data-testid="settings-delete-account-confirm-input"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+              autoComplete="off"
+            />
+          </div>
+          {deleteError && (
+            <p className="text-sm text-destructive" role="alert" data-testid="delete-error">
+              {deleteError}
+            </p>
           )}
-
-          {step === "confirmErase" && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Erase all account data?</DialogTitle>
-                <DialogDescription>
-                  This will remove all app data and Plaid links but keep your login. Continue?
-                </DialogDescription>
-              </DialogHeader>
-              {eraseError && (
-                <p className="text-sm text-destructive" role="alert" data-testid="erase-error">
-                  {eraseError}
-                </p>
-              )}
-              <DialogFooter className="gap-2">
-                <Button variant="secondary" onClick={() => setStep("choose")} disabled={busy}>
-                  Back
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={handleErase}
-                  disabled={busy}
-                  data-testid="settings-safe-erase-confirm-button"
-                  aria-busy={busy}
-                >
-                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {busy ? "Erasing data…" : "Yes, erase my data"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-          {step === "erased" && (
-            <div data-testid="settings-safe-erase-success" data-erase-complete="true">
-              <DialogHeader>
-                <DialogTitle>Account data erased. Restarting onboarding…</DialogTitle>
-                <DialogDescription>
-                  Your account data has been erased. Redirecting you to onboarding…
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter className="gap-2 pt-4">
-                <Button
-                  variant="default"
-                  onClick={() => window.location.assign("/onboarding?reset=1")}
-                  data-testid="erase-success-continue"
-                >
-                  Continue to onboarding
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-
-
-          {step === "confirmDelete" && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Permanently delete account?</DialogTitle>
-                <DialogDescription>
-                  This permanently removes your account, all data, Plaid links, and attachments.
-                  This cannot be undone. Type <span className="font-semibold">DELETE</span> to
-                  confirm.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2 py-2">
-                <Label htmlFor="delete-confirm">Type DELETE to confirm</Label>
-                <Input
-                  id="delete-confirm"
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="DELETE"
-                  autoComplete="off"
-                />
-              </div>
-              <DialogFooter className="gap-2">
-                <Button variant="secondary" onClick={() => setStep("choose")} disabled={busy}>
-                  Back
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={busy || deleteConfirmText.trim() !== "DELETE"}
-                >
-                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Permanently delete account
-                </Button>
-              </DialogFooter>
-            </>
-          )}
+          <DialogFooter className="gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+              data-testid="settings-delete-account-cancel-button"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={busy || confirmText.trim() !== "DELETE"}
+              data-testid="settings-delete-account-confirm-button"
+              aria-busy={busy}
+            >
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Permanently Delete Account
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </SectionCard>
