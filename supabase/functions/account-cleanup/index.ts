@@ -151,18 +151,7 @@ export async function eraseUserData(admin: any, userId: string) {
     .maybeSingle();
   const orgId = existing?.organization_id ?? null;
 
-  const taxSettingsReset = {
-    user_id: userId,
-    organization_id: orgId,
-    onboarding_complete: false,
-    onboarding_step: 1,
-    onboarding_banner_dismissed: false,
-    onboarding_first_name: "",
-    income_profile_type: "w2_plus_business",
-    enabled_income_sources: { w2: true, form1099: true, k1: true },
-    enabled_personal_income_types: [],
-    ytd_catchup_choice: null,
-  };
+  const taxSettingsReset = buildTaxSettingsReset(userId, orgId);
 
   const { error: upsertTs } = await admin
     .from("tax_settings")
@@ -174,6 +163,13 @@ export async function eraseUserData(admin: any, userId: string) {
     .update({ first_name: "", last_name: "" })
     .eq("user_id", userId);
   if (profileReset) errors.push({ table: "profiles(reset)", error: profileReset.message });
+
+  const blockingErrors = errors.filter((e) => !e.table.startsWith("profiles("));
+  if (blockingErrors.length > 0) {
+    throw new Error(
+      `Safe erase did not complete. Failed tables: ${blockingErrors.map((e) => e.table).join(", ")}`,
+    );
+  }
 
   return errors;
 }
@@ -212,7 +208,17 @@ Deno.serve(async (req) => {
       return jsonResponse(req, { error: "Invalid action" }, 400);
     }
 
-    const errors = await eraseUserData(admin, userId);
+    let errors: { table: string; error: string }[] = [];
+    try {
+      errors = await eraseUserData(admin, userId);
+    } catch (eraseError) {
+      console.error("account-cleanup erase failed", eraseError);
+      return jsonResponse(req, {
+        ok: false,
+        error: "Failed to erase account data",
+        detail: (eraseError as Error).message,
+      }, 500);
+    }
 
     if (action === "delete") {
       const { error: authDelErr } = await admin.auth.admin.deleteUser(userId);
