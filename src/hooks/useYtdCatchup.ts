@@ -47,19 +47,17 @@ function normalizeCompanyName(name: string | null | undefined): string {
 }
 
 /**
- * Backfill 1099 YTD catch-up entries with the right company_id once a
+ * Backfill YTD catch-up entries with the right company_id once a
  * matching company exists. Updates:
  *   - ytd_catchup_entries.company_id
- *   - mirrored transactions.source_id + entity (so Business Activity shows
- *     the company name instead of "Unassigned")
+ *   - mirrored transactions / income_entries source_id + company/entity
  * Also dedupes mirror rows (keeps the oldest, removes the rest) so repeated
  * onboarding runs don't create duplicate Business Activity entries.
  */
 export async function backfillYtdCatchupCompanies(): Promise<void> {
   const { data: entries, error: entriesErr } = await (supabase as any)
     .from("ytd_catchup_entries")
-    .select("id, company_id, company_name, source_type, organization_id, user_id")
-    .eq("source_type", "1099_k1");
+    .select("id, company_id, company_name, source_type, organization_id, user_id");
   if (entriesErr || !entries?.length) return;
 
   const { data: companies, error: companiesErr } = await supabase
@@ -67,12 +65,9 @@ export async function backfillYtdCatchupCompanies(): Promise<void> {
     .select("id, name, company_type, organization_id, user_id");
   if (companiesErr || !companies?.length) return;
 
-  // Build a normalized-name -> company[] index, restricted to business types.
-  const businessCompanies = companies.filter((c: any) =>
-    ["1099_schedule_c", "k1_partnership", "k1_s_corp"].includes(String(c.company_type)),
-  );
+  // Build a normalized-name -> company[] index, restricted by catch-up type.
   const byNormName = new Map<string, any[]>();
-  for (const c of businessCompanies) {
+  for (const c of companies as any[]) {
     const key = normalizeCompanyName(c.name);
     if (!key) continue;
     const list = byNormName.get(key) || [];
@@ -83,7 +78,12 @@ export async function backfillYtdCatchupCompanies(): Promise<void> {
   for (const entry of entries as any[]) {
     const normEntryName = normalizeCompanyName(entry.company_name);
     if (!normEntryName) continue;
-    const matches = byNormName.get(normEntryName) || [];
+    const allowedTypes = entry.source_type === "w2"
+      ? ["w2", "scorp_w2"]
+      : entry.source_type === "1099_k1"
+        ? ["1099_schedule_c", "k1_partnership", "k1_s_corp", "scorp_distribution"]
+        : ["other"];
+    const matches = (byNormName.get(normEntryName) || []).filter((c: any) => allowedTypes.includes(String(c.company_type)));
     // Only match when unambiguous and either entry has no company_id yet or
     // currently points at a missing company.
     if (matches.length !== 1) continue;
@@ -121,6 +121,27 @@ export async function backfillYtdCatchupCompanies(): Promise<void> {
         .from("transactions")
         .update({ source_id: match.id, entity: match.name })
         .eq("id", keep.id);
+    }
+
+    const { data: incomeMirrors } = await (supabase as any)
+      .from("income_entries")
+      .select("id, created_at")
+      .eq("linked_ytd_catchup_id", entry.id)
+      .order("created_at", { ascending: true });
+    const incomeRows = (incomeMirrors || []) as any[];
+    const keepIncome = incomeRows[0];
+    const incomeDupes = incomeRows.slice(1);
+    if (incomeDupes.length > 0) {
+      await (supabase as any)
+        .from("income_entries")
+        .delete()
+        .in("id", incomeDupes.map((r) => r.id));
+    }
+    if (keepIncome?.id) {
+      await (supabase as any)
+        .from("income_entries")
+        .update({ source_id: match.id, company: match.name })
+        .eq("id", keepIncome.id);
     }
   }
 }
@@ -228,6 +249,7 @@ async function syncCatchupMirror(args: {
       organization_id: args.orgId,
       name: friendlyName,
       company: c.company_name || "",
+      source_id: c.company_id,
       income_type: incomeType,
       ui_income_subtype: isW2 ? "w2_user" : "other_income",
       income_date: c.period_end,
@@ -299,13 +321,16 @@ export function useUpsertYtdCatchup() {
       // company already exists with the same normalized name. Prevents
       // "Unassigned" Business Activity rows when the user saves catch-up
       // after creating the company.
-      if (row.source_type === "1099_k1" && !row.company_id && row.company_name) {
+      if ((row.source_type === "1099_k1" || row.source_type === "w2") && !row.company_id && row.company_name) {
         const { data: companies } = await supabase
           .from("companies")
           .select("id, name, company_type");
         const normTarget = normalizeCompanyName(row.company_name);
+        const allowedTypes = row.source_type === "w2"
+          ? ["w2", "scorp_w2"]
+          : ["1099_schedule_c", "k1_partnership", "k1_s_corp", "scorp_distribution"];
         const matches = (companies || []).filter((c: any) =>
-          ["1099_schedule_c", "k1_partnership", "k1_s_corp"].includes(String(c.company_type)) &&
+          allowedTypes.includes(String(c.company_type)) &&
           normalizeCompanyName(c.name) === normTarget,
         );
         if (matches.length === 1) row.company_id = matches[0].id;
