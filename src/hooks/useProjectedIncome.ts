@@ -5,6 +5,12 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isBusinessIncomeType } from "@/lib/ledgerRouting";
+import {
+  cleanupConvertedLedgerForStream,
+  cleanupConvertedLedgerForOccurrence,
+  cleanupConvertedLedgerForBonus,
+  PLANNER_CLEANUP_INVALIDATION_KEYS,
+} from "@/lib/plannerCleanup";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
@@ -692,17 +698,33 @@ export function useDeleteStream() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove safe planner-created ledger rows BEFORE deleting the stream so
+      // we still have planner_conversions.id -> ledger id links to follow.
+      // Stream delete cascades to planner_conversions and would SET NULL the
+      // origin_planner_conversion_id on income_entries / transactions, which
+      // is exactly how false "actual" income was being left behind.
+      const summary = await cleanupConvertedLedgerForStream(id);
       const { error } = await supabase
         .from("projected_income_streams")
         .delete()
         .eq("id", id);
       if (error) throw error;
+      return summary;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projected_income_streams"] });
-      qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
-      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
-      toast.success("Income stream deleted");
+    onSuccess: (summary) => {
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+      const removed = (summary?.incomeEntriesDeleted || 0) + (summary?.transactionsDeleted || 0);
+      const skipped = summary?.skippedNotSafe || 0;
+      if (removed > 0 || skipped > 0) {
+        toast.success(
+          `Stream deleted. Removed ${removed} planner-created ledger ${removed === 1 ? "entry" : "entries"}` +
+            (skipped > 0 ? `, kept ${skipped} edited/linked` : ""),
+        );
+      } else {
+        toast.success("Income stream deleted");
+      }
     },
     onError: (e) => toast.error(e.message),
   });
@@ -739,15 +761,25 @@ export function useDeleteBonus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove any safe planner-created ledger row for this bonus first.
+      const summary = await cleanupConvertedLedgerForBonus(id);
       const { error } = await supabase
         .from("projected_bonus_events")
         .delete()
         .eq("id", id);
       if (error) throw error;
+      return summary;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
-      toast.success("Bonus event deleted");
+    onSuccess: (summary) => {
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+      const removed = (summary?.incomeEntriesDeleted || 0) + (summary?.transactionsDeleted || 0);
+      toast.success(
+        removed > 0
+          ? `Bonus deleted. Removed ${removed} planner-created ledger ${removed === 1 ? "entry" : "entries"}`
+          : "Bonus event deleted",
+      );
     },
     onError: (e) => toast.error(e.message),
   });
@@ -811,10 +843,27 @@ export function useAddOverride() {
         new_date: override.new_date ?? null,
       });
       if (error) throw error;
+      // If user skipped a single occurrence, remove any planner-created
+      // ledger row created for it so false "actual" income doesn't remain.
+      let cleanupSummary = null;
+      if (override.action === "skip") {
+        cleanupSummary = await cleanupConvertedLedgerForOccurrence({
+          streamId: override.stream_id,
+          occurrenceDate: override.override_date,
+        });
+      }
+      return cleanupSummary;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
-      toast.success("Override saved");
+    onSuccess: (summary) => {
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+      const removed = (summary?.incomeEntriesDeleted || 0) + (summary?.transactionsDeleted || 0);
+      toast.success(
+        removed > 0
+          ? `Skipped. Removed ${removed} planner-created ledger ${removed === 1 ? "entry" : "entries"}`
+          : "Override saved",
+      );
     },
     onError: (e) => toast.error(e.message),
   });

@@ -16,6 +16,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  fetchOrphanPlannerEntries,
+  deleteOrphanPlannerEntries,
+  PLANNER_CLEANUP_INVALIDATION_KEYS,
+} from "@/lib/plannerCleanup";
 
 interface OrphanRow {
   id: string;
@@ -71,6 +76,39 @@ export function useDeleteOrphanIncomeEntries() {
       qc.invalidateQueries({ queryKey: ["orphan_income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success(`Removed ${count} orphaned income entr${count === 1 ? "y" : "ies"}`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+/**
+ * Orphaned planner-created income entries.
+ *
+ * These are income_entries with origin_type='planner_converted' whose
+ * origin_planner_conversion_id is null (FK was SET NULL when the
+ * planner_conversions row was deleted, typically because the stream/bonus
+ * was deleted before this fix shipped) or points to a planner_conversions
+ * row that no longer exists. Only rows still clearly planner-created
+ * ("From planner" notes, no Plaid link) are returned for safe deletion.
+ */
+export function useOrphanPlannerEntries() {
+  return useQuery({
+    queryKey: ["orphan_planner_entries"],
+    queryFn: fetchOrphanPlannerEntries,
+  });
+}
+
+export function useDeleteOrphanPlannerEntries() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => deleteOrphanPlannerEntries(ids),
+    onSuccess: (count) => {
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+      toast.success(
+        `Removed ${count} orphaned planner-created income entr${count === 1 ? "y" : "ies"}`,
+      );
     },
     onError: (e: any) => toast.error(e.message),
   });
