@@ -129,10 +129,22 @@ export default function Onboarding() {
   useEffect(() => {
     if (step !== 2) return;
     if (catchupSubStep !== "company") return;
-    setCompanyDrafts((current) => (current.length === 0
-      ? [{ name: "", type: getAllowedCompanyTypes(merged.incomeProfileType)[0], description: "" }]
-      : current));
-  }, [step, catchupSubStep, merged.incomeProfileType]);
+    setCompanyDrafts((current) => {
+      if (current.length > 0) return current;
+      const allowed = getAllowedCompanyTypes(merged.incomeProfileType);
+      const draftsFromCatchups = (existingCatchups || [])
+        .filter((entry) => entry.company_name)
+        .map((entry) => ({
+          name: entry.company_name,
+          type: entry.source_type === "w2" ? "w2" as const : entry.source_type === "1099_k1" ? "1099" as const : allowed[0],
+          description: "",
+          payFrequency: entry.source_type === "w2" ? "biweekly" as const : undefined,
+        }))
+        .filter((company) => allowed.includes(company.type));
+      const unique = Array.from(new Map(draftsFromCatchups.map((company) => [`${company.name.trim().toLowerCase()}::${company.type}`, company])).values());
+      return unique.length > 0 ? unique : [{ name: "", type: allowed[0], description: "" }];
+    });
+  }, [step, catchupSubStep, merged.incomeProfileType, existingCatchups]);
 
   // Stable marker for safe-erase completion. Rendered on the onboarding page
   // whenever ?reset=1 is present in the URL or the post-erase localStorage
@@ -232,7 +244,21 @@ export default function Onboarding() {
   async function createOnboardingCompanies() {
     if (!user) return;
     const allowed = getAllowedCompanyTypes(merged.incomeProfileType);
-    const normalizedDrafts = companyDrafts
+    const { data: persistedCatchups } = await (supabase as any)
+      .from("ytd_catchup_entries")
+      .select("company_name, source_type, gross_income")
+      .eq("user_id", user.id);
+    const catchupDrafts: OnboardingCompanyDraft[] = ((persistedCatchups || []) as any[])
+      .filter((entry) => entry.company_name)
+      .map((entry) => ({
+        name: String(entry.company_name || ""),
+        type: entry.source_type === "w2" ? "w2" : entry.source_type === "1099_k1" ? "1099" : allowed[0],
+        description: "",
+        payFrequency: entry.source_type === "w2" ? ("biweekly" as const) : undefined,
+        projectedAnnualGross: Number(entry.gross_income) > 0 ? Number(entry.gross_income) : null,
+      }))
+      .filter((company) => allowed.includes(company.type));
+    const normalizedDrafts = [...catchupDrafts, ...companyDrafts]
       .map((company) => ({ ...company, name: company.name.trim(), description: company.description?.trim() || "" }))
       .filter((company) => company.name || company.description);
     const incompleteDraft = normalizedDrafts.find((company) => !company.name || !company.type);
@@ -264,6 +290,7 @@ export default function Onboarding() {
         apply_business_state_tax: true,
         include_se_tax_in_recommendation: true,
         pay_frequency: company.type === "w2" ? (company.payFrequency || "biweekly") : null,
+        projected_annual_gross: company.projectedAnnualGross ?? null,
       };
     }).filter((company) => !existingKeys.has(`${company.name.toLowerCase()}::${company.company_type}`));
     if (rows.length === 0) {

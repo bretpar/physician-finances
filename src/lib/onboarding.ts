@@ -22,6 +22,7 @@ export interface OnboardingCompanyDraft {
   type: OnboardingCompanyType;
   description?: string;
   payFrequency?: OnboardingPayFrequency;
+  projectedAnnualGross?: number | null;
 }
 
 export interface EnabledIncomeSources {

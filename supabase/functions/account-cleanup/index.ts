@@ -78,7 +78,8 @@ async function eraseUserData(admin: any, userId: string) {
 
   await deleteStorageForUser(admin, userId);
 
-  // Reset tax_settings: delete then re-insert fresh defaults so onboarding restarts.
+  // Reset tax_settings in place so the route guard's canonical
+  // onboarding_complete flag is guaranteed to become false for this account.
   // Preserve organization_id so the user remains in their org.
   const { data: existing } = await admin
     .from("tax_settings")
@@ -87,19 +88,29 @@ async function eraseUserData(admin: any, userId: string) {
     .maybeSingle();
   const orgId = existing?.organization_id ?? null;
 
-  const { error: delTs } = await admin.from("tax_settings").delete().eq("user_id", userId);
-  if (delTs) errors.push({ table: "tax_settings", error: delTs.message });
-
-  const { error: insTs } = await admin.from("tax_settings").insert({
+  const taxSettingsReset = {
     user_id: userId,
     organization_id: orgId,
     onboarding_complete: false,
     onboarding_step: 1,
     onboarding_banner_dismissed: false,
     onboarding_first_name: "",
+    income_profile_type: "w2_plus_business",
+    enabled_income_sources: { w2: true, form1099: true, k1: true },
+    enabled_personal_income_types: [],
     ytd_catchup_choice: null,
-  });
-  if (insTs) errors.push({ table: "tax_settings(insert)", error: insTs.message });
+  };
+
+  const { error: upsertTs } = await admin
+    .from("tax_settings")
+    .upsert(taxSettingsReset, { onConflict: "user_id" });
+  if (upsertTs) errors.push({ table: "tax_settings(reset)", error: upsertTs.message });
+
+  const { error: profileReset } = await admin
+    .from("profiles")
+    .update({ first_name: "", last_name: "" })
+    .eq("user_id", userId);
+  if (profileReset) errors.push({ table: "profiles(reset)", error: profileReset.message });
 
   return errors;
 }
