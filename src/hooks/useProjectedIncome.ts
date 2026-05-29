@@ -692,17 +692,35 @@ export function useDeleteStream() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove safe planner-created ledger rows BEFORE deleting the stream so
+      // we still have planner_conversions.id -> ledger id links to follow.
+      // Stream delete cascades to planner_conversions and would SET NULL the
+      // origin_planner_conversion_id on income_entries / transactions, which
+      // is exactly how false "actual" income was being left behind.
+      const { cleanupConvertedLedgerForStream } = await import("@/lib/plannerCleanup");
+      const summary = await cleanupConvertedLedgerForStream(id);
       const { error } = await supabase
         .from("projected_income_streams")
         .delete()
         .eq("id", id);
       if (error) throw error;
+      return summary;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projected_income_streams"] });
-      qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
-      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
-      toast.success("Income stream deleted");
+    onSuccess: (summary) => {
+      const { PLANNER_CLEANUP_INVALIDATION_KEYS } = require("@/lib/plannerCleanup") as typeof import("@/lib/plannerCleanup");
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+      const removed = (summary?.incomeEntriesDeleted || 0) + (summary?.transactionsDeleted || 0);
+      const skipped = summary?.skippedNotSafe || 0;
+      if (removed > 0 || skipped > 0) {
+        toast.success(
+          `Stream deleted. Removed ${removed} planner-created ledger ${removed === 1 ? "entry" : "entries"}` +
+            (skipped > 0 ? `, kept ${skipped} edited/linked` : ""),
+        );
+      } else {
+        toast.success("Income stream deleted");
+      }
     },
     onError: (e) => toast.error(e.message),
   });
