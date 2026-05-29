@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-export const APP_CACHE_STORAGE_PREFIXES = ["paycheckmd-", "paycheckmd:", "w4."] as const;
+export const APP_CACHE_STORAGE_PREFIXES = ["paycheckmd-", "paycheckmd:", "dashboard:", "w4."] as const;
 
 const APP_CACHE_STORAGE_KEYS = new Set([
   "debug:taxBreakdown",
