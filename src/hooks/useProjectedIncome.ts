@@ -761,15 +761,25 @@ export function useDeleteBonus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove any safe planner-created ledger row for this bonus first.
+      const summary = await cleanupConvertedLedgerForBonus(id);
       const { error } = await supabase
         .from("projected_bonus_events")
         .delete()
         .eq("id", id);
       if (error) throw error;
+      return summary;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
-      toast.success("Bonus event deleted");
+    onSuccess: (summary) => {
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
+      const removed = (summary?.incomeEntriesDeleted || 0) + (summary?.transactionsDeleted || 0);
+      toast.success(
+        removed > 0
+          ? `Bonus deleted. Removed ${removed} planner-created ledger ${removed === 1 ? "entry" : "entries"}`
+          : "Bonus event deleted",
+      );
     },
     onError: (e) => toast.error(e.message),
   });
