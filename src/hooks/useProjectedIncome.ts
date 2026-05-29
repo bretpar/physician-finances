@@ -703,7 +703,6 @@ export function useDeleteStream() {
       // Stream delete cascades to planner_conversions and would SET NULL the
       // origin_planner_conversion_id on income_entries / transactions, which
       // is exactly how false "actual" income was being left behind.
-      const { cleanupConvertedLedgerForStream } = await import("@/lib/plannerCleanup");
       const summary = await cleanupConvertedLedgerForStream(id);
       const { error } = await supabase
         .from("projected_income_streams")
@@ -713,7 +712,6 @@ export function useDeleteStream() {
       return summary;
     },
     onSuccess: (summary) => {
-      const { PLANNER_CLEANUP_INVALIDATION_KEYS } = require("@/lib/plannerCleanup") as typeof import("@/lib/plannerCleanup");
       for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
         qc.invalidateQueries({ queryKey: key });
       }
