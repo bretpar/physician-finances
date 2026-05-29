@@ -149,7 +149,7 @@ export default function Onboarding() {
   })();
 
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
-  if (user && taxSettings?.onboardingComplete === true && !sessionStorage.getItem("paycheckmd-start-setup")) return <Navigate to="/" replace />;
+  if (user && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
 
@@ -357,7 +357,6 @@ export default function Onboarding() {
         await persist({ onboardingComplete: false, onboardingStep: nextStep });
       } else if (step === 3) {
         await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
-        sessionStorage.removeItem("paycheckmd-start-setup");
         sessionStorage.removeItem("paycheckmd-onboarding-step");
         navigate("/", { replace: true });
         return;
