@@ -9,10 +9,19 @@ export type OnboardingSubscriptionTier = "free" | "premium";
 
 export type OnboardingCompanyType = "w2" | "1099" | "k1";
 
+export type OnboardingPayFrequency =
+  | "weekly"
+  | "biweekly"
+  | "semimonthly"
+  | "monthly"
+  | "quarterly"
+  | "annual";
+
 export interface OnboardingCompanyDraft {
   name: string;
   type: OnboardingCompanyType;
   description?: string;
+  payFrequency?: OnboardingPayFrequency;
 }
 
 export interface EnabledIncomeSources {

@@ -148,8 +148,12 @@ export default function Onboarding() {
     return false;
   })();
 
+  // After a safe-erase, the URL carries ?reset=1 (or localStorage marker is
+  // set). In that case never short-circuit to the dashboard, even if a stale
+  // taxSettings cache momentarily reports onboardingComplete=true. The fresh
+  // query will reflect the reset row on next render.
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
-  if (user && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
+  if (user && taxSettings?.onboardingComplete === true && !safeEraseMarkerVisible) return <Navigate to="/" replace />;
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
 
@@ -237,7 +241,10 @@ export default function Onboarding() {
     if (validDrafts.length === 0) return;
     const uniqueDrafts = Array.from(new Map(validDrafts.map((company) => [`${company.name.toLowerCase()}::${company.type}`, company])).values());
     const orgId = await getUserOrgId();
-    const { data: existing, error: existingError } = await supabase.from("companies").select("name, company_type");
+    const { data: existing, error: existingError } = await supabase
+      .from("companies")
+      .select("name, company_type")
+      .eq("user_id", user.id);
     if (existingError) throw existingError;
     const existingKeys = new Set((existing || []).map((company: any) => `${String(company.name || "").trim().toLowerCase()}::${company.company_type}`));
     const rows = uniqueDrafts.map((company) => {
@@ -256,6 +263,7 @@ export default function Onboarding() {
         advanced_field_visibility: {},
         apply_business_state_tax: true,
         include_se_tax_in_recommendation: true,
+        pay_frequency: company.type === "w2" ? (company.payFrequency || "biweekly") : null,
       };
     }).filter((company) => !existingKeys.has(`${company.name.toLowerCase()}::${company.company_type}`));
     if (rows.length === 0) {
@@ -620,6 +628,27 @@ export default function Onboarding() {
                       <Label htmlFor={`company-desc-${index}`}>Optional description or nickname</Label>
                       <Input id={`company-desc-${index}`} value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" />
                     </div>
+                    {company.type === "w2" && (
+                      <div className="mt-3">
+                        <Label htmlFor={`company-pay-frequency-${index}`}>Pay frequency</Label>
+                        <Select
+                          value={company.payFrequency || "biweekly"}
+                          onValueChange={(value) => updateCompanyDraft(index, { payFrequency: value as any })}
+                        >
+                          <SelectTrigger id={`company-pay-frequency-${index}`} data-testid={`onboarding-pay-frequency-${index}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
+                            <SelectItem value="semimonthly">Semi-monthly (twice a month)</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="quarterly">Quarterly</SelectItem>
+                            <SelectItem value="annual">Annual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
                   </div>
                 ))}
