@@ -628,6 +628,27 @@ export default function Onboarding() {
                       <Label htmlFor={`company-desc-${index}`}>Optional description or nickname</Label>
                       <Input id={`company-desc-${index}`} value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" />
                     </div>
+                    {company.type === "w2" && (
+                      <div className="mt-3">
+                        <Label htmlFor={`company-pay-frequency-${index}`}>Pay frequency</Label>
+                        <Select
+                          value={company.payFrequency || "biweekly"}
+                          onValueChange={(value) => updateCompanyDraft(index, { payFrequency: value as any })}
+                        >
+                          <SelectTrigger id={`company-pay-frequency-${index}`} data-testid={`onboarding-pay-frequency-${index}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
+                            <SelectItem value="semimonthly">Semi-monthly (twice a month)</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="quarterly">Quarterly</SelectItem>
+                            <SelectItem value="annual">Annual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
                   </div>
                 ))}
