@@ -33,14 +33,6 @@ function ProtectedRoutes() {
   const { user, loading } = useAuth();
   const location = useLocation();
   const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings(!!user);
-  const safeEraseInProgress = (() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("paycheckmd:erase-complete") != null;
-    } catch {
-      return false;
-    }
-  })();
 
   if (loading) {
     return (
@@ -66,7 +58,7 @@ function ProtectedRoutes() {
     return <OnboardingErrorBoundary><Onboarding /></OnboardingErrorBoundary>;
   }
 
-  if (safeEraseInProgress || taxSettings?.onboardingComplete !== true) {
+  if (taxSettings?.onboardingComplete !== true) {
     return <Navigate to="/onboarding" replace />;
   }
 

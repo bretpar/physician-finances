@@ -147,26 +147,9 @@ export default function Onboarding() {
     });
   }, [step, catchupSubStep, merged.incomeProfileType, existingCatchups]);
 
-  // Stable marker for safe-erase completion. Rendered on the onboarding page
-  // whenever ?reset=1 is present in the URL or the post-erase localStorage
-  // marker is set. Used by Playwright to confirm safe-erase succeeded
-  // without relying on a DOM element that may unmount during navigation.
-  const safeEraseMarkerVisible = (() => {
-    if (typeof window === "undefined") return false;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("reset") === "1") return true;
-      if (window.localStorage.getItem("paycheckmd:erase-complete")) return true;
-    } catch { /* ignore */ }
-    return false;
-  })();
-
-  // After a safe-erase, the URL carries ?reset=1 (or localStorage marker is
-  // set). In that case never short-circuit to the dashboard, even if a stale
-  // taxSettings cache momentarily reports onboardingComplete=true. The fresh
-  // query will reflect the reset row on next render.
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
-  if (user && taxSettings?.onboardingComplete === true && !safeEraseMarkerVisible) return <Navigate to="/" replace />;
+  if (user && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
+
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
 
@@ -494,9 +477,7 @@ export default function Onboarding() {
 
   return (
     <div data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
-      {safeEraseMarkerVisible && (
-        <div data-testid="safe-erase-complete-marker" className="sr-only" aria-hidden="true" />
-      )}
+
       <Card className="mx-auto w-full max-w-2xl">
         <CardContent className="space-y-6 p-5 sm:p-8">
           <div className="flex items-center gap-3">
