@@ -148,8 +148,12 @@ export default function Onboarding() {
     return false;
   })();
 
+  // After a safe-erase, the URL carries ?reset=1 (or localStorage marker is
+  // set). In that case never short-circuit to the dashboard, even if a stale
+  // taxSettings cache momentarily reports onboardingComplete=true. The fresh
+  // query will reflect the reset row on next render.
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
-  if (user && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
+  if (user && taxSettings?.onboardingComplete === true && !safeEraseMarkerVisible) return <Navigate to="/" replace />;
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
 
