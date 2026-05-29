@@ -241,7 +241,10 @@ export default function Onboarding() {
     if (validDrafts.length === 0) return;
     const uniqueDrafts = Array.from(new Map(validDrafts.map((company) => [`${company.name.toLowerCase()}::${company.type}`, company])).values());
     const orgId = await getUserOrgId();
-    const { data: existing, error: existingError } = await supabase.from("companies").select("name, company_type");
+    const { data: existing, error: existingError } = await supabase
+      .from("companies")
+      .select("name, company_type")
+      .eq("user_id", user.id);
     if (existingError) throw existingError;
     const existingKeys = new Set((existing || []).map((company: any) => `${String(company.name || "").trim().toLowerCase()}::${company.company_type}`));
     const rows = uniqueDrafts.map((company) => {
@@ -260,6 +263,7 @@ export default function Onboarding() {
         advanced_field_visibility: {},
         apply_business_state_tax: true,
         include_se_tax_in_recommendation: true,
+        pay_frequency: company.type === "w2" ? (company.payFrequency || "biweekly") : null,
       };
     }).filter((company) => !existingKeys.has(`${company.name.toLowerCase()}::${company.company_type}`));
     if (rows.length === 0) {
