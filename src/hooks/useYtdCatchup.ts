@@ -305,86 +305,139 @@ export function useYtdCatchupEntries() {
   });
 }
 
+/**
+ * Wrap a promise with a hard timeout. If the underlying call hangs (e.g. a
+ * Supabase request never settles due to a network or auth-token glitch),
+ * we still reject so the mutation surfaces an error instead of leaving the
+ * Save button stuck on "Saving…" forever.
+ */
+function withTimeout<T>(p: Promise<T> | PromiseLike<T>, ms: number, step: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timed out during ${step} (${ms}ms)`)), ms);
+    Promise.resolve(p).then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
+/** Resolve the current user's org id with a brief retry for the
+ *  handle_new_user trigger race on fresh signups. */
+async function getOrgIdWithRetry(userId: string): Promise<string> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data, error } = await (supabase as any)
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (data?.organization_id) return data.organization_id as string;
+    if (error && (error as any).code && (error as any).code !== "PGRST116") {
+      throw new Error(`organization lookup failed: ${error.message}`);
+    }
+    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+  }
+  throw new Error("No organization found for your account yet. Please refresh and try again.");
+}
+
 export function useUpsertYtdCatchup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: YtdCatchupInput & { id?: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: userRes } = await withTimeout(
+        supabase.auth.getUser(),
+        5000,
+        "auth.getUser",
+      );
+      const user = userRes?.user;
       if (!user) throw new Error("Not authenticated");
-      const orgId = await getUserOrgId();
+      const orgId = await withTimeout(getOrgIdWithRetry(user.id), 8000, "organization lookup");
       const row: any = {
         ...input,
         user_id: user.id,
         organization_id: orgId,
       };
-      // Auto-resolve company_id for 1099/K-1 entries when an unambiguous
-      // company already exists with the same normalized name. Prevents
-      // "Unassigned" Business Activity rows when the user saves catch-up
-      // after creating the company.
       if ((row.source_type === "1099_k1" || row.source_type === "w2") && !row.company_id && row.company_name) {
-        const { data: companies } = await supabase
-          .from("companies")
-          .select("id, name, company_type");
-        const normTarget = normalizeCompanyName(row.company_name);
-        const allowedTypes = row.source_type === "w2"
-          ? ["w2", "scorp_w2"]
-          : ["1099_schedule_c", "k1_partnership", "k1_s_corp", "scorp_distribution"];
-        const matches = (companies || []).filter((c: any) =>
-          allowedTypes.includes(String(c.company_type)) &&
-          normalizeCompanyName(c.name) === normTarget,
-        );
-        if (matches.length === 1) row.company_id = matches[0].id;
+        try {
+          const { data: companies } = await withTimeout(
+            supabase.from("companies").select("id, name, company_type") as any,
+            6000,
+            "company lookup",
+          ) as any;
+          const normTarget = normalizeCompanyName(row.company_name);
+          const allowedTypes = row.source_type === "w2"
+            ? ["w2", "scorp_w2"]
+            : ["1099_schedule_c", "k1_partnership", "k1_s_corp", "scorp_distribution"];
+          const matches = (companies || []).filter((c: any) =>
+            allowedTypes.includes(String(c.company_type)) &&
+            normalizeCompanyName(c.name) === normTarget,
+          );
+          if (matches.length === 1) row.company_id = matches[0].id;
+        } catch (e) {
+          console.warn("[useYtdCatchup] company lookup failed, continuing without company_id", e);
+        }
       }
       let saved: any;
       let effectiveId = input.id;
 
-      // Idempotency for onboarding-created YTD entries: if no explicit id was
-      // passed, look up an existing entry for the same
-      // (user_id, tax_year, source_type, normalized company_name) and update
-      // it in place instead of inserting a duplicate. This prevents repeated
-      // or partial onboarding runs from producing multiple YTD catch-up rows
-      // (and the resulting duplicate ledger mirrors) for the same employer.
       if (!effectiveId && row.company_name && row.tax_year && row.source_type) {
-        const normTarget = normalizeCompanyName(row.company_name);
-        const { data: existingRows } = await (supabase as any)
-          .from("ytd_catchup_entries")
-          .select("id, company_name, source_type, tax_year")
-          .eq("user_id", user.id)
-          .eq("tax_year", row.tax_year)
-          .eq("source_type", row.source_type);
-        const match = ((existingRows || []) as any[]).find(
-          (r) => normalizeCompanyName(r.company_name) === normTarget,
-        );
-        if (match?.id) effectiveId = match.id;
+        try {
+          const normTarget = normalizeCompanyName(row.company_name);
+          const { data: existingRows } = await withTimeout(
+            (supabase as any)
+              .from("ytd_catchup_entries")
+              .select("id, company_name, source_type, tax_year")
+              .eq("user_id", user.id)
+              .eq("tax_year", row.tax_year)
+              .eq("source_type", row.source_type),
+            6000,
+            "existing catch-up lookup",
+          ) as any;
+          const match = ((existingRows || []) as any[]).find(
+            (r) => normalizeCompanyName(r.company_name) === normTarget,
+          );
+          if (match?.id) effectiveId = match.id;
+        } catch (e) {
+          console.warn("[useYtdCatchup] idempotency lookup failed, falling back to insert", e);
+        }
       }
 
       if (effectiveId) {
-        const { data, error } = await supabase
-          .from("ytd_catchup_entries" as any)
-          .update(row as any)
-          .eq("id", effectiveId)
-          .select()
-          .single();
-        if (error) throw error;
+        const { data, error } = await withTimeout(
+          (supabase as any)
+            .from("ytd_catchup_entries")
+            .update(row as any)
+            .eq("id", effectiveId)
+            .select()
+            .single(),
+          10000,
+          "ytd_catchup_entries update",
+        ) as any;
+        if (error) throw new Error(`ytd_catchup_entries update failed: ${error.message}`);
         saved = data;
       } else {
-        const { data, error } = await supabase
-          .from("ytd_catchup_entries" as any)
-          .insert(row as any)
-          .select()
-          .single();
-        if (error) throw error;
+        const { data, error } = await withTimeout(
+          (supabase as any)
+            .from("ytd_catchup_entries")
+            .insert(row as any)
+            .select()
+            .single(),
+          10000,
+          "ytd_catchup_entries insert",
+        ) as any;
+        if (error) throw new Error(`ytd_catchup_entries insert failed: ${error.message}`);
         saved = data;
       }
-      // Mirror catch-ups into the appropriate ledger so they show up in
-      // Business Activity (1099/K-1) or Personal Income (W-2/other). Tax
-      // engine de-dupes via overlap subtraction / include_in_tax_estimate.
       try {
-        await syncCatchupMirror({
-          catchupEntry: saved as YtdCatchupEntry,
-          userId: user.id,
-          orgId,
-        });
+        await withTimeout(
+          syncCatchupMirror({
+            catchupEntry: saved as YtdCatchupEntry,
+            userId: user.id,
+            orgId,
+          }),
+          10000,
+          "ledger mirror sync",
+        );
       } catch (e) {
         console.warn("[useYtdCatchup] failed to sync ledger mirror", e);
       }
@@ -397,7 +450,10 @@ export function useUpsertYtdCatchup() {
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       toast.success("YTD catch-up saved");
     },
-    onError: (e: any) => toast.error(e.message || "Could not save catch-up entry"),
+    onError: (e: any) => {
+      console.error("[useYtdCatchup] save failed", e);
+      toast.error(e?.message || "Could not save catch-up entry");
+    },
   });
 }
 
