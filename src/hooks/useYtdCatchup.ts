@@ -236,11 +236,21 @@ async function syncCatchupMirror(args: {
   }
 
   // ── Personal mirror in `income_entries` (W-2 / other) ───────────────────
-  const { data: existingIncome } = await (supabase as any)
+  // Use limit-based fetch (not .maybeSingle) so a transient duplicate row
+  // from a prior partial write never throws here — instead we dedupe.
+  const { data: existingIncomeRows } = await (supabase as any)
     .from("income_entries")
-    .select("id")
+    .select("id, created_at")
     .eq("linked_ytd_catchup_id", c.id)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
+  const existingIncome = (existingIncomeRows && existingIncomeRows[0]) || null;
+  if (existingIncomeRows && existingIncomeRows.length > 1) {
+    await (supabase as any)
+      .from("income_entries")
+      .delete()
+      .in("id", existingIncomeRows.slice(1).map((r: any) => r.id));
+  }
+
 
   if (!isBusiness) {
     const incomeType = isW2 ? "w2_user" : "other_income";
