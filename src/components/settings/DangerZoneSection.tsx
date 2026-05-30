@@ -57,8 +57,7 @@ export function DangerZoneSection() {
             5_000,
             "Could not confirm your login session. Please refresh and try again.",
           )).data;
-      const sessErr = session ? null : null;
-      if (sessErr || !sessionData.session) {
+      if (!sessionData.session) {
         throw new Error("You must be logged in.");
       }
       const accessToken = sessionData.session.access_token;
