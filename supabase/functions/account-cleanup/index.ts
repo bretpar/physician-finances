@@ -229,7 +229,12 @@ export async function handler(req: Request) {
       global: { fetch: createTimedFetch(STEP_TIMEOUT_MS) },
     });
 
-    const { data: userData, error: userErr } = await admin.auth.getUser(token);
+    logStep("auth.getUser.start");
+    const { data: userData, error: userErr } = await withTimeout(
+      "auth.getUser",
+      admin.auth.getUser(token),
+      AUTH_TIMEOUT_MS,
+    );
     if (userErr || !userData?.user) {
       return jsonResponse(req, { error: "Unauthorized" }, 401);
     }
@@ -255,9 +260,11 @@ export async function handler(req: Request) {
       }, 500);
     }
 
+    logStep("auth.deleteUser.start", { userId });
     const { error: authDelErr } = await withTimeout(
       "auth.deleteUser",
       admin.auth.admin.deleteUser(userId),
+      AUTH_TIMEOUT_MS,
     );
     if (authDelErr) {
       console.error("account-cleanup deleteUser failed", authDelErr);
@@ -269,6 +276,7 @@ export async function handler(req: Request) {
       }, 500);
     }
 
+    logStep("complete", { userId });
     return jsonResponse(req, { ok: true, action: "delete", cleanup: cleanupResult });
   } catch (error) {
     console.error("account-cleanup error", error);
