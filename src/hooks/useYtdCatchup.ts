@@ -380,23 +380,58 @@ export function useUpsertYtdCatchup() {
       let saved: any;
       let effectiveId = input.id;
 
-      if (!effectiveId && row.company_name && row.tax_year && row.source_type) {
+      // Idempotency lookup — scoped by user + tax_year + source_type AND
+      // EITHER company_id (preferred) OR exact non-empty normalized
+      // company_name. CRITICAL: never collapse two distinct employers
+      // into one row. A blank/missing company_name is NEVER allowed to
+      // match an existing row, otherwise a second employer save can
+      // silently overwrite the first (the multi-W-2 YTD bug this guard
+      // exists to prevent).
+      if (!effectiveId && row.tax_year && row.source_type) {
         try {
           const normTarget = normalizeCompanyName(row.company_name);
           const { data: existingRows } = await withTimeout(
             (supabase as any)
               .from("ytd_catchup_entries")
-              .select("id, company_name, source_type, tax_year")
+              .select("id, company_name, company_id, source_type, tax_year")
               .eq("user_id", user.id)
               .eq("tax_year", row.tax_year)
               .eq("source_type", row.source_type),
             6000,
             "existing catch-up lookup",
           ) as any;
-          const match = ((existingRows || []) as any[]).find(
-            (r) => normalizeCompanyName(r.company_name) === normTarget,
-          );
-          if (match?.id) effectiveId = match.id;
+          const candidates = (existingRows || []) as any[];
+          // 1) company_id match (strongest signal).
+          let match = row.company_id
+            ? candidates.find((r) => r.company_id && r.company_id === row.company_id)
+            : undefined;
+          // 2) exact normalized company_name match (only if non-empty).
+          if (!match && normTarget) {
+            match = candidates.find(
+              (r) => normalizeCompanyName(r.company_name) === normTarget,
+            );
+          }
+          if (match?.id) {
+            console.info("[useYtdCatchup] reusing existing catch-up row", {
+              id: match.id,
+              matched_name: match.company_name,
+              matched_company_id: match.company_id,
+              incoming_name: row.company_name,
+              incoming_company_id: row.company_id,
+            });
+            effectiveId = match.id;
+          } else {
+            console.info("[useYtdCatchup] no idempotency match — will INSERT", {
+              incoming_name: row.company_name,
+              incoming_company_id: row.company_id,
+              source_type: row.source_type,
+              candidates: candidates.map((c) => ({
+                id: c.id,
+                name: c.company_name,
+                company_id: c.company_id,
+              })),
+            });
+          }
         } catch (e) {
           console.warn("[useYtdCatchup] idempotency lookup failed, falling back to insert", e);
         }
