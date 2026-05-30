@@ -4,8 +4,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 
-const STEP_TIMEOUT_MS = 10_000;
-const STORAGE_TIMEOUT_MS = 5_000;
+const STEP_TIMEOUT_MS = 4_000;
+const AUTH_TIMEOUT_MS = 8_000;
+const STORAGE_TIMEOUT_MS = 1_500;
 
 // Tables that hold user-owned financial/app data. Order roughly: dependent
 // rows first so deletes are deterministic if foreign keys are added later.
@@ -95,6 +96,10 @@ function createTimedFetch(timeoutMs = STEP_TIMEOUT_MS): typeof fetch {
   };
 }
 
+function logStep(step: string, details: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ event: "account-cleanup", step, ...details }));
+}
+
 async function deleteStorageForUser(admin: any, userId: string): Promise<CleanupWarning[]> {
   const bucket = "transaction-attachments";
   const warnings: CleanupWarning[] = [];
@@ -166,7 +171,12 @@ export async function deleteUserData(admin: any, userId: string) {
     }
   }
 
-  warnings.push(...await deleteStorageForUser(admin, userId));
+  try {
+    warnings.push(...await withTimeout("storage.bestEffort", deleteStorageForUser(admin, userId), STORAGE_TIMEOUT_MS));
+  } catch (err) {
+    console.warn("account-cleanup storage cleanup did not finish before continuing", err);
+    warnings.push({ step: "storage.bestEffort", error: errorMessage(err) });
+  }
 
   // Profile row will cascade with the auth user; delete proactively to keep
   // org membership tidy if any FK is missing.
@@ -187,7 +197,7 @@ export async function deleteUserData(admin: any, userId: string) {
       "table.organizations",
       admin.from("organizations").delete().in("id", ownedOrgIds),
     );
-    if (orgDeleteErr) errors.push({ step: "table.organizations", table: "organizations", error: orgDeleteErr.message, code: orgDeleteErr.code });
+    if (orgDeleteErr) warnings.push({ step: "table.organizations", table: "organizations", error: orgDeleteErr.message, code: orgDeleteErr.code });
   }
 
   if (errors.length > 0) {
@@ -219,7 +229,12 @@ export async function handler(req: Request) {
       global: { fetch: createTimedFetch(STEP_TIMEOUT_MS) },
     });
 
-    const { data: userData, error: userErr } = await admin.auth.getUser(token);
+    logStep("auth.getUser.start");
+    const { data: userData, error: userErr } = await withTimeout(
+      "auth.getUser",
+      admin.auth.getUser(token),
+      AUTH_TIMEOUT_MS,
+    );
     if (userErr || !userData?.user) {
       return jsonResponse(req, { error: "Unauthorized" }, 401);
     }
@@ -245,9 +260,11 @@ export async function handler(req: Request) {
       }, 500);
     }
 
+    logStep("auth.deleteUser.start", { userId });
     const { error: authDelErr } = await withTimeout(
       "auth.deleteUser",
       admin.auth.admin.deleteUser(userId),
+      AUTH_TIMEOUT_MS,
     );
     if (authDelErr) {
       console.error("account-cleanup deleteUser failed", authDelErr);
@@ -259,6 +276,7 @@ export async function handler(req: Request) {
       }, 500);
     }
 
+    logStep("complete", { userId });
     return jsonResponse(req, { ok: true, action: "delete", cleanup: cleanupResult });
   } catch (error) {
     console.error("account-cleanup error", error);

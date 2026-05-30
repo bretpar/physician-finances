@@ -19,9 +19,21 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 export function DangerZoneSection() {
   const queryClient = useQueryClient();
-  const { signOut } = useAuth();
+  const { session, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -38,8 +50,14 @@ export function DangerZoneSection() {
     setDeleteError("");
     setBusy(true);
     try {
-      const { data: sessionData, error: sessErr } = await supabase.auth.getSession();
-      if (sessErr || !sessionData.session) {
+      const sessionData = session
+        ? { session }
+        : (await withTimeout(
+            supabase.auth.getSession(),
+            5_000,
+            "Could not confirm your login session. Please refresh and try again.",
+          )).data;
+      if (!sessionData.session) {
         throw new Error("You must be logged in.");
       }
       const accessToken = sessionData.session.access_token;
@@ -64,7 +82,7 @@ export function DangerZoneSection() {
         );
       } catch (fetchErr: any) {
         if (fetchErr?.name === "AbortError") {
-          throw new Error("Account deletion timed out. Please try again.");
+          throw new Error("Account deletion timed out before the delete service responded. Please try again.");
         }
         throw new Error("Could not reach the delete service. Check your connection and try again.");
       } finally {
@@ -97,10 +115,7 @@ export function DangerZoneSection() {
         // best effort
       }
 
-      await Promise.race([
-        signOut().catch(() => {}),
-        new Promise((resolve) => setTimeout(resolve, 2_000)),
-      ]);
+      await withTimeout(signOut().catch(() => {}), 2_000, "Sign out timed out.").catch(() => {});
       toast.success("Your account has been permanently deleted.");
       window.location.assign("/login");
     } catch (err: any) {
@@ -125,6 +140,7 @@ export function DangerZoneSection() {
           This permanently deletes your account and all financial data. This cannot be undone.
         </p>
         <Button
+          type="button"
           variant="destructive"
           data-testid="settings-delete-account-button"
           onClick={() => {
@@ -171,6 +187,7 @@ export function DangerZoneSection() {
           )}
           <DialogFooter className="gap-2">
             <Button
+              type="button"
               variant="secondary"
               onClick={() => setOpen(false)}
               disabled={busy}
@@ -179,6 +196,7 @@ export function DangerZoneSection() {
               Cancel
             </Button>
             <Button
+              type="button"
               variant="destructive"
               onClick={handleDelete}
               disabled={busy || confirmText.trim() !== "DELETE"}

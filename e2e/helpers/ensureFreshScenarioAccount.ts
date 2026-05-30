@@ -87,11 +87,18 @@ async function deleteAccountFromSettings(page: Page, baseUrl: string): Promise<v
 
   await page.getByTestId("settings-delete-account-confirm-button").click();
 
-  // Expect sign-out → redirect to /login (or auth-gated route).
-  await page.waitForURL(
-    (u) => /^\/(login|auth|signup)(\/|$)/.test(u.pathname),
-    { timeout: 30_000 },
-  );
+  // Expect sign-out → redirect to /login (or auth-gated route). If deletion
+  // fails visibly, report that as an account-deletion bug instead of letting
+  // downstream signup/onboarding assertions obscure the root cause.
+  const deleteError = page.getByTestId("delete-error");
+  await Promise.race([
+    page.waitForURL((u) => /^\/(login|auth|signup)(\/|$)/.test(u.pathname), {
+      timeout: 35_000,
+    }),
+    deleteError.waitFor({ state: "visible", timeout: 35_000 }).then(async () => {
+      throw new Error(`Account deletion failed visibly: ${await deleteError.textContent()}`);
+    }),
+  ]);
 }
 
 async function signUp(
