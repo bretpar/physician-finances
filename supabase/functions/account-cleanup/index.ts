@@ -140,39 +140,61 @@ async function deleteStorageForUser(admin: any, userId: string): Promise<Cleanup
 }
 
 export async function deleteUserData(admin: any, userId: string) {
-  const errors: { table: string; error: string }[] = [];
+  const errors: CleanupFailure[] = [];
+  const warnings: CleanupWarning[] = [];
+
+  const { data: orgRows, error: orgLookupError } = await withTimeout(
+    "organizations.lookup",
+    admin.from("organizations").select("id").eq("owner_user_id", userId),
+  );
+  if (orgLookupError) {
+    console.warn("account-cleanup organization lookup failed", orgLookupError);
+    warnings.push({ step: "organizations.lookup", table: "organizations", error: orgLookupError.message || String(orgLookupError), code: orgLookupError.code });
+  }
+  const ownedOrgIds = ((orgRows || []) as Array<{ id: string }>).map((row) => row.id).filter(Boolean);
 
   for (const table of USER_SCOPED_FINANCIAL_TABLES) {
-    const { error } = await admin.from(table).delete().eq("user_id", userId);
+    const { error } = await withTimeout(
+      `table.${table}`,
+      admin.from(table).delete().eq("user_id", userId),
+    );
     if (error) {
       console.warn(`account-cleanup delete ${table} failed`, error);
-      errors.push({ table, error: error.message || String(error) });
+      const failure = { step: `table.${table}`, table, error: error.message || String(error), code: error.code };
+      if (isSchemaDriftError(error)) warnings.push(failure);
+      else errors.push(failure);
     }
   }
 
-  await deleteStorageForUser(admin, userId);
+  warnings.push(...await deleteStorageForUser(admin, userId));
 
   // Profile row will cascade with the auth user; delete proactively to keep
   // org membership tidy if any FK is missing.
-  const { error: orgMemErr } = await admin
+  const { error: orgMemErr } = await withTimeout("table.organization_members", admin
     .from("organization_members")
     .delete()
-    .eq("user_id", userId);
-  if (orgMemErr) errors.push({ table: "organization_members", error: orgMemErr.message });
+    .eq("user_id", userId));
+  if (orgMemErr) errors.push({ step: "table.organization_members", table: "organization_members", error: orgMemErr.message, code: orgMemErr.code });
 
-  const { error: profErr } = await admin
+  const { error: profErr } = await withTimeout("table.profiles", admin
     .from("profiles")
     .delete()
-    .eq("user_id", userId);
-  if (profErr) errors.push({ table: "profiles", error: profErr.message });
+    .eq("user_id", userId));
+  if (profErr) errors.push({ step: "table.profiles", table: "profiles", error: profErr.message, code: profErr.code });
 
-  if (errors.length > 0) {
-    throw new Error(
-      `Account delete did not fully complete. Failed tables: ${errors.map((e) => e.table).join(", ")}`,
+  if (ownedOrgIds.length > 0) {
+    const { error: orgDeleteErr } = await withTimeout(
+      "table.organizations",
+      admin.from("organizations").delete().in("id", ownedOrgIds),
     );
+    if (orgDeleteErr) errors.push({ step: "table.organizations", table: "organizations", error: orgDeleteErr.message, code: orgDeleteErr.code });
   }
 
-  return errors;
+  if (errors.length > 0) {
+    throw new CleanupStepError(errors[0].step, `Account delete did not fully complete at ${errors[0].step}: ${errors[0].error}`, { table: errors[0].table, code: errors[0].code });
+  }
+
+  return { warnings, deletedOrganizations: ownedOrgIds.length };
 }
 
 export async function handler(req: Request) {
