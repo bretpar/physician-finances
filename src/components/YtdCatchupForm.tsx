@@ -97,19 +97,43 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
 
   const submit = async () => {
     if (isSaving) return; // guard against duplicate submits
+    const trimmedName = companyName.trim();
+    // Breadcrumb: confirms which entry's save handler fired. The companion
+    // END_YTD_SAVE log below proves mutateAsync actually ran for every
+    // employer (not just the first), so the multi-W-2 YTD bug can't
+    // silently regress without showing up in console output.
+    console.info(`BEGIN_YTD_SAVE ${trimmedName || "(unnamed)"}`, {
+      sourceType,
+      gross: grossIncome,
+      isEdit: !!initial,
+    });
     setError(null);
-    if (!companyName.trim()) {
+    if (!trimmedName) {
+      console.info(`END_YTD_SAVE ${trimmedName || "(unnamed)"} validation:missing_company`);
       return setError(isW2Source ? "Enter the employer name." : "Enter the company or business name.");
     }
-    if (periodEnd < periodStart) return setError("End date cannot be before start date.");
-    if (grossIncome.trim() === "") return setError("Enter your total gross income year-to-date.");
+    if (periodEnd < periodStart) {
+      console.info(`END_YTD_SAVE ${trimmedName} validation:bad_period`);
+      return setError("End date cannot be before start date.");
+    }
+    if (grossIncome.trim() === "") {
+      console.info(`END_YTD_SAVE ${trimmedName} validation:missing_gross`);
+      return setError("Enter your total gross income year-to-date.");
+    }
     const gross = num(grossIncome);
-    if (gross <= 0) return setError("Gross income must be greater than zero.");
+    if (gross <= 0) {
+      console.info(`END_YTD_SAVE ${trimmedName} validation:zero_gross`);
+      return setError("Gross income must be greater than zero.");
+    }
     if (isW2Source && fedWh.trim() === "") {
+      console.info(`END_YTD_SAVE ${trimmedName} validation:missing_fed`);
       return setError("Enter federal tax withheld year-to-date (enter 0 if none).");
     }
     const negs = [fedWh, stateWh, ssWh, medWh, r401k, hsa, healthcare, dental, otherPretax, postTax].map(num);
-    if (negs.some((n) => n < 0)) return setError("Withholdings and deductions cannot be negative.");
+    if (negs.some((n) => n < 0)) {
+      console.info(`END_YTD_SAVE ${trimmedName} validation:negative`);
+      return setError("Withholdings and deductions cannot be negative.");
+    }
 
     setLocalSaving(true);
     try {
@@ -122,7 +146,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           id: initial?.id,
           tax_year: taxYear,
           source_type: sourceType,
-          company_name: companyName.trim(),
+          company_name: trimmedName,
           period_start: periodStart,
           period_end: periodEnd,
           gross_income: gross,
@@ -142,10 +166,11 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           setTimeout(() => reject(new Error("Save timed out. Please check your connection and try again.")), 30000),
         ),
       ]);
+      console.info(`END_YTD_SAVE ${trimmedName} ok`);
       onSaved?.();
     } catch (e: any) {
       const msg = e?.message || "Could not save catch-up entry. Please try again.";
-      console.error("[YtdCatchupForm] save failed", e);
+      console.error(`END_YTD_SAVE ${trimmedName} error`, e);
       setError(msg);
     } finally {
       setLocalSaving(false);
