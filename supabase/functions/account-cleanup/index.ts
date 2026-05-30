@@ -4,6 +4,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 
+const STEP_TIMEOUT_MS = 10_000;
+const STORAGE_TIMEOUT_MS = 5_000;
+
 // Tables that hold user-owned financial/app data. Order roughly: dependent
 // rows first so deletes are deterministic if foreign keys are added later.
 export const USER_SCOPED_FINANCIAL_TABLES = [
@@ -36,17 +39,83 @@ export const USER_SCOPED_FINANCIAL_TABLES = [
   "plaid_items",
   "companies",
   "tax_settings",
+  "user_roles",
 ] as const;
 
-async function deleteStorageForUser(admin: any, userId: string) {
-  const bucket = "transaction-attachments";
+type CleanupFailure = { step: string; table?: string; error: string; code?: string };
+type CleanupWarning = CleanupFailure;
+
+class CleanupStepError extends Error {
+  step: string;
+  table?: string;
+  code?: string;
+
+  constructor(step: string, message: string, opts: { table?: string; code?: string } = {}) {
+    super(message);
+    this.name = "CleanupStepError";
+    this.step = step;
+    this.table = opts.table;
+    this.code = opts.code;
+  }
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isSchemaDriftError(error: any) {
+  const code = error?.code;
+  const message = String(error?.message || "").toLowerCase();
+  return code === "42P01" || code === "42703" || message.includes("does not exist") || message.includes("column");
+}
+
+async function withTimeout<T>(step: string, promise: Promise<T>, timeoutMs = STEP_TIMEOUT_MS): Promise<T> {
+  let timeoutId: number | undefined;
   try {
-    const { data: top, error } = await admin.storage.from(bucket).list(userId, { limit: 1000 });
-    if (error || !top) return;
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new CleanupStepError(step, `${step} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
+
+function createTimedFetch(timeoutMs = STEP_TIMEOUT_MS): typeof fetch {
+  return async (input, init = {}) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+}
+
+async function deleteStorageForUser(admin: any, userId: string): Promise<CleanupWarning[]> {
+  const bucket = "transaction-attachments";
+  const warnings: CleanupWarning[] = [];
+  try {
+    const { data: top, error } = await withTimeout(
+      "storage.listRoot",
+      admin.storage.from(bucket).list(userId, { limit: 1000 }),
+      STORAGE_TIMEOUT_MS,
+    );
+    if (error || !top) {
+      if (error) warnings.push({ step: "storage.listRoot", error: error.message || String(error) });
+      return warnings;
+    }
     const paths: string[] = [];
     for (const entry of top) {
       if (!entry?.name) continue;
-      const inner = await admin.storage.from(bucket).list(`${userId}/${entry.name}`, { limit: 1000 });
+      const inner = await withTimeout(
+        "storage.listNested",
+        admin.storage.from(bucket).list(`${userId}/${entry.name}`, { limit: 1000 }),
+        STORAGE_TIMEOUT_MS,
+      );
       if (inner.data) {
         for (const f of inner.data) {
           if (f?.name) paths.push(`${userId}/${entry.name}/${f.name}`);
@@ -55,10 +124,19 @@ async function deleteStorageForUser(admin: any, userId: string) {
         paths.push(`${userId}/${entry.name}`);
       }
     }
-    if (paths.length) await admin.storage.from(bucket).remove(paths);
+    if (paths.length) {
+      const { error: removeError } = await withTimeout(
+        "storage.remove",
+        admin.storage.from(bucket).remove(paths),
+        STORAGE_TIMEOUT_MS,
+      );
+      if (removeError) warnings.push({ step: "storage.remove", error: removeError.message || String(removeError) });
+    }
   } catch (err) {
     console.warn("account-cleanup storage cleanup skipped", err);
+    warnings.push({ step: "storage.cleanup", error: errorMessage(err) });
   }
+  return warnings;
 }
 
 export async function deleteUserData(admin: any, userId: string) {
