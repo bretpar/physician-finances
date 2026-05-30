@@ -79,10 +79,13 @@ export function DangerZoneSection() {
       }
 
       if (!response.ok || (payload && payload.ok === false)) {
+        const failedAt = payload?.failedStep
+          ? ` Failed at ${payload.failedStep}${payload.failedTable ? ` (${payload.failedTable})` : ""}.`
+          : "";
         const detail =
           payload?.detail || payload?.error || `Failed to delete account (status ${response.status})`;
         console.error("account-cleanup delete failed", { status: response.status, payload });
-        throw new Error(detail);
+        throw new Error(`${detail}${failedAt}`);
       }
 
       try {
