@@ -97,7 +97,10 @@ export function DangerZoneSection() {
         // best effort
       }
 
-      await signOut().catch(() => {});
+      await Promise.race([
+        signOut().catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 2_000)),
+      ]);
       toast.success("Your account has been permanently deleted.");
       window.location.assign("/login");
     } catch (err: any) {
