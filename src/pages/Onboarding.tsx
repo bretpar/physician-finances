@@ -330,6 +330,15 @@ export default function Onboarding() {
         return;
       }
       if (catchupSubStep === "form") {
+        // Block Continue if the user still has the YTD form open. Otherwise
+        // a half-filled second employer can be silently abandoned without
+        // ever calling the YTD save handler — which is exactly the
+        // multi-W-2 ledger bug this guard exists to prevent. The user
+        // must either click Save catch-up or cancel/discard the form.
+        if (showCatchupForm) {
+          toast.error("Save the current entry, or cancel it, before continuing.");
+          return;
+        }
         // Require at least one saved YTD entry before advancing. Use a local
         // counter in addition to the query result so Continue works immediately
         // after onSaved fires, without waiting for the query cache to refresh.
