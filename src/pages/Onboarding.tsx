@@ -588,10 +588,14 @@ export default function Onboarding() {
                       setShowCatchupForm(false);
                       setLocalSavedCatchups((n) => n + 1);
                     }}
-                    onCancel={editingCatchup ? () => {
+                    onCancel={() => {
+                      // Always offer a way out of the open form so the
+                      // Continue guard can't trap the user when they
+                      // accidentally clicked "+ Add another employer".
                       setEditingCatchup(null);
+                      setShowCatchupForm(false);
                       setCatchupFormKey((k) => k + 1);
-                    } : undefined}
+                    }}
                   />
                 </div>
               ) : (
