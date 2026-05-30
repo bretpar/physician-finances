@@ -216,6 +216,7 @@ export async function handler(req: Request) {
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: createTimedFetch(STEP_TIMEOUT_MS) },
     });
 
     const { data: userData, error: userErr } = await admin.auth.getUser(token);
@@ -230,31 +231,44 @@ export async function handler(req: Request) {
       return jsonResponse(req, { error: "Invalid action" }, 400);
     }
 
+    let cleanupResult: Awaited<ReturnType<typeof deleteUserData>>;
     try {
-      await deleteUserData(admin, userId);
+      cleanupResult = await deleteUserData(admin, userId);
     } catch (deleteError) {
       console.error("account-cleanup data delete failed", deleteError);
       return jsonResponse(req, {
         ok: false,
         error: "Failed to delete account data",
+        failedStep: (deleteError as CleanupStepError).step || "deleteUserData",
+        failedTable: (deleteError as CleanupStepError).table || null,
         detail: (deleteError as Error).message,
       }, 500);
     }
 
-    const { error: authDelErr } = await admin.auth.admin.deleteUser(userId);
+    const { error: authDelErr } = await withTimeout(
+      "auth.deleteUser",
+      admin.auth.admin.deleteUser(userId),
+    );
     if (authDelErr) {
       console.error("account-cleanup deleteUser failed", authDelErr);
       return jsonResponse(req, {
         ok: false,
         error: "Failed to delete auth user",
+        failedStep: "auth.deleteUser",
         detail: authDelErr.message,
       }, 500);
     }
 
-    return jsonResponse(req, { ok: true, action: "delete" });
+    return jsonResponse(req, { ok: true, action: "delete", cleanup: cleanupResult });
   } catch (error) {
     console.error("account-cleanup error", error);
-    return jsonResponse(req, { error: "Internal error", detail: (error as Error).message }, 500);
+    return jsonResponse(req, {
+      ok: false,
+      error: "Internal error",
+      failedStep: (error as CleanupStepError).step || "handler",
+      failedTable: (error as CleanupStepError).table || null,
+      detail: (error as Error).message,
+    }, 500);
   }
 }
 
