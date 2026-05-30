@@ -92,8 +92,11 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   const fedLabel = isW2Source ? "Federal withheld YTD" : "Federal estimated taxes paid YTD";
   const stateLabel = isW2Source ? "State withheld YTD" : "State estimated taxes paid YTD";
 
+  const [localSaving, setLocalSaving] = useState(false);
+  const isSaving = upsert.isPending || localSaving;
+
   const submit = async () => {
-    if (upsert.isPending) return; // guard against duplicate submits from repeated clicks
+    if (isSaving) return; // guard against duplicate submits
     setError(null);
     if (!companyName.trim()) {
       return setError(isW2Source ? "Enter the employer name." : "Enter the company or business name.");
@@ -108,29 +111,47 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
     const negs = [fedWh, stateWh, ssWh, medWh, r401k, hsa, healthcare, dental, otherPretax, postTax].map(num);
     if (negs.some((n) => n < 0)) return setError("Withholdings and deductions cannot be negative.");
 
-    await upsert.mutateAsync({
-      id: initial?.id,
-      tax_year: taxYear,
-      source_type: sourceType,
-      company_name: companyName.trim(),
-      period_start: periodStart,
-      period_end: periodEnd,
-      gross_income: gross,
-      business_expenses: sourceType === "1099_k1" ? Math.max(0, num(businessExpenses)) : 0,
-      federal_withholding: num(fedWh),
-      state_withholding: num(stateWh),
-      ss_withholding: isW2Source ? num(ssWh) : 0,
-      medicare_withholding: isW2Source ? num(medWh) : 0,
-      retirement_401k: isW2Source ? num(r401k) : 0,
-      hsa_contribution: isW2Source ? num(hsa) : 0,
-      healthcare_premiums: isW2Source ? num(healthcare) : 0,
-      dental_vision: isW2Source ? num(dental) : 0,
-      other_pretax: isW2Source ? num(otherPretax) : 0,
-      post_tax_deductions: num(postTax),
-    });
-    onSaved?.();
-
+    setLocalSaving(true);
+    try {
+      // Outer safety timeout — guarantees the button re-enables even if
+      // the underlying mutation/promise somehow never settles. The
+      // mutation itself enforces tighter per-step timeouts and surfaces
+      // the failing step in its error message.
+      await Promise.race([
+        upsert.mutateAsync({
+          id: initial?.id,
+          tax_year: taxYear,
+          source_type: sourceType,
+          company_name: companyName.trim(),
+          period_start: periodStart,
+          period_end: periodEnd,
+          gross_income: gross,
+          business_expenses: sourceType === "1099_k1" ? Math.max(0, num(businessExpenses)) : 0,
+          federal_withholding: num(fedWh),
+          state_withholding: num(stateWh),
+          ss_withholding: isW2Source ? num(ssWh) : 0,
+          medicare_withholding: isW2Source ? num(medWh) : 0,
+          retirement_401k: isW2Source ? num(r401k) : 0,
+          hsa_contribution: isW2Source ? num(hsa) : 0,
+          healthcare_premiums: isW2Source ? num(healthcare) : 0,
+          dental_vision: isW2Source ? num(dental) : 0,
+          other_pretax: isW2Source ? num(otherPretax) : 0,
+          post_tax_deductions: num(postTax),
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Save timed out. Please check your connection and try again.")), 30000),
+        ),
+      ]);
+      onSaved?.();
+    } catch (e: any) {
+      const msg = e?.message || "Could not save catch-up entry. Please try again.";
+      console.error("[YtdCatchupForm] save failed", e);
+      setError(msg);
+    } finally {
+      setLocalSaving(false);
+    }
   };
+
 
   const lockedLabel = lockedSource === "w2"
     ? "W-2 employer paystub"
