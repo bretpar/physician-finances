@@ -101,6 +101,8 @@ export function useIncomeRecommendation() {
           companyId,
           applyBusinessStateTax,
           includeSETaxInRecommendation,
+          filingStatus: (settings as any)?.filingStatus ?? undefined,
+          entryGrossAmount: netTaxable,
         });
         baseTaxEstimate = netTaxable * (rateSel.rate / 100);
         effectiveRate = rateSel.rate;
@@ -118,6 +120,8 @@ export function useIncomeRecommendation() {
           companyId,
           applyBusinessStateTax,
           includeSETaxInRecommendation,
+          filingStatus: (settings as any)?.filingStatus ?? undefined,
+          entryGrossAmount: netTaxable,
         }).rate;
         baseTaxEstimate = netTaxable * (rateToUse / 100);
         effectiveRate = rateToUse;

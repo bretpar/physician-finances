@@ -241,3 +241,88 @@ describe("getSavingsRateForIncomeBucket", () => {
     expect(result.rate).toBeCloseTo(25.23, 2);
   });
 });
+
+describe("getSavingsRateForIncomeBucket — SE wage-base awareness", () => {
+  const baseEstimate = {
+    federalEffectiveRate: 10,
+    effectiveRate: 14,
+    federalTax: 10000,
+    personalStateTax: 0,
+    totalTaxLiability: 14000,
+    taxableIncome: 80000,
+    totalIncome: 100000,
+    totalReturnIncomeBeforeAdjustments: 100000,
+    w2Income: 0,
+    seIncome: 0,
+    seTax: { total: 0 },
+  } as any;
+
+  const baseSettings = { withholdingMethod: "dynamic_actual" } as const;
+
+  it("1099-only below SS wage base includes full SS + Medicare SE add-on (~14.13%)", () => {
+    const result = getSavingsRateForIncomeBucket({
+      incomeBucket: "business",
+      incomeType: "1099_schedule_c",
+      taxSettings: baseSettings,
+      actualEstimate: { ...baseEstimate, w2Income: 0, seIncome: 50000 },
+      forecastEstimate: undefined,
+      filingStatus: "single",
+      entryGrossAmount: 5000,
+    });
+    expect(result.components.selfEmployment).toBeCloseTo(14.13, 1);
+  });
+
+  it("1099-only already over SS wage base drops to Medicare-only SE add-on", () => {
+    // currentNetSEIncome large enough that SE base > wage base
+    const result = getSavingsRateForIncomeBucket({
+      incomeBucket: "business",
+      incomeType: "1099_schedule_c",
+      taxSettings: baseSettings,
+      actualEstimate: { ...baseEstimate, w2Income: 0, seIncome: 250000 },
+      forecastEstimate: undefined,
+      filingStatus: "single",
+      entryGrossAmount: 5000,
+    });
+    // SS should be 0; Medicare 2.9% × 0.9235 ≈ 2.678%, plus Additional
+    // Medicare (0.9% × 0.9235) because earnings > $200k single threshold
+    expect(result.components.selfEmployment).toBeLessThan(4);
+    expect(result.components.selfEmployment).toBeGreaterThan(2.5);
+  });
+
+  it("Mixed W-2 wages already over SS wage base — 1099 entry gets no SS component", () => {
+    const result = getSavingsRateForIncomeBucket({
+      incomeBucket: "business",
+      incomeType: "1099_schedule_c",
+      taxSettings: baseSettings,
+      actualEstimate: { ...baseEstimate, w2Income: 250000, seIncome: 20000 },
+      forecastEstimate: undefined,
+      filingStatus: "single",
+      entryGrossAmount: 10000,
+    });
+    // Medicare 2.678% + addl medicare 0.831% ≈ 3.5%, no SS
+    expect(result.components.selfEmployment).toBeLessThan(4);
+    expect(result.components.selfEmployment).toBeGreaterThan(2.5);
+  });
+
+  it("1099 entry that crosses the SS cap only applies SS to the under-cap portion", () => {
+    // Active year SS wage base for ACTIVE_TAX_YEAR=2026 is 184500.
+    // Set current SE base at $180,000 net → seBase ≈ 166,230. Remaining SS
+    // headroom ≈ 184,500 − 166,230 = 18,270. Entry $50,000 → seBase 46,175,
+    // so only 18,270 of the entry's SE base gets SS (the rest medicare-only).
+    const result = getSavingsRateForIncomeBucket({
+      incomeBucket: "business",
+      incomeType: "1099_schedule_c",
+      taxSettings: baseSettings,
+      actualEstimate: { ...baseEstimate, w2Income: 0, seIncome: 180000 },
+      forecastEstimate: undefined,
+      filingStatus: "single",
+      currentNetSEIncome: 180000,
+      entryGrossAmount: 50000,
+      entryNetSEIncome: 50000,
+    });
+    // Should be strictly between Medicare-only (~3.5%) and full SE (~14.13%)
+    expect(result.components.selfEmployment).toBeGreaterThan(4);
+    expect(result.components.selfEmployment).toBeLessThan(14);
+  });
+});
+
