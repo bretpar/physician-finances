@@ -112,6 +112,10 @@ const ZERO_COMPONENTS = {
   employeeSocialSecurity: 0,
   employeeMedicare: 0,
   selfEmployment: 0,
+  seSocialSecurity: 0,
+  seMedicare: 0,
+  seAdditionalMedicare: 0,
+  seSocialSecurityCapped: false,
   personalState: 0,
   businessState: 0,
 };
