@@ -77,6 +77,7 @@ export default function Onboarding() {
   const [lastSavedName, setLastSavedName] = useState<string | null>(null);
   const [localSavedCatchups, setLocalSavedCatchups] = useState(0);
   const catchupFormRef = useRef<HTMLDivElement | null>(null);
+  const filingStatusRef = useRef<UserOnboardingSettings["filingStatus"]>("single");
 
   const settingsId = taxSettings?.id;
   const merged = useMemo(() => taxSettings ? {
@@ -99,6 +100,7 @@ export default function Onboarding() {
     if (!user || isLoading || !taxSettings) return;
     hydratedRef.current = true;
     const savedStep = Math.min(TOTAL_STEPS, Math.max(1, taxSettings.onboardingStep || 1));
+    filingStatusRef.current = taxSettings.filingStatus || "single";
     setStep(savedStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(savedStep));
     setDraft((current) => ({
@@ -211,6 +213,7 @@ export default function Onboarding() {
   };
 
   const selectFilingStatus = async (filingStatus: UserOnboardingSettings["filingStatus"]) => {
+    filingStatusRef.current = filingStatus;
     patch({ filingStatus });
     if (!settingsId) return;
     try {
@@ -305,7 +308,7 @@ export default function Onboarding() {
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}) {
     if (!settingsId) return;
-    const next = { ...merged, ...partial };
+    const next = { ...merged, filingStatus: filingStatusRef.current, ...partial };
     const sources = incomeProfileToSources(next.incomeProfileType);
     await updateTaxSettings.mutateAsync({
       id: settingsId,
