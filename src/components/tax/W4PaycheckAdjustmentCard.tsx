@@ -664,60 +664,7 @@ export default function W4PaycheckAdjustmentCard() {
   // tax shortfall.
   const ytdFallbackRows = useMemo(() => {
     if (employerRows.length > 0) return [];
-    const year = new Date().getFullYear().toString();
-    const w2Entries = (incomeEntries || []).filter(
-      (e) =>
-        isW2FilingType(e.income_type) &&
-        typeof e.income_date === "string" &&
-        e.income_date.startsWith(year),
-    );
-    if (w2Entries.length === 0) return [];
-
-    type Group = {
-      company: string;
-      dates: string[];
-      grossYtd: number;
-      withheldYtd: number;
-      sourceIds: string[];
-    };
-    const groups = new Map<string, Group>();
-    for (const e of w2Entries) {
-      const sid = ((e as any).source_id as string | null) || null;
-      const company = e.company || "Employer";
-      const key = sid || `name:${normalizeEmployerName(company)}`;
-      let g = groups.get(key);
-      if (!g) {
-        g = { company, dates: [], grossYtd: 0, withheldYtd: 0, sourceIds: [] };
-        groups.set(key, g);
-      }
-      g.dates.push(e.income_date);
-      g.grossYtd += Number(e.paycheck_amount) || 0;
-      g.withheldYtd += Number(e.taxes_withheld) || 0;
-      if (sid && !g.sourceIds.includes(sid)) g.sourceIds.push(sid);
-    }
-
-    return Array.from(groups.entries()).map(([key, g]) => {
-      const det = detectFrequencyFromDates(g.dates);
-      const count = g.dates.length || 1;
-      return {
-        streamId: `ytd:${key}`,
-        employerKey: `ytd:${key}`,
-        company: g.company,
-        payFrequency: det.frequency || "biweekly",
-        detectedFrequency: det.frequency,
-        lastPaycheckDate: det.lastDate,
-        remainingPaychecks: 0,
-        remainingGross: 0,
-        expectedNormalWithholding: 0,
-        streamIds: [] as string[],
-        droppedStreamIds: [] as string[],
-        uniqueSourceIds: g.sourceIds,
-        overlapDateCount: 0,
-        __ytdAvgGross: g.grossYtd / count,
-        __ytdAvgWithheld: g.withheldYtd / count,
-        __isYtdFallback: true,
-      };
-    });
+    return buildYtdFallbackEmployerRows(incomeEntries as any);
   }, [employerRows, incomeEntries]);
 
   const sourceRows = employerRows.length > 0 ? employerRows : ytdFallbackRows;
