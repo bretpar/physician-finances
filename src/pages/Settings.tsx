@@ -1201,11 +1201,15 @@ function CompaniesSection() {
                   key={company.id}
                   data-testid="settings-company-row"
                   data-company-id={company.id}
+                  data-company-name={(getValue(company, "name") as string) || ""}
+                  data-company-frequency={(getValue(company, "payFrequency") as string) || ""}
+                  data-company-income-type={(getValue(company, "companyType") as string) || ""}
                   className={cn(
                     "border rounded-lg p-4 space-y-3 transition-colors",
                     dirty ? "border-warning/40 bg-warning/5" : "border-border",
                   )}
                 >
+
                   <div className="space-y-3">
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">

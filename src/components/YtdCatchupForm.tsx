@@ -6,7 +6,7 @@ import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useUpsertYtdCatchup, type YtdCatchupEntry, type YtdCatchupSourceType } from "@/hooks/useYtdCatchup";
+import { useUpsertYtdCatchup, type YtdCatchupEntry, type YtdCatchupOwnerPerson, type YtdCatchupSourceType } from "@/hooks/useYtdCatchup";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { IncomeProfileType } from "@/lib/onboarding";
@@ -51,6 +51,10 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   }, [lockedSource, initial, sourceType]);
 
   const [companyName, setCompanyName] = useState(initial?.company_name ?? "");
+  const isMfj = (taxSettings as any)?.filingStatus === "married_filing_jointly";
+  const [ownerPerson, setOwnerPerson] = useState<YtdCatchupOwnerPerson>(
+    (initial?.owner_person as YtdCatchupOwnerPerson) ?? "taxpayer",
+  );
   const [periodStart, setPeriodStart] = useState(initial?.period_start ?? yearStart);
   const [periodEnd, setPeriodEnd] = useState(initial?.period_end ?? today);
   const [grossIncome, setGrossIncome] = useState(String(initial?.gross_income ?? ""));
@@ -146,6 +150,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           id: initial?.id,
           tax_year: taxYear,
           source_type: sourceType,
+          owner_person: isW2Source && isMfj ? ownerPerson : "taxpayer",
           company_name: trimmedName,
           period_start: periodStart,
           period_end: periodEnd,
@@ -225,6 +230,18 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
             placeholder={companyPlaceholder}
           />
         </div>
+        {isW2Source && isMfj && (
+          <div className="sm:col-span-2">
+            <Label>Whose W-2 is this?</Label>
+            <Select value={ownerPerson} onValueChange={(v) => setOwnerPerson(v as YtdCatchupOwnerPerson)}>
+              <SelectTrigger data-testid="ytd-catchup-owner-person-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="taxpayer" data-testid="ytd-catchup-owner-person-taxpayer">You (Taxpayer)</SelectItem>
+                <SelectItem value="spouse" data-testid="ytd-catchup-owner-person-spouse">Spouse</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div>
           <Label>Period start</Label>
           <DateField value={periodStart} onChange={setPeriodStart} />

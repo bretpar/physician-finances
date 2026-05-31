@@ -5,6 +5,7 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { formatMonthYear } from "@/lib/localDate";
 
 export type YtdCatchupSourceType = "w2" | "1099_k1" | "other";
+export type YtdCatchupOwnerPerson = "taxpayer" | "spouse";
 
 export interface YtdCatchupEntry {
   id: string;
@@ -12,6 +13,7 @@ export interface YtdCatchupEntry {
   organization_id: string | null;
   tax_year: number;
   source_type: YtdCatchupSourceType;
+  owner_person: YtdCatchupOwnerPerson;
   company_id: string | null;
   company_name: string;
   period_start: string;
@@ -253,7 +255,9 @@ async function syncCatchupMirror(args: {
 
 
   if (!isBusiness) {
-    const incomeType = isW2 ? "w2_user" : "other_income";
+    const isSpouse = (c as any).owner_person === "spouse";
+    const incomeType = isW2 ? (isSpouse ? "w2_partner" : "w2_user") : "other_income";
+    const uiSubtype = isW2 ? (isSpouse ? "w2_partner" : "w2_user") : "other_income";
     const incomeRow: any = {
       user_id: args.userId,
       organization_id: args.orgId,
@@ -261,7 +265,7 @@ async function syncCatchupMirror(args: {
       company: c.company_name || "",
       source_id: c.company_id,
       income_type: incomeType,
-      ui_income_subtype: isW2 ? "w2_user" : "other_income",
+      ui_income_subtype: uiSubtype,
       income_date: c.period_end,
       gross_amount: gross,
       paycheck_amount: gross,

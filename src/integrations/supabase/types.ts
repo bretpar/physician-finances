@@ -2133,6 +2133,7 @@ export type Database = {
           notes: string
           organization_id: string | null
           other_pretax: number
+          owner_person: string
           period_end: string
           period_start: string
           post_tax_deductions: number
@@ -2159,6 +2160,7 @@ export type Database = {
           notes?: string
           organization_id?: string | null
           other_pretax?: number
+          owner_person?: string
           period_end?: string
           period_start?: string
           post_tax_deductions?: number
@@ -2185,6 +2187,7 @@ export type Database = {
           notes?: string
           organization_id?: string | null
           other_pretax?: number
+          owner_person?: string
           period_end?: string
           period_start?: string
           post_tax_deductions?: number
