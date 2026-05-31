@@ -2,29 +2,30 @@
  * YTD Catch-Up ledger dedupe helpers.
  *
  * CANONICAL MODEL:
- *   One ytd_catchup_entries row (the source of truth for tax math) is
- *   mirrored into exactly ONE row in the user-facing ledger:
- *     • personal (W-2 / other) → income_entries (linked_ytd_catchup_id)
- *     • business (1099 / K-1)  → transactions    (origin_ytd_catchup_id)
+ *   • personal (W-2 / other) catch-up → ONE row in income_entries per
+ *     ytd_catchup_entries parent (linked_ytd_catchup_id).
+ *   • business (1099 / K-1) catch-up → up to TWO rows in transactions
+ *     per parent: one income mirror for gross revenue, and (when
+ *     business_expenses > 0) one expense mirror for deductible YTD
+ *     business expenses. Both share `origin_ytd_catchup_id` but differ
+ *     on `transaction_type`.
  *
- *   The mirror is the row the user sees in Personal Income / Business
- *   Activity. The catch-up entry is shown ONCE separately in the YTD
- *   Catch-Up card. A user therefore traces the same YTD contribution
- *   in exactly two places (canonical card + ledger mirror) — never twice
- *   in the same ledger.
+ *   Dedupe is a final UI-level guard against transient duplicates. It
+ *   is scoped by:
+ *     • personal:  parent catch-up id
+ *     • business:  (parent catch-up id, transaction_type)
+ *   so the income and expense mirrors of the same business catch-up
+ *   are NEVER collapsed into a single row (which would hide YTD
+ *   business expenses from Business Activity even though the canonical
+ *   transaction exists in the database — the regression this scope
+ *   fixes).
  *
- *   The sync function (`syncCatchupMirror`) and a DB unique index defend
- *   the 1:1 invariant. These helpers are a final, deterministic UI-level
- *   guard so a transient duplicate from a failed sync, partial write,
- *   or replication lag can never render as two semantic income events.
- *
- *   Dedupe key: the parent catch-up id. When multiple rows share the
- *   same parent id, the earliest-created row wins (oldest origin), which
- *   matches `syncCatchupMirror`'s own ordering.
+ *   Within a dedupe key, the earliest-created row wins.
  */
 
 interface YtdMirrorRow {
   id: string;
+  transaction_type?: string | null;
   created_at?: string | null;
   linked_ytd_catchup_id?: string | null;
   origin_ytd_catchup_id?: string | null;
@@ -67,11 +68,15 @@ export function dedupeYtdPersonalMirrors<T extends YtdMirrorRow>(rows: readonly 
 }
 
 /**
- * Dedupe business transaction ledger rows so each YTD catch-up parent
- * contributes at most one mirror tx. Non-YTD rows pass through unchanged.
+ * Dedupe business transaction ledger rows so each (catch-up parent,
+ * transaction_type) pair contributes at most one mirror tx. The income
+ * mirror (gross revenue) and expense mirror (deductible YTD business
+ * expense) of the same parent both survive — they are semantically
+ * distinct rows that Business Activity needs to render separately.
+ * Non-YTD rows pass through unchanged.
  */
 export function dedupeYtdBusinessMirrors<T extends YtdMirrorRow>(rows: readonly T[]): T[] {
-  const byParent = new Map<string, T[]>();
+  const byKey = new Map<string, T[]>();
   const passthrough: T[] = [];
   for (const r of rows) {
     const parent = r.origin_ytd_catchup_id || null;
@@ -79,17 +84,20 @@ export function dedupeYtdBusinessMirrors<T extends YtdMirrorRow>(rows: readonly 
       passthrough.push(r);
       continue;
     }
-    const list = byParent.get(parent) ?? [];
+    const txType = (r.transaction_type || "expense").toString();
+    const key = `${parent}::${txType}`;
+    const list = byKey.get(key) ?? [];
     list.push(r);
-    byParent.set(parent, list);
+    byKey.set(key, list);
   }
   const winners: T[] = [];
-  for (const list of byParent.values()) {
+  for (const list of byKey.values()) {
     winners.push(pickEarliest(list));
   }
   const allowedIds = new Set<string>([...passthrough.map((r) => r.id), ...winners.map((r) => r.id)]);
   return rows.filter((r) => allowedIds.has(r.id));
 }
+
 
 /**
  * Returns true iff the given personal income ledger row is a mirror of a
