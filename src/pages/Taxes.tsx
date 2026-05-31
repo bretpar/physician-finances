@@ -311,6 +311,78 @@ export default function Taxes() {
         </Card>
       </div>
 
+      {/* ── Tax Calculation Details ── */}
+      <Collapsible open={showCalcDetails} onOpenChange={setShowCalcDetails}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showCalcDetails && "rotate-180")} />
+            Tax calculation details
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2">
+          <Card>
+            <CardContent className="pt-4 pb-4 space-y-2 text-sm">
+              {(() => {
+                const filingLabel =
+                  rates?.filing_status === "married_filing_jointly"
+                    ? "Married Filing Jointly"
+                    : rates?.filing_status === "married_filing_separately"
+                      ? "Married Filing Separately"
+                      : rates?.filing_status === "head_of_household"
+                        ? "Head of Household"
+                        : "Single";
+                return (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Filing status</span>
+                      <span className="font-medium">{filingLabel}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tax state</span>
+                      <span className="font-medium">{rates?.state ? rates.state : "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Gross income</span>
+                      <span className="font-medium tabular-nums">{fmt(totalGrossIncome)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Business profit used for tax calculation</span>
+                      <span className="font-medium tabular-nums">{fmt(e?.netBusinessProfit ?? 0)}</span>
+                    </div>
+                    <div className="border-t border-border my-1.5" />
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Federal income tax estimate</span>
+                      <span className="font-medium tabular-nums">{fmt(debug?.federalIncomeTax ?? e?.federalTax ?? 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Self-employment tax estimate</span>
+                      <span className="font-medium tabular-nums">{fmt(debug?.selfEmploymentTax ?? e?.seTax?.total ?? 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">State income tax estimate</span>
+                      <span className="font-medium tabular-nums">{fmt(debug?.stateTax ?? e?.stateTax ?? 0)}</span>
+                    </div>
+                    <div className="border-t border-border my-1.5" />
+                    <div className="flex justify-between font-semibold">
+                      <span>Total estimated tax</span>
+                      <span className="tabular-nums">{fmt(debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Effective tax rate</span>
+                      <span className="font-medium tabular-nums">{overviewEffectiveRate.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Recommended reserve / set-aside</span>
+                      <span className="font-medium tabular-nums">{fmt(debug?.recommendedSetAside ?? remainingTax)}</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+
       {isW2Only && debug && (
         <Card>
           <CardContent className="p-5 space-y-3">
