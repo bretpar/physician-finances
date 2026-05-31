@@ -95,7 +95,8 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("ytd-catchup-owner-person-select")).toBeVisible();
+    // MVP: spouse-specific attribution is deferred — selector must NOT render.
+    await expect(page.getByTestId("ytd-catchup-owner-person-select")).toHaveCount(0);
     await saveYtdForEmployer(page, EMP1);
 
     // Click "+ Add another employer" and save YTD #2 (Side Clinic W2).
@@ -105,13 +106,13 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
 
     await page.getByRole("button", { name: /add another employer/i }).click();
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible();
-    await saveYtdForEmployer(page, SPOUSE_EMP1, "spouse");
+    await saveYtdForEmployer(page, SPOUSE_EMP1);
 
     await page.getByRole("button", { name: /add another employer/i }).click();
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible();
-    await saveYtdForEmployer(page, SPOUSE_EMP2, "spouse");
+    await saveYtdForEmployer(page, SPOUSE_EMP2);
 
-    // Recap must show 2 saved entries before we advance.
+    // Recap must show 4 saved entries before we advance.
     await expect(page.getByText(/4 entries saved/i)).toBeVisible();
 
     await page.getByTestId("onboarding-continue-button").click();
