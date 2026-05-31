@@ -51,6 +51,10 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   }, [lockedSource, initial, sourceType]);
 
   const [companyName, setCompanyName] = useState(initial?.company_name ?? "");
+  const isMfj = (taxSettings as any)?.filingStatus === "married_filing_jointly";
+  const [ownerPerson, setOwnerPerson] = useState<YtdCatchupOwnerPerson>(
+    (initial?.owner_person as YtdCatchupOwnerPerson) ?? "taxpayer",
+  );
   const [periodStart, setPeriodStart] = useState(initial?.period_start ?? yearStart);
   const [periodEnd, setPeriodEnd] = useState(initial?.period_end ?? today);
   const [grossIncome, setGrossIncome] = useState(String(initial?.gross_income ?? ""));
