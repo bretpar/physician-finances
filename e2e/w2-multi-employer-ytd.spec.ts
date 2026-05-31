@@ -57,13 +57,9 @@ const SPOUSE_EMP2 = {
 async function saveYtdForEmployer(
   page: Page,
   emp: { name: string; gross: string; fed: string },
-  owner: "taxpayer" | "spouse" = "taxpayer",
 ) {
-  const ownerSelect = page.getByTestId("ytd-catchup-owner-person-select");
-  if (await ownerSelect.count()) {
-    await ownerSelect.click();
-    await page.getByTestId(`ytd-catchup-owner-person-${owner}`).click();
-  }
+  // MVP: spouse-specific W-2 attribution is deferred. All entries persist
+  // as household W-2 income; no owner/person selector is expected.
   await page.getByTestId("ytd-catchup-company-name").fill(emp.name);
   await page.getByTestId("ytd-catchup-gross-income").fill(emp.gross);
   await page.getByTestId("ytd-catchup-federal-withheld").fill(emp.fed);
