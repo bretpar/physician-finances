@@ -134,6 +134,7 @@ describe("YtdCatchupForm — 1099-only business expenses & net profit", () => {
       organization_id: null,
       tax_year: year,
       source_type: "1099_k1",
+      owner_person: "taxpayer",
       company_id: null,
       company_name: "Consulting LLC",
       period_start: `${year}-01-01`,
