@@ -722,11 +722,15 @@ export default function W4PaycheckAdjustmentCard() {
 
   // Apply company settings to produce effective rows used in allocation.
   const effectiveRows = useMemo(() => {
-    return employerRows.map((r) => {
-      const settings = companyByEmployerKey.get(r.streamId);
+    return sourceRows.map((r) => {
+      const settings = companyByEmployerKey.get(r.streamId) ||
+        // YTD fallback rows have streamId "ytd:..." — look up the company by
+        // canonical name so saved Settings still apply.
+        companyByEmployerKey.get(`emp:${normalizeEmployerName(r.company)}|w2`);
       const autoFrequency = r.detectedFrequency ?? r.payFrequency;
       const frequency = settings?.payFrequency || autoFrequency;
       const detectedPaychecks = r.remainingPaychecks;
+      const isYtdFallback = Boolean((r as any).__isYtdFallback);
 
       let autoPaychecks: number;
       if (r.lastPaycheckDate) {
@@ -741,20 +745,33 @@ export default function W4PaycheckAdjustmentCard() {
         settings?.remainingOverride != null
           ? Math.max(0, Math.floor(settings.remainingOverride))
           : autoPaychecks;
-      const ratio =
-        detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
-      const remainingGross =
-        detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
+
+      let remainingGross: number;
+      let expectedNormalWithholding: number;
+      if (isYtdFallback) {
+        const avgGross = (r as any).__ytdAvgGross || 0;
+        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
+        remainingGross = avgGross * remainingPaychecks;
+        expectedNormalWithholding = avgWithheld * remainingPaychecks;
+      } else {
+        const ratio =
+          detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
+        remainingGross =
+          detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
+        expectedNormalWithholding = r.expectedNormalWithholding;
+      }
       const missingSettings = !settings?.payFrequency;
       return {
         ...r,
         payFrequency: frequency,
         remainingPaychecks,
         remainingGross,
+        expectedNormalWithholding,
         missingSettings,
+        isYtdFallback,
       };
     });
-  }, [employerRows, companyByEmployerKey]);
+  }, [sourceRows, companyByEmployerKey]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
@@ -769,7 +786,7 @@ export default function W4PaycheckAdjustmentCard() {
   );
 
   // Hide card entirely if user has no W-2 streams at all — nothing to recommend.
-  if (employerRows.length === 0) return null;
+  if (sourceRows.length === 0) return null;
 
   return (
     <Card>
