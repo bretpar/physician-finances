@@ -56,20 +56,35 @@ describe("YTD catch-up ledger — dedupe & trace invariants", () => {
     expect(deduped).toHaveLength(3); // p1 (winner of A), p3, p4
   });
 
-  it("renders exactly one business mirror tx per catch-up parent", () => {
+  it("renders exactly one business mirror tx per (catch-up parent, transaction_type)", () => {
     const rows: BusinessRow[] = [
-      { id: "t1", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", created_at: "2026-02-01T00:00:00Z", amount: 9000 },
-      { id: "t2", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", created_at: "2026-02-02T00:00:00Z", amount: 9000 },
-      { id: "t3", origin_ytd_catchup_id: null, created_at: "2026-02-01T00:00:00Z", amount: 50 },
+      // two duplicate income mirrors for cu-X — should collapse to one
+      { id: "t1", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", transaction_type: "income", created_at: "2026-02-01T00:00:00Z", amount: 9000 },
+      { id: "t2", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", transaction_type: "income", created_at: "2026-02-02T00:00:00Z", amount: 9000 },
+      { id: "t3", origin_ytd_catchup_id: null, transaction_type: "expense", created_at: "2026-02-01T00:00:00Z", amount: 50 },
     ];
     const deduped = dedupeYtdBusinessMirrors(rows);
-    const parents = deduped
-      .map((r) => r.origin_ytd_catchup_id)
-      .filter((x): x is string => !!x);
-    expect(new Set(parents).size).toBe(parents.length);
     expect(deduped.find((r) => r.origin_ytd_catchup_id === "cu-X")?.id).toBe("t1");
     expect(deduped).toHaveLength(2);
   });
+
+  it("keeps BOTH income and expense mirrors for the same business catch-up parent", () => {
+    // Regression: previously dedupe collapsed by parent only, hiding the
+    // YTD business expense mirror from Business Activity even though the
+    // canonical row existed in the database.
+    const rows: BusinessRow[] = [
+      { id: "tx-income", origin_ytd_catchup_id: "cu-Y", origin_type: "ytd_catchup", transaction_type: "income", created_at: "2026-03-01T00:00:00Z", amount: 75000 },
+      { id: "tx-expense", origin_ytd_catchup_id: "cu-Y", origin_type: "ytd_catchup", transaction_type: "expense", created_at: "2026-03-01T00:00:01Z", amount: 5000 },
+    ];
+    const deduped = dedupeYtdBusinessMirrors(rows);
+    const ids = deduped.map((r) => r.id).sort();
+    expect(ids).toEqual(["tx-expense", "tx-income"]);
+    const expenseTotal = deduped
+      .filter((r) => r.transaction_type === "expense")
+      .reduce((s, r) => s + Math.abs(Number(r.amount) || 0), 0);
+    expect(expenseTotal).toBe(5000);
+  });
+
 
   it("ledger gross total for YTD mirrors equals canonical catch-up gross (no double-counting)", () => {
     // Simulated state: two replicated mirror rows for cu-A from a sync retry.
