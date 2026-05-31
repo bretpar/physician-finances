@@ -94,6 +94,7 @@ export default function Taxes() {
 
   const [showHow, setShowHow] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showCalcDetails, setShowCalcDetails] = useState(false);
 
   const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading || investmentLoading;
 
