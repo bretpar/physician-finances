@@ -61,14 +61,24 @@ export function useAddIncome() {
       const paycheckAmount = entry.paycheck_amount || 0;
 
       // 1. Create the transaction record (source of truth for ledger)
-      // Calculate recommended withholding for this income
+      // Prefer a canonical, caller-supplied recommended_withholding when
+      // provided (e.g. BusinessActivity passes the visible computed value so
+      // the saved row matches what the user saw). Only fall back to the
+      // legacy 35%/25% combined-rate estimate when nothing was supplied.
+      // Explicit 0 is preserved as 0 — it means "no recommendation needed".
       const taxWithheld = entry.taxes_withheld || 0;
       const preTaxDed = (entry.pre_tax_deductions || 0) + (entry.retirement_401k || 0);
       const taxableForThis = Math.max(0, paycheckAmount - preTaxDed);
-      // Use a simple combined rate estimate (federal + SE if self-employed)
+      const suppliedRecommended = (entry as any).recommended_withholding;
+      const hasSuppliedRecommended =
+        suppliedRecommended !== undefined &&
+        suppliedRecommended !== null &&
+        Number.isFinite(Number(suppliedRecommended));
       const isSelfEmployed = isSelfEmployedFilingType(entry.income_type);
-      const estimatedRate = isSelfEmployed ? 0.35 : 0.25; // rough combined rate
-      const recommendedWithholding = Math.max(0, (taxableForThis * estimatedRate) - taxWithheld);
+      const estimatedRate = isSelfEmployed ? 0.35 : 0.25; // rough combined rate fallback
+      const recommendedWithholding = hasSuppliedRecommended
+        ? Number(suppliedRecommended)
+        : Math.max(0, (taxableForThis * estimatedRate) - taxWithheld);
 
       // Source of truth for revenue/tax = gross (paycheck) amount.
       // deposited_amount is stored separately on income_entries for matching/cashflow.
