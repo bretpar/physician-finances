@@ -844,6 +844,24 @@ export default function W4PaycheckAdjustmentCard() {
           W-2 withholding, estimated payments, actual savings, and optional
           planned non-W-2 reserves.
         </p>
+        <p
+          className="text-xs text-muted-foreground leading-relaxed"
+          data-testid="w4-fica-disclaimer"
+        >
+          This recommendation only covers federal income tax. Social Security
+          and Medicare are handled through payroll and are not added to W-4
+          Step 4(c).
+        </p>
+        {sourceRows.some((r: any) => r.__isYtdFallback) && (
+          <p
+            className="text-xs text-muted-foreground leading-relaxed"
+            data-testid="w4-ytd-estimate-note"
+          >
+            Remaining paychecks and gross are <span className="font-medium">estimated</span> from your
+            year-to-date W-2 entries because you have not set up projected income streams yet.
+            Add pay frequency and remaining paychecks in Settings for a more precise recommendation.
+          </p>
+        )}
         <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
           <div className="space-y-1">
             <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
