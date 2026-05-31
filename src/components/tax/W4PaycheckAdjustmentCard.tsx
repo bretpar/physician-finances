@@ -790,31 +790,70 @@ export default function W4PaycheckAdjustmentCard() {
   // Read per-company W-4 settings from Settings > Companies.
   const { companies } = useCompanies();
   const companyByEmployerKey = useMemo(() => {
-    const map = new Map<string, { id: string; payFrequency: string | null; remainingOverride: number | null }>();
+    const map = new Map<string, {
+      id: string;
+      payFrequency: string | null;
+      remainingOverride: number | null;
+      projectedAnnualGross: number | null;
+      expectedFederalWithholdingPerPaycheck: number | null;
+    }>();
     for (const c of companies) {
       const ft = normalizeFilingType(c.companyType);
       if (ft !== "w2" && ft !== "scorp_w2") continue;
       const key = `emp:${normalizeEmployerName(c.name)}|w2`;
-      // Prefer the entry that has a pay frequency set, otherwise first seen.
       const prev = map.get(key);
-      if (!prev || (!prev.payFrequency && c.payFrequency)) {
-        map.set(key, {
-          id: c.id,
-          payFrequency: c.payFrequency,
-          remainingOverride: c.remainingPaychecksOverride,
-        });
+      const next = {
+        id: c.id,
+        payFrequency: c.payFrequency,
+        remainingOverride: c.remainingPaychecksOverride,
+        projectedAnnualGross: c.projectedAnnualGross ?? null,
+        expectedFederalWithholdingPerPaycheck:
+          c.expectedFederalWithholdingPerPaycheck ?? null,
+      };
+      // Prefer the entry that has the richest signal.
+      if (
+        !prev ||
+        (!prev.payFrequency && next.payFrequency) ||
+        (prev.projectedAnnualGross == null && next.projectedAnnualGross != null) ||
+        (prev.expectedFederalWithholdingPerPaycheck == null &&
+          next.expectedFederalWithholdingPerPaycheck != null)
+      ) {
+        map.set(key, next);
       }
     }
     return map;
   }, [companies]);
 
+  // YTD gross/withheld per employer key — used to compute remaining-gross from
+  // a saved projected annual gross. Built from this year's W-2 income entries.
+  const ytdByEmployerKey = useMemo(() => {
+    const year = new Date().getFullYear().toString();
+    const map = new Map<string, { gross: number; withheld: number }>();
+    for (const e of incomeEntries || []) {
+      if (typeof e.income_type !== "string" || !isW2FilingType(e.income_type)) continue;
+      const d = (e as any).income_date as string | undefined;
+      if (!d || !d.startsWith(year)) continue;
+      const key = `emp:${normalizeEmployerName((e as any).company)}|w2`;
+      const prev = map.get(key) || { gross: 0, withheld: 0 };
+      prev.gross += Number((e as any).paycheck_amount) || 0;
+      prev.withheld += Number((e as any).taxes_withheld) || 0;
+      map.set(key, prev);
+    }
+    return map;
+  }, [incomeEntries]);
+
   // Apply company settings to produce effective rows used in allocation.
+  // Priority (per spec):
+  //   1. Saved expectedFederalWithholdingPerPaycheck * remainingPaychecks
+  //   2. Saved projectedAnnualGross minus YTD gross
+  //   3. Derived from projected paycheck streams
+  //   4. YTD fallback per-paycheck averages (catch-up rows excluded)
   const effectiveRows = useMemo(() => {
     return sourceRows.map((r) => {
-      const settings = companyByEmployerKey.get(r.streamId) ||
-        // YTD fallback rows have streamId "ytd:..." — look up the company by
-        // canonical name so saved Settings still apply.
-        companyByEmployerKey.get(`emp:${normalizeEmployerName(r.company)}|w2`);
+      const lookupKey = `emp:${normalizeEmployerName(r.company)}|w2`;
+      const settings =
+        companyByEmployerKey.get(r.streamId) ||
+        companyByEmployerKey.get(lookupKey);
       const autoFrequency = r.detectedFrequency ?? r.payFrequency;
       const frequency = settings?.payFrequency || autoFrequency;
       const detectedPaychecks = r.remainingPaychecks;
@@ -834,21 +873,39 @@ export default function W4PaycheckAdjustmentCard() {
           ? Math.max(0, Math.floor(settings.remainingOverride))
           : autoPaychecks;
 
+      const savedAnnualGross = settings?.projectedAnnualGross ?? null;
+      const savedFedPerPaycheck =
+        settings?.expectedFederalWithholdingPerPaycheck ?? null;
+      const ytd = ytdByEmployerKey.get(lookupKey) || { gross: 0, withheld: 0 };
+
       let remainingGross: number;
       let expectedNormalWithholding: number;
-      if (isYtdFallback) {
+
+      if (savedAnnualGross != null) {
+        // Explicit annual gross wins. Remaining = annual − YTD already received.
+        remainingGross = Math.max(0, savedAnnualGross - ytd.gross);
+      } else if (isYtdFallback) {
         const avgGross = (r as any).__ytdAvgGross || 0;
-        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
         remainingGross = avgGross * remainingPaychecks;
-        expectedNormalWithholding = avgWithheld * remainingPaychecks;
       } else {
         const ratio =
           detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
         remainingGross =
           detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
+      }
+
+      if (savedFedPerPaycheck != null) {
+        expectedNormalWithholding = savedFedPerPaycheck * remainingPaychecks;
+      } else if (isYtdFallback) {
+        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
+        expectedNormalWithholding = avgWithheld * remainingPaychecks;
+      } else {
         expectedNormalWithholding = r.expectedNormalWithholding;
       }
+
       const missingSettings = !settings?.payFrequency;
+      const usedSavedSettings =
+        savedAnnualGross != null || savedFedPerPaycheck != null;
       return {
         ...r,
         payFrequency: frequency,
@@ -857,9 +914,10 @@ export default function W4PaycheckAdjustmentCard() {
         expectedNormalWithholding,
         missingSettings,
         isYtdFallback,
+        usedSavedSettings,
       };
     });
-  }, [sourceRows, companyByEmployerKey]);
+  }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
