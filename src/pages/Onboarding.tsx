@@ -82,6 +82,7 @@ export default function Onboarding() {
   const merged = useMemo(() => taxSettings ? {
     ...draft,
     firstName: draft.firstName || taxSettings.onboardingFirstName || "",
+    filingStatus: draft.filingStatus || taxSettings.filingStatus || "single",
     onboardingStep: taxSettings.onboardingStep || draft.onboardingStep || 1,
     incomeProfileType: draft.incomeProfileType || taxSettings.incomeProfileType,
   } : draft, [draft, taxSettings]);
@@ -103,6 +104,7 @@ export default function Onboarding() {
     setDraft((current) => ({
       ...current,
       firstName: current.firstName || taxSettings.onboardingFirstName || "",
+      filingStatus: taxSettings.filingStatus || current.filingStatus || "single",
       onboardingStep: savedStep,
       incomeProfileType: taxSettings.incomeProfileType || current.incomeProfileType,
       enabledIncomeSources: taxSettings.enabledIncomeSources || current.enabledIncomeSources,
@@ -297,6 +299,7 @@ export default function Onboarding() {
     const sources = incomeProfileToSources(next.incomeProfileType);
     await updateTaxSettings.mutateAsync({
       id: settingsId,
+      filingStatus: next.filingStatus,
       onboardingComplete: next.onboardingComplete,
       onboardingFirstName: next.firstName,
       onboardingStep: next.onboardingStep,
