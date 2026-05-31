@@ -74,7 +74,16 @@ export interface SavingsRateResult {
     federal: number;
     employeeSocialSecurity: number;
     employeeMedicare: number;
+    /** Combined SE add-on (sum of seSocialSecurity + seMedicare + seAdditionalMedicare). */
     selfEmployment: number;
+    /** SE Social Security portion (drops to 0 once SS wage base reached). */
+    seSocialSecurity: number;
+    /** SE Medicare portion (2.9% × 0.9235 ≈ 2.68%, always applies on SE income). */
+    seMedicare: number;
+    /** SE Additional Medicare (0.9% × 0.9235) above filing-status threshold. */
+    seAdditionalMedicare: number;
+    /** True when the SS wage base has been reached (SS portion is $0). */
+    seSocialSecurityCapped: boolean;
     personalState: number;
     businessState: number;
   };
