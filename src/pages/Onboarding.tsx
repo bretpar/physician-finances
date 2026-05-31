@@ -394,7 +394,7 @@ export default function Onboarding() {
         const emailLocal = user?.email ? user.email.split("@")[0] : "";
         const finalFirstName = merged.firstName.trim() || (metadataFirst?.trim() || "") || emailLocal || "Friend";
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
-        await persist({ firstName: finalFirstName, onboardingComplete: false, onboardingStep: nextStep });
+        await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
         patch({ firstName: finalFirstName });
       } else if (step === 2) {
         await createOnboardingCompanies();
