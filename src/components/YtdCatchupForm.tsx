@@ -150,6 +150,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
           id: initial?.id,
           tax_year: taxYear,
           source_type: sourceType,
+          owner_person: isW2Source && isMfj ? ownerPerson : "taxpayer",
           company_name: trimmedName,
           period_start: periodStart,
           period_end: periodEnd,
