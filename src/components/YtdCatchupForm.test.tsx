@@ -92,8 +92,8 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
     );
 
     expect(screen.getByText(/Whose W-2 is this/i)).toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByTestId("ytd-catchup-owner-person-select"));
-    fireEvent.click(screen.getByTestId("ytd-catchup-owner-person-spouse"));
+    fireEvent.pointerDown(screen.getByTestId("ytd-catchup-owner-person-select"));
+    fireEvent.click(await screen.findByRole("option", { name: /spouse/i }));
     fireEvent.change(screen.getByTestId("ytd-catchup-company-name"), { target: { value: "Spouse Hospital W2" } });
     fireEvent.change(screen.getByTestId("ytd-catchup-gross-income"), { target: { value: "50000" } });
     fireEvent.change(screen.getByTestId("ytd-catchup-federal-withheld"), { target: { value: "7000" } });
