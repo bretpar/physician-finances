@@ -34,8 +34,10 @@ type BusinessRow = {
   created_at?: string | null;
   origin_ytd_catchup_id?: string | null;
   origin_type?: string | null;
+  transaction_type?: string | null;
   amount?: number;
 };
+
 
 describe("YTD catch-up ledger — dedupe & trace invariants", () => {
   it("renders exactly one personal mirror row per catch-up parent", () => {
