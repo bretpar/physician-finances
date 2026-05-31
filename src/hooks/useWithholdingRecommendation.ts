@@ -235,6 +235,8 @@ export function useWithholdingRecommendation() {
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        filingStatus: (settings as any)?.filingStatus ?? undefined,
+        entryGrossAmount: netTaxableForEntry,
       });
       const rateToUse = rateSelection.rate;
       const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
