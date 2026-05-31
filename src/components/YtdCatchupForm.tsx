@@ -152,7 +152,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
           id: initial?.id,
           tax_year: taxYear,
           source_type: sourceType,
-          owner_person: isW2Source && isMfj ? ownerPerson : "taxpayer",
+          owner_person: "taxpayer", // MVP: spouse attribution deferred; always persist as household taxpayer.
           company_name: trimmedName,
           period_start: periodStart,
           period_end: periodEnd,
@@ -232,7 +232,11 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
             placeholder={companyPlaceholder}
           />
         </div>
-        {isW2Source && isMfj && (
+        {/* MVP: spouse-specific W-2 attribution deferred. All MFJ W-2 entries
+            persist as household W-2 income (owner_person defaults to "taxpayer"
+            and mirrors to ui_income_subtype "w2_user"). Re-enable once Paychecks
+            and Tax Overview support You/Spouse breakdowns end-to-end. */}
+        {false && isW2Source && isMfj && (
           <div className="sm:col-span-2">
             <Label>Whose W-2 is this?</Label>
             <Select value={ownerPerson} onValueChange={(v) => setOwnerPerson(v as YtdCatchupOwnerPerson)}>

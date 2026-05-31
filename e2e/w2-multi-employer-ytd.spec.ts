@@ -57,13 +57,9 @@ const SPOUSE_EMP2 = {
 async function saveYtdForEmployer(
   page: Page,
   emp: { name: string; gross: string; fed: string },
-  owner: "taxpayer" | "spouse" = "taxpayer",
 ) {
-  const ownerSelect = page.getByTestId("ytd-catchup-owner-person-select");
-  if (await ownerSelect.count()) {
-    await ownerSelect.click();
-    await page.getByTestId(`ytd-catchup-owner-person-${owner}`).click();
-  }
+  // MVP: spouse-specific W-2 attribution is deferred. All entries persist
+  // as household W-2 income; no owner/person selector is expected.
   await page.getByTestId("ytd-catchup-company-name").fill(emp.name);
   await page.getByTestId("ytd-catchup-gross-income").fill(emp.gross);
   await page.getByTestId("ytd-catchup-federal-withheld").fill(emp.fed);
@@ -99,7 +95,8 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId("ytd-catchup-owner-person-select")).toBeVisible();
+    // MVP: spouse-specific attribution is deferred — selector must NOT render.
+    await expect(page.getByTestId("ytd-catchup-owner-person-select")).toHaveCount(0);
     await saveYtdForEmployer(page, EMP1);
 
     // Click "+ Add another employer" and save YTD #2 (Side Clinic W2).
@@ -109,13 +106,13 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
 
     await page.getByRole("button", { name: /add another employer/i }).click();
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible();
-    await saveYtdForEmployer(page, SPOUSE_EMP1, "spouse");
+    await saveYtdForEmployer(page, SPOUSE_EMP1);
 
     await page.getByRole("button", { name: /add another employer/i }).click();
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible();
-    await saveYtdForEmployer(page, SPOUSE_EMP2, "spouse");
+    await saveYtdForEmployer(page, SPOUSE_EMP2);
 
-    // Recap must show 2 saved entries before we advance.
+    // Recap must show 4 saved entries before we advance.
     await expect(page.getByText(/4 entries saved/i)).toBeVisible();
 
     await page.getByTestId("onboarding-continue-button").click();
@@ -172,10 +169,12 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
     await expect(page.locator("body")).toContainText(/\$12,000/);
     await expect(page.locator("body")).toContainText(/\$75,000/);
     await expect(page.locator("body")).toContainText(/\$10,000/);
+    // MVP: all W-2 entries persist as household (taxpayer/w2_user). Spouse
+    // breakdown is deferred — only assert household-level subtype.
     await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
     await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
-    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_partner");
-    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_partner");
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
 
     // ── Verify: Tax Overview reflects both ──────────────────────────────
     await page.goto("/taxes");

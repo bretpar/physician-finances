@@ -83,7 +83,7 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
     expect(screen.getByText(/Social Security YTD/i)).toBeInTheDocument();
   });
 
-  it("w2_only + MFJ prop: shows owner/person control and saves spouse attribution", async () => {
+  it("w2_only + MFJ prop: spouse attribution is deferred for MVP — owner control is hidden and saves as household taxpayer", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const year = new Date().getFullYear();
     const spouseInitial: YtdCatchupEntry = {
@@ -119,12 +119,14 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText(/Whose W-2 is this/i)).toBeInTheDocument();
-    expect(screen.getByTestId("ytd-catchup-owner-person-select")).toHaveTextContent(/spouse/i);
-    fireEvent.click(screen.getByTestId("ytd-catchup-save"));
+    // MVP: spouse selector is hidden.
+    expect(screen.queryByText(/Whose W-2 is this/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ytd-catchup-owner-person-select")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByTestId("ytd-catchup-save"));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
-    expect(mutateAsync.mock.calls[0][0].owner_person).toBe("spouse");
+    // Persists as household taxpayer regardless of prior owner.
+    expect(mutateAsync.mock.calls[0][0].owner_person).toBe("taxpayer");
   });
 });
 
