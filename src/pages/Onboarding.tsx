@@ -512,6 +512,29 @@ export default function Onboarding() {
                 <div data-testid="onboarding-income-type-w2-1099"><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /></div>
                 <div data-testid="onboarding-income-type-1099"><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div>
               </div>
+              <div data-testid="onboarding-filing-status">
+                <Label htmlFor="onboarding-filing-status-select">Filing status</Label>
+                <Select
+                  value={(taxSettings as any)?.filingStatus ?? "single"}
+                  onValueChange={async (v) => {
+                    if (!settingsId) return;
+                    try {
+                      await updateTaxSettings.mutateAsync({ id: settingsId, filingStatus: v as any });
+                    } catch (e: any) {
+                      toast.error(e?.message || "Could not save filing status.");
+                    }
+                  }}
+                >
+                  <SelectTrigger id="onboarding-filing-status-select" data-testid="onboarding-filing-status-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single" data-testid="onboarding-filing-status-single">Single / Head of household</SelectItem>
+                    <SelectItem value="married_filing_jointly" data-testid="onboarding-filing-status-mfj">Married Filing Jointly</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">Choose Married Filing Jointly to track separate W-2s for you and your spouse.</p>
+              </div>
               <p className="text-xs text-muted-foreground">You can change this later in Settings.</p>
             </div>
           )}
