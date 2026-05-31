@@ -50,6 +50,20 @@ export interface SavingsRateInput {
   includeSETaxInRecommendation?: boolean | null;
   /** Explicit override for K-1 guaranteed payments or other SE-taxable edge cases. */
   isSelfEmploymentTaxable?: boolean | null;
+  /** Filing status used for Additional Medicare threshold. Defaults to "single". */
+  filingStatus?: "single" | "married_filing_jointly" | null;
+  /** Current annualized W-2 wages already subject to SS payroll tax.
+   *  Defaults to actualEstimate.w2Income when omitted. */
+  currentW2Wages?: number | null;
+  /** Current net self-employment income before the 92.35% factor.
+   *  Defaults to actualEstimate.seIncome when omitted. */
+  currentNetSEIncome?: number | null;
+  /** Gross amount of THIS specific entry (used to compute an entry-accurate
+   *  SE rate that correctly handles crossing the SS wage base). */
+  entryGrossAmount?: number | null;
+  /** Net SE income contribution of THIS entry, before the 92.35% factor.
+   *  Defaults to entryGrossAmount when omitted. */
+  entryNetSEIncome?: number | null;
 }
 
 export interface SavingsRateResult {
