@@ -68,11 +68,15 @@ export function dedupeYtdPersonalMirrors<T extends YtdMirrorRow>(rows: readonly 
 }
 
 /**
- * Dedupe business transaction ledger rows so each YTD catch-up parent
- * contributes at most one mirror tx. Non-YTD rows pass through unchanged.
+ * Dedupe business transaction ledger rows so each (catch-up parent,
+ * transaction_type) pair contributes at most one mirror tx. The income
+ * mirror (gross revenue) and expense mirror (deductible YTD business
+ * expense) of the same parent both survive — they are semantically
+ * distinct rows that Business Activity needs to render separately.
+ * Non-YTD rows pass through unchanged.
  */
 export function dedupeYtdBusinessMirrors<T extends YtdMirrorRow>(rows: readonly T[]): T[] {
-  const byParent = new Map<string, T[]>();
+  const byKey = new Map<string, T[]>();
   const passthrough: T[] = [];
   for (const r of rows) {
     const parent = r.origin_ytd_catchup_id || null;
@@ -80,17 +84,20 @@ export function dedupeYtdBusinessMirrors<T extends YtdMirrorRow>(rows: readonly 
       passthrough.push(r);
       continue;
     }
-    const list = byParent.get(parent) ?? [];
+    const txType = (r.transaction_type || "expense").toString();
+    const key = `${parent}::${txType}`;
+    const list = byKey.get(key) ?? [];
     list.push(r);
-    byParent.set(parent, list);
+    byKey.set(key, list);
   }
   const winners: T[] = [];
-  for (const list of byParent.values()) {
+  for (const list of byKey.values()) {
     winners.push(pickEarliest(list));
   }
   const allowedIds = new Set<string>([...passthrough.map((r) => r.id), ...winners.map((r) => r.id)]);
   return rows.filter((r) => allowedIds.has(r.id));
 }
+
 
 /**
  * Returns true iff the given personal income ledger row is a mirror of a
