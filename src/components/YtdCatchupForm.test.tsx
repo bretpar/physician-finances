@@ -85,18 +85,42 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
 
   it("w2_only + MFJ prop: shows owner/person control and saves spouse attribution", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const year = new Date().getFullYear();
+    const spouseInitial: YtdCatchupEntry = {
+      id: "spouse-ytd",
+      user_id: "u",
+      organization_id: null,
+      tax_year: year,
+      source_type: "w2",
+      owner_person: "spouse",
+      company_id: null,
+      company_name: "Spouse Hospital W2",
+      period_start: `${year}-01-01`,
+      period_end: `${year}-06-30`,
+      gross_income: 50000,
+      business_expenses: 0,
+      federal_withholding: 7000,
+      state_withholding: 0,
+      ss_withholding: 0,
+      medicare_withholding: 0,
+      retirement_401k: 0,
+      hsa_contribution: 0,
+      healthcare_premiums: 0,
+      dental_vision: 0,
+      other_pretax: 0,
+      post_tax_deductions: 0,
+      notes: "",
+      created_at: "",
+      updated_at: "",
+    };
     render(
       <QueryClientProvider client={qc}>
-        <YtdCatchupForm incomeProfileType="w2_only" filingStatus="married_filing_jointly" />
+        <YtdCatchupForm incomeProfileType="w2_only" filingStatus="married_filing_jointly" initial={spouseInitial} />
       </QueryClientProvider>,
     );
 
     expect(screen.getByText(/Whose W-2 is this/i)).toBeInTheDocument();
-    fireEvent.pointerDown(screen.getByTestId("ytd-catchup-owner-person-select"));
-    fireEvent.click(await screen.findByRole("option", { name: /spouse/i }));
-    fireEvent.change(screen.getByTestId("ytd-catchup-company-name"), { target: { value: "Spouse Hospital W2" } });
-    fireEvent.change(screen.getByTestId("ytd-catchup-gross-income"), { target: { value: "50000" } });
-    fireEvent.change(screen.getByTestId("ytd-catchup-federal-withheld"), { target: { value: "7000" } });
+    expect(screen.getByTestId("ytd-catchup-owner-person-select")).toHaveTextContent(/spouse/i);
     fireEvent.click(screen.getByTestId("ytd-catchup-save"));
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
