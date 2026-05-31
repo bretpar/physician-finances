@@ -16,6 +16,7 @@ interface Props {
   onSaved?: () => void;
   onCancel?: () => void;
   incomeProfileType?: IncomeProfileType;
+  filingStatus?: "single" | "married_filing_jointly";
 }
 
 const num = (v: string) => {
@@ -23,7 +24,7 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }: Props) {
+export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, filingStatus }: Props) {
   const upsert = useUpsertYtdCatchup();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: taxSettings } = useTaxSettings();
@@ -51,7 +52,8 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
   }, [lockedSource, initial, sourceType]);
 
   const [companyName, setCompanyName] = useState(initial?.company_name ?? "");
-  const isMfj = (taxSettings as any)?.filingStatus === "married_filing_jointly";
+  const effectiveFilingStatus = filingStatus ?? (taxSettings as any)?.filingStatus ?? "single";
+  const isMfj = effectiveFilingStatus === "married_filing_jointly";
   const [ownerPerson, setOwnerPerson] = useState<YtdCatchupOwnerPerson>(
     (initial?.owner_person as YtdCatchupOwnerPerson) ?? "taxpayer",
   );
