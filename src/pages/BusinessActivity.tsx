@@ -802,6 +802,9 @@ export default function Transactions() {
         quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
         additional_tax_reserve: num(incomeForm.additional_tax_reserve),
         recommendation_status: rec?.recommendationStatus || "on_track",
+        // Pass the canonical visible recommendation through so useAddIncome
+        // preserves it on the transaction row (avoids legacy 35% overwrite).
+        recommended_withholding: recommendedWithholding,
       } as any;
 
       const showModal2 = isFeatureEnabled("recommendation_modal");
