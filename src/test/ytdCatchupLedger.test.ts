@@ -102,8 +102,9 @@ describe("YTD catch-up ledger — dedupe & trace invariants", () => {
 
   it("ledger business mirror amount equals canonical catch-up gross", () => {
     const rows: BusinessRow[] = [
-      { id: "t1", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", created_at: "t1", amount: 9000 },
-      { id: "t2-dupe", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", created_at: "t2", amount: 9000 },
+      { id: "t1", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", transaction_type: "income", created_at: "t1", amount: 9000 },
+      { id: "t2-dupe", origin_ytd_catchup_id: "cu-X", origin_type: "ytd_catchup", transaction_type: "income", created_at: "t2", amount: 9000 },
+
     ];
     const canonicalCatchupGross = 9000;
     const ledgerTotal = dedupeYtdBusinessMirrors(rows).reduce(
