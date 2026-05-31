@@ -324,11 +324,11 @@ export default function Taxes() {
             <CardContent className="pt-4 pb-4 space-y-2 text-sm">
               {(() => {
                 const filingLabel =
-                  rates?.filing_status === "married_filing_jointly"
+                  rates?.filingStatus === "married_filing_jointly"
                     ? "Married Filing Jointly"
-                    : rates?.filing_status === "married_filing_separately"
+                    : rates?.filingStatus === "married_filing_separately"
                       ? "Married Filing Separately"
-                      : rates?.filing_status === "head_of_household"
+                      : rates?.filingStatus === "head_of_household"
                         ? "Head of Household"
                         : "Single";
                 return (
@@ -339,7 +339,7 @@ export default function Taxes() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Tax state</span>
-                      <span className="font-medium">{rates?.state ? rates.state : "—"}</span>
+                      <span className="font-medium">{rates?.stateOfResidence ? rates.stateOfResidence : "—"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Gross income</span>
