@@ -210,6 +210,16 @@ export default function Onboarding() {
     setCompanyDrafts((current) => current.map((company) => allowed.includes(company.type) ? company : { ...company, type: allowed[0] }));
   };
 
+  const selectFilingStatus = async (filingStatus: UserOnboardingSettings["filingStatus"]) => {
+    patch({ filingStatus });
+    if (!settingsId) return;
+    try {
+      await updateTaxSettings.mutateAsync({ id: settingsId, filingStatus });
+    } catch (e: any) {
+      toast.error(e?.message || "Could not save filing status.");
+    }
+  };
+
   const skipCompanyStep = async () => {
     if (saving) return;
     setSaving(true);
@@ -518,15 +528,8 @@ export default function Onboarding() {
               <div data-testid="onboarding-filing-status">
                 <Label htmlFor="onboarding-filing-status-select">Filing status</Label>
                 <Select
-                  value={(taxSettings as any)?.filingStatus ?? "single"}
-                  onValueChange={async (v) => {
-                    if (!settingsId) return;
-                    try {
-                      await updateTaxSettings.mutateAsync({ id: settingsId, filingStatus: v as any });
-                    } catch (e: any) {
-                      toast.error(e?.message || "Could not save filing status.");
-                    }
-                  }}
+                  value={merged.filingStatus}
+                  onValueChange={(v) => selectFilingStatus(v as UserOnboardingSettings["filingStatus"])}
                 >
                   <SelectTrigger id="onboarding-filing-status-select" data-testid="onboarding-filing-status-select">
                     <SelectValue />
@@ -607,6 +610,7 @@ export default function Onboarding() {
                     key={catchupFormKey}
                     initial={editingCatchup ?? undefined}
                     incomeProfileType={merged.incomeProfileType}
+                    filingStatus={merged.filingStatus}
                     onSaved={() => {
                       const name = editingCatchup?.company_name ?? "Entry";
                       setLastSavedName(name);
