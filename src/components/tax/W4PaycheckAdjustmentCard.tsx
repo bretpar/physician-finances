@@ -414,6 +414,9 @@ export function buildYtdFallbackEmployerRows(
       __isYtdFallback: true,
     };
   });
+}
+
+
 
 export type Allocation = EmployerRow & {
   exactPerPaycheck: number;
