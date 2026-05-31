@@ -236,13 +236,70 @@ function getBusinessStateRate(s: SavingsRateSettingsLike, input: SavingsRateInpu
   return Math.max(0, Number(s.businessStateTaxRate || 0));
 }
 
-/** SE tax effective rate as % of gross self-employment income (after the
- *  92.35% factor). Used as the business bucket's pass-through payroll add-on
- *  for 1099/K-1/Schedule-C income. */
+/** Legacy "flat" SE effective rate (≈14.13%). Kept for back-compat; the
+ *  recommendation layer now uses computeMarginalSelfEmploymentRate so that
+ *  Social Security drops off after the annual wage base is reached. */
 const SE_EFFECTIVE_RATE_PCT = SE_TAX_RATE * SE_INCOME_FACTOR * 100; // ≈ 14.13
 
 function getSelfEmploymentRate(): number {
   return SE_EFFECTIVE_RATE_PCT;
+}
+
+/**
+ * Marginal SE recommendation rate (percent of entry gross) that respects
+ * the active-year Social Security wage base.
+ *
+ * Behavior:
+ *  - Social Security applies only until W-2 wages + SE base reach SS_WAGE_BASE.
+ *  - Medicare always applies on the SE base (2.9%).
+ *  - Additional Medicare (0.9%) applies above the filing-status threshold
+ *    using the same logic as calculateSETax().
+ *  - When an entry amount is provided, splits the SS portion across the cap
+ *    so an entry that "crosses" the cap only gets SS on the portion under it.
+ *  - When no entry amount is provided, returns the marginal per-dollar rate
+ *    at the current boundary (current W-2 wages + current SE base).
+ *
+ * All wage-base and threshold constants come from taxBrackets.ts (no
+ * hardcoded year-specific numbers here).
+ */
+function computeMarginalSelfEmploymentRate(input: SavingsRateInput): number {
+  const estimate = input.actualEstimate ?? input.currentPaceEstimate ?? input.forecastEstimate ?? null;
+  const filing = (input.filingStatus ?? "single") as "single" | "married_filing_jointly";
+  const yearConfig = getTaxYearConfig();
+  const ssWageBase = yearConfig.ssWageBase;
+  const addlThreshold = yearConfig.additionalMedicareThreshold[filing];
+
+  const w2Wages = Math.max(0, Number(input.currentW2Wages ?? estimate?.w2Income ?? 0));
+  const currentNetSE = Math.max(0, Number(input.currentNetSEIncome ?? estimate?.seIncome ?? 0));
+  const currentSEBase = currentNetSE * SE_INCOME_FACTOR;
+
+  const entryGross = Math.max(0, Number(input.entryGrossAmount ?? 0));
+  const entryNetSE = Math.max(0, Number(input.entryNetSEIncome ?? entryGross));
+  const entrySEBase = entryNetSE * SE_INCOME_FACTOR;
+
+  const ssRemainingBefore = Math.max(0, ssWageBase - w2Wages - currentSEBase);
+
+  // ── Entry-aware computation ──
+  if (entrySEBase > 0) {
+    const ssTaxable = Math.min(entrySEBase, ssRemainingBefore);
+    const ssTax = ssTaxable * SS_RATE;
+    const medicareTax = entrySEBase * MEDICARE_RATE;
+    const totalEarningsBefore = w2Wages + currentSEBase;
+    const totalEarningsAfter = totalEarningsBefore + entrySEBase;
+    const overThreshold = Math.max(0, totalEarningsAfter - addlThreshold);
+    const addlBase = Math.max(0, Math.min(entrySEBase, overThreshold));
+    const addlMedicareTax = addlBase * MEDICARE_ADDITIONAL_RATE;
+    const baseForRate = entryGross > 0 ? entryGross : entryNetSE;
+    if (baseForRate <= 0) return 0;
+    return ((ssTax + medicareTax + addlMedicareTax) / baseForRate) * 100;
+  }
+
+  // ── Marginal per-dollar rate at the current boundary ──
+  const ssMarginal = ssRemainingBefore > 0 ? SS_RATE * SE_INCOME_FACTOR : 0;
+  const medicareMarginal = MEDICARE_RATE * SE_INCOME_FACTOR;
+  const totalEarningsBefore = w2Wages + currentSEBase;
+  const addlMarginal = totalEarningsBefore >= addlThreshold ? MEDICARE_ADDITIONAL_RATE * SE_INCOME_FACTOR : 0;
+  return (ssMarginal + medicareMarginal + addlMarginal) * 100;
 }
 
 export function getSavingsRateForIncomeBucket(
