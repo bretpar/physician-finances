@@ -22,7 +22,7 @@ import {
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
-import { normalizeFilingType } from "@/lib/filingTypes";
+import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
