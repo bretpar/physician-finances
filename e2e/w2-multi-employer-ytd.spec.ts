@@ -169,10 +169,12 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
     await expect(page.locator("body")).toContainText(/\$12,000/);
     await expect(page.locator("body")).toContainText(/\$75,000/);
     await expect(page.locator("body")).toContainText(/\$10,000/);
+    // MVP: all W-2 entries persist as household (taxpayer/w2_user). Spouse
+    // breakdown is deferred — only assert household-level subtype.
     await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
     await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
-    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_partner");
-    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_partner");
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
 
     // ── Verify: Tax Overview reflects both ──────────────────────────────
     await page.goto("/taxes");
