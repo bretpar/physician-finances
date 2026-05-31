@@ -77,11 +77,13 @@ export default function Onboarding() {
   const [lastSavedName, setLastSavedName] = useState<string | null>(null);
   const [localSavedCatchups, setLocalSavedCatchups] = useState(0);
   const catchupFormRef = useRef<HTMLDivElement | null>(null);
+  const filingStatusRef = useRef<UserOnboardingSettings["filingStatus"]>("single");
 
   const settingsId = taxSettings?.id;
   const merged = useMemo(() => taxSettings ? {
     ...draft,
     firstName: draft.firstName || taxSettings.onboardingFirstName || "",
+    filingStatus: draft.filingStatus || taxSettings.filingStatus || "single",
     onboardingStep: taxSettings.onboardingStep || draft.onboardingStep || 1,
     incomeProfileType: draft.incomeProfileType || taxSettings.incomeProfileType,
   } : draft, [draft, taxSettings]);
@@ -98,11 +100,13 @@ export default function Onboarding() {
     if (!user || isLoading || !taxSettings) return;
     hydratedRef.current = true;
     const savedStep = Math.min(TOTAL_STEPS, Math.max(1, taxSettings.onboardingStep || 1));
+    filingStatusRef.current = taxSettings.filingStatus || "single";
     setStep(savedStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(savedStep));
     setDraft((current) => ({
       ...current,
       firstName: current.firstName || taxSettings.onboardingFirstName || "",
+      filingStatus: taxSettings.filingStatus || current.filingStatus || "single",
       onboardingStep: savedStep,
       incomeProfileType: taxSettings.incomeProfileType || current.incomeProfileType,
       enabledIncomeSources: taxSettings.enabledIncomeSources || current.enabledIncomeSources,
@@ -208,6 +212,17 @@ export default function Onboarding() {
     setCompanyDrafts((current) => current.map((company) => allowed.includes(company.type) ? company : { ...company, type: allowed[0] }));
   };
 
+  const selectFilingStatus = async (filingStatus: UserOnboardingSettings["filingStatus"]) => {
+    filingStatusRef.current = filingStatus;
+    patch({ filingStatus });
+    if (!settingsId) return;
+    try {
+      await updateTaxSettings.mutateAsync({ id: settingsId, filingStatus });
+    } catch (e: any) {
+      toast.error(e?.message || "Could not save filing status.");
+    }
+  };
+
   const skipCompanyStep = async () => {
     if (saving) return;
     setSaving(true);
@@ -293,10 +308,11 @@ export default function Onboarding() {
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}) {
     if (!settingsId) return;
-    const next = { ...merged, ...partial };
+    const next = { ...merged, filingStatus: filingStatusRef.current, ...partial };
     const sources = incomeProfileToSources(next.incomeProfileType);
     await updateTaxSettings.mutateAsync({
       id: settingsId,
+      filingStatus: next.filingStatus,
       onboardingComplete: next.onboardingComplete,
       onboardingFirstName: next.firstName,
       onboardingStep: next.onboardingStep,
@@ -378,7 +394,7 @@ export default function Onboarding() {
         const emailLocal = user?.email ? user.email.split("@")[0] : "";
         const finalFirstName = merged.firstName.trim() || (metadataFirst?.trim() || "") || emailLocal || "Friend";
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
-        await persist({ firstName: finalFirstName, onboardingComplete: false, onboardingStep: nextStep });
+        await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
         patch({ firstName: finalFirstName });
       } else if (step === 2) {
         await createOnboardingCompanies();
@@ -515,15 +531,8 @@ export default function Onboarding() {
               <div data-testid="onboarding-filing-status">
                 <Label htmlFor="onboarding-filing-status-select">Filing status</Label>
                 <Select
-                  value={(taxSettings as any)?.filingStatus ?? "single"}
-                  onValueChange={async (v) => {
-                    if (!settingsId) return;
-                    try {
-                      await updateTaxSettings.mutateAsync({ id: settingsId, filingStatus: v as any });
-                    } catch (e: any) {
-                      toast.error(e?.message || "Could not save filing status.");
-                    }
-                  }}
+                  value={merged.filingStatus}
+                  onValueChange={(v) => selectFilingStatus(v as UserOnboardingSettings["filingStatus"])}
                 >
                   <SelectTrigger id="onboarding-filing-status-select" data-testid="onboarding-filing-status-select">
                     <SelectValue />
@@ -604,6 +613,7 @@ export default function Onboarding() {
                     key={catchupFormKey}
                     initial={editingCatchup ?? undefined}
                     incomeProfileType={merged.incomeProfileType}
+                    filingStatus={merged.filingStatus}
                     onSaved={() => {
                       const name = editingCatchup?.company_name ?? "Entry";
                       setLastSavedName(name);

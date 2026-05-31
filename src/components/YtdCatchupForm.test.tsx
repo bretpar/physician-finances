@@ -1,10 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { YtdCatchupForm } from "./YtdCatchupForm";
 import { aggregateYtdCatchup, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 
 const mutateAsync = vi.fn().mockResolvedValue(undefined);
+const mockTaxSettings = vi.hoisted(() => ({
+  current: { stateTaxEnabled: true, filingStatus: "single" as const },
+}));
 
 // Stub hooks the form depends on so we can render it in isolation.
 vi.mock("@/hooks/useYtdCatchup", async () => {
@@ -22,7 +25,7 @@ vi.mock("@/hooks/useIncome", () => ({
   useIncomeEntries: () => ({ data: [] }),
 }));
 vi.mock("@/hooks/useTaxSettings", () => ({
-  useTaxSettings: () => ({ data: { stateTaxEnabled: true } }),
+  useTaxSettings: () => ({ data: mockTaxSettings.current }),
 }));
 
 
@@ -34,6 +37,11 @@ function renderForm(profile?: "w2_only" | "w2_plus_business" | "business_only") 
     </QueryClientProvider>
   );
 }
+
+beforeEach(() => {
+  mutateAsync.mockClear();
+  mockTaxSettings.current = { stateTaxEnabled: true, filingStatus: "single" };
+});
 
 describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
   it("w2_only: locks source to W-2 paystub and shows W-2 payroll fields", () => {
@@ -73,6 +81,50 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
     // Default sourceType is W-2, so W-2 fields visible
     expect(screen.getByText(/Federal withheld YTD/i)).toBeInTheDocument();
     expect(screen.getByText(/Social Security YTD/i)).toBeInTheDocument();
+  });
+
+  it("w2_only + MFJ prop: shows owner/person control and saves spouse attribution", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const year = new Date().getFullYear();
+    const spouseInitial: YtdCatchupEntry = {
+      id: "spouse-ytd",
+      user_id: "u",
+      organization_id: null,
+      tax_year: year,
+      source_type: "w2",
+      owner_person: "spouse",
+      company_id: null,
+      company_name: "Spouse Hospital W2",
+      period_start: `${year}-01-01`,
+      period_end: `${year}-06-30`,
+      gross_income: 50000,
+      business_expenses: 0,
+      federal_withholding: 7000,
+      state_withholding: 0,
+      ss_withholding: 0,
+      medicare_withholding: 0,
+      retirement_401k: 0,
+      hsa_contribution: 0,
+      healthcare_premiums: 0,
+      dental_vision: 0,
+      other_pretax: 0,
+      post_tax_deductions: 0,
+      notes: "",
+      created_at: "",
+      updated_at: "",
+    };
+    render(
+      <QueryClientProvider client={qc}>
+        <YtdCatchupForm incomeProfileType="w2_only" filingStatus="married_filing_jointly" initial={spouseInitial} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText(/Whose W-2 is this/i)).toBeInTheDocument();
+    expect(screen.getByTestId("ytd-catchup-owner-person-select")).toHaveTextContent(/spouse/i);
+    fireEvent.click(screen.getByTestId("ytd-catchup-save"));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0].owner_person).toBe("spouse");
   });
 });
 

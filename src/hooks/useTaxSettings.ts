@@ -294,8 +294,18 @@ export function useUpdateTaxSettings() {
 
       const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
       if (error) throw error;
+      return rest;
     },
-    onSuccess: async () => {
+    onSuccess: async (updates) => {
+      qc.setQueriesData<TaxRates>(
+        {
+          predicate: (query) => Array.isArray(query.queryKey)
+            && query.queryKey[0] === "tax_settings"
+            && query.queryKey.length === 2
+            && typeof query.queryKey[1] === "string",
+        },
+        (current) => current ? { ...current, ...updates } : current,
+      );
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["tax_settings"] }),
         qc.refetchQueries({ queryKey: ["tax_settings"] }),

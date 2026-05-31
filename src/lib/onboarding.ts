@@ -35,6 +35,7 @@ export interface UserOnboardingSettings {
   onboardingComplete: boolean | null;
   onboardingBannerDismissed: boolean;
   firstName: string;
+  filingStatus: "single" | "married_filing_jointly";
   onboardingStep: number;
   incomeProfileType: IncomeProfileType;
   enabledIncomeSources: EnabledIncomeSources;
@@ -52,6 +53,7 @@ export const DEFAULT_ONBOARDING_SETTINGS: UserOnboardingSettings = {
   onboardingComplete: null,
   onboardingBannerDismissed: false,
   firstName: "",
+  filingStatus: "single",
   onboardingStep: 1,
   incomeProfileType: "w2_plus_business",
   enabledIncomeSources: { w2: true, form1099: true, k1: true },

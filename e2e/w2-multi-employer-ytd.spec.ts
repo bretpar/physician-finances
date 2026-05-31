@@ -42,10 +42,28 @@ const EMP2 = {
   payFreq: "monthly",
 } as const;
 
+const SPOUSE_EMP1 = {
+  name: "Spouse Hospital W2",
+  gross: "75000",
+  fed: "10500",
+} as const;
+
+const SPOUSE_EMP2 = {
+  name: "Spouse Clinic W2",
+  gross: "10000",
+  fed: "1500",
+} as const;
+
 async function saveYtdForEmployer(
   page: Page,
   emp: { name: string; gross: string; fed: string },
+  owner: "taxpayer" | "spouse" = "taxpayer",
 ) {
+  const ownerSelect = page.getByTestId("ytd-catchup-owner-person-select");
+  if (await ownerSelect.count()) {
+    await ownerSelect.click();
+    await page.getByTestId(`ytd-catchup-owner-person-${owner}`).click();
+  }
   await page.getByTestId("ytd-catchup-company-name").fill(emp.name);
   await page.getByTestId("ytd-catchup-gross-income").fill(emp.gross);
   await page.getByTestId("ytd-catchup-federal-withheld").fill(emp.fed);
@@ -69,6 +87,9 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
     // Step 1 — income profile = W-2 only.
     await page.getByTestId("onboarding-first-name-input").fill(FIRST_NAME);
     await page.getByTestId("onboarding-income-type-w2").click();
+    await expect(page.getByTestId("onboarding-filing-status-select")).toBeVisible();
+    await page.getByTestId("onboarding-filing-status-select").click();
+    await page.getByTestId("onboarding-filing-status-mfj").click();
     await page.getByTestId("onboarding-continue-button").click();
 
     // Step 2a — answer YTD = yes.
@@ -78,6 +99,7 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible({
       timeout: 15_000,
     });
+    await expect(page.getByTestId("ytd-catchup-owner-person-select")).toBeVisible();
     await saveYtdForEmployer(page, EMP1);
 
     // Click "+ Add another employer" and save YTD #2 (Side Clinic W2).
@@ -85,8 +107,16 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
     await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible();
     await saveYtdForEmployer(page, EMP2);
 
+    await page.getByRole("button", { name: /add another employer/i }).click();
+    await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible();
+    await saveYtdForEmployer(page, SPOUSE_EMP1, "spouse");
+
+    await page.getByRole("button", { name: /add another employer/i }).click();
+    await expect(page.getByTestId("ytd-catchup-company-name")).toBeVisible();
+    await saveYtdForEmployer(page, SPOUSE_EMP2, "spouse");
+
     // Recap must show 2 saved entries before we advance.
-    await expect(page.getByText(/2 entries saved/i)).toBeVisible();
+    await expect(page.getByText(/4 entries saved/i)).toBeVisible();
 
     await page.getByTestId("onboarding-continue-button").click();
 
@@ -135,14 +165,22 @@ test.describe("W-2 onboarding — multi-employer YTD persists per employer", () 
       timeout: 20_000,
     });
     await expect(page.locator("body")).toContainText(EMP2.name);
+    await expect(page.locator("body")).toContainText(SPOUSE_EMP1.name);
+    await expect(page.locator("body")).toContainText(SPOUSE_EMP2.name);
     // Combined W-2 income surfaces somewhere (formatted with commas).
     await expect(page.locator("body")).toContainText(/\$60,000/);
     await expect(page.locator("body")).toContainText(/\$12,000/);
+    await expect(page.locator("body")).toContainText(/\$75,000/);
+    await expect(page.locator("body")).toContainText(/\$10,000/);
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_user");
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP1.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_partner");
+    await expect(page.locator(`[data-testid="paycheck-row"][data-employer="${SPOUSE_EMP2.name}"]`)).toHaveAttribute("data-ui-income-subtype", "w2_partner");
 
     // ── Verify: Tax Overview reflects both ──────────────────────────────
     await page.goto("/taxes");
     const taxBody = (await page.locator("body").textContent()) ?? "";
-    // Combined gross W-2 ~ $72k must appear somewhere on the Tax Overview.
-    expect(taxBody).toMatch(/\$?72[,.]?000/);
+    // Combined gross W-2 ~ $157k must appear somewhere on the Tax Overview.
+    expect(taxBody).toMatch(/\$?157[,.]?000/);
   });
 });
