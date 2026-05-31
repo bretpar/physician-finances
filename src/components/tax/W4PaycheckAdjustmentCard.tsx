@@ -320,6 +320,101 @@ export function groupW2StreamsByEmployer(
   return groups;
 }
 
+export type YtdW2Entry = {
+  income_type: string | null | undefined;
+  income_date: string | null | undefined;
+  company: string | null | undefined;
+  paycheck_amount: number | string | null | undefined;
+  taxes_withheld: number | string | null | undefined;
+  source_id?: string | null;
+};
+
+export type YtdFallbackRow = {
+  streamId: string;
+  employerKey: string;
+  company: string;
+  payFrequency: string;
+  detectedFrequency: string | null;
+  lastPaycheckDate: string | null;
+  remainingPaychecks: number;
+  remainingGross: number;
+  expectedNormalWithholding: number;
+  streamIds: string[];
+  droppedStreamIds: string[];
+  uniqueSourceIds: string[];
+  overlapDateCount: number;
+  __ytdAvgGross: number;
+  __ytdAvgWithheld: number;
+  __isYtdFallback: true;
+};
+
+/**
+ * Build best-effort W-4 employer rows from this year's W-2 income entries.
+ * Used by the W-4 Calculator when the user has not set up projected income
+ * streams yet (e.g. YTD-only onboarding). Frequency is inferred from paycheck
+ * dates per employer; per-paycheck gross/withholding averages drive the
+ * projected remaining amounts in `effectiveRows` downstream.
+ */
+export function buildYtdFallbackEmployerRows(
+  entries: YtdW2Entry[] | null | undefined,
+  today: Date = new Date(),
+): YtdFallbackRow[] {
+  const year = today.getFullYear().toString();
+  const w2Entries = (entries || []).filter(
+    (e) =>
+      typeof e.income_type === "string" &&
+      isW2FilingType(e.income_type) &&
+      typeof e.income_date === "string" &&
+      e.income_date.startsWith(year),
+  );
+  if (w2Entries.length === 0) return [];
+
+  type Group = {
+    company: string;
+    dates: string[];
+    grossYtd: number;
+    withheldYtd: number;
+    sourceIds: string[];
+  };
+  const groups = new Map<string, Group>();
+  for (const e of w2Entries) {
+    const sid = (e.source_id as string | null) || null;
+    const company = e.company || "Employer";
+    const key = sid || `name:${normalizeEmployerName(company)}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { company, dates: [], grossYtd: 0, withheldYtd: 0, sourceIds: [] };
+      groups.set(key, g);
+    }
+    g.dates.push(e.income_date as string);
+    g.grossYtd += Number(e.paycheck_amount) || 0;
+    g.withheldYtd += Number(e.taxes_withheld) || 0;
+    if (sid && !g.sourceIds.includes(sid)) g.sourceIds.push(sid);
+  }
+
+  return Array.from(groups.entries()).map(([key, g]) => {
+    const det = detectFrequencyFromDates(g.dates);
+    const count = g.dates.length || 1;
+    return {
+      streamId: `ytd:${key}`,
+      employerKey: `ytd:${key}`,
+      company: g.company,
+      payFrequency: det.frequency || "biweekly",
+      detectedFrequency: det.frequency,
+      lastPaycheckDate: det.lastDate,
+      remainingPaychecks: 0,
+      remainingGross: 0,
+      expectedNormalWithholding: 0,
+      streamIds: [],
+      droppedStreamIds: [],
+      uniqueSourceIds: g.sourceIds,
+      overlapDateCount: 0,
+      __ytdAvgGross: g.grossYtd / count,
+      __ytdAvgWithheld: g.withheldYtd / count,
+      __isYtdFallback: true,
+    };
+  });
+
 export type Allocation = EmployerRow & {
   exactPerPaycheck: number;
   exactEmployerGap: number;
