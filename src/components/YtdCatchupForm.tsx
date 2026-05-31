@@ -230,6 +230,18 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType }
             placeholder={companyPlaceholder}
           />
         </div>
+        {isW2Source && isMfj && (
+          <div className="sm:col-span-2">
+            <Label>Whose W-2 is this?</Label>
+            <Select value={ownerPerson} onValueChange={(v) => setOwnerPerson(v as YtdCatchupOwnerPerson)}>
+              <SelectTrigger data-testid="ytd-catchup-owner-person-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="taxpayer" data-testid="ytd-catchup-owner-person-taxpayer">You (Taxpayer)</SelectItem>
+                <SelectItem value="spouse" data-testid="ytd-catchup-owner-person-spouse">Spouse</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div>
           <Label>Period start</Label>
           <DateField value={periodStart} onChange={setPeriodStart} />
