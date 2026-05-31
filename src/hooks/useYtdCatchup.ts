@@ -104,25 +104,30 @@ export async function backfillYtdCatchupCompanies(): Promise<void> {
     }
 
     // Dedupe + update mirror transactions for this catch-up entry.
-    const { data: mirrors } = await (supabase as any)
-      .from("transactions")
-      .select("id, created_at")
-      .eq("origin_ytd_catchup_id", entry.id)
-      .order("created_at", { ascending: true });
-    const rows = (mirrors || []) as any[];
-    const keep = rows[0];
-    const dupes = rows.slice(1);
-    if (dupes.length > 0) {
-      await (supabase as any)
+    // Scope by transaction_type so the income mirror and (newer) expense
+    // mirror don't dedupe each other.
+    for (const txType of ["income", "expense"] as const) {
+      const { data: mirrors } = await (supabase as any)
         .from("transactions")
-        .delete()
-        .in("id", dupes.map((r) => r.id));
-    }
-    if (keep?.id) {
-      await (supabase as any)
-        .from("transactions")
-        .update({ source_id: match.id, entity: match.name })
-        .eq("id", keep.id);
+        .select("id, created_at")
+        .eq("origin_ytd_catchup_id", entry.id)
+        .eq("transaction_type", txType)
+        .order("created_at", { ascending: true });
+      const rows = (mirrors || []) as any[];
+      const keep = rows[0];
+      const dupes = rows.slice(1);
+      if (dupes.length > 0) {
+        await (supabase as any)
+          .from("transactions")
+          .delete()
+          .in("id", dupes.map((r) => r.id));
+      }
+      if (keep?.id) {
+        await (supabase as any)
+          .from("transactions")
+          .update({ source_id: match.id, entity: match.name })
+          .eq("id", keep.id);
+      }
     }
 
     const { data: incomeMirrors } = await (supabase as any)
