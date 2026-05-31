@@ -1,10 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { YtdCatchupForm } from "./YtdCatchupForm";
 import { aggregateYtdCatchup, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 
 const mutateAsync = vi.fn().mockResolvedValue(undefined);
+const mockTaxSettings = vi.hoisted(() => ({
+  current: { stateTaxEnabled: true, filingStatus: "single" as const },
+}));
 
 // Stub hooks the form depends on so we can render it in isolation.
 vi.mock("@/hooks/useYtdCatchup", async () => {
@@ -22,7 +25,7 @@ vi.mock("@/hooks/useIncome", () => ({
   useIncomeEntries: () => ({ data: [] }),
 }));
 vi.mock("@/hooks/useTaxSettings", () => ({
-  useTaxSettings: () => ({ data: { stateTaxEnabled: true } }),
+  useTaxSettings: () => ({ data: mockTaxSettings.current }),
 }));
 
 
@@ -34,6 +37,11 @@ function renderForm(profile?: "w2_only" | "w2_plus_business" | "business_only") 
     </QueryClientProvider>
   );
 }
+
+beforeEach(() => {
+  mutateAsync.mockClear();
+  mockTaxSettings.current = { stateTaxEnabled: true, filingStatus: "single" };
+});
 
 describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
   it("w2_only: locks source to W-2 paystub and shows W-2 payroll fields", () => {
