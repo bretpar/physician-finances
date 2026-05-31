@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { YtdCatchupForm } from "./YtdCatchupForm";
@@ -81,6 +81,26 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
     // Default sourceType is W-2, so W-2 fields visible
     expect(screen.getByText(/Federal withheld YTD/i)).toBeInTheDocument();
     expect(screen.getByText(/Social Security YTD/i)).toBeInTheDocument();
+  });
+
+  it("w2_only + MFJ prop: shows owner/person control and saves spouse attribution", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <YtdCatchupForm incomeProfileType="w2_only" filingStatus="married_filing_jointly" />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText(/Whose W-2 is this/i)).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByTestId("ytd-catchup-owner-person-select"));
+    fireEvent.click(screen.getByTestId("ytd-catchup-owner-person-spouse"));
+    fireEvent.change(screen.getByTestId("ytd-catchup-company-name"), { target: { value: "Spouse Hospital W2" } });
+    fireEvent.change(screen.getByTestId("ytd-catchup-gross-income"), { target: { value: "50000" } });
+    fireEvent.change(screen.getByTestId("ytd-catchup-federal-withheld"), { target: { value: "7000" } });
+    fireEvent.click(screen.getByTestId("ytd-catchup-save"));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0].owner_person).toBe("spouse");
   });
 });
 
