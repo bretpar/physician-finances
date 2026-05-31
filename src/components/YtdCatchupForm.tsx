@@ -6,7 +6,7 @@ import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useUpsertYtdCatchup, type YtdCatchupEntry, type YtdCatchupSourceType } from "@/hooks/useYtdCatchup";
+import { useUpsertYtdCatchup, type YtdCatchupEntry, type YtdCatchupOwnerPerson, type YtdCatchupSourceType } from "@/hooks/useYtdCatchup";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { IncomeProfileType } from "@/lib/onboarding";
