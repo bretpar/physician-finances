@@ -327,6 +327,11 @@ export type YtdW2Entry = {
   paycheck_amount: number | string | null | undefined;
   taxes_withheld: number | string | null | undefined;
   source_id?: string | null;
+  /** YTD catch-up indicators. Catch-up rows are lump-sum onboarding imports
+   *  and must NOT be treated as recurring paychecks for per-paycheck averaging. */
+  entry_kind?: string | null;
+  origin_type?: string | null;
+  linked_ytd_catchup_id?: string | null;
 };
 
 export type YtdFallbackRow = {
@@ -343,10 +348,24 @@ export type YtdFallbackRow = {
   droppedStreamIds: string[];
   uniqueSourceIds: string[];
   overlapDateCount: number;
+  /** Per-paycheck averages computed from RECURRING paychecks only (excludes
+   *  YTD catch-up lump-sum rows). Zero when only catch-up entries exist. */
   __ytdAvgGross: number;
   __ytdAvgWithheld: number;
+  /** YTD totals across ALL W-2 entries for this employer (incl. catch-up). */
+  __ytdGrossTotal: number;
+  __ytdWithheldTotal: number;
   __isYtdFallback: true;
 };
+
+/** YTD catch-up rows are lump-sum onboarding imports — never recurring paychecks. */
+function isYtdCatchupEntry(e: YtdW2Entry): boolean {
+  return (
+    e.entry_kind === "ytd_catchup" ||
+    e.origin_type === "ytd_catchup" ||
+    !!e.linked_ytd_catchup_id
+  );
+}
 
 /**
  * Build best-effort W-4 employer rows from this year's W-2 income entries.
@@ -354,6 +373,10 @@ export type YtdFallbackRow = {
  * streams yet (e.g. YTD-only onboarding). Frequency is inferred from paycheck
  * dates per employer; per-paycheck gross/withholding averages drive the
  * projected remaining amounts in `effectiveRows` downstream.
+ *
+ * YTD catch-up entries are EXCLUDED from per-paycheck averaging (they would
+ * otherwise massively inflate avg-per-paycheck and project as $$$ recurring
+ * income). They still count toward `__ytdGrossTotal` / `__ytdWithheldTotal`.
  */
 export function buildYtdFallbackEmployerRows(
   entries: YtdW2Entry[] | null | undefined,
@@ -371,9 +394,11 @@ export function buildYtdFallbackEmployerRows(
 
   type Group = {
     company: string;
-    dates: string[];
-    grossYtd: number;
-    withheldYtd: number;
+    recurringDates: string[];
+    recurringGross: number;
+    recurringWithheld: number;
+    grossYtdTotal: number;
+    withheldYtdTotal: number;
     sourceIds: string[];
   };
   const groups = new Map<string, Group>();
@@ -383,18 +408,34 @@ export function buildYtdFallbackEmployerRows(
     const key = sid || `name:${normalizeEmployerName(company)}`;
     let g = groups.get(key);
     if (!g) {
-      g = { company, dates: [], grossYtd: 0, withheldYtd: 0, sourceIds: [] };
+      g = {
+        company,
+        recurringDates: [],
+        recurringGross: 0,
+        recurringWithheld: 0,
+        grossYtdTotal: 0,
+        withheldYtdTotal: 0,
+        sourceIds: [],
+      };
       groups.set(key, g);
     }
-    g.dates.push(e.income_date as string);
-    g.grossYtd += Number(e.paycheck_amount) || 0;
-    g.withheldYtd += Number(e.taxes_withheld) || 0;
+    const gross = Number(e.paycheck_amount) || 0;
+    const withheld = Number(e.taxes_withheld) || 0;
+    g.grossYtdTotal += gross;
+    g.withheldYtdTotal += withheld;
+    if (!isYtdCatchupEntry(e)) {
+      g.recurringDates.push(e.income_date as string);
+      g.recurringGross += gross;
+      g.recurringWithheld += withheld;
+    }
     if (sid && !g.sourceIds.includes(sid)) g.sourceIds.push(sid);
   }
 
   return Array.from(groups.entries()).map(([key, g]) => {
-    const det = detectFrequencyFromDates(g.dates);
-    const count = g.dates.length || 1;
+    const det = detectFrequencyFromDates(g.recurringDates);
+    const recurringCount = g.recurringDates.length;
+    const avgGross = recurringCount > 0 ? g.recurringGross / recurringCount : 0;
+    const avgWithheld = recurringCount > 0 ? g.recurringWithheld / recurringCount : 0;
     return {
       streamId: `ytd:${key}`,
       employerKey: `ytd:${key}`,
@@ -409,8 +450,10 @@ export function buildYtdFallbackEmployerRows(
       droppedStreamIds: [],
       uniqueSourceIds: g.sourceIds,
       overlapDateCount: 0,
-      __ytdAvgGross: g.grossYtd / count,
-      __ytdAvgWithheld: g.withheldYtd / count,
+      __ytdAvgGross: avgGross,
+      __ytdAvgWithheld: avgWithheld,
+      __ytdGrossTotal: g.grossYtdTotal,
+      __ytdWithheldTotal: g.withheldYtdTotal,
       __isYtdFallback: true,
     };
   });
@@ -747,31 +790,70 @@ export default function W4PaycheckAdjustmentCard() {
   // Read per-company W-4 settings from Settings > Companies.
   const { companies } = useCompanies();
   const companyByEmployerKey = useMemo(() => {
-    const map = new Map<string, { id: string; payFrequency: string | null; remainingOverride: number | null }>();
+    const map = new Map<string, {
+      id: string;
+      payFrequency: string | null;
+      remainingOverride: number | null;
+      projectedAnnualGross: number | null;
+      expectedFederalWithholdingPerPaycheck: number | null;
+    }>();
     for (const c of companies) {
       const ft = normalizeFilingType(c.companyType);
       if (ft !== "w2" && ft !== "scorp_w2") continue;
       const key = `emp:${normalizeEmployerName(c.name)}|w2`;
-      // Prefer the entry that has a pay frequency set, otherwise first seen.
       const prev = map.get(key);
-      if (!prev || (!prev.payFrequency && c.payFrequency)) {
-        map.set(key, {
-          id: c.id,
-          payFrequency: c.payFrequency,
-          remainingOverride: c.remainingPaychecksOverride,
-        });
+      const next = {
+        id: c.id,
+        payFrequency: c.payFrequency,
+        remainingOverride: c.remainingPaychecksOverride,
+        projectedAnnualGross: c.projectedAnnualGross ?? null,
+        expectedFederalWithholdingPerPaycheck:
+          c.expectedFederalWithholdingPerPaycheck ?? null,
+      };
+      // Prefer the entry that has the richest signal.
+      if (
+        !prev ||
+        (!prev.payFrequency && next.payFrequency) ||
+        (prev.projectedAnnualGross == null && next.projectedAnnualGross != null) ||
+        (prev.expectedFederalWithholdingPerPaycheck == null &&
+          next.expectedFederalWithholdingPerPaycheck != null)
+      ) {
+        map.set(key, next);
       }
     }
     return map;
   }, [companies]);
 
+  // YTD gross/withheld per employer key — used to compute remaining-gross from
+  // a saved projected annual gross. Built from this year's W-2 income entries.
+  const ytdByEmployerKey = useMemo(() => {
+    const year = new Date().getFullYear().toString();
+    const map = new Map<string, { gross: number; withheld: number }>();
+    for (const e of incomeEntries || []) {
+      if (typeof e.income_type !== "string" || !isW2FilingType(e.income_type)) continue;
+      const d = (e as any).income_date as string | undefined;
+      if (!d || !d.startsWith(year)) continue;
+      const key = `emp:${normalizeEmployerName((e as any).company)}|w2`;
+      const prev = map.get(key) || { gross: 0, withheld: 0 };
+      prev.gross += Number((e as any).paycheck_amount) || 0;
+      prev.withheld += Number((e as any).taxes_withheld) || 0;
+      map.set(key, prev);
+    }
+    return map;
+  }, [incomeEntries]);
+
   // Apply company settings to produce effective rows used in allocation.
+  // Priority (per spec):
+  //   1. Saved expectedFederalWithholdingPerPaycheck * remainingPaychecks
+  //   2. Saved projectedAnnualGross minus YTD gross
+  //   3. Derived from projected paycheck streams
+  //   4. YTD fallback per-paycheck averages (catch-up rows excluded)
   const effectiveRows = useMemo(() => {
     return sourceRows.map((r) => {
-      const settings = companyByEmployerKey.get(r.streamId) ||
-        // YTD fallback rows have streamId "ytd:..." — look up the company by
-        // canonical name so saved Settings still apply.
-        companyByEmployerKey.get(`emp:${normalizeEmployerName(r.company)}|w2`);
+      const lookupKey = `emp:${normalizeEmployerName(r.company)}|w2`;
+      const settings =
+        companyByEmployerKey.get(r.streamId) ||
+        companyByEmployerKey.get(lookupKey);
       const autoFrequency = r.detectedFrequency ?? r.payFrequency;
       const frequency = settings?.payFrequency || autoFrequency;
       const detectedPaychecks = r.remainingPaychecks;
@@ -791,21 +873,39 @@ export default function W4PaycheckAdjustmentCard() {
           ? Math.max(0, Math.floor(settings.remainingOverride))
           : autoPaychecks;
 
+      const savedAnnualGross = settings?.projectedAnnualGross ?? null;
+      const savedFedPerPaycheck =
+        settings?.expectedFederalWithholdingPerPaycheck ?? null;
+      const ytd = ytdByEmployerKey.get(lookupKey) || { gross: 0, withheld: 0 };
+
       let remainingGross: number;
       let expectedNormalWithholding: number;
-      if (isYtdFallback) {
+
+      if (savedAnnualGross != null) {
+        // Explicit annual gross wins. Remaining = annual − YTD already received.
+        remainingGross = Math.max(0, savedAnnualGross - ytd.gross);
+      } else if (isYtdFallback) {
         const avgGross = (r as any).__ytdAvgGross || 0;
-        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
         remainingGross = avgGross * remainingPaychecks;
-        expectedNormalWithholding = avgWithheld * remainingPaychecks;
       } else {
         const ratio =
           detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
         remainingGross =
           detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
+      }
+
+      if (savedFedPerPaycheck != null) {
+        expectedNormalWithholding = savedFedPerPaycheck * remainingPaychecks;
+      } else if (isYtdFallback) {
+        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
+        expectedNormalWithholding = avgWithheld * remainingPaychecks;
+      } else {
         expectedNormalWithholding = r.expectedNormalWithholding;
       }
+
       const missingSettings = !settings?.payFrequency;
+      const usedSavedSettings =
+        savedAnnualGross != null || savedFedPerPaycheck != null;
       return {
         ...r,
         payFrequency: frequency,
@@ -814,9 +914,10 @@ export default function W4PaycheckAdjustmentCard() {
         expectedNormalWithholding,
         missingSettings,
         isYtdFallback,
+        usedSavedSettings,
       };
     });
-  }, [sourceRows, companyByEmployerKey]);
+  }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
