@@ -163,7 +163,7 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateRe
 
   const components = { ...ZERO_COMPONENTS, federal: baseRate };
   if (incomeBucket === "business" && !useAllInclusiveBase) {
-    if (isSETaxableIncome(input)) components.selfEmployment = getSelfEmploymentRate();
+    if (isSETaxableIncome(input)) components.selfEmployment = computeMarginalSelfEmploymentRate(input);
     components.businessState = getBusinessStateRate(settings, input);
   }
 
