@@ -470,6 +470,10 @@ export function useTaxEstimate(): {
 
       const businessExpenses = scope.transactions
         .filter((t) => t.transaction_type === "expense" && !isExcludedFromBusiness(t as any) && t.entity !== "Unassigned")
+        // Exclude YTD catch-up expense mirror rows — cu.business.expenses
+        // already feeds the tax math; the mirror exists only so Business
+        // Activity shows the deduction in the ledger.
+        .filter((t) => (t as any).origin_type !== "ytd_catchup")
         .reduce((s, t) => s + Math.abs(t.amount), 0);
       const homeOfficeByCompany = getIncludedHomeOfficeByCompany(homeOfficeDeductions);
       const homeOfficeDeduction = getIncludedHomeOfficeTotal(homeOfficeDeductions);
