@@ -146,7 +146,8 @@ describe("W-4 allocation reflects federal-only shortfall", () => {
     expect(allocs).toHaveLength(2);
     const total = allocs.reduce((s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks, 0);
     expect(total).toBeGreaterThan(0);
-    expect(Math.abs(total - fedGap)).toBeLessThanOrEqual(5 * allocs.length);
+    // $5/paycheck rounding can shift by up to 5 * remainingPaychecks per employer.
+    expect(Math.abs(total - fedGap)).toBeLessThanOrEqual(5 * 13 * allocs.length);
     // Largest employer carries the largest annual share
     const evergreen = allocs.find((a) => a.company === "Evergreen")!;
     const harbor = allocs.find((a) => a.company === "Harbor")!;
