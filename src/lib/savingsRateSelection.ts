@@ -17,7 +17,8 @@
  * dynamic_planner) all flow through the same selection logic so the bucket
  * separation is consistent regardless of which method the user picked.
  */
-import { SE_TAX_RATE, SE_INCOME_FACTOR, type TaxEstimate } from "@/lib/taxEngine";
+import { SE_TAX_RATE, SE_INCOME_FACTOR, MEDICARE_ADDITIONAL_RATE, type TaxEstimate } from "@/lib/taxEngine";
+import { SS_RATE, MEDICARE_RATE, getTaxYearConfig } from "@/lib/taxBrackets";
 import { isW2FilingType, normalizeFilingType } from "@/lib/filingTypes";
 
 export type IncomeBucket = "personal" | "business";
