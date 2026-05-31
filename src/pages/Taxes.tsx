@@ -326,11 +326,7 @@ export default function Taxes() {
                 const filingLabel =
                   rates?.filingStatus === "married_filing_jointly"
                     ? "Married Filing Jointly"
-                    : rates?.filingStatus === "married_filing_separately"
-                      ? "Married Filing Separately"
-                      : rates?.filingStatus === "head_of_household"
-                        ? "Head of Household"
-                        : "Single";
+                    : "Single";
                 return (
                   <>
                     <div className="flex justify-between">
