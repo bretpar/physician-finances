@@ -22,7 +22,7 @@ import {
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
-import { normalizeFilingType } from "@/lib/filingTypes";
+import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
@@ -320,6 +320,104 @@ export function groupW2StreamsByEmployer(
   return groups;
 }
 
+export type YtdW2Entry = {
+  income_type: string | null | undefined;
+  income_date: string | null | undefined;
+  company: string | null | undefined;
+  paycheck_amount: number | string | null | undefined;
+  taxes_withheld: number | string | null | undefined;
+  source_id?: string | null;
+};
+
+export type YtdFallbackRow = {
+  streamId: string;
+  employerKey: string;
+  company: string;
+  payFrequency: string;
+  detectedFrequency: string | null;
+  lastPaycheckDate: string | null;
+  remainingPaychecks: number;
+  remainingGross: number;
+  expectedNormalWithholding: number;
+  streamIds: string[];
+  droppedStreamIds: string[];
+  uniqueSourceIds: string[];
+  overlapDateCount: number;
+  __ytdAvgGross: number;
+  __ytdAvgWithheld: number;
+  __isYtdFallback: true;
+};
+
+/**
+ * Build best-effort W-4 employer rows from this year's W-2 income entries.
+ * Used by the W-4 Calculator when the user has not set up projected income
+ * streams yet (e.g. YTD-only onboarding). Frequency is inferred from paycheck
+ * dates per employer; per-paycheck gross/withholding averages drive the
+ * projected remaining amounts in `effectiveRows` downstream.
+ */
+export function buildYtdFallbackEmployerRows(
+  entries: YtdW2Entry[] | null | undefined,
+  today: Date = new Date(),
+): YtdFallbackRow[] {
+  const year = today.getFullYear().toString();
+  const w2Entries = (entries || []).filter(
+    (e) =>
+      typeof e.income_type === "string" &&
+      isW2FilingType(e.income_type) &&
+      typeof e.income_date === "string" &&
+      e.income_date.startsWith(year),
+  );
+  if (w2Entries.length === 0) return [];
+
+  type Group = {
+    company: string;
+    dates: string[];
+    grossYtd: number;
+    withheldYtd: number;
+    sourceIds: string[];
+  };
+  const groups = new Map<string, Group>();
+  for (const e of w2Entries) {
+    const sid = (e.source_id as string | null) || null;
+    const company = e.company || "Employer";
+    const key = sid || `name:${normalizeEmployerName(company)}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { company, dates: [], grossYtd: 0, withheldYtd: 0, sourceIds: [] };
+      groups.set(key, g);
+    }
+    g.dates.push(e.income_date as string);
+    g.grossYtd += Number(e.paycheck_amount) || 0;
+    g.withheldYtd += Number(e.taxes_withheld) || 0;
+    if (sid && !g.sourceIds.includes(sid)) g.sourceIds.push(sid);
+  }
+
+  return Array.from(groups.entries()).map(([key, g]) => {
+    const det = detectFrequencyFromDates(g.dates);
+    const count = g.dates.length || 1;
+    return {
+      streamId: `ytd:${key}`,
+      employerKey: `ytd:${key}`,
+      company: g.company,
+      payFrequency: det.frequency || "biweekly",
+      detectedFrequency: det.frequency,
+      lastPaycheckDate: det.lastDate,
+      remainingPaychecks: 0,
+      remainingGross: 0,
+      expectedNormalWithholding: 0,
+      streamIds: [],
+      droppedStreamIds: [],
+      uniqueSourceIds: g.sourceIds,
+      overlapDateCount: 0,
+      __ytdAvgGross: g.grossYtd / count,
+      __ytdAvgWithheld: g.withheldYtd / count,
+      __isYtdFallback: true,
+    };
+  });
+}
+
+
+
 export type Allocation = EmployerRow & {
   exactPerPaycheck: number;
   exactEmployerGap: number;
@@ -557,6 +655,20 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [streams, allProjected, todayStr, detectionBySourceId]);
 
+  // ── YTD fallback ──
+  // When a W-2 user has not yet set up projected income streams (e.g. they
+  // only entered YTD W-2 catchup during onboarding), `employerRows` will be
+  // empty and the W-4 Calculator would otherwise render nothing. Build a
+  // best-effort employer list from this year's W-2 income entries so the tab
+  // shows actionable per-employer W-4 guidance based on the federal income
+  // tax shortfall.
+  const ytdFallbackRows = useMemo(() => {
+    if (employerRows.length > 0) return [];
+    return buildYtdFallbackEmployerRows(incomeEntries as any);
+  }, [employerRows, incomeEntries]);
+
+  const sourceRows = employerRows.length > 0 ? employerRows : ytdFallbackRows;
+
   // User-facing toggle: whether to assume the user will save the recommended
   // future 1099/business/K-1 tax reserves. Defaults ON because most app users
   // are being told to save reserves from non-W-2 income. Persisted locally so
@@ -655,11 +767,15 @@ export default function W4PaycheckAdjustmentCard() {
 
   // Apply company settings to produce effective rows used in allocation.
   const effectiveRows = useMemo(() => {
-    return employerRows.map((r) => {
-      const settings = companyByEmployerKey.get(r.streamId);
+    return sourceRows.map((r) => {
+      const settings = companyByEmployerKey.get(r.streamId) ||
+        // YTD fallback rows have streamId "ytd:..." — look up the company by
+        // canonical name so saved Settings still apply.
+        companyByEmployerKey.get(`emp:${normalizeEmployerName(r.company)}|w2`);
       const autoFrequency = r.detectedFrequency ?? r.payFrequency;
       const frequency = settings?.payFrequency || autoFrequency;
       const detectedPaychecks = r.remainingPaychecks;
+      const isYtdFallback = Boolean((r as any).__isYtdFallback);
 
       let autoPaychecks: number;
       if (r.lastPaycheckDate) {
@@ -674,20 +790,33 @@ export default function W4PaycheckAdjustmentCard() {
         settings?.remainingOverride != null
           ? Math.max(0, Math.floor(settings.remainingOverride))
           : autoPaychecks;
-      const ratio =
-        detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
-      const remainingGross =
-        detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
+
+      let remainingGross: number;
+      let expectedNormalWithholding: number;
+      if (isYtdFallback) {
+        const avgGross = (r as any).__ytdAvgGross || 0;
+        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
+        remainingGross = avgGross * remainingPaychecks;
+        expectedNormalWithholding = avgWithheld * remainingPaychecks;
+      } else {
+        const ratio =
+          detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
+        remainingGross =
+          detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
+        expectedNormalWithholding = r.expectedNormalWithholding;
+      }
       const missingSettings = !settings?.payFrequency;
       return {
         ...r,
         payFrequency: frequency,
         remainingPaychecks,
         remainingGross,
+        expectedNormalWithholding,
         missingSettings,
+        isYtdFallback,
       };
     });
-  }, [employerRows, companyByEmployerKey]);
+  }, [sourceRows, companyByEmployerKey]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
@@ -702,7 +831,7 @@ export default function W4PaycheckAdjustmentCard() {
   );
 
   // Hide card entirely if user has no W-2 streams at all — nothing to recommend.
-  if (employerRows.length === 0) return null;
+  if (sourceRows.length === 0) return null;
 
   return (
     <Card>
@@ -760,6 +889,24 @@ export default function W4PaycheckAdjustmentCard() {
           W-2 withholding, estimated payments, actual savings, and optional
           planned non-W-2 reserves.
         </p>
+        <p
+          className="text-xs text-muted-foreground leading-relaxed"
+          data-testid="w4-fica-disclaimer"
+        >
+          This recommendation only covers federal income tax. Social Security
+          and Medicare are handled through payroll and are not added to W-4
+          Step 4(c).
+        </p>
+        {sourceRows.some((r: any) => r.__isYtdFallback) && (
+          <p
+            className="text-xs text-muted-foreground leading-relaxed"
+            data-testid="w4-ytd-estimate-note"
+          >
+            Remaining paychecks and gross are <span className="font-medium">estimated</span> from your
+            year-to-date W-2 entries because you have not set up projected income streams yet.
+            Add pay frequency and remaining paychecks in Settings for a more precise recommendation.
+          </p>
+        )}
         <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
           <div className="space-y-1">
             <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
