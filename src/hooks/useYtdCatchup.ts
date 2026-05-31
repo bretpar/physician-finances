@@ -190,18 +190,36 @@ async function syncCatchupMirror(args: {
   const friendlyNote = `Setup income through ${periodLabel}`;
 
   // ── Business mirror in `transactions` ───────────────────────────────────
-  const { data: existingTxRows } = await (supabase as any)
+  // A 1099/K-1 catchup may create TWO mirror rows: an income row for gross
+  // revenue and (when business_expenses > 0) an expense row for deductible
+  // YTD business expenses. We scope lookups by transaction_type so the two
+  // mirrors never dedupe each other.
+  const { data: existingIncomeTxRows } = await (supabase as any)
     .from("transactions")
     .select("id, created_at")
     .eq("origin_ytd_catchup_id", c.id)
+    .eq("transaction_type", "income")
     .order("created_at", { ascending: true });
-  const existingTx = (existingTxRows && existingTxRows[0]) || null;
-  // Defensive dedupe — if multiple mirror rows exist, drop the extras.
-  if (existingTxRows && existingTxRows.length > 1) {
+  const existingTx = (existingIncomeTxRows && existingIncomeTxRows[0]) || null;
+  if (existingIncomeTxRows && existingIncomeTxRows.length > 1) {
     await (supabase as any)
       .from("transactions")
       .delete()
-      .in("id", existingTxRows.slice(1).map((r: any) => r.id));
+      .in("id", existingIncomeTxRows.slice(1).map((r: any) => r.id));
+  }
+
+  const { data: existingExpenseTxRows } = await (supabase as any)
+    .from("transactions")
+    .select("id, created_at")
+    .eq("origin_ytd_catchup_id", c.id)
+    .eq("transaction_type", "expense")
+    .order("created_at", { ascending: true });
+  const existingExpenseTx = (existingExpenseTxRows && existingExpenseTxRows[0]) || null;
+  if (existingExpenseTxRows && existingExpenseTxRows.length > 1) {
+    await (supabase as any)
+      .from("transactions")
+      .delete()
+      .in("id", existingExpenseTxRows.slice(1).map((r: any) => r.id));
   }
 
   if (isBusiness) {
@@ -232,9 +250,51 @@ async function syncCatchupMirror(args: {
     } else {
       await supabase.from("transactions").insert(txRow);
     }
-  } else if (existingTx?.id) {
-    // Source type changed away from business → remove stale tx mirror.
-    await supabase.from("transactions").delete().eq("id", existingTx.id);
+
+    // Expense mirror — without this, Business Activity shows $0 deductions
+    // even though Dashboard / Tax Overview already net business_expenses
+    // from profit via aggregateYtdCatchup. Keeps the canonical
+    // `transactions` ledger and the aggregated screens in agreement.
+    const bizExpenses = Math.max(0, Number(c.business_expenses) || 0);
+    if (bizExpenses > 0) {
+      const expenseRow: any = {
+        user_id: args.userId,
+        organization_id: args.orgId,
+        transaction_date: c.period_end,
+        vendor: `${friendlyName} expenses: ${c.company_name || "Business"}`,
+        amount: bizExpenses,
+        account_source: "YTD catch-up",
+        category: "Professional expenses",
+        notes: `Onboarding YTD business expense. Edit from the YTD catch-up section.`,
+        entity: c.company_name || "Unassigned",
+        company_type: "1099_schedule_c",
+        source_id: c.company_id,
+        transaction_type: "expense",
+        status: "active",
+        excluded_from_reports: false,
+        needs_review: false,
+        user_edited: false,
+        origin_type: "ytd_catchup",
+        origin_ytd_catchup_id: c.id,
+        source_type: "manual",
+      };
+      if (existingExpenseTx?.id) {
+        await supabase.from("transactions").update(expenseRow).eq("id", existingExpenseTx.id);
+      } else {
+        await supabase.from("transactions").insert(expenseRow);
+      }
+    } else if (existingExpenseTx?.id) {
+      // Expenses cleared back to 0 — remove the stale mirror row.
+      await supabase.from("transactions").delete().eq("id", existingExpenseTx.id);
+    }
+  } else {
+    // Source type changed away from business → remove any stale mirrors.
+    if (existingTx?.id) {
+      await supabase.from("transactions").delete().eq("id", existingTx.id);
+    }
+    if (existingExpenseTx?.id) {
+      await supabase.from("transactions").delete().eq("id", existingExpenseTx.id);
+    }
   }
 
   // ── Personal mirror in `income_entries` (W-2 / other) ───────────────────
