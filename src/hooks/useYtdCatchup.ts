@@ -5,6 +5,7 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { formatMonthYear } from "@/lib/localDate";
 
 export type YtdCatchupSourceType = "w2" | "1099_k1" | "other";
+export type YtdCatchupOwnerPerson = "taxpayer" | "spouse";
 
 export interface YtdCatchupEntry {
   id: string;
@@ -12,6 +13,7 @@ export interface YtdCatchupEntry {
   organization_id: string | null;
   tax_year: number;
   source_type: YtdCatchupSourceType;
+  owner_person: YtdCatchupOwnerPerson;
   company_id: string | null;
   company_name: string;
   period_start: string;
