@@ -144,7 +144,34 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
             </div>
             <div className="mt-2 space-y-1 text-muted-foreground">
               <div className="flex justify-between gap-3"><span>Federal base</span><span>{(components?.federal ?? 0).toFixed(2)}%</span></div>
-              <div className="flex justify-between gap-3"><span>Self-employment tax</span><span>{(components?.selfEmployment ?? 0) > 0 ? `Added ${(components?.selfEmployment ?? 0).toFixed(2)}%` : "Not added"}</span></div>
+              {(components?.selfEmployment ?? 0) > 0 || components?.seSocialSecurityCapped ? (
+                <>
+                  <div className="flex justify-between gap-3 pt-1">
+                    <span className="font-medium text-foreground">Self-employment tax</span>
+                    <span>{(components?.selfEmployment ?? 0).toFixed(2)}%</span>
+                  </div>
+                  <div className="flex justify-between gap-3 pl-3">
+                    <span>↳ SE Social Security</span>
+                    <span className={components?.seSocialSecurityCapped ? "text-emerald-600 dark:text-emerald-400 font-medium" : ""}>
+                      {components?.seSocialSecurityCapped
+                        ? "$0 · wage base reached"
+                        : `${(components?.seSocialSecurity ?? 0).toFixed(2)}%`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3 pl-3">
+                    <span>↳ SE Medicare</span>
+                    <span>{(components?.seMedicare ?? 0).toFixed(2)}%</span>
+                  </div>
+                  {(components?.seAdditionalMedicare ?? 0) > 0 && (
+                    <div className="flex justify-between gap-3 pl-3">
+                      <span>↳ Additional Medicare (0.9%)</span>
+                      <span>{(components?.seAdditionalMedicare ?? 0).toFixed(2)}%</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex justify-between gap-3"><span>Self-employment tax</span><span>Not added</span></div>
+              )}
               <div className="flex justify-between gap-3"><span>Business state/B&amp;O</span><span>{(components?.businessState ?? 0) > 0 ? `Added ${(components?.businessState ?? 0).toFixed(2)}%` : "Not added"}</span></div>
             </div>
           </div>

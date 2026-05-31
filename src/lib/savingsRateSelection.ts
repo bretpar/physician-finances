@@ -74,7 +74,16 @@ export interface SavingsRateResult {
     federal: number;
     employeeSocialSecurity: number;
     employeeMedicare: number;
+    /** Combined SE add-on (sum of seSocialSecurity + seMedicare + seAdditionalMedicare). */
     selfEmployment: number;
+    /** SE Social Security portion (drops to 0 once SS wage base reached). */
+    seSocialSecurity: number;
+    /** SE Medicare portion (2.9% × 0.9235 ≈ 2.68%, always applies on SE income). */
+    seMedicare: number;
+    /** SE Additional Medicare (0.9% × 0.9235) above filing-status threshold. */
+    seAdditionalMedicare: number;
+    /** True when the SS wage base has been reached (SS portion is $0). */
+    seSocialSecurityCapped: boolean;
     personalState: number;
     businessState: number;
   };
@@ -103,6 +112,10 @@ const ZERO_COMPONENTS = {
   employeeSocialSecurity: 0,
   employeeMedicare: 0,
   selfEmployment: 0,
+  seSocialSecurity: 0,
+  seMedicare: 0,
+  seAdditionalMedicare: 0,
+  seSocialSecurityCapped: false,
   personalState: 0,
   businessState: 0,
 };
@@ -163,7 +176,14 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateRe
 
   const components = { ...ZERO_COMPONENTS, federal: baseRate };
   if (incomeBucket === "business" && !useAllInclusiveBase) {
-    if (isSETaxableIncome(input)) components.selfEmployment = computeMarginalSelfEmploymentRate(input);
+    if (isSETaxableIncome(input)) {
+      const seBreakdown = computeMarginalSelfEmploymentBreakdown(input);
+      components.seSocialSecurity = seBreakdown.socialSecurity;
+      components.seMedicare = seBreakdown.medicare;
+      components.seAdditionalMedicare = seBreakdown.additionalMedicare;
+      components.seSocialSecurityCapped = seBreakdown.socialSecurityCapped;
+      components.selfEmployment = seBreakdown.socialSecurity + seBreakdown.medicare + seBreakdown.additionalMedicare;
+    }
     components.businessState = getBusinessStateRate(settings, input);
   }
 
@@ -262,7 +282,14 @@ function getSelfEmploymentRate(): number {
  * All wage-base and threshold constants come from taxBrackets.ts (no
  * hardcoded year-specific numbers here).
  */
-function computeMarginalSelfEmploymentRate(input: SavingsRateInput): number {
+interface SelfEmploymentBreakdown {
+  socialSecurity: number;
+  medicare: number;
+  additionalMedicare: number;
+  socialSecurityCapped: boolean;
+}
+
+function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEmploymentBreakdown {
   const estimate = input.actualEstimate ?? input.currentPaceEstimate ?? input.forecastEstimate ?? null;
   const filing = (input.filingStatus ?? "single") as "single" | "married_filing_jointly";
   const yearConfig = getTaxYearConfig();
@@ -278,9 +305,14 @@ function computeMarginalSelfEmploymentRate(input: SavingsRateInput): number {
   const entrySEBase = entryNetSE * SE_INCOME_FACTOR;
 
   const ssRemainingBefore = Math.max(0, ssWageBase - w2Wages - currentSEBase);
+  const socialSecurityCapped = ssRemainingBefore <= 0;
 
   // ── Entry-aware computation ──
   if (entrySEBase > 0) {
+    const baseForRate = entryGross > 0 ? entryGross : entryNetSE;
+    if (baseForRate <= 0) {
+      return { socialSecurity: 0, medicare: 0, additionalMedicare: 0, socialSecurityCapped };
+    }
     const ssTaxable = Math.min(entrySEBase, ssRemainingBefore);
     const ssTax = ssTaxable * SS_RATE;
     const medicareTax = entrySEBase * MEDICARE_RATE;
@@ -289,9 +321,12 @@ function computeMarginalSelfEmploymentRate(input: SavingsRateInput): number {
     const overThreshold = Math.max(0, totalEarningsAfter - addlThreshold);
     const addlBase = Math.max(0, Math.min(entrySEBase, overThreshold));
     const addlMedicareTax = addlBase * MEDICARE_ADDITIONAL_RATE;
-    const baseForRate = entryGross > 0 ? entryGross : entryNetSE;
-    if (baseForRate <= 0) return 0;
-    return ((ssTax + medicareTax + addlMedicareTax) / baseForRate) * 100;
+    return {
+      socialSecurity: (ssTax / baseForRate) * 100,
+      medicare: (medicareTax / baseForRate) * 100,
+      additionalMedicare: (addlMedicareTax / baseForRate) * 100,
+      socialSecurityCapped,
+    };
   }
 
   // ── Marginal per-dollar rate at the current boundary ──
@@ -299,7 +334,12 @@ function computeMarginalSelfEmploymentRate(input: SavingsRateInput): number {
   const medicareMarginal = MEDICARE_RATE * SE_INCOME_FACTOR;
   const totalEarningsBefore = w2Wages + currentSEBase;
   const addlMarginal = totalEarningsBefore >= addlThreshold ? MEDICARE_ADDITIONAL_RATE * SE_INCOME_FACTOR : 0;
-  return (ssMarginal + medicareMarginal + addlMarginal) * 100;
+  return {
+    socialSecurity: ssMarginal * 100,
+    medicare: medicareMarginal * 100,
+    additionalMedicare: addlMarginal * 100,
+    socialSecurityCapped,
+  };
 }
 
 export function getSavingsRateForIncomeBucket(
