@@ -26,7 +26,7 @@ import {
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod, type QuarterlyTrackerMethod, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
+import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod, type QuarterlyTrackerMethod, type HouseholdIncomeStreams, type W2PaycheckRecMethod } from "@/hooks/useTaxSettings";
 import { isPremiumFeature } from "@/lib/featureFlags";
 import {
   FILING_TYPES,
