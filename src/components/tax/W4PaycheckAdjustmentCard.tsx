@@ -990,6 +990,24 @@ export default function W4PaycheckAdjustmentCard() {
       const missingSettings = !settings?.payFrequency;
       const usedSavedSettings =
         savedAnnualGross != null || savedFedPerPaycheck != null;
+
+      // Data-completeness signals (drive W-4 accuracy warnings, not math).
+      const ytdGrossTotal =
+        Number((r as any).__ytdGrossTotal) || ytd.gross || 0;
+      const ytdWithheldTotal =
+        Number((r as any).__ytdWithheldTotal) || ytd.withheld || 0;
+      const hasYtdData =
+        ytdGrossTotal > 0 || ytdWithheldTotal > 0 || detectedPaychecks > 0;
+      // "Future projection" = saved annual gross, saved per-paycheck
+      // withholding (paired with a known pay frequency), or an active
+      // projected stream contributing remaining gross/paychecks.
+      const hasSavedFutureSettings =
+        savedAnnualGross != null ||
+        (savedFedPerPaycheck != null && !!settings?.payFrequency);
+      const hasStreamProjection = !isYtdFallback && detectedPaychecks > 0;
+      const hasFutureProjection =
+        hasSavedFutureSettings || hasStreamProjection || remainingGross > 0;
+
       return {
         ...r,
         payFrequency: frequency,
@@ -999,8 +1017,13 @@ export default function W4PaycheckAdjustmentCard() {
         missingSettings,
         isYtdFallback,
         usedSavedSettings,
+        hasYtdData,
+        hasFutureProjection,
+        ytdGrossTotal,
+        ytdWithheldTotal,
       };
     });
+
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
