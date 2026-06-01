@@ -1026,7 +1026,40 @@ export default function W4PaycheckAdjustmentCard() {
 
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
 
+  // Data-completeness signals used to warn users when the W-4 recommendation
+  // may be inaccurate because YTD or future projection data is missing.
+  const dataCompleteness = useMemo(() => {
+    const totalYtdGross = effectiveRows.reduce(
+      (s, r: any) => s + (Number(r.ytdGrossTotal) || 0),
+      0,
+    );
+    const totalYtdWithheld = effectiveRows.reduce(
+      (s, r: any) => s + (Number(r.ytdWithheldTotal) || 0),
+      0,
+    );
+    const anyYtd = effectiveRows.some((r: any) => r.hasYtdData);
+    const anyFuture = effectiveRows.some((r: any) => r.hasFutureProjection);
+    const missingYtdAggregate =
+      effectiveRows.length > 0 && (totalYtdGross <= 0 || totalYtdWithheld <= 0);
+    const missingFutureAggregate = effectiveRows.length > 0 && !anyFuture;
+    const partialEmployers = effectiveRows.filter(
+      (r: any) => !r.hasYtdData || !r.hasFutureProjection,
+    );
+    const anyPartialEmployer =
+      effectiveRows.length > 0 && partialEmployers.length > 0;
+    const multipleW2 = effectiveRows.length > 1;
+    return {
+      anyYtd,
+      anyFuture,
+      missingYtdAggregate,
+      missingFutureAggregate,
+      anyPartialEmployer,
+      multipleW2,
+    };
+  }, [effectiveRows]);
+
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
+
 
   const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
