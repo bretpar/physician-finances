@@ -1007,6 +1007,9 @@ export default function W4PaycheckAdjustmentCard() {
       const hasStreamProjection = !isYtdFallback && detectedPaychecks > 0;
       const hasFutureProjection =
         hasSavedFutureSettings || hasStreamProjection || remainingGross > 0;
+      // Settings-only future projection (no active income stream backing it).
+      // Premium users get a nudge to add a stream for higher accuracy.
+      const settingsOnlyFuture = hasSavedFutureSettings && !hasStreamProjection;
 
       return {
         ...r,
@@ -1019,12 +1022,16 @@ export default function W4PaycheckAdjustmentCard() {
         usedSavedSettings,
         hasYtdData,
         hasFutureProjection,
+        hasStreamProjection,
+        settingsOnlyFuture,
         ytdGrossTotal,
         ytdWithheldTotal,
       };
     });
 
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
+
+  const isPremium = (settings?.subscriptionTier || "premium") === "premium";
 
   // Data-completeness signals used to warn users when the W-4 recommendation
   // may be inaccurate because YTD or future projection data is missing.
@@ -1039,6 +1046,10 @@ export default function W4PaycheckAdjustmentCard() {
     );
     const anyYtd = effectiveRows.some((r: any) => r.hasYtdData);
     const anyFuture = effectiveRows.some((r: any) => r.hasFutureProjection);
+    const anyStream = effectiveRows.some((r: any) => r.hasStreamProjection);
+    const anySettingsOnlyFuture = effectiveRows.some(
+      (r: any) => r.settingsOnlyFuture,
+    );
     const missingYtdAggregate =
       effectiveRows.length > 0 && (totalYtdGross <= 0 || totalYtdWithheld <= 0);
     const missingFutureAggregate = effectiveRows.length > 0 && !anyFuture;
@@ -1048,13 +1059,21 @@ export default function W4PaycheckAdjustmentCard() {
     const anyPartialEmployer =
       effectiveRows.length > 0 && partialEmployers.length > 0;
     const multipleW2 = effectiveRows.length > 1;
+    const allComplete =
+      effectiveRows.length > 0 &&
+      !missingYtdAggregate &&
+      !missingFutureAggregate &&
+      !anyPartialEmployer;
     return {
       anyYtd,
       anyFuture,
+      anyStream,
+      anySettingsOnlyFuture,
       missingYtdAggregate,
       missingFutureAggregate,
       anyPartialEmployer,
       multipleW2,
+      allComplete,
     };
   }, [effectiveRows]);
 
@@ -1195,7 +1214,9 @@ export default function W4PaycheckAdjustmentCard() {
         {(dataCompleteness.missingYtdAggregate ||
           dataCompleteness.missingFutureAggregate ||
           dataCompleteness.anyPartialEmployer ||
-          dataCompleteness.multipleW2) && (
+          dataCompleteness.multipleW2 ||
+          (isPremium && dataCompleteness.anySettingsOnlyFuture) ||
+          dataCompleteness.allComplete) && (
           <div className="space-y-2" data-testid="w4-data-warnings">
             {dataCompleteness.missingYtdAggregate && (
               <div
@@ -1204,10 +1225,15 @@ export default function W4PaycheckAdjustmentCard() {
               >
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
                 <p>
-                  W-4 estimate may be inaccurate because year-to-date income or
-                  federal withholding is missing. Add your latest paystub YTD
-                  gross income and YTD federal withholding for the most
-                  accurate recommendation.
+                  Your W-4 estimate may be inaccurate because YTD paystub
+                  information is missing. Go to{" "}
+                  <Link
+                    to="/settings"
+                    className="font-medium underline underline-offset-2"
+                  >
+                    Settings → W-2 Employers
+                  </Link>{" "}
+                  and add YTD gross income and YTD federal withholding.
                 </p>
               </div>
             )}
@@ -1218,9 +1244,16 @@ export default function W4PaycheckAdjustmentCard() {
               >
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
                 <p>
-                  W-4 estimate may be incomplete because future pay is missing.
-                  Add projected annual income, expected paycheck amount and pay
-                  frequency, or an active income stream for each W-2 employer.
+                  Your W-4 estimate may be incomplete because future paycheck
+                  information is missing. Go to{" "}
+                  <Link
+                    to="/settings"
+                    className="font-medium underline underline-offset-2"
+                  >
+                    Settings → W-2 Employers
+                  </Link>{" "}
+                  and add projected annual income, pay frequency, and expected
+                  federal withholding per paycheck.
                 </p>
               </div>
             )}
@@ -1234,8 +1267,35 @@ export default function W4PaycheckAdjustmentCard() {
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
                   <p>
                     One or more W-2 employers is missing YTD or future paycheck
-                    information. The W-4 recommendation may understate or
-                    overstate extra withholding.
+                    information.{" "}
+                    <Link
+                      to="/settings"
+                      className="font-medium underline underline-offset-2"
+                    >
+                      Open Settings → W-2 Employers
+                    </Link>{" "}
+                    to fill in the missing values.
+                  </p>
+                </div>
+              )}
+            {isPremium &&
+              dataCompleteness.anySettingsOnlyFuture &&
+              !dataCompleteness.missingFutureAggregate && (
+                <div
+                  className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground"
+                  data-testid="w4-premium-stream-nudge"
+                >
+                  <Info className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                  <p>
+                    For the most accurate W-4 estimate, add an{" "}
+                    <Link
+                      to="/projected-income"
+                      className="font-medium underline underline-offset-2"
+                    >
+                      Income Stream
+                    </Link>{" "}
+                    for this employer so future paychecks can be projected
+                    automatically.
                   </p>
                 </div>
               )}
@@ -1250,6 +1310,18 @@ export default function W4PaycheckAdjustmentCard() {
                   employer may withhold as if it is your only job. This W-4
                   estimate combines all W-2 income and withholding to check
                   whether extra withholding is needed.
+                </p>
+              </div>
+            )}
+            {dataCompleteness.allComplete && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-success/40 bg-success/10 p-3 text-xs text-foreground"
+                data-testid="w4-data-complete"
+              >
+                <Info className="h-4 w-4 mt-0.5 shrink-0 text-success" />
+                <p>
+                  This W-4 estimate uses your YTD paystub data and expected
+                  future pay from Settings or Income Streams.
                 </p>
               </div>
             )}
