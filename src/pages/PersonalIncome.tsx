@@ -48,6 +48,9 @@ import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
+import { useW4Calculation } from "@/hooks/useW4Calculation";
+import { decideW2PaycheckRecDisplay } from "@/lib/w2PaycheckRecMethod";
+import { normalizeEmployerName } from "@/components/tax/W4PaycheckAdjustmentCard";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -186,6 +189,8 @@ export default function PersonalIncome() {
   const { data: taxSettings } = useTaxSettings();
   const { actualEstimate, currentPaceEstimate, forecastEstimate } = useTaxEstimate();
   const stateIncomeTaxEnabled = !!taxSettings?.stateIncomeTaxEnabled;
+  const w2RecMethod = taxSettings?.w2PaycheckRecMethod || "annual_w4";
+  const w4Calc = useW4Calculation();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -1197,10 +1202,76 @@ export default function PersonalIncome() {
             {/* Per-paycheck profile-based savings guide — uses the SELECTED
                 tax profile effective rate (NOT annual remaining tax). */}
             {grossAmount > 0 && paycheckSavings && (() => {
-              // withholdingDifference = target − payroll − reserve. Treat any
-              // surplus (payroll + reserve > target) as "over-withheld" with
-              // the surplus surfaced — same UX shape as before the reserve
-              // change. Reserve still never enters payroll totals.
+              const isW2 = isW2Type(form.income_type);
+
+              // Annual W-4 method (W-2 only): replace per-paycheck target with
+              // W-4 gap messaging that references the W-4 Calculator tab.
+              if (isW2 && w2RecMethod === "annual_w4") {
+                // Match this paycheck's employer to a W-4 allocation row to
+                // surface the per-paycheck extra recommended for that employer.
+                const employerName =
+                  companies.find((c) => c.id === form.source_id)?.name ||
+                  form.source_name ||
+                  "";
+                const employerKey = `emp:${normalizeEmployerName(employerName)}|w2`;
+                const alloc = w4Calc.allocations.find(
+                  (a) => a.streamId === employerKey,
+                );
+                const fallbackPerPaycheck =
+                  w4Calc.allocations.length > 0
+                    ? w4Calc.totalExtraThroughYearEnd /
+                      Math.max(
+                        1,
+                        w4Calc.allocations.reduce((s, a) => s + a.remainingPaychecks, 0),
+                      )
+                    : 0;
+                const extraPerPaycheck = alloc
+                  ? alloc.step4cPerPaycheck
+                  : fallbackPerPaycheck;
+
+                const display = decideW2PaycheckRecDisplay({
+                  method: "annual_w4",
+                  isW2: true,
+                  signedAnnualGap: w4Calc.signedAnnualGap,
+                  extraPerPaycheck,
+                });
+                if (!display) return null;
+                const rightColor =
+                  display.mode === "w4_extra_needed"
+                    ? "text-orange-600 dark:text-orange-400"
+                    : "text-emerald-600 dark:text-emerald-400";
+                return (
+                  <div
+                    className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-2"
+                    data-testid="w2-rec-w4-mode"
+                    data-w2-rec-mode={display.mode}
+                  >
+                    <p className="text-xs font-semibold text-muted-foreground">{display.heading}</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-base sm:text-lg font-semibold text-foreground leading-snug">
+                          {display.primary}
+                        </p>
+                        <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+                          {display.secondary}
+                        </p>
+                      </div>
+                      {display.amount != null && (
+                        <div className="flex sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0.5 shrink-0">
+                          <p className={`text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap ${rightColor}`}>
+                            ${display.amount.toLocaleString()}
+                          </p>
+                          <p className={`text-[10px] sm:text-xs font-medium uppercase tracking-wide ${rightColor} opacity-80`}>
+                            {display.rightLabel}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Legacy: paycheck_target (W-2) and all non-W-2 income.
               const reserveApplied = paycheckSavings.additionalTaxReserveApplied;
               const payrollWithheld = paycheckSavings.totalPayrollTaxesWithheld;
               const target = paycheckSavings.paycheckTaxTarget;
@@ -1208,11 +1279,6 @@ export default function PersonalIncome() {
               const status = paycheckSavings.status;
               const isUnder = status === "under_withheld";
               const isOver = status === "over_withheld";
-              const isW2 = isW2Type(form.income_type);
-              // Distinguish a true payroll over-withholding from a surplus
-              // created by the user's additional tax reserve. Real
-              // over-withholding = payroll alone exceeds the target. A
-              // reserve-driven surplus is just earmarked savings.
               const payrollOver = payrollWithheld > target;
               const isReserveDrivenOver = isOver && !payrollOver;
               const absAmount = Math.round(Math.abs(diff));
@@ -1225,11 +1291,6 @@ export default function PersonalIncome() {
                   ? ` • Includes $${Math.round(reserveApplied).toLocaleString()} additional tax reserve (not actual withholding)`
                   : "";
 
-              // Per-paycheck guide language differs by income type:
-              //   • W-2 paychecks have actual payroll withholding, so we frame
-              //     this as a per-paycheck tax target / extra needed on THIS check.
-              //   • 1099 / K-1 / business income has no payroll withholding, so
-              //     we frame it as a recommended tax reserve to set aside.
               const underPrimary = isW2
                 ? `Extra needed for this paycheck: ${amountDisplay}`
                 : `Recommended to set aside: ${amountDisplay}`;
@@ -1267,7 +1328,10 @@ export default function PersonalIncome() {
                 : "text-muted-foreground";
 
               return (
-                <div className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-2">
+                <div
+                  className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-2"
+                  data-testid="w2-rec-paycheck-target-mode"
+                >
                   <p className="text-xs font-semibold text-muted-foreground">
                     {isW2 ? "Paycheck tax target" : "Recommended tax reserve"}
                   </p>
@@ -1303,6 +1367,8 @@ export default function PersonalIncome() {
                 </div>
               );
             })()}
+
+
 
 
             {/* Attachments */}
