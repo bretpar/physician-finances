@@ -1529,6 +1529,7 @@ export type Database = {
           timezone: string | null
           updated_at: string
           user_id: string
+          w2_paycheck_rec_method: string
           withholding_method: string
           withholding_override_amount: number | null
           withholding_override_percent: number | null
@@ -1589,6 +1590,7 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id: string
+          w2_paycheck_rec_method?: string
           withholding_method?: string
           withholding_override_amount?: number | null
           withholding_override_percent?: number | null
@@ -1649,6 +1651,7 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id?: string
+          w2_paycheck_rec_method?: string
           withholding_method?: string
           withholding_override_amount?: number | null
           withholding_override_percent?: number | null
