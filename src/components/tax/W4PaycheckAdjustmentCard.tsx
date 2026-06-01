@@ -1215,8 +1215,7 @@ export default function W4PaycheckAdjustmentCard() {
           dataCompleteness.missingFutureAggregate ||
           dataCompleteness.anyPartialEmployer ||
           dataCompleteness.multipleW2 ||
-          (isPremium && dataCompleteness.anySettingsOnlyFuture) ||
-          dataCompleteness.allComplete) && (
+          dataCompleteness.anyFuture) && (
           <div className="space-y-2" data-testid="w4-data-warnings">
             {dataCompleteness.missingYtdAggregate && (
               <div
@@ -1278,27 +1277,61 @@ export default function W4PaycheckAdjustmentCard() {
                   </p>
                 </div>
               )}
+            {/* Tier-aware data-source message. Tells the user where the W-4
+                future projection is coming from and (for premium) nudges
+                Income Streams as the more accurate path. */}
+            {dataCompleteness.anyFuture && !isPremium && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
+                data-testid="w4-source-free"
+              >
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>
+                  Your W-4 estimate uses manual employer settings. Add
+                  projected salary, remaining paychecks, and expected
+                  withholding in{" "}
+                  <Link
+                    to="/settings"
+                    className="font-medium underline underline-offset-2"
+                  >
+                    Settings → W-2 Employers
+                  </Link>{" "}
+                  for a basic estimate.
+                </p>
+              </div>
+            )}
             {isPremium &&
-              dataCompleteness.anySettingsOnlyFuture &&
-              !dataCompleteness.missingFutureAggregate && (
+              dataCompleteness.anyFuture &&
+              !dataCompleteness.anyStream && (
                 <div
                   className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground"
-                  data-testid="w4-premium-stream-nudge"
+                  data-testid="w4-source-premium-no-stream"
                 >
                   <Info className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
                   <p>
-                    For the most accurate W-4 estimate, add an{" "}
+                    Your W-4 estimate is using manual Settings. Add{" "}
                     <Link
                       to="/projected-income"
                       className="font-medium underline underline-offset-2"
                     >
-                      Income Stream
+                      Income Streams
                     </Link>{" "}
-                    for this employer so future paychecks can be projected
-                    automatically.
+                    for a more accurate paycheck-by-paycheck projection.
                   </p>
                 </div>
               )}
+            {isPremium && dataCompleteness.anyStream && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-success/40 bg-success/10 p-3 text-xs text-foreground"
+                data-testid="w4-source-premium-stream"
+              >
+                <Info className="h-4 w-4 mt-0.5 shrink-0 text-success" />
+                <p>
+                  Your W-4 estimate is using active Income Streams and your
+                  YTD paystub data.
+                </p>
+              </div>
+            )}
             {dataCompleteness.multipleW2 && (
               <div
                 className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
@@ -1310,18 +1343,6 @@ export default function W4PaycheckAdjustmentCard() {
                   employer may withhold as if it is your only job. This W-4
                   estimate combines all W-2 income and withholding to check
                   whether extra withholding is needed.
-                </p>
-              </div>
-            )}
-            {dataCompleteness.allComplete && (
-              <div
-                className="flex items-start gap-2 rounded-md border border-success/40 bg-success/10 p-3 text-xs text-foreground"
-                data-testid="w4-data-complete"
-              >
-                <Info className="h-4 w-4 mt-0.5 shrink-0 text-success" />
-                <p>
-                  This W-4 estimate uses your YTD paystub data and expected
-                  future pay from Settings or Income Streams.
                 </p>
               </div>
             )}
