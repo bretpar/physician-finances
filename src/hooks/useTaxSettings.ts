@@ -6,6 +6,7 @@ import type { DeductionStrategy, EnabledIncomeSources, IncomeProfileType, Onboar
 
 
 export type WithholdingMethod = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
+export type W2PaycheckRecMethod = "paycheck_target" | "annual_w4";
 export type QuarterlyTrackerMethod = "even" | "dynamic";
 export type DeductionType = "standard" | "itemized";
 export type WithholdingOverrideType = "none" | "percent" | "amount";
@@ -35,6 +36,8 @@ export interface TaxRates {
   taxMode: "projected_brackets" | "manual_effective_rate";
   manualEffectiveTaxRate: number | null;
   withholdingMethod: WithholdingMethod;
+  /** Controls how W-2 paycheck guidance is displayed in Personal Income. */
+  w2PaycheckRecMethod: W2PaycheckRecMethod;
   // New tax profile fields
   deductionType: DeductionType;
   itemizedDeductionAmount: number;
@@ -93,6 +96,7 @@ const DEFAULT_RATES: TaxRates = {
   taxMode: "projected_brackets",
   manualEffectiveTaxRate: null,
   withholdingMethod: "dynamic_planner",
+  w2PaycheckRecMethod: "annual_w4",
   deductionType: "standard",
   itemizedDeductionAmount: 0,
   qualifyingChildrenCount: 0,
@@ -169,6 +173,7 @@ export function useTaxSettings(enabled = true) {
         taxMode: (d.tax_mode as TaxRates["taxMode"]) || "projected_brackets",
         manualEffectiveTaxRate: d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null,
         withholdingMethod: (d.withholding_method as WithholdingMethod) || "dynamic_planner",
+        w2PaycheckRecMethod: (d.w2_paycheck_rec_method as W2PaycheckRecMethod) || "annual_w4",
         deductionType: (d.deduction_type as DeductionType) || "standard",
         itemizedDeductionAmount: Number(d.itemized_deduction_amount) || 0,
         qualifyingChildrenCount: Number(d.qualifying_children_count) || 0,
@@ -237,6 +242,7 @@ export function useUpdateTaxSettings() {
       if (rest.standardDeductionOverride !== undefined) payload.standard_deduction_override = rest.standardDeductionOverride;
       if (rest.ssWageCap !== undefined) payload.ss_wage_cap = rest.ssWageCap;
       if (rest.withholdingMethod !== undefined) payload.withholding_method = rest.withholdingMethod;
+      if (rest.w2PaycheckRecMethod !== undefined) payload.w2_paycheck_rec_method = rest.w2PaycheckRecMethod;
       if (rest.manualEffectiveTaxRate !== undefined) payload.manual_effective_tax_rate = rest.manualEffectiveTaxRate;
       if (rest.deductionType !== undefined) payload.deduction_type = rest.deductionType;
       if (rest.itemizedDeductionAmount !== undefined) payload.itemized_deduction_amount = rest.itemizedDeductionAmount;
