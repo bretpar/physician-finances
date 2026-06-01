@@ -23,6 +23,11 @@ import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
 import { useYtdCatchupEntries, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
+import {
+  computeSavedW2CompanyProjectionAddon,
+  ytdCompanyKey,
+} from "@/lib/savedW2CompanyProjection";
+import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 
 export type TaxMode = "actual" | "forecast";
 
