@@ -704,26 +704,9 @@ export default function Onboarding() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="mt-3">
-                          <Label htmlFor={`company-annual-gross-${index}`}>
-                            Expected annual gross income <span className="text-xs text-muted-foreground">(optional)</span>
-                          </Label>
-                          <Input
-                            id={`company-annual-gross-${index}`}
-                            data-testid={`onboarding-annual-gross-${index}`}
-                            type="number"
-                            inputMode="decimal"
-                            placeholder="e.g. 180000"
-                            value={company.projectedAnnualGross ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              updateCompanyDraft(index, { projectedAnnualGross: v === "" ? null : Math.max(0, Number(v) || 0) });
-                            }}
-                          />
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Used by Tax Overview to project remaining-year withholding. You can change this in Settings.
-                          </p>
-                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          You can add projected annual income, expected paycheck amount, and expected federal withholding in Settings → W-2 Employers.
+                        </p>
                       </>
                     )}
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
