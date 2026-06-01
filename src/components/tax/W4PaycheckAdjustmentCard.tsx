@@ -871,8 +871,8 @@ export default function W4PaycheckAdjustmentCard() {
     ? projectedPlannedFutureBusinessReserves
     : 0;
 
-  // Read per-company W-4 settings from Settings > Companies.
-  const { companies } = useCompanies();
+  // Per-company W-4 settings map (companies hook called earlier).
+
   const companyByEmployerKey = useMemo(() => {
     const map = new Map<string, {
       id: string;
