@@ -541,6 +541,47 @@ export function computeAllocations(
   return base;
 }
 
+/**
+ * Inputs to the main W-4 remaining-gap formula. Pure, exported, and unit-
+ * testable so regressions like "projected future W-2 withholding shown as $0
+ * even though employer rows project nonzero withholding" cannot return.
+ *
+ * Federal income tax only. FICA (Social Security / Medicare) and SE tax must
+ * not be passed in via any of these terms.
+ */
+export type W4GapInputs = {
+  projectedAnnualFederalTax: number;
+  /** Actual YTD federal + state withholding already deducted from paychecks. */
+  actualWithheldYtd: number;
+  /** Sum of `expectedNormalWithholding` across the final effective employer
+   *  rows shown in the W-4 table. Drives the visible "Projected future W-2
+   *  withholding" line as well as the gap formula — they MUST match. */
+  projectedFutureFederalW2Withholding: number;
+  /** User-entered tax savings actually set aside / paid. */
+  actualTaxSavedOrPaid: number;
+  /** Estimated tax payments actually made YTD. */
+  estimatedPaymentsMade: number;
+  /** Planned future 1099/business/K-1 reserves counted toward gap (0 when toggle off). */
+  plannedFutureNonW2ReservesCounted: number;
+};
+
+/** Signed annual gap; positive = under-withheld, negative = over-withheld. */
+export function computeSignedW4Gap(inp: W4GapInputs): number {
+  return (
+    inp.projectedAnnualFederalTax -
+    inp.actualWithheldYtd -
+    inp.actualTaxSavedOrPaid -
+    inp.estimatedPaymentsMade -
+    inp.projectedFutureFederalW2Withholding -
+    inp.plannedFutureNonW2ReservesCounted
+  );
+}
+
+/** Floored-at-zero remaining gap allocated across remaining W-2 paychecks. */
+export function computeRemainingW4Gap(inp: W4GapInputs): number {
+  return Math.max(0, computeSignedW4Gap(inp));
+}
+
 export default function W4PaycheckAdjustmentCard() {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
   const { data: settings } = useTaxSettings();
@@ -747,46 +788,6 @@ export default function W4PaycheckAdjustmentCard() {
     ? projectedPlannedFutureBusinessReserves
     : 0;
 
-  const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
-  const taxesAlreadyWithheld =
-    Number(forecastDebug?.actualFederalWithheld ?? 0) +
-    Number(forecastDebug?.actualStateWithheld ?? 0);
-  const actualTaxSavedOrPaid = Number(forecastDebug?.taxSavingsSetAside ?? 0);
-  const estPaymentsAlreadyMade = Number(forecastDebug?.estimatedPaymentsMade ?? 0);
-  const expectedFutureNormalW2Withholding =
-    Number(forecastDebug?.projectedFederalWithheld ?? 0) +
-    Number(forecastDebug?.projectedStateWithheld ?? 0);
-
-  const remainingW4Gap = Math.max(
-    0,
-    projectedTotalTax -
-      taxesAlreadyWithheld -
-      actualTaxSavedOrPaid -
-      estPaymentsAlreadyMade -
-      expectedFutureNormalW2Withholding -
-      plannedFutureBusinessReservesCounted,
-  );
-
-  // ── Stable testable summary numbers ──
-  // projectedHouseholdGross = full forecast household gross (W-2 + business +
-  // other), so audits can verify the full-picture input the W-4 math uses.
-  const projectedHouseholdGross = Number(forecastDebug?.totalGrossIncome ?? 0);
-  // projectedFederalWithholding = actual YTD federal + projected future federal
-  // withholding (excludes state on purpose so the testid name matches reality).
-  const projectedFederalWithholding =
-    Number(forecastDebug?.actualFederalWithheld ?? 0) +
-    Number(forecastDebug?.projectedFederalWithheld ?? 0);
-  // Signed annual gap: positive when under-withheld, negative when over.
-  const signedAnnualGap =
-    projectedTotalTax -
-    taxesAlreadyWithheld -
-    actualTaxSavedOrPaid -
-    estPaymentsAlreadyMade -
-    expectedFutureNormalW2Withholding -
-    plannedFutureBusinessReservesCounted;
-  const annualTaxGap = Math.max(0, signedAnnualGap);
-  const annualTaxSurplus = Math.max(0, -signedAnnualGap);
-
   // Read per-company W-4 settings from Settings > Companies.
   const { companies } = useCompanies();
   const companyByEmployerKey = useMemo(() => {
@@ -920,6 +921,46 @@ export default function W4PaycheckAdjustmentCard() {
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
+
+  const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
+  const taxesAlreadyWithheld =
+    Number(forecastDebug?.actualFederalWithheld ?? 0) +
+    Number(forecastDebug?.actualStateWithheld ?? 0);
+  const actualTaxSavedOrPaid = Number(forecastDebug?.taxSavingsSetAside ?? 0);
+  const estPaymentsAlreadyMade = Number(forecastDebug?.estimatedPaymentsMade ?? 0);
+  // Projected future W-2 federal withholding is derived from the SAME effective
+  // employer rows shown in the W-4 table (federal only — no state, no FICA),
+  // so the displayed breakdown and the gap formula can never disagree.
+  // Upstream forecastDebug.projectedFederalWithheld is often $0 for W-2 users
+  // whose company settings carry the projection; using it directly would leave
+  // future W-2 withholding out of the gap and overstate the W-4 recommendation.
+  const expectedFutureNormalW2Withholding = effectiveRows.reduce(
+    (s, r) => s + (Number(r.expectedNormalWithholding) || 0),
+    0,
+  );
+
+  const w4GapInputs: W4GapInputs = {
+    projectedAnnualFederalTax: projectedTotalTax,
+    actualWithheldYtd: taxesAlreadyWithheld,
+    projectedFutureFederalW2Withholding: expectedFutureNormalW2Withholding,
+    actualTaxSavedOrPaid,
+    estimatedPaymentsMade: estPaymentsAlreadyMade,
+    plannedFutureNonW2ReservesCounted: plannedFutureBusinessReservesCounted,
+  };
+  const remainingW4Gap = computeRemainingW4Gap(w4GapInputs);
+
+  // ── Stable testable summary numbers ──
+  // projectedHouseholdGross = full forecast household gross (W-2 + business +
+  // other), so audits can verify the full-picture input the W-4 math uses.
+  const projectedHouseholdGross = Number(forecastDebug?.totalGrossIncome ?? 0);
+  // projectedFederalWithholding = actual YTD federal + projected future federal
+  // withholding (derived from the same effective rows that drive the table).
+  const projectedFederalWithholding =
+    Number(forecastDebug?.actualFederalWithheld ?? 0) +
+    expectedFutureNormalW2Withholding;
+  const signedAnnualGap = computeSignedW4Gap(w4GapInputs);
+  const annualTaxGap = Math.max(0, signedAnnualGap);
+  const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
   const allocations = useMemo(
     () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
