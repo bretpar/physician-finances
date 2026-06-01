@@ -189,6 +189,8 @@ export default function PersonalIncome() {
   const { data: taxSettings } = useTaxSettings();
   const { actualEstimate, currentPaceEstimate, forecastEstimate } = useTaxEstimate();
   const stateIncomeTaxEnabled = !!taxSettings?.stateIncomeTaxEnabled;
+  const w2RecMethod = taxSettings?.w2PaycheckRecMethod || "annual_w4";
+  const w4Calc = useW4Calculation();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
