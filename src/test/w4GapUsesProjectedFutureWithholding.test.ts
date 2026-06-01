@@ -80,8 +80,9 @@ describe("W-4 gap subtracts projected future W-2 federal withholding from rows",
       (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
       0,
     );
-    // Within one $5/paycheck rounding bucket of the corrected gap.
-    expect(Math.abs(totalCovered - gap)).toBeLessThanOrEqual(5 * rows.length);
+    // Within one $5/paycheck rounding bucket per employer of the corrected gap.
+    const maxDrift = rows.reduce((s, r) => s + 5 * r.remainingPaychecks, 0);
+    expect(Math.abs(totalCovered - gap)).toBeLessThanOrEqual(maxDrift);
     // And clearly below the inflated $22,220 amount that the bug produced.
     expect(totalCovered).toBeLessThan(22_220);
   });
