@@ -327,6 +327,71 @@ function TaxWithholdingSection() {
 }
 
 /* ──────────────────────────────────────────────────────────── */
+/*  W-2 Paycheck Recommendation Method section                   */
+/* ──────────────────────────────────────────────────────────── */
+type W2PaycheckRecDraft = { w2PaycheckRecMethod: W2PaycheckRecMethod };
+
+function W2PaycheckRecMethodSection() {
+  const { data } = useTaxSettings();
+  const updateMutation = useUpdateTaxSettings();
+  const [savedTick, setSavedTick] = useState(false);
+
+  const source: W2PaycheckRecDraft = useMemo(
+    () => ({ w2PaycheckRecMethod: data?.w2PaycheckRecMethod || "annual_w4" }),
+    [data?.w2PaycheckRecMethod],
+  );
+
+  const draft = useSectionDraft<W2PaycheckRecDraft>({
+    source,
+    onSave: async (next) => {
+      if (!data?.id) throw new Error("Tax settings not loaded");
+      await updateMutation.mutateAsync({ id: data.id, w2PaycheckRecMethod: next.w2PaycheckRecMethod });
+      setSavedTick(true);
+      setTimeout(() => setSavedTick(false), 2000);
+    },
+  });
+
+  return (
+    <SectionCard
+      bare
+      title="W-2 paycheck recommendation method"
+      description="How W-2 paycheck guidance is shown on the Personal Income page. Does not change how 1099/K-1/business reserves are recommended."
+      isDirty={draft.isDirty}
+      isSaving={draft.isSaving}
+      justSaved={savedTick}
+      onSave={draft.save}
+      onCancel={draft.cancel}
+    >
+      <RadioGroup
+        value={draft.draft.w2PaycheckRecMethod}
+        onValueChange={(v) => draft.patch({ w2PaycheckRecMethod: v as W2PaycheckRecMethod })}
+        className="space-y-3"
+        data-testid="w2-paycheck-rec-method-radio"
+      >
+        <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+          <RadioGroupItem value="paycheck_target" className="mt-0.5" data-testid="w2-rec-method-paycheck-target" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-card-foreground">Paycheck target method</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Compare each W-2 paycheck against your effective tax rate. This can show whether an individual paycheck was above or below target.
+            </p>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+          <RadioGroupItem value="annual_w4" className="mt-0.5" data-testid="w2-rec-method-annual-w4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-card-foreground">Annual W-4 method</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Use your annual federal tax gap and W-4 projection to guide W-2 paycheck recommendations. Best for W-2-only users.
+            </p>
+          </div>
+        </label>
+      </RadioGroup>
+    </SectionCard>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
 /*  Quarterly Tax Tracker Method section                         */
 /* ──────────────────────────────────────────────────────────── */
 type QuarterlyTrackerDraft = { quarterlyTrackerMethod: QuarterlyTrackerMethod };
@@ -2326,6 +2391,8 @@ export default function Settings() {
         hideActionBar
       >
         <TaxWithholdingSection />
+        <Separator className="my-2" />
+        <W2PaycheckRecMethodSection />
         <Separator className="my-2" />
         <QuarterlyTrackerMethodSection />
       </SectionCard>
