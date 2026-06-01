@@ -459,6 +459,60 @@ export function buildYtdFallbackEmployerRows(
   });
 }
 
+/**
+ * Build placeholder W-4 employer rows for saved W-2 companies that are not
+ * already represented in the stream- or YTD-derived rows. This ensures the
+ * W-4 Calculator renders rows for every W-2 employer the user saved in
+ * Settings, even when no active projected income streams or YTD entries
+ * exist yet. Saved company settings (projectedAnnualGross /
+ * expectedFederalWithholdingPerPaycheck) are applied downstream in the
+ * `effectiveRows` override pass.
+ */
+export type CompanyEmployerInput = {
+  name: string;
+  companyType: string;
+  payFrequency: string | null;
+};
+
+export function buildCompanyOnlyEmployerRows(
+  companies: CompanyEmployerInput[] | null | undefined,
+  existingEmployerKeys: Set<string>,
+): YtdFallbackRow[] {
+  const out: YtdFallbackRow[] = [];
+  const seen = new Set(existingEmployerKeys);
+  for (const c of companies || []) {
+    const ft = normalizeFilingType(c.companyType);
+    if (ft !== "w2" && ft !== "scorp_w2") continue;
+    const norm = normalizeEmployerName(c.name);
+    if (!norm) continue;
+    const key = `emp:${norm}|w2`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      streamId: key,
+      employerKey: key,
+      company: c.name,
+      payFrequency: c.payFrequency || "biweekly",
+      detectedFrequency: null,
+      lastPaycheckDate: null,
+      remainingPaychecks: 0,
+      remainingGross: 0,
+      expectedNormalWithholding: 0,
+      streamIds: [],
+      droppedStreamIds: [],
+      uniqueSourceIds: [],
+      overlapDateCount: 0,
+      __ytdAvgGross: 0,
+      __ytdAvgWithheld: 0,
+      __ytdGrossTotal: 0,
+      __ytdWithheldTotal: 0,
+      __isYtdFallback: true,
+    });
+  }
+  return out;
+}
+
+
 
 
 export type Allocation = EmployerRow & {
@@ -751,7 +805,36 @@ export default function W4PaycheckAdjustmentCard() {
     return buildYtdFallbackEmployerRows(incomeEntries as any);
   }, [employerRows, incomeEntries]);
 
-  const sourceRows = employerRows.length > 0 ? employerRows : ytdFallbackRows;
+  // Read per-company W-4 settings from Settings > Companies. Used both to
+  // build placeholder rows for saved W-2 companies that have no projected
+  // stream or YTD entry yet, and to override projection values downstream.
+  const { companies } = useCompanies();
+
+  // Saved W-2 companies always contribute an employer row, even when the
+  // user has no active projected income streams or YTD income entries yet.
+  // Without this, Settings-only W-2 users would see a blank W-4 tab.
+  const companyOnlyRows = useMemo(() => {
+    const baseRows = employerRows.length > 0 ? employerRows : ytdFallbackRows;
+    const existingKeys = new Set<string>();
+    for (const r of baseRows) {
+      const k = `emp:${normalizeEmployerName(r.company)}|w2`;
+      existingKeys.add(k);
+    }
+    return buildCompanyOnlyEmployerRows(
+      companies.map((c) => ({
+        name: c.name,
+        companyType: c.companyType,
+        payFrequency: c.payFrequency,
+      })),
+      existingKeys,
+    );
+  }, [companies, employerRows, ytdFallbackRows]);
+
+  const sourceRows = [
+    ...(employerRows.length > 0 ? employerRows : ytdFallbackRows),
+    ...companyOnlyRows,
+  ];
+
 
   // User-facing toggle: whether to assume the user will save the recommended
   // future 1099/business/K-1 tax reserves. Defaults ON because most app users
@@ -788,8 +871,8 @@ export default function W4PaycheckAdjustmentCard() {
     ? projectedPlannedFutureBusinessReserves
     : 0;
 
-  // Read per-company W-4 settings from Settings > Companies.
-  const { companies } = useCompanies();
+  // Per-company W-4 settings map (companies hook called earlier).
+
   const companyByEmployerKey = useMemo(() => {
     const map = new Map<string, {
       id: string;
