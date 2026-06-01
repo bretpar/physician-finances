@@ -990,6 +990,24 @@ export default function W4PaycheckAdjustmentCard() {
       const missingSettings = !settings?.payFrequency;
       const usedSavedSettings =
         savedAnnualGross != null || savedFedPerPaycheck != null;
+
+      // Data-completeness signals (drive W-4 accuracy warnings, not math).
+      const ytdGrossTotal =
+        Number((r as any).__ytdGrossTotal) || ytd.gross || 0;
+      const ytdWithheldTotal =
+        Number((r as any).__ytdWithheldTotal) || ytd.withheld || 0;
+      const hasYtdData =
+        ytdGrossTotal > 0 || ytdWithheldTotal > 0 || detectedPaychecks > 0;
+      // "Future projection" = saved annual gross, saved per-paycheck
+      // withholding (paired with a known pay frequency), or an active
+      // projected stream contributing remaining gross/paychecks.
+      const hasSavedFutureSettings =
+        savedAnnualGross != null ||
+        (savedFedPerPaycheck != null && !!settings?.payFrequency);
+      const hasStreamProjection = !isYtdFallback && detectedPaychecks > 0;
+      const hasFutureProjection =
+        hasSavedFutureSettings || hasStreamProjection || remainingGross > 0;
+
       return {
         ...r,
         payFrequency: frequency,
@@ -999,11 +1017,49 @@ export default function W4PaycheckAdjustmentCard() {
         missingSettings,
         isYtdFallback,
         usedSavedSettings,
+        hasYtdData,
+        hasFutureProjection,
+        ytdGrossTotal,
+        ytdWithheldTotal,
       };
     });
+
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
 
+  // Data-completeness signals used to warn users when the W-4 recommendation
+  // may be inaccurate because YTD or future projection data is missing.
+  const dataCompleteness = useMemo(() => {
+    const totalYtdGross = effectiveRows.reduce(
+      (s, r: any) => s + (Number(r.ytdGrossTotal) || 0),
+      0,
+    );
+    const totalYtdWithheld = effectiveRows.reduce(
+      (s, r: any) => s + (Number(r.ytdWithheldTotal) || 0),
+      0,
+    );
+    const anyYtd = effectiveRows.some((r: any) => r.hasYtdData);
+    const anyFuture = effectiveRows.some((r: any) => r.hasFutureProjection);
+    const missingYtdAggregate =
+      effectiveRows.length > 0 && (totalYtdGross <= 0 || totalYtdWithheld <= 0);
+    const missingFutureAggregate = effectiveRows.length > 0 && !anyFuture;
+    const partialEmployers = effectiveRows.filter(
+      (r: any) => !r.hasYtdData || !r.hasFutureProjection,
+    );
+    const anyPartialEmployer =
+      effectiveRows.length > 0 && partialEmployers.length > 0;
+    const multipleW2 = effectiveRows.length > 1;
+    return {
+      anyYtd,
+      anyFuture,
+      missingYtdAggregate,
+      missingFutureAggregate,
+      anyPartialEmployer,
+      multipleW2,
+    };
+  }, [effectiveRows]);
+
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
+
 
   const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
@@ -1132,6 +1188,74 @@ export default function W4PaycheckAdjustmentCard() {
             Add pay frequency and remaining paychecks in Settings for a more precise recommendation.
           </p>
         )}
+
+        {/* Data-completeness warnings — make it obvious when the W-4 estimate
+            may be inaccurate because YTD or future paycheck data is missing.
+            These do NOT change the recommendation math; they only explain it. */}
+        {(dataCompleteness.missingYtdAggregate ||
+          dataCompleteness.missingFutureAggregate ||
+          dataCompleteness.anyPartialEmployer ||
+          dataCompleteness.multipleW2) && (
+          <div className="space-y-2" data-testid="w4-data-warnings">
+            {dataCompleteness.missingYtdAggregate && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground"
+                data-testid="w4-warning-missing-ytd"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
+                <p>
+                  W-4 estimate may be inaccurate because year-to-date income or
+                  federal withholding is missing. Add your latest paystub YTD
+                  gross income and YTD federal withholding for the most
+                  accurate recommendation.
+                </p>
+              </div>
+            )}
+            {dataCompleteness.missingFutureAggregate && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground"
+                data-testid="w4-warning-missing-future"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
+                <p>
+                  W-4 estimate may be incomplete because future pay is missing.
+                  Add projected annual income, expected paycheck amount and pay
+                  frequency, or an active income stream for each W-2 employer.
+                </p>
+              </div>
+            )}
+            {dataCompleteness.anyPartialEmployer &&
+              !dataCompleteness.missingYtdAggregate &&
+              !dataCompleteness.missingFutureAggregate && (
+                <div
+                  className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground"
+                  data-testid="w4-warning-partial-employer"
+                >
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
+                  <p>
+                    One or more W-2 employers is missing YTD or future paycheck
+                    information. The W-4 recommendation may understate or
+                    overstate extra withholding.
+                  </p>
+                </div>
+              )}
+            {dataCompleteness.multipleW2 && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
+                data-testid="w4-multi-employer-note"
+              >
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>
+                  Multiple W-2 jobs can cause under-withholding because each
+                  employer may withhold as if it is your only job. This W-4
+                  estimate combines all W-2 income and withholding to check
+                  whether extra withholding is needed.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
           <div className="space-y-1">
             <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
