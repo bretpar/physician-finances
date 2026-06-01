@@ -541,6 +541,47 @@ export function computeAllocations(
   return base;
 }
 
+/**
+ * Inputs to the main W-4 remaining-gap formula. Pure, exported, and unit-
+ * testable so regressions like "projected future W-2 withholding shown as $0
+ * even though employer rows project nonzero withholding" cannot return.
+ *
+ * Federal income tax only. FICA (Social Security / Medicare) and SE tax must
+ * not be passed in via any of these terms.
+ */
+export type W4GapInputs = {
+  projectedAnnualFederalTax: number;
+  /** Actual YTD federal + state withholding already deducted from paychecks. */
+  actualWithheldYtd: number;
+  /** Sum of `expectedNormalWithholding` across the final effective employer
+   *  rows shown in the W-4 table. Drives the visible "Projected future W-2
+   *  withholding" line as well as the gap formula — they MUST match. */
+  projectedFutureFederalW2Withholding: number;
+  /** User-entered tax savings actually set aside / paid. */
+  actualTaxSavedOrPaid: number;
+  /** Estimated tax payments actually made YTD. */
+  estimatedPaymentsMade: number;
+  /** Planned future 1099/business/K-1 reserves counted toward gap (0 when toggle off). */
+  plannedFutureNonW2ReservesCounted: number;
+};
+
+/** Signed annual gap; positive = under-withheld, negative = over-withheld. */
+export function computeSignedW4Gap(inp: W4GapInputs): number {
+  return (
+    inp.projectedAnnualFederalTax -
+    inp.actualWithheldYtd -
+    inp.actualTaxSavedOrPaid -
+    inp.estimatedPaymentsMade -
+    inp.projectedFutureFederalW2Withholding -
+    inp.plannedFutureNonW2ReservesCounted
+  );
+}
+
+/** Floored-at-zero remaining gap allocated across remaining W-2 paychecks. */
+export function computeRemainingW4Gap(inp: W4GapInputs): number {
+  return Math.max(0, computeSignedW4Gap(inp));
+}
+
 export default function W4PaycheckAdjustmentCard() {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
   const { data: settings } = useTaxSettings();
