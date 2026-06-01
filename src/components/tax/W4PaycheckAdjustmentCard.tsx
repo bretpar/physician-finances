@@ -939,15 +939,15 @@ export default function W4PaycheckAdjustmentCard() {
     0,
   );
 
-  const remainingW4Gap = Math.max(
-    0,
-    projectedTotalTax -
-      taxesAlreadyWithheld -
-      actualTaxSavedOrPaid -
-      estPaymentsAlreadyMade -
-      expectedFutureNormalW2Withholding -
-      plannedFutureBusinessReservesCounted,
-  );
+  const w4GapInputs: W4GapInputs = {
+    projectedAnnualFederalTax: projectedTotalTax,
+    actualWithheldYtd: taxesAlreadyWithheld,
+    projectedFutureFederalW2Withholding: expectedFutureNormalW2Withholding,
+    actualTaxSavedOrPaid,
+    estimatedPaymentsMade: estPaymentsAlreadyMade,
+    plannedFutureNonW2ReservesCounted: plannedFutureBusinessReservesCounted,
+  };
+  const remainingW4Gap = computeRemainingW4Gap(w4GapInputs);
 
   // ── Stable testable summary numbers ──
   // projectedHouseholdGross = full forecast household gross (W-2 + business +
@@ -958,14 +958,7 @@ export default function W4PaycheckAdjustmentCard() {
   const projectedFederalWithholding =
     Number(forecastDebug?.actualFederalWithheld ?? 0) +
     expectedFutureNormalW2Withholding;
-  // Signed annual gap: positive when under-withheld, negative when over.
-  const signedAnnualGap =
-    projectedTotalTax -
-    taxesAlreadyWithheld -
-    actualTaxSavedOrPaid -
-    estPaymentsAlreadyMade -
-    expectedFutureNormalW2Withholding -
-    plannedFutureBusinessReservesCounted;
+  const signedAnnualGap = computeSignedW4Gap(w4GapInputs);
   const annualTaxGap = Math.max(0, signedAnnualGap);
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
