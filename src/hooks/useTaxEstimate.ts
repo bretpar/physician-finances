@@ -23,6 +23,11 @@ import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
 import { useYtdCatchupEntries, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
+import {
+  computeSavedW2CompanyProjectionAddon,
+  ytdCompanyKey,
+} from "@/lib/savedW2CompanyProjection";
+import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -635,6 +640,50 @@ export function useTaxEstimate(): {
       const cuFedW = cu.w2.federalWithheld + cu.business.federalWithheld + cu.other.federalWithheld;
       const cuStateW = cu.w2.stateWithheld + cu.business.stateWithheld + cu.other.stateWithheld;
 
+      // ── Saved W-2 company projection addon ────────────────────────────────
+      // Saved Settings → Companies entries with projectedAnnualGross /
+      // expectedFederalWithholdingPerPaycheck should feed the W-2 forecast
+      // even when no projected_income_stream exists. We avoid double-counting
+      // by (1) skipping companies already covered by an active W-2 stream
+      // (by source_id) and (2) subtracting per-company YTD already in
+      // `personalW2` from the saved annual gross.
+      const w2StreamSourceIds = new Set<string>();
+      for (const s of streams || []) {
+        if (!s.is_active) continue;
+        const ft = normalizeFilingType(s.company_type);
+        if (ft !== "w2" && ft !== "scorp_w2") continue;
+        if (s.source_id) w2StreamSourceIds.add(s.source_id);
+      }
+      const ytdGrossByCompanyKey = new Map<string, number>();
+      for (const e of personal as any[]) {
+        const cat = classifyPersonalIncome(e as any);
+        if (cat !== "w2") continue;
+        const key = ytdCompanyKey((e as any).company);
+        if (!key) continue;
+        ytdGrossByCompanyKey.set(
+          key,
+          (ytdGrossByCompanyKey.get(key) || 0) + Number((e as any).paycheck_amount || 0),
+        );
+      }
+      const savedW2Addon =
+        incomeScope === "actualPlusPlanned"
+          ? computeSavedW2CompanyProjectionAddon({
+              companies: companies.map((c) => ({
+                id: c.id,
+                name: c.name,
+                companyType: c.companyType,
+                payFrequency: c.payFrequency,
+                projectedAnnualGross: c.projectedAnnualGross ?? null,
+                expectedFederalWithholdingPerPaycheck:
+                  c.expectedFederalWithholdingPerPaycheck ?? null,
+              })),
+              coveredCompanyIds: w2StreamSourceIds,
+              ytdGrossByCompanyKey,
+              remainingPaychecksFor: (f) => defaultRemainingPaychecks(f || "biweekly"),
+            })
+          : { futureGross: 0, futureFederalWithheld: 0, perCompany: [] };
+
+
       return {
         businessIncome: businessIncome + cuBizGross,
         seEligibleBusinessIncome: seEligibleBusinessIncome + cuBizGross,
@@ -672,10 +721,10 @@ export function useTaxEstimate(): {
         actualEstimatedPaymentsMade: quarterlyPaid,
         taxSavingsSetAside: savingsTotal,
         remainingPayPeriods,
-        projectedW2Income: projTotals.w2Income,
+        projectedW2Income: projTotals.w2Income + savedW2Addon.futureGross,
         projectedSEIncome,
         projectedOtherIncome: projTotals.otherIncome + Math.max(0, projTotals.seIncome - projectedSEIncome),
-        projectedFederalWithheld: projTotals.federalWithheld,
+        projectedFederalWithheld: projTotals.federalWithheld + savedW2Addon.futureFederalWithheld,
         projectedStateWithheld: projTotals.stateWithheld,
         projectedPreTax: projTotals.preTaxDeductions,
         projectedRetirement: projTotals.retirement401k,
