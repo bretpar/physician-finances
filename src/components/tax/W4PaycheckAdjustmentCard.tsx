@@ -805,7 +805,36 @@ export default function W4PaycheckAdjustmentCard() {
     return buildYtdFallbackEmployerRows(incomeEntries as any);
   }, [employerRows, incomeEntries]);
 
-  const sourceRows = employerRows.length > 0 ? employerRows : ytdFallbackRows;
+  // Read per-company W-4 settings from Settings > Companies. Used both to
+  // build placeholder rows for saved W-2 companies that have no projected
+  // stream or YTD entry yet, and to override projection values downstream.
+  const { companies } = useCompanies();
+
+  // Saved W-2 companies always contribute an employer row, even when the
+  // user has no active projected income streams or YTD income entries yet.
+  // Without this, Settings-only W-2 users would see a blank W-4 tab.
+  const companyOnlyRows = useMemo(() => {
+    const baseRows = employerRows.length > 0 ? employerRows : ytdFallbackRows;
+    const existingKeys = new Set<string>();
+    for (const r of baseRows) {
+      const k = `emp:${normalizeEmployerName(r.company)}|w2`;
+      existingKeys.add(k);
+    }
+    return buildCompanyOnlyEmployerRows(
+      companies.map((c) => ({
+        name: c.name,
+        companyType: c.companyType,
+        payFrequency: c.payFrequency,
+      })),
+      existingKeys,
+    );
+  }, [companies, employerRows, ytdFallbackRows]);
+
+  const sourceRows = [
+    ...(employerRows.length > 0 ? employerRows : ytdFallbackRows),
+    ...companyOnlyRows,
+  ];
+
 
   // User-facing toggle: whether to assume the user will save the recommended
   // future 1099/business/K-1 tax reserves. Defaults ON because most app users
