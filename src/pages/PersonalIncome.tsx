@@ -1215,7 +1215,7 @@ export default function PersonalIncome() {
                   "";
                 const employerKey = `emp:${normalizeEmployerName(employerName)}|w2`;
                 const alloc = w4Calc.allocations.find(
-                  (a) => a.employerKey === employerKey,
+                  (a) => a.streamId === employerKey,
                 );
                 const fallbackPerPaycheck =
                   w4Calc.allocations.length > 0
