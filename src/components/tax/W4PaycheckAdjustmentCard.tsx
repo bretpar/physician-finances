@@ -1215,8 +1215,7 @@ export default function W4PaycheckAdjustmentCard() {
           dataCompleteness.missingFutureAggregate ||
           dataCompleteness.anyPartialEmployer ||
           dataCompleteness.multipleW2 ||
-          (isPremium && dataCompleteness.anySettingsOnlyFuture) ||
-          dataCompleteness.allComplete) && (
+          dataCompleteness.anyFuture) && (
           <div className="space-y-2" data-testid="w4-data-warnings">
             {dataCompleteness.missingYtdAggregate && (
               <div
