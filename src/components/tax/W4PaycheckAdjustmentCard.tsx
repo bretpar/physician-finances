@@ -1007,6 +1007,9 @@ export default function W4PaycheckAdjustmentCard() {
       const hasStreamProjection = !isYtdFallback && detectedPaychecks > 0;
       const hasFutureProjection =
         hasSavedFutureSettings || hasStreamProjection || remainingGross > 0;
+      // Settings-only future projection (no active income stream backing it).
+      // Premium users get a nudge to add a stream for higher accuracy.
+      const settingsOnlyFuture = hasSavedFutureSettings && !hasStreamProjection;
 
       return {
         ...r,
@@ -1019,12 +1022,16 @@ export default function W4PaycheckAdjustmentCard() {
         usedSavedSettings,
         hasYtdData,
         hasFutureProjection,
+        hasStreamProjection,
+        settingsOnlyFuture,
         ytdGrossTotal,
         ytdWithheldTotal,
       };
     });
 
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
+
+  const isPremium = (settings?.subscriptionTier || "premium") === "premium";
 
   // Data-completeness signals used to warn users when the W-4 recommendation
   // may be inaccurate because YTD or future projection data is missing.
@@ -1039,6 +1046,10 @@ export default function W4PaycheckAdjustmentCard() {
     );
     const anyYtd = effectiveRows.some((r: any) => r.hasYtdData);
     const anyFuture = effectiveRows.some((r: any) => r.hasFutureProjection);
+    const anyStream = effectiveRows.some((r: any) => r.hasStreamProjection);
+    const anySettingsOnlyFuture = effectiveRows.some(
+      (r: any) => r.settingsOnlyFuture,
+    );
     const missingYtdAggregate =
       effectiveRows.length > 0 && (totalYtdGross <= 0 || totalYtdWithheld <= 0);
     const missingFutureAggregate = effectiveRows.length > 0 && !anyFuture;
@@ -1048,13 +1059,21 @@ export default function W4PaycheckAdjustmentCard() {
     const anyPartialEmployer =
       effectiveRows.length > 0 && partialEmployers.length > 0;
     const multipleW2 = effectiveRows.length > 1;
+    const allComplete =
+      effectiveRows.length > 0 &&
+      !missingYtdAggregate &&
+      !missingFutureAggregate &&
+      !anyPartialEmployer;
     return {
       anyYtd,
       anyFuture,
+      anyStream,
+      anySettingsOnlyFuture,
       missingYtdAggregate,
       missingFutureAggregate,
       anyPartialEmployer,
       multipleW2,
+      allComplete,
     };
   }, [effectiveRows]);
 
