@@ -2041,6 +2041,25 @@ function CompanyAccordion({
   onDelete: (id: string) => void;
   expired?: boolean;
 }) {
+  const { companies } = useCompanies();
+
+  // Resolve a stream's effective W-2 ownership subtype from the linked
+  // company's saved employee_role (Settings = source of truth), mirroring
+  // Paychecks and W-4 behavior. Non-W-2 subtypes are returned unchanged.
+  const resolveStreamSubtype = (s: ProjectedIncomeStream): string => {
+    const stored = s.ui_income_subtype || "";
+    const isW2 = stored === "w2_user" || stored === "w2_partner";
+    if (!isW2) return stored;
+    const norm = (s.company || "").trim().toLowerCase();
+    const company =
+      (s.source_id ? companies.find((c) => c.id === s.source_id) : null) ||
+      companies.find((c) => c.name.trim().toLowerCase() === norm);
+    const role = company?.employeeRole;
+    if (role === "spouse") return "w2_partner";
+    if (role === "primary") return "w2_user";
+    return stored;
+  };
+
   const grouped = useMemo(() => {
     const map = new Map<string, ProjectedIncomeStream[]>();
     for (const s of streams) {
