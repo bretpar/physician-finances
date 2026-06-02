@@ -645,6 +645,10 @@ export default function W4PaycheckAdjustmentCard() {
   const { data: plannerConversions } = usePlannerConversions();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: transactions } = useTransactions();
+  // Read per-company W-4 settings from Settings > Companies. Hoisted here
+  // so employee role maps (used in render) can read it.
+  const { companies } = useCompanies();
+
 
   // Resolve an employee label (primary user vs spouse) for each W-2 employer.
   // Source of truth: companies.employee_role saved in Settings, keyed by
