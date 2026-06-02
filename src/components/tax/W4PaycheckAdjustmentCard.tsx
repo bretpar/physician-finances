@@ -1423,14 +1423,18 @@ export default function W4PaycheckAdjustmentCard() {
                 const a = allocations.find((x) => x.streamId === r.streamId);
                 const perPaycheck = a?.step4cPerPaycheck ?? 0;
                 const slug = employerSlug(r.company);
-                // Determine employee (primary/spouse) from any source_id that
-                // grouped into this employer row.
+                // Determine employee (primary/spouse). Saved company role
+                // (Settings) takes precedence; fall back to source_id /
+                // ledger-derived role for legacy data.
                 const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
-                let employee: "primary" | "spouse" = "primary";
-                for (const sid of sourceIds) {
-                  const tag = employeeBySourceId.get(sid);
-                  if (tag === "spouse") { employee = "spouse"; break; }
-                  if (tag === "primary") employee = "primary";
+                const byName = employeeByEmployerName.get(normalizeEmployerName(r.company));
+                let employee: "primary" | "spouse" = byName ?? "primary";
+                if (!byName) {
+                  for (const sid of sourceIds) {
+                    const tag = employeeBySourceId.get(sid);
+                    if (tag === "spouse") { employee = "spouse"; break; }
+                    if (tag === "primary") employee = "primary";
+                  }
                 }
                 const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
                 return (
