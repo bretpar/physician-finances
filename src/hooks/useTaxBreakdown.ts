@@ -357,6 +357,37 @@ export function useTaxBreakdown(
       }
     }
 
+    // ── Business income from transactions (canonical source) ─────────────
+    // The tax engine derives business gross from `transactions` where
+    // transaction_type === "income" for business-filing companies (1099 /
+    // K-1 / S-Corp distribution). income_entries only sometimes exist for
+    // these (paycheck-style enrichment). Without this loop a fresh 1099
+    // user with revenue transactions but no income_entries would not see
+    // their business as an income source on Tax Breakdown even though the
+    // tax math includes the profit. Dedupe via `linked_transaction_id`.
+    const txIdsCoveredByIncomes = new Set<string>(
+      incomes
+        .map((e) => (e as any).linked_transaction_id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    for (const tx of txs) {
+      if ((tx as any).transaction_type !== "income") continue;
+      if (isExcludedFromBusiness(tx as any)) continue;
+      if (txIdsCoveredByIncomes.has(tx.id)) continue;
+      if (!matchCompany(tx.entity)) continue;
+      const company = (tx as any).source_id
+        ? companies.find((c) => c.id === (tx as any).source_id)
+        : companies.find((c) => normName(c.name) === normName(tx.entity || ""));
+      const ft = normalizeFilingType(company?.companyType || (tx as any).company_type);
+      const kind = FILING_TO_KIND(ft);
+      // Only canonical-source business kinds here; W-2 is already covered
+      // by income_entries above (paychecks).
+      if (kind !== "business") continue;
+      const name = company?.name || tx.entity || "Unassigned";
+      const agg = ensureAgg(name, ft, company?.id || (tx as any).source_id || null);
+      agg.actualGross += Math.abs(Number(tx.amount) || 0);
+    }
+
     // Expense aggregation per company + cap gains
     interface ExpenseAgg {
       total: number;
