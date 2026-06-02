@@ -2157,7 +2157,8 @@ function CompanyAccordion({
               <div className="space-y-2 pt-2">
                 {companyStreams.map((s) => {
                   const nextDate = nextExpectedDate(s);
-                  const subtype = subtypeMeta(s.ui_income_subtype || "");
+                  const effectiveSubtype = resolveStreamSubtype(s);
+                  const subtype = subtypeMeta(effectiveSubtype);
                   return (
                     <div
                       key={s.id}
@@ -2166,7 +2167,7 @@ function CompanyAccordion({
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 space-y-0.5">
                           <p className="font-medium text-sm text-foreground">
-                            {subtype?.label || s.ui_income_subtype || "Income"}
+                            {subtype?.label || effectiveSubtype || "Income"}
                           </p>
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                             <span>{PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}</span>
