@@ -645,12 +645,26 @@ export default function W4PaycheckAdjustmentCard() {
   const { data: plannerConversions } = usePlannerConversions();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: transactions } = useTransactions();
+  // Read per-company W-4 settings from Settings > Companies. Hoisted here
+  // so employee role maps (used in render) can read it.
+  const { companies } = useCompanies();
 
-  // Resolve an employee label (primary user vs spouse) for each W-2 employer
-  // from the most recent income entry tied to that employer's source_id.
-  // ui_income_subtype "w2_partner" → Spouse, otherwise Primary.
+
+  // Resolve an employee label (primary user vs spouse) for each W-2 employer.
+  // Source of truth: companies.employee_role saved in Settings, keyed by
+  // company id (source_id). Falls back to ui_income_subtype on the most
+  // recent income entry when the company role is unset (legacy data).
   const employeeBySourceId = useMemo(() => {
     const map = new Map<string, "primary" | "spouse">();
+    // 1) Seed from saved companies (Settings is the source of truth).
+    for (const c of companies || []) {
+      const ft = normalizeFilingType(c.companyType);
+      if (ft !== "w2" && ft !== "scorp_w2") continue;
+      if (c.employeeRole === "primary" || c.employeeRole === "spouse") {
+        map.set(c.id, c.employeeRole);
+      }
+    }
+    // 2) Fall back to ledger ui_income_subtype for source_ids without a role.
     const byDate = [...(incomeEntries || [])].sort((a, b) =>
       (b.income_date || "").localeCompare(a.income_date || ""),
     );
@@ -661,7 +675,22 @@ export default function W4PaycheckAdjustmentCard() {
       map.set(sid, subtype === "w2_partner" ? "spouse" : "primary");
     }
     return map;
-  }, [incomeEntries]);
+  }, [incomeEntries, companies]);
+
+  // Same resolution but keyed by normalized employer name so company-only
+  // placeholder rows (which carry no source_id) still get the correct
+  // primary/spouse label.
+  const employeeByEmployerName = useMemo(() => {
+    const map = new Map<string, "primary" | "spouse">();
+    for (const c of companies || []) {
+      const ft = normalizeFilingType(c.companyType);
+      if (ft !== "w2" && ft !== "scorp_w2") continue;
+      if (c.employeeRole === "primary" || c.employeeRole === "spouse") {
+        map.set(normalizeEmployerName(c.name), c.employeeRole);
+      }
+    }
+    return map;
+  }, [companies]);
 
   const [showHow, setShowHow] = useState(false);
 
@@ -805,10 +834,8 @@ export default function W4PaycheckAdjustmentCard() {
     return buildYtdFallbackEmployerRows(incomeEntries as any);
   }, [employerRows, incomeEntries]);
 
-  // Read per-company W-4 settings from Settings > Companies. Used both to
-  // build placeholder rows for saved W-2 companies that have no projected
-  // stream or YTD entry yet, and to override projection values downstream.
-  const { companies } = useCompanies();
+  // companies is hoisted above (see top of component) so the employee role
+  // maps can read it.
 
   // Saved W-2 companies always contribute an employer row, even when the
   // user has no active projected income streams or YTD income entries yet.
@@ -1396,14 +1423,18 @@ export default function W4PaycheckAdjustmentCard() {
                 const a = allocations.find((x) => x.streamId === r.streamId);
                 const perPaycheck = a?.step4cPerPaycheck ?? 0;
                 const slug = employerSlug(r.company);
-                // Determine employee (primary/spouse) from any source_id that
-                // grouped into this employer row.
+                // Determine employee (primary/spouse). Saved company role
+                // (Settings) takes precedence; fall back to source_id /
+                // ledger-derived role for legacy data.
                 const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
-                let employee: "primary" | "spouse" = "primary";
-                for (const sid of sourceIds) {
-                  const tag = employeeBySourceId.get(sid);
-                  if (tag === "spouse") { employee = "spouse"; break; }
-                  if (tag === "primary") employee = "primary";
+                const byName = employeeByEmployerName.get(normalizeEmployerName(r.company));
+                let employee: "primary" | "spouse" = byName ?? "primary";
+                if (!byName) {
+                  for (const sid of sourceIds) {
+                    const tag = employeeBySourceId.get(sid);
+                    if (tag === "spouse") { employee = "spouse"; break; }
+                    if (tag === "primary") employee = "primary";
+                  }
                 }
                 const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
                 return (
@@ -1460,11 +1491,14 @@ export default function W4PaycheckAdjustmentCard() {
             const perPaycheck = a?.step4cPerPaycheck ?? 0;
             const slug = employerSlug(r.company);
             const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
-            let employee: "primary" | "spouse" = "primary";
-            for (const sid of sourceIds) {
-              const tag = employeeBySourceId.get(sid);
-              if (tag === "spouse") { employee = "spouse"; break; }
-              if (tag === "primary") employee = "primary";
+            const byName = employeeByEmployerName.get(normalizeEmployerName(r.company));
+            let employee: "primary" | "spouse" = byName ?? "primary";
+            if (!byName) {
+              for (const sid of sourceIds) {
+                const tag = employeeBySourceId.get(sid);
+                if (tag === "spouse") { employee = "spouse"; break; }
+                if (tag === "primary") employee = "primary";
+              }
             }
             const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
             return (

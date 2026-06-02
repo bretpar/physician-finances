@@ -152,6 +152,36 @@ const emptyForm: FormState = {
 };
 
 const isW2Type = (t: string) => t === "w2_user" || t === "w2_partner";
+
+/**
+ * Override W-2 ledger row ownership (w2_user / w2_partner) from the saved
+ * company employee_role (Settings is the source of truth). MFJ users who
+ * change a W-2 employer to Spouse in Settings expect ledger and W-4 rows
+ * to reflect that everywhere — not the (potentially stale) ui_income_subtype
+ * stored when the paycheck was first entered.
+ */
+function applyCompanyRoleOverride(
+  uiType: string,
+  entry: { source_id?: string | null; company?: string | null },
+  companies: Array<{ id: string; name: string; companyType: string; employeeRole: "primary" | "spouse" | null }>,
+): string {
+  if (uiType !== "w2_user" && uiType !== "w2_partner") return uiType;
+  let role: "primary" | "spouse" | null | undefined;
+  if (entry.source_id) {
+    const c = companies.find((c) => c.id === entry.source_id);
+    role = c?.employeeRole ?? null;
+  }
+  if (!role && entry.company) {
+    const norm = entry.company.trim().toLowerCase();
+    const c = companies.find(
+      (c) => c.name.trim().toLowerCase() === norm && (c.companyType === "w2" || c.companyType === "scorp_w2"),
+    );
+    role = c?.employeeRole ?? null;
+  }
+  if (role === "spouse") return "w2_partner";
+  if (role === "primary") return "w2_user";
+  return uiType;
+}
 const isStockType = (t: string) => t === "short_term_gain" || t === "long_term_gain";
 
 const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown };
@@ -777,7 +807,7 @@ export default function PersonalIncome() {
         {/* Desktop rows */}
         <div className="hidden sm:block divide-y divide-border">
           {entries.map((entry) => {
-            const uiType = hydrateIncomeType(entry);
+            const uiType = applyCompanyRoleOverride(hydrateIncomeType(entry), entry as any, companies);
             const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
             const isLoss = uiType === "loss";
             const reserve = Number((entry as any).additional_tax_reserve || 0);
@@ -881,7 +911,7 @@ export default function PersonalIncome() {
               <MonthHeader label={group.label} />
               <div className="divide-y divide-border">
                 {group.items.map((entry) => {
-                  const uiType = hydrateIncomeType(entry);
+                  const uiType = applyCompanyRoleOverride(hydrateIncomeType(entry), entry as any, companies);
                   const typeLabel =
                     INCOME_TYPES.find((t) => t.value === uiType)?.label ||
                     uiType;
@@ -1433,7 +1463,7 @@ export default function PersonalIncome() {
       {/* Read-only detail card */}
       {detailEntry && (() => {
         const e = detailEntry;
-        const uiType = hydrateIncomeType(e);
+        const uiType = applyCompanyRoleOverride(hydrateIncomeType(e), e as any, companies);
         const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
         const isLoss = uiType === "loss";
         const gross = Number(e.gross_amount) || 0;
