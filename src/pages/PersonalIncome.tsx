@@ -911,7 +911,7 @@ export default function PersonalIncome() {
               <MonthHeader label={group.label} />
               <div className="divide-y divide-border">
                 {group.items.map((entry) => {
-                  const uiType = hydrateIncomeType(entry);
+                  const uiType = applyCompanyRoleOverride(hydrateIncomeType(entry), entry as any, companies);
                   const typeLabel =
                     INCOME_TYPES.find((t) => t.value === uiType)?.label ||
                     uiType;
