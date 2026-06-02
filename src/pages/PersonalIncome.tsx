@@ -1463,7 +1463,7 @@ export default function PersonalIncome() {
       {/* Read-only detail card */}
       {detailEntry && (() => {
         const e = detailEntry;
-        const uiType = hydrateIncomeType(e);
+        const uiType = applyCompanyRoleOverride(hydrateIncomeType(e), e as any, companies);
         const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
         const isLoss = uiType === "loss";
         const gross = Number(e.gross_amount) || 0;
