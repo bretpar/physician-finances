@@ -807,7 +807,7 @@ export default function PersonalIncome() {
         {/* Desktop rows */}
         <div className="hidden sm:block divide-y divide-border">
           {entries.map((entry) => {
-            const uiType = hydrateIncomeType(entry);
+            const uiType = applyCompanyRoleOverride(hydrateIncomeType(entry), entry as any, companies);
             const typeLabel = INCOME_TYPES.find((t) => t.value === uiType)?.label || uiType;
             const isLoss = uiType === "loss";
             const reserve = Number((entry as any).additional_tax_reserve || 0);
