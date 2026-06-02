@@ -2041,6 +2041,25 @@ function CompanyAccordion({
   onDelete: (id: string) => void;
   expired?: boolean;
 }) {
+  const { companies } = useCompanies();
+
+  // Resolve a stream's effective W-2 ownership subtype from the linked
+  // company's saved employee_role (Settings = source of truth), mirroring
+  // Paychecks and W-4 behavior. Non-W-2 subtypes are returned unchanged.
+  const resolveStreamSubtype = (s: ProjectedIncomeStream): string => {
+    const stored = s.ui_income_subtype || "";
+    const isW2 = stored === "w2_user" || stored === "w2_partner";
+    if (!isW2) return stored;
+    const norm = (s.company || "").trim().toLowerCase();
+    const company =
+      (s.source_id ? companies.find((c) => c.id === s.source_id) : null) ||
+      companies.find((c) => c.name.trim().toLowerCase() === norm);
+    const role = company?.employeeRole;
+    if (role === "spouse") return "w2_partner";
+    if (role === "primary") return "w2_user";
+    return stored;
+  };
+
   const grouped = useMemo(() => {
     const map = new Map<string, ProjectedIncomeStream[]>();
     for (const s of streams) {
@@ -2138,7 +2157,8 @@ function CompanyAccordion({
               <div className="space-y-2 pt-2">
                 {companyStreams.map((s) => {
                   const nextDate = nextExpectedDate(s);
-                  const subtype = subtypeMeta(s.ui_income_subtype || "");
+                  const effectiveSubtype = resolveStreamSubtype(s);
+                  const subtype = subtypeMeta(effectiveSubtype);
                   return (
                     <div
                       key={s.id}
@@ -2147,7 +2167,7 @@ function CompanyAccordion({
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 space-y-0.5">
                           <p className="font-medium text-sm text-foreground">
-                            {subtype?.label || s.ui_income_subtype || "Income"}
+                            {subtype?.label || effectiveSubtype || "Income"}
                           </p>
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                             <span>{PAY_FREQUENCIES.find((f) => f.value === s.pay_frequency)?.label || s.pay_frequency}</span>
