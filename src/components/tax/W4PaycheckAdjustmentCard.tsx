@@ -830,10 +830,8 @@ export default function W4PaycheckAdjustmentCard() {
     return buildYtdFallbackEmployerRows(incomeEntries as any);
   }, [employerRows, incomeEntries]);
 
-  // Read per-company W-4 settings from Settings > Companies. Used both to
-  // build placeholder rows for saved W-2 companies that have no projected
-  // stream or YTD entry yet, and to override projection values downstream.
-  const { companies } = useCompanies();
+  // companies is hoisted above (see top of component) so the employee role
+  // maps can read it.
 
   // Saved W-2 companies always contribute an employer row, even when the
   // user has no active projected income streams or YTD income entries yet.
