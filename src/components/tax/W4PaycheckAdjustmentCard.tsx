@@ -646,11 +646,21 @@ export default function W4PaycheckAdjustmentCard() {
   const { data: incomeEntries } = useIncomeEntries();
   const { data: transactions } = useTransactions();
 
-  // Resolve an employee label (primary user vs spouse) for each W-2 employer
-  // from the most recent income entry tied to that employer's source_id.
-  // ui_income_subtype "w2_partner" → Spouse, otherwise Primary.
+  // Resolve an employee label (primary user vs spouse) for each W-2 employer.
+  // Source of truth: companies.employee_role saved in Settings, keyed by
+  // company id (source_id). Falls back to ui_income_subtype on the most
+  // recent income entry when the company role is unset (legacy data).
   const employeeBySourceId = useMemo(() => {
     const map = new Map<string, "primary" | "spouse">();
+    // 1) Seed from saved companies (Settings is the source of truth).
+    for (const c of companies || []) {
+      const ft = normalizeFilingType(c.companyType);
+      if (ft !== "w2" && ft !== "scorp_w2") continue;
+      if (c.employeeRole === "primary" || c.employeeRole === "spouse") {
+        map.set(c.id, c.employeeRole);
+      }
+    }
+    // 2) Fall back to ledger ui_income_subtype for source_ids without a role.
     const byDate = [...(incomeEntries || [])].sort((a, b) =>
       (b.income_date || "").localeCompare(a.income_date || ""),
     );
@@ -661,7 +671,22 @@ export default function W4PaycheckAdjustmentCard() {
       map.set(sid, subtype === "w2_partner" ? "spouse" : "primary");
     }
     return map;
-  }, [incomeEntries]);
+  }, [incomeEntries, companies]);
+
+  // Same resolution but keyed by normalized employer name so company-only
+  // placeholder rows (which carry no source_id) still get the correct
+  // primary/spouse label.
+  const employeeByEmployerName = useMemo(() => {
+    const map = new Map<string, "primary" | "spouse">();
+    for (const c of companies || []) {
+      const ft = normalizeFilingType(c.companyType);
+      if (ft !== "w2" && ft !== "scorp_w2") continue;
+      if (c.employeeRole === "primary" || c.employeeRole === "spouse") {
+        map.set(normalizeEmployerName(c.name), c.employeeRole);
+      }
+    }
+    return map;
+  }, [companies]);
 
   const [showHow, setShowHow] = useState(false);
 
