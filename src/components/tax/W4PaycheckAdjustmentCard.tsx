@@ -1491,11 +1491,14 @@ export default function W4PaycheckAdjustmentCard() {
             const perPaycheck = a?.step4cPerPaycheck ?? 0;
             const slug = employerSlug(r.company);
             const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
-            let employee: "primary" | "spouse" = "primary";
-            for (const sid of sourceIds) {
-              const tag = employeeBySourceId.get(sid);
-              if (tag === "spouse") { employee = "spouse"; break; }
-              if (tag === "primary") employee = "primary";
+            const byName = employeeByEmployerName.get(normalizeEmployerName(r.company));
+            let employee: "primary" | "spouse" = byName ?? "primary";
+            if (!byName) {
+              for (const sid of sourceIds) {
+                const tag = employeeBySourceId.get(sid);
+                if (tag === "spouse") { employee = "spouse"; break; }
+                if (tag === "primary") employee = "primary";
+              }
             }
             const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
             return (
