@@ -292,7 +292,7 @@ async function syncCatchupMirror(args: {
         category: "Professional expenses",
         notes: `Onboarding YTD business expense. Edit from the YTD catch-up section.`,
         entity: c.company_name || "Unassigned",
-        company_type: "1099_schedule_c",
+        company_type: resolvedCompanyType,
         source_id: c.company_id,
         transaction_type: "expense",
         status: "active",
