@@ -257,7 +257,8 @@ async function syncCatchupMirror(args: {
       category: "Income",
       notes: `${friendlyNote}. Edit from the YTD catch-up section.`,
       entity: c.company_name || "Unassigned",
-      company_type: "1099_schedule_c",
+      company_type: resolvedCompanyType,
+
       source_id: c.company_id,
       transaction_type: "income",
       actual_withholding: fedW + stateW,
