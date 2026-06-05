@@ -23,7 +23,10 @@ export interface OnboardingCompanyDraft {
   description?: string;
   payFrequency?: OnboardingPayFrequency;
   projectedAnnualGross?: number | null;
+  /** K-1 SE-tax classification. Only meaningful when type === "k1". */
+  k1SeTaxable?: "active" | "passive" | "unsure" | null;
 }
+
 
 export interface EnabledIncomeSources {
   w2: boolean;

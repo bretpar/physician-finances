@@ -125,9 +125,10 @@ export async function backfillYtdCatchupCompanies(): Promise<void> {
       if (keep?.id) {
         await (supabase as any)
           .from("transactions")
-          .update({ source_id: match.id, entity: match.name })
+          .update({ source_id: match.id, entity: match.name, company_type: match.company_type })
           .eq("id", keep.id);
       }
+
     }
 
     const { data: incomeMirrors } = await (supabase as any)
@@ -194,6 +195,24 @@ async function syncCatchupMirror(args: {
   const friendlyName = "YTD Catch-Up Entry";
   const friendlyNote = `Setup income through ${periodLabel}`;
 
+  // Resolve the LINKED company's filing type so K-1 / Schedule C / S-Corp
+  // routing is preserved on the mirror tx rows. Without this the mirror was
+  // hardcoded to "1099_schedule_c", which caused Tax Breakdown to label a
+  // K-1 entity as 1099 / Schedule C and to drop displayed expenses.
+  let resolvedCompanyType: string = "1099_schedule_c";
+  if (isBusiness && c.company_id) {
+    try {
+      const { data: companyRow } = await (supabase as any)
+        .from("companies")
+        .select("company_type")
+        .eq("id", c.company_id)
+        .maybeSingle();
+      if (companyRow?.company_type) resolvedCompanyType = String(companyRow.company_type);
+    } catch (e) {
+      console.warn("[syncCatchupMirror] company lookup failed; defaulting to 1099_schedule_c", e);
+    }
+  }
+
   // ── Business mirror in `transactions` ───────────────────────────────────
   // A 1099/K-1 catchup may create TWO mirror rows: an income row for gross
   // revenue and (when business_expenses > 0) an expense row for deductible
@@ -212,6 +231,7 @@ async function syncCatchupMirror(args: {
       .delete()
       .in("id", existingIncomeTxRows.slice(1).map((r: any) => r.id));
   }
+
 
   const { data: existingExpenseTxRows } = await (supabase as any)
     .from("transactions")
@@ -238,7 +258,8 @@ async function syncCatchupMirror(args: {
       category: "Income",
       notes: `${friendlyNote}. Edit from the YTD catch-up section.`,
       entity: c.company_name || "Unassigned",
-      company_type: "1099_schedule_c",
+      company_type: resolvedCompanyType,
+
       source_id: c.company_id,
       transaction_type: "income",
       actual_withholding: fedW + stateW,
@@ -272,7 +293,7 @@ async function syncCatchupMirror(args: {
         category: "Professional expenses",
         notes: `Onboarding YTD business expense. Edit from the YTD catch-up section.`,
         entity: c.company_name || "Unassigned",
-        company_type: "1099_schedule_c",
+        company_type: resolvedCompanyType,
         source_id: c.company_id,
         transaction_type: "expense",
         status: "active",
