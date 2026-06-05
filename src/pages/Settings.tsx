@@ -1661,9 +1661,16 @@ function ConnectedAccountsSection() {
     try {
       const { data, error } = await supabase.functions.invoke("plaid-create-link-token");
       toast.dismiss(loadingToast);
+      const payload: any = data || (error as any)?.context?.body || null;
+      const errCode = payload?.error;
+      const errMsg = payload?.message;
       if (error || !data?.link_token) {
-        console.error("plaid-create-link-token failed", error, data);
-        toast.error(`Failed to initialize bank connection${error?.message ? `: ${error.message}` : ""}`);
+        console.error("plaid-create-link-token failed", { error, data: payload });
+        let userMsg = "Unable to start bank connection. Please try again.";
+        if (errCode === "unauthorized") userMsg = "Session expired. Please log in again.";
+        else if (errCode === "plaid_not_configured") userMsg = "Bank connection is not configured yet. Please contact support.";
+        else if (errMsg) userMsg = errMsg;
+        toast.error(userMsg);
         return;
       }
       if (!(window as any).Plaid) {

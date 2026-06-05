@@ -59,8 +59,15 @@ export default function Accounts() {
     setLinkLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("plaid-create-link-token");
+      const payload: any = data || (error as any)?.context?.body || null;
       if (error || !data?.link_token) {
-        toast.error("Failed to initialize bank connection");
+        console.error("plaid-create-link-token failed", { error, data: payload });
+        const code = payload?.error;
+        let msg = "Unable to start bank connection. Please try again.";
+        if (code === "unauthorized") msg = "Session expired. Please log in again.";
+        else if (code === "plaid_not_configured") msg = "Bank connection is not configured yet. Please contact support.";
+        else if (payload?.message) msg = payload.message;
+        toast.error(msg);
         return;
       }
 
