@@ -15,6 +15,35 @@ function looksLikeTransfer(name: string): boolean {
   return TRANSFER_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+function normalizeStr(s: string | null | undefined): string {
+  return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Stable fingerprint for a Plaid transaction independent of Plaid's
+ * transaction_id / account_id / item_id. Used to deduplicate when a user
+ * disconnects and reconnects the same bank — Plaid issues fresh ids, but the
+ * underlying transaction (same date / amount / vendor / account mask) should
+ * relink to the existing row instead of inserting a duplicate.
+ */
+function computeFingerprint(input: {
+  userId: string;
+  date: string;
+  amount: number;
+  name: string;
+  merchantName?: string | null;
+  institutionName?: string | null;
+  accountMask?: string | null;
+  category?: string | null;
+}): string {
+  const amt = Number(input.amount || 0).toFixed(2);
+  const name = normalizeStr(input.merchantName || input.name);
+  const inst = normalizeStr(input.institutionName);
+  const mask = normalizeStr(input.accountMask);
+  const cat = normalizeStr(input.category);
+  return [input.userId, input.date, amt, name, inst, mask, cat].join("|");
+}
+
 interface PlaidAccount {
   id?: string;
   plaid_account_id: string;
