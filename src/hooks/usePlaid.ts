@@ -139,7 +139,13 @@ export function usePlaidNeedsReviewTransactions() {
 }
 
 function syncSummary(data: any) {
-  return `Imported ${data?.raw_imported || 0} raw · Routed ${data?.routed_transactions || data?.transactions_added || 0} · Needs review ${data?.needs_review_transactions || 0} · Skipped ${data?.skipped_ignored_accounts || data?.transactions_skipped || 0} · Tombstoned ${data?.tombstoned_transactions || data?.transactions_tombstoned || 0}`;
+  const added = data?.raw_imported || 0;
+  const relinked = data?.relinked_transactions || 0;
+  const updated = data?.transactions_modified || 0;
+  const review = data?.needs_review_transactions || 0;
+  const skipped = data?.skipped_ignored_accounts || data?.transactions_skipped || 0;
+  const tomb = data?.tombstoned_transactions || data?.transactions_tombstoned || 0;
+  return `Imported ${added} new · Updated ${updated} · Relinked ${relinked} · Needs review ${review} · Skipped ${skipped} · Tombstoned ${tomb}`;
 }
 
 // ---- Sync Transactions ----

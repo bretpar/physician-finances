@@ -15,6 +15,123 @@ function looksLikeTransfer(name: string): boolean {
   return TRANSFER_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+function normalizeStr(s: string | null | undefined): string {
+  return (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Stable fingerprint for a Plaid transaction independent of Plaid's
+ * transaction_id / account_id / item_id. Used to deduplicate when a user
+ * disconnects and reconnects the same bank — Plaid issues fresh ids, but the
+ * underlying transaction (same date / amount / vendor / account mask) should
+ * relink to the existing row instead of inserting a duplicate.
+ */
+function computeFingerprint(input: {
+  userId: string;
+  date: string;
+  amount: number;
+  name: string;
+  merchantName?: string | null;
+  institutionName?: string | null;
+  accountMask?: string | null;
+  category?: string | null;
+}): string {
+  const amt = Number(input.amount || 0).toFixed(2);
+  const name = normalizeStr(input.merchantName || input.name);
+  const inst = normalizeStr(input.institutionName);
+  const mask = normalizeStr(input.accountMask);
+  const cat = normalizeStr(input.category);
+  return [input.userId, input.date, amt, name, inst, mask, cat].join("|");
+}
+
+async function persistRawPlaidTxn(
+  adminClient: any,
+  user: { id: string },
+  orgId: string | null | undefined,
+  item: any,
+  txn: any,
+  accountMaskByPlaidId: Map<string, string | null>,
+): Promise<{ row: any | null; isNew: boolean; relinked: boolean; error: any }> {
+  const baseRow = {
+    user_id: user.id,
+    organization_id: orgId,
+    plaid_transaction_id: txn.transaction_id,
+    plaid_account_id: txn.account_id,
+    date: txn.date,
+    authorized_date: txn.authorized_date || null,
+    name: txn.name || "",
+    merchant_name: txn.merchant_name || null,
+    amount: Math.abs(txn.amount),
+    iso_currency_code: txn.iso_currency_code || "USD",
+    unofficial_currency_code: txn.unofficial_currency_code || null,
+    category_raw:
+      txn.personal_finance_category?.primary ||
+      (Array.isArray(txn.category) ? txn.category[0] : null),
+    pending: txn.pending || false,
+    payment_channel: txn.payment_channel || null,
+    raw_json: txn,
+  };
+
+  const fingerprint = computeFingerprint({
+    userId: user.id,
+    date: baseRow.date,
+    amount: baseRow.amount,
+    name: baseRow.name,
+    merchantName: baseRow.merchant_name,
+    institutionName: item?.institution_name,
+    accountMask: accountMaskByPlaidId.get(txn.account_id) ?? null,
+    category: baseRow.category_raw,
+  });
+
+  // 1) Match by Plaid's transaction_id (same item, normal sync).
+  const { data: byPlaidId } = await adminClient
+    .from("plaid_transactions")
+    .select("id")
+    .eq("plaid_transaction_id", txn.transaction_id)
+    .maybeSingle();
+
+  if (byPlaidId) {
+    const { data: updated, error } = await adminClient
+      .from("plaid_transactions")
+      .update({ ...baseRow, dedupe_fingerprint: fingerprint })
+      .eq("id", byPlaidId.id)
+      .select("*")
+      .single();
+    return { row: updated, isNew: false, relinked: false, error };
+  }
+
+  // 2) Match by stable fingerprint (reconnect / new item, same underlying txn).
+  //    Update plaid_transaction_id + plaid_account_id to the new identifiers
+  //    but preserve plaid_transactions.id so existing routed app rows
+  //    (transactions.plaid_transaction_ref, income_entries.linked_transaction_id)
+  //    stay linked and edits are preserved.
+  const { data: byFp } = await adminClient
+    .from("plaid_transactions")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("dedupe_fingerprint", fingerprint)
+    .maybeSingle();
+
+  if (byFp) {
+    const { data: relinked, error } = await adminClient
+      .from("plaid_transactions")
+      .update({ ...baseRow, dedupe_fingerprint: fingerprint })
+      .eq("id", byFp.id)
+      .select("*")
+      .single();
+    return { row: relinked, isNew: false, relinked: true, error };
+  }
+
+  // 3) New transaction.
+  const { data: inserted, error } = await adminClient
+    .from("plaid_transactions")
+    .insert({ ...baseRow, dedupe_fingerprint: fingerprint })
+    .select("*")
+    .single();
+  return { row: inserted, isNew: true, relinked: false, error };
+}
+
+
 interface PlaidAccount {
   id?: string;
   plaid_account_id: string;
@@ -318,11 +435,14 @@ Deno.serve(async (req) => {
 
     const { data: userAccounts } = await adminClient
       .from("plaid_accounts")
-      .select("id, plaid_item_id, plaid_account_id, account_name, account_type, account_subtype, default_company_id, account_business_mode, sync_enabled, account_routing")
+      .select("id, plaid_item_id, plaid_account_id, account_name, account_mask, account_type, account_subtype, default_company_id, account_business_mode, sync_enabled, account_routing")
       .eq("user_id", user.id)
       .eq("is_active", true);
 
     const accounts: PlaidAccount[] = (userAccounts || []) as any;
+    const accountMaskByPlaidId = new Map<string, string | null>(
+      (userAccounts || []).map((a: any) => [a.plaid_account_id, a.account_mask || null]),
+    );
     const accountByPlaidId = new Map(accounts.map((a) => [a.plaid_account_id, a]));
     const ownedAccountIds = new Set(accounts.map((a) => a.plaid_account_id));
     const stats: Record<string, AccountStat> = {};
@@ -370,6 +490,7 @@ Deno.serve(async (req) => {
     let totalNeedsReview = 0;
     let totalRouted = 0;
     let totalDuplicates = 0;
+    let totalRelinked = 0;
     const newlyAdded: Array<{ id: string; plaid_account_id: string; amount: number; date: string; name: string; raw_amount: number }> = [];
 
     const { data: tombstones } = await adminClient
@@ -546,27 +667,8 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            const { data: plaidTxRow, error: plaidTxError } = await adminClient
-              .from("plaid_transactions")
-              .upsert({
-                user_id: user.id,
-                organization_id: orgId,
-                plaid_transaction_id: txn.transaction_id,
-                plaid_account_id: txn.account_id,
-                date: txn.date,
-                authorized_date: txn.authorized_date || null,
-                name: txn.name || "",
-                merchant_name: txn.merchant_name || null,
-                amount: Math.abs(txn.amount),
-                iso_currency_code: txn.iso_currency_code || "USD",
-                unofficial_currency_code: txn.unofficial_currency_code || null,
-                category_raw: txn.personal_finance_category?.primary || (Array.isArray(txn.category) ? txn.category[0] : null),
-                pending: txn.pending || false,
-                payment_channel: txn.payment_channel || null,
-                raw_json: txn,
-              }, { onConflict: "plaid_transaction_id" })
-              .select("*")
-              .single();
+            const { row: plaidTxRow, isNew, relinked, error: plaidTxError } =
+              await persistRawPlaidTxn(adminClient, user, orgId, item, txn, accountMaskByPlaidId);
 
             if (plaidTxError || !plaidTxRow) {
               console.error("Persist raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: plaidTxError });
@@ -574,8 +676,21 @@ Deno.serve(async (req) => {
               break;
             }
 
-            stat.added++;
-            rawImported++;
+            if (isNew) {
+              stat.added++;
+              rawImported++;
+            } else if (relinked) {
+              totalRelinked++;
+              // Relinked to an existing routed row from a prior connection. Do
+              // not re-route — routeRawPlaidTransaction's hasExistingRoute
+              // check would treat it as a duplicate anyway, and we want to
+              // preserve any user edits / company assignment on the existing
+              // app-level transaction row.
+              continue;
+            } else {
+              // Same plaid_transaction_id already imported — treat as modified.
+              totalModified++;
+            }
 
             if (tombstonedIds.has(txn.transaction_id)) {
               totalTombstoned++;
@@ -605,51 +720,27 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            const { error: rawUpdateError } = await adminClient
-              .from("plaid_transactions")
-              .upsert({
-                user_id: user.id,
-                organization_id: orgId,
-                plaid_transaction_id: txn.transaction_id,
-                plaid_account_id: txn.account_id,
-                date: txn.date,
-                authorized_date: txn.authorized_date || null,
-                name: txn.name || "",
-                merchant_name: txn.merchant_name || null,
-                amount: Math.abs(txn.amount),
-                iso_currency_code: txn.iso_currency_code || "USD",
-                unofficial_currency_code: txn.unofficial_currency_code || null,
-                category_raw: txn.personal_finance_category?.primary || (Array.isArray(txn.category) ? txn.category[0] : null),
-                pending: txn.pending || false,
-                payment_channel: txn.payment_channel || null,
-                raw_json: txn,
-              }, { onConflict: "plaid_transaction_id" });
+            const { row: plaidRow, error: rawUpdateError } =
+              await persistRawPlaidTxn(adminClient, user, orgId, item, txn, accountMaskByPlaidId);
 
-            if (rawUpdateError) {
+            if (rawUpdateError || !plaidRow) {
               console.error("Persist modified raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: rawUpdateError });
               itemHadPersistError = true;
               break;
             }
 
-            const { data: plaidRow } = await adminClient
-              .from("plaid_transactions")
-              .select("id")
-              .eq("plaid_transaction_id", txn.transaction_id)
+            // Prefer posted/final data over pending, but preserve user edits.
+            const { data: appTx } = await adminClient
+              .from("transactions")
+              .select("id, user_edited")
+              .eq("plaid_transaction_ref", plaidRow.id)
               .maybeSingle();
 
-            if (plaidRow) {
-              const { data: appTx } = await adminClient
+            if (appTx && !appTx.user_edited) {
+              await adminClient
                 .from("transactions")
-                .select("id, user_edited")
-                .eq("plaid_transaction_ref", plaidRow.id)
-                .maybeSingle();
-
-              if (appTx && !appTx.user_edited) {
-                await adminClient
-                  .from("transactions")
-                  .update({ transaction_date: txn.date, vendor: txn.name || "", amount: Math.abs(txn.amount) })
-                  .eq("id", appTx.id);
-              }
+                .update({ transaction_date: txn.date, vendor: txn.name || "", amount: Math.abs(txn.amount) })
+                .eq("id", appTx.id);
             }
             totalModified++;
           }
@@ -723,6 +814,7 @@ Deno.serve(async (req) => {
       transactions_tombstoned: totalTombstoned,
       tombstoned_transactions: totalTombstoned,
       duplicate_routes: totalDuplicates,
+      relinked_transactions: totalRelinked,
       balances_refreshed: balancesRefreshed,
       balance_warnings: balanceWarnings,
       account_logs,

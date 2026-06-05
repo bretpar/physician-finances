@@ -860,6 +860,7 @@ export type Database = {
           category_raw: string | null
           created_at: string
           date: string
+          dedupe_fingerprint: string | null
           id: string
           imported_at: string
           iso_currency_code: string | null
@@ -881,6 +882,7 @@ export type Database = {
           category_raw?: string | null
           created_at?: string
           date: string
+          dedupe_fingerprint?: string | null
           id?: string
           imported_at?: string
           iso_currency_code?: string | null
@@ -902,6 +904,7 @@ export type Database = {
           category_raw?: string | null
           created_at?: string
           date?: string
+          dedupe_fingerprint?: string | null
           id?: string
           imported_at?: string
           iso_currency_code?: string | null
