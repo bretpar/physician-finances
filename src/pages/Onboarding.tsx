@@ -766,7 +766,33 @@ export default function Onboarding() {
                         </p>
                       </>
                     )}
+                    {company.type === "k1" && (
+                      <div className="mt-3 rounded-md border border-border bg-muted/20 p-3">
+                        <Label className="text-xs font-semibold">Is this K-1 income subject to self-employment tax?</Label>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          Active general partners are usually subject to SE tax. Limited / passive partners typically are not. If you're not sure, we'll default conservatively and flag it.
+                        </p>
+                        <Select
+                          value={company.k1SeTaxable || ""}
+                          onValueChange={(value) => updateCompanyDraft(index, { k1SeTaxable: value as any })}
+                        >
+                          <SelectTrigger
+                            id={`company-k1-se-${index}`}
+                            data-testid={`onboarding-k1-se-${index}`}
+                            className="mt-2"
+                          >
+                            <SelectValue placeholder="Select…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Active / general partner — include SE tax</SelectItem>
+                            <SelectItem value="passive">Passive / limited partner — no SE tax</SelectItem>
+                            <SelectItem value="unsure">Not sure — flag for review</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
+
                   </div>
                 ))}
                 <Button type="button" variant="outline" data-testid="onboarding-add-employer-button" onClick={addCompanyDraft}>{companySetupCopy.addLabel}</Button>
