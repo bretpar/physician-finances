@@ -44,6 +44,94 @@ function computeFingerprint(input: {
   return [input.userId, input.date, amt, name, inst, mask, cat].join("|");
 }
 
+async function persistRawPlaidTxn(
+  adminClient: any,
+  user: { id: string },
+  orgId: string | null | undefined,
+  item: any,
+  txn: any,
+  accountMaskByPlaidId: Map<string, string | null>,
+): Promise<{ row: any | null; isNew: boolean; relinked: boolean; error: any }> {
+  const baseRow = {
+    user_id: user.id,
+    organization_id: orgId,
+    plaid_transaction_id: txn.transaction_id,
+    plaid_account_id: txn.account_id,
+    date: txn.date,
+    authorized_date: txn.authorized_date || null,
+    name: txn.name || "",
+    merchant_name: txn.merchant_name || null,
+    amount: Math.abs(txn.amount),
+    iso_currency_code: txn.iso_currency_code || "USD",
+    unofficial_currency_code: txn.unofficial_currency_code || null,
+    category_raw:
+      txn.personal_finance_category?.primary ||
+      (Array.isArray(txn.category) ? txn.category[0] : null),
+    pending: txn.pending || false,
+    payment_channel: txn.payment_channel || null,
+    raw_json: txn,
+  };
+
+  const fingerprint = computeFingerprint({
+    userId: user.id,
+    date: baseRow.date,
+    amount: baseRow.amount,
+    name: baseRow.name,
+    merchantName: baseRow.merchant_name,
+    institutionName: item?.institution_name,
+    accountMask: accountMaskByPlaidId.get(txn.account_id) ?? null,
+    category: baseRow.category_raw,
+  });
+
+  // 1) Match by Plaid's transaction_id (same item, normal sync).
+  const { data: byPlaidId } = await adminClient
+    .from("plaid_transactions")
+    .select("id")
+    .eq("plaid_transaction_id", txn.transaction_id)
+    .maybeSingle();
+
+  if (byPlaidId) {
+    const { data: updated, error } = await adminClient
+      .from("plaid_transactions")
+      .update({ ...baseRow, dedupe_fingerprint: fingerprint })
+      .eq("id", byPlaidId.id)
+      .select("*")
+      .single();
+    return { row: updated, isNew: false, relinked: false, error };
+  }
+
+  // 2) Match by stable fingerprint (reconnect / new item, same underlying txn).
+  //    Update plaid_transaction_id + plaid_account_id to the new identifiers
+  //    but preserve plaid_transactions.id so existing routed app rows
+  //    (transactions.plaid_transaction_ref, income_entries.linked_transaction_id)
+  //    stay linked and edits are preserved.
+  const { data: byFp } = await adminClient
+    .from("plaid_transactions")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("dedupe_fingerprint", fingerprint)
+    .maybeSingle();
+
+  if (byFp) {
+    const { data: relinked, error } = await adminClient
+      .from("plaid_transactions")
+      .update({ ...baseRow, dedupe_fingerprint: fingerprint })
+      .eq("id", byFp.id)
+      .select("*")
+      .single();
+    return { row: relinked, isNew: false, relinked: true, error };
+  }
+
+  // 3) New transaction.
+  const { data: inserted, error } = await adminClient
+    .from("plaid_transactions")
+    .insert({ ...baseRow, dedupe_fingerprint: fingerprint })
+    .select("*")
+    .single();
+  return { row: inserted, isNew: true, relinked: false, error };
+}
+
+
 interface PlaidAccount {
   id?: string;
   plaid_account_id: string;
