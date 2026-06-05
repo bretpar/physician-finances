@@ -402,6 +402,7 @@ Deno.serve(async (req) => {
     let totalNeedsReview = 0;
     let totalRouted = 0;
     let totalDuplicates = 0;
+    let totalRelinked = 0;
     const newlyAdded: Array<{ id: string; plaid_account_id: string; amount: number; date: string; name: string; raw_amount: number }> = [];
 
     const { data: tombstones } = await adminClient
