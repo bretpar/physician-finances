@@ -125,9 +125,10 @@ export async function backfillYtdCatchupCompanies(): Promise<void> {
       if (keep?.id) {
         await (supabase as any)
           .from("transactions")
-          .update({ source_id: match.id, entity: match.name })
+          .update({ source_id: match.id, entity: match.name, company_type: match.company_type })
           .eq("id", keep.id);
       }
+
     }
 
     const { data: incomeMirrors } = await (supabase as any)
