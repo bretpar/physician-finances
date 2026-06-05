@@ -247,34 +247,76 @@ export default function Onboarding() {
       .from("ytd_catchup_entries")
       .select("company_name, source_type, gross_income")
       .eq("user_id", user.id);
+    const normName = (s: string) => String(s || "").trim().toLowerCase();
     const catchupDrafts: OnboardingCompanyDraft[] = ((persistedCatchups || []) as any[])
       .filter((entry) => entry.company_name)
       .map((entry) => ({
         name: String(entry.company_name || ""),
+        // Default catchup-derived business rows to 1099. The user's explicit
+        // selection in the company setup step (k1, etc.) overrides this via
+        // dedupe-by-name below — never insert both.
         type: entry.source_type === "w2" ? "w2" : entry.source_type === "1099_k1" ? "1099" : allowed[0],
         description: "",
         payFrequency: entry.source_type === "w2" ? ("biweekly" as const) : undefined,
         projectedAnnualGross: Number(entry.gross_income) > 0 ? Number(entry.gross_income) : null,
       }))
       .filter((company) => allowed.includes(company.type));
-    const normalizedDrafts = [...catchupDrafts, ...companyDrafts]
-      .map((company) => ({ ...company, name: company.name.trim(), description: company.description?.trim() || "" }))
-      .filter((company) => company.name || company.description);
-    const incompleteDraft = normalizedDrafts.find((company) => !company.name || !company.type);
+
+    // Build a name-keyed map. User-entered drafts take priority over
+    // catch-up-derived drafts so picking "K-1" in the company step
+    // reclassifies the row instead of creating a parallel 1099 record.
+    const draftsByName = new Map<string, OnboardingCompanyDraft>();
+    for (const cd of catchupDrafts) {
+      const k = normName(cd.name);
+      if (k) draftsByName.set(k, { ...cd, name: cd.name.trim() });
+    }
+    for (const ud of companyDrafts) {
+      const trimmed = { ...ud, name: ud.name.trim(), description: ud.description?.trim() || "" };
+      const k = normName(trimmed.name);
+      if (!k && !trimmed.description) continue;
+      if (!k) continue;
+      const prior = draftsByName.get(k);
+      // User draft wins on type/payFrequency/k1SeTaxable; preserve
+      // projectedAnnualGross from the catch-up if the user didn't provide one.
+      draftsByName.set(k, {
+        ...prior,
+        ...trimmed,
+        projectedAnnualGross: trimmed.projectedAnnualGross ?? prior?.projectedAnnualGross ?? null,
+      });
+    }
+    const mergedDrafts = Array.from(draftsByName.values());
+    const incompleteDraft = mergedDrafts.find((company) => !company.name || !company.type);
     if (incompleteDraft) throw new Error("Add a company name or remove the unfinished company card.");
-    const validDrafts = normalizedDrafts.filter((company) => company.name && allowed.includes(company.type));
+    const validDrafts = mergedDrafts.filter((company) => company.name && allowed.includes(company.type));
     if (validDrafts.length === 0) return;
-    const uniqueDrafts = Array.from(new Map(validDrafts.map((company) => [`${company.name.toLowerCase()}::${company.type}`, company])).values());
     const orgId = await getUserOrgId();
     const { data: existing, error: existingError } = await supabase
       .from("companies")
-      .select("name, company_type")
+      .select("id, name, company_type")
       .eq("user_id", user.id);
     if (existingError) throw existingError;
-    const existingKeys = new Set((existing || []).map((company: any) => `${String(company.name || "").trim().toLowerCase()}::${company.company_type}`));
-    const rows = uniqueDrafts.map((company) => {
+    // Dedupe against existing companies by normalized name ONLY (not name+type)
+    // so a previously-created "Northwest Orthopedic Partners" as 1099 is
+    // updated to k1_partnership rather than duplicated when the user
+    // re-classifies it during company setup.
+    const existingByName = new Map<string, any>();
+    for (const c of (existing || []) as any[]) {
+      const k = normName(c.name);
+      if (k && !existingByName.has(k)) existingByName.set(k, c);
+    }
+
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: string; patch: any }> = [];
+    for (const company of validDrafts) {
       const companyType = onboardingCompanyTypeToFilingType(company.type);
-      return {
+      const isK1 = company.type === "k1";
+      // Active K-1 → SE tax applies. Passive → no SE tax. "Unsure" defaults
+      // conservatively to NOT including SE tax in recommendations (matches
+      // typical limited-partner behavior); user can flip in Settings.
+      const includeSeTax = isK1
+        ? company.k1SeTaxable === "active"
+        : true;
+      const row = {
         user_id: user.id,
         organization_id: orgId,
         name: company.name,
@@ -287,24 +329,39 @@ export default function Onboarding() {
         default_setaside_pct: null,
         advanced_field_visibility: {},
         apply_business_state_tax: true,
-        include_se_tax_in_recommendation: true,
+        include_se_tax_in_recommendation: includeSeTax,
         pay_frequency: company.type === "w2" ? (company.payFrequency || "biweekly") : null,
         projected_annual_gross: company.projectedAnnualGross ?? null,
       };
-    }).filter((company) => !existingKeys.has(`${company.name.toLowerCase()}::${company.company_type}`));
-    if (rows.length === 0) {
-      // Even when no new rows are inserted, backfill in case prior catch-ups
-      // were saved before the company existed.
-      try { await backfillYtdCatchupCompanies(); } catch (e) { console.warn("[onboarding] backfill ytd catch-up failed", e); }
-      return;
+      const existingRow = existingByName.get(normName(company.name));
+      if (existingRow) {
+        // Reclassify only if changed. Always patch SE-tax flag for K-1.
+        const patch: any = {};
+        if (existingRow.company_type !== companyType) {
+          patch.company_type = companyType;
+          patch.source_kind = row.source_kind;
+        }
+        if (isK1) patch.include_se_tax_in_recommendation = includeSeTax;
+        if (Object.keys(patch).length > 0) toUpdate.push({ id: existingRow.id, patch });
+      } else {
+        toInsert.push(row);
+      }
     }
-    const { error } = await supabase.from("companies").insert(rows as any);
-    if (error) throw error;
-    // Link any pre-existing YTD catch-up entries (saved before the company
-    // existed) to the newly-created company by normalized name, and update
-    // their mirror transactions so Business Activity shows the company name.
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from("companies").insert(toInsert as any);
+      if (error) throw error;
+    }
+    for (const u of toUpdate) {
+      const { error } = await supabase.from("companies").update(u.patch as any).eq("id", u.id);
+      if (error) console.warn("[onboarding] company reclassify update failed", error);
+    }
+    // Link YTD catch-up entries + their mirror tx/income rows to the final
+    // company by normalized name (now unique per name → backfill matches
+    // unambiguously and propagates the K-1 company_type onto the mirrors).
     try { await backfillYtdCatchupCompanies(); } catch (e) { console.warn("[onboarding] backfill ytd catch-up failed", e); }
   }
+
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}) {
     if (!settingsId) return;
