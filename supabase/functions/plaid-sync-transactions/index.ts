@@ -667,27 +667,8 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            const { data: plaidTxRow, error: plaidTxError } = await adminClient
-              .from("plaid_transactions")
-              .upsert({
-                user_id: user.id,
-                organization_id: orgId,
-                plaid_transaction_id: txn.transaction_id,
-                plaid_account_id: txn.account_id,
-                date: txn.date,
-                authorized_date: txn.authorized_date || null,
-                name: txn.name || "",
-                merchant_name: txn.merchant_name || null,
-                amount: Math.abs(txn.amount),
-                iso_currency_code: txn.iso_currency_code || "USD",
-                unofficial_currency_code: txn.unofficial_currency_code || null,
-                category_raw: txn.personal_finance_category?.primary || (Array.isArray(txn.category) ? txn.category[0] : null),
-                pending: txn.pending || false,
-                payment_channel: txn.payment_channel || null,
-                raw_json: txn,
-              }, { onConflict: "plaid_transaction_id" })
-              .select("*")
-              .single();
+            const { row: plaidTxRow, isNew, relinked, error: plaidTxError } =
+              await persistRawPlaidTxn(adminClient, user, orgId, item, txn, accountMaskByPlaidId);
 
             if (plaidTxError || !plaidTxRow) {
               console.error("Persist raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: plaidTxError });
@@ -695,8 +676,21 @@ Deno.serve(async (req) => {
               break;
             }
 
-            stat.added++;
-            rawImported++;
+            if (isNew) {
+              stat.added++;
+              rawImported++;
+            } else if (relinked) {
+              totalRelinked++;
+              // Relinked to an existing routed row from a prior connection. Do
+              // not re-route — routeRawPlaidTransaction's hasExistingRoute
+              // check would treat it as a duplicate anyway, and we want to
+              // preserve any user edits / company assignment on the existing
+              // app-level transaction row.
+              continue;
+            } else {
+              // Same plaid_transaction_id already imported — treat as modified.
+              totalModified++;
+            }
 
             if (tombstonedIds.has(txn.transaction_id)) {
               totalTombstoned++;
@@ -726,51 +720,27 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            const { error: rawUpdateError } = await adminClient
-              .from("plaid_transactions")
-              .upsert({
-                user_id: user.id,
-                organization_id: orgId,
-                plaid_transaction_id: txn.transaction_id,
-                plaid_account_id: txn.account_id,
-                date: txn.date,
-                authorized_date: txn.authorized_date || null,
-                name: txn.name || "",
-                merchant_name: txn.merchant_name || null,
-                amount: Math.abs(txn.amount),
-                iso_currency_code: txn.iso_currency_code || "USD",
-                unofficial_currency_code: txn.unofficial_currency_code || null,
-                category_raw: txn.personal_finance_category?.primary || (Array.isArray(txn.category) ? txn.category[0] : null),
-                pending: txn.pending || false,
-                payment_channel: txn.payment_channel || null,
-                raw_json: txn,
-              }, { onConflict: "plaid_transaction_id" });
+            const { row: plaidRow, error: rawUpdateError } =
+              await persistRawPlaidTxn(adminClient, user, orgId, item, txn, accountMaskByPlaidId);
 
-            if (rawUpdateError) {
+            if (rawUpdateError || !plaidRow) {
               console.error("Persist modified raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: rawUpdateError });
               itemHadPersistError = true;
               break;
             }
 
-            const { data: plaidRow } = await adminClient
-              .from("plaid_transactions")
-              .select("id")
-              .eq("plaid_transaction_id", txn.transaction_id)
+            // Prefer posted/final data over pending, but preserve user edits.
+            const { data: appTx } = await adminClient
+              .from("transactions")
+              .select("id, user_edited")
+              .eq("plaid_transaction_ref", plaidRow.id)
               .maybeSingle();
 
-            if (plaidRow) {
-              const { data: appTx } = await adminClient
+            if (appTx && !appTx.user_edited) {
+              await adminClient
                 .from("transactions")
-                .select("id, user_edited")
-                .eq("plaid_transaction_ref", plaidRow.id)
-                .maybeSingle();
-
-              if (appTx && !appTx.user_edited) {
-                await adminClient
-                  .from("transactions")
-                  .update({ transaction_date: txn.date, vendor: txn.name || "", amount: Math.abs(txn.amount) })
-                  .eq("id", appTx.id);
-              }
+                .update({ transaction_date: txn.date, vendor: txn.name || "", amount: Math.abs(txn.amount) })
+                .eq("id", appTx.id);
             }
             totalModified++;
           }
