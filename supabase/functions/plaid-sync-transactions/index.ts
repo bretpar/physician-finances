@@ -347,11 +347,14 @@ Deno.serve(async (req) => {
 
     const { data: userAccounts } = await adminClient
       .from("plaid_accounts")
-      .select("id, plaid_item_id, plaid_account_id, account_name, account_type, account_subtype, default_company_id, account_business_mode, sync_enabled, account_routing")
+      .select("id, plaid_item_id, plaid_account_id, account_name, account_mask, account_type, account_subtype, default_company_id, account_business_mode, sync_enabled, account_routing")
       .eq("user_id", user.id)
       .eq("is_active", true);
 
     const accounts: PlaidAccount[] = (userAccounts || []) as any;
+    const accountMaskByPlaidId = new Map<string, string | null>(
+      (userAccounts || []).map((a: any) => [a.plaid_account_id, a.account_mask || null]),
+    );
     const accountByPlaidId = new Map(accounts.map((a) => [a.plaid_account_id, a]));
     const ownedAccountIds = new Set(accounts.map((a) => a.plaid_account_id));
     const stats: Record<string, AccountStat> = {};
