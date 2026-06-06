@@ -709,8 +709,8 @@ export function useTaxEstimate(): {
 
       return {
         businessIncome: businessIncome + cuBizGross,
-        seEligibleBusinessIncome: seEligibleBusinessIncome + cuBizGross,
-        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction + forecastBusinessExpenses + cu.business.expenses,
+        seEligibleBusinessIncome: seEligibleBusinessIncome + cu.business.seEligibleGross,
+        seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction + forecastBusinessExpenses + cu.business.seEligibleExpenses,
         seEligibleMileageDeduction: mileageDeduction * seEligibleRatio,
         businessW2,
         businessFederalWithheld: businessFederalWithheld + cu.business.federalWithheld,
