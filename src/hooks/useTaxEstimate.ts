@@ -402,14 +402,37 @@ export function useTaxEstimate(): {
           bucket.hsa += cHsa;
           bucket.retirement += cRetire;
           if (targetBucket === "business") {
-            bucket.expenses += Math.max(0, Number((c as any).business_expenses) || 0);
+            const catchupExpenses = Math.max(0, Number((c as any).business_expenses) || 0);
+            bucket.expenses += catchupExpenses;
+            // Per-entity SE-eligibility: only catch-ups whose linked company
+            // is flagged as SE-taxable (active K-1 / 1099) contribute to the
+            // SE-tax base. Passive K-1 catch-ups still flow into bucket.gross
+            // and bucket.expenses (ordinary business income) but must NOT
+            // pollute the SE base or one entity's expenses would erode
+            // another entity's SE-taxable net profit.
+            const linkedCompany =
+              (c.company_id && companies.find((co) => co.id === c.company_id)) ||
+              ((c as any).company_name
+                ? companies.find(
+                    (co) =>
+                      co.name.toLowerCase().trim() ===
+                      String((c as any).company_name).toLowerCase().trim(),
+                  )
+                : undefined);
+            const seEligible = linkedCompany
+              ? linkedCompany.includeSETaxInRecommendation !== false
+              : true;
+            if (seEligible) {
+              bucket.seEligibleGross += cGross;
+              bucket.seEligibleExpenses += catchupExpenses;
+            }
           }
           return acc;
         },
         {
-          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0 },
-          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0 },
-          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0 },
+          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0 },
+          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0 },
+          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0 },
         },
       );
 
