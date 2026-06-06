@@ -295,11 +295,15 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // Display: ALL business gross (actual + projected SE + projected other-business).
   const grossBusinessIncome = businessIncome + projSE + projOther;
 
-  // Other income = personal non-W2 + stock/ordinary investment + LTCG slice + ineligible actual business + projected other.
+  // Other income = personal non-W2 + stock/ordinary investment + LTCG slice + projected other.
   // The LTCG slice flows through AGI here; the engine separates it out at the federal-tax step
   // so it gets taxed at long-term capital gains brackets instead of ordinary brackets.
-  const ineligibleBusinessIncome = Math.max(0, businessIncome - seEligibleBusinessIncome);
-  const otherIncome = personalNonW2Income + netStockGain + longTermCapitalGains + ineligibleBusinessIncome + projOther;
+  //
+  // NOTE: non-SE business income (e.g. passive K-1, S-Corp distributions) is NOT added here.
+  // It already flows through `grossBusinessIncome` → `netBusinessProfit` (after business
+  // expenses) into `totalReturnIncomeBeforeAdjustments`, where it is taxed as ordinary
+  // income. Re-adding it as "other income" would double-count the same dollars in AGI.
+  const otherIncome = personalNonW2Income + netStockGain + longTermCapitalGains + projOther;
 
   // combinedPreTax = ONLY W-2 payroll pre-tax deductions (NOT health insurance, NOT HSA from K-1/1099/individual).
   // healthInsuranceDeduction is tracked separately so the breakdown UI can label it explicitly.
