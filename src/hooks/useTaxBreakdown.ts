@@ -335,6 +335,11 @@ export function useTaxBreakdown(
       }
     }
 
+    // Per-stream count of "active" planned paychecks, used below to project
+    // planned business expenses (forecast_expense_per_period × active count)
+    // into each linked company's expense bucket so include-planned Tax
+    // Breakdown reflects expenses the user entered on K-1 / 1099 streams.
+    const activePaychecksByStream = new Map<string, number>();
     if (mode === "forecast") {
       const paychecks = generateProjectedPaychecks(streams, bonuses, incomes, overrides);
       const activePlanned = paychecks.filter((p) => p.matchStatus === "active");
@@ -354,6 +359,9 @@ export function useTaxBreakdown(
         agg.withheld += p.taxesWithheld;
         plannedPreTaxTotal += p.preTaxDeductions;
         plannedRetirementTotal += p.retirement401k;
+        if (p.type === "paycheck") {
+          activePaychecksByStream.set(p.streamId, (activePaychecksByStream.get(p.streamId) || 0) + 1);
+        }
       }
     }
 
