@@ -481,6 +481,38 @@ export function useTaxBreakdown(
       agg.byCategory.set("office", catAgg);
       expensesByCompany.set(company.id, agg);
     }
+
+    // ── Planned business expenses from Income Planner (forecast mode only) ──
+    // Streams allow users to enter `forecast_expense_per_period` for K-1 /
+    // 1099 / Schedule-C income. Without this projection the Tax Breakdown
+    // shows planned revenue but ignores planned expenses, so include-planned
+    // business profit overstates by the planned expense amount.
+    if (mode === "forecast") {
+      for (const stream of streams) {
+        if (!stream.is_active) continue;
+        const perPeriod = Math.max(0, Number(stream.forecast_expense_per_period) || 0);
+        if (perPeriod <= 0) continue;
+        const ft = normalizeFilingType(stream.company_type);
+        const kind = FILING_TO_KIND(ft);
+        if (kind !== "business") continue;
+        const activeCount = activePaychecksByStream.get(stream.id) || 0;
+        if (activeCount <= 0) continue;
+        const plannedExpense = perPeriod * activeCount;
+        const company = stream.source_id ? companies.find((c) => c.id === stream.source_id) : undefined;
+        const companyId = company?.id || stream.source_id || null;
+        const companyName = company?.name || stream.company || "Planned";
+        if (!matchCompany(companyName)) continue;
+        if (!companyId) continue;
+        const agg = expensesByCompany.get(companyId) ?? { total: 0, byCategory: new Map(), txCount: 0 };
+        agg.total += plannedExpense;
+        const catAgg = agg.byCategory.get("other") ?? { total: 0, count: 0 };
+        catAgg.total += plannedExpense;
+        catAgg.count += 1;
+        agg.byCategory.set("other", catAgg);
+        expensesByCompany.set(companyId, agg);
+      }
+    }
+
     const sources: IncomeSourceBreakdown[] = [];
     let totalBusinessRevenue = 0;
     let totalBusinessExpenses = 0;
