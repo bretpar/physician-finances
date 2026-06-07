@@ -213,10 +213,25 @@ export function useTaxEstimate(): {
     for (const t of txs) {
       if (t.transaction_type !== "expense") continue;
       if (isExcludedFromBusiness(t as any) || t.entity === "Unassigned") continue;
+      // EXCLUDE YTD catch-up expense mirror rows from the SE-eligible expense
+      // canonical pass — they're already counted in cu.business.seEligibleExpenses
+      // via the catch-up bucket reducer (which scopes SE-eligibility per linked
+      // company). Without this filter, an active K-1 catch-up's expenses are
+      // double-counted, eroding its SE-taxable net profit by the catch-up
+      // amount (and historically also let one entity's catch-up expense leak
+      // into another entity's SE base when the mirror's company lookup hit a
+      // different active K-1).
+      if ((t as any).origin_type === "ytd_catchup") continue;
       const company = (t.source_id && companyById.get(t.source_id)) ||
         (t.entity && companyByName.get(t.entity.toLowerCase().trim()));
       const filing = normalizeFilingType(company?.companyType || t.company_type);
-      if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false) {
+      // STRICT per-entity SE rule: only count this expense in the SE-eligible
+      // pool if its OWN linked company is K-1/1099 AND is flagged SE-taxable.
+      // If the company can't be resolved we deliberately do NOT count the
+      // expense in SE — passive K-1 expenses must never reduce an active K-1's
+      // SE-taxable net profit.
+      if (!company) continue;
+      if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company.includeSETaxInRecommendation !== false) {
         seEligibleExpenses += Math.abs(Number(t.amount) || 0);
       }
     }
