@@ -34,7 +34,7 @@ function paycheck(streamId: string, status = "active"): PlannedExpensePaycheckLi
 
 describe("aggregatePlannedBusinessExpenses (Tax Breakdown helper)", () => {
   it("multiplies forecast_expense_per_period by active paycheck count for K-1 streams", () => {
-    const stream = k1Stream();
+    const stream = k1Stream({ company_type: "k1" });
     const paychecks = Array.from({ length: 6 }, () => paycheck(stream.id));
     const buckets = aggregatePlannedBusinessExpenses([stream], paychecks, [NWO_COMPANY]);
     expect(buckets.size).toBe(1);
@@ -135,10 +135,10 @@ function fullStream(overrides: Partial<ProjectedIncomeStream> = {}): ProjectedIn
 
 describe("getProjectedTotals — K-1 forecast expenses feed the engine", () => {
   it("persists forecast_expense_per_period when saving a new planned K-1 stream", () => {
-    const payload = buildProjectedIncomeStreamInsert(fullStream(), "user-1", "org-1");
+    const payload = buildProjectedIncomeStreamInsert(fullStream({ company_type: "k1" }), "user-1", "org-1");
 
     expect(payload.forecast_expense_per_period).toBe(2000);
-    expect(payload.company_type).toBe("k1_partnership");
+    expect(payload.company_type).toBe("k1");
     expect(payload.source_id).toBe(NWO_COMPANY.id);
     // A planned expense assumption stays on the projected stream; it must not
     // create an actual Business Activity transaction/expense row by itself.
