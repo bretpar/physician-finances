@@ -418,6 +418,7 @@ export default function Dashboard() {
               showTaxOverviewCta={false}
               showQuarterNavigation={false}
               linkDeadlineToTaxOverview
+              manualSavings={manualSavingsRows}
             />
           )}
         />
