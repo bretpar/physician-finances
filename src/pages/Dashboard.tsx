@@ -40,6 +40,7 @@ export default function Dashboard() {
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: investmentEntries } = useInvestmentIncomeEntries();
   const { data: payments = [] } = useTaxPayments();
+  const { data: taxSavings = [] } = useTaxSavings();
   const { actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, forecastDebug, taxMode, isLoading: estLoading } = useTaxEstimate();
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
