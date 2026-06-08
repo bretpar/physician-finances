@@ -175,6 +175,33 @@ export default function Dashboard() {
     }) || (transactions || []).some((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any));
   }, [incomeEntries, transactions]);
 
+  // Hooks below must run unconditionally — keep before any early return to
+  // preserve hook order between loading and loaded renders (React error #310).
+  const manualSavingsRows = useMemo(
+    () => taxSavings.map((s) => ({ savings_date: s.savings_date, amount: Number(s.amount) })),
+    [taxSavings],
+  );
+  const quarterRecommendation = useMemo(
+    () => buildQuarterRecommendation({
+      annualTaxLiability: Math.max(0, Number(
+        ((rates?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+          ? (forecastEstimate ?? actualEstimate)
+          : (currentPaceEstimate ?? actualEstimate)
+        )?.totalTaxLiability || 0,
+      )),
+      quarterMethod: rates?.quarterlyTrackerMethod ?? "even",
+      incomeEntries: incomeEntries || [],
+      personalEntries: personalEntries || [],
+      transactions: transactions || [],
+      investmentEntries: investmentEntries || [],
+      projectedPaychecks,
+      payments,
+      manualSavings: manualSavingsRows,
+      now,
+    }),
+    [rates?.withholdingMethod, rates?.quarterlyTrackerMethod, forecastEstimate, actualEstimate, currentPaceEstimate, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavingsRows, now],
+  );
+
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
     return <DashboardSkeleton />;
   }
@@ -275,28 +302,6 @@ export default function Dashboard() {
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
-  // Single source of truth for the current-quarter recommendation. Same
-  // helper drives QuarterlyTracker, the Tax Overview header card, and the
-  // Dashboard near-deadline callout — so FinancialScore never disagrees.
-  const manualSavingsRows = useMemo(
-    () => taxSavings.map((s) => ({ savings_date: s.savings_date, amount: Number(s.amount) })),
-    [taxSavings],
-  );
-  const quarterRecommendation = useMemo(
-    () => buildQuarterRecommendation({
-      annualTaxLiability,
-      quarterMethod: rates?.quarterlyTrackerMethod ?? "even",
-      incomeEntries: incomeEntries || [],
-      personalEntries: personalEntries || [],
-      transactions: transactions || [],
-      investmentEntries: investmentEntries || [],
-      projectedPaychecks,
-      payments,
-      manualSavings: manualSavingsRows,
-      now,
-    }),
-    [annualTaxLiability, rates?.quarterlyTrackerMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavingsRows, now],
-  );
   const taxProgressPct = quarterRecommendation.coverageRatio * 100;
   const remainingTaxThisQuarter = Math.max(
     0,
