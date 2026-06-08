@@ -346,8 +346,11 @@ export default function Onboarding() {
           patch.source_kind = row.source_kind;
         }
         if (isK1) patch.include_se_tax_in_recommendation = includeSeTax;
-        if (company.type === "w2" && company.employeeRole) {
-          patch.employee_role = company.employeeRole;
+        if (company.type === "w2") {
+          // Row-scoped: persist each W-2 employer's own role independently.
+          // Default to "primary" when the draft never set one so the DB
+          // reflects what the UI shows (the selector defaults to You).
+          patch.employee_role = company.employeeRole || "primary";
         }
         if (Object.keys(patch).length > 0) toUpdate.push({ id: existingRow.id, patch });
       } else {
