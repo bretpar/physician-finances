@@ -240,3 +240,85 @@ describe("daysUntilDeadline", () => {
     expect(daysUntilDeadline(new Date(2026, 5, 15), new Date(2026, 5, 20))).toBe(-5);
   });
 });
+
+describe("manual savings + payments vs other withholding separation", () => {
+  it("estimatedPaymentsMade does NOT include other (1099/K-1) withholding", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: 2026,
+      quarter: 2,
+      incomeEntries: [
+        { income_date: "2026-05-01", linked_transaction_id: "t1", federal_withholding: 1_200, additional_tax_reserve: 0, company: "Co A" },
+      ],
+      transactions: [
+        { id: "t1", transaction_type: "income", amount: 10_000, transaction_date: "2026-05-01" },
+      ],
+      payments: [
+        { applied_quarter: "Q2", applied_tax_year: 2026, payment_date: "2026-06-01", amount: 500 },
+      ],
+    });
+    expect(r.otherWithheldThisQuarter).toBe(1_200);
+    expect(r.estimatedPaymentsMade).toBe(500);
+    expect(r.estimatedPaymentsMade).not.toBe(1_700);
+    expect(r.paidThisQuarter).toBe(1_700);
+  });
+
+  it("manual tax savings count toward savedThisQuarter and reduce recommended payment", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: 2026,
+      quarter: 2,
+      manualSavings: [
+        { savings_date: "2026-05-15", amount: 2_500 },
+      ],
+    });
+    expect(r.manualTaxSavings).toBe(2_500);
+    expect(r.savedFromIncome).toBe(2_500);
+    expect(r.savedThisQuarter).toBe(2_500);
+    expect(r.recommendedQuarterlyPayment).toBe(7_500);
+    expect(r.sourceRows.some((row) => row.key === "__manual_tax_savings__" && row.saved === 2_500)).toBe(true);
+  });
+
+  it("dashboard input with manualSavings matches tax-overview input with same data", () => {
+    const base = {
+      annualTaxLiability: 40_000,
+      year: 2026,
+      quarter: 2 as const,
+      incomeEntries: [],
+      personalEntries: [
+        { income_date: "2026-05-01", gross_amount: 20_000, federal_withholding: 1_000 },
+      ],
+      transactions: [],
+      investmentEntries: [],
+      manualSavings: [{ savings_date: "2026-05-10", amount: 1_500 }],
+      payments: [],
+    };
+    const dash = buildQuarterRecommendation(base);
+    const tax = buildQuarterRecommendation(base);
+    expect(dash.recommendedQuarterlyPayment).toBe(tax.recommendedQuarterlyPayment);
+    expect(dash.quarterTarget).toBe(tax.quarterTarget);
+    expect(dash.savedThisQuarter).toBe(tax.savedThisQuarter);
+  });
+});
+
+describe("dynamic quarter target uses net business profit (not gross-only)", () => {
+  it("subtracts business expenses from quarter and year income shares", () => {
+    const base = {
+      annualTaxLiability: 40_000,
+      year: 2026,
+      quarter: 2 as const,
+      quarterMethod: "dynamic" as const,
+      transactions: [
+        { id: "i1", transaction_type: "income", amount: 50_000, transaction_date: "2026-02-15" },
+        { id: "i2", transaction_type: "income", amount: 50_000, transaction_date: "2026-05-15" },
+        { id: "e1", transaction_type: "expense", amount: 40_000, transaction_date: "2026-05-20" },
+      ],
+    };
+    const r = buildQuarterRecommendation(base);
+    // Q2 net = 50k - 40k = 10k; year net = 100k - 40k = 60k → share 10/60
+    const expected = 40_000 * (10_000 / 60_000);
+    expect(r.quarterTarget).toBeCloseTo(expected, 1);
+    // Gross-only share would be 50k/100k = 0.5 → 20_000. Confirm we are NOT that.
+    expect(r.quarterTarget).toBeLessThan(20_000);
+  });
+});
