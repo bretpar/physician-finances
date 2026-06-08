@@ -420,6 +420,7 @@ export default function Taxes() {
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
           breakdownTitle="This quarter by source"
+          manualSavings={savings.map((sv) => ({ savings_date: sv.savings_date, amount: Number(sv.amount) }))}
           showRecommendedPayment
         />
       </section>}
