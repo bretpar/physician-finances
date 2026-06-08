@@ -376,6 +376,8 @@ export function buildQuarterRecommendation(
     savedThisQuarter,
     progressAmount,
     recommendedQuarterlyPayment,
+    recommendedPaymentToMake,
+    stillNeedToSave,
     coverageRatio,
     coveragePct,
     daysUntilDue,
