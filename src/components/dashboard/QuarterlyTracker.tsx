@@ -286,13 +286,13 @@ export default function QuarterlyTracker({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 font-medium">
-                  Recommended quarterly payment
+                  Recommended quarterly payment to make
                 </p>
                 <p className="mt-1 text-3xl sm:text-4xl font-bold tabular-nums text-primary whitespace-nowrap">
-                  {fmt(recommendation.recommendedQuarterlyPayment)}
+                  {fmt(recommendation.recommendedPaymentToMake)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Recommended payment remaining for {recommendation.quarterLabel} after withholding, estimated payments, and saved reserves.
+                  Amount to submit for {recommendation.quarterLabel} after W-2 withholding, other actual withholding, and estimated payments already made. Saved reserves are not subtracted.
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -300,7 +300,7 @@ export default function QuarterlyTracker({
                 <p className="mt-1 text-sm font-semibold text-foreground">{recommendation.deadlineLabel}, {recommendation.taxYear}</p>
               </div>
             </div>
-            <div className={cn("grid gap-3 pt-1 border-t border-primary/15", recommendation.otherWithheldThisQuarter > 0 ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4") }>
+            <div className={cn("grid gap-3 pt-1 border-t border-primary/15", recommendation.otherWithheldThisQuarter > 0 ? "grid-cols-2 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-5") }>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Quarter target</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.quarterTarget)}</p>
@@ -322,6 +322,10 @@ export default function QuarterlyTracker({
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved/reserved but not paid</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.savedThisQuarter)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Still need to save</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.stillNeedToSave)}</p>
               </div>
             </div>
           </div>
