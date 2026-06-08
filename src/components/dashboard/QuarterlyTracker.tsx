@@ -293,6 +293,24 @@ export default function QuarterlyTracker({
   const progressAmount = paidThisQuarter + savedThisQuarter;
   const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
 
+  // Canonical recommendation breakdown (used by the Tax Overview header card).
+  const recommendation = useMemo(
+    () =>
+      computeQuarterRecommendation({
+        annualTaxLiability,
+        year: view.year,
+        quarter: view.quarter,
+        quarterMethod,
+        incomeEntries,
+        personalEntries,
+        transactions,
+        investmentEntries,
+        projectedPaychecks,
+        payments,
+      }),
+    [annualTaxLiability, view.year, view.quarter, quarterMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments],
+  );
+
   // ── Pace math (vs today's expected, not full target) ──────────────────────
   // Today marker depends ONLY on the current date and quarter window — not on
   // tax/payment/savings data. Normalize to local noon to avoid TZ off-by-one.
