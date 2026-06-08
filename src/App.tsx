@@ -25,6 +25,7 @@ import Estimate from "@/pages/Estimate";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
+import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
