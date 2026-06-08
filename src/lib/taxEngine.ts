@@ -54,6 +54,10 @@ export function getMarginalRate(taxableIncome: number, brackets: TaxBracket[]): 
 }
 
 export interface SelfEmploymentTax {
+  /** Net SE income before the statutory 92.35% factor. */
+  netSEIncome: number;
+  /** SE-taxable base after multiplying net SE income by 92.35%. */
+  seBase: number;
   ssTax: number;
   medicareTax: number;
   additionalMedicare: number;
@@ -67,7 +71,7 @@ export function calculateSETax(
   ssWageCap: number = SS_WAGE_CAP_DEFAULT,
   w2Wages: number = 0
 ): SelfEmploymentTax {
-  if (netSEIncome <= 0) return { ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0 };
+  if (netSEIncome <= 0) return { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0 };
 
   const seBase = netSEIncome * SE_INCOME_FACTOR;
 
@@ -89,7 +93,7 @@ export function calculateSETax(
   const total = ssTax + medicareTax + additionalMedicare;
   const deductibleHalf = total / 2;
 
-  return { ssTax, medicareTax, additionalMedicare, total, deductibleHalf };
+  return { netSEIncome, seBase, ssTax, medicareTax, additionalMedicare, total, deductibleHalf };
 }
 
 // --- Time-based tracking types ---
