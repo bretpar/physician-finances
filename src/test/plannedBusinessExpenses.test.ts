@@ -245,4 +245,22 @@ describe("planned K-1 include-planned net profit regression", () => {
     }).estimate;
     expect(withPlannedExpenses.seTax.netSEIncome).toBe(148000);
   });
+
+  it("keeps active/passive actual K-1 SE display behavior intact", () => {
+    const actualMixedK1 = computeUnifiedTaxEstimate({
+      ...scenarioInput,
+      businessIncome: 200000, // active gross 120k + passive K-1 80k
+      seEligibleBusinessIncome: 120000, // active/general partner only
+      businessExpenses: 20000,
+      seEligibleBusinessExpenses: 20000,
+      projectedSEIncome: 0,
+      includeProjectedIncome: false,
+    });
+
+    expect(actualMixedK1.estimate.seTax.netSEIncome).toBe(100000);
+    expect(actualMixedK1.debug.grossBusinessIncome).toBe(200000);
+    expect(actualMixedK1.debug.netBusinessProfit).toBe(180000);
+    expect(actualMixedK1.debug.totalReturnIncomeBeforeAdjustments).toBe(330000);
+    expect(actualMixedK1.debug.otherIncome).toBe(0);
+  });
 });
