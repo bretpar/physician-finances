@@ -50,6 +50,9 @@ interface QuarterlyTrackerProps {
   showQuarterNavigation?: boolean;
   linkDeadlineToTaxOverview?: boolean;
   breakdownTitle?: string;
+  /** When true, render the "Recommended quarterly payment" header card with the
+   *  full quarter-target / paid / saved / remaining breakdown. Tax Overview. */
+  showRecommendedPayment?: boolean;
 }
 
 const fmt = (n: number) =>
