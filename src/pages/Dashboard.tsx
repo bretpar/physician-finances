@@ -472,26 +472,40 @@ export default function Dashboard() {
         </section>
       )}
 
-      {!isW2Only && <QuarterlyTracker
-        annualTaxLiability={annualTaxLiability}
-        payments={payments}
-        methodLabel={methodLabel}
-        incomeEntries={incomeEntries || []}
-        personalEntries={personalEntries || []}
-        transactions={transactions || []}
-        investmentEntries={investmentEntries || []}
-        companies={companies}
-        quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-        projectedPaychecks={projectedPaychecks}
-        personalBucketRate={personalRate}
-        businessBucketRate={businessRate}
-        effectiveTaxRate={effectiveTaxRate}
-        showCompanyBreakdown={false}
-        showFooter={false}
-        showTaxOverviewCta={false}
-        showQuarterNavigation={false}
-        linkDeadlineToTaxOverview
-      />}
+      {!isW2Only && (
+        <DashboardQuarterlyPaymentCallout
+          annualTaxLiability={annualTaxLiability}
+          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
+          incomeEntries={incomeEntries || []}
+          personalEntries={personalEntries || []}
+          transactions={transactions || []}
+          investmentEntries={investmentEntries || []}
+          projectedPaychecks={projectedPaychecks}
+          payments={payments}
+          fallback={() => (
+            <QuarterlyTracker
+              annualTaxLiability={annualTaxLiability}
+              payments={payments}
+              methodLabel={methodLabel}
+              incomeEntries={incomeEntries || []}
+              personalEntries={personalEntries || []}
+              transactions={transactions || []}
+              investmentEntries={investmentEntries || []}
+              companies={companies}
+              quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
+              projectedPaychecks={projectedPaychecks}
+              personalBucketRate={personalRate}
+              businessBucketRate={businessRate}
+              effectiveTaxRate={effectiveTaxRate}
+              showCompanyBreakdown={false}
+              showFooter={false}
+              showTaxOverviewCta={false}
+              showQuarterNavigation={false}
+              linkDeadlineToTaxOverview
+            />
+          )}
+        />
+      )}
 
       <IncomeBreakdownCards
         businessProfit={businessProfitValue}
