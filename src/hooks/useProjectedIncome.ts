@@ -664,6 +664,8 @@ export function useAddStream() {
         healthcare_deduction: stream.healthcare_deduction || 0,
         hsa_contribution: stream.hsa_contribution || 0,
         additional_tax_reserve: stream.additional_tax_reserve || 0,
+        forecast_expense_per_period: stream.forecast_expense_per_period || 0,
+        forecast_expense_notes: stream.forecast_expense_notes || "",
         notes: stream.notes || "",
       } as any);
       if (error) throw error;
