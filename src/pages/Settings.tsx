@@ -2446,6 +2446,7 @@ export default function Settings() {
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
+      <BuildInfoSection />
       <DangerZoneSection />
     </div>
   );
