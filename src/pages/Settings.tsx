@@ -2354,6 +2354,42 @@ function TeamSection() {
 }
 
 /* ──────────────────────────────────────────────────────────── */
+/*  Build Info section                                           */
+/* ──────────────────────────────────────────────────────────── */
+function BuildInfoSection() {
+  const info = getBuildInfo();
+  return (
+    <SectionCard
+      title="Build Info"
+      icon={<Info className="h-5 w-5" />}
+      description="App version and deployment details for troubleshooting."
+      collapsible
+      defaultOpen={false}
+      hideActionBar
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-xs text-muted-foreground">App version</p>
+          <p className="font-medium text-card-foreground break-all">{info.version}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Environment</p>
+          <p className="font-medium text-card-foreground">{info.environment}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Git commit</p>
+          <p className="font-medium text-card-foreground break-all">{info.commit}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Build timestamp</p>
+          <p className="font-medium text-card-foreground break-all">{info.timestamp}</p>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
 /*  Main Settings page                                           */
 /* ──────────────────────────────────────────────────────────── */
 export default function Settings() {
