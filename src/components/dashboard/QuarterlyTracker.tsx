@@ -152,152 +152,10 @@ export default function QuarterlyTracker({
 
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
-  // ── Build per-company rows for the SELECTED quarter window ──────────────
-  const companyRows: CompanyQuarterRow[] = useMemo(() => {
-    const inQuarter = (iso: string) => {
-      const d = new Date(iso);
-      return d >= q.start && d < q.end;
-    };
-    const companyById = new Map(companies.map((c) => [c.id, c] as const));
-    const liveTxById = new Map(
-      (transactions || [])
-        .filter((t: any) => t.transaction_type === "income" && !isExcludedFromBusiness(t))
-        .map((t: any) => [t.id, t] as const),
-    );
-
-    const buckets = new Map<string, { label: string; paid: number; saved: number }>();
-    const ensure = (key: string, label: string) => {
-      let row = buckets.get(key);
-      if (!row) {
-        row = { label, paid: 0, saved: 0 };
-        buckets.set(key, row);
-      }
-      return row;
-    };
-    const filingHint = (filing: string | undefined): string => {
-      if (filing === "scorp_w2" || filing === "w2") return "W-2";
-      if (filing === "k1_partnership") return "K-1";
-      if (filing === "1099_schedule_c") return "1099";
-      return "";
-    };
-
-    for (const e of incomeEntries || []) {
-      if (!e.linked_transaction_id) continue;
-      const tx = liveTxById.get(e.linked_transaction_id);
-      if (!tx) continue;
-      // Business income is bucketed by the LEDGER ENTRY DATE (income_date),
-      // not the projected/planner date. Once the quarter ends, only actual
-      // entries within the window contribute.
-      if (!inQuarter(e.income_date)) continue;
-      const paid = getTotalFederalPaid(e);
-      const saved =
-        Number((tx as any).actual_withholding || 0) +
-        Number(e.additional_tax_reserve || 0);
-      if (paid <= 0 && saved <= 0) continue;
-      const company = e.source_id ? companyById.get(e.source_id) : undefined;
-      const filing = normalizeFilingType(e.income_type || company?.companyType);
-      const hint = filingHint(filing);
-      const name = company?.name || e.company || "Unassigned";
-      const key = company?.id || `name:${name.toLowerCase().trim()}`;
-      const label = hint ? `${name} (${hint})` : name;
-      const row = ensure(key, label);
-      row.paid += paid;
-      row.saved += saved;
-    }
-
-    for (const e of personalEntries || []) {
-      if (!inQuarter(e.income_date)) continue;
-      // Federal-only canonical total via shared helper (handles legacy rows).
-      const paid = getTotalFederalPaid(e);
-      const saved = Number(e.additional_tax_reserve || 0);
-      if (paid <= 0 && saved <= 0) continue;
-      const name = (e.company || "Personal W-2").trim() || "Personal W-2";
-      const key = `personal:${name.toLowerCase()}`;
-      const row = ensure(key, `${name} (W-2)`);
-      row.paid += paid;
-      row.saved += saved;
-    }
-
-    return Array.from(buckets.entries()).map(([key, v]) => ({
-      key, label: v.label, paid: v.paid, saved: v.saved,
-    }));
-  }, [incomeEntries, personalEntries, transactions, companies, q.start, q.end]);
-
-  // ── Quarter math ──────────────────────────────────────────────────────────
-  const quarterlyPayments = useMemo(
-    () => getQuarterPayments(payments, q.label as QuarterLabel, view.year),
-    [payments, q.label, view.year],
-  );
-
-  // Quarter target — either even (annual/4) or dynamic (share of annual liability
-  // proportional to this quarter's actual + planned gross income vs full-year).
-  const quarterTarget = useMemo(() => {
-    if (quarterMethod !== "dynamic") {
-      return Math.max(0, annualTaxLiability / 4);
-    }
-    const inWin = (iso: string) => {
-      const d = new Date(iso);
-      return d >= q.start && d < q.end;
-    };
-    // Actual income for the year (business + personal, by income_date)
-    const yearStart = new Date(view.year, 0, 1);
-    const yearEnd = new Date(view.year + 1, 0, 1);
-    const inYear = (iso: string) => {
-      const d = new Date(iso);
-      return d >= yearStart && d < yearEnd;
-    };
-    let qIncome = 0;
-    let yearIncome = 0;
-    for (const t of transactions || []) {
-      if (t.transaction_type !== "income") continue;
-      const amt = Math.abs(Number(t.amount) || 0);
-      if (inYear(t.transaction_date)) yearIncome += amt;
-      if (inWin(t.transaction_date)) qIncome += amt;
-    }
-    for (const e of personalEntries || []) {
-      const amt = Number(e.gross_amount || e.paycheck_amount || 0);
-      if (inYear(e.income_date)) yearIncome += amt;
-      if (inWin(e.income_date)) qIncome += amt;
-    }
-    // Add planned/projected paychecks (future occurrences)
-    for (const p of projectedPaychecks || []) {
-      const amt = Number(p.grossAmount || 0);
-      if (inYear(p.date)) yearIncome += amt;
-      if (inWin(p.date)) qIncome += amt;
-    }
-    // Investment income — count taxable amount toward both quarter and year buckets
-    // so a large stock sale in this quarter raises that quarter's target share.
-    for (const e of investmentEntries || []) {
-      const amt = Number(e.taxable_amount || 0);
-      if (inYear(e.entry_date)) yearIncome += amt;
-      if (inWin(e.entry_date)) qIncome += amt;
-    }
-    if (yearIncome <= 0) return 0;
-    const share = qIncome / yearIncome;
-    return Math.max(0, annualTaxLiability * share);
-  }, [quarterMethod, annualTaxLiability, transactions, personalEntries, projectedPaychecks, investmentEntries, q.start, q.end, view.year]);
-
-  // Investment `actual_tax_saved` is a USER RESERVE (money set aside), not a
-  // submitted tax payment — it counts as "Saved", never as "Paid".
-  const investmentSavedThisQuarter = useMemo(() => {
-    const inWin = (iso: string) => {
-      const d = new Date(iso);
-      return d >= q.start && d < q.end;
-    };
-    return (investmentEntries || [])
-      .filter((e) => inWin(e.entry_date))
-      .reduce((s, e) => s + Math.max(0, Number(e.actual_tax_saved ?? 0)), 0);
-  }, [investmentEntries, q.start, q.end]);
-
-  const paidFromCompanies = companyRows.reduce((s, c) => s + c.paid, 0);
-  const paidThisQuarter = paidFromCompanies + quarterlyPayments;
-  const rawSavedThisQuarter =
-    companyRows.reduce((s, c) => s + c.saved, 0) + investmentSavedThisQuarter;
-  const savedThisQuarter = Math.max(0, rawSavedThisQuarter - quarterlyPayments);
-  const progressAmount = paidThisQuarter + savedThisQuarter;
-  const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
-
-  // Canonical recommendation breakdown (used by the Tax Overview header card).
+  // ── Canonical recommendation (single source of truth) ─────────────────
+  // Quarter target, paid, saved, progress, recommended payment, and source
+  // rows all come from `buildQuarterRecommendation` so this component
+  // cannot drift from Dashboard / Tax Overview.
   const recommendation = useMemo(
     () =>
       buildQuarterRecommendation({
@@ -315,6 +173,12 @@ export default function QuarterlyTracker({
       }),
     [annualTaxLiability, view.year, view.quarter, quarterMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavings],
   );
+
+  const quarterTarget = recommendation.quarterTarget;
+  const paidThisQuarter = recommendation.paidThisQuarter;
+  const savedThisQuarter = recommendation.savedThisQuarter;
+  const progressAmount = recommendation.progressAmount;
+  const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
 
   // ── Pace math (vs today's expected, not full target) ──────────────────────
   // Today marker depends ONLY on the current date and quarter window — not on
