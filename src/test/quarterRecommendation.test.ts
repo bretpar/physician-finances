@@ -322,3 +322,73 @@ describe("dynamic quarter target uses net business profit (not gross-only)", () 
     expect(r.quarterTarget).toBeLessThan(20_000);
   });
 });
+
+describe("recommendedPaymentToMake — excludes saved reserves", () => {
+  it("matches spec example: target 20k, W-2 5k, saved 10k → make 15k, still save 5k", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000, // even → 20k/quarter
+      year: Y,
+      quarter: 2,
+      personalEntries: [
+        { income_date: `${Y}-05-01`, gross_amount: 30_000, federal_withholding: 5_000, additional_tax_reserve: 10_000 },
+      ],
+    });
+    expect(r.quarterTarget).toBe(20_000);
+    expect(r.paidThisQuarter).toBe(5_000);
+    expect(r.savedThisQuarter).toBe(10_000);
+    expect(r.recommendedPaymentToMake).toBe(15_000);
+    expect(r.stillNeedToSave).toBe(5_000);
+  });
+
+  it("saved reserves do NOT reduce recommendedPaymentToMake", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: Y,
+      quarter: 2,
+      personalEntries: [
+        { income_date: `${Y}-05-01`, gross_amount: 20_000, additional_tax_reserve: 4_000 },
+      ],
+    });
+    expect(r.savedThisQuarter).toBe(4_000);
+    expect(r.recommendedPaymentToMake).toBe(10_000); // full target — savings don't subtract
+    expect(r.stillNeedToSave).toBe(6_000);
+  });
+
+  it("W-2 withholding reduces recommendedPaymentToMake", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: Y,
+      quarter: 2,
+      personalEntries: [
+        { income_date: `${Y}-05-01`, gross_amount: 20_000, federal_withholding: 3_000 },
+      ],
+    });
+    expect(r.recommendedPaymentToMake).toBe(7_000);
+    expect(r.stillNeedToSave).toBe(7_000);
+  });
+
+  it("estimated payments made reduce recommendedPaymentToMake", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: Y,
+      quarter: 2,
+      payments: [
+        { applied_quarter: "Q2", applied_tax_year: Y, payment_date: `${Y}-06-10`, amount: 4_000 },
+      ],
+    });
+    expect(r.recommendedPaymentToMake).toBe(6_000);
+  });
+
+  it("saved reserves reduce stillNeedToSave only", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: Y,
+      quarter: 2,
+      personalEntries: [
+        { income_date: `${Y}-05-01`, gross_amount: 20_000, additional_tax_reserve: 7_000 },
+      ],
+    });
+    expect(r.recommendedPaymentToMake).toBe(10_000);
+    expect(r.stillNeedToSave).toBe(3_000);
+  });
+});
