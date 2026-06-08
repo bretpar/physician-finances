@@ -324,7 +324,7 @@ export default function QuarterlyTracker({
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.savedThisQuarter)}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Still need to save</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Recommended payment remaining</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.stillNeedToSave)}</p>
               </div>
             </div>
