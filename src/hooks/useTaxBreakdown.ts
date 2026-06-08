@@ -44,6 +44,7 @@ import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import {
   ORDINARY_BRACKETS,
@@ -487,31 +488,45 @@ export function useTaxBreakdown(
     // 1099 / Schedule-C income. Without this projection the Tax Breakdown
     // shows planned revenue but ignores planned expenses, so include-planned
     // business profit overstates by the planned expense amount.
+    // Pure helper (`aggregatePlannedBusinessExpenses`) is unit tested.
     if (mode === "forecast") {
-      for (const stream of streams) {
-        if (!stream.is_active) continue;
-        const perPeriod = Math.max(0, Number(stream.forecast_expense_per_period) || 0);
-        if (perPeriod <= 0) continue;
-        const ft = normalizeFilingType(stream.company_type);
-        const kind = FILING_TO_KIND(ft);
-        if (kind !== "business") continue;
-        const activeCount = activePaychecksByStream.get(stream.id) || 0;
-        if (activeCount <= 0) continue;
-        const plannedExpense = perPeriod * activeCount;
-        const company = stream.source_id
-          ? companies.find((c) => c.id === stream.source_id)
-          : companies.find((c) => normName(c.name) === normName(stream.company || ""));
-        const companyId = company?.id || stream.source_id || null;
-        const companyName = company?.name || stream.company || "Planned";
-        if (!matchCompany(companyName)) continue;
-        const expenseKey = companyId || aggKeyFor(companyName, ft, null);
-        const agg = expensesByCompany.get(expenseKey) ?? { total: 0, byCategory: new Map(), txCount: 0 };
-        agg.total += plannedExpense;
+      const plannedExpenseBuckets = aggregatePlannedBusinessExpenses(
+        streams.map((s) => ({
+          id: s.id,
+          company: s.company,
+          company_type: s.company_type,
+          source_id: s.source_id ?? null,
+          is_active: s.is_active,
+          forecast_expense_per_period: Number(s.forecast_expense_per_period) || 0,
+        })),
+        Array.from(activePaychecksByStream.entries()).flatMap(([streamId, count]) =>
+          Array.from({ length: count }, () => ({
+            streamId,
+            type: "paycheck" as const,
+            matchStatus: "active",
+          })),
+        ),
+        companies.map((c) => ({ id: c.id, name: c.name })),
+      );
+      for (const bucket of plannedExpenseBuckets.values()) {
+        if (!matchCompany(bucket.companyName)) continue;
+        const expenseKey =
+          bucket.companyId || aggKeyFor(bucket.companyName, bucket.filingType, null);
+        const agg = expensesByCompany.get(expenseKey) ?? {
+          total: 0,
+          byCategory: new Map(),
+          txCount: 0,
+        };
+        agg.total += bucket.total;
         const catAgg = agg.byCategory.get("other") ?? { total: 0, count: 0 };
-        catAgg.total += plannedExpense;
+        catAgg.total += bucket.total;
         catAgg.count += 1;
         agg.byCategory.set("other", catAgg);
         expensesByCompany.set(expenseKey, agg);
+        // Ensure a CompanyAgg exists so the planned-only K-1 stream still
+        // renders a source card with the planned expenses visible (matters
+        // when there are no actual transactions yet for the entity).
+        ensureAgg(bucket.companyName, bucket.filingType, bucket.companyId);
       }
     }
 
