@@ -111,6 +111,17 @@ export interface QuarterRecommendation {
   savedThisQuarter: number;           // rawSaved - estimatedPaymentsMade, floored at 0
   progressAmount: number;             // paid + saved
   recommendedQuarterlyPayment: number;
+  /**
+   * Amount the user should actually submit as an estimated tax payment for the
+   * quarter. Subtracts only ACTUAL paid/withheld dollars — saved/reserved cash
+   * that has not been submitted is NOT subtracted here (it shows separately as
+   * savings progress toward making this payment).
+   *
+   *   recommendedPaymentToMake = max(0, quarterTarget - paidThisQuarter)
+   */
+  recommendedPaymentToMake: number;
+  /** max(0, recommendedPaymentToMake - savedThisQuarter). */
+  stillNeedToSave: number;
   coverageRatio: number;              // (paid + saved) / target, 0-1+
   /** @deprecated use coverageRatio. */
   coveragePct: number;
