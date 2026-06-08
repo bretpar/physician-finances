@@ -24,7 +24,7 @@ import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import { getCurrentQuarter } from "@/lib/quarters";
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import { normalizeFilingType } from "@/lib/filingTypes";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
@@ -127,11 +127,10 @@ export default function Dashboard() {
     return business + personal + investments;
   }, [transactions, personalEntries, investmentEntries, currentMonth, currentYear]);
 
-  // Quarter math comes from the canonical helper used by Tax Overview and the
-  // Dashboard callout — no local duplication.
-  const dashboardQuarter = useMemo(() => {
-    return getCurrentQuarter(now);
-  }, [now]);
+  // Current calendar quarter — same canonical helper used everywhere.
+  const dashboardQuarter = useMemo(() => getCurrentQuarter(now), [now]);
+  void dashboardQuarter; // referenced indirectly via the recommendation helper below
+
 
 
   // Income consistency: months YTD with at least one income event.
