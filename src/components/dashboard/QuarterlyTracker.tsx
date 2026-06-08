@@ -286,7 +286,7 @@ export default function QuarterlyTracker({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 font-medium">
-                  Recommended quarterly payment to make
+                  Recommended quarterly payment
                 </p>
                 <p className="mt-1 text-3xl sm:text-4xl font-bold tabular-nums text-primary whitespace-nowrap">
                   {fmt(recommendation.recommendedPaymentToMake)}
