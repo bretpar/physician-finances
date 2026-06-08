@@ -303,7 +303,7 @@ export default function QuarterlyTracker({
                 <p className="mt-1 text-sm font-semibold text-foreground">{recommendation.deadlineLabel}, {recommendation.taxYear}</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-primary/15">
+            <div className={cn("grid gap-3 pt-1 border-t border-primary/15", recommendation.otherWithheldThisQuarter > 0 ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4") }>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Quarter target</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.quarterTarget)}</p>
@@ -314,10 +314,16 @@ export default function QuarterlyTracker({
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Estimated payments made</p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.estimatedPaymentsMade + recommendation.otherWithheldThisQuarter)}</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.estimatedPaymentsMade)}</p>
               </div>
+              {recommendation.otherWithheldThisQuarter > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Other withholding paid</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.otherWithheldThisQuarter)}</p>
+                </div>
+              )}
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved / reserved (not paid)</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved/reserved but not paid</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.savedThisQuarter)}</p>
               </div>
             </div>
