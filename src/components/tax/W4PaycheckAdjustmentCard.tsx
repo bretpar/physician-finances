@@ -1414,7 +1414,7 @@ export default function W4PaycheckAdjustmentCard() {
                 <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap">Pay frequency</th>
                 <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Remaining paychecks</th>
                 <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Projected gross</th>
-                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Projected fed. withholding</th>
+                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Projected future fed. withholding</th>
                 <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Extra / paycheck</th>
               </tr>
             </thead>
@@ -1527,7 +1527,7 @@ export default function W4PaycheckAdjustmentCard() {
                     <p className="font-medium tabular-nums text-foreground">{fmt(r.remainingGross)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Fed. withholding</p>
+                    <p className="text-muted-foreground">Projected future fed. withholding</p>
                     <p className="font-medium tabular-nums text-foreground">{fmt(r.expectedNormalWithholding)}</p>
                   </div>
                 </div>
