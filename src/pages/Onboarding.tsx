@@ -768,6 +768,23 @@ export default function Onboarding() {
                             </SelectContent>
                           </Select>
                         </div>
+                        {merged.filingStatus === "married_filing_jointly" && (
+                          <div className="mt-3">
+                            <Label htmlFor={`company-employee-role-${index}`}>Whose W-2 is this?</Label>
+                            <Select
+                              value={company.employeeRole || "primary"}
+                              onValueChange={(value) => updateCompanyDraft(index, { employeeRole: value as "primary" | "spouse" })}
+                            >
+                              <SelectTrigger id={`company-employee-role-${index}`} data-testid={`onboarding-employee-role-${index}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="primary" data-testid={`onboarding-employee-role-${index}-option-primary`}>You</SelectItem>
+                                <SelectItem value="spouse" data-testid={`onboarding-employee-role-${index}-option-spouse`}>Spouse / partner</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                         <p className="mt-2 text-xs text-muted-foreground">
                           You can add projected annual income, expected paycheck amount, and expected federal withholding in Settings → W-2 Employers.
                         </p>
