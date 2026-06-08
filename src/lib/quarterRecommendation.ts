@@ -334,6 +334,11 @@ export function buildQuarterRecommendation(
     0,
     quarterTarget - paidThisQuarter - savedThisQuarter,
   );
+  // New: amount user should actually submit. Excludes saved/reserved cash —
+  // reserves remain in the user's account until they convert them into an
+  // estimated payment.
+  const recommendedPaymentToMake = Math.max(0, quarterTarget - paidThisQuarter);
+  const stillNeedToSave = Math.max(0, recommendedPaymentToMake - savedThisQuarter);
   const coverageRatio = quarterTarget > 0 ? progressAmount / quarterTarget : 1;
   const coveragePct = coverageRatio * 100;
 
