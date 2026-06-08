@@ -873,8 +873,8 @@ export function useTaxBreakdown(
       taxableOrdinaryIncome, taxableLTCG, totalTaxableIncome: taxableIncome,
       ordinaryBracketCalc, ltcgBracketCalc,
       seTax: (() => {
-        const netSEIncome = Math.max(0, estimate.seIncome - estimate.businessExpenses - (estimate as any).mileageDeduction);
-        const seBase = netSEIncome * 0.9235;
+        const netSEIncome = Math.max(0, (seTaxFromEngine as any)?.netSEIncome ?? estimate.seIncome);
+        const seBase = Math.max(0, (seTaxFromEngine as any)?.seBase ?? netSEIncome * 0.9235);
         return {
           netSEIncome, seBase,
           ssTax: seTaxFromEngine?.ssTax ?? 0,
