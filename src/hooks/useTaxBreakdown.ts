@@ -498,18 +498,20 @@ export function useTaxBreakdown(
         const activeCount = activePaychecksByStream.get(stream.id) || 0;
         if (activeCount <= 0) continue;
         const plannedExpense = perPeriod * activeCount;
-        const company = stream.source_id ? companies.find((c) => c.id === stream.source_id) : undefined;
+        const company = stream.source_id
+          ? companies.find((c) => c.id === stream.source_id)
+          : companies.find((c) => normName(c.name) === normName(stream.company || ""));
         const companyId = company?.id || stream.source_id || null;
         const companyName = company?.name || stream.company || "Planned";
         if (!matchCompany(companyName)) continue;
-        if (!companyId) continue;
-        const agg = expensesByCompany.get(companyId) ?? { total: 0, byCategory: new Map(), txCount: 0 };
+        const expenseKey = companyId || aggKeyFor(companyName, ft, null);
+        const agg = expensesByCompany.get(expenseKey) ?? { total: 0, byCategory: new Map(), txCount: 0 };
         agg.total += plannedExpense;
         const catAgg = agg.byCategory.get("other") ?? { total: 0, count: 0 };
         catAgg.total += plannedExpense;
         catAgg.count += 1;
         agg.byCategory.set("other", catAgg);
-        expensesByCompany.set(companyId, agg);
+        expensesByCompany.set(expenseKey, agg);
       }
     }
 
@@ -549,7 +551,7 @@ export function useTaxBreakdown(
         });
       } else if (kind === "business") {
         const companyId = agg.companyId ?? companies.find((c) => c.name === agg.name && c.companyType === agg.filingType)?.id ?? null;
-        const exp = companyId ? expensesByCompany.get(companyId) : undefined;
+        const exp = companyId ? expensesByCompany.get(companyId) : expensesByCompany.get(aggKeyFor(agg.name, agg.filingType, null));
         const expenses = exp?.total ?? 0;
         const profit = totalGross - expenses;
         const actualProfit = agg.actualGross - expenses;
@@ -871,8 +873,8 @@ export function useTaxBreakdown(
       taxableOrdinaryIncome, taxableLTCG, totalTaxableIncome: taxableIncome,
       ordinaryBracketCalc, ltcgBracketCalc,
       seTax: (() => {
-        const netSEIncome = Math.max(0, estimate.seIncome - estimate.businessExpenses - (estimate as any).mileageDeduction);
-        const seBase = netSEIncome * 0.9235;
+        const netSEIncome = Math.max(0, (seTaxFromEngine as any)?.netSEIncome ?? estimate.seIncome);
+        const seBase = Math.max(0, (seTaxFromEngine as any)?.seBase ?? netSEIncome * 0.9235);
         return {
           netSEIncome, seBase,
           ssTax: seTaxFromEngine?.ssTax ?? 0,
