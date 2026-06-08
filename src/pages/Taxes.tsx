@@ -420,6 +420,7 @@ export default function Taxes() {
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
           breakdownTitle="This quarter by source"
+          showRecommendedPayment
         />
       </section>}
 
