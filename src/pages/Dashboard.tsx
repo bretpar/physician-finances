@@ -10,6 +10,7 @@ import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { aggregateInvestmentTaxBuckets, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
+import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: investmentEntries } = useInvestmentIncomeEntries();
   const { data: payments = [] } = useTaxPayments();
+  const { data: taxSavings = [] } = useTaxSavings();
   const { actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, forecastDebug, taxMode, isLoading: estLoading } = useTaxEstimate();
   const { companies } = useCompanies();
   const { data: streams } = useProjectedStreams();
@@ -276,6 +278,10 @@ export default function Dashboard() {
   // Single source of truth for the current-quarter recommendation. Same
   // helper drives QuarterlyTracker, the Tax Overview header card, and the
   // Dashboard near-deadline callout — so FinancialScore never disagrees.
+  const manualSavingsRows = useMemo(
+    () => taxSavings.map((s) => ({ savings_date: s.savings_date, amount: Number(s.amount) })),
+    [taxSavings],
+  );
   const quarterRecommendation = useMemo(
     () => buildQuarterRecommendation({
       annualTaxLiability,
@@ -286,9 +292,10 @@ export default function Dashboard() {
       investmentEntries: investmentEntries || [],
       projectedPaychecks,
       payments,
+      manualSavings: manualSavingsRows,
       now,
     }),
-    [annualTaxLiability, rates?.quarterlyTrackerMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, now],
+    [annualTaxLiability, rates?.quarterlyTrackerMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavingsRows, now],
   );
   const taxProgressPct = quarterRecommendation.coverageRatio * 100;
   const remainingTaxThisQuarter = Math.max(
@@ -390,6 +397,7 @@ export default function Dashboard() {
           investmentEntries={investmentEntries || []}
           projectedPaychecks={projectedPaychecks}
           payments={payments}
+          manualSavings={manualSavingsRows}
           fallback={() => (
             <QuarterlyTracker
               annualTaxLiability={annualTaxLiability}
@@ -410,6 +418,7 @@ export default function Dashboard() {
               showTaxOverviewCta={false}
               showQuarterNavigation={false}
               linkDeadlineToTaxOverview
+              manualSavings={manualSavingsRows}
             />
           )}
         />
