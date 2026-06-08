@@ -12,7 +12,7 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
-import { computeQuarterRecommendation } from "@/lib/quarterRecommendation";
+import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -53,6 +53,9 @@ interface QuarterlyTrackerProps {
   /** When true, render the "Recommended quarterly payment" header card with the
    *  full quarter-target / paid / saved / remaining breakdown. Tax Overview. */
   showRecommendedPayment?: boolean;
+  /** Manual `tax_savings` rows; counted as Saved (not Paid) by the canonical
+   *  recommendation helper. */
+  manualSavings?: Array<{ savings_date?: string; amount: number | string }>;
 }
 
 const fmt = (n: number) =>
@@ -138,6 +141,7 @@ export default function QuarterlyTracker({
   linkDeadlineToTaxOverview = false,
   breakdownTitle = "This quarter by company",
   showRecommendedPayment = false,
+  manualSavings = [],
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
   const initial = useMemo(() => currentOwningYear(), []);
@@ -296,7 +300,7 @@ export default function QuarterlyTracker({
   // Canonical recommendation breakdown (used by the Tax Overview header card).
   const recommendation = useMemo(
     () =>
-      computeQuarterRecommendation({
+      buildQuarterRecommendation({
         annualTaxLiability,
         year: view.year,
         quarter: view.quarter,
@@ -307,8 +311,9 @@ export default function QuarterlyTracker({
         investmentEntries,
         projectedPaychecks,
         payments,
+        manualSavings,
       }),
-    [annualTaxLiability, view.year, view.quarter, quarterMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments],
+    [annualTaxLiability, view.year, view.quarter, quarterMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavings],
   );
 
   // ── Pace math (vs today's expected, not full target) ──────────────────────
@@ -437,16 +442,22 @@ export default function QuarterlyTracker({
       <CardContent className={cn("space-y-4", showQuarterNavigation ? "pb-10" : "pb-4")}>
         {showRecommendedPayment && (
           <div className="rounded-lg border-2 border-primary/30 bg-primary/[0.04] p-4 space-y-3">
-            <div>
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 font-medium">
-                Recommended quarterly payment
-              </p>
-              <p className="mt-1 text-3xl sm:text-4xl font-bold tabular-nums text-primary whitespace-nowrap">
-                {fmt(recommendation.recommendedQuarterlyPayment)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Amount still recommended to pay for {recommendation.label} by {recommendation.deadlineLabel} after withholding, estimated payments, and saved reserves.
-              </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 font-medium">
+                  Recommended quarterly payment
+                </p>
+                <p className="mt-1 text-3xl sm:text-4xl font-bold tabular-nums text-primary whitespace-nowrap">
+                  {fmt(recommendation.recommendedQuarterlyPayment)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Recommended payment remaining for {recommendation.quarterLabel} after withholding, estimated payments, and saved reserves.
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Due date</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{recommendation.deadlineLabel}, {recommendation.taxYear}</p>
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-primary/15">
               <div>
@@ -458,11 +469,11 @@ export default function QuarterlyTracker({
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.w2WithheldThisQuarter)}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Estimated payments</p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.estimatedPaymentsThisQuarter + recommendation.otherWithheldThisQuarter)}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Estimated payments made</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.estimatedPaymentsMade + recommendation.otherWithheldThisQuarter)}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved / reserved</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved / reserved (not paid)</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.savedThisQuarter)}</p>
               </div>
             </div>

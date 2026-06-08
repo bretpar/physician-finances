@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Clock, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  computeQuarterRecommendation,
-  shouldShowDashboardPaymentCallout,
+  buildQuarterRecommendation,
   type QuarterRecommendationInput,
   type QuarterRecommendation,
 } from "@/lib/quarterRecommendation";
@@ -18,14 +17,10 @@ interface Props extends Omit<QuarterRecommendationInput, "year" | "quarter"> {
   onLogPayment?: () => void;
 }
 
-function currentQuarter(now: Date): { year: number; quarter: 1 | 2 | 3 | 4 } {
-  return { year: now.getFullYear(), quarter: (Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4 };
-}
-
 /**
- * Compact dashboard callout for the current estimated-tax quarter.
- * Decide whether to render via `shouldShowDashboardPaymentCallout`; pass the
- * resulting `QuarterRecommendation` to keep the component pure.
+ * Compact dashboard callout for the current estimated-tax quarter. The
+ * recommendation must already be computed via `buildQuarterRecommendation`
+ * so this component stays pure / presentational.
  */
 export function QuarterlyPaymentCallout({
   recommendation,
@@ -42,8 +37,8 @@ export function QuarterlyPaymentCallout({
     ? "border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20"
     : "border-primary/30 bg-primary/[0.04]";
   const title = overdue
-    ? `${recommendation.label} estimated tax payment may be overdue`
-    : `${recommendation.label} estimated tax payment due soon`;
+    ? `${recommendation.quarterLabel} estimated tax payment may be overdue`
+    : `${recommendation.quarterLabel} estimated tax payment due soon`;
   const amountLabel = overdue
     ? `Recommended payment remaining: ${fmt(recommendation.recommendedQuarterlyPayment)}`
     : `Recommended payment: ${fmt(recommendation.recommendedQuarterlyPayment)} by ${recommendation.deadlineLabel}`;
@@ -86,20 +81,26 @@ export function QuarterlyPaymentCallout({
 
 /**
  * Convenience wrapper that computes the recommendation from raw dashboard
- * inputs and returns either the callout, `null` (window not active), or
- * passes through to a fallback via the `fallback` render prop.
+ * inputs via the canonical helper and returns either the callout, `null`
+ * (window not active), or passes through to a fallback via the `fallback`
+ * render prop.
  */
 export default function DashboardQuarterlyPaymentCallout({
   fallback,
+  onLogPayment,
   ...input
 }: Props & { fallback?: () => JSX.Element | null }) {
   const now = useMemo(() => new Date(), []);
-  const { year, quarter } = currentQuarter(now);
   const recommendation = useMemo(
-    () => computeQuarterRecommendation({ year, quarter, ...input }),
-    [year, quarter, input],
+    () => buildQuarterRecommendation({ ...input, now }),
+    [input, now],
   );
-  const { show, overdue } = shouldShowDashboardPaymentCallout(recommendation, now);
-  if (!show) return fallback ? fallback() : null;
-  return <QuarterlyPaymentCallout recommendation={recommendation} overdue={overdue} />;
+  if (!recommendation.showDashboardPaymentCallout) return fallback ? fallback() : null;
+  return (
+    <QuarterlyPaymentCallout
+      recommendation={recommendation}
+      overdue={recommendation.dashboardCalloutMode === "overdue"}
+      onLogPayment={onLogPayment}
+    />
+  );
 }
