@@ -278,6 +278,10 @@ export default function Dashboard() {
   // Single source of truth for the current-quarter recommendation. Same
   // helper drives QuarterlyTracker, the Tax Overview header card, and the
   // Dashboard near-deadline callout — so FinancialScore never disagrees.
+  const manualSavingsRows = useMemo(
+    () => taxSavings.map((s) => ({ savings_date: s.savings_date, amount: Number(s.amount) })),
+    [taxSavings],
+  );
   const quarterRecommendation = useMemo(
     () => buildQuarterRecommendation({
       annualTaxLiability,
@@ -288,9 +292,10 @@ export default function Dashboard() {
       investmentEntries: investmentEntries || [],
       projectedPaychecks,
       payments,
+      manualSavings: manualSavingsRows,
       now,
     }),
-    [annualTaxLiability, rates?.quarterlyTrackerMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, now],
+    [annualTaxLiability, rates?.quarterlyTrackerMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavingsRows, now],
   );
   const taxProgressPct = quarterRecommendation.coverageRatio * 100;
   const remainingTaxThisQuarter = Math.max(
