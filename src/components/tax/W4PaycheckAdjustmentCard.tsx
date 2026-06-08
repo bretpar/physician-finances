@@ -1527,7 +1527,7 @@ export default function W4PaycheckAdjustmentCard() {
                     <p className="font-medium tabular-nums text-foreground">{fmt(r.remainingGross)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Fed. withholding</p>
+                    <p className="text-muted-foreground">Projected future fed. withholding</p>
                     <p className="font-medium tabular-nums text-foreground">{fmt(r.expectedNormalWithholding)}</p>
                   </div>
                 </div>
