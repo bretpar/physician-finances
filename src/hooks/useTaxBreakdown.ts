@@ -44,6 +44,7 @@ import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import {
   ORDINARY_BRACKETS,
