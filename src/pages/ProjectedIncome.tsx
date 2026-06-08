@@ -316,7 +316,7 @@ export default function ProjectedIncome() {
     return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || [], businessTxsForMatching);
   }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching]);
 
-  const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks), [projectedPaychecks]);
+  const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
 
   const actualYTD = useMemo(() => {
     if (!incomeEntries) return { income: 0, withheld: 0, retirement: 0, deductions: 0 };

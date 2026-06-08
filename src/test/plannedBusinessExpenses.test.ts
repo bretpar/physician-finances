@@ -7,10 +7,12 @@ import {
   type CompanyLite,
 } from "@/lib/plannedBusinessExpenses";
 import {
+  buildProjectedIncomeStreamInsert,
   generateProjectedPaychecks,
   getProjectedTotals,
   type ProjectedIncomeStream,
 } from "@/hooks/useProjectedIncome";
+import { computeUnifiedTaxEstimate, type UnifiedTaxInput } from "@/lib/taxCalculationService";
 
 const NWO_COMPANY: CompanyLite = { id: "co-nwo", name: "Northwest Orthopedic Partners" };
 
@@ -32,7 +34,7 @@ function paycheck(streamId: string, status = "active"): PlannedExpensePaycheckLi
 
 describe("aggregatePlannedBusinessExpenses (Tax Breakdown helper)", () => {
   it("multiplies forecast_expense_per_period by active paycheck count for K-1 streams", () => {
-    const stream = k1Stream();
+    const stream = k1Stream({ company_type: "k1" });
     const paychecks = Array.from({ length: 6 }, () => paycheck(stream.id));
     const buckets = aggregatePlannedBusinessExpenses([stream], paychecks, [NWO_COMPANY]);
     expect(buckets.size).toBe(1);
@@ -132,6 +134,18 @@ function fullStream(overrides: Partial<ProjectedIncomeStream> = {}): ProjectedIn
 }
 
 describe("getProjectedTotals — K-1 forecast expenses feed the engine", () => {
+  it("persists forecast_expense_per_period when saving a new planned K-1 stream", () => {
+    const payload = buildProjectedIncomeStreamInsert(fullStream({ company_type: "k1" }), "user-1", "org-1");
+
+    expect(payload.forecast_expense_per_period).toBe(2000);
+    expect(payload.company_type).toBe("k1");
+    expect(payload.source_id).toBe(NWO_COMPANY.id);
+    // A planned expense assumption stays on the projected stream; it must not
+    // create an actual Business Activity transaction/expense row by itself.
+    expect(payload).not.toHaveProperty("transaction_type");
+    expect(payload).not.toHaveProperty("amount");
+  });
+
   it("sums forecast_expense_per_period across active K-1 paychecks (include-planned)", () => {
     const stream = fullStream();
     const paychecks = generateProjectedPaychecks([stream], [], [], [], [], []);
@@ -148,5 +162,105 @@ describe("getProjectedTotals — K-1 forecast expenses feed the engine", () => {
     const paychecks = generateProjectedPaychecks([stream], [], [], [], [], []);
     const totals = getProjectedTotals(paychecks, [stream]);
     expect(totals.forecastBusinessExpenses).toBe(0);
+  });
+});
+
+const scenarioInput: UnifiedTaxInput = {
+  businessIncome: 120000,
+  seEligibleBusinessIncome: 120000,
+  businessW2: 0,
+  businessFederalWithheld: 0,
+  businessStateWithheld: 0,
+  businessPreTax: 0,
+  businessRetirement: 0,
+  ownerHealthcare: 0,
+  businessStateEligibleGross: 120000,
+  businessStateEligibleExpenses: 20000,
+  businessStateEligibleMileage: 0,
+  businessStateEligibleOwnerAdjustments: 0,
+  personalIncome: 150000,
+  personalW2: 150000,
+  personalNonW2Income: 0,
+  personalFederalWithheld: 28000,
+  personalStateWithheld: 0,
+  personalPreTax: 0,
+  personalRetirement: 0,
+  netStockGain: 0,
+  businessExpenses: 20000,
+  seEligibleBusinessExpenses: 20000,
+  mileageDeduction: 0,
+  annualizedRetirement: 0,
+  txActualWithholding: 0,
+  actualEstimatedPaymentsMade: 0,
+  taxSavingsSetAside: 0,
+  remainingPayPeriods: 6,
+  projectedW2Income: 0,
+  projectedSEIncome: 60000,
+  projectedOtherIncome: 0,
+  projectedFederalWithheld: 0,
+  projectedStateWithheld: 0,
+  projectedPreTax: 0,
+  projectedRetirement: 0,
+  projectedHealthInsuranceDeduction: 0,
+  filingStatus: "single",
+  lastYearTax: 0,
+  ssWageCap: 168600,
+  includeProjectedIncome: false,
+};
+
+describe("planned K-1 include-planned net profit regression", () => {
+  it("keeps Actual Only unchanged at actual net K-1 profit", () => {
+    const actual = computeUnifiedTaxEstimate({ ...scenarioInput, includeProjectedIncome: false }).debug;
+
+    expect(actual.grossBusinessIncome).toBe(120000);
+    expect(actual.businessExpenses).toBe(20000);
+    expect(actual.netBusinessProfit).toBe(100000);
+    expect(actual.projectedIncome).toBe(0);
+  });
+
+  it("uses planned net profit, not planned gross, for include-planned K-1/business profit", () => {
+    const planned = computeUnifiedTaxEstimate({
+      ...scenarioInput,
+      includeProjectedIncome: true,
+      businessExpenses: 32000,
+      seEligibleBusinessExpenses: 32000,
+      businessStateEligibleGross: 180000,
+      businessStateEligibleExpenses: 32000,
+    }).debug;
+
+    expect(planned.projectedIncome).toBe(60000);
+    expect(planned.grossBusinessIncome).toBe(180000);
+    expect(planned.businessExpenses).toBe(32000);
+    expect(planned.netBusinessProfit).toBe(148000);
+    expect(planned.netBusinessProfit).not.toBe(160000);
+    expect(planned.totalReturnIncomeBeforeAdjustments).toBe(298000);
+  });
+
+  it("reduces forecast SE-taxable K-1 income by planned active K-1 expenses", () => {
+    const withPlannedExpenses = computeUnifiedTaxEstimate({
+      ...scenarioInput,
+      includeProjectedIncome: true,
+      businessExpenses: 32000,
+      seEligibleBusinessExpenses: 32000,
+    }).estimate;
+    expect(withPlannedExpenses.seTax.netSEIncome).toBe(148000);
+  });
+
+  it("keeps active/passive actual K-1 SE display behavior intact", () => {
+    const actualMixedK1 = computeUnifiedTaxEstimate({
+      ...scenarioInput,
+      businessIncome: 200000, // active gross 120k + passive K-1 80k
+      seEligibleBusinessIncome: 120000, // active/general partner only
+      businessExpenses: 20000,
+      seEligibleBusinessExpenses: 20000,
+      projectedSEIncome: 0,
+      includeProjectedIncome: false,
+    });
+
+    expect(actualMixedK1.estimate.seTax.netSEIncome).toBe(100000);
+    expect(actualMixedK1.debug.grossBusinessIncome).toBe(200000);
+    expect(actualMixedK1.debug.netBusinessProfit).toBe(180000);
+    expect(actualMixedK1.debug.totalReturnIncomeBeforeAdjustments).toBe(330000);
+    expect(actualMixedK1.debug.otherIncome).toBe(0);
   });
 });
