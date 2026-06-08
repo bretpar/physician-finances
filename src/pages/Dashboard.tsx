@@ -21,7 +21,7 @@ import AnnualIncomeHero from "@/components/dashboard/AnnualIncomeHero";
 import IncomeBreakdownCards from "@/components/dashboard/IncomeBreakdownCards";
 import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/MonthlyIncomeCard";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
-import { getCurrentQuarter } from "@/lib/quarters";
+
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import { normalizeFilingType } from "@/lib/filingTypes";
 
@@ -127,9 +127,6 @@ export default function Dashboard() {
     return business + personal + investments;
   }, [transactions, personalEntries, investmentEntries, currentMonth, currentYear]);
 
-  // Current calendar quarter — same canonical helper used everywhere.
-  const dashboardQuarter = useMemo(() => getCurrentQuarter(now), [now]);
-  void dashboardQuarter; // referenced indirectly via the recommendation helper below
 
 
 
