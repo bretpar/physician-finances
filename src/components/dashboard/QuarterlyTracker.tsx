@@ -435,6 +435,39 @@ export default function QuarterlyTracker({
         </div>
       </CardHeader>
       <CardContent className={cn("space-y-4", showQuarterNavigation ? "pb-10" : "pb-4")}>
+        {showRecommendedPayment && (
+          <div className="rounded-lg border-2 border-primary/30 bg-primary/[0.04] p-4 space-y-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 font-medium">
+                Recommended quarterly payment
+              </p>
+              <p className="mt-1 text-3xl sm:text-4xl font-bold tabular-nums text-primary whitespace-nowrap">
+                {fmt(recommendation.recommendedQuarterlyPayment)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Amount still recommended to pay for {recommendation.label} by {recommendation.deadlineLabel} after withholding, estimated payments, and saved reserves.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-primary/15">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Quarter target</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.quarterTarget)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">W-2 withholding paid</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.w2WithheldThisQuarter)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Estimated payments</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.estimatedPaymentsThisQuarter + recommendation.otherWithheldThisQuarter)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved / reserved</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.savedThisQuarter)}</p>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Primary numbers */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="min-w-0">
