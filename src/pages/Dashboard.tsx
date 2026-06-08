@@ -13,6 +13,7 @@ import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
+import DashboardQuarterlyPaymentCallout from "@/components/dashboard/QuarterlyPaymentCallout";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
 import IncomeModeToggle from "@/components/dashboard/IncomeModeToggle";
@@ -471,26 +472,40 @@ export default function Dashboard() {
         </section>
       )}
 
-      {!isW2Only && <QuarterlyTracker
-        annualTaxLiability={annualTaxLiability}
-        payments={payments}
-        methodLabel={methodLabel}
-        incomeEntries={incomeEntries || []}
-        personalEntries={personalEntries || []}
-        transactions={transactions || []}
-        investmentEntries={investmentEntries || []}
-        companies={companies}
-        quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-        projectedPaychecks={projectedPaychecks}
-        personalBucketRate={personalRate}
-        businessBucketRate={businessRate}
-        effectiveTaxRate={effectiveTaxRate}
-        showCompanyBreakdown={false}
-        showFooter={false}
-        showTaxOverviewCta={false}
-        showQuarterNavigation={false}
-        linkDeadlineToTaxOverview
-      />}
+      {!isW2Only && (
+        <DashboardQuarterlyPaymentCallout
+          annualTaxLiability={annualTaxLiability}
+          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
+          incomeEntries={incomeEntries || []}
+          personalEntries={personalEntries || []}
+          transactions={transactions || []}
+          investmentEntries={investmentEntries || []}
+          projectedPaychecks={projectedPaychecks}
+          payments={payments}
+          fallback={() => (
+            <QuarterlyTracker
+              annualTaxLiability={annualTaxLiability}
+              payments={payments}
+              methodLabel={methodLabel}
+              incomeEntries={incomeEntries || []}
+              personalEntries={personalEntries || []}
+              transactions={transactions || []}
+              investmentEntries={investmentEntries || []}
+              companies={companies}
+              quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
+              projectedPaychecks={projectedPaychecks}
+              personalBucketRate={personalRate}
+              businessBucketRate={businessRate}
+              effectiveTaxRate={effectiveTaxRate}
+              showCompanyBreakdown={false}
+              showFooter={false}
+              showTaxOverviewCta={false}
+              showQuarterNavigation={false}
+              linkDeadlineToTaxOverview
+            />
+          )}
+        />
+      )}
 
       <IncomeBreakdownCards
         businessProfit={businessProfitValue}
