@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Plus, Trash2, Building2, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, ChevronDown, ChevronRight, Users, UserCircle,
+  Lock, ChevronDown, ChevronRight, Users, UserCircle, Info,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,6 +56,7 @@ import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { cn } from "@/lib/utils";
+import { getBuildInfo } from "@/lib/buildInfo";
 import { classifyPersonalIncome } from "@/lib/incomeClassification";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
@@ -2353,6 +2354,42 @@ function TeamSection() {
 }
 
 /* ──────────────────────────────────────────────────────────── */
+/*  Build Info section                                           */
+/* ──────────────────────────────────────────────────────────── */
+function BuildInfoSection() {
+  const info = getBuildInfo();
+  return (
+    <SectionCard
+      title="Build Info"
+      icon={<Info className="h-5 w-5" />}
+      description="App version and deployment details for troubleshooting."
+      collapsible
+      defaultOpen={false}
+      hideActionBar
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-xs text-muted-foreground">App version</p>
+          <p className="font-medium text-card-foreground break-all">{info.version}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Environment</p>
+          <p className="font-medium text-card-foreground">{info.environment}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Git commit</p>
+          <p className="font-medium text-card-foreground break-all">{info.commit}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Build timestamp</p>
+          <p className="font-medium text-card-foreground break-all">{info.timestamp}</p>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────── */
 /*  Main Settings page                                           */
 /* ──────────────────────────────────────────────────────────── */
 export default function Settings() {
@@ -2409,6 +2446,7 @@ export default function Settings() {
       <CompaniesSection />
       <ConnectedAccountsSection />
       <TeamSection />
+      <BuildInfoSection />
       <DangerZoneSection />
     </div>
   );

@@ -25,6 +25,7 @@ import Estimate from "@/pages/Estimate";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
+import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -112,6 +113,7 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/onboarding" element={<OnboardingErrorBoundary><Onboarding /></OnboardingErrorBoundary>} />
       <Route path="/estimate" element={<Estimate />} />
+      <Route path="/diagnostics/build" element={<DiagnosticsBuild />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
     </Routes>
   );
