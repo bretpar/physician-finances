@@ -137,6 +137,7 @@ export default function QuarterlyTracker({
   showQuarterNavigation = true,
   linkDeadlineToTaxOverview = false,
   breakdownTitle = "This quarter by company",
+  showRecommendedPayment = false,
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
   const initial = useMemo(() => currentOwningYear(), []);
