@@ -675,34 +675,9 @@ export function useAddStream() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
-      const { error } = await supabase.from("projected_income_streams").insert({
-        user_id: user.id,
-        organization_id: orgId,
-        company: stream.company || "",
-        company_type: stream.company_type || "w2",
-        pay_frequency: stream.pay_frequency || "biweekly",
-        custom_interval_days: stream.custom_interval_days || null,
-        start_date: stream.start_date || new Date().toISOString().split("T")[0],
-        end_date: stream.end_date || null,
-        paycheck_amount: stream.paycheck_amount || 0,
-        taxes_withheld: stream.taxes_withheld || 0,
-        retirement_401k: stream.retirement_401k || 0,
-        pre_tax_deductions: stream.pre_tax_deductions || 0,
-        is_active: stream.is_active ?? true,
-        include_in_tax: stream.include_in_tax ?? true,
-        source_id: stream.source_id ?? null,
-        ui_income_subtype: stream.ui_income_subtype ?? null,
-        federal_withholding: stream.federal_withholding || 0,
-        state_withholding: stream.state_withholding || 0,
-        ss_withholding: stream.ss_withholding || 0,
-        medicare_withholding: stream.medicare_withholding || 0,
-        healthcare_deduction: stream.healthcare_deduction || 0,
-        hsa_contribution: stream.hsa_contribution || 0,
-        additional_tax_reserve: stream.additional_tax_reserve || 0,
-        forecast_expense_per_period: stream.forecast_expense_per_period || 0,
-        forecast_expense_notes: stream.forecast_expense_notes || "",
-        notes: stream.notes || "",
-      } as any);
+      const { error } = await supabase.from("projected_income_streams").insert(
+        buildProjectedIncomeStreamInsert(stream, user.id, orgId) as any,
+      );
       if (error) throw error;
     },
     onSuccess: () => {
