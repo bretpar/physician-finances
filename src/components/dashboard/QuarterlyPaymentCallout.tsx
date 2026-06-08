@@ -40,11 +40,9 @@ export function QuarterlyPaymentCallout({
     ? `${recommendation.quarterLabel} estimated tax payment may be overdue`
     : `${recommendation.quarterLabel} estimated tax payment due soon`;
   const amountLabel = overdue
-    ? `Recommended payment remaining: ${fmt(recommendation.recommendedQuarterlyPayment)}`
-    : `Recommended payment: ${fmt(recommendation.recommendedQuarterlyPayment)} by ${recommendation.deadlineLabel}`;
-  const subcopy = overdue
-    ? "Log a payment once submitted."
-    : "This accounts for W-2 withholding, estimated payments, and amounts you marked as saved.";
+    ? `Recommended payment to make: ${fmt(recommendation.recommendedPaymentToMake)}`
+    : `Recommended payment to make: ${fmt(recommendation.recommendedPaymentToMake)} by ${recommendation.deadlineLabel}`;
+  const subcopy = "Saved/reserved cash is shown separately — it isn't subtracted from the payment to make.";
 
   return (
     <Card className={cn("border-2", tone)}>
@@ -55,6 +53,9 @@ export function QuarterlyPaymentCallout({
             <p className="font-semibold text-foreground">{title}</p>
             <p className={cn("text-sm tabular-nums mt-0.5", overdue ? "text-amber-700 dark:text-amber-400" : "text-foreground")}>
               {amountLabel}
+            </p>
+            <p className="text-xs text-muted-foreground tabular-nums mt-1">
+              Saved so far: {fmt(recommendation.savedThisQuarter)} · Still need to save: {fmt(recommendation.stillNeedToSave)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">{subcopy}</p>
           </div>
