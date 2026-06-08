@@ -25,6 +25,11 @@ export interface OnboardingCompanyDraft {
   projectedAnnualGross?: number | null;
   /** K-1 SE-tax classification. Only meaningful when type === "k1". */
   k1SeTaxable?: "active" | "passive" | "unsure" | null;
+  /**
+   * W-2 employee owner. Only meaningful when type === "w2" and filing status
+   * is married_filing_jointly. Defaults to "primary" when not provided.
+   */
+  employeeRole?: "primary" | "spouse" | null;
 }
 
 

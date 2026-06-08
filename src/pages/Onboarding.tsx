@@ -332,6 +332,10 @@ export default function Onboarding() {
         include_se_tax_in_recommendation: includeSeTax,
         pay_frequency: company.type === "w2" ? (company.payFrequency || "biweekly") : null,
         projected_annual_gross: company.projectedAnnualGross ?? null,
+        // Persist W-2 spouse/primary ownership so the W-4 page and Personal
+        // Income labels can show the correct owner. Only meaningful for W-2.
+        employee_role:
+          company.type === "w2" ? (company.employeeRole || "primary") : null,
       };
       const existingRow = existingByName.get(normName(company.name));
       if (existingRow) {
@@ -342,6 +346,9 @@ export default function Onboarding() {
           patch.source_kind = row.source_kind;
         }
         if (isK1) patch.include_se_tax_in_recommendation = includeSeTax;
+        if (company.type === "w2" && company.employeeRole) {
+          patch.employee_role = company.employeeRole;
+        }
         if (Object.keys(patch).length > 0) toUpdate.push({ id: existingRow.id, patch });
       } else {
         toInsert.push(row);
@@ -761,6 +768,23 @@ export default function Onboarding() {
                             </SelectContent>
                           </Select>
                         </div>
+                        {merged.filingStatus === "married_filing_jointly" && (
+                          <div className="mt-3">
+                            <Label htmlFor={`company-employee-role-${index}`}>Whose W-2 is this?</Label>
+                            <Select
+                              value={company.employeeRole || "primary"}
+                              onValueChange={(value) => updateCompanyDraft(index, { employeeRole: value as "primary" | "spouse" })}
+                            >
+                              <SelectTrigger id={`company-employee-role-${index}`} data-testid={`onboarding-employee-role-${index}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="primary" data-testid={`onboarding-employee-role-${index}-option-primary`}>You</SelectItem>
+                                <SelectItem value="spouse" data-testid={`onboarding-employee-role-${index}-option-spouse`}>Spouse / partner</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                         <p className="mt-2 text-xs text-muted-foreground">
                           You can add projected annual income, expected paycheck amount, and expected federal withholding in Settings → W-2 Employers.
                         </p>
