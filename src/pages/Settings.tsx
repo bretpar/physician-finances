@@ -56,6 +56,7 @@ import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { cn } from "@/lib/utils";
+import { getBuildInfo } from "@/lib/buildInfo";
 import { classifyPersonalIncome } from "@/lib/incomeClassification";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
