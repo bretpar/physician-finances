@@ -332,6 +332,10 @@ export default function Onboarding() {
         include_se_tax_in_recommendation: includeSeTax,
         pay_frequency: company.type === "w2" ? (company.payFrequency || "biweekly") : null,
         projected_annual_gross: company.projectedAnnualGross ?? null,
+        // Persist W-2 spouse/primary ownership so the W-4 page and Personal
+        // Income labels can show the correct owner. Only meaningful for W-2.
+        employee_role:
+          company.type === "w2" ? (company.employeeRole || "primary") : null,
       };
       const existingRow = existingByName.get(normName(company.name));
       if (existingRow) {
@@ -342,6 +346,9 @@ export default function Onboarding() {
           patch.source_kind = row.source_kind;
         }
         if (isK1) patch.include_se_tax_in_recommendation = includeSeTax;
+        if (company.type === "w2" && company.employeeRole) {
+          patch.employee_role = company.employeeRole;
+        }
         if (Object.keys(patch).length > 0) toUpdate.push({ id: existingRow.id, patch });
       } else {
         toInsert.push(row);
