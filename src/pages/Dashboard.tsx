@@ -397,6 +397,7 @@ export default function Dashboard() {
           investmentEntries={investmentEntries || []}
           projectedPaychecks={projectedPaychecks}
           payments={payments}
+          manualSavings={manualSavingsRows}
           fallback={() => (
             <QuarterlyTracker
               annualTaxLiability={annualTaxLiability}
