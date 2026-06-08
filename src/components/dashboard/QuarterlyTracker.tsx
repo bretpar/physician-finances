@@ -252,31 +252,11 @@ export default function QuarterlyTracker({
   // Today marker renders immediately — no animation, no waiting on data.
   const showTodayMarker = !isFutureQuarter && !isPastQuarter && expectedPct > 0 && expectedPct < 100;
 
-  // Prorate the estimated-payment offset across companies by their saved share.
-  const offset = Math.min(rawSavedThisQuarter, quarterlyPayments);
-  const sortedCompanies = [...companyRows].sort((a, b) => (b.paid + b.saved) - (a.paid + a.saved));
-  const adjustedCompanyRows = sortedCompanies.map((c) => {
-    const share = rawSavedThisQuarter > 0 ? c.saved / rawSavedThisQuarter : 0;
-    const adjSaved = Math.max(0, c.saved - offset * share);
-    return { key: c.key, label: c.label, paid: c.paid, saved: adjSaved };
-  });
-  const rows = [
-    ...adjustedCompanyRows,
-    ...(investmentSavedThisQuarter > 0
-      ? [{
-          key: "__investment_income__",
-          label: "Investment income",
-          paid: 0,
-          saved: investmentSavedThisQuarter,
-        }]
-      : []),
-    {
-      key: "__quarterly_payments__",
-      label: `${q.label} estimated payments`,
-      paid: quarterlyPayments,
-      saved: 0,
-    },
-  ];
+  // Source rows come directly from the canonical helper (single source of
+  // truth). Sort by combined paid+saved so the largest contributors lead.
+  const rows = [...recommendation.sourceRows].sort(
+    (a, b) => (b.paid + b.saved) - (a.paid + a.saved),
+  );
   const hasAny = rows.some((r) => r.paid > 0 || r.saved > 0);
 
   const goPrev = () => setView(stepQuarter(view.year, view.quarter, -1));
