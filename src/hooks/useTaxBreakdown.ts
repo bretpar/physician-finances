@@ -505,7 +505,7 @@ export function useTaxBreakdown(
         const companyName = company?.name || stream.company || "Planned";
         if (!matchCompany(companyName)) continue;
         const expenseKey = companyId || aggKeyFor(companyName, ft, null);
-        const agg = expensesByCompany.get(companyId) ?? { total: 0, byCategory: new Map(), txCount: 0 };
+        const agg = expensesByCompany.get(expenseKey) ?? { total: 0, byCategory: new Map(), txCount: 0 };
         agg.total += plannedExpense;
         const catAgg = agg.byCategory.get("other") ?? { total: 0, count: 0 };
         catAgg.total += plannedExpense;
