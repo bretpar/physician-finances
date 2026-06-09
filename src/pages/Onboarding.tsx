@@ -451,20 +451,9 @@ export default function Onboarding() {
           setCatchupSubStep("form");
           return;
         }
-        // "no" or "skip" → finish step 2 and advance to plan selection.
-        // Companies are already persisted from the company sub-step.
-        setSaving(true);
-        try {
-          const nextStep = 3;
-          await persist({ onboardingComplete: false, onboardingStep: nextStep });
-          patch({ onboardingStep: nextStep });
-          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-          setStep(nextStep);
-        } catch (error: any) {
-          toast.error(error.message || "Could not save onboarding.");
-        } finally {
-          setSaving(false);
-        }
+        // "no" or "skip" → complete onboarding. Plan selection step removed;
+        // all users get premium access by default (MVP behavior).
+        await completeOnboarding();
         return;
       }
       if (catchupSubStep === "form") {
@@ -486,21 +475,18 @@ export default function Onboarding() {
         }
         setSaving(true);
         try {
-          const nextStep = 3;
           // Re-run company creation in case the user added more companies
           // from the catch-up screen; createOnboardingCompanies is idempotent.
           await createOnboardingCompanies();
-          await persist({ onboardingComplete: false, onboardingStep: nextStep });
           setEditingCatchup(null);
           setShowCatchupForm(false);
-          patch({ onboardingStep: nextStep });
-          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-          setStep(nextStep);
         } catch (error: any) {
           toast.error(error.message || "Could not save onboarding.");
-        } finally {
           setSaving(false);
+          return;
         }
+        setSaving(false);
+        await completeOnboarding();
         return;
       }
     }
