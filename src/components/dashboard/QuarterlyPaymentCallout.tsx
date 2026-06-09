@@ -6,6 +6,7 @@ import { AlertTriangle, Clock, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   buildQuarterRecommendation,
+  getActivePaymentTarget,
   type QuarterRecommendationInput,
   type QuarterRecommendation,
 } from "@/lib/quarterRecommendation";
@@ -18,7 +19,7 @@ interface Props extends Omit<QuarterRecommendationInput, "year" | "quarter"> {
 }
 
 /**
- * Compact dashboard callout for the current estimated-tax quarter. The
+ * Compact dashboard callout for the active estimated-tax quarter. The
  * recommendation must already be computed via `buildQuarterRecommendation`
  * so this component stays pure / presentational.
  */
@@ -37,35 +38,64 @@ export function QuarterlyPaymentCallout({
     ? "border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20"
     : "border-primary/30 bg-primary/[0.04]";
   const title = overdue
-    ? `${recommendation.quarterLabel} estimated tax payment may be overdue`
-    : `${recommendation.quarterLabel} estimated tax payment due soon`;
+    ? `${recommendation.quarterLabel} Payment Overdue`
+    : `${recommendation.quarterLabel} Payment Due`;
+  const recommendedRemaining = recommendation.recommendedPaymentToMake;
   const amountLabel = overdue
-    ? `Recommended payment to make: ${fmt(recommendation.recommendedPaymentToMake)}`
-    : `Recommended payment to make: ${fmt(recommendation.recommendedPaymentToMake)} by ${recommendation.deadlineLabel}`;
-  const subcopy = "Saved/reserved cash is shown separately — it isn't subtracted from the payment to make.";
+    ? `Recommended payment: ${fmt(recommendedRemaining)}`
+    : `Recommended payment: ${fmt(recommendedRemaining)} by ${recommendation.deadlineLabel}`;
+
+  const goToLogPayment = () => {
+    if (onLogPayment) return onLogPayment();
+    const params = new URLSearchParams({
+      logPayment: recommendation.quarterLabel,
+      amount: String(Math.round(recommendedRemaining)),
+      year: String(recommendation.taxYear),
+    });
+    navigate(`/taxes?${params.toString()}#quarterly-estimator`);
+  };
 
   return (
     <Card className={cn("border-2", tone)}>
       <CardContent className="py-4 space-y-3">
         <div className="flex items-start gap-3">
           <Icon className={cn("h-6 w-6 shrink-0", overdue ? "text-amber-600" : "text-primary")} />
-          <div className="min-w-0">
+          <div className="min-w-0 w-full">
             <p className="font-semibold text-foreground">{title}</p>
             <p className={cn("text-sm tabular-nums mt-0.5", overdue ? "text-amber-700 dark:text-amber-400" : "text-foreground")}>
               {amountLabel}
             </p>
-            <p className="text-xs text-muted-foreground tabular-nums mt-1">
-              Saved so far: {fmt(recommendation.savedThisQuarter)} · Still need to save: {fmt(recommendation.stillNeedToSave)}
+            <dl className="mt-2 grid grid-cols-1 gap-1 text-xs text-muted-foreground tabular-nums sm:grid-cols-2">
+              <div className="flex justify-between gap-2 sm:col-span-2">
+                <dt>Total {recommendation.quarterLabel} tax target</dt>
+                <dd>{fmt(recommendation.quarterTarget)}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt>W-2 withholding paid</dt>
+                <dd>{fmt(recommendation.w2WithheldThisQuarter)}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt>Estimated payments made</dt>
+                <dd>{fmt(recommendation.estimatedPaymentsMade)}</dd>
+              </div>
+              <div className="flex justify-between gap-2 sm:col-span-2">
+                <dt>Saved/reserved but not paid</dt>
+                <dd>{fmt(recommendation.savedThisQuarter)}</dd>
+              </div>
+              <div className="flex justify-between gap-2 sm:col-span-2 font-medium text-foreground">
+                <dt>Recommended payment remaining</dt>
+                <dd>{fmt(recommendedRemaining)}</dd>
+              </div>
+            </dl>
+            <p className="text-xs text-muted-foreground mt-2">
+              Saved/reserved cash is shown separately — it isn't subtracted from the payment to make.
             </p>
-            <p className="text-xs text-muted-foreground mt-1">{subcopy}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {onLogPayment ? (
-            <Button size="sm" onClick={onLogPayment}>Log Tax Payment</Button>
-          ) : (
-            <Button size="sm" onClick={() => navigate("/taxes#quarterly-estimator")}>Log Tax Payment</Button>
-          )}
+          <Button size="sm" onClick={goToLogPayment}>
+            Log {recommendation.quarterLabel} Payment
+          </Button>
           <Button size="sm" variant="outline" onClick={() => navigate("/taxes#quarterly-estimator")}>
             View Details
           </Button>
@@ -81,20 +111,21 @@ export function QuarterlyPaymentCallout({
 }
 
 /**
- * Convenience wrapper that computes the recommendation from raw dashboard
- * inputs via the canonical helper and returns either the callout, `null`
- * (window not active), or passes through to a fallback via the `fallback`
- * render prop.
+ * Convenience wrapper. Selects the active payment quarter via
+ * `getActivePaymentTarget` (so the Dashboard surfaces e.g. Q2 on Jun 9
+ * even though the calendar quarter is already Q3), then renders either
+ * the callout, `null`, or a fallback for the *current calendar quarter*.
  */
 export default function DashboardQuarterlyPaymentCallout({
   fallback,
   onLogPayment,
   ...input
 }: Props & { fallback?: () => JSX.Element | null }) {
-  const now = useMemo(() => new Date(), []);
+  const now = useMemo(() => input.now ?? new Date(), [input.now]);
+  const active = useMemo(() => getActivePaymentTarget(now), [now]);
   const recommendation = useMemo(
-    () => buildQuarterRecommendation({ ...input, now }),
-    [input, now],
+    () => buildQuarterRecommendation({ ...input, now, year: active.year, quarter: active.quarter }),
+    [input, now, active.year, active.quarter],
   );
   if (!recommendation.showDashboardPaymentCallout) return fallback ? fallback() : null;
   return (
