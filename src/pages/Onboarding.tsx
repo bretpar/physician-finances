@@ -723,7 +723,33 @@ export default function Onboarding() {
               {lastSavedName && !showCatchupForm && (
                 <div data-testid="ytd-catchup-saved-banner" role="status" aria-live="polite" className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
                   ✓ Saved — {lastSavedName} added.
+              </div>
+              {companyDrafts.filter((c) => c.name.trim()).length > 0 && (
+                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">Catch-up entries will be saved for:</p>
+                      <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                        {companyDrafts.filter((c) => c.name.trim()).map((c, i) => (
+                          <li key={i}>{c.name.trim()} <span className="text-[10px] uppercase tracking-wide">{c.type === "w2" ? "W-2" : c.type === "k1" ? "K-1" : "1099"}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingCatchup(null);
+                        setShowCatchupForm(false);
+                        setCatchupSubStep("company");
+                      }}
+                    >
+                      + Add another company/entity
+                    </Button>
+                  </div>
                 </div>
+              )}
               )}
               {showCatchupForm ? (
                 <div ref={catchupFormRef} className="rounded-xl border border-border p-4">
