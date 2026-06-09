@@ -59,4 +59,64 @@ test.describe("Onboarding — W-2 company persistence into YTD step", () => {
     await expect(page.locator("body")).toContainText("Evergreen Hospital W2");
     await expect(page.locator("body")).toContainText("Cascade Clinic W2");
   });
+
+  test("going back to company setup preserves both employers, then they appear in YTD", async ({ page }) => {
+    test.setTimeout(120_000);
+
+    const email = "brendantparker+w2goback@gmail.com";
+    const password = "Test123!";
+
+    await ensureFreshScenarioAccount(page, {
+      email,
+      password,
+      firstName: "GoBack",
+    });
+
+    // Step 1 — W-2 only.
+    await page.getByTestId("onboarding-first-name-input").fill("GoBack");
+    await page.getByTestId("onboarding-income-type-w2").click();
+    await page.getByTestId("onboarding-continue-button").click();
+
+    // Step 2 — company setup. Add two employers.
+    await expect(page.getByTestId("onboarding-company-entry-step")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await page
+      .getByTestId("onboarding-employer-name-input")
+      .fill("St. Mary's Hospital");
+    await page.getByTestId("onboarding-add-employer-button").click();
+    await page
+      .getByTestId("onboarding-employer-name-input-1")
+      .fill("Northwest Medical Group");
+
+    await page.getByTestId("onboarding-continue-button").click();
+
+    // Ask sub-step — go back to company setup.
+    await expect(page.getByTestId("onboarding-ytd-yes")).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByTestId("onboarding-back-button").click();
+
+    // Verify both employers are still present on company setup.
+    await expect(page.getByTestId("onboarding-company-entry-step")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByTestId("onboarding-employer-name-input"),
+    ).toHaveValue("St. Mary's Hospital");
+    await expect(
+      page.getByTestId("onboarding-employer-name-input-1"),
+    ).toHaveValue("Northwest Medical Group");
+
+    // Continue again through ask → YTD form.
+    await page.getByTestId("onboarding-continue-button").click();
+    await page.getByTestId("onboarding-ytd-yes").click();
+    await page.getByTestId("onboarding-continue-button").click();
+
+    // YTD form — both companies must render.
+    await expect(page.getByText(/No companies yet/i)).toHaveCount(0);
+    await expect(page.locator("body")).toContainText("St. Mary's Hospital");
+    await expect(page.locator("body")).toContainText("Northwest Medical Group");
+  });
 });
