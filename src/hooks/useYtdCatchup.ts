@@ -262,7 +262,13 @@ async function syncCatchupMirror(args: {
 
       source_id: c.company_id,
       transaction_type: "income",
-      actual_withholding: fedW + stateW,
+      // actual_withholding stays 0 on the YTD-catchup business mirror tx —
+      // federal withholding/estimated payments are mirrored into
+      // `tax_payments` (estimatedPaymentsMade) and state withholding flows
+      // through the catch-up's own state_withholding aggregation. Setting
+      // this to fedW+stateW would double-count those dollars in quarterly
+      // "Saved QTD" and tax-savings totals.
+      actual_withholding: 0,
       status: "active",
       excluded_from_reports: false,
       needs_review: false,
