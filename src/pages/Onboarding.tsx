@@ -64,7 +64,10 @@ export default function Onboarding() {
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
-  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
+  // New onboarding order: company setup first → ask about YTD catch-up →
+  // (optionally) catch-up form. Kept the same sub-step identifiers so any
+  // in-progress local state from prior sessions still maps correctly.
+  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("company");
   // When the brand-new user lands here right after signup we show a single
   // "How do you want to add income?" picker instead of the multi-step flow.
   const [showIncomeMethodPicker, setShowIncomeMethodPicker] = useState(
