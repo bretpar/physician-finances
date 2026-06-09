@@ -21,12 +21,23 @@ export interface QuarterInfo {
   deadlineLabel: string;
 }
 
+/**
+ * True 3-month calendar quarter for `now`:
+ *   Q1: Jan–Mar (due Apr 15)
+ *   Q2: Apr–Jun (due Jun 15)
+ *   Q3: Jul–Sep (due Sep 15)
+ *   Q4: Oct–Dec (due Jan 15 next year)
+ *
+ * The Dashboard progress tracker and YTD-catchup mirror both rely on this
+ * mapping so a June paycheck is treated as Q2 income (Apr–Jun) rather than
+ * being lumped into the IRS Q3 estimated-tax window.
+ */
 export function getCurrentQuarter(now: Date = new Date()): QuarterInfo {
   const year = now.getFullYear();
   const month = now.getMonth();
   if (month < 3) return mk(1, new Date(year, 3, 15), "Apr 15");
-  if (month < 5) return mk(2, new Date(year, 5, 15), "Jun 15");
-  if (month < 8) return mk(3, new Date(year, 8, 15), "Sep 15");
+  if (month < 6) return mk(2, new Date(year, 5, 15), "Jun 15");
+  if (month < 9) return mk(3, new Date(year, 8, 15), "Sep 15");
   return mk(4, new Date(year + 1, 0, 15), "Jan 15");
 }
 
