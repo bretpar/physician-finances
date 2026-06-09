@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Clock, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   buildQuarterRecommendation,
@@ -33,17 +33,7 @@ export function QuarterlyPaymentCallout({
   onLogPayment?: () => void;
 }) {
   const navigate = useNavigate();
-  const Icon = overdue ? AlertTriangle : Clock;
-  const tone = overdue
-    ? "border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20"
-    : "border-primary/30 bg-primary/[0.04]";
-  const title = overdue
-    ? `${recommendation.quarterLabel} Payment Overdue`
-    : `${recommendation.quarterLabel} Payment Due`;
   const recommendedRemaining = recommendation.recommendedPaymentToMake;
-  const amountLabel = overdue
-    ? `Recommended payment: ${fmt(recommendedRemaining)}`
-    : `Recommended payment: ${fmt(recommendedRemaining)} by ${recommendation.deadlineLabel}`;
 
   const goToLogPayment = () => {
     if (onLogPayment) return onLogPayment();
@@ -56,43 +46,30 @@ export function QuarterlyPaymentCallout({
   };
 
   return (
-    <Card className={cn("border-2", tone)}>
-      <CardContent className="py-4 space-y-3">
-        <div className="flex items-start gap-3">
-          <Icon className={cn("h-6 w-6 shrink-0", overdue ? "text-amber-600" : "text-primary")} />
-          <div className="min-w-0 w-full">
-            <p className="font-semibold text-foreground">{title}</p>
-            <p className={cn("text-sm tabular-nums mt-0.5", overdue ? "text-amber-700 dark:text-amber-400" : "text-foreground")}>
-              {amountLabel}
-            </p>
-            <dl className="mt-2 grid grid-cols-1 gap-1 text-xs text-muted-foreground tabular-nums sm:grid-cols-2">
-              <div className="flex justify-between gap-2 sm:col-span-2">
-                <dt>Total {recommendation.quarterLabel} tax target</dt>
-                <dd>{fmt(recommendation.quarterTarget)}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>W-2 withholding paid</dt>
-                <dd>{fmt(recommendation.w2WithheldThisQuarter)}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>Estimated payments made</dt>
-                <dd>{fmt(recommendation.estimatedPaymentsMade)}</dd>
-              </div>
-              <div className="flex justify-between gap-2 sm:col-span-2">
-                <dt>Saved/reserved but not paid</dt>
-                <dd>{fmt(recommendation.savedThisQuarter)}</dd>
-              </div>
-              <div className="flex justify-between gap-2 sm:col-span-2 font-medium text-foreground">
-                <dt>Recommended payment remaining</dt>
-                <dd>{fmt(recommendedRemaining)}</dd>
-              </div>
-            </dl>
-            <p className="text-xs text-muted-foreground mt-2">
-              Saved/reserved cash is shown separately — it isn't subtracted from the payment to make.
-            </p>
-          </div>
+    <Card className={cn("border-2", overdue ? "border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20" : "border-primary/30 bg-primary/[0.04]")}>
+      <CardContent className="py-4 space-y-4">
+        {/* Header row */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-semibold text-foreground">
+            {recommendation.quarterLabel} Payment
+          </p>
+          <p className={cn("text-sm tabular-nums", overdue ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+            Due {recommendation.deadlineLabel}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        {/* Centered amount */}
+        <div className="text-center">
+          <p className="text-4xl font-bold tabular-nums text-foreground tracking-tight">
+            {fmt(recommendedRemaining)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Recommended estimated tax payment
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap justify-center gap-2">
           <Button size="sm" onClick={goToLogPayment}>
             Log {recommendation.quarterLabel} Payment
           </Button>
