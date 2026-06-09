@@ -98,6 +98,9 @@ export interface CapGainsBreakdown {
   longTerm: number;
   losses: number;
   net: number;
+  dividends: number;
+  qualifiedDividends: number;
+  nonQualifiedDividends: number;
 }
 
 export interface OtherIncomeBreakdown {
