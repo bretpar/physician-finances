@@ -4,6 +4,7 @@ import {
   computeQuarterRecommendation,
   shouldShowDashboardPaymentCallout,
   daysUntilDeadline,
+  getActivePaymentTarget,
 } from "@/lib/quarterRecommendation";
 import { getCurrentQuarter } from "@/lib/quarters";
 
