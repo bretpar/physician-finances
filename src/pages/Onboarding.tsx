@@ -425,32 +425,53 @@ export default function Onboarding() {
   async function continueStep() {
     if (saving) return;
     if (step === 2) {
+      // New order: company setup → ask about YTD → optional YTD form.
+      if (catchupSubStep === "company") {
+        setSaving(true);
+        try {
+          await createOnboardingCompanies();
+          await persist({ onboardingComplete: false, onboardingStep: 2 });
+          setCatchupSubStep("ask");
+        } catch (error: any) {
+          console.error("[onboarding] company continue failed", error);
+          toast.error(error.message || "Could not save your companies.");
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
       if (catchupSubStep === "ask") {
         if (!catchupChoice) {
           toast.error("Pick an option to continue.");
           return;
         }
-        setCatchupSubStep(catchupChoice === "yes" ? "form" : "company");
+        if (catchupChoice === "yes") {
+          setCatchupSubStep("form");
+          return;
+        }
+        // "no" or "skip" → finish step 2 and advance to plan selection.
+        // Companies are already persisted from the company sub-step.
+        setSaving(true);
+        try {
+          const nextStep = 3;
+          await persist({ onboardingComplete: false, onboardingStep: nextStep });
+          patch({ onboardingStep: nextStep });
+          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+          setStep(nextStep);
+        } catch (error: any) {
+          toast.error(error.message || "Could not save onboarding.");
+        } finally {
+          setSaving(false);
+        }
         return;
       }
       if (catchupSubStep === "form") {
-        // Block Continue if the user still has the YTD form open. Otherwise
-        // a half-filled second employer can be silently abandoned without
-        // ever calling the YTD save handler — which is exactly the
-        // multi-W-2 ledger bug this guard exists to prevent. The user
-        // must either click Save catch-up or cancel/discard the form.
         if (showCatchupForm) {
           toast.error("Save the current entry, or cancel it, before continuing.");
           return;
         }
-        // Require at least one saved YTD entry before advancing. Use a local
-        // counter in addition to the query result so Continue works immediately
-        // after onSaved fires, without waiting for the query cache to refresh.
         let savedCount = Math.max(existingCatchups?.length ?? 0, localSavedCatchups);
         if (savedCount === 0) {
-          // Defensive: the cached query may still be loading after a reload
-          // even though entries exist in the DB. Do a direct count query
-          // before failing so users with persisted entries can advance.
           try {
             const { count } = await (supabase as any)
               .from("ytd_catchup_entries")
@@ -464,9 +485,23 @@ export default function Onboarding() {
           toast.error("Save at least one year-to-date entry, or click Back to skip.");
           return;
         }
-        setEditingCatchup(null);
-        setShowCatchupForm(false);
-        setCatchupSubStep("company");
+        setSaving(true);
+        try {
+          const nextStep = 3;
+          // Re-run company creation in case the user added more companies
+          // from the catch-up screen; createOnboardingCompanies is idempotent.
+          await createOnboardingCompanies();
+          await persist({ onboardingComplete: false, onboardingStep: nextStep });
+          setEditingCatchup(null);
+          setShowCatchupForm(false);
+          patch({ onboardingStep: nextStep });
+          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+          setStep(nextStep);
+        } catch (error: any) {
+          toast.error(error.message || "Could not save onboarding.");
+        } finally {
+          setSaving(false);
+        }
         return;
       }
     }
@@ -474,19 +509,12 @@ export default function Onboarding() {
     try {
       const nextStep = Math.min(TOTAL_STEPS, step + 1);
       if (step === 1) {
-        // First name is encouraged but not required to advance — fall back to
-        // auth metadata or the email local-part so brand-new signups (e.g.
-        // automated flows that skip the optional name field) are not stuck on
-        // Step 1. The user can update their name later in Settings.
         const metadataFirst = (user?.user_metadata as any)?.first_name as string | undefined;
         const emailLocal = user?.email ? user.email.split("@")[0] : "";
         const finalFirstName = merged.firstName.trim() || (metadataFirst?.trim() || "") || emailLocal || "Friend";
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
         await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
         patch({ firstName: finalFirstName });
-      } else if (step === 2) {
-        await createOnboardingCompanies();
-        await persist({ onboardingComplete: false, onboardingStep: nextStep });
       } else if (step === 3) {
         const selectedPlan = merged.subscriptionTier === "free" ? "free" : "premium";
         console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
