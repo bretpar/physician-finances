@@ -391,8 +391,13 @@ export default function Transactions() {
   // for which business a transaction belongs to.
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
+      const txType = (t.transaction_type || "expense");
+      // Hide account transfers when the toggle is on — but never hide
+      // them if the user explicitly picked the Transfer tab (they're
+      // trying to look at exactly these rows).
+      if (hideTransfers && txType === "transfer" && filterType !== "transfer") return false;
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
+      if (filterType !== "all" && txType !== filterType) return false;
       if (filterCompany !== "all" && (t.source_id || "") !== filterCompany) return false;
       if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
       if (filterReview === "needs_review" && !t.needs_review) return false;
@@ -401,7 +406,7 @@ export default function Transactions() {
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterPlanner, filterDateFrom, filterDateTo, hideTransfers]);
 
   const needsReviewCount = useMemo(() =>
     transactions.filter((t) => t.needs_review).length
