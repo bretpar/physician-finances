@@ -466,23 +466,20 @@ export default function Onboarding() {
         return;
       }
       if (catchupSubStep === "form") {
-        if (showCatchupForm) {
-          toast.error("Save the current entry, or cancel it, before continuing.");
+        const normName = (s: string) => String(s || "").trim().toLowerCase();
+        const sourceFor = (t: OnboardingCompanyType) => t === "w2" ? "w2" : "1099_k1";
+        const namedCompanies = companyDrafts.filter((c) => c.name.trim());
+        const missing = namedCompanies.find(
+          (c) => !(existingCatchups || []).some(
+            (e) => normName(e.company_name) === normName(c.name) && e.source_type === sourceFor(c.type),
+          ),
+        );
+        if (namedCompanies.length === 0) {
+          toast.error("Add at least one company before continuing.");
           return;
         }
-        let savedCount = Math.max(existingCatchups?.length ?? 0, localSavedCatchups);
-        if (savedCount === 0) {
-          try {
-            const { count } = await (supabase as any)
-              .from("ytd_catchup_entries")
-              .select("id", { count: "exact", head: true });
-            savedCount = count ?? 0;
-          } catch (e) {
-            console.warn("[onboarding] ytd catch-up count fallback failed", e);
-          }
-        }
-        if (savedCount === 0) {
-          toast.error("Save at least one year-to-date entry, or click Back to skip.");
+        if (missing) {
+          toast.error(`Please save ${missing.name} YTD income before continuing.`);
           return;
         }
         setSaving(true);
