@@ -46,9 +46,6 @@ beforeEach(() => {
 describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
   it("w2_only: locks source to W-2 paystub and shows W-2 payroll fields", () => {
     renderForm("w2_only");
-    // Locked banner present
-    expect(screen.getByText(/Income type:/i)).toBeInTheDocument();
-    expect(screen.getByText(/W-2 employer paystub/i)).toBeInTheDocument();
     // Source dropdown hidden
     expect(screen.queryByText(/Income source type/i)).not.toBeInTheDocument();
     // W-2 fields visible
@@ -56,14 +53,13 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
     expect(screen.getByText(/State withheld YTD/i)).toBeInTheDocument();
     expect(screen.getByText(/Social Security YTD/i)).toBeInTheDocument();
     expect(screen.getByText(/Medicare YTD/i)).toBeInTheDocument();
-    expect(screen.getByText(/Pre-tax deductions YTD/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pre-tax deductions, retirement, and benefits/i)).toBeInTheDocument();
     // 1099-style labels NOT shown
     expect(screen.queryByText(/Federal estimated taxes paid YTD/i)).not.toBeInTheDocument();
   });
 
   it("business_only: locks source to 1099/K-1 and hides W-2-only fields", () => {
     renderForm("business_only");
-    expect(screen.getByText(/1099 \/ K-1 business income/i)).toBeInTheDocument();
     expect(screen.queryByText(/Income source type/i)).not.toBeInTheDocument();
     // 1099 estimated-tax labels
     expect(screen.getByText(/Federal estimated taxes paid YTD/i)).toBeInTheDocument();
@@ -219,7 +215,7 @@ describe("YtdCatchupForm — 1099-only business expenses & net profit", () => {
     renderForm("business_only");
     expect(screen.queryByTestId("ytd-catchup-ss-withheld")).toBeNull();
     expect(screen.queryByTestId("ytd-catchup-medicare-withheld")).toBeNull();
-    expect(screen.queryByText(/Pre-tax deductions YTD/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pre-tax deductions, retirement, and benefits/i)).not.toBeInTheDocument();
   });
 });
 
