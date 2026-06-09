@@ -225,6 +225,7 @@ export function useTaxBreakdown(
   const currentYear = new Date().getFullYear();
   const { data: mileageEntries = [] } = useMileageYTD(currentYear);
   const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
+  const { data: investmentEntries = [] } = useInvestmentIncomeEntries();
 
   // 🎯 SINGLE SOURCE OF TRUTH for all totals
   const {
