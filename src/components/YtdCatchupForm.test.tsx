@@ -215,7 +215,7 @@ describe("YtdCatchupForm — 1099-only business expenses & net profit", () => {
     renderForm("business_only");
     expect(screen.queryByTestId("ytd-catchup-ss-withheld")).toBeNull();
     expect(screen.queryByTestId("ytd-catchup-medicare-withheld")).toBeNull();
-    expect(screen.queryByText(/Pre-tax deductions YTD/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pre-tax deductions, retirement, and benefits/i)).not.toBeInTheDocument();
   });
 });
 
