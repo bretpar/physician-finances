@@ -688,21 +688,9 @@ export default function Onboarding() {
                 <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
               </div>
               <div className="grid gap-3">
-                <div data-testid="onboarding-ytd-yes"><SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }} /></div>
-                <div data-testid="onboarding-ytd-no"><SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }} /></div>
-                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab. Continue to company/business setup." onClick={async () => {
-                  if (saving) return;
-                  setSaving(true);
-                  try {
-                    patch({ ytdCatchupChoice: "skip" });
-                    if (settingsId) await persist({ ytdCatchupChoice: "skip", onboardingComplete: false });
-                    setCatchupSubStep("company");
-                  } catch (error: any) {
-                    toast.error(error.message || "Could not save onboarding.");
-                  } finally {
-                    setSaving(false);
-                  }
-                }} /></div>
+                <div data-testid="onboarding-ytd-yes"><SelectCard selected={catchupChoice === "yes"} title="Catch up my year-to-date income" description="Enter year-to-date income and withholdings from your most recent paystub or business records." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); }} /></div>
+                <div data-testid="onboarding-ytd-no"><SelectCard selected={catchupChoice === "no"} title="Start fresh from today" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); }} /></div>
+                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={async () => { patch({ ytdCatchupChoice: "skip" }); if (settingsId) await persist({ ytdCatchupChoice: "skip" }); }} /></div>
               </div>
             </div>
           )}
