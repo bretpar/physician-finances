@@ -235,6 +235,8 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             placeholder={companyPlaceholder}
+            readOnly={!!lockedCompanyName}
+            disabled={!!lockedCompanyName}
           />
         </div>
         {/* MVP: spouse-specific W-2 attribution deferred. All MFJ W-2 entries
