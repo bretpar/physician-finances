@@ -641,6 +641,7 @@ export function useUpsertYtdCatchup() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["tax_payments"] });
       toast.success("YTD catch-up saved");
     },
     onError: (e: any) => {
