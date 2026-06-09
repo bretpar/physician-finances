@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronLeft, PencilLine, Building2, CalendarClock, LineChart } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,13 +92,37 @@ export default function Onboarding() {
   // New onboarding order: company setup first → ask about YTD catch-up →
   // (optionally) catch-up form. Kept the same sub-step identifiers so any
   // in-progress local state from prior sessions still maps correctly.
-  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("company");
+  const CATCHUP_SUBSTEP_KEY = "paycheckmd-onboarding-catchup-substep";
+  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">(() => {
+    try {
+      const raw = typeof window !== "undefined" ? sessionStorage.getItem(CATCHUP_SUBSTEP_KEY) : null;
+      return raw === "ask" || raw === "form" || raw === "company" ? raw : "company";
+    } catch {
+      return "company";
+    }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(CATCHUP_SUBSTEP_KEY, catchupSubStep); } catch { /* non-fatal */ }
+  }, [catchupSubStep]);
   // When the brand-new user lands here right after signup we show a single
   // "How do you want to add income?" picker instead of the multi-step flow.
   const [showIncomeMethodPicker, setShowIncomeMethodPicker] = useState(
     () => typeof window !== "undefined" && sessionStorage.getItem("paycheckmd-onboarding-start") === "income-method",
   );
-  const { data: existingCatchups } = useYtdCatchupEntries();
+  const { data: existingCatchups, isLoading: catchupsLoading } = useYtdCatchupEntries();
+  const { data: existingCompanies, isLoading: companiesLoading } = useQuery({
+    queryKey: ["onboarding-existing-companies", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name, company_type, pay_frequency, employee_role, include_se_tax_in_recommendation, projected_annual_gross")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
   const [editingCatchup, setEditingCatchup] = useState<import("@/hooks/useYtdCatchup").YtdCatchupEntry | null>(null);
   const [catchupFormKey, setCatchupFormKey] = useState(0);
   const [showCatchupForm, setShowCatchupForm] = useState(true);
@@ -157,13 +182,45 @@ export default function Onboarding() {
   // the employer-name input is rendered without requiring a click on
   // "Add another...". Keeps the manual UI behavior identical when the user
   // has already added drafts.
+  //
+  // IMPORTANT: do NOT seed a blank/default W-2 draft until BOTH the catch-up
+  // and existing-companies queries have resolved. Otherwise, on a refresh or
+  // re-login where sessionStorage is empty, we'd snap in a default W-2 row
+  // before the saved W-2 + 1099 sources hydrate from the DB — which is the
+  // resume regression this guards against.
+  const filingTypeToOnboardingType = (ct: string | null | undefined): OnboardingCompanyType | null => {
+    if (ct === "w2") return "w2";
+    if (ct === "1099_schedule_c" || ct === "1099") return "1099";
+    if (ct === "k1_partnership" || ct === "k1_scorp" || ct === "k1") return "k1";
+    return null;
+  };
   useEffect(() => {
     if (step !== 2) return;
     if (catchupSubStep !== "company") return;
+    if (!user) return;
+    // Wait for both queries before considering seeding a default empty draft.
+    if (catchupsLoading || companiesLoading) return;
     setCompanyDrafts((current) => {
-      if (current.length > 0) return current;
+      // If the user already has drafts (from sessionStorage or in-session edits)
+      // never overwrite them.
+      if (current.length > 0 && current.some((c) => (c.name || "").trim())) return current;
       const allowed = getAllowedCompanyTypes(merged.incomeProfileType);
-      const draftsFromCatchups = (existingCatchups || [])
+      const fromCompanies: OnboardingCompanyDraft[] = ((existingCompanies as any[]) || [])
+        .map((c) => {
+          const t = filingTypeToOnboardingType(c.company_type);
+          if (!t || !allowed.includes(t)) return null;
+          return {
+            name: String(c.name || ""),
+            type: t,
+            description: "",
+            payFrequency: t === "w2" ? ((c.pay_frequency as OnboardingPayFrequency) || "biweekly") : undefined,
+            projectedAnnualGross: c.projected_annual_gross ?? null,
+            employeeRole: t === "w2" ? ((c.employee_role as "primary" | "spouse") || "primary") : null,
+            k1SeTaxable: t === "k1" ? (c.include_se_tax_in_recommendation ? "active" : "passive") : null,
+          } as OnboardingCompanyDraft;
+        })
+        .filter((c): c is OnboardingCompanyDraft => !!c && !!c.name);
+      const fromCatchups: OnboardingCompanyDraft[] = (existingCatchups || [])
         .filter((entry) => entry.company_name)
         .map((entry) => ({
           name: entry.company_name,
@@ -172,10 +229,36 @@ export default function Onboarding() {
           payFrequency: entry.source_type === "w2" ? "biweekly" as const : undefined,
         }))
         .filter((company) => allowed.includes(company.type));
-      const unique = Array.from(new Map(draftsFromCatchups.map((company) => [`${company.name.trim().toLowerCase()}::${company.type}`, company])).values());
-      return unique.length > 0 ? unique : [{ name: "", type: allowed[0], description: "" }];
+      // Merge by normalized name. Companies (user-confirmed types) win over
+      // catch-up-derived defaults; never duplicate by name.
+      const byName = new Map<string, OnboardingCompanyDraft>();
+      for (const c of fromCatchups) byName.set(c.name.trim().toLowerCase(), c);
+      for (const c of fromCompanies) byName.set(c.name.trim().toLowerCase(), c);
+      const hydrated = Array.from(byName.values());
+      if (hydrated.length > 0) return hydrated;
+      // No saved sources anywhere — only now is it safe to seed a blank row.
+      return [{ name: "", type: allowed[0], description: "" }];
     });
-  }, [step, catchupSubStep, merged.incomeProfileType, existingCatchups]);
+  }, [step, catchupSubStep, merged.incomeProfileType, existingCatchups, existingCompanies, catchupsLoading, companiesLoading, user]);
+
+  // Resume the catch-up sub-step from saved progress on initial hydration so
+  // a refresh after saving YTD cards doesn't dump the user back on the
+  // company setup screen with a default W-2 row.
+  const resumeSubStepRef = useRef(false);
+  useEffect(() => {
+    if (resumeSubStepRef.current) return;
+    if (!user || catchupsLoading || companiesLoading) return;
+    if (!taxSettings) return;
+    resumeSubStepRef.current = true;
+    const hasCatchups = (existingCatchups || []).length > 0;
+    const choice = (taxSettings as any).ytdCatchupChoice ?? null;
+    if (hasCatchups || choice === "yes") {
+      setCatchupSubStep("form");
+    } else if (choice === "no" || choice === "skip") {
+      setCatchupSubStep("ask");
+    }
+  }, [user, taxSettings, existingCatchups, catchupsLoading, companiesLoading]);
+
 
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
   if (user && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
@@ -576,6 +659,7 @@ export default function Onboarding() {
       patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
       sessionStorage.removeItem("paycheckmd-onboarding-step");
       sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
+      sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
       console.info("[onboarding] completion:success", { settingsId, selectedPlan });
       toast.success("Onboarding complete!");
       navigate("/", { replace: true });
@@ -604,6 +688,7 @@ export default function Onboarding() {
       }
       sessionStorage.removeItem("paycheckmd-onboarding-start");
       sessionStorage.removeItem("paycheckmd-onboarding-step");
+      sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
       const destination =
         method === "manual" ? "/personal-income" :
         method === "bank" ? "/settings" :
