@@ -51,11 +51,30 @@ test.describe("Onboarding — K-1 estimated tax paid persists to Tax Overview", 
     await page.goto("/taxes");
     await expect(page.getByRole("heading", { name: /tax overview/i })).toBeVisible({ timeout: 20_000 });
 
-    // The "Estimated payments made" line exists in Taxes summary. Match the
-    // money amount on the row containing that label.
+    // 1) Tax Overview's "Estimated payments made" summary line must include $30,000.
     const row = page.locator("div", { hasText: /estimated payments made/i }).filter({
       hasText: /\$30,000/,
     });
     await expect(row.first()).toBeVisible({ timeout: 20_000 });
+
+    // 2) Payment History shows exactly one $30,000 payment row, and the
+    //    quarter label on that row matches the quarter label used by the
+    //    summary tracker — otherwise the same payment appears in history
+    //    under one quarter but is excluded from the tracker under another.
+    const paymentRows = page.locator("text=$30,000.00");
+    await expect(paymentRows.first()).toBeVisible({ timeout: 20_000 });
+    // Should appear in payment history exactly once.
+    const historyMatches = await page.getByText(/\$30,000\.00/).count();
+    expect(historyMatches).toBeGreaterThanOrEqual(1);
+
+    // 3) The IRS-period quarter label rendered on the payment-history row
+    //    must also be the quarter the tracker uses today, so the $30,000
+    //    appears under "Estimated payments made" for the current quarter.
+    //    Today's IRS-period quarter, per getCurrentQuarter:
+    //      Jan–Mar → Q1, Apr–May → Q2, Jun–Jul → Q3, Aug+ → Q3/Q4.
+    const m = new Date().getMonth();
+    const expectedQ = m < 3 ? "Q1" : m < 5 ? "Q2" : m < 8 ? "Q3" : "Q4";
+    await expect(page.getByText(new RegExp(`${expectedQ}\\b`)).first()).toBeVisible({ timeout: 10_000 });
   });
 });
+

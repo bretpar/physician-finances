@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CheckCircle2, Sparkles, Compass, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
-import { type QuarterLabel } from "@/lib/quarters";
+import { type QuarterLabel, getCurrentQuarter } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
@@ -109,12 +109,15 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
   return { year: y, quarter: q as 1 | 2 | 3 | 4 };
 }
 
-/** Calendar-quarter owning year/quarter for "today". */
+/** Owning year/quarter for "today" using the SAME IRS estimated-tax-period
+ *  mapping as `getCurrentQuarter` in `src/lib/quarters.ts`. This must match
+ *  the mapping used by the YTD-catchup mirror in `useYtdCatchup.ts` and by
+ *  `getQuarterPayments`, otherwise a payment tagged Q3 won't appear under
+ *  the Q2 tracker view (and vice versa). */
 function currentOwningYear(): { year: number; quarter: 1 | 2 | 3 | 4 } {
   const now = new Date();
-  const month = now.getMonth(); // 0-11
-  const quarter = (Math.floor(month / 3) + 1) as 1 | 2 | 3 | 4;
-  return { year: now.getFullYear(), quarter };
+  const q = getCurrentQuarter(now);
+  return { year: now.getFullYear(), quarter: q.quarter };
 }
 
 export default function QuarterlyTracker({
