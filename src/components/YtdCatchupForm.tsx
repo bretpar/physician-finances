@@ -17,6 +17,9 @@ interface Props {
   onCancel?: () => void;
   incomeProfileType?: IncomeProfileType;
   filingStatus?: "single" | "married_filing_jointly";
+  lockedCompanyName?: string;
+  lockedSourceType?: YtdCatchupSourceType;
+  saveLabel?: string;
 }
 
 const num = (v: string) => {
