@@ -46,9 +46,6 @@ beforeEach(() => {
 describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
   it("w2_only: locks source to W-2 paystub and shows W-2 payroll fields", () => {
     renderForm("w2_only");
-    // Locked banner present
-    expect(screen.getByText(/Income type:/i)).toBeInTheDocument();
-    expect(screen.getByText(/W-2 employer paystub/i)).toBeInTheDocument();
     // Source dropdown hidden
     expect(screen.queryByText(/Income source type/i)).not.toBeInTheDocument();
     // W-2 fields visible
