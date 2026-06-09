@@ -6,54 +6,56 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 30% 10%;
+    /* PaycheckMD brand palette — keep semantic tokens; values updated to match marketing site. */
+    --background: 210 43% 97%;            /* #F3F7FB soft blue */
+    --foreground: 222 47% 11%;            /* #0F172A primary navy */
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 30% 10%;
+    --card: 0 0% 100%;                    /* #FFFFFF */
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 30% 10%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 210 100% 45%;
+    --primary: 209 88% 36%;               /* #0B5CAD primary blue */
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 209 89% 30%;         /* #084C8F */
 
-    --secondary: 220 16% 93%;
-    --secondary-foreground: 220 30% 10%;
+    --secondary: 213 30% 94%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 16% 95%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 213 30% 95%;
+    --muted-foreground: 215 16% 47%;      /* #64748B */
 
-    --accent: 170 60% 42%;
+    --accent: 209 88% 36%;                /* align accent to brand blue */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 73% 50%;             /* #DC2626 */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 16% 90%;
-    --input: 220 16% 90%;
-    --ring: 210 100% 45%;
+    --border: 213 26% 88%;                /* #D8E0EA */
+    --input: 213 26% 88%;
+    --ring: 209 88% 36%;
 
     --radius: 0.75rem;
 
-    --success: 152 60% 42%;
+    --success: 157 54% 40%;               /* #2F9E73 */
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 38 92% 50%;                /* #F59E0B */
     --warning-foreground: 0 0% 100%;
-    --info: 210 100% 45%;
+    --info: 209 88% 36%;
     --info-foreground: 0 0% 100%;
 
-    --sidebar-background: 220 30% 10%;
-    --sidebar-foreground: 220 10% 80%;
-    --sidebar-primary: 210 100% 55%;
+    --sidebar-background: 220 39% 11%;    /* #111827 */
+    --sidebar-foreground: 213 20% 78%;
+    --sidebar-primary: 209 88% 46%;       /* brand blue, slightly brighter on dark */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 25% 16%;
-    --sidebar-accent-foreground: 220 10% 90%;
-    --sidebar-border: 220 25% 18%;
-    --sidebar-ring: 210 100% 55%;
+    --sidebar-accent: 209 88% 36%;        /* active item bg = brand blue */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 30% 18%;
+    --sidebar-ring: 209 88% 46%;
 
-    --chart-income: 152 60% 42%;
-    --chart-expense: 0 72% 51%;
+    --chart-income: 157 54% 40%;
+    --chart-expense: 0 73% 50%;
     --chart-tax: 38 92% 50%;
   }
 }
