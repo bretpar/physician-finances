@@ -939,7 +939,11 @@ export default function Onboarding() {
                     (e) => normName(e.company_name) === normName(c.name) && e.source_type === sourceFor(c.type),
                   ))
               : true;
-            const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved;
+            // Block Continue on the company step until the user has at
+            // least one named company in their list — prevents the
+            // "No companies yet" empty state on the YTD step.
+            const companyStepReady = !(step === 2 && catchupSubStep === "company") || namedCompanies.length > 0;
+            const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved || !companyStepReady;
             return (
               <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
                 <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
