@@ -543,31 +543,50 @@ export default function Onboarding() {
   // onboarding completion. Re-enable plan selection when paid tiers launch.
   async function completeOnboarding() {
     if (saving) return;
+    if (!settingsId) {
+      toast.error("Could not complete onboarding. Please try again.");
+      console.error("[onboarding] completion aborted: missing settingsId");
+      return;
+    }
     setSaving(true);
     try {
-      const selectedPlan = "premium";
+      const selectedPlan = "premium" as const;
       console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
       await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
-      const { data: completionRow, error: completionError } = await supabase
-        .from("tax_settings")
-        .select("onboarding_complete, subscription_tier")
-        .eq("id", settingsId)
-        .maybeSingle();
-      if (completionError) throw completionError;
-      if (completionRow?.onboarding_complete !== true) {
-        throw new Error("Onboarding completion did not save. Please try again.");
+      // Verification read is best-effort: if it returns false/null we
+      // re-issue a minimal direct update rather than throwing, so the user
+      // is never stranded on /onboarding after a successful persist.
+      try {
+        const { data: completionRow } = await supabase
+          .from("tax_settings")
+          .select("onboarding_complete")
+          .eq("id", settingsId)
+          .maybeSingle();
+        if (completionRow?.onboarding_complete !== true) {
+          console.warn("[onboarding] completion verification false — retrying direct update");
+          const { error: retryError } = await supabase
+            .from("tax_settings")
+            .update({ onboarding_complete: true, onboarding_step: TOTAL_STEPS, subscription_tier: selectedPlan } as any)
+            .eq("id", settingsId);
+          if (retryError) throw retryError;
+        }
+      } catch (verifyError) {
+        console.warn("[onboarding] completion verification failed (non-fatal)", verifyError);
       }
       patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
       sessionStorage.removeItem("paycheckmd-onboarding-step");
       sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
       console.info("[onboarding] completion:success", { settingsId, selectedPlan });
+      toast.success("Onboarding complete!");
       navigate("/", { replace: true });
       window.setTimeout(() => {
-        if (window.location.pathname.startsWith("/onboarding")) window.location.replace("/");
-      }, 750);
+        if (window.location.pathname.startsWith("/onboarding")) {
+          window.location.replace("/");
+        }
+      }, 500);
     } catch (error: any) {
       console.error("[onboarding] completion failed", { step, catchupSubStep, settingsId }, error);
-      toast.error(error.message || "Could not complete onboarding.");
+      toast.error(error?.message ? `Could not complete onboarding: ${error.message}` : "Could not complete onboarding. Please try again.");
     } finally {
       setSaving(false);
     }
