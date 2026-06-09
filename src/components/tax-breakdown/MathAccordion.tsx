@@ -93,7 +93,7 @@ export default function MathAccordion({ data }: { data: TaxBreakdownResult }) {
           )}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Filing status: <span className="font-medium text-foreground">{filingLabel}</span> · 2025 tax year
+          Filing status: <span className="font-medium text-foreground">{filingLabel}</span> · {ACTIVE_TAX_YEAR} tax year
         </p>
       </CardHeader>
       <CardContent className="pt-0">
