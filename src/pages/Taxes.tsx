@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Info, Plus, Pencil, Trash2, CalendarIcon, ExternalLink, ChevronDown,
@@ -97,6 +98,28 @@ export default function Taxes() {
   const [showCalcDetails, setShowCalcDetails] = useState(false);
 
   const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading || investmentLoading;
+
+  // Prefill the Log Payment dialog when navigated from the Dashboard
+  // callout (e.g. /taxes?logPayment=Q2&amount=15000&year=2026#quarterly-estimator).
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!location.search) return;
+    const params = new URLSearchParams(location.search);
+    const q = params.get("logPayment");
+    if (!q) return;
+    setPaymentEditId(null);
+    setPaymentDate(new Date());
+    setPaymentQuarter(q);
+    const amt = params.get("amount");
+    if (amt) setPaymentAmount(amt);
+    setPaymentNotes("");
+    setPaymentOpen(true);
+    // Strip the query so the dialog doesn't re-open on revisits.
+    navigate({ pathname: location.pathname, hash: location.hash }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+
 
   const e = estimate;
   const debug = taxMode === "actual" ? actualDebug : forecastDebug;
