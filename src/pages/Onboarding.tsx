@@ -92,13 +92,37 @@ export default function Onboarding() {
   // New onboarding order: company setup first → ask about YTD catch-up →
   // (optionally) catch-up form. Kept the same sub-step identifiers so any
   // in-progress local state from prior sessions still maps correctly.
-  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("company");
+  const CATCHUP_SUBSTEP_KEY = "paycheckmd-onboarding-catchup-substep";
+  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">(() => {
+    try {
+      const raw = typeof window !== "undefined" ? sessionStorage.getItem(CATCHUP_SUBSTEP_KEY) : null;
+      return raw === "ask" || raw === "form" || raw === "company" ? raw : "company";
+    } catch {
+      return "company";
+    }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(CATCHUP_SUBSTEP_KEY, catchupSubStep); } catch { /* non-fatal */ }
+  }, [catchupSubStep]);
   // When the brand-new user lands here right after signup we show a single
   // "How do you want to add income?" picker instead of the multi-step flow.
   const [showIncomeMethodPicker, setShowIncomeMethodPicker] = useState(
     () => typeof window !== "undefined" && sessionStorage.getItem("paycheckmd-onboarding-start") === "income-method",
   );
-  const { data: existingCatchups } = useYtdCatchupEntries();
+  const { data: existingCatchups, isLoading: catchupsLoading } = useYtdCatchupEntries();
+  const { data: existingCompanies, isLoading: companiesLoading } = useQuery({
+    queryKey: ["onboarding-existing-companies", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name, company_type, pay_frequency, employee_role, include_se_tax_in_recommendation, projected_annual_gross")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
   const [editingCatchup, setEditingCatchup] = useState<import("@/hooks/useYtdCatchup").YtdCatchupEntry | null>(null);
   const [catchupFormKey, setCatchupFormKey] = useState(0);
   const [showCatchupForm, setShowCatchupForm] = useState(true);
