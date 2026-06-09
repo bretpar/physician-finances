@@ -500,28 +500,58 @@ export default function Onboarding() {
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
         await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
         patch({ firstName: finalFirstName });
-      } else if (step === 3) {
-        const selectedPlan = merged.subscriptionTier === "free" ? "free" : "premium";
-        console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
-        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
-        const { data: completionRow, error: completionError } = await supabase
-          .from("tax_settings")
-          .select("onboarding_complete, subscription_tier")
-          .eq("id", settingsId)
-          .maybeSingle();
-        if (completionError) throw completionError;
-        if (completionRow?.onboarding_complete !== true) {
-          throw new Error("Onboarding completion did not save. Please try again.");
-        }
-        patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
-        sessionStorage.removeItem("paycheckmd-onboarding-step");
-        console.info("[onboarding] completion:success", { settingsId, selectedPlan });
-        navigate("/", { replace: true });
-        window.setTimeout(() => {
-          if (window.location.pathname.startsWith("/onboarding")) window.location.replace("/");
-        }, 750);
-        return;
       }
+      patch({ onboardingStep: nextStep });
+      sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+      setStep(nextStep);
+    } catch (error: any) {
+      console.error("[onboarding] continue failed", { step, catchupSubStep, settingsId }, error);
+      toast.error(error.message || "Could not save onboarding.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Temporary MVP behavior: all users receive full access (premium) on
+  // onboarding completion. Re-enable plan selection when paid tiers launch.
+  async function completeOnboarding() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const selectedPlan = "premium";
+      console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
+      await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+      const { data: completionRow, error: completionError } = await supabase
+        .from("tax_settings")
+        .select("onboarding_complete, subscription_tier")
+        .eq("id", settingsId)
+        .maybeSingle();
+      if (completionError) throw completionError;
+      if (completionRow?.onboarding_complete !== true) {
+        throw new Error("Onboarding completion did not save. Please try again.");
+      }
+      patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+      sessionStorage.removeItem("paycheckmd-onboarding-step");
+      console.info("[onboarding] completion:success", { settingsId, selectedPlan });
+      navigate("/", { replace: true });
+      window.setTimeout(() => {
+        if (window.location.pathname.startsWith("/onboarding")) window.location.replace("/");
+      }, 750);
+    } catch (error: any) {
+      console.error("[onboarding] completion failed", { step, catchupSubStep, settingsId }, error);
+      toast.error(error.message || "Could not complete onboarding.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function _unusedTail() {
+    // placeholder to absorb the original trailing patch/setStep block;
+    // never invoked.
+    return;
+  }
+  void _unusedTail;
+  if (false) {
       patch({ onboardingStep: nextStep });
       sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
       setStep(nextStep);
