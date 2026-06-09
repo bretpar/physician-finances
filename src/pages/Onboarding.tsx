@@ -65,7 +65,29 @@ export default function Onboarding() {
   const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
-  const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
+  const COMPANY_DRAFTS_KEY = "paycheckmd-onboarding-company-drafts";
+  const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>(() => {
+    try {
+      if (typeof window === "undefined") return [];
+      const raw = sessionStorage.getItem(COMPANY_DRAFTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as OnboardingCompanyDraft[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  // Persist companyDrafts across re-renders / step transitions so that a
+  // refetch-triggered render (or an accidental remount) cannot wipe the
+  // employers the user just added — which previously caused the YTD step
+  // to show "No companies yet" even after a successful continue.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(COMPANY_DRAFTS_KEY, JSON.stringify(companyDrafts));
+    } catch {
+      /* sessionStorage may be unavailable; non-fatal */
+    }
+  }, [companyDrafts]);
   // New onboarding order: company setup first → ask about YTD catch-up →
   // (optionally) catch-up form. Kept the same sub-step identifiers so any
   // in-progress local state from prior sessions still maps correctly.
