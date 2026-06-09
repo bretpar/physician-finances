@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { YtdCatchupForm } from "@/components/YtdCatchupForm";
-import { YtdCatchupRecap } from "@/components/YtdCatchupRecap";
+
 import { useYtdCatchupEntries, backfillYtdCatchupCompanies } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import {
