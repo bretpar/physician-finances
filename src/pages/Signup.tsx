@@ -44,7 +44,6 @@ export default function Signup() {
 
   async function handleCreateAccount() {
     if (saving) return;
-    const trimmedFirst = firstName.trim();
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       toast.error("Enter a valid email."); return;
@@ -58,7 +57,6 @@ export default function Signup() {
         email: normalizedEmail,
         password,
         options: {
-          data: trimmedFirst ? { first_name: trimmedFirst } : {},
           emailRedirectTo: window.location.origin,
         },
       });
