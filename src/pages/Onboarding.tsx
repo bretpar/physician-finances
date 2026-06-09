@@ -451,6 +451,11 @@ export default function Onboarding() {
     if (step === 2) {
       // New order: company setup → ask about YTD → optional YTD form.
       if (catchupSubStep === "company") {
+        const namedDrafts = companyDrafts.filter((c) => c.name.trim());
+        if (namedDrafts.length === 0) {
+          toast.error("Please add at least one company or entity before continuing.");
+          return;
+        }
         setSaving(true);
         try {
           await createOnboardingCompanies();
