@@ -946,7 +946,7 @@ export default function Onboarding() {
             const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved || !companyStepReady;
             return (
               <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-                <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
+                <Button type="button" variant="outline" data-testid="onboarding-back-button" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
                 <div className="flex items-center gap-2">
                   {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
                   <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={continueDisabled}>{saving ? "Saving…" : (step === 2 && (catchupSubStep === "ask" || catchupSubStep === "form")) ? "Finish setup" : "Continue"}</Button>
