@@ -41,6 +41,7 @@ import {
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
 import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
+import { useInvestmentIncomeEntries, aggregateInvestmentTaxBuckets } from "@/hooks/useInvestmentIncome";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
