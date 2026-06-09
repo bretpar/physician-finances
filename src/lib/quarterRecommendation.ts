@@ -301,7 +301,12 @@ export function buildQuarterRecommendation(
   for (const e of personalEntries) {
     const inQuarter = inWin(e.income_date);
     const inYtd = ytdThrough(e.income_date);
-    const paid = inYtd ? getTotalFederalPaid(e) : 0;
+    // W-2 "withholding paid" reflects federal income tax withholding ONLY.
+    // Social Security and Medicare are payroll taxes, not credits against
+    // federal income tax liability, so they must not be included here. The
+    // W-4 panel (Actual W-2 withholding YTD) reads federal_withholding for
+    // the same reason; this keeps Tax Overview aligned with W-4.
+    const paid = inYtd ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
     w2SavedFromIncome += saved;
