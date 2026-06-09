@@ -390,5 +390,33 @@ describe("recommendedPaymentToMake — excludes saved reserves", () => {
     });
     expect(r.recommendedPaymentToMake).toBe(10_000);
     expect(r.stillNeedToSave).toBe(3_000);
+
+  it("W-2 withholding paid excludes Social Security and Medicare", () => {
+    // Mixed W-2 + 1099 regression: Tax Overview must show only federal
+    // income tax withholding ($22,000), not the total payroll tax
+    // ($31,180 = 22,000 + 7,440 + 1,740).
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 50_000,
+      year: Y,
+      quarter: 3,
+      personalEntries: [
+        {
+          income_date: `${Y}-05-31`,
+          gross_amount: 120_000,
+          federal_withholding: 22_000,
+          ss_withholding: 7_440,
+          medicare_withholding: 1_740,
+          taxes_withheld: 31_180, // canonical total payroll
+        },
+      ],
+      payments: [
+        { applied_quarter: "Q3", applied_tax_year: Y, amount: 8_000 },
+      ],
+    });
+    expect(r.w2WithheldThisQuarter).toBe(22_000);
+    expect(r.w2WithheldThisQuarter).not.toBe(31_180);
+    expect(r.estimatedPaymentsMade).toBe(8_000);
+    expect(r.paidThisQuarter).toBe(30_000);
   });
 });
+
