@@ -30,7 +30,9 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-const TOTAL_STEPS = 3;
+// Temporary MVP behavior: all users receive full access. Re-enable plan
+// selection when paid tiers launch (was 3 with a Free vs Premium step 3).
+const TOTAL_STEPS = 2;
 
 const companyTypeLabels: Record<OnboardingCompanyType, string> = {
   w2: "W-2 Employer",
@@ -449,20 +451,9 @@ export default function Onboarding() {
           setCatchupSubStep("form");
           return;
         }
-        // "no" or "skip" → finish step 2 and advance to plan selection.
-        // Companies are already persisted from the company sub-step.
-        setSaving(true);
-        try {
-          const nextStep = 3;
-          await persist({ onboardingComplete: false, onboardingStep: nextStep });
-          patch({ onboardingStep: nextStep });
-          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-          setStep(nextStep);
-        } catch (error: any) {
-          toast.error(error.message || "Could not save onboarding.");
-        } finally {
-          setSaving(false);
-        }
+        // "no" or "skip" → complete onboarding. Plan selection step removed;
+        // all users get premium access by default (MVP behavior).
+        await completeOnboarding();
         return;
       }
       if (catchupSubStep === "form") {
@@ -484,21 +475,18 @@ export default function Onboarding() {
         }
         setSaving(true);
         try {
-          const nextStep = 3;
           // Re-run company creation in case the user added more companies
           // from the catch-up screen; createOnboardingCompanies is idempotent.
           await createOnboardingCompanies();
-          await persist({ onboardingComplete: false, onboardingStep: nextStep });
           setEditingCatchup(null);
           setShowCatchupForm(false);
-          patch({ onboardingStep: nextStep });
-          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-          setStep(nextStep);
         } catch (error: any) {
           toast.error(error.message || "Could not save onboarding.");
-        } finally {
           setSaving(false);
+          return;
         }
+        setSaving(false);
+        await completeOnboarding();
         return;
       }
     }
@@ -512,27 +500,6 @@ export default function Onboarding() {
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
         await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
         patch({ firstName: finalFirstName });
-      } else if (step === 3) {
-        const selectedPlan = merged.subscriptionTier === "free" ? "free" : "premium";
-        console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
-        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
-        const { data: completionRow, error: completionError } = await supabase
-          .from("tax_settings")
-          .select("onboarding_complete, subscription_tier")
-          .eq("id", settingsId)
-          .maybeSingle();
-        if (completionError) throw completionError;
-        if (completionRow?.onboarding_complete !== true) {
-          throw new Error("Onboarding completion did not save. Please try again.");
-        }
-        patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
-        sessionStorage.removeItem("paycheckmd-onboarding-step");
-        console.info("[onboarding] completion:success", { settingsId, selectedPlan });
-        navigate("/", { replace: true });
-        window.setTimeout(() => {
-          if (window.location.pathname.startsWith("/onboarding")) window.location.replace("/");
-        }, 750);
-        return;
       }
       patch({ onboardingStep: nextStep });
       sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
@@ -544,6 +511,40 @@ export default function Onboarding() {
       setSaving(false);
     }
   }
+
+  // Temporary MVP behavior: all users receive full access (premium) on
+  // onboarding completion. Re-enable plan selection when paid tiers launch.
+  async function completeOnboarding() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const selectedPlan = "premium";
+      console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
+      await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+      const { data: completionRow, error: completionError } = await supabase
+        .from("tax_settings")
+        .select("onboarding_complete, subscription_tier")
+        .eq("id", settingsId)
+        .maybeSingle();
+      if (completionError) throw completionError;
+      if (completionRow?.onboarding_complete !== true) {
+        throw new Error("Onboarding completion did not save. Please try again.");
+      }
+      patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+      sessionStorage.removeItem("paycheckmd-onboarding-step");
+      console.info("[onboarding] completion:success", { settingsId, selectedPlan });
+      navigate("/", { replace: true });
+      window.setTimeout(() => {
+        if (window.location.pathname.startsWith("/onboarding")) window.location.replace("/");
+      }, 750);
+    } catch (error: any) {
+      console.error("[onboarding] completion failed", { step, catchupSubStep, settingsId }, error);
+      toast.error(error.message || "Could not complete onboarding.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
 
   async function chooseIncomeMethod(method: "manual" | "bank" | "ytd" | "planner") {
     if (saving) return;
@@ -895,18 +896,10 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 3 && (
-            <div className="space-y-4">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1>
-                <p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, and deduction tracking.</SelectCard>
-                <SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard>
-              </div>
-            </div>
-          )}
+          {/* Temporary MVP behavior: plan selection step removed. All users
+              receive full (premium) access by default. Re-enable a step-3 plan
+              chooser when paid tiers launch. */}
+
 
           {(() => {
             const normName = (s: string) => String(s || "").trim().toLowerCase();
@@ -924,7 +917,7 @@ export default function Onboarding() {
                 <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
                 <div className="flex items-center gap-2">
                   {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-                  <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={continueDisabled}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+                  <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={continueDisabled}>{saving ? "Saving…" : (step === 2 && (catchupSubStep === "ask" || catchupSubStep === "form")) ? "Finish setup" : "Continue"}</Button>
                 </div>
               </div>
             );
