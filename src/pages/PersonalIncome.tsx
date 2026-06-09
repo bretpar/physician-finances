@@ -745,7 +745,60 @@ export default function PersonalIncome() {
         <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">W2 Income</p>
           <p className="text-sm sm:text-xl font-bold text-card-foreground truncate">{fmt(totals.w2Income)}</p>
+      </div>
+
+      {/* W-2 payroll tax withholding breakdown — read-only visibility for
+          federal income tax vs Social Security vs Medicare. Sourced directly
+          from saved W-2 entry fields; this does not change tax math. */}
+      {totals.w2PayrollTaxTotal > 0 && (
+        <div
+          className="rounded-lg border border-border bg-card p-3 sm:p-4"
+          data-testid="w2-withholding-breakdown"
+        >
+          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            W-2 Taxes Withheld (Breakdown)
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Federal income tax</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-card-foreground"
+                data-testid="w2-federal-withheld"
+              >
+                {fmt(totals.w2FederalWH)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Social Security</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-card-foreground"
+                data-testid="w2-ss-withheld"
+              >
+                {fmt(totals.w2SsWH)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Medicare</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-card-foreground"
+                data-testid="w2-medicare-withheld"
+              >
+                {fmt(totals.w2MedicareWH)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Total W-2 taxes</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-400"
+                data-testid="w2-total-withheld"
+              >
+                {fmt(totals.w2PayrollTaxTotal)}
+              </p>
+            </div>
+          </div>
         </div>
+      )}
+
         <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">Taxes Withheld</p>
           <p className="text-sm sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{fmt(totals.totalWithheld)}</p>
