@@ -65,7 +65,29 @@ export default function Onboarding() {
   const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
-  const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
+  const COMPANY_DRAFTS_KEY = "paycheckmd-onboarding-company-drafts";
+  const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>(() => {
+    try {
+      if (typeof window === "undefined") return [];
+      const raw = sessionStorage.getItem(COMPANY_DRAFTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as OnboardingCompanyDraft[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  // Persist companyDrafts across re-renders / step transitions so that a
+  // refetch-triggered render (or an accidental remount) cannot wipe the
+  // employers the user just added — which previously caused the YTD step
+  // to show "No companies yet" even after a successful continue.
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(COMPANY_DRAFTS_KEY, JSON.stringify(companyDrafts));
+    } catch {
+      /* sessionStorage may be unavailable; non-fatal */
+    }
+  }, [companyDrafts]);
   // New onboarding order: company setup first → ask about YTD catch-up →
   // (optionally) catch-up form. Kept the same sub-step identifiers so any
   // in-progress local state from prior sessions still maps correctly.
@@ -429,6 +451,11 @@ export default function Onboarding() {
     if (step === 2) {
       // New order: company setup → ask about YTD → optional YTD form.
       if (catchupSubStep === "company") {
+        const namedDrafts = companyDrafts.filter((c) => c.name.trim());
+        if (namedDrafts.length === 0) {
+          toast.error("Please add at least one company or entity before continuing.");
+          return;
+        }
         setSaving(true);
         try {
           await createOnboardingCompanies();
@@ -532,6 +559,7 @@ export default function Onboarding() {
       }
       patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
       sessionStorage.removeItem("paycheckmd-onboarding-step");
+      sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
       console.info("[onboarding] completion:success", { settingsId, selectedPlan });
       navigate("/", { replace: true });
       window.setTimeout(() => {
@@ -911,7 +939,11 @@ export default function Onboarding() {
                     (e) => normName(e.company_name) === normName(c.name) && e.source_type === sourceFor(c.type),
                   ))
               : true;
-            const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved;
+            // Block Continue on the company step until the user has at
+            // least one named company in their list — prevents the
+            // "No companies yet" empty state on the YTD step.
+            const companyStepReady = !(step === 2 && catchupSubStep === "company") || namedCompanies.length > 0;
+            const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved || !companyStepReady;
             return (
               <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
                 <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
