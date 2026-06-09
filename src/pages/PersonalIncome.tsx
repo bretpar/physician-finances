@@ -295,22 +295,28 @@ export default function PersonalIncome() {
     const stats = entries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);
+        const isW2 = isW2Type(hydrateIncomeType(e));
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
-          w2Income: acc.w2Income + (isW2Type(hydrateIncomeType(e)) ? amt : 0),
+          w2Income: acc.w2Income + (isW2 ? amt : 0),
           capitalGains: acc.capitalGains + (isStockType(hydrateIncomeType(e)) ? amt : 0),
           passiveIncome: acc.passiveIncome + (hydrateIncomeType(e) === "rental" ? amt : 0),
+          w2FederalWH: acc.w2FederalWH + (isW2 ? Number(e.federal_withholding || 0) : 0),
+          w2SsWH: acc.w2SsWH + (isW2 ? Number(e.ss_withholding || 0) : 0),
+          w2MedicareWH: acc.w2MedicareWH + (isW2 ? Number(e.medicare_withholding || 0) : 0),
         };
       },
-      { totalIncome: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0 }
+      { totalIncome: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0, w2FederalWH: 0, w2SsWH: 0, w2MedicareWH: 0 }
     );
     return {
       ...stats,
+      w2PayrollTaxTotal: stats.w2FederalWH + stats.w2SsWH + stats.w2MedicareWH,
       totalWithheld: stateIncomeTaxEnabled
         ? canonicalWithholding.actual.total
         : canonicalWithholding.actual.federal,
     };
   }, [entries, canonicalWithholding, stateIncomeTaxEnabled]);
+
 
   // Base withholding recommendation for Modal 1
   const grossAmount = num(form.gross_amount);
