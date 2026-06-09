@@ -729,18 +729,39 @@ export function useTaxBreakdown(
     sources.length = 0;
     sources.push(...mergedSources);
 
-    const totalShortTermGains = capGainsShort;
-    const totalLongTermGains = capGainsLong;
-    if (totalShortTermGains > 0 || totalLongTermGains > 0 || capGainsLosses > 0) {
+    // Fold investment_income_entries into capital gains aggregation so the
+    // Tax Breakdown display reflects the same investment data the engine
+    // already includes in taxable income (was previously txs-only and missed
+    // entries created via the Investments page).
+    const invBuckets = aggregateInvestmentTaxBuckets(investmentEntries);
+    const invShortGain = Math.max(0, invBuckets.shortTermSales);
+    const invLongGain = Math.max(0, invBuckets.longTermSales);
+    const invLosses =
+      Math.max(0, -Math.min(0, invBuckets.shortTermSales)) +
+      Math.max(0, -Math.min(0, invBuckets.longTermSales));
+    const totalShortTermGains = capGainsShort + invShortGain;
+    const totalLongTermGains = capGainsLong + invLongGain;
+    const totalLosses = capGainsLosses + invLosses;
+    const totalDividends = invBuckets.dividends;
+    if (
+      totalShortTermGains > 0 ||
+      totalLongTermGains > 0 ||
+      totalLosses > 0 ||
+      totalDividends > 0
+    ) {
       sources.push({
         kind: "capital_gains",
         source: "Investment accounts",
         shortTerm: totalShortTermGains,
         longTerm: totalLongTermGains,
-        losses: capGainsLosses,
-        net: totalShortTermGains + totalLongTermGains - capGainsLosses,
+        losses: totalLosses,
+        net: totalShortTermGains + totalLongTermGains - totalLosses + totalDividends,
+        dividends: totalDividends,
+        qualifiedDividends: invBuckets.qualifiedDividends,
+        nonQualifiedDividends: invBuckets.nonQualifiedDividends,
       });
     }
+
 
     // ── ENGINE-DRIVEN TOTALS (single source of truth) ──
     // If the engine isn't ready yet, return zeroed loading state.
