@@ -908,13 +908,27 @@ export default function Onboarding() {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-            <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
-            <div className="flex items-center gap-2">
-              {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-              <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={saving || (user && isLoading)}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
-            </div>
-          </div>
+          {(() => {
+            const normName = (s: string) => String(s || "").trim().toLowerCase();
+            const sourceFor = (t: OnboardingCompanyType) => t === "w2" ? "w2" : "1099_k1";
+            const namedCompanies = companyDrafts.filter((c) => c.name.trim());
+            const allCompaniesSaved = step === 2 && catchupSubStep === "form"
+              ? namedCompanies.length > 0 && namedCompanies.every((c) =>
+                  (existingCatchups || []).some(
+                    (e) => normName(e.company_name) === normName(c.name) && e.source_type === sourceFor(c.type),
+                  ))
+              : true;
+            const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved;
+            return (
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+                <Button type="button" variant="outline" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
+                <div className="flex items-center gap-2">
+                  {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
+                  <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={continueDisabled}>{saving ? "Saving…" : step === TOTAL_STEPS ? (merged.subscriptionTier === "premium" ? "Continue with Premium" : "Start with Free") : "Continue"}</Button>
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>
