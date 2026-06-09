@@ -190,28 +190,9 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
   };
 
 
-  const lockedLabel = lockedSource === "w2"
-    ? "W-2 employer paystub"
-    : lockedSource === "1099_k1"
-      ? "1099 / K-1 business income"
-      : null;
-
-  const hiddenNote = lockedSource === "w2"
-    ? "Showing W-2 paystub fields. 1099 / K-1 estimated-tax fields are hidden because you selected W-2 only."
-    : lockedSource === "1099_k1"
-      ? "Showing business income fields. W-2 payroll fields (Social Security, Medicare, pre-tax payroll deductions) are hidden because you selected business income only."
-      : null;
-
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">{description}</p>
-
-      {lockedLabel && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
-          <p className="font-medium text-foreground">Income type: {lockedLabel}</p>
-          {hiddenNote && <p className="mt-0.5 text-muted-foreground">{hiddenNote}</p>}
-        </div>
-      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {showSourceDropdown && (
