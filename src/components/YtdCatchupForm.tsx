@@ -66,7 +66,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
   const [stateWh, setStateWh] = useState(String(initial?.state_withholding ?? ""));
   const [ssWh, setSsWh] = useState(String(initial?.ss_withholding ?? ""));
   const [medWh, setMedWh] = useState(String(initial?.medicare_withholding ?? ""));
-  const [showPretax, setShowPretax] = useState(true);
+  const [showPretax, setShowPretax] = useState(false);
   const [r401k, setR401k] = useState(String(initial?.retirement_401k ?? ""));
   const [hsa, setHsa] = useState(String(initial?.hsa_contribution ?? ""));
   const [healthcare, setHealthcare] = useState(String(initial?.healthcare_premiums ?? ""));
