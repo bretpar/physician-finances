@@ -374,7 +374,7 @@ export default function Onboarding() {
 
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}) {
-    if (!settingsId) return;
+    if (!settingsId) throw new Error("Onboarding settings are still loading. Please try again in a moment.");
     const next = { ...merged, filingStatus: filingStatusRef.current, ...partial };
     const sources = incomeProfileToSources(next.incomeProfileType);
     // Dashboard Personalization defaults should reflect the income types the
@@ -482,15 +482,32 @@ export default function Onboarding() {
         await createOnboardingCompanies();
         await persist({ onboardingComplete: false, onboardingStep: nextStep });
       } else if (step === 3) {
-        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+        const selectedPlan = merged.subscriptionTier === "free" ? "free" : "premium";
+        console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
+        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+        const { data: completionRow, error: completionError } = await supabase
+          .from("tax_settings")
+          .select("onboarding_complete, subscription_tier")
+          .eq("id", settingsId)
+          .maybeSingle();
+        if (completionError) throw completionError;
+        if (completionRow?.onboarding_complete !== true) {
+          throw new Error("Onboarding completion did not save. Please try again.");
+        }
+        patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
         sessionStorage.removeItem("paycheckmd-onboarding-step");
+        console.info("[onboarding] completion:success", { settingsId, selectedPlan });
         navigate("/", { replace: true });
+        window.setTimeout(() => {
+          if (window.location.pathname.startsWith("/onboarding")) window.location.replace("/");
+        }, 750);
         return;
       }
       patch({ onboardingStep: nextStep });
       sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
       setStep(nextStep);
     } catch (error: any) {
+      console.error("[onboarding] continue failed", { step, catchupSubStep, settingsId }, error);
       toast.error(error.message || "Could not save onboarding.");
     } finally {
       setSaving(false);
