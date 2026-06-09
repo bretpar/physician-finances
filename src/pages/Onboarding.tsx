@@ -659,6 +659,7 @@ export default function Onboarding() {
       patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
       sessionStorage.removeItem("paycheckmd-onboarding-step");
       sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
+      sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
       console.info("[onboarding] completion:success", { settingsId, selectedPlan });
       toast.success("Onboarding complete!");
       navigate("/", { replace: true });
