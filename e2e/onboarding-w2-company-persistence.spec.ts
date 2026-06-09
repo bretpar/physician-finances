@@ -58,6 +58,11 @@ test.describe("Onboarding — W-2 company persistence into YTD step", () => {
     await expect(page.getByText(/No companies yet/i)).toHaveCount(0);
     await expect(page.locator("body")).toContainText("Evergreen Hospital W2");
     await expect(page.locator("body")).toContainText("Cascade Clinic W2");
+
+    // Employer/company name must be read-only inside each YTD card —
+    // there should be no editable Employer name input rendered.
+    await expect(page.getByTestId("ytd-catchup-company-name")).toHaveCount(0);
+    await expect(page.getByTestId("ytd-catchup-company-name-readonly")).toHaveCount(2);
   });
 
   test("going back to company setup preserves both employers, then they appear in YTD", async ({ page }) => {

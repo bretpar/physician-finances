@@ -208,18 +208,28 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
             </Select>
           </div>
         )}
-        <div className={showSourceDropdown ? "" : "sm:col-span-2"}>
-          <Label htmlFor="ytd-company-name">{companyLabel}</Label>
-          <Input
-            id="ytd-company-name"
-            data-testid="ytd-catchup-company-name"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder={companyPlaceholder}
-            readOnly={!!lockedCompanyName}
-            disabled={!!lockedCompanyName}
-          />
-        </div>
+        {lockedCompanyName ? (
+          <div className={showSourceDropdown ? "" : "sm:col-span-2"}>
+            <Label>{companyLabel}</Label>
+            <p
+              data-testid="ytd-catchup-company-name-readonly"
+              className="mt-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-foreground"
+            >
+              {lockedCompanyName}
+            </p>
+          </div>
+        ) : (
+          <div className={showSourceDropdown ? "" : "sm:col-span-2"}>
+            <Label htmlFor="ytd-company-name">{companyLabel}</Label>
+            <Input
+              id="ytd-company-name"
+              data-testid="ytd-catchup-company-name"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder={companyPlaceholder}
+            />
+          </div>
+        )}
         {/* MVP: spouse-specific W-2 attribution deferred. All MFJ W-2 entries
             persist as household W-2 income (owner_person defaults to "taxpayer"
             and mirrors to ui_income_subtype "w2_user"). Re-enable once Paychecks
