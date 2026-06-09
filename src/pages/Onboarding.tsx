@@ -826,10 +826,6 @@ export default function Onboarding() {
                         </div>
                       )}
                     </div>
-                    <div className="mt-3">
-                      <Label htmlFor={`company-desc-${index}`}>Optional description or nickname</Label>
-                      <Input id={`company-desc-${index}`} value={company.description || ""} onChange={(e) => updateCompanyDraft(index, { description: e.target.value })} placeholder="Optional" />
-                    </div>
                     {company.type === "w2" && (
                       <>
                         <div className="mt-3">
