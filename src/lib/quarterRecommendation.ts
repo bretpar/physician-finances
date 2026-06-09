@@ -450,3 +450,31 @@ export function shouldShowDashboardPaymentCallout(
     daysUntilDue,
   };
 }
+
+/**
+ * Choose which quarter the Dashboard payment callout should target.
+ *
+ * The IRS estimated-tax deadline for Q2 is Jun 15, which falls inside the
+ * calendar Q3 window (Jun 1 – Aug 31). So on e.g. Jun 9 the calendar quarter
+ * is already Q3, but the next relevant payment deadline is Q2's Jun 15.
+ *
+ * Rule: if the previous quarter's IRS deadline is within the dashboard
+ * payment window (≤20 days in the future or ≤7 days past), the active
+ * payment target is the previous quarter. Otherwise it is the current
+ * calendar quarter.
+ */
+export function getActivePaymentTarget(now: Date = new Date()): {
+  year: number;
+  quarter: QuarterNum;
+} {
+  const current = getCurrentQuarter(now);
+  const currentYear = now.getFullYear();
+  const prevQuarter: QuarterNum = current.quarter === 1 ? 4 : ((current.quarter - 1) as QuarterNum);
+  const prevYear = current.quarter === 1 ? currentYear - 1 : currentYear;
+  const prev = buildWindow(prevYear, prevQuarter);
+  const daysToPrev = daysUntilDeadline(prev.deadline, now);
+  if (daysToPrev <= 20 && daysToPrev >= -7) {
+    return { year: prevYear, quarter: prevQuarter };
+  }
+  return { year: currentYear, quarter: current.quarter };
+}
