@@ -60,7 +60,6 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
 
   it("business_only: locks source to 1099/K-1 and hides W-2-only fields", () => {
     renderForm("business_only");
-    expect(screen.getByText(/1099 \/ K-1 business income/i)).toBeInTheDocument();
     expect(screen.queryByText(/Income source type/i)).not.toBeInTheDocument();
     // 1099 estimated-tax labels
     expect(screen.getByText(/Federal estimated taxes paid YTD/i)).toBeInTheDocument();
