@@ -281,12 +281,28 @@ export function buildQuarterRecommendation(
     }
   }
 
+  // W-2 federal withholding is treated by the IRS as paid evenly throughout
+  // the year, so for quarterly safe-harbor display we aggregate it YTD
+  // through the end of the displayed quarter (not just the in-window slice).
+  // Without this, an onboarding YTD-catch-up mirror income_entry dated
+  // before the displayed quarter (e.g. period_end=May 31 while viewing Q3)
+  // would silently report $0 W-2 withholding even though Personal Income
+  // and the W-4 panel correctly show the full $22k YTD.
+  //
+  // Reserves (additional_tax_reserve) remain quarter-scoped so saved cash
+  // doesn't get inflated across multiple quarters.
+  const ytdThrough = (iso?: string | null) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    return d.getFullYear() === year && d < end;
+  };
   let w2WithheldThisQuarter = 0;
   let w2SavedFromIncome = 0;
   for (const e of personalEntries) {
-    if (!inWin(e.income_date)) continue;
-    const paid = getTotalFederalPaid(e);
-    const saved = Number(e.additional_tax_reserve || 0);
+    const inQuarter = inWin(e.income_date);
+    const inYtd = ytdThrough(e.income_date);
+    const paid = inYtd ? getTotalFederalPaid(e) : 0;
+    const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
     w2SavedFromIncome += saved;
     if (paid > 0 || saved > 0) {
