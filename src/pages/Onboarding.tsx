@@ -124,11 +124,10 @@ export default function Onboarding() {
     }));
   }, [user, isLoading, taxSettings]);
 
-  useEffect(() => {
-    if (step !== 2) return;
-    if (catchupChoice === "yes") setCatchupSubStep((s) => (s === "ask" ? "form" : s));
-    else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
-  }, [step, catchupChoice]);
+  // No auto-advance between sub-steps based on catchupChoice. The new flow
+  // is driven explicitly: Continue advances company → ask → form, and the
+  // "ask" SelectCards just record the choice. This prevents jumping past
+  // the company setup step when the user reloads with a saved choice.
 
   // Auto-seed the first company draft when we land on the company sub-step so
   // the employer-name input is rendered without requiring a click on
