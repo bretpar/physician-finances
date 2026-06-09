@@ -368,7 +368,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
 
       <div className="flex justify-end gap-2 pt-2">
         {onCancel && <Button type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>Cancel</Button>}
-        <Button type="button" data-testid="ytd-catchup-save" onClick={submit} disabled={isSaving}>{isSaving ? "Saving…" : initial ? "Save changes" : "Save catch-up"}</Button>
+        <Button type="button" data-testid="ytd-catchup-save" onClick={submit} disabled={isSaving}>{isSaving ? "Saving…" : initial ? "Save changes" : (saveLabel ?? "Save catch-up")}</Button>
       </div>
     </div>
   );
