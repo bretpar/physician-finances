@@ -545,23 +545,6 @@ export default function Onboarding() {
     }
   }
 
-  async function _unusedTail() {
-    // placeholder to absorb the original trailing patch/setStep block;
-    // never invoked.
-    return;
-  }
-  void _unusedTail;
-  if (false) {
-      patch({ onboardingStep: nextStep });
-      sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-      setStep(nextStep);
-    } catch (error: any) {
-      console.error("[onboarding] continue failed", { step, catchupSubStep, settingsId }, error);
-      toast.error(error.message || "Could not save onboarding.");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function chooseIncomeMethod(method: "manual" | "bank" | "ytd" | "planner") {
     if (saving) return;
