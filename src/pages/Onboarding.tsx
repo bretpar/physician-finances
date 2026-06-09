@@ -695,112 +695,106 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 2 && catchupSubStep === "form" && (
-            <div className="space-y-5">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">{
-                  merged.incomeProfileType === "w2_only" ? "Add each W-2 paystub you've received this year"
-                    : merged.incomeProfileType === "business_only" ? "Add each 1099 / business income source from this year"
-                    : "Add each paystub or 1099 source you've earned from this year"
-                }</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Enter year-to-date totals so recommendations stay accurate. Add one entry per employer or company — you can add as many as you need.</p>
-                {merged.incomeProfileType === "business_only" && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Planned remaining-year business revenue and expenses are entered later in the Income Planner, not here. This step captures actual year-to-date income only.
-                  </p>
-                )}
-              </div>
-              <YtdCatchupRecap
-                onEdit={(entry) => {
-                  setEditingCatchup(entry);
-                  setShowCatchupForm(true);
-                  setCatchupFormKey((k) => k + 1);
-                  setLastSavedName(null);
-                  setTimeout(() => catchupFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-                }}
-                editingId={editingCatchup?.id ?? null}
-              />
-              {lastSavedName && !showCatchupForm && (
-                <div data-testid="ytd-catchup-saved-banner" role="status" aria-live="polite" className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
-                  ✓ Saved — {lastSavedName} added.
+          {step === 2 && catchupSubStep === "form" && (() => {
+            const normName = (s: string) => String(s || "").trim().toLowerCase();
+            const namedCompanies = companyDrafts.filter((c) => c.name.trim());
+            const typeLabel = (t: OnboardingCompanyType) => t === "w2" ? "W-2" : t === "k1" ? "K-1" : "1099";
+            const sourceFor = (t: OnboardingCompanyType) => t === "w2" ? "w2" as const : "1099_k1" as const;
+            const savedFor = (c: OnboardingCompanyDraft) =>
+              (existingCatchups || []).find(
+                (e) => normName(e.company_name) === normName(c.name) && e.source_type === sourceFor(c.type),
+              );
+            return (
+              <div className="space-y-5">
+                <div>
+                  <h1 className="text-2xl font-semibold text-foreground">Enter year-to-date income for each company</h1>
+                  <p className="mt-1 text-sm text-muted-foreground">Use your most recent paystub or records for each company. Save each company before continuing.</p>
                 </div>
-              )}
-              {companyDrafts.filter((c) => c.name.trim()).length > 0 && (
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-foreground">Catch-up entries will be saved for:</p>
-                      <ul className="mt-1 list-disc pl-4 text-muted-foreground">
-                        {companyDrafts.filter((c) => c.name.trim()).map((c, i) => (
-                          <li key={i}>{c.name.trim()} <span className="text-[10px] uppercase tracking-wide">{c.type === "w2" ? "W-2" : c.type === "k1" ? "K-1" : "1099"}</span></li>
-                        ))}
-                      </ul>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingCatchup(null);
-                        setShowCatchupForm(false);
-                        setCatchupSubStep("company");
-                      }}
-                    >
-                      + Add another company/entity
-                    </Button>
+                {namedCompanies.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No companies yet. Go back to add at least one company or entity.
                   </div>
+                )}
+                <div className="space-y-3">
+                  {namedCompanies.map((company, idx) => {
+                    const saved = savedFor(company);
+                    const isOpen = editingCatchup?.company_name === company.name || (!saved && editingCatchup === null && (lastSavedName !== company.name || !saved));
+                    // Open by default when not saved; collapsed when saved unless explicitly editing.
+                    const openCard = !saved || editingCatchup?.id === saved?.id;
+                    return (
+                      <div key={`${company.name}-${idx}`} className={cn("rounded-xl border", saved ? "border-success/40 bg-success/5" : "border-border bg-card")}> 
+                        <div className="flex items-center justify-between gap-3 p-4">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {company.name} <span className="text-xs font-normal text-muted-foreground">— {typeLabel(company.type)}</span>
+                            </p>
+                            {saved ? (
+                              <p className="text-xs text-success mt-0.5 flex items-center gap-1">
+                                <Check className="h-3.5 w-3.5" /> Saved · Gross {`$${Number(saved.gross_income || 0).toLocaleString()}`} · Fed {`$${Number(saved.federal_withholding || 0).toLocaleString()}`}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-0.5">YTD income not saved yet.</p>
+                            )}
+                          </div>
+                          {saved && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (editingCatchup?.id === saved.id) {
+                                  setEditingCatchup(null);
+                                } else {
+                                  setEditingCatchup(saved);
+                                  setCatchupFormKey((k) => k + 1);
+                                }
+                              }}
+                            >
+                              {editingCatchup?.id === saved.id ? "Close" : "Edit"}
+                            </Button>
+                          )}
+                        </div>
+                        {openCard && (
+                          <div className="border-t border-border p-4">
+                            <YtdCatchupForm
+                              key={`${company.name}-${idx}-${catchupFormKey}-${saved?.id ?? "new"}`}
+                              initial={saved ?? undefined}
+                              incomeProfileType={merged.incomeProfileType}
+                              filingStatus={merged.filingStatus}
+                              lockedCompanyName={company.name}
+                              lockedSourceType={sourceFor(company.type)}
+                              saveLabel={`Save ${company.name} YTD`}
+                              onSaved={() => {
+                                setLastSavedName(company.name);
+                                setEditingCatchup(null);
+                                setLocalSavedCatchups((n) => n + 1);
+                              }}
+                              onCancel={saved ? () => setEditingCatchup(null) : undefined}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-              {showCatchupForm ? (
-                <div ref={catchupFormRef} className="rounded-xl border border-border p-4">
-                  {editingCatchup && (
-                    <p className="text-xs text-primary mb-3">Editing {editingCatchup.company_name}. Save changes or cancel to add a new entry.</p>
-                  )}
-                  <YtdCatchupForm
-                    key={catchupFormKey}
-                    initial={editingCatchup ?? undefined}
-                    incomeProfileType={merged.incomeProfileType}
-                    filingStatus={merged.filingStatus}
-                    onSaved={() => {
-                      const name = editingCatchup?.company_name ?? "Entry";
-                      setLastSavedName(name);
-                      setEditingCatchup(null);
-                      setShowCatchupForm(false);
-                      setLocalSavedCatchups((n) => n + 1);
-                    }}
-                    onCancel={() => {
-                      // Always offer a way out of the open form so the
-                      // Continue guard can't trap the user when they
-                      // accidentally clicked "+ Add another employer".
-                      setEditingCatchup(null);
-                      setShowCatchupForm(false);
-                      setCatchupFormKey((k) => k + 1);
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-dashed border-border p-4">
-                  <p className="text-sm text-muted-foreground">
-                    {existingCatchups && existingCatchups.length > 0
-                      ? `${existingCatchups.length} ${existingCatchups.length === 1 ? "entry" : "entries"} saved. Add another employer or continue when you're done.`
-                      : "Add your first employer or income source to get started."}
-                  </p>
+                <div className="flex items-center justify-between border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground">Done with one? You can still add more.</p>
                   <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setEditingCatchup(null);
-                      setShowCatchupForm(true);
-                      setCatchupFormKey((k) => k + 1);
-                      setLastSavedName(null);
-                      setTimeout(() => catchupFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                      setCatchupSubStep("company");
                     }}
                   >
-                    + Add another employer
+                    + Add another company/entity
                   </Button>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
+
 
           {step === 2 && catchupSubStep === "company" && (
             <div className="space-y-5" data-testid="onboarding-company-entry-step">
