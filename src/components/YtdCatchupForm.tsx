@@ -17,6 +17,9 @@ interface Props {
   onCancel?: () => void;
   incomeProfileType?: IncomeProfileType;
   filingStatus?: "single" | "married_filing_jointly";
+  lockedCompanyName?: string;
+  lockedSourceType?: YtdCatchupSourceType;
+  saveLabel?: string;
 }
 
 const num = (v: string) => {
@@ -24,7 +27,7 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, filingStatus }: Props) {
+export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, filingStatus, lockedCompanyName, lockedSourceType, saveLabel }: Props) {
   const upsert = useUpsertYtdCatchup();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: taxSettings } = useTaxSettings();
@@ -34,11 +37,13 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
   const yearStart = `${taxYear}-01-01`;
   const today = new Date().toISOString().split("T")[0];
 
-  // Determine the locked / default source type from the profile.
+  // Determine the locked / default source type from the profile or explicit prop.
   const lockedSource: YtdCatchupSourceType | null =
-    incomeProfileType === "w2_only" ? "w2"
-    : incomeProfileType === "business_only" ? "1099_k1"
-    : null;
+    lockedSourceType ?? (
+      incomeProfileType === "w2_only" ? "w2"
+      : incomeProfileType === "business_only" ? "1099_k1"
+      : null
+    );
 
   const [sourceType, setSourceType] = useState<YtdCatchupSourceType>(
     initial?.source_type ?? lockedSource ?? "w2"
@@ -51,7 +56,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
     }
   }, [lockedSource, initial, sourceType]);
 
-  const [companyName, setCompanyName] = useState(initial?.company_name ?? "");
+  const [companyName, setCompanyName] = useState(initial?.company_name ?? lockedCompanyName ?? "");
   const effectiveFilingStatus = filingStatus ?? (taxSettings as any)?.filingStatus ?? "single";
   const isMfj = effectiveFilingStatus === "married_filing_jointly";
   const [ownerPerson, setOwnerPerson] = useState<YtdCatchupOwnerPerson>(
@@ -230,6 +235,8 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             placeholder={companyPlaceholder}
+            readOnly={!!lockedCompanyName}
+            disabled={!!lockedCompanyName}
           />
         </div>
         {/* MVP: spouse-specific W-2 attribution deferred. All MFJ W-2 entries
@@ -361,7 +368,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
 
       <div className="flex justify-end gap-2 pt-2">
         {onCancel && <Button type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>Cancel</Button>}
-        <Button type="button" data-testid="ytd-catchup-save" onClick={submit} disabled={isSaving}>{isSaving ? "Saving…" : initial ? "Save changes" : "Save catch-up"}</Button>
+        <Button type="button" data-testid="ytd-catchup-save" onClick={submit} disabled={isSaving}>{isSaving ? "Saving…" : initial ? "Save changes" : (saveLabel ?? "Save catch-up")}</Button>
       </div>
     </div>
   );

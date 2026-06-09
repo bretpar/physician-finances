@@ -14,7 +14,6 @@ export default function Signup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -45,7 +44,6 @@ export default function Signup() {
 
   async function handleCreateAccount() {
     if (saving) return;
-    const trimmedFirst = firstName.trim();
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       toast.error("Enter a valid email."); return;
@@ -59,7 +57,6 @@ export default function Signup() {
         email: normalizedEmail,
         password,
         options: {
-          data: trimmedFirst ? { first_name: trimmedFirst } : {},
           emailRedirectTo: window.location.origin,
         },
       });
@@ -141,17 +138,6 @@ export default function Signup() {
             className="grid gap-4"
             onSubmit={(e) => { e.preventDefault(); handleCreateAccount(); }}
           >
-            <div>
-              <Label htmlFor="signup-first-name">First name (optional)</Label>
-              <Input
-                id="signup-first-name"
-                data-testid="signup-first-name"
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Alex"
-              />
-            </div>
             <div>
               <Label htmlFor="signup-email">Email</Label>
               <Input
