@@ -196,7 +196,12 @@ export default function Transactions() {
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
-  
+  // Account transfers are excluded from all business calculations already
+  // (see summaryStats CANONICAL EXCLUSION). This toggle is purely a
+  // visibility / export-scope control. Default ON so the ledger view
+  // matches the totals out of the box.
+  const [hideTransfers, setHideTransfers] = useState<boolean>(true);
+
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Bulk selection
