@@ -30,7 +30,9 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-const TOTAL_STEPS = 3;
+// Temporary MVP behavior: all users receive full access. Re-enable plan
+// selection when paid tiers launch (was 3 with a Free vs Premium step 3).
+const TOTAL_STEPS = 2;
 
 const companyTypeLabels: Record<OnboardingCompanyType, string> = {
   w2: "W-2 Employer",
