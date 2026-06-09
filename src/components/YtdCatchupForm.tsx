@@ -319,7 +319,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
       {showPretaxSection && (
         <div className="rounded-lg border border-border p-3">
           <button type="button" className="flex w-full items-center justify-between text-sm font-medium" onClick={() => setShowPretax((v) => !v)}>
-            <span>Pre-tax deductions YTD</span>
+            <span>Pre-tax deductions, retirement, and benefits</span>
             {showPretax ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
           {showPretax && (
