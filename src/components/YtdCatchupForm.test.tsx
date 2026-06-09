@@ -53,7 +53,7 @@ describe("YtdCatchupForm — Step 3 field visibility & source locking", () => {
     expect(screen.getByText(/State withheld YTD/i)).toBeInTheDocument();
     expect(screen.getByText(/Social Security YTD/i)).toBeInTheDocument();
     expect(screen.getByText(/Medicare YTD/i)).toBeInTheDocument();
-    expect(screen.getByText(/Pre-tax deductions YTD/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pre-tax deductions, retirement, and benefits/i)).toBeInTheDocument();
     // 1099-style labels NOT shown
     expect(screen.queryByText(/Federal estimated taxes paid YTD/i)).not.toBeInTheDocument();
   });
