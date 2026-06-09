@@ -262,7 +262,13 @@ async function syncCatchupMirror(args: {
 
       source_id: c.company_id,
       transaction_type: "income",
-      actual_withholding: fedW + stateW,
+      // actual_withholding stays 0 on the YTD-catchup business mirror tx —
+      // federal withholding/estimated payments are mirrored into
+      // `tax_payments` (estimatedPaymentsMade) and state withholding flows
+      // through the catch-up's own state_withholding aggregation. Setting
+      // this to fedW+stateW would double-count those dollars in quarterly
+      // "Saved QTD" and tax-savings totals.
+      actual_withholding: 0,
       status: "active",
       excluded_from_reports: false,
       needs_review: false,
@@ -321,6 +327,58 @@ async function syncCatchupMirror(args: {
     if (existingExpenseTx?.id) {
       await supabase.from("transactions").delete().eq("id", existingExpenseTx.id);
     }
+  }
+
+  // ── Business estimated-tax-payment mirror in `tax_payments` ─────────────
+  // For 1099 / K-1 catch-ups the "Federal estimated taxes paid YTD" field
+  // represents money the user has already paid toward this year's federal
+  // taxes (estimated payments / withholding from K-1 distributions). The
+  // tax engine reads estimated payments from the `tax_payments` table, so
+  // we mirror the value there so it shows up in Tax Overview's "Estimated
+  // payments made" line and in the quarterly payment summaries. The
+  // companion change in `useTaxEstimate.ts` zeroes out `cu.business
+  // .federalWithheld` so we don't double-count this dollar as both
+  // withholding AND an estimated payment.
+  const taxPaymentTag = `[ytd-catchup:${c.id}]`;
+  // Look up any existing mirror tax_payments row for this catch-up.
+  const { data: existingPaymentRows } = await (supabase as any)
+    .from("tax_payments")
+    .select("id, created_at")
+    .eq("user_id", args.userId)
+    .ilike("notes", `${taxPaymentTag}%`)
+    .order("created_at", { ascending: true });
+  const existingPayment = (existingPaymentRows && existingPaymentRows[0]) || null;
+  if (existingPaymentRows && existingPaymentRows.length > 1) {
+    await (supabase as any)
+      .from("tax_payments")
+      .delete()
+      .in("id", existingPaymentRows.slice(1).map((r: any) => r.id));
+  }
+
+  if (isBusiness && fedW > 0) {
+    // Derive the IRS estimated-tax quarter from period_end.
+    const periodEndDate = new Date(`${c.period_end}T00:00:00`);
+    const m = periodEndDate.getMonth(); // 0-based
+    const appliedQuarter = m < 3 ? "Q1" : m < 5 ? "Q2" : m < 8 ? "Q3" : "Q4";
+    const appliedYear = c.tax_year;
+    const paymentRow: any = {
+      user_id: args.userId,
+      organization_id: args.orgId,
+      payment_date: c.period_end,
+      amount: fedW,
+      quarter: appliedQuarter,
+      applied_quarter: appliedQuarter,
+      applied_tax_year: appliedYear,
+      notes: `${taxPaymentTag} Onboarding YTD estimated tax paid: ${c.company_name || "Business"}`,
+    };
+    if (existingPayment?.id) {
+      await (supabase as any).from("tax_payments").update(paymentRow).eq("id", existingPayment.id);
+    } else {
+      await (supabase as any).from("tax_payments").insert(paymentRow);
+    }
+  } else if (existingPayment?.id) {
+    // No longer business, or fedW dropped to 0 → remove the stale mirror.
+    await (supabase as any).from("tax_payments").delete().eq("id", existingPayment.id);
   }
 
   // ── Personal mirror in `income_entries` (W-2 / other) ───────────────────
@@ -583,6 +641,7 @@ export function useUpsertYtdCatchup() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["tax_payments"] });
       toast.success("YTD catch-up saved");
     },
     onError: (e: any) => {
@@ -607,6 +666,15 @@ export function useDeleteYtdCatchup() {
       } catch (e) {
         console.warn("[useYtdCatchup] failed to delete paired income entry", e);
       }
+      // Remove any mirrored tax_payments row (business YTD estimated payment).
+      try {
+        await (supabase as any)
+          .from("tax_payments")
+          .delete()
+          .ilike("notes", `[ytd-catchup:${id}]%`);
+      } catch (e) {
+        console.warn("[useYtdCatchup] failed to delete paired tax_payment", e);
+      }
       const { error } = await supabase.from("ytd_catchup_entries" as any).delete().eq("id", id);
       if (error) throw error;
     },
@@ -615,6 +683,7 @@ export function useDeleteYtdCatchup() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["tax_payments"] });
       toast.success("YTD catch-up removed");
     },
   });

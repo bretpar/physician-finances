@@ -411,7 +411,16 @@ export function useTaxEstimate(): {
           }
 
           bucket.gross += cGross;
-          bucket.federalWithheld += cFedW;
+          // BUSINESS BUCKET: federal withholding entered on a 1099/K-1 YTD
+          // catch-up represents "Federal estimated taxes paid YTD" (the form
+          // labels it as such). It is mirrored into the `tax_payments` table
+          // by `syncCatchupMirror` so it flows through `actualEstimatedPaymentsMade`
+          // and shows up in Tax Overview's "Estimated payments made" line +
+          // the quarterly payment summary. We must NOT also add it here as
+          // business withholding, or every dollar would be credited twice.
+          if (targetBucket !== "business") {
+            bucket.federalWithheld += cFedW;
+          }
           bucket.stateWithheld += cStateW;
           bucket.payrollPreTax += cPayrollPreTax;
           bucket.hsa += cHsa;
