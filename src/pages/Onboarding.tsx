@@ -559,6 +559,7 @@ export default function Onboarding() {
       }
       patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
       sessionStorage.removeItem("paycheckmd-onboarding-step");
+      sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
       console.info("[onboarding] completion:success", { settingsId, selectedPlan });
       navigate("/", { replace: true });
       window.setTimeout(() => {
