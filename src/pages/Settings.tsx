@@ -1219,12 +1219,7 @@ function CompaniesSection() {
         icon={<Building2 className="h-5 w-5" />}
         summary={`(${companies.length})`}
         headerTestId="settings-companies-trigger"
-        description={
-          companies.length > 0
-            ? `Set the filing type for each company. Currently tracking: ${companies.map((c) => c.name || "Unnamed").join(", ")}.`
-            : "Set the filing type for each company."
-        }
-        defaultOpen={true}
+        defaultOpen={false}
         headerAction={
           <div className="flex items-center gap-2">
             {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
