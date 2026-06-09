@@ -688,6 +688,7 @@ export default function Onboarding() {
       }
       sessionStorage.removeItem("paycheckmd-onboarding-start");
       sessionStorage.removeItem("paycheckmd-onboarding-step");
+      sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
       const destination =
         method === "manual" ? "/personal-income" :
         method === "bank" ? "/settings" :
