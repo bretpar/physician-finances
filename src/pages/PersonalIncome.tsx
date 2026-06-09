@@ -295,22 +295,28 @@ export default function PersonalIncome() {
     const stats = entries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);
+        const isW2 = isW2Type(hydrateIncomeType(e));
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
-          w2Income: acc.w2Income + (isW2Type(hydrateIncomeType(e)) ? amt : 0),
+          w2Income: acc.w2Income + (isW2 ? amt : 0),
           capitalGains: acc.capitalGains + (isStockType(hydrateIncomeType(e)) ? amt : 0),
           passiveIncome: acc.passiveIncome + (hydrateIncomeType(e) === "rental" ? amt : 0),
+          w2FederalWH: acc.w2FederalWH + (isW2 ? Number(e.federal_withholding || 0) : 0),
+          w2SsWH: acc.w2SsWH + (isW2 ? Number(e.ss_withholding || 0) : 0),
+          w2MedicareWH: acc.w2MedicareWH + (isW2 ? Number(e.medicare_withholding || 0) : 0),
         };
       },
-      { totalIncome: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0 }
+      { totalIncome: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0, w2FederalWH: 0, w2SsWH: 0, w2MedicareWH: 0 }
     );
     return {
       ...stats,
+      w2PayrollTaxTotal: stats.w2FederalWH + stats.w2SsWH + stats.w2MedicareWH,
       totalWithheld: stateIncomeTaxEnabled
         ? canonicalWithholding.actual.total
         : canonicalWithholding.actual.federal,
     };
   }, [entries, canonicalWithholding, stateIncomeTaxEnabled]);
+
 
   // Base withholding recommendation for Modal 1
   const grossAmount = num(form.gross_amount);
@@ -745,6 +751,59 @@ export default function PersonalIncome() {
           <p className="text-sm sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{fmt(totals.totalWithheld)}</p>
         </div>
       </div>
+
+      {/* W-2 payroll tax withholding breakdown — read-only visibility for
+          federal income tax vs Social Security vs Medicare. Sourced directly
+          from saved W-2 entry fields; this does not change tax math. */}
+      {totals.w2PayrollTaxTotal > 0 && (
+        <div
+          className="rounded-lg border border-border bg-card p-3 sm:p-4"
+          data-testid="w2-withholding-breakdown"
+        >
+          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            W-2 Taxes Withheld (Breakdown)
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Federal income tax</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-card-foreground"
+                data-testid="w2-federal-withheld"
+              >
+                {fmt(totals.w2FederalWH)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Social Security</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-card-foreground"
+                data-testid="w2-ss-withheld"
+              >
+                {fmt(totals.w2SsWH)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Medicare</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-card-foreground"
+                data-testid="w2-medicare-withheld"
+              >
+                {fmt(totals.w2MedicareWH)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Total W-2 taxes</p>
+              <p
+                className="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-400"
+                data-testid="w2-total-withheld"
+              >
+                {fmt(totals.w2PayrollTaxTotal)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Filters */}
       {(fromPlannerCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
