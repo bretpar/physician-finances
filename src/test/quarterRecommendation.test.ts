@@ -422,3 +422,118 @@ describe("recommendedPaymentToMake — excludes saved reserves", () => {
   });
 });
 
+
+describe("getActivePaymentTarget — next-relevant deadline selection", () => {
+  it("on Jun 9 picks Q2 (Jun 15 deadline) even though calendar quarter is Q3", () => {
+    const t = getActivePaymentTarget(new Date(2026, 5, 9));
+    expect(t.quarter).toBe(2);
+    expect(t.year).toBe(2026);
+  });
+
+  it("on Jun 23 (>7 days past Jun 15) falls back to current calendar quarter Q3", () => {
+    const t = getActivePaymentTarget(new Date(2026, 5, 23));
+    expect(t.quarter).toBe(3);
+  });
+
+  it("on May 1 (Q2 calendar quarter) stays on Q2 — no prior-quarter override", () => {
+    const t = getActivePaymentTarget(new Date(2026, 4, 1));
+    expect(t.quarter).toBe(2);
+  });
+
+  it("on Mar 30 picks Q1 (Apr 15 deadline) even though Q1 calendar quarter is still active", () => {
+    const t = getActivePaymentTarget(new Date(2026, 2, 30));
+    expect(t.quarter).toBe(1);
+  });
+
+  it("on Jan 5 picks prior-year Q4 (Jan 15 deadline)", () => {
+    const t = getActivePaymentTarget(new Date(2026, 0, 5));
+    expect(t.quarter).toBe(4);
+    expect(t.year).toBe(2025);
+  });
+});
+
+describe("Dashboard Jun 9 callout — Q2 due-soon recommendation", () => {
+  const NOW = new Date(2026, 5, 9);
+  it("with no W-2 / payments / saved, recommends the full Q2 target", () => {
+    const target = getActivePaymentTarget(NOW);
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000,
+      year: target.year,
+      quarter: target.quarter,
+      now: NOW,
+    });
+    expect(r.quarterLabel).toBe("Q2");
+    expect(r.deadlineLabel).toBe("Jun 15");
+    expect(r.recommendedPaymentToMake).toBe(20_000);
+    expect(r.showDashboardPaymentCallout).toBe(true);
+    expect(r.dashboardCalloutMode).toBe("due_soon");
+  });
+
+  it("subtracts W-2 withholding from recommendation", () => {
+    const target = getActivePaymentTarget(NOW);
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000,
+      year: target.year,
+      quarter: target.quarter,
+      now: NOW,
+      personalEntries: [
+        { income_date: `${Y}-05-01`, gross_amount: 30_000, federal_withholding: 5_000 },
+      ],
+    });
+    expect(r.w2WithheldThisQuarter).toBe(5_000);
+    expect(r.recommendedPaymentToMake).toBe(15_000);
+  });
+
+  it("subtracts existing estimated payments from recommendation", () => {
+    const target = getActivePaymentTarget(NOW);
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000,
+      year: target.year,
+      quarter: target.quarter,
+      now: NOW,
+      payments: [
+        { applied_quarter: "Q2", applied_tax_year: 2026, payment_date: "2026-06-01", amount: 4_000 },
+      ],
+    });
+    expect(r.estimatedPaymentsMade).toBe(4_000);
+    expect(r.recommendedPaymentToMake).toBe(16_000);
+  });
+
+  it("saved reserves reduce stillNeedToSave but NOT recommendedPaymentToMake (no double-count, not labeled paid)", () => {
+    const target = getActivePaymentTarget(NOW);
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000,
+      year: target.year,
+      quarter: target.quarter,
+      now: NOW,
+      personalEntries: [
+        { income_date: `${Y}-05-01`, gross_amount: 30_000, additional_tax_reserve: 8_000 },
+      ],
+    });
+    expect(r.savedThisQuarter).toBe(8_000);
+    expect(r.paidThisQuarter).toBe(0); // savings are NOT paid
+    expect(r.recommendedPaymentToMake).toBe(20_000);
+    expect(r.stillNeedToSave).toBe(12_000);
+  });
+
+  it("after a sufficient Q2 payment is logged, Dashboard stops showing the callout", () => {
+    const target = getActivePaymentTarget(NOW);
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000,
+      year: target.year,
+      quarter: target.quarter,
+      now: NOW,
+      payments: [
+        { applied_quarter: "Q2", applied_tax_year: 2026, payment_date: "2026-06-09", amount: 20_000 },
+      ],
+    });
+    expect(r.coverageRatio).toBeGreaterThanOrEqual(0.95);
+    expect(r.showDashboardPaymentCallout).toBe(false);
+  });
+
+  it("after the Q2 overdue window passes, getActivePaymentTarget returns Q3 and the Q2 callout no longer applies", () => {
+    const later = new Date(2026, 5, 25); // 10 days past Jun 15
+    const t = getActivePaymentTarget(later);
+    expect(t.quarter).toBe(3);
+  });
+});
