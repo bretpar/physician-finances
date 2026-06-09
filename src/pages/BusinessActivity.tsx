@@ -196,7 +196,12 @@ export default function Transactions() {
   const [filterPlanner, setFilterPlanner] = useState<"all" | "from_planner">("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
-  
+  // Account transfers are excluded from all business calculations already
+  // (see summaryStats CANONICAL EXCLUSION). This toggle is purely a
+  // visibility / export-scope control. Default ON so the ledger view
+  // matches the totals out of the box.
+  const [hideTransfers, setHideTransfers] = useState<boolean>(true);
+
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Bulk selection
@@ -386,8 +391,13 @@ export default function Transactions() {
   // for which business a transaction belongs to.
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
+      const txType = (t.transaction_type || "expense");
+      // Hide account transfers when the toggle is on — but never hide
+      // them if the user explicitly picked the Transfer tab (they're
+      // trying to look at exactly these rows).
+      if (hideTransfers && txType === "transfer" && filterType !== "transfer") return false;
       if (search && !t.vendor.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterType !== "all" && (t.transaction_type || "expense") !== filterType) return false;
+      if (filterType !== "all" && txType !== filterType) return false;
       if (filterCompany !== "all" && (t.source_id || "") !== filterCompany) return false;
       if (filterSource !== "all" && (t.source_type || "manual") !== filterSource) return false;
       if (filterReview === "needs_review" && !t.needs_review) return false;
@@ -396,7 +406,7 @@ export default function Transactions() {
       if (filterDateTo && t.transaction_date > filterDateTo) return false;
       return true;
     });
-  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterDateFrom, filterDateTo]);
+  }, [transactions, search, filterType, filterCompany, filterSource, filterReview, filterPlanner, filterDateFrom, filterDateTo, hideTransfers]);
 
   const needsReviewCount = useMemo(() =>
     transactions.filter((t) => t.needs_review).length
@@ -1193,6 +1203,20 @@ export default function Transactions() {
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="flt-from-planner" className="text-xs text-muted-foreground">From Planner only</Label>
                 <Switch id="flt-from-planner" checked={filterPlanner === "from_planner"} onCheckedChange={(v) => setFilterPlanner(v ? "from_planner" : "all")} />
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="flt-hide-transfers" className="text-xs text-muted-foreground">Hide account transfers</Label>
+                  <Switch
+                    id="flt-hide-transfers"
+                    data-testid="flt-hide-transfers"
+                    checked={hideTransfers}
+                    onCheckedChange={(v) => setHideTransfers(!!v)}
+                  />
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  Account transfers move money between accounts and do not affect business profit or tax calculations.
+                </p>
               </div>
             </div>
 
