@@ -187,7 +187,7 @@ function CapGainsCard({ data }: { data: CapGainsBreakdown }) {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold truncate">{data.source}</p>
-              <Badge variant="secondary" className="mt-0.5 text-[10px] font-normal">Capital Gains</Badge>
+              <Badge variant="secondary" className="mt-0.5 text-[10px] font-normal">Investments</Badge>
             </div>
           </div>
           <p className="text-lg font-bold tabular-nums shrink-0">{fmt(data.net)}</p>
@@ -195,9 +195,16 @@ function CapGainsCard({ data }: { data: CapGainsBreakdown }) {
         <div className="space-y-1.5 pt-1">
           {data.shortTerm > 0 && <Row label="Short-term gains" value={fmt(data.shortTerm)} muted />}
           {data.longTerm > 0 && <Row label="Long-term gains" value={fmt(data.longTerm)} muted />}
-          {data.losses > 0 && <Row label="Losses" value={`−${fmt(data.losses)}`} muted />}
+          {data.losses > 0 && <Row label="Capital losses" value={`−${fmt(data.losses)}`} muted />}
+          {data.dividends > 0 && <Row label="Dividends" value={fmt(data.dividends)} muted />}
+          {data.qualifiedDividends > 0 && (
+            <Row label="• Qualified dividends" value={fmt(data.qualifiedDividends)} muted />
+          )}
+          {data.nonQualifiedDividends > 0 && (
+            <Row label="• Ordinary (non-qualified) dividends" value={fmt(data.nonQualifiedDividends)} muted />
+          )}
           <div className="border-t border-border pt-1.5">
-            <Row label="Net capital gain" value={fmt(data.net)} bold />
+            <Row label="Total taxable investment income" value={fmt(data.net)} bold />
           </div>
         </div>
       </CardContent>

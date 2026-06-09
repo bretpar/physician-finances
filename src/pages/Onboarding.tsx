@@ -377,6 +377,21 @@ export default function Onboarding() {
     if (!settingsId) return;
     const next = { ...merged, filingStatus: filingStatusRef.current, ...partial };
     const sources = incomeProfileToSources(next.incomeProfileType);
+    // Dashboard Personalization defaults should reflect the income types the
+    // user actually configured during onboarding (companyDrafts), not just
+    // the broad income profile. Without this, picking "W-2 + business" but
+    // adding only a W-2 employer (e.g. for a W-2 + investments user) would
+    // turn on 1099 and K-1 sections that have no underlying companies.
+    const hasW2Company = companyDrafts.some((c) => c.type === "w2" && c.name);
+    const has1099Company = companyDrafts.some((c) => c.type === "1099" && c.name);
+    const hasK1Company = companyDrafts.some((c) => c.type === "k1" && c.name);
+    const baseStreams = incomeSourcesToHouseholdStreams(sources, next.enabledPersonalIncomeTypes);
+    const householdIncomeStreams = {
+      ...baseStreams,
+      w2Income: sources.w2 && (hasW2Company || baseStreams.w2Income),
+      business1099Income: sources.form1099 && has1099Company,
+      k1PartnershipIncome: sources.k1 && hasK1Company,
+    };
     await updateTaxSettings.mutateAsync({
       id: settingsId,
       filingStatus: next.filingStatus,
@@ -386,7 +401,7 @@ export default function Onboarding() {
       incomeProfileType: next.incomeProfileType,
       enabledIncomeSources: sources,
       enabledPersonalIncomeTypes: next.enabledPersonalIncomeTypes,
-      householdIncomeStreams: incomeSourcesToHouseholdStreams(sources, next.enabledPersonalIncomeTypes),
+      householdIncomeStreams,
       taxRecommendationMethod: next.taxRecommendationMethod,
       withholdingMethod: taxRecommendationToWithholdingMethod(next.taxRecommendationMethod),
       manualEffectiveTaxRate: next.taxRecommendationMethod === "flat_rate" ? next.flatFederalRate ?? taxSettings?.manualEffectiveTaxRate ?? 20 : taxSettings?.manualEffectiveTaxRate ?? null,
