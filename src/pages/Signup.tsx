@@ -139,17 +139,6 @@ export default function Signup() {
             onSubmit={(e) => { e.preventDefault(); handleCreateAccount(); }}
           >
             <div>
-              <Label htmlFor="signup-first-name">First name (optional)</Label>
-              <Input
-                id="signup-first-name"
-                data-testid="signup-first-name"
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Alex"
-              />
-            </div>
-            <div>
               <Label htmlFor="signup-email">Email</Label>
               <Input
                 id="signup-email"
