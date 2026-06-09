@@ -666,6 +666,15 @@ export function useDeleteYtdCatchup() {
       } catch (e) {
         console.warn("[useYtdCatchup] failed to delete paired income entry", e);
       }
+      // Remove any mirrored tax_payments row (business YTD estimated payment).
+      try {
+        await (supabase as any)
+          .from("tax_payments")
+          .delete()
+          .ilike("notes", `[ytd-catchup:${id}]%`);
+      } catch (e) {
+        console.warn("[useYtdCatchup] failed to delete paired tax_payment", e);
+      }
       const { error } = await supabase.from("ytd_catchup_entries" as any).delete().eq("id", id);
       if (error) throw error;
     },
@@ -674,6 +683,7 @@ export function useDeleteYtdCatchup() {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["tax_payments"] });
       toast.success("YTD catch-up removed");
     },
   });
