@@ -390,6 +390,7 @@ describe("recommendedPaymentToMake — excludes saved reserves", () => {
     });
     expect(r.recommendedPaymentToMake).toBe(10_000);
     expect(r.stillNeedToSave).toBe(3_000);
+  });
 
   it("W-2 withholding paid excludes Social Security and Medicare", () => {
     // Mixed W-2 + 1099 regression: Tax Overview must show only federal
