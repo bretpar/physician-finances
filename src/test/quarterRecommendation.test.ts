@@ -537,3 +537,80 @@ describe("Dashboard Jun 9 callout — Q2 due-soon recommendation", () => {
     expect(t.quarter).toBe(3);
   });
 });
+
+describe("calendar-quarter mapping — Dashboard progress periods", () => {
+  it("Q1 calendar period covers Jan 1 – Mar 31 with Apr 15 deadline", () => {
+    const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 1 });
+    expect(r.start.toDateString()).toBe(new Date(2026, 0, 1).toDateString());
+    // end is exclusive (Apr 1), i.e. through Mar 31
+    expect(r.end.toDateString()).toBe(new Date(2026, 3, 1).toDateString());
+    expect(r.deadline.toDateString()).toBe(new Date(2026, 3, 15).toDateString());
+  });
+  it("Q2 calendar period covers Apr 1 – Jun 30 with Jun 15 deadline", () => {
+    const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 2 });
+    expect(r.start.toDateString()).toBe(new Date(2026, 3, 1).toDateString());
+    expect(r.end.toDateString()).toBe(new Date(2026, 6, 1).toDateString());
+    expect(r.deadline.toDateString()).toBe(new Date(2026, 5, 15).toDateString());
+  });
+  it("Q3 calendar period covers Jul 1 – Sep 30 with Sep 15 deadline", () => {
+    const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 3 });
+    expect(r.start.toDateString()).toBe(new Date(2026, 6, 1).toDateString());
+    expect(r.end.toDateString()).toBe(new Date(2026, 9, 1).toDateString());
+    expect(r.deadline.toDateString()).toBe(new Date(2026, 8, 15).toDateString());
+  });
+  it("Q4 calendar period covers Oct 1 – Dec 31 with Jan 15 next-year deadline", () => {
+    const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 4 });
+    expect(r.start.toDateString()).toBe(new Date(2026, 9, 1).toDateString());
+    expect(r.end.toDateString()).toBe(new Date(2027, 0, 1).toDateString());
+    expect(r.deadline.toDateString()).toBe(new Date(2027, 0, 15).toDateString());
+  });
+
+  it("getCurrentQuarter on Jun 9 returns Q2 (calendar mapping, not IRS Q3)", () => {
+    const q = getCurrentQuarter(new Date(2026, 5, 9));
+    expect(q.quarter).toBe(2);
+    expect(q.deadlineLabel).toBe("Jun 15");
+  });
+  it("getCurrentQuarter on Jul 1 returns Q3", () => {
+    const q = getCurrentQuarter(new Date(2026, 6, 1));
+    expect(q.quarter).toBe(3);
+  });
+
+  it("Q2 recommendation uses Apr/May/Jun income, not Mar or Jul", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: 2026,
+      quarter: 2,
+      personalEntries: [
+        { income_date: "2026-03-31", gross_amount: 10_000, federal_withholding: 1_000 }, // Q1
+        { income_date: "2026-04-01", gross_amount: 10_000, federal_withholding: 2_000 }, // Q2
+        { income_date: "2026-06-30", gross_amount: 10_000, federal_withholding: 3_000 }, // Q2
+        { income_date: "2026-07-01", gross_amount: 10_000, federal_withholding: 9_000 }, // Q3
+      ],
+    });
+    // YTD-through-end-of-Q2 W-2 withholding: Q1 + Q2 = 1k + 2k + 3k = 6k
+    expect(r.w2WithheldThisQuarter).toBe(6_000);
+  });
+
+  it("On Jun 9 the Q2 progress window is Apr 1 – Jul 1, deadline Jun 15", () => {
+    const now = new Date(2026, 5, 9);
+    const target = getActivePaymentTarget(now);
+    expect(target.quarter).toBe(2);
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000,
+      year: target.year,
+      quarter: target.quarter,
+      now,
+    });
+    expect(r.start.toDateString()).toBe(new Date(2026, 3, 1).toDateString());
+    expect(r.end.toDateString()).toBe(new Date(2026, 6, 1).toDateString());
+    // Progress "today" marker (computed in QuarterlyTracker) divides days
+    // elapsed in the calendar quarter by total days in the calendar quarter.
+    const totalMs = r.end.getTime() - r.start.getTime();
+    const elapsedMs = now.getTime() - r.start.getTime();
+    const progress = elapsedMs / totalMs;
+    // Apr 1 → Jun 9 is ~69 of 91 days ≈ 0.76, NOT based on Jun 15 deadline.
+    expect(progress).toBeGreaterThan(0.7);
+    expect(progress).toBeLessThan(0.8);
+  });
+});
+

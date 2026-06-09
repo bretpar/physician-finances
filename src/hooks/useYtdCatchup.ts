@@ -356,10 +356,13 @@ async function syncCatchupMirror(args: {
   }
 
   if (isBusiness && fedW > 0) {
-    // Derive the IRS estimated-tax quarter from period_end.
+    // Derive the calendar-quarter estimated-tax bucket from period_end.
+    // Must match `getCurrentQuarter` in src/lib/quarters.ts (true 3-month
+    // calendar quarters) so the Dashboard tracker and Tax Overview attribute
+    // the same income/payment to the same quarter.
     const periodEndDate = new Date(`${c.period_end}T00:00:00`);
     const m = periodEndDate.getMonth(); // 0-based
-    const appliedQuarter = m < 3 ? "Q1" : m < 5 ? "Q2" : m < 8 ? "Q3" : "Q4";
+    const appliedQuarter = m < 3 ? "Q1" : m < 6 ? "Q2" : m < 9 ? "Q3" : "Q4";
     const appliedYear = c.tax_year;
     const paymentRow: any = {
       user_id: args.userId,

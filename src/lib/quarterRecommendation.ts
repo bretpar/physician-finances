@@ -467,14 +467,25 @@ export function getActivePaymentTarget(now: Date = new Date()): {
   year: number;
   quarter: QuarterNum;
 } {
-  const current = getCurrentQuarter(now);
-  const currentYear = now.getFullYear();
-  const prevQuarter: QuarterNum = current.quarter === 1 ? 4 : ((current.quarter - 1) as QuarterNum);
-  const prevYear = current.quarter === 1 ? currentYear - 1 : currentYear;
-  const prev = buildWindow(prevYear, prevQuarter);
-  const daysToPrev = daysUntilDeadline(prev.deadline, now);
-  if (daysToPrev <= 20 && daysToPrev >= -7) {
-    return { year: prevYear, quarter: prevQuarter };
+  // Pick the nearest IRS estimated-tax deadline that is still upcoming, or up
+  // to 7 days past (grace window so a just-missed deadline still surfaces on
+  // the Dashboard). Scan adjacent years so prior-year Q4 (Jan 15) and
+  // next-year transitions resolve correctly.
+  const baseYear = now.getFullYear();
+  let best: { year: number; quarter: QuarterNum } | null = null;
+  let bestDays = Infinity;
+  for (const yr of [baseYear - 1, baseYear, baseYear + 1]) {
+    for (const q of [1, 2, 3, 4] as QuarterNum[]) {
+      const w = buildWindow(yr, q);
+      const d = daysUntilDeadline(w.deadline, now);
+      if (d < -7) continue;
+      if (d < bestDays) {
+        bestDays = d;
+        best = { year: yr, quarter: q };
+      }
+    }
   }
-  return { year: currentYear, quarter: current.quarter };
+  if (best) return best;
+  const current = getCurrentQuarter(now);
+  return { year: baseYear, quarter: current.quarter };
 }
