@@ -1204,6 +1204,20 @@ export default function Transactions() {
                 <Label htmlFor="flt-from-planner" className="text-xs text-muted-foreground">From Planner only</Label>
                 <Switch id="flt-from-planner" checked={filterPlanner === "from_planner"} onCheckedChange={(v) => setFilterPlanner(v ? "from_planner" : "all")} />
               </div>
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="flt-hide-transfers" className="text-xs text-muted-foreground">Hide account transfers</Label>
+                  <Switch
+                    id="flt-hide-transfers"
+                    data-testid="flt-hide-transfers"
+                    checked={hideTransfers}
+                    onCheckedChange={(v) => setHideTransfers(!!v)}
+                  />
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  Account transfers move money between accounts and do not affect business profit or tax calculations.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-border">
