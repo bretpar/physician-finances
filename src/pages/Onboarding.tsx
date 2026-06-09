@@ -896,18 +896,10 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 3 && (
-            <div className="space-y-4">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">Choose your plan</h1>
-                <p className="mt-1 text-sm text-muted-foreground">How do you want to start?</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SelectCard selected={merged.subscriptionTier === "free"} title="Free" description="A simple way to track income and see basic tax guidance." onClick={() => patch({ subscriptionTier: "free" })}>Basic dashboard, income tracking, tax estimate, and deduction tracking.</SelectCard>
-                <SelectCard selected={merged.subscriptionTier === "premium"} title="Premium" description="Full tax planning tools for multiple income streams, business income, or complex deductions." onClick={() => patch({ subscriptionTier: "premium" })}>Full planner, W-2/1099/K-1 support, quarterly planning, advanced deductions, reports, and premium explanations.</SelectCard>
-              </div>
-            </div>
-          )}
+          {/* Temporary MVP behavior: plan selection step removed. All users
+              receive full (premium) access by default. Re-enable a step-3 plan
+              chooser when paid tiers launch. */}
+
 
           {(() => {
             const normName = (s: string) => String(s || "").trim().toLowerCase();
