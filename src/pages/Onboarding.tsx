@@ -723,7 +723,8 @@ export default function Onboarding() {
               {lastSavedName && !showCatchupForm && (
                 <div data-testid="ytd-catchup-saved-banner" role="status" aria-live="polite" className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
                   ✓ Saved — {lastSavedName} added.
-              </div>
+                </div>
+              )}
               {companyDrafts.filter((c) => c.name.trim()).length > 0 && (
                 <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
                   <div className="flex items-start justify-between gap-3">
@@ -749,7 +750,6 @@ export default function Onboarding() {
                     </Button>
                   </div>
                 </div>
-              )}
               )}
               {showCatchupForm ? (
                 <div ref={catchupFormRef} className="rounded-xl border border-border p-4">
