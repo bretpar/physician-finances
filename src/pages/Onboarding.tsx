@@ -190,14 +190,18 @@ export default function Onboarding() {
 
   const goBack = async () => {
     if (step === 1) return;
-    if (step === 2 && (catchupSubStep === "company" || catchupSubStep === "form")) {
+    if (step === 2 && catchupSubStep === "form") {
       setCatchupSubStep("ask");
       return;
     }
+    if (step === 2 && catchupSubStep === "ask") {
+      setCatchupSubStep("company");
+      return;
+    }
+    // step 3 → back to step 2 form/ask/company (resume where they were)
     const nextStep = step - 1;
     setStep(nextStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-    setCatchupSubStep("ask");
     patch({ onboardingStep: nextStep });
     if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
   };
