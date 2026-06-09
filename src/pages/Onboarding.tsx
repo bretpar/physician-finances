@@ -64,7 +64,10 @@ export default function Onboarding() {
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>([]);
-  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("ask");
+  // New onboarding order: company setup first → ask about YTD catch-up →
+  // (optionally) catch-up form. Kept the same sub-step identifiers so any
+  // in-progress local state from prior sessions still maps correctly.
+  const [catchupSubStep, setCatchupSubStep] = useState<"ask" | "form" | "company">("company");
   // When the brand-new user lands here right after signup we show a single
   // "How do you want to add income?" picker instead of the multi-step flow.
   const [showIncomeMethodPicker, setShowIncomeMethodPicker] = useState(
@@ -121,11 +124,10 @@ export default function Onboarding() {
     }));
   }, [user, isLoading, taxSettings]);
 
-  useEffect(() => {
-    if (step !== 2) return;
-    if (catchupChoice === "yes") setCatchupSubStep((s) => (s === "ask" ? "form" : s));
-    else if (catchupChoice === "no" || catchupChoice === "skip") setCatchupSubStep((s) => (s === "ask" ? "company" : s));
-  }, [step, catchupChoice]);
+  // No auto-advance between sub-steps based on catchupChoice. The new flow
+  // is driven explicitly: Continue advances company → ask → form, and the
+  // "ask" SelectCards just record the choice. This prevents jumping past
+  // the company setup step when the user reloads with a saved choice.
 
   // Auto-seed the first company draft when we land on the company sub-step so
   // the employer-name input is rendered without requiring a click on
@@ -188,14 +190,18 @@ export default function Onboarding() {
 
   const goBack = async () => {
     if (step === 1) return;
-    if (step === 2 && (catchupSubStep === "company" || catchupSubStep === "form")) {
+    if (step === 2 && catchupSubStep === "form") {
       setCatchupSubStep("ask");
       return;
     }
+    if (step === 2 && catchupSubStep === "ask") {
+      setCatchupSubStep("company");
+      return;
+    }
+    // step 3 → back to step 2 form/ask/company (resume where they were)
     const nextStep = step - 1;
     setStep(nextStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-    setCatchupSubStep("ask");
     patch({ onboardingStep: nextStep });
     if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
   };
@@ -419,32 +425,53 @@ export default function Onboarding() {
   async function continueStep() {
     if (saving) return;
     if (step === 2) {
+      // New order: company setup → ask about YTD → optional YTD form.
+      if (catchupSubStep === "company") {
+        setSaving(true);
+        try {
+          await createOnboardingCompanies();
+          await persist({ onboardingComplete: false, onboardingStep: 2 });
+          setCatchupSubStep("ask");
+        } catch (error: any) {
+          console.error("[onboarding] company continue failed", error);
+          toast.error(error.message || "Could not save your companies.");
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
       if (catchupSubStep === "ask") {
         if (!catchupChoice) {
           toast.error("Pick an option to continue.");
           return;
         }
-        setCatchupSubStep(catchupChoice === "yes" ? "form" : "company");
+        if (catchupChoice === "yes") {
+          setCatchupSubStep("form");
+          return;
+        }
+        // "no" or "skip" → finish step 2 and advance to plan selection.
+        // Companies are already persisted from the company sub-step.
+        setSaving(true);
+        try {
+          const nextStep = 3;
+          await persist({ onboardingComplete: false, onboardingStep: nextStep });
+          patch({ onboardingStep: nextStep });
+          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+          setStep(nextStep);
+        } catch (error: any) {
+          toast.error(error.message || "Could not save onboarding.");
+        } finally {
+          setSaving(false);
+        }
         return;
       }
       if (catchupSubStep === "form") {
-        // Block Continue if the user still has the YTD form open. Otherwise
-        // a half-filled second employer can be silently abandoned without
-        // ever calling the YTD save handler — which is exactly the
-        // multi-W-2 ledger bug this guard exists to prevent. The user
-        // must either click Save catch-up or cancel/discard the form.
         if (showCatchupForm) {
           toast.error("Save the current entry, or cancel it, before continuing.");
           return;
         }
-        // Require at least one saved YTD entry before advancing. Use a local
-        // counter in addition to the query result so Continue works immediately
-        // after onSaved fires, without waiting for the query cache to refresh.
         let savedCount = Math.max(existingCatchups?.length ?? 0, localSavedCatchups);
         if (savedCount === 0) {
-          // Defensive: the cached query may still be loading after a reload
-          // even though entries exist in the DB. Do a direct count query
-          // before failing so users with persisted entries can advance.
           try {
             const { count } = await (supabase as any)
               .from("ytd_catchup_entries")
@@ -458,9 +485,23 @@ export default function Onboarding() {
           toast.error("Save at least one year-to-date entry, or click Back to skip.");
           return;
         }
-        setEditingCatchup(null);
-        setShowCatchupForm(false);
-        setCatchupSubStep("company");
+        setSaving(true);
+        try {
+          const nextStep = 3;
+          // Re-run company creation in case the user added more companies
+          // from the catch-up screen; createOnboardingCompanies is idempotent.
+          await createOnboardingCompanies();
+          await persist({ onboardingComplete: false, onboardingStep: nextStep });
+          setEditingCatchup(null);
+          setShowCatchupForm(false);
+          patch({ onboardingStep: nextStep });
+          sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
+          setStep(nextStep);
+        } catch (error: any) {
+          toast.error(error.message || "Could not save onboarding.");
+        } finally {
+          setSaving(false);
+        }
         return;
       }
     }
@@ -468,19 +509,12 @@ export default function Onboarding() {
     try {
       const nextStep = Math.min(TOTAL_STEPS, step + 1);
       if (step === 1) {
-        // First name is encouraged but not required to advance — fall back to
-        // auth metadata or the email local-part so brand-new signups (e.g.
-        // automated flows that skip the optional name field) are not stuck on
-        // Step 1. The user can update their name later in Settings.
         const metadataFirst = (user?.user_metadata as any)?.first_name as string | undefined;
         const emailLocal = user?.email ? user.email.split("@")[0] : "";
         const finalFirstName = merged.firstName.trim() || (metadataFirst?.trim() || "") || emailLocal || "Friend";
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
         await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
         patch({ firstName: finalFirstName });
-      } else if (step === 2) {
-        await createOnboardingCompanies();
-        await persist({ onboardingComplete: false, onboardingStep: nextStep });
       } else if (step === 3) {
         const selectedPlan = merged.subscriptionTier === "free" ? "free" : "premium";
         console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
@@ -654,21 +688,9 @@ export default function Onboarding() {
                 <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
               </div>
               <div className="grid gap-3">
-                <div data-testid="onboarding-ytd-yes"><SelectCard selected={catchupChoice === "yes"} title="Yes, help me catch up" description="Enter year-to-date income and withholdings from your most recent paystub." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }} /></div>
-                <div data-testid="onboarding-ytd-no"><SelectCard selected={catchupChoice === "no"} title="No, I’m starting fresh" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); setCatchupSubStep("company"); }} /></div>
-                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab. Continue to company/business setup." onClick={async () => {
-                  if (saving) return;
-                  setSaving(true);
-                  try {
-                    patch({ ytdCatchupChoice: "skip" });
-                    if (settingsId) await persist({ ytdCatchupChoice: "skip", onboardingComplete: false });
-                    setCatchupSubStep("company");
-                  } catch (error: any) {
-                    toast.error(error.message || "Could not save onboarding.");
-                  } finally {
-                    setSaving(false);
-                  }
-                }} /></div>
+                <div data-testid="onboarding-ytd-yes"><SelectCard selected={catchupChoice === "yes"} title="Catch up my year-to-date income" description="Enter year-to-date income and withholdings from your most recent paystub or business records." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); }} /></div>
+                <div data-testid="onboarding-ytd-no"><SelectCard selected={catchupChoice === "no"} title="Start fresh from today" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); }} /></div>
+                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={async () => { patch({ ytdCatchupChoice: "skip" }); if (settingsId) await persist({ ytdCatchupChoice: "skip" }); }} /></div>
               </div>
             </div>
           )}
@@ -701,6 +723,32 @@ export default function Onboarding() {
               {lastSavedName && !showCatchupForm && (
                 <div data-testid="ytd-catchup-saved-banner" role="status" aria-live="polite" className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
                   ✓ Saved — {lastSavedName} added.
+                </div>
+              )}
+              {companyDrafts.filter((c) => c.name.trim()).length > 0 && (
+                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">Catch-up entries will be saved for:</p>
+                      <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                        {companyDrafts.filter((c) => c.name.trim()).map((c, i) => (
+                          <li key={i}>{c.name.trim()} <span className="text-[10px] uppercase tracking-wide">{c.type === "w2" ? "W-2" : c.type === "k1" ? "K-1" : "1099"}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingCatchup(null);
+                        setShowCatchupForm(false);
+                        setCatchupSubStep("company");
+                      }}
+                    >
+                      + Add another company/entity
+                    </Button>
+                  </div>
                 </div>
               )}
               {showCatchupForm ? (
