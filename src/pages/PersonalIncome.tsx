@@ -745,6 +745,11 @@ export default function PersonalIncome() {
         <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">W2 Income</p>
           <p className="text-sm sm:text-xl font-bold text-card-foreground truncate">{fmt(totals.w2Income)}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
+          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">Taxes Withheld</p>
+          <p className="text-sm sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{fmt(totals.totalWithheld)}</p>
+        </div>
       </div>
 
       {/* W-2 payroll tax withholding breakdown — read-only visibility for
@@ -799,11 +804,6 @@ export default function PersonalIncome() {
         </div>
       )}
 
-        <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
-          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">Taxes Withheld</p>
-          <p className="text-sm sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{fmt(totals.totalWithheld)}</p>
-        </div>
-      </div>
 
       {/* Filters */}
       {(fromPlannerCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
