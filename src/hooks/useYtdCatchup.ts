@@ -323,6 +323,58 @@ async function syncCatchupMirror(args: {
     }
   }
 
+  // ── Business estimated-tax-payment mirror in `tax_payments` ─────────────
+  // For 1099 / K-1 catch-ups the "Federal estimated taxes paid YTD" field
+  // represents money the user has already paid toward this year's federal
+  // taxes (estimated payments / withholding from K-1 distributions). The
+  // tax engine reads estimated payments from the `tax_payments` table, so
+  // we mirror the value there so it shows up in Tax Overview's "Estimated
+  // payments made" line and in the quarterly payment summaries. The
+  // companion change in `useTaxEstimate.ts` zeroes out `cu.business
+  // .federalWithheld` so we don't double-count this dollar as both
+  // withholding AND an estimated payment.
+  const taxPaymentTag = `[ytd-catchup:${c.id}]`;
+  // Look up any existing mirror tax_payments row for this catch-up.
+  const { data: existingPaymentRows } = await (supabase as any)
+    .from("tax_payments")
+    .select("id, created_at")
+    .eq("user_id", args.userId)
+    .ilike("notes", `${taxPaymentTag}%`)
+    .order("created_at", { ascending: true });
+  const existingPayment = (existingPaymentRows && existingPaymentRows[0]) || null;
+  if (existingPaymentRows && existingPaymentRows.length > 1) {
+    await (supabase as any)
+      .from("tax_payments")
+      .delete()
+      .in("id", existingPaymentRows.slice(1).map((r: any) => r.id));
+  }
+
+  if (isBusiness && fedW > 0) {
+    // Derive the IRS estimated-tax quarter from period_end.
+    const periodEndDate = new Date(`${c.period_end}T00:00:00`);
+    const m = periodEndDate.getMonth(); // 0-based
+    const appliedQuarter = m < 3 ? "Q1" : m < 5 ? "Q2" : m < 8 ? "Q3" : "Q4";
+    const appliedYear = c.tax_year;
+    const paymentRow: any = {
+      user_id: args.userId,
+      organization_id: args.orgId,
+      payment_date: c.period_end,
+      amount: fedW,
+      quarter: appliedQuarter,
+      applied_quarter: appliedQuarter,
+      applied_tax_year: appliedYear,
+      notes: `${taxPaymentTag} Onboarding YTD estimated tax paid: ${c.company_name || "Business"}`,
+    };
+    if (existingPayment?.id) {
+      await (supabase as any).from("tax_payments").update(paymentRow).eq("id", existingPayment.id);
+    } else {
+      await (supabase as any).from("tax_payments").insert(paymentRow);
+    }
+  } else if (existingPayment?.id) {
+    // No longer business, or fedW dropped to 0 → remove the stale mirror.
+    await (supabase as any).from("tax_payments").delete().eq("id", existingPayment.id);
+  }
+
   // ── Personal mirror in `income_entries` (W-2 / other) ───────────────────
   // Use limit-based fetch (not .maybeSingle) so a transient duplicate row
   // from a prior partial write never throws here — instead we dedupe.
