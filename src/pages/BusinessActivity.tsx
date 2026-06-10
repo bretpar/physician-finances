@@ -843,7 +843,8 @@ export default function Transactions() {
               applicableStateWH +
               num(incomeForm.ss_withholding) +
               num(incomeForm.medicare_withholding) +
-              num(incomeForm.additional_tax_reserve);
+              num(incomeForm.additional_tax_reserve) +
+              num(incomeForm.actual_withholding);
             if (recommended > 0 && actualSaved < recommended * 0.9) {
               setSavedEntryTitle(incomeForm.name);
               setReminderRecommended(recommended);
