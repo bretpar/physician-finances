@@ -191,10 +191,18 @@ export function buildQuarterRecommendation(
   } = input;
 
   const { start, end, deadline, label, deadlineLabel } = buildWindow(year, quarter);
+  // "Today" cutoff (end of today, local) — used so future-dated paychecks /
+  // income entries never count as actually paid/withheld.
+  const todayCutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const inWin = (iso?: string | null) => {
     if (!iso) return false;
     const d = new Date(iso);
     return d >= start && d < end;
+  };
+  const isPast = (iso?: string | null) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    return d < todayCutoff;
   };
 
   // ── Quarter target ───────────────────────────────────────────────────────
