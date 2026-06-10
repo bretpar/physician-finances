@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   buildQuarterRecommendation,
