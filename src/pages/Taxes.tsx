@@ -177,6 +177,10 @@ export default function Taxes() {
   }).rate;
   const annualTaxLiability = Math.max(0, Number(trackerEstimate?.totalTaxLiability || 0));
   const trackerEffectiveTaxRate = method === "flat_estimate" ? overviewProfile.federalProfileRate : overviewProfile.canonicalEffectiveTaxRate;
+  // Shared input builder — keeps Tax Overview QuarterlyTracker aligned with
+  // the Dashboard Q-payment callout. See useQuarterRecommendationInput.
+  const sharedQrInput = useQuarterRecommendationInput();
+
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
   const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
