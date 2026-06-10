@@ -815,6 +815,10 @@ export default function Transactions() {
         // Pass the canonical visible recommendation through so useAddIncome
         // preserves it on the transaction row (avoids legacy 35% overwrite).
         recommended_withholding: recommendedWithholding,
+        // "Amount you're saving for taxes" — voluntary reserve stored on the
+        // transaction row so it flows into Tax Overview "Saved/reserved but
+        // not paid" via buildQuarterRecommendation (tx.actual_withholding).
+        actual_withholding: num(incomeForm.actual_withholding),
       } as any;
 
       const showModal2 = isFeatureEnabled("recommendation_modal");
