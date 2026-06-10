@@ -122,9 +122,10 @@ export default function EstimatedTax() {
     updateSettings.mutate({ id: rates.id, lastYearTax: parseFloat(value) || 0 });
   };
 
-  // Quarterly breakdown
+  // Quarterly breakdown — IRS estimated-tax periods.
   const now = new Date();
-  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+  const m = now.getMonth();
+  const currentQuarter = m < 3 ? 1 : m < 5 ? 2 : m < 8 ? 3 : 4;
   const quarters = [
     { label: "Q1 (Apr 15)", due: currentQuarter <= 1 },
     { label: "Q2 (Jun 15)", due: currentQuarter <= 2 },
