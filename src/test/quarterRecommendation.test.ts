@@ -771,7 +771,67 @@ describe("Dashboard priority — payment callout overrides progress tracker", ()
     const later = new Date(2026, 5, 23);
     const t = getActivePaymentTarget(later);
     expect(t.quarter).toBe(3);
+});
+
+describe("Dashboard ≡ Tax Overview parity for recommended payment", () => {
+  const NOW = new Date(2026, 5, 9); // Jun 9
+  const baseInput = {
+    annualTaxLiability: 60_196,
+    quarterMethod: "even" as const,
+    now: NOW,
+    personalEntries: [
+      { income_date: "2026-05-01", gross_amount: 30_000, federal_withholding: 4_601 },
+    ],
+    incomeEntries: [
+      {
+        id: "ie1",
+        linked_transaction_id: "tx1",
+        income_date: "2026-05-15",
+        gross_amount: 2_000,
+        federal_withholding: 251,
+      },
+    ],
+    transactions: [
+      { id: "tx1", transaction_type: "income", amount: 2_000, transaction_date: "2026-05-15" },
+    ],
+  };
+
+  it("Dashboard active-target Q2 amount equals Tax Overview Q2 recommendedPaymentToMake", () => {
+    const active = getActivePaymentTarget(NOW);
+    expect(active.quarter).toBe(2);
+    const dashboard = buildQuarterRecommendation({ ...baseInput, year: active.year, quarter: active.quarter });
+    const taxOverview = buildQuarterRecommendation({ ...baseInput, year: active.year, quarter: active.quarter });
+    expect(dashboard.recommendedPaymentToMake).toBe(taxOverview.recommendedPaymentToMake);
+    // Both should subtract W-2 + 1099 actual withholding from the target.
+    expect(dashboard.w2WithheldThisQuarter).toBe(4_601);
+    expect(dashboard.otherWithheldThisQuarter).toBe(251);
+    expect(dashboard.recommendedPaymentToMake).toBe(Math.round(60_196 / 4) - 4_601 - 251);
+  });
+
+  it("saved reserves do NOT change Dashboard or Tax Overview recommendedPaymentToMake", () => {
+    const input = {
+      ...baseInput,
+      personalEntries: [
+        ...baseInput.personalEntries,
+        { income_date: "2026-04-15", gross_amount: 10_000, additional_tax_reserve: 5_000 },
+      ],
+    };
+    const r = buildQuarterRecommendation({ ...input, year: 2026, quarter: 2 });
+    expect(r.savedThisQuarter).toBeGreaterThanOrEqual(5_000);
+    expect(r.recommendedPaymentToMake).toBe(Math.round(60_196 / 4) - 4_601 - 251);
+  });
+
+  it("estimated tax payment reduces both Dashboard and Tax Overview by the same amount", () => {
+    const input = {
+      ...baseInput,
+      payments: [
+        { applied_quarter: "Q2", applied_tax_year: 2026, payment_date: "2026-06-08", amount: 1_000 },
+      ],
+    };
+    const r = buildQuarterRecommendation({ ...input, year: 2026, quarter: 2 });
+    expect(r.recommendedPaymentToMake).toBe(Math.round(60_196 / 4) - 4_601 - 251 - 1_000);
   });
 });
+
 
 
