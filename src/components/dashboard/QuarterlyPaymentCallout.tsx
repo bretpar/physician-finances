@@ -53,9 +53,15 @@ export function QuarterlyPaymentCallout({
           <p className="font-semibold text-foreground">
             {recommendation.quarterLabel} Payment
           </p>
-          <p className={cn("text-sm tabular-nums", overdue ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+          <button
+            onClick={() => navigate("/taxes#quarterly-estimator")}
+            className={cn(
+              "text-sm tabular-nums cursor-pointer bg-transparent border-0 p-0 underline-offset-2 hover:underline",
+              overdue ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+            )}
+          >
             Due {recommendation.deadlineLabel}
-          </p>
+          </button>
         </div>
 
         {/* Centered amount */}
