@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   buildQuarterRecommendation,
@@ -53,9 +52,15 @@ export function QuarterlyPaymentCallout({
           <p className="font-semibold text-foreground">
             {recommendation.quarterLabel} Payment
           </p>
-          <p className={cn("text-sm tabular-nums", overdue ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+          <button
+            onClick={() => navigate("/taxes#quarterly-estimator")}
+            className={cn(
+              "text-sm tabular-nums cursor-pointer bg-transparent border-0 p-0 underline-offset-2 hover:underline",
+              overdue ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+            )}
+          >
             Due {recommendation.deadlineLabel}
-          </p>
+          </button>
         </div>
 
         {/* Centered amount */}
@@ -69,17 +74,9 @@ export function QuarterlyPaymentCallout({
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex justify-center">
           <Button size="sm" onClick={goToLogPayment}>
             Log {recommendation.quarterLabel} Payment
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => navigate("/taxes#quarterly-estimator")}>
-            View Details
-          </Button>
-          <Button size="sm" variant="ghost" asChild>
-            <a href="https://www.irs.gov/payments/direct-pay" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4 mr-1" /> IRS Direct Pay
-            </a>
           </Button>
         </div>
       </CardContent>
