@@ -538,79 +538,175 @@ describe("Dashboard Jun 9 callout — Q2 due-soon recommendation", () => {
   });
 });
 
-describe("calendar-quarter mapping — Dashboard progress periods", () => {
-  it("Q1 calendar period covers Jan 1 – Mar 31 with Apr 15 deadline", () => {
+describe("IRS estimated-tax period mapping — Dashboard progress periods", () => {
+  it("Q1 IRS period covers Jan 1 – Mar 31 with Apr 15 deadline", () => {
     const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 1 });
     expect(r.start.toDateString()).toBe(new Date(2026, 0, 1).toDateString());
-    // end is exclusive (Apr 1), i.e. through Mar 31
     expect(r.end.toDateString()).toBe(new Date(2026, 3, 1).toDateString());
     expect(r.deadline.toDateString()).toBe(new Date(2026, 3, 15).toDateString());
   });
-  it("Q2 calendar period covers Apr 1 – Jun 30 with Jun 15 deadline", () => {
+  it("Q2 IRS period covers Apr 1 – May 31 with Jun 15 deadline", () => {
     const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 2 });
     expect(r.start.toDateString()).toBe(new Date(2026, 3, 1).toDateString());
-    expect(r.end.toDateString()).toBe(new Date(2026, 6, 1).toDateString());
+    expect(r.end.toDateString()).toBe(new Date(2026, 5, 1).toDateString());
     expect(r.deadline.toDateString()).toBe(new Date(2026, 5, 15).toDateString());
   });
-  it("Q3 calendar period covers Jul 1 – Sep 30 with Sep 15 deadline", () => {
+  it("Q3 IRS period covers Jun 1 – Aug 31 with Sep 15 deadline", () => {
     const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 3 });
-    expect(r.start.toDateString()).toBe(new Date(2026, 6, 1).toDateString());
-    expect(r.end.toDateString()).toBe(new Date(2026, 9, 1).toDateString());
+    expect(r.start.toDateString()).toBe(new Date(2026, 5, 1).toDateString());
+    expect(r.end.toDateString()).toBe(new Date(2026, 8, 1).toDateString());
     expect(r.deadline.toDateString()).toBe(new Date(2026, 8, 15).toDateString());
   });
-  it("Q4 calendar period covers Oct 1 – Dec 31 with Jan 15 next-year deadline", () => {
+  it("Q4 IRS period covers Sep 1 – Dec 31 with Jan 15 next-year deadline", () => {
     const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 4 });
-    expect(r.start.toDateString()).toBe(new Date(2026, 9, 1).toDateString());
+    expect(r.start.toDateString()).toBe(new Date(2026, 8, 1).toDateString());
     expect(r.end.toDateString()).toBe(new Date(2027, 0, 1).toDateString());
     expect(r.deadline.toDateString()).toBe(new Date(2027, 0, 15).toDateString());
   });
 
-  it("getCurrentQuarter on Jun 9 returns Q2 (calendar mapping, not IRS Q3)", () => {
+  it("getCurrentQuarter on Jun 9 returns Q3 (IRS period — Jun 1–Aug 31)", () => {
     const q = getCurrentQuarter(new Date(2026, 5, 9));
-    expect(q.quarter).toBe(2);
-    expect(q.deadlineLabel).toBe("Jun 15");
-  });
-  it("getCurrentQuarter on Jul 1 returns Q3", () => {
-    const q = getCurrentQuarter(new Date(2026, 6, 1));
     expect(q.quarter).toBe(3);
+    expect(q.deadlineLabel).toBe("Sep 15");
+  });
+  it("getCurrentQuarter on May 31 returns Q2", () => {
+    const q = getCurrentQuarter(new Date(2026, 4, 31));
+    expect(q.quarter).toBe(2);
+  });
+  it("getCurrentQuarter on Sep 1 returns Q4", () => {
+    const q = getCurrentQuarter(new Date(2026, 8, 1));
+    expect(q.quarter).toBe(4);
   });
 
-  it("Q2 recommendation uses Apr/May/Jun income, not Mar or Jul", () => {
+  it("Q3 recommendation uses Jun/Jul/Aug income, not May or Sep", () => {
     const r = buildQuarterRecommendation({
       annualTaxLiability: 40_000,
       year: 2026,
-      quarter: 2,
+      quarter: 3,
+      now: new Date(2026, 11, 31), // year-end so 'isPast' allows all entries
       personalEntries: [
-        { income_date: "2026-03-31", gross_amount: 10_000, federal_withholding: 1_000 }, // Q1
-        { income_date: "2026-04-01", gross_amount: 10_000, federal_withholding: 2_000 }, // Q2
-        { income_date: "2026-06-30", gross_amount: 10_000, federal_withholding: 3_000 }, // Q2
-        { income_date: "2026-07-01", gross_amount: 10_000, federal_withholding: 9_000 }, // Q3
+        { income_date: "2026-05-31", gross_amount: 10_000, federal_withholding: 1_000 }, // Q2
+        { income_date: "2026-06-01", gross_amount: 10_000, federal_withholding: 2_000 }, // Q3
+        { income_date: "2026-08-31", gross_amount: 10_000, federal_withholding: 3_000 }, // Q3
+        { income_date: "2026-09-01", gross_amount: 10_000, federal_withholding: 9_000 }, // Q4
       ],
     });
-    // YTD-through-end-of-Q2 W-2 withholding: Q1 + Q2 = 1k + 2k + 3k = 6k
+    // YTD-through-end-of-Q3 (Sep 1): Q2 1k + Q3 2k + Q3 3k = 6k
     expect(r.w2WithheldThisQuarter).toBe(6_000);
   });
 
-  it("On Jun 9 the Q2 progress window is Apr 1 – Jul 1, deadline Jun 15", () => {
+  it("Q3 progress window on Jun 9 is Jun 1 – Sep 1 with Sep 15 deadline", () => {
     const now = new Date(2026, 5, 9);
-    const target = getActivePaymentTarget(now);
-    expect(target.quarter).toBe(2);
     const r = buildQuarterRecommendation({
       annualTaxLiability: 80_000,
-      year: target.year,
-      quarter: target.quarter,
+      year: 2026,
+      quarter: 3,
       now,
     });
-    expect(r.start.toDateString()).toBe(new Date(2026, 3, 1).toDateString());
-    expect(r.end.toDateString()).toBe(new Date(2026, 6, 1).toDateString());
-    // Progress "today" marker (computed in QuarterlyTracker) divides days
-    // elapsed in the calendar quarter by total days in the calendar quarter.
+    expect(r.start.toDateString()).toBe(new Date(2026, 5, 1).toDateString());
+    expect(r.end.toDateString()).toBe(new Date(2026, 8, 1).toDateString());
+    // Jun 9 is ~8/92 days into Q3 → small, NOT "hasn't started"
     const totalMs = r.end.getTime() - r.start.getTime();
     const elapsedMs = now.getTime() - r.start.getTime();
     const progress = elapsedMs / totalMs;
-    // Apr 1 → Jun 9 is ~69 of 91 days ≈ 0.76, NOT based on Jun 15 deadline.
-    expect(progress).toBeGreaterThan(0.7);
-    expect(progress).toBeLessThan(0.8);
+    expect(progress).toBeGreaterThan(0);
+    expect(progress).toBeLessThan(0.15);
+  });
+});
+
+describe("paid vs planned — actual-only paid/saved", () => {
+  const NOW = new Date(2026, 5, 9); // Jun 9
+  it("Q3 on Jun 9 includes June 5 business income tax reserve as saved (not paid)", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 60_000,
+      year: 2026,
+      quarter: 3,
+      now: NOW,
+      incomeEntries: [
+        {
+          id: "ie1",
+          linked_transaction_id: "tx1",
+          income_date: "2026-06-05",
+          gross_amount: 10_080,
+          additional_tax_reserve: 2_500,
+          company: "Business",
+        },
+      ],
+      transactions: [
+        { id: "tx1", transaction_type: "income", amount: 10_080, transaction_date: "2026-06-05" },
+      ],
+    });
+    expect(r.savedFromIncome).toBe(2_500);
+    expect(r.savedThisQuarter).toBe(2_500);
+    expect(r.paidThisQuarter).toBe(0); // reserve is saved, not paid
+  });
+
+  it("future-dated W-2 paychecks are NOT counted as already paid", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 80_000,
+      year: 2026,
+      quarter: 3,
+      now: NOW,
+      personalEntries: [
+        // Already-occurred June paycheck → counts as paid
+        { income_date: "2026-06-05", gross_amount: 10_000, federal_withholding: 1_500 },
+        // Future-dated July paycheck → MUST NOT count as paid
+        { income_date: "2026-07-15", gross_amount: 10_000, federal_withholding: 2_000 },
+        // Future-dated August paycheck → MUST NOT count as paid
+        { income_date: "2026-08-15", gross_amount: 10_000, federal_withholding: 2_000 },
+      ],
+    });
+    expect(r.w2WithheldThisQuarter).toBe(1_500);
+    expect(r.paidThisQuarter).toBe(1_500);
+  });
+
+  it("future-dated 1099 income with planned withholding is NOT counted as paid", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 60_000,
+      year: 2026,
+      quarter: 3,
+      now: NOW,
+      incomeEntries: [
+        {
+          id: "ie1",
+          linked_transaction_id: "tx1",
+          income_date: "2026-08-01", // future relative to Jun 9
+          gross_amount: 10_000,
+          federal_withholding: 1_200,
+          additional_tax_reserve: 0,
+        },
+      ],
+      transactions: [
+        { id: "tx1", transaction_type: "income", amount: 10_000, transaction_date: "2026-08-01" },
+      ],
+    });
+    expect(r.otherWithheldThisQuarter).toBe(0);
+    expect(r.paidThisQuarter).toBe(0);
+  });
+
+  it("planned future income can affect dynamic quarter target but never inflates Paid", () => {
+    const r = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: 2026,
+      quarter: 3,
+      quarterMethod: "dynamic",
+      now: NOW,
+      transactions: [
+        { transaction_type: "income", transaction_date: "2026-06-05", amount: 10_000 },
+        { transaction_type: "income", transaction_date: "2026-08-15", amount: 30_000 }, // future
+      ],
+      personalEntries: [
+        { income_date: "2026-08-15", gross_amount: 10_000, federal_withholding: 5_000 }, // future
+      ],
+    });
+    expect(r.quarterTarget).toBeGreaterThan(0); // planned income shapes target
+    expect(r.paidThisQuarter).toBe(0); // but no actual withholding has occurred yet
+  });
+
+  it("Q3 on Jun 9 is NOT a future quarter (does not say 'hasn't started')", () => {
+    const r = buildQuarterRecommendation({ annualTaxLiability: 40_000, year: 2026, quarter: 3, now: NOW });
+    expect(NOW >= r.start).toBe(true);
+    expect(NOW < r.end).toBe(true);
   });
 });
 
