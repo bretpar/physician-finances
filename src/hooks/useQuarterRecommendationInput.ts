@@ -23,7 +23,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
-import { useTaxPayments } from "@/hooks/useTaxPayments";
+import { useTaxPayments, type TaxPayment } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import {
   useProjectedStreams,
