@@ -178,29 +178,13 @@ export default function Dashboard() {
 
   // Hooks below must run unconditionally — keep before any early return to
   // preserve hook order between loading and loaded renders (React error #310).
-  const manualSavingsRows = useMemo(
-    () => taxSavings.map((s) => ({ savings_date: s.savings_date, amount: Number(s.amount) })),
-    [taxSavings],
-  );
+  // Canonical recommendation input — shared with Tax Overview so Dashboard
+  // and Tax Overview cannot drift on `recommendedPaymentToMake`.
+  const sharedQrInput = useQuarterRecommendationInput();
+  const manualSavingsRows = sharedQrInput.manualSavings ?? [];
   const quarterRecommendation = useMemo(
-    () => buildQuarterRecommendation({
-      annualTaxLiability: Math.max(0, Number(
-        ((rates?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-          ? (forecastEstimate ?? actualEstimate)
-          : (currentPaceEstimate ?? actualEstimate)
-        )?.totalTaxLiability || 0,
-      )),
-      quarterMethod: rates?.quarterlyTrackerMethod ?? "even",
-      incomeEntries: incomeEntries || [],
-      personalEntries: personalEntries || [],
-      transactions: transactions || [],
-      investmentEntries: investmentEntries || [],
-      projectedPaychecks,
-      payments,
-      manualSavings: manualSavingsRows,
-      now,
-    }),
-    [rates?.withholdingMethod, rates?.quarterlyTrackerMethod, forecastEstimate, actualEstimate, currentPaceEstimate, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavingsRows, now],
+    () => buildQuarterRecommendation({ ...sharedQrInput, now }),
+    [sharedQrInput, now],
   );
 
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
