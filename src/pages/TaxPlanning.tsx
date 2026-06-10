@@ -41,11 +41,13 @@ function formatMonth(m: string): string {
   return formatMonthYear(date);
 }
 
+// IRS estimated-tax periods (NOT calendar quarters):
+//   Q1: Jan–Mar   Q2: Apr–May   Q3: Jun–Aug   Q4: Sep–Dec
 function getQuarter(month: string): number {
   const mo = parseInt(month.split("-")[1]);
   if (mo <= 3) return 1;
-  if (mo <= 6) return 2;
-  if (mo <= 9) return 3;
+  if (mo <= 5) return 2;
+  if (mo <= 8) return 3;
   return 4;
 }
 
