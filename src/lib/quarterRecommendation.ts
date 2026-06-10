@@ -380,9 +380,17 @@ export function buildQuarterRecommendation(
   const coveragePct = coverageRatio * 100;
 
   // ── Deadline / callout windows ───────────────────────────────────────────
+  // Dashboard priority rule: an active unpaid payment deadline should override
+  // the normal in-progress quarter tracker during the due window. "Covered"
+  // here means actually paid (W-2 withholding + estimated payments) — saved
+  // reserves are user cash that has NOT yet been submitted, so they must not
+  // suppress the payment callout. Otherwise a user with reserves but no
+  // actual payment would see the Q3 tracker on Jun 9 instead of the Q2
+  // Payment Due card.
   const daysUntilDue = daysUntilDeadline(deadline, now);
-  const meaningful = recommendedQuarterlyPayment > 100;
-  const notCovered = coverageRatio < 0.95;
+  const paidCoverageRatio = quarterTarget > 0 ? paidThisQuarter / quarterTarget : 1;
+  const meaningful = recommendedPaymentToMake > 100;
+  const notCovered = paidCoverageRatio < 0.95;
   const isDueSoonWindow = daysUntilDue <= 20 && daysUntilDue >= 0 && meaningful && notCovered;
   const isOverdueWindow = daysUntilDue < 0 && daysUntilDue >= -7 && meaningful && notCovered;
   const showDashboardPaymentCallout = isDueSoonWindow || isOverdueWindow;
