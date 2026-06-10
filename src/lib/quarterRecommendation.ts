@@ -74,6 +74,11 @@ export interface QuarterSourceRow {
   paid: number;
   /** Reserves earmarked but not yet paid. */
   saved: number;
+  /** Scheduled/planned withholding for paychecks dated in this quarter but
+   *  after today. Not counted as Paid until the paycheck date arrives. */
+  upcoming: number;
+  /** Earliest future paycheck date (ISO yyyy-mm-dd) contributing to `upcoming`. */
+  upcomingDate?: string;
 }
 
 export interface QuarterRecommendation {
