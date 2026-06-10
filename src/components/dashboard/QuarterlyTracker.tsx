@@ -254,11 +254,11 @@ export default function QuarterlyTracker({
   const showTodayMarker = !isFutureQuarter && !isPastQuarter && expectedPct > 0 && expectedPct < 100;
 
   // Source rows come directly from the canonical helper (single source of
-  // truth). Sort by combined paid+saved so the largest contributors lead.
+  // truth). Sort by combined paid+saved+upcoming so the largest contributors lead.
   const rows = [...recommendation.sourceRows].sort(
-    (a, b) => (b.paid + b.saved) - (a.paid + a.saved),
+    (a, b) => (b.paid + b.saved + (b.upcoming || 0)) - (a.paid + a.saved + (a.upcoming || 0)),
   );
-  const hasAny = rows.some((r) => r.paid > 0 || r.saved > 0);
+  const hasAny = rows.some((r) => r.paid > 0 || r.saved > 0 || (r.upcoming || 0) > 0);
 
   const goPrev = () => setView(stepQuarter(view.year, view.quarter, -1));
   const goNext = () => setView(stepQuarter(view.year, view.quarter, 1));
