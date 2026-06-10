@@ -37,6 +37,7 @@ import { useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
+import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
@@ -176,6 +177,10 @@ export default function Taxes() {
   }).rate;
   const annualTaxLiability = Math.max(0, Number(trackerEstimate?.totalTaxLiability || 0));
   const trackerEffectiveTaxRate = method === "flat_estimate" ? overviewProfile.federalProfileRate : overviewProfile.canonicalEffectiveTaxRate;
+  // Shared input builder — keeps Tax Overview QuarterlyTracker aligned with
+  // the Dashboard Q-payment callout. See useQuarterRecommendationInput.
+  const sharedQrInput = useQuarterRecommendationInput();
+
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
   const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
@@ -429,21 +434,21 @@ export default function Taxes() {
 
       {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
-          annualTaxLiability={annualTaxLiability}
-          payments={payments}
+          annualTaxLiability={sharedQrInput.annualTaxLiability}
+          payments={sharedQrInput.payments ?? []}
           methodLabel={overviewProfile.label}
-          incomeEntries={incomeEntries || []}
-          personalEntries={personalEntries || []}
-          transactions={transactions || []}
-          investmentEntries={investmentEntries || []}
+          incomeEntries={sharedQrInput.incomeEntries ?? []}
+          personalEntries={sharedQrInput.personalEntries ?? []}
+          transactions={sharedQrInput.transactions ?? []}
+          investmentEntries={sharedQrInput.investmentEntries ?? []}
           companies={companies}
-          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-          projectedPaychecks={projectedPaychecks}
+          quarterMethod={sharedQrInput.quarterMethod}
+          projectedPaychecks={sharedQrInput.projectedPaychecks}
           personalBucketRate={personalRate}
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
           breakdownTitle="This quarter by source"
-          manualSavings={savings.map((sv) => ({ savings_date: sv.savings_date, amount: Number(sv.amount) }))}
+          manualSavings={sharedQrInput.manualSavings}
           showRecommendedPayment
         />
       </section>}

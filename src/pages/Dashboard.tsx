@@ -24,6 +24,7 @@ import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/M
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
+import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { normalizeFilingType } from "@/lib/filingTypes";
 
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -177,29 +178,13 @@ export default function Dashboard() {
 
   // Hooks below must run unconditionally — keep before any early return to
   // preserve hook order between loading and loaded renders (React error #310).
-  const manualSavingsRows = useMemo(
-    () => taxSavings.map((s) => ({ savings_date: s.savings_date, amount: Number(s.amount) })),
-    [taxSavings],
-  );
+  // Canonical recommendation input — shared with Tax Overview so Dashboard
+  // and Tax Overview cannot drift on `recommendedPaymentToMake`.
+  const sharedQrInput = useQuarterRecommendationInput();
+  const manualSavingsRows = sharedQrInput.manualSavings ?? [];
   const quarterRecommendation = useMemo(
-    () => buildQuarterRecommendation({
-      annualTaxLiability: Math.max(0, Number(
-        ((rates?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-          ? (forecastEstimate ?? actualEstimate)
-          : (currentPaceEstimate ?? actualEstimate)
-        )?.totalTaxLiability || 0,
-      )),
-      quarterMethod: rates?.quarterlyTrackerMethod ?? "even",
-      incomeEntries: incomeEntries || [],
-      personalEntries: personalEntries || [],
-      transactions: transactions || [],
-      investmentEntries: investmentEntries || [],
-      projectedPaychecks,
-      payments,
-      manualSavings: manualSavingsRows,
-      now,
-    }),
-    [rates?.withholdingMethod, rates?.quarterlyTrackerMethod, forecastEstimate, actualEstimate, currentPaceEstimate, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavingsRows, now],
+    () => buildQuarterRecommendation({ ...sharedQrInput, now }),
+    [sharedQrInput, now],
   );
 
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
@@ -394,27 +379,27 @@ export default function Dashboard() {
 
       {!isW2Only && (
         <DashboardQuarterlyPaymentCallout
-          annualTaxLiability={annualTaxLiability}
-          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-          incomeEntries={incomeEntries || []}
-          personalEntries={personalEntries || []}
-          transactions={transactions || []}
-          investmentEntries={investmentEntries || []}
-          projectedPaychecks={projectedPaychecks}
-          payments={payments}
-          manualSavings={manualSavingsRows}
+          annualTaxLiability={sharedQrInput.annualTaxLiability}
+          quarterMethod={sharedQrInput.quarterMethod}
+          incomeEntries={sharedQrInput.incomeEntries}
+          personalEntries={sharedQrInput.personalEntries}
+          transactions={sharedQrInput.transactions}
+          investmentEntries={sharedQrInput.investmentEntries}
+          projectedPaychecks={sharedQrInput.projectedPaychecks}
+          payments={sharedQrInput.payments}
+          manualSavings={sharedQrInput.manualSavings}
           fallback={() => (
             <QuarterlyTracker
-              annualTaxLiability={annualTaxLiability}
-              payments={payments}
+              annualTaxLiability={sharedQrInput.annualTaxLiability}
+              payments={sharedQrInput.payments ?? []}
               methodLabel={methodLabel}
-              incomeEntries={incomeEntries || []}
-              personalEntries={personalEntries || []}
-              transactions={transactions || []}
-              investmentEntries={investmentEntries || []}
+              incomeEntries={sharedQrInput.incomeEntries ?? []}
+              personalEntries={sharedQrInput.personalEntries ?? []}
+              transactions={sharedQrInput.transactions ?? []}
+              investmentEntries={sharedQrInput.investmentEntries ?? []}
               companies={companies}
-              quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-              projectedPaychecks={projectedPaychecks}
+              quarterMethod={sharedQrInput.quarterMethod}
+              projectedPaychecks={sharedQrInput.projectedPaychecks}
               personalBucketRate={personalRate}
               businessBucketRate={businessRate}
               effectiveTaxRate={effectiveTaxRate}
@@ -423,7 +408,7 @@ export default function Dashboard() {
               showTaxOverviewCta={false}
               showQuarterNavigation={false}
               linkDeadlineToTaxOverview
-              manualSavings={manualSavingsRows}
+              manualSavings={sharedQrInput.manualSavings}
             />
           )}
         />
