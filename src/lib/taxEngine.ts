@@ -485,9 +485,11 @@ export function calculateFullEstimate(params: {
   const totalPaid = federalWithheld + additionalTaxPaid;
   const remainingLiability = Math.max(0, totalTaxLiability - totalPaid);
 
-  // Quarterly
+  // Quarterly — IRS estimated-tax periods (Q1: Jan–Mar, Q2: Apr–May,
+  // Q3: Jun–Aug, Q4: Sep–Dec). NOT calendar quarters.
   const now = new Date();
-  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+  const m = now.getMonth();
+  const currentQuarter = m < 3 ? 1 : m < 5 ? 2 : m < 8 ? 3 : 4;
   const remainingQuarters = Math.max(1, 4 - currentQuarter + 1);
   const quarterlyEstimate = remainingLiability / remainingQuarters;
 
