@@ -127,12 +127,20 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
       console.info(`END_YTD_SAVE ${trimmedName} validation:bad_period`);
       return setError("End date cannot be before start date.");
     }
-    if (grossIncome.trim() === "") {
+    // For 1099/business sources, zero (or empty) YTD gross is allowed —
+    // it represents "no catch-up needed for this source". The mirror
+    // ledger writer skips creating any rows when gross/expenses/withholding
+    // are all zero, so no fake $1 income is required to save the source.
+    if (isW2Source && grossIncome.trim() === "") {
       console.info(`END_YTD_SAVE ${trimmedName} validation:missing_gross`);
       return setError("Enter your total gross income year-to-date.");
     }
     const gross = num(grossIncome);
-    if (gross <= 0) {
+    if (gross < 0) {
+      console.info(`END_YTD_SAVE ${trimmedName} validation:zero_gross`);
+      return setError("Gross income cannot be negative.");
+    }
+    if (isW2Source && gross <= 0) {
       console.info(`END_YTD_SAVE ${trimmedName} validation:zero_gross`);
       return setError("Gross income must be greater than zero.");
     }
