@@ -35,9 +35,11 @@ import {
 import type { QuarterRecommendationInput } from "@/lib/quarterRecommendation";
 
 export interface QuarterRecommendationSharedInput
-  extends Omit<QuarterRecommendationInput, "year" | "quarter"> {
+  extends Omit<QuarterRecommendationInput, "year" | "quarter" | "payments"> {
   /** Annual liability selected from the active tax-mode estimate. */
   annualTaxLiability: number;
+  /** Full TaxPayment rows so consumers like QuarterlyTracker keep their typed shape. */
+  payments: TaxPayment[];
   isLoading: boolean;
 }
 
