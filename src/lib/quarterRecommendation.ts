@@ -350,14 +350,21 @@ export function buildQuarterRecommendation(
       const countAsPaid = inQuarter && isPast(e.income_date);
       paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
     }
+    // Future-dated W-2 paycheck inside this quarter: surface as upcoming so
+    // the user can see why it isn't in Paid yet, but never count it as paid.
+    const upcoming = !isYtdCatchup && inQuarter && !isPast(e.income_date)
+      ? Math.max(0, Number(e.federal_withholding || 0))
+      : 0;
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
     w2SavedFromIncome += saved;
-    if (paid > 0 || saved > 0) {
+    if (paid > 0 || saved > 0 || upcoming > 0) {
       const name = (e.company || "Personal W-2").toString().trim() || "Personal W-2";
       const row = ensure(`personal:${name.toLowerCase()}`, `${name} (W-2)`);
       row.paid += paid;
       row.saved += saved;
+      row.upcoming += upcoming;
+      if (upcoming > 0) noteUpcomingDate(row, e.income_date);
     }
   }
 
