@@ -11,12 +11,14 @@ import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 
-/** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
+/** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves) vs upcoming (scheduled future paychecks). */
 export interface CompanyQuarterRow {
   key: string;
   label: string;
   paid: number;
   saved: number;
+  upcoming?: number;
+  upcomingDate?: string;
 }
 
 interface QuarterlyTrackerProps {
