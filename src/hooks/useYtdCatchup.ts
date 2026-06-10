@@ -247,7 +247,22 @@ async function syncCatchupMirror(args: {
       .in("id", existingExpenseTxRows.slice(1).map((r: any) => r.id));
   }
 
-  if (isBusiness) {
+  const bizExpensesPreview = Math.max(0, Number(c.business_expenses) || 0);
+  const businessHasAnyData = gross > 0 || bizExpensesPreview > 0 || fedW > 0 || stateW > 0;
+
+  if (isBusiness && !businessHasAnyData) {
+    // Empty/skipped business catch-up — ensure no mirror ledger rows
+    // exist (caller may have flipped between zero and non-zero), then
+    // exit before inserting anything. This is what lets onboarding save
+    // a 1099/business source with $0 YTD without polluting Business
+    // Activity with a fake $1 income row.
+    if (existingTx?.id) {
+      await supabase.from("transactions").delete().eq("id", existingTx.id);
+    }
+    if (existingExpenseTx?.id) {
+      await supabase.from("transactions").delete().eq("id", existingExpenseTx.id);
+    }
+  } else if (isBusiness) {
     const txRow: any = {
       user_id: args.userId,
       organization_id: args.orgId,
