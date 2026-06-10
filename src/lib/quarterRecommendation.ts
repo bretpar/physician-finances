@@ -295,33 +295,21 @@ export function buildQuarterRecommendation(
     }
   }
 
-  // W-2 federal withholding is treated by the IRS as paid evenly throughout
-  // the year, so for quarterly safe-harbor display we aggregate it YTD
-  // through the end of the displayed quarter (not just the in-window slice).
-  //
-  // CRITICAL: only actual paychecks that have already occurred count as
-  // paid. Future-dated planned/projected paychecks (income_date > today)
-  // are never counted as already-paid withholding, even if they fall in
-  // the displayed quarter window. They may still influence the quarter
-  // target via the dynamic-share path, but never inflate Paid QTD.
-  //
-  // Reserves (additional_tax_reserve) remain quarter-scoped so saved cash
-  // doesn't get inflated across multiple quarters.
-  const ytdThroughPast = (iso?: string | null) => {
-    if (!iso) return false;
-    const d = new Date(iso);
-    return d.getFullYear() === year && d < end && d < todayCutoff;
-  };
+  // W-2 federal withholding counted as "Paid" for the displayed quarter must
+  // reflect only dollars ACTUALLY withheld from paychecks dated within the
+  // quarter window AND on or before today. Future-dated planned paychecks
+  // and out-of-window paychecks never count as already-paid here. They may
+  // still influence the quarter target via dynamic-share, but never inflate
+  // Paid QTD.
   let w2WithheldThisQuarter = 0;
   let w2SavedFromIncome = 0;
   for (const e of personalEntries) {
     const inQuarter = inWin(e.income_date);
     // YTD-catchup mirror entries represent withholding accrued from Jan 1
-    // through their `period_end` (stored as income_date). For safe-harbor
-    // display we allocate linearly across that period so a Jun 9 catchup
-    // with $5,000 fed withholding correctly shows up as Paid for Q1/Q2/Q3
-    // (instead of falling entirely on the Jun 9 date and disappearing
-    // from Q1/Q2 windows).
+    // through their `period_end` (stored as income_date). Allocate linearly
+    // across [jan1, period_end] and credit only the slice that overlaps
+    // [quarter_start, min(today, quarter_end)] to this quarter, so future
+    // portions of the period never show as paid yet.
     const isYtdCatchup =
       (e as any).origin_type === "ytd_catchup" ||
       (e as any).entry_kind === "ytd_catchup";
@@ -330,19 +318,22 @@ export function buildQuarterRecommendation(
       const periodEnd = e.income_date ? new Date(e.income_date) : null;
       if (periodEnd && periodEnd.getFullYear() === year) {
         const jan1 = new Date(year, 0, 1);
-        const cutoff = end < todayCutoff ? end : todayCutoff;
         const totalMs = Math.max(1, periodEnd.getTime() - jan1.getTime());
-        const elapsedMs = Math.max(0, Math.min(totalMs, cutoff.getTime() - jan1.getTime()));
-        const ratio = elapsedMs / totalMs;
+        const sliceEnd = Math.min(
+          periodEnd.getTime(),
+          end.getTime(),
+          todayCutoff.getTime(),
+        );
+        const sliceStart = Math.max(jan1.getTime(), start.getTime());
+        const overlapMs = Math.max(0, sliceEnd - sliceStart);
+        const ratio = Math.min(1, overlapMs / totalMs);
         paid = Math.max(0, Number(e.federal_withholding || 0)) * ratio;
       }
     } else {
-      // W-2 "withholding paid" reflects federal income tax withholding ONLY.
-      // Social Security and Medicare are payroll taxes, not credits against
-      // federal income tax liability, so they must not be included here. The
-      // W-4 panel (Actual W-2 withholding YTD) reads federal_withholding for
-      // the same reason; this keeps Tax Overview aligned with W-4.
-      const countAsPaid = ytdThroughPast(e.income_date);
+      // Actual W-2 paycheck: count only if it falls in this quarter AND has
+      // already occurred (income_date <= today). Federal income tax
+      // withholding ONLY — payroll SS/Medicare are not income-tax credits.
+      const countAsPaid = inQuarter && isPast(e.income_date);
       paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
     }
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
@@ -355,6 +346,7 @@ export function buildQuarterRecommendation(
       row.saved += saved;
     }
   }
+
 
   let savedFromInvestments = 0;
   for (const e of investmentEntries) {

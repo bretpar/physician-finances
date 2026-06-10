@@ -96,18 +96,26 @@ describe("Quarterly estimator remaining caveats", () => {
       expect(q2.paidThisQuarter).toBeGreaterThan(0);
     });
 
-    it("Q2 paid is roughly proportional to elapsed YTD", () => {
-      // Jan 1 → period_end Jun 9 = 159 days; Jan 1 → Q2 end (Jun 1) = 151 days.
-      // Ratio ≈ 0.949 → expect ~$4,748.
+    it("Q2 paid is its quarter-window slice of the YTD allocation", () => {
+      // Period Jan 1 → Jun 9 = 159 days; Q2 window [Apr 1, Jun 1] = 61 days.
+      // Slice = 61/159 ≈ 0.384 → expect ~$1,918.
       const q2 = buildQuarterRecommendation({ ...base, year: YEAR, quarter: 2 });
-      expect(q2.paidThisQuarter).toBeGreaterThan(4_500);
-      expect(q2.paidThisQuarter).toBeLessThan(5_000);
+      expect(q2.paidThisQuarter).toBeGreaterThan(1_500);
+      expect(q2.paidThisQuarter).toBeLessThan(2_300);
     });
 
-    it("Q3 (window includes today) credits the full YTD amount", () => {
+    it("Q3 on Jun 9 only credits the Jun 1–today slice (not full YTD)", () => {
       const q3 = buildQuarterRecommendation({ ...base, year: YEAR, quarter: 3 });
-      // Q3 end Sep 1 > today Jun 9 → cutoff is today = period_end → ratio = 1.0
-      expect(q3.paidThisQuarter).toBeCloseTo(5_000, 0);
+      // Q3 slice [Jun 1, Jun 9] = 8 of 159 days → ~$251.
+      expect(q3.paidThisQuarter).toBeGreaterThan(100);
+      expect(q3.paidThisQuarter).toBeLessThan(500);
+    });
+
+    it("Q1+Q2+Q3 slices sum to the full YTD-catchup amount (no future credit)", () => {
+      const q1 = buildQuarterRecommendation({ ...base, year: YEAR, quarter: 1 });
+      const q2 = buildQuarterRecommendation({ ...base, year: YEAR, quarter: 2 });
+      const q3 = buildQuarterRecommendation({ ...base, year: YEAR, quarter: 3 });
+      expect(q1.paidThisQuarter + q2.paidThisQuarter + q3.paidThisQuarter).toBeCloseTo(5_000, 0);
     });
 
     it("future YTD-catchup withholding (period_end > today) does not count as paid for prior quarters", () => {
@@ -118,11 +126,11 @@ describe("Quarterly estimator remaining caveats", () => {
         year: YEAR,
         quarter: 1,
       });
-      // Q1 end Apr 1, jan1→Apr 1 = 90 days, jan1→Dec 31 = 364 days → ratio ≈ 0.247
-      // — that's still allocated proportionally. The contract is that future
-      // withholding does not inflate beyond linear pacing.
+      // Q1 slice [Jan 1, Apr 1] = 90 days, period [Jan 1, Dec 31] = 364 days
+      // → ratio ≈ 0.247 → ~$1,237. Future portion never inflates Q1.
       expect(q1.paidThisQuarter).toBeLessThan(2_000);
     });
+
   });
 
   // ── 3. IRS quarter window: Jun 5 income maps to Q3, not Q2 ─────────────
