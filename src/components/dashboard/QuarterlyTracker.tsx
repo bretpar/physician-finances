@@ -11,12 +11,14 @@ import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 
-/** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
+/** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves) vs upcoming (scheduled future paychecks). */
 export interface CompanyQuarterRow {
   key: string;
   label: string;
   paid: number;
   saved: number;
+  upcoming?: number;
+  upcomingDate?: string;
 }
 
 interface QuarterlyTrackerProps {
@@ -252,11 +254,11 @@ export default function QuarterlyTracker({
   const showTodayMarker = !isFutureQuarter && !isPastQuarter && expectedPct > 0 && expectedPct < 100;
 
   // Source rows come directly from the canonical helper (single source of
-  // truth). Sort by combined paid+saved so the largest contributors lead.
+  // truth). Sort by combined paid+saved+upcoming so the largest contributors lead.
   const rows = [...recommendation.sourceRows].sort(
-    (a, b) => (b.paid + b.saved) - (a.paid + a.saved),
+    (a, b) => (b.paid + b.saved + (b.upcoming || 0)) - (a.paid + a.saved + (a.upcoming || 0)),
   );
-  const hasAny = rows.some((r) => r.paid > 0 || r.saved > 0);
+  const hasAny = rows.some((r) => r.paid > 0 || r.saved > 0 || (r.upcoming || 0) > 0);
 
   const goPrev = () => setView(stepQuarter(view.year, view.quarter, -1));
   const goNext = () => setView(stepQuarter(view.year, view.quarter, 1));
@@ -417,13 +419,24 @@ export default function QuarterlyTracker({
                   </div>
                 ) : (
                   rows.map((r) => {
-                    const empty = r.paid === 0 && r.saved === 0;
+                    const up = r.upcoming || 0;
+                    const empty = r.paid === 0 && r.saved === 0 && up === 0;
+                    const upcomingNote = up > 0
+                      ? `${fmt(up)} scheduled${r.upcomingDate ? ` ${new Date(r.upcomingDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}, not counted as paid yet`
+                      : null;
                     return (
                       <div
                         key={r.key}
                         className="px-3 py-2.5 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] items-start sm:items-center gap-2 sm:gap-x-3 text-sm"
                       >
-                        <span className={cn("min-w-0 break-words leading-snug", empty && "text-muted-foreground")}>{r.label}</span>
+                        <span className={cn("min-w-0 break-words leading-snug", empty && "text-muted-foreground")}>
+                          {r.label}
+                          {upcomingNote && (
+                            <span className="block text-[11px] text-muted-foreground mt-0.5">
+                              {upcomingNote}
+                            </span>
+                          )}
+                        </span>
                         <div className="grid grid-cols-2 gap-2 sm:contents">
                           <span className={cn("rounded-md bg-muted/40 px-2 py-1 text-left tabular-nums sm:w-20 sm:bg-transparent sm:p-0 sm:text-right", r.paid === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
                             <span className="block text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Paid</span>
