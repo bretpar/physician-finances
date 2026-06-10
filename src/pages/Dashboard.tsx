@@ -379,27 +379,27 @@ export default function Dashboard() {
 
       {!isW2Only && (
         <DashboardQuarterlyPaymentCallout
-          annualTaxLiability={annualTaxLiability}
-          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-          incomeEntries={incomeEntries || []}
-          personalEntries={personalEntries || []}
-          transactions={transactions || []}
-          investmentEntries={investmentEntries || []}
-          projectedPaychecks={projectedPaychecks}
-          payments={payments}
-          manualSavings={manualSavingsRows}
+          annualTaxLiability={sharedQrInput.annualTaxLiability}
+          quarterMethod={sharedQrInput.quarterMethod}
+          incomeEntries={sharedQrInput.incomeEntries}
+          personalEntries={sharedQrInput.personalEntries}
+          transactions={sharedQrInput.transactions}
+          investmentEntries={sharedQrInput.investmentEntries}
+          projectedPaychecks={sharedQrInput.projectedPaychecks}
+          payments={sharedQrInput.payments}
+          manualSavings={sharedQrInput.manualSavings}
           fallback={() => (
             <QuarterlyTracker
-              annualTaxLiability={annualTaxLiability}
-              payments={payments}
+              annualTaxLiability={sharedQrInput.annualTaxLiability}
+              payments={sharedQrInput.payments ?? []}
               methodLabel={methodLabel}
-              incomeEntries={incomeEntries || []}
-              personalEntries={personalEntries || []}
-              transactions={transactions || []}
-              investmentEntries={investmentEntries || []}
+              incomeEntries={sharedQrInput.incomeEntries ?? []}
+              personalEntries={sharedQrInput.personalEntries ?? []}
+              transactions={sharedQrInput.transactions ?? []}
+              investmentEntries={sharedQrInput.investmentEntries ?? []}
               companies={companies}
-              quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-              projectedPaychecks={projectedPaychecks}
+              quarterMethod={sharedQrInput.quarterMethod}
+              projectedPaychecks={sharedQrInput.projectedPaychecks}
               personalBucketRate={personalRate}
               businessBucketRate={businessRate}
               effectiveTaxRate={effectiveTaxRate}
@@ -408,7 +408,7 @@ export default function Dashboard() {
               showTaxOverviewCta={false}
               showQuarterNavigation={false}
               linkDeadlineToTaxOverview
-              manualSavings={manualSavingsRows}
+              manualSavings={sharedQrInput.manualSavings}
             />
           )}
         />
