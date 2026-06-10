@@ -316,13 +316,35 @@ export function buildQuarterRecommendation(
   let w2SavedFromIncome = 0;
   for (const e of personalEntries) {
     const inQuarter = inWin(e.income_date);
-    const countAsPaid = ytdThroughPast(e.income_date);
-    // W-2 "withholding paid" reflects federal income tax withholding ONLY.
-    // Social Security and Medicare are payroll taxes, not credits against
-    // federal income tax liability, so they must not be included here. The
-    // W-4 panel (Actual W-2 withholding YTD) reads federal_withholding for
-    // the same reason; this keeps Tax Overview aligned with W-4.
-    const paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
+    // YTD-catchup mirror entries represent withholding accrued from Jan 1
+    // through their `period_end` (stored as income_date). For safe-harbor
+    // display we allocate linearly across that period so a Jun 9 catchup
+    // with $5,000 fed withholding correctly shows up as Paid for Q1/Q2/Q3
+    // (instead of falling entirely on the Jun 9 date and disappearing
+    // from Q1/Q2 windows).
+    const isYtdCatchup =
+      (e as any).origin_type === "ytd_catchup" ||
+      (e as any).entry_kind === "ytd_catchup";
+    let paid = 0;
+    if (isYtdCatchup) {
+      const periodEnd = e.income_date ? new Date(e.income_date) : null;
+      if (periodEnd && periodEnd.getFullYear() === year) {
+        const jan1 = new Date(year, 0, 1);
+        const cutoff = end < todayCutoff ? end : todayCutoff;
+        const totalMs = Math.max(1, periodEnd.getTime() - jan1.getTime());
+        const elapsedMs = Math.max(0, Math.min(totalMs, cutoff.getTime() - jan1.getTime()));
+        const ratio = elapsedMs / totalMs;
+        paid = Math.max(0, Number(e.federal_withholding || 0)) * ratio;
+      }
+    } else {
+      // W-2 "withholding paid" reflects federal income tax withholding ONLY.
+      // Social Security and Medicare are payroll taxes, not credits against
+      // federal income tax liability, so they must not be included here. The
+      // W-4 panel (Actual W-2 withholding YTD) reads federal_withholding for
+      // the same reason; this keeps Tax Overview aligned with W-4.
+      const countAsPaid = ytdThroughPast(e.income_date);
+      paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
+    }
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
     w2SavedFromIncome += saved;

@@ -99,7 +99,8 @@ export function useAddIncome() {
         // filing type here for tax routing; only income_entries.income_type is
         // constrained to the canonical 4 values.)
         recommended_withholding: Math.round(recommendedWithholding * 100) / 100,
-        withholding_saved: false,
+        actual_withholding: Number((entry as any).actual_withholding || 0),
+        withholding_saved: Number((entry as any).actual_withholding || 0) > 0,
       } as any).select("id").single();
       if (txError) throw txError;
 
