@@ -52,17 +52,15 @@ export function QuarterlyPaymentCallout({
           <p className="font-semibold text-foreground">
             {recommendation.quarterLabel} Payment
           </p>
-          <a
-            href="https://www.irs.gov/pub/irs-pdf/f1040es.pdf"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => navigate("/taxes#quarterly-estimator")}
             className={cn(
-              "text-sm tabular-nums cursor-pointer underline-offset-2 hover:underline",
+              "text-sm tabular-nums cursor-pointer bg-transparent border-0 p-0 underline-offset-2 hover:underline",
               overdue ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
             )}
           >
             Due {recommendation.deadlineLabel}
-          </a>
+          </button>
         </div>
 
         {/* Centered amount */}
