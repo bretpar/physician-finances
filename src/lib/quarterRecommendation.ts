@@ -153,16 +153,20 @@ const Q_META: Record<QuarterNum, { label: QuarterLabel; deadlineLabel: string }>
 };
 
 /**
- * Calendar quarter window plus IRS estimated-tax deadline.
- * Mirrors `getCurrentQuarter` from `src/lib/quarters.ts` for any (year, quarter).
+ * IRS estimated-tax period window for (year, quarter):
+ *   Q1: Jan 1 – Mar 31, deadline Apr 15
+ *   Q2: Apr 1 – May 31, deadline Jun 15
+ *   Q3: Jun 1 – Aug 31, deadline Sep 15
+ *   Q4: Sep 1 – Dec 31, deadline Jan 15 of next year
+ * Mirrors `getCurrentQuarter` from `src/lib/quarters.ts`.
  */
 function buildWindow(year: number, quarter: QuarterNum) {
   const meta = Q_META[quarter];
   let start: Date, end: Date, deadline: Date;
   if (quarter === 1) { start = new Date(year, 0, 1); end = new Date(year, 3, 1); deadline = new Date(year, 3, 15); }
-  else if (quarter === 2) { start = new Date(year, 3, 1); end = new Date(year, 6, 1); deadline = new Date(year, 5, 15); }
-  else if (quarter === 3) { start = new Date(year, 6, 1); end = new Date(year, 9, 1); deadline = new Date(year, 8, 15); }
-  else { start = new Date(year, 9, 1); end = new Date(year + 1, 0, 1); deadline = new Date(year + 1, 0, 15); }
+  else if (quarter === 2) { start = new Date(year, 3, 1); end = new Date(year, 5, 1); deadline = new Date(year, 5, 15); }
+  else if (quarter === 3) { start = new Date(year, 5, 1); end = new Date(year, 8, 1); deadline = new Date(year, 8, 15); }
+  else { start = new Date(year, 8, 1); end = new Date(year + 1, 0, 1); deadline = new Date(year + 1, 0, 15); }
   return { start, end, deadline, label: meta.label, deadlineLabel: meta.deadlineLabel };
 }
 
