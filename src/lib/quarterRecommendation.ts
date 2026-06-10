@@ -298,29 +298,31 @@ export function buildQuarterRecommendation(
   // W-2 federal withholding is treated by the IRS as paid evenly throughout
   // the year, so for quarterly safe-harbor display we aggregate it YTD
   // through the end of the displayed quarter (not just the in-window slice).
-  // Without this, an onboarding YTD-catch-up mirror income_entry dated
-  // before the displayed quarter (e.g. period_end=May 31 while viewing Q3)
-  // would silently report $0 W-2 withholding even though Personal Income
-  // and the W-4 panel correctly show the full $22k YTD.
+  //
+  // CRITICAL: only actual paychecks that have already occurred count as
+  // paid. Future-dated planned/projected paychecks (income_date > today)
+  // are never counted as already-paid withholding, even if they fall in
+  // the displayed quarter window. They may still influence the quarter
+  // target via the dynamic-share path, but never inflate Paid QTD.
   //
   // Reserves (additional_tax_reserve) remain quarter-scoped so saved cash
   // doesn't get inflated across multiple quarters.
-  const ytdThrough = (iso?: string | null) => {
+  const ytdThroughPast = (iso?: string | null) => {
     if (!iso) return false;
     const d = new Date(iso);
-    return d.getFullYear() === year && d < end;
+    return d.getFullYear() === year && d < end && d < todayCutoff;
   };
   let w2WithheldThisQuarter = 0;
   let w2SavedFromIncome = 0;
   for (const e of personalEntries) {
     const inQuarter = inWin(e.income_date);
-    const inYtd = ytdThrough(e.income_date);
+    const countAsPaid = ytdThroughPast(e.income_date);
     // W-2 "withholding paid" reflects federal income tax withholding ONLY.
     // Social Security and Medicare are payroll taxes, not credits against
     // federal income tax liability, so they must not be included here. The
     // W-4 panel (Actual W-2 withholding YTD) reads federal_withholding for
     // the same reason; this keeps Tax Overview aligned with W-4.
-    const paid = inYtd ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
+    const paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
     w2SavedFromIncome += saved;
