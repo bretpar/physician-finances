@@ -33,17 +33,19 @@ describe("buildQuarterRecommendation — projectedPaychecks drift", () => {
     now: TODAY,
   };
 
-  // Dashboard-style: full-fidelity projected paychecks include a future Q2
-  // paycheck that was already converted/skipped in the planner.
+  // Dashboard-style: full-fidelity paychecks (planner overrides removed
+  // an extra Q3 paycheck that was already converted to actual income).
   const dashboardPaychecks = [
     { date: `${YEAR}-04-15`, grossAmount: 25_000 },
     { date: `${YEAR}-05-15`, grossAmount: 25_000 },
+    { date: `${YEAR}-07-15`, grossAmount: 25_000 },
   ];
-  // Taxes-style (old): omitted overrides so an extra paycheck shows up.
+  // Taxes-style (old): omitted overrides so an extra Q3 paycheck still shows up.
   const taxesPaychecks = [
     { date: `${YEAR}-04-15`, grossAmount: 25_000 },
     { date: `${YEAR}-05-15`, grossAmount: 25_000 },
-    { date: `${YEAR}-05-29`, grossAmount: 25_000 }, // duplicated/unfiltered
+    { date: `${YEAR}-07-15`, grossAmount: 25_000 },
+    { date: `${YEAR}-08-15`, grossAmount: 25_000 },
   ];
 
   it("different projectedPaychecks produce different quarterTargets (the historical drift)", () => {
