@@ -401,9 +401,10 @@ describe("recommendedPaymentToMake — excludes saved reserves", () => {
       annualTaxLiability: 50_000,
       year: Y,
       quarter: 3,
+      now: new Date(Y, 11, 31), // year-end so the Aug 15 paycheck counts as past
       personalEntries: [
         {
-          income_date: `${Y}-05-31`,
+          income_date: `${Y}-08-15`, // within Q3 window (Jun 1–Sep 1)
           gross_amount: 120_000,
           federal_withholding: 22_000,
           ss_withholding: 7_440,
@@ -420,6 +421,7 @@ describe("recommendedPaymentToMake — excludes saved reserves", () => {
     expect(r.estimatedPaymentsMade).toBe(8_000);
     expect(r.paidThisQuarter).toBe(30_000);
   });
+
 });
 
 
