@@ -270,10 +270,14 @@ export function buildQuarterRecommendation(
   const ensure = (key: string, label: string): QuarterSourceRow => {
     let row = buckets.get(key);
     if (!row) {
-      row = { key, label, paid: 0, saved: 0 };
+      row = { key, label, paid: 0, saved: 0, upcoming: 0 };
       buckets.set(key, row);
     }
     return row;
+  };
+  const noteUpcomingDate = (row: QuarterSourceRow, iso?: string | null) => {
+    if (!iso) return;
+    if (!row.upcomingDate || iso < row.upcomingDate) row.upcomingDate = iso;
   };
 
   let otherWithheldThisQuarter = 0;
@@ -285,18 +289,23 @@ export function buildQuarterRecommendation(
     if (!inWin(e.income_date)) continue;
     // Paid (actual withholding already submitted) requires the income to
     // have already occurred — future-dated entries don't yet have paid tax.
-    const paid = isPast(e.income_date) ? getTotalFederalPaid(e) : 0;
+    const past = isPast(e.income_date);
+    const fed = getTotalFederalPaid(e);
+    const paid = past ? fed : 0;
+    const upcoming = past ? 0 : fed;
     const saved =
       Number((tx as any).actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
     otherWithheldThisQuarter += paid;
     businessSavedFromIncome += saved;
-    if (paid > 0 || saved > 0) {
+    if (paid > 0 || saved > 0 || upcoming > 0) {
       const name = (e.company || "Business income").toString().trim() || "Business income";
       const key = e.source_id ? `source:${e.source_id}` : `name:${name.toLowerCase()}`;
       const row = ensure(key, name);
       row.paid += paid;
       row.saved += saved;
+      row.upcoming += upcoming;
+      if (upcoming > 0) noteUpcomingDate(row, e.income_date);
     }
   }
 
