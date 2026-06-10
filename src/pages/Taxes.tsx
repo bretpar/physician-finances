@@ -183,7 +183,17 @@ export default function Taxes() {
 
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
-  const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
+  const resetPaymentForm = () => {
+    // Default to the currently active estimated-tax quarter (matches the
+    // quarter that QuarterlyTracker is showing). Previously this hard-coded
+    // Q1 so the dialog always opened on the wrong quarter mid-year.
+    const active = getActivePaymentTarget(new Date());
+    setPaymentDate(new Date());
+    setPaymentAmount("");
+    setPaymentQuarter(`Q${active.quarter}`);
+    setPaymentNotes("");
+    setPaymentEditId(null);
+  };
 
   const handleSavingsSubmit = () => {
     const amt = Number(savingsAmount);
