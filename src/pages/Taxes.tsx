@@ -38,6 +38,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
+import { getActivePaymentTarget } from "@/lib/quarterRecommendation";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
@@ -183,7 +184,17 @@ export default function Taxes() {
 
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
-  const resetPaymentForm = () => { setPaymentDate(new Date()); setPaymentAmount(""); setPaymentQuarter("Q1"); setPaymentNotes(""); setPaymentEditId(null); };
+  const resetPaymentForm = () => {
+    // Default to the currently active estimated-tax quarter (matches the
+    // quarter that QuarterlyTracker is showing). Previously this hard-coded
+    // Q1 so the dialog always opened on the wrong quarter mid-year.
+    const active = getActivePaymentTarget(new Date());
+    setPaymentDate(new Date());
+    setPaymentAmount("");
+    setPaymentQuarter(`Q${active.quarter}`);
+    setPaymentNotes("");
+    setPaymentEditId(null);
+  };
 
   const handleSavingsSubmit = () => {
     const amt = Number(savingsAmount);
