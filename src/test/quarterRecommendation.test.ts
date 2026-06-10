@@ -771,6 +771,7 @@ describe("Dashboard priority — payment callout overrides progress tracker", ()
     const later = new Date(2026, 5, 23);
     const t = getActivePaymentTarget(later);
     expect(t.quarter).toBe(3);
+  });
 });
 
 describe("Dashboard ≡ Tax Overview parity for recommended payment", () => {
