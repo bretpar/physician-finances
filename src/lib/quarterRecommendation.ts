@@ -74,11 +74,6 @@ export interface QuarterSourceRow {
   paid: number;
   /** Reserves earmarked but not yet paid. */
   saved: number;
-  /** Scheduled/planned withholding for paychecks dated in this quarter but
-   *  after today. Not counted as Paid until the paycheck date arrives. */
-  upcoming: number;
-  /** Earliest future paycheck date (ISO yyyy-mm-dd) contributing to `upcoming`. */
-  upcomingDate?: string;
 }
 
 export interface QuarterRecommendation {
@@ -270,14 +265,10 @@ export function buildQuarterRecommendation(
   const ensure = (key: string, label: string): QuarterSourceRow => {
     let row = buckets.get(key);
     if (!row) {
-      row = { key, label, paid: 0, saved: 0, upcoming: 0 };
+      row = { key, label, paid: 0, saved: 0 };
       buckets.set(key, row);
     }
     return row;
-  };
-  const noteUpcomingDate = (row: QuarterSourceRow, iso?: string | null) => {
-    if (!iso) return;
-    if (!row.upcomingDate || iso < row.upcomingDate) row.upcomingDate = iso;
   };
 
   let otherWithheldThisQuarter = 0;
@@ -289,23 +280,18 @@ export function buildQuarterRecommendation(
     if (!inWin(e.income_date)) continue;
     // Paid (actual withholding already submitted) requires the income to
     // have already occurred — future-dated entries don't yet have paid tax.
-    const past = isPast(e.income_date);
-    const fed = getTotalFederalPaid(e);
-    const paid = past ? fed : 0;
-    const upcoming = past ? 0 : fed;
+    const paid = isPast(e.income_date) ? getTotalFederalPaid(e) : 0;
     const saved =
       Number((tx as any).actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
     otherWithheldThisQuarter += paid;
     businessSavedFromIncome += saved;
-    if (paid > 0 || saved > 0 || upcoming > 0) {
+    if (paid > 0 || saved > 0) {
       const name = (e.company || "Business income").toString().trim() || "Business income";
       const key = e.source_id ? `source:${e.source_id}` : `name:${name.toLowerCase()}`;
       const row = ensure(key, name);
       row.paid += paid;
       row.saved += saved;
-      row.upcoming += upcoming;
-      if (upcoming > 0) noteUpcomingDate(row, e.income_date);
     }
   }
 
@@ -350,21 +336,14 @@ export function buildQuarterRecommendation(
       const countAsPaid = inQuarter && isPast(e.income_date);
       paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
     }
-    // Future-dated W-2 paycheck inside this quarter: surface as upcoming so
-    // the user can see why it isn't in Paid yet, but never count it as paid.
-    const upcoming = !isYtdCatchup && inQuarter && !isPast(e.income_date)
-      ? Math.max(0, Number(e.federal_withholding || 0))
-      : 0;
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
     w2SavedFromIncome += saved;
-    if (paid > 0 || saved > 0 || upcoming > 0) {
+    if (paid > 0 || saved > 0) {
       const name = (e.company || "Personal W-2").toString().trim() || "Personal W-2";
       const row = ensure(`personal:${name.toLowerCase()}`, `${name} (W-2)`);
       row.paid += paid;
       row.saved += saved;
-      row.upcoming += upcoming;
-      if (upcoming > 0) noteUpcomingDate(row, e.income_date);
     }
   }
 
