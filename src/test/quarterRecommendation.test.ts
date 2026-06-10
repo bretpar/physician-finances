@@ -587,15 +587,16 @@ describe("IRS estimated-tax period mapping — Dashboard progress periods", () =
       quarter: 3,
       now: new Date(2026, 11, 31), // year-end so 'isPast' allows all entries
       personalEntries: [
-        { income_date: "2026-05-31", gross_amount: 10_000, federal_withholding: 1_000 }, // Q2
+        { income_date: "2026-05-31", gross_amount: 10_000, federal_withholding: 1_000 }, // Q2 (excluded)
         { income_date: "2026-06-01", gross_amount: 10_000, federal_withholding: 2_000 }, // Q3
         { income_date: "2026-08-31", gross_amount: 10_000, federal_withholding: 3_000 }, // Q3
-        { income_date: "2026-09-01", gross_amount: 10_000, federal_withholding: 9_000 }, // Q4
+        { income_date: "2026-09-01", gross_amount: 10_000, federal_withholding: 9_000 }, // Q4 (excluded)
       ],
     });
-    // YTD-through-end-of-Q3 (Sep 1): Q2 1k + Q3 2k + Q3 3k = 6k
-    expect(r.w2WithheldThisQuarter).toBe(6_000);
+    // Quarter-window scoped: only Jun 1 + Aug 31 W-2 paychecks → 2k + 3k = 5k.
+    expect(r.w2WithheldThisQuarter).toBe(5_000);
   });
+
 
   it("Q3 progress window on Jun 9 is Jun 1 – Sep 1 with Sep 15 deadline", () => {
     const now = new Date(2026, 5, 9);
