@@ -37,6 +37,7 @@ import { useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
+import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
