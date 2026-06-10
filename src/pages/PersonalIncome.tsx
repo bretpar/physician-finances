@@ -799,6 +799,9 @@ export default function PersonalIncome() {
               >
                 {fmt(totals.w2PayrollTaxTotal)}
               </p>
+              <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                Includes Social Security and Medicare. Quarterly estimated tax recommendations only use federal income tax withholding as a payment credit.
+              </p>
             </div>
           </div>
         </div>
