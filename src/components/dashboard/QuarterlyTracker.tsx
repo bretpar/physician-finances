@@ -9,7 +9,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { type QuarterLabel, getCurrentQuarter } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
-import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
+import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -108,15 +108,15 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
   return { year: y, quarter: q as 1 | 2 | 3 | 4 };
 }
 
-/** Owning year/quarter for "today" using the SAME IRS estimated-tax-period
- *  mapping as `getCurrentQuarter` in `src/lib/quarters.ts`. This must match
- *  the mapping used by the YTD-catchup mirror in `useYtdCatchup.ts` and by
- *  `getQuarterPayments`, otherwise a payment tagged Q3 won't appear under
- *  the Q2 tracker view (and vice versa). */
+/** Owning year/quarter for "today" using `getActivePaymentTarget` so the
+ *  Tax Overview tracker stays aligned with the Dashboard's Q2 Payment Due
+ *  card during the 20-day-before / 7-day-after due window. On e.g. Jun 9
+ *  this returns Q2 (deadline Jun 15), not the calendar Q3 income period.
+ *  After Jun 22 it falls back to the current income period (Q3). */
 function currentOwningYear(): { year: number; quarter: 1 | 2 | 3 | 4 } {
   const now = new Date();
-  const q = getCurrentQuarter(now);
-  return { year: now.getFullYear(), quarter: q.quarter };
+  const target = getActivePaymentTarget(now);
+  return { year: target.year, quarter: target.quarter as 1 | 2 | 3 | 4 };
 }
 
 export default function QuarterlyTracker({
