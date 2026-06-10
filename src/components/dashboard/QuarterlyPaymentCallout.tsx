@@ -75,17 +75,9 @@ export function QuarterlyPaymentCallout({
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex justify-center">
           <Button size="sm" onClick={goToLogPayment}>
             Log {recommendation.quarterLabel} Payment
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => navigate("/taxes#quarterly-estimator")}>
-            View Details
-          </Button>
-          <Button size="sm" variant="ghost" asChild>
-            <a href="https://www.irs.gov/payments/direct-pay" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4 mr-1" /> IRS Direct Pay
-            </a>
           </Button>
         </div>
       </CardContent>
