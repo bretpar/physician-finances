@@ -53,9 +53,11 @@ export function QuarterlyPaymentCallout({
             {recommendation.quarterLabel} Payment
           </p>
           <button
+            type="button"
             onClick={() => navigate("/taxes#quarterly-estimator")}
+            aria-label={`View ${recommendation.quarterLabel} tax details`}
             className={cn(
-              "text-sm tabular-nums cursor-pointer bg-transparent border-0 p-0 underline-offset-2 hover:underline",
+              "text-sm tabular-nums cursor-pointer bg-transparent border-0 p-0 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none",
               overdue ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
             )}
           >
