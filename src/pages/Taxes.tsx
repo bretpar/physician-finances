@@ -429,21 +429,21 @@ export default function Taxes() {
 
       {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
-          annualTaxLiability={annualTaxLiability}
-          payments={payments}
+          annualTaxLiability={sharedQrInput.annualTaxLiability}
+          payments={sharedQrInput.payments ?? []}
           methodLabel={overviewProfile.label}
-          incomeEntries={incomeEntries || []}
-          personalEntries={personalEntries || []}
-          transactions={transactions || []}
-          investmentEntries={investmentEntries || []}
+          incomeEntries={sharedQrInput.incomeEntries ?? []}
+          personalEntries={sharedQrInput.personalEntries ?? []}
+          transactions={sharedQrInput.transactions ?? []}
+          investmentEntries={sharedQrInput.investmentEntries ?? []}
           companies={companies}
-          quarterMethod={rates?.quarterlyTrackerMethod ?? "even"}
-          projectedPaychecks={projectedPaychecks}
+          quarterMethod={sharedQrInput.quarterMethod}
+          projectedPaychecks={sharedQrInput.projectedPaychecks}
           personalBucketRate={personalRate}
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
           breakdownTitle="This quarter by source"
-          manualSavings={savings.map((sv) => ({ savings_date: sv.savings_date, amount: Number(sv.amount) }))}
+          manualSavings={sharedQrInput.manualSavings}
           showRecommendedPayment
         />
       </section>}
