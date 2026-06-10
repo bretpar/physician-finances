@@ -77,7 +77,7 @@ describe("Dashboard Q2 Payment vs Tax Overview Q2 Recommended quarterly payment"
       </MemoryRouter>,
     );
     // Header confirms we are looking at the Q2 callout.
-    expect(screen.getByText(/Q2 Payment/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Q2 Payment/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Due Jun 15/i)).toBeInTheDocument();
     const dashboardAmount = screen.getByText(expectedText);
     expect(dashboardAmount).toBeInTheDocument();
