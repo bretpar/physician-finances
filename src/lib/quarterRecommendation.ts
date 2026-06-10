@@ -278,7 +278,9 @@ export function buildQuarterRecommendation(
     const tx = liveTxById.get(e.linked_transaction_id);
     if (!tx) continue;
     if (!inWin(e.income_date)) continue;
-    const paid = getTotalFederalPaid(e);
+    // Paid (actual withholding already submitted) requires the income to
+    // have already occurred — future-dated entries don't yet have paid tax.
+    const paid = isPast(e.income_date) ? getTotalFederalPaid(e) : 0;
     const saved =
       Number((tx as any).actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
