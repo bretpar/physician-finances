@@ -309,7 +309,21 @@ export default function QuarterlyTracker({
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.quarterTarget)}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">W-2 withholding paid</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Federal W-2 withholding paid</p>
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" aria-label="What's included in Federal W-2 withholding paid" className="text-muted-foreground hover:text-foreground">
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        Includes federal income tax withheld from W-2 paychecks. Does not include W-2 Social Security or Medicare payroll taxes. Self-employment tax for 1099 income is included in the quarterly tax target.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.w2WithheldThisQuarter)}</p>
               </div>
               <div>
