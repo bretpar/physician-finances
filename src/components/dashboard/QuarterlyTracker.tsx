@@ -9,7 +9,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { type QuarterLabel, getCurrentQuarter } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
-import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
+import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
