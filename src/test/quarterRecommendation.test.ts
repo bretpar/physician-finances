@@ -710,3 +710,68 @@ describe("paid vs planned — actual-only paid/saved", () => {
   });
 });
 
+describe("Dashboard priority — payment callout overrides progress tracker", () => {
+  const NOW = new Date(2026, 5, 9); // Jun 9
+  const baseQ2 = {
+    annualTaxLiability: 80_000,
+    year: 2026,
+    quarter: 2 as const,
+    now: NOW,
+  };
+
+  it("on Jun 9 Q2 callout is active even though Q3 income period has started", () => {
+    const target = getActivePaymentTarget(NOW);
+    expect(target.quarter).toBe(2);
+    const r = buildQuarterRecommendation(baseQ2);
+    expect(r.showDashboardPaymentCallout).toBe(true);
+    expect(r.dashboardCalloutMode).toBe("due_soon");
+  });
+
+  it("saved reserves alone do NOT suppress the Q2 payment callout (saved ≠ paid)", () => {
+    const r = buildQuarterRecommendation({
+      ...baseQ2,
+      personalEntries: [
+        { income_date: "2026-05-01", gross_amount: 40_000, additional_tax_reserve: 25_000 },
+      ],
+    });
+    expect(r.paidThisQuarter).toBe(0);
+    expect(r.savedThisQuarter).toBe(25_000);
+    expect(r.showDashboardPaymentCallout).toBe(true);
+  });
+
+  it("partial Q2 payment keeps callout up while > $100 remains to pay", () => {
+    const r = buildQuarterRecommendation({
+      ...baseQ2,
+      payments: [
+        { applied_quarter: "Q2", applied_tax_year: 2026, payment_date: "2026-06-08", amount: 5_000 },
+      ],
+    });
+    expect(r.recommendedPaymentToMake).toBe(15_000);
+    expect(r.showDashboardPaymentCallout).toBe(true);
+  });
+
+  it("Q2 callout hides once actual paid coverage reaches 95%", () => {
+    const r = buildQuarterRecommendation({
+      ...baseQ2,
+      payments: [
+        { applied_quarter: "Q2", applied_tax_year: 2026, payment_date: "2026-06-08", amount: 19_500 },
+      ],
+    });
+    expect(r.showDashboardPaymentCallout).toBe(false);
+  });
+
+  it("Q2 callout remains visible Jun 16–Jun 22 if undercovered (overdue window)", () => {
+    const later = new Date(2026, 5, 20);
+    const r = buildQuarterRecommendation({ ...baseQ2, now: later });
+    expect(r.dashboardCalloutMode).toBe("overdue");
+    expect(r.showDashboardPaymentCallout).toBe(true);
+  });
+
+  it("after Jun 22, getActivePaymentTarget falls back to Q3 (current income period)", () => {
+    const later = new Date(2026, 5, 23);
+    const t = getActivePaymentTarget(later);
+    expect(t.quarter).toBe(3);
+  });
+});
+
+
