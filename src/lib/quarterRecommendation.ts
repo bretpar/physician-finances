@@ -153,16 +153,20 @@ const Q_META: Record<QuarterNum, { label: QuarterLabel; deadlineLabel: string }>
 };
 
 /**
- * Calendar quarter window plus IRS estimated-tax deadline.
- * Mirrors `getCurrentQuarter` from `src/lib/quarters.ts` for any (year, quarter).
+ * IRS estimated-tax period window for (year, quarter):
+ *   Q1: Jan 1 – Mar 31, deadline Apr 15
+ *   Q2: Apr 1 – May 31, deadline Jun 15
+ *   Q3: Jun 1 – Aug 31, deadline Sep 15
+ *   Q4: Sep 1 – Dec 31, deadline Jan 15 of next year
+ * Mirrors `getCurrentQuarter` from `src/lib/quarters.ts`.
  */
 function buildWindow(year: number, quarter: QuarterNum) {
   const meta = Q_META[quarter];
   let start: Date, end: Date, deadline: Date;
   if (quarter === 1) { start = new Date(year, 0, 1); end = new Date(year, 3, 1); deadline = new Date(year, 3, 15); }
-  else if (quarter === 2) { start = new Date(year, 3, 1); end = new Date(year, 6, 1); deadline = new Date(year, 5, 15); }
-  else if (quarter === 3) { start = new Date(year, 6, 1); end = new Date(year, 9, 1); deadline = new Date(year, 8, 15); }
-  else { start = new Date(year, 9, 1); end = new Date(year + 1, 0, 1); deadline = new Date(year + 1, 0, 15); }
+  else if (quarter === 2) { start = new Date(year, 3, 1); end = new Date(year, 5, 1); deadline = new Date(year, 5, 15); }
+  else if (quarter === 3) { start = new Date(year, 5, 1); end = new Date(year, 8, 1); deadline = new Date(year, 8, 15); }
+  else { start = new Date(year, 8, 1); end = new Date(year + 1, 0, 1); deadline = new Date(year + 1, 0, 15); }
   return { start, end, deadline, label: meta.label, deadlineLabel: meta.deadlineLabel };
 }
 
@@ -187,10 +191,18 @@ export function buildQuarterRecommendation(
   } = input;
 
   const { start, end, deadline, label, deadlineLabel } = buildWindow(year, quarter);
+  // "Today" cutoff (end of today, local) — used so future-dated paychecks /
+  // income entries never count as actually paid/withheld.
+  const todayCutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const inWin = (iso?: string | null) => {
     if (!iso) return false;
     const d = new Date(iso);
     return d >= start && d < end;
+  };
+  const isPast = (iso?: string | null) => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    return d < todayCutoff;
   };
 
   // ── Quarter target ───────────────────────────────────────────────────────
@@ -266,7 +278,9 @@ export function buildQuarterRecommendation(
     const tx = liveTxById.get(e.linked_transaction_id);
     if (!tx) continue;
     if (!inWin(e.income_date)) continue;
-    const paid = getTotalFederalPaid(e);
+    // Paid (actual withholding already submitted) requires the income to
+    // have already occurred — future-dated entries don't yet have paid tax.
+    const paid = isPast(e.income_date) ? getTotalFederalPaid(e) : 0;
     const saved =
       Number((tx as any).actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
@@ -284,29 +298,31 @@ export function buildQuarterRecommendation(
   // W-2 federal withholding is treated by the IRS as paid evenly throughout
   // the year, so for quarterly safe-harbor display we aggregate it YTD
   // through the end of the displayed quarter (not just the in-window slice).
-  // Without this, an onboarding YTD-catch-up mirror income_entry dated
-  // before the displayed quarter (e.g. period_end=May 31 while viewing Q3)
-  // would silently report $0 W-2 withholding even though Personal Income
-  // and the W-4 panel correctly show the full $22k YTD.
+  //
+  // CRITICAL: only actual paychecks that have already occurred count as
+  // paid. Future-dated planned/projected paychecks (income_date > today)
+  // are never counted as already-paid withholding, even if they fall in
+  // the displayed quarter window. They may still influence the quarter
+  // target via the dynamic-share path, but never inflate Paid QTD.
   //
   // Reserves (additional_tax_reserve) remain quarter-scoped so saved cash
   // doesn't get inflated across multiple quarters.
-  const ytdThrough = (iso?: string | null) => {
+  const ytdThroughPast = (iso?: string | null) => {
     if (!iso) return false;
     const d = new Date(iso);
-    return d.getFullYear() === year && d < end;
+    return d.getFullYear() === year && d < end && d < todayCutoff;
   };
   let w2WithheldThisQuarter = 0;
   let w2SavedFromIncome = 0;
   for (const e of personalEntries) {
     const inQuarter = inWin(e.income_date);
-    const inYtd = ytdThrough(e.income_date);
+    const countAsPaid = ytdThroughPast(e.income_date);
     // W-2 "withholding paid" reflects federal income tax withholding ONLY.
     // Social Security and Medicare are payroll taxes, not credits against
     // federal income tax liability, so they must not be included here. The
     // W-4 panel (Actual W-2 withholding YTD) reads federal_withholding for
     // the same reason; this keeps Tax Overview aligned with W-4.
-    const paid = inYtd ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
+    const paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
     w2SavedFromIncome += saved;

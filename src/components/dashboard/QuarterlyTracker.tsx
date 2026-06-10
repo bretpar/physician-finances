@@ -68,13 +68,12 @@ const Q_META: Record<1 | 2 | 3 | 4, { label: string; deadlineLabel: string }> = 
 };
 
 /** Build a quarter info object for an arbitrary (year, quarter) pair.
- *  Windows are standard *calendar* quarters:
- *    Q1: Jan 1 – Mar 31
- *    Q2: Apr 1 – Jun 30
- *    Q3: Jul 1 – Sep 30
- *    Q4: Oct 1 – Dec 31
- *  The `deadline` field still reflects the IRS estimated-tax due date for that
- *  quarter (used for display only), but all date filtering uses [start, end).
+ *  Windows are IRS estimated-tax periods:
+ *    Q1: Jan 1 – Mar 31  (deadline Apr 15)
+ *    Q2: Apr 1 – May 31  (deadline Jun 15)
+ *    Q3: Jun 1 – Aug 31  (deadline Sep 15)
+ *    Q4: Sep 1 – Dec 31  (deadline Jan 15 next year)
+ *  All date filtering uses [start, end).
  */
 function buildQuarter(year: number, quarter: 1 | 2 | 3 | 4) {
   const meta = Q_META[quarter];
@@ -87,14 +86,14 @@ function buildQuarter(year: number, quarter: 1 | 2 | 3 | 4) {
     deadline = new Date(year, 3, 15);
   } else if (quarter === 2) {
     start = new Date(year, 3, 1);
-    end = new Date(year, 6, 1);
+    end = new Date(year, 5, 1);
     deadline = new Date(year, 5, 15);
   } else if (quarter === 3) {
-    start = new Date(year, 6, 1);
-    end = new Date(year, 9, 1);
+    start = new Date(year, 5, 1);
+    end = new Date(year, 8, 1);
     deadline = new Date(year, 8, 15);
   } else {
-    start = new Date(year, 9, 1);
+    start = new Date(year, 8, 1);
     end = new Date(year + 1, 0, 1);
     deadline = new Date(year + 1, 0, 15);
   }
