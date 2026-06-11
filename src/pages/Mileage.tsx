@@ -342,11 +342,11 @@ export default function Mileage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4">
-          {showMileage && <TabsTrigger value="mileage" className="gap-2"><Car className="h-4 w-4" /> Mileage</TabsTrigger>}
-          {showHomeOffice && <TabsTrigger value="home-office" className="gap-2"><Home className="h-4 w-4" /> Home Office</TabsTrigger>}
-          {showRetirement && <TabsTrigger value="retirement" className="gap-2"><PiggyBank className="h-4 w-4" /> Retirement</TabsTrigger>}
-          {showHsa && <TabsTrigger value="hsa" className="gap-2"><HeartPulse className="h-4 w-4" /> HSA</TabsTrigger>}
+        <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4 h-auto gap-1 p-1">
+          {showMileage && <TabsTrigger value="mileage" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><Car className="h-4 w-4 shrink-0" /> Mileage</TabsTrigger>}
+          {showHomeOffice && <TabsTrigger value="home-office" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><Home className="h-4 w-4 shrink-0" /> Home Office</TabsTrigger>}
+          {showRetirement && <TabsTrigger value="retirement" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><PiggyBank className="h-4 w-4 shrink-0" /> Retirement</TabsTrigger>}
+          {showHsa && <TabsTrigger value="hsa" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><HeartPulse className="h-4 w-4 shrink-0" /> HSA</TabsTrigger>}
         </TabsList>
 
         {/* ─── MILEAGE TAB ──────────────────────────── */}
