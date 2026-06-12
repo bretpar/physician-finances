@@ -461,7 +461,7 @@ export function useTaxBreakdown(
       const company = companies.find((c) => c.id === m.company_id);
       if (!company) continue; // company deleted → skip
       if (!matchCompany(company.name)) continue;
-      const dollars = Number(m.miles) * IRS_MILEAGE_RATE;
+      const dollars = Number(m.miles) * getIrsMileageRate(m.year);
       if (dollars <= 0) continue;
       const agg = expensesByCompany.get(company.id) ?? {
         total: 0, byCategory: new Map(), txCount: 0,
