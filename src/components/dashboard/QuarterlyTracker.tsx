@@ -332,7 +332,7 @@ export default function QuarterlyTracker({
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="min-w-0">
             <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
-              Paid + Saved QTD
+              Paid + Saved
             </p>
             <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums text-foreground whitespace-nowrap">
               {fmt(progressAmount)}
