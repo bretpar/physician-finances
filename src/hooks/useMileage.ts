@@ -85,7 +85,7 @@ export function getMileageDeductionByCompany(
   const map = new Map<string, number>();
   for (const e of entries || []) {
     const key = e.company_id || "";
-    const amt = Number(e.miles) * IRS_MILEAGE_RATE;
+    const amt = Number(e.miles) * getIrsMileageRate(e.year);
     map.set(key, (map.get(key) || 0) + amt);
   }
   return map;
