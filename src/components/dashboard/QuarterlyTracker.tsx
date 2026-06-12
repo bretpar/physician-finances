@@ -143,6 +143,7 @@ export default function QuarterlyTracker({
   linkDeadlineToTaxOverview = false,
   breakdownTitle = "This quarter by company",
   showRecommendedPayment = false,
+  onLogPayment,
   manualSavings = [],
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
