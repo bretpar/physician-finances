@@ -154,6 +154,7 @@ export default function QuarterlyTracker({
   const isCurrentQuarter = view.quarter === initial.quarter && view.year === initial.year;
 
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // ── Canonical recommendation (single source of truth) ─────────────────
   // Quarter target, paid, saved, progress, recommended payment, and source
