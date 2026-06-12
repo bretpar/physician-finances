@@ -35,7 +35,7 @@ import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Lin
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
 import { mapToScheduleC, SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
-import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useMileageYTD, IRS_MILEAGE_RATE, getIrsMileageRate } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
