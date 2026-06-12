@@ -361,6 +361,13 @@ export default function Mileage() {
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">YTD Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(ytdDeduction)}</p><p className="text-xs text-muted-foreground">Business mileage deduction</p></CardContent></Card>
           </div>
 
+          <p className="text-xs text-muted-foreground -mt-2">
+            {selectedYear === 2026
+              ? "2026 IRS business mileage rate: 72.5¢ per mile."
+              : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
+            {" "}K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
+          </p>
+
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
             <div className="flex gap-3">
               <div>
