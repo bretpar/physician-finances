@@ -51,6 +51,8 @@ interface QuarterlyTrackerProps {
   /** When true, render the "Recommended quarterly payment" header card with the
    *  full quarter-target / paid / saved / remaining breakdown. Tax Overview. */
   showRecommendedPayment?: boolean;
+  /** Optional CTA shown inside the recommended-payment card. */
+  onLogPayment?: () => void;
   /** Manual `tax_savings` rows; counted as Saved (not Paid) by the canonical
    *  recommendation helper. */
   manualSavings?: Array<{ savings_date?: string; amount: number | string }>;
