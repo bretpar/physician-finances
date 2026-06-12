@@ -176,7 +176,7 @@ export default function Mileage() {
       const amount = Math.abs(Number(tx.amount) || 0);
       map.set(tx.source_id, (map.get(tx.source_id) || 0) + (tx.transaction_type === "income" ? amount : tx.transaction_type === "expense" ? -amount : 0));
     }
-    for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - Number(e.miles) * IRS_MILEAGE_RATE);
+    for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - Number(e.miles) * getIrsMileageRate(e.year));
     return map;
   }, [businessCompanies, transactions, ytdEntries]);
 
