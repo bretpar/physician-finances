@@ -16,7 +16,32 @@ export interface MileageEntry {
   updated_at: string;
 }
 
+/**
+ * Default / pre-2026 IRS business standard mileage rate (dollars per mile).
+ * Kept exported for legacy callers and tests; prefer `getIrsMileageRate(year)`
+ * for any new calculation so we respect per-tax-year IRS updates.
+ */
 export const IRS_MILEAGE_RATE = 0.67;
+
+/**
+ * IRS business standard mileage rates by tax year (dollars per mile).
+ * Only list years that differ from the legacy default above. Historical
+ * years (≤ 2025) intentionally fall through to `IRS_MILEAGE_RATE` so prior
+ * deductions are not retroactively changed.
+ *
+ * 2026: $0.725 / mile (IRS business standard mileage rate).
+ */
+const IRS_MILEAGE_RATE_BY_YEAR: Record<number, number> = {
+  2026: 0.725,
+};
+
+/** Returns the IRS business standard mileage rate for the given tax year. */
+export function getIrsMileageRate(year: number | null | undefined): number {
+  if (typeof year === "number" && IRS_MILEAGE_RATE_BY_YEAR[year] !== undefined) {
+    return IRS_MILEAGE_RATE_BY_YEAR[year];
+  }
+  return IRS_MILEAGE_RATE;
+}
 
 /** Sentinel value used in selects to represent "no company / legacy". */
 export const UNASSIGNED_COMPANY_VALUE = "__unassigned__";
