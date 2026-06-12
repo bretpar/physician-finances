@@ -69,7 +69,7 @@ export default function Reports() {
       if (!e.company_id) continue;
       const c = companies.find((x) => x.id === e.company_id);
       if (!c) continue;
-      const dollars = Number(e.miles) * IRS_MILEAGE_RATE;
+      const dollars = Number(e.miles) * getIrsMileageRate(e.year);
       m.set(c.name, (m.get(c.name) || 0) + dollars);
     }
     return m;
