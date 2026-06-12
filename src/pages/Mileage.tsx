@@ -143,9 +143,12 @@ export default function Mileage() {
 
   // ─── Mileage helpers ──────────────────────────
   const monthTotalMiles = useMemo(() => monthEntries.reduce((s, e) => s + Number(e.miles), 0), [monthEntries]);
-  const monthDeduction = monthTotalMiles * IRS_MILEAGE_RATE;
+  const monthDeduction = monthTotalMiles * getIrsMileageRate(selectedYear);
   const ytdTotalMiles = useMemo(() => ytdEntries.reduce((s, e) => s + Number(e.miles), 0), [ytdEntries]);
-  const ytdDeduction = ytdTotalMiles * IRS_MILEAGE_RATE;
+  const ytdDeduction = useMemo(
+    () => ytdEntries.reduce((s, e) => s + Number(e.miles) * getIrsMileageRate(e.year), 0),
+    [ytdEntries],
+  );
 
   const byCompany = useMemo(() => {
     const map: Record<string, number> = {};
