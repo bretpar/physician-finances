@@ -378,8 +378,43 @@ export default function QuarterlyTracker({
         {/* Compact status callout */}
         <div className={cn("flex items-center gap-2 text-sm", toneStyles.text)}>
           <Icon className={cn("h-4 w-4 shrink-0", toneStyles.accent)} />
-          <span className="truncate">{message}</span>
+          <span className="truncate">
+            {showRecommendedPayment && quarterTarget > 0 && progressAmount >= expectedByNow
+              ? `${q.label} complete`
+              : message}
+          </span>
         </div>
+
+        {/* Quarterly payment details (collapsible) */}
+        {showRecommendedPayment && (
+          <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <div className="overflow-hidden rounded-lg border bg-card/50">
+              <CollapsibleTrigger className="w-full px-3 py-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", detailsOpen && "rotate-180")} />
+                <span>Quarterly payment details</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="divide-y divide-border border-t text-sm">
+                  {[
+                    { label: "Quarter target", value: recommendation.quarterTarget },
+                    { label: "Federal W-2 withholding paid", value: recommendation.w2WithheldThisQuarter },
+                    { label: "Estimated payments made", value: recommendation.estimatedPaymentsMade },
+                    ...(recommendation.otherWithheldThisQuarter > 0
+                      ? [{ label: "Other withholding paid", value: recommendation.otherWithheldThisQuarter }]
+                      : []),
+                    { label: "Saved/reserved but not paid", value: recommendation.savedThisQuarter },
+                    { label: "Recommended payment remaining", value: recommendation.stillNeedToSave },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                      <span className="text-foreground/90 min-w-0 break-words">{row.label}</span>
+                      <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(row.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        )}
 
 
         {showTaxOverviewCta && (
