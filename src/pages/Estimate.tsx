@@ -175,8 +175,24 @@ export default function Estimate() {
     }
   }
 
+  const serviceSchema = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Physician Tax Planning Estimate",
+    "description": "Quick tax estimate for physicians with W-2 and 1099 income, including federal, state, and self-employment tax projections.",
+    "provider": {
+      "@type": "Organization",
+      "name": "Paycheck MD",
+      "url": "https://app.paycheckmd.com"
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }}
+      />
       <Card className="mx-auto w-full max-w-2xl">
         <CardContent className="space-y-6 p-5 sm:p-8">
           <div className="flex items-center gap-3">
