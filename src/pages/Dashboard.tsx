@@ -24,6 +24,7 @@ import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/M
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
+import { getCurrentQuarter } from "@/lib/quarters";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { normalizeFilingType } from "@/lib/filingTypes";
 
