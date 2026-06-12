@@ -4,7 +4,7 @@ import { useIncomeEntries, useWeightedIncome } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
 import { aggregateInvestmentTaxBuckets, sumInvestmentActualTaxSaved, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
@@ -545,7 +545,10 @@ export function useTaxEstimate(): {
       }
 
       const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
-      const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
+      const mileageDeduction = (mileageEntries || []).reduce(
+        (s, e) => s + Number(e.miles) * getIrsMileageRate(e.year),
+        0,
+      );
 
       const txActualWithholding = scope.transactions
         .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))

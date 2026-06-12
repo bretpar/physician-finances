@@ -17,7 +17,7 @@ import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info,
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { HsaLedgerSection } from "@/components/settings/HsaSection";
-import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
+import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, getIrsMileageRate, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
@@ -143,9 +143,12 @@ export default function Mileage() {
 
   // ─── Mileage helpers ──────────────────────────
   const monthTotalMiles = useMemo(() => monthEntries.reduce((s, e) => s + Number(e.miles), 0), [monthEntries]);
-  const monthDeduction = monthTotalMiles * IRS_MILEAGE_RATE;
+  const monthDeduction = monthTotalMiles * getIrsMileageRate(selectedYear);
   const ytdTotalMiles = useMemo(() => ytdEntries.reduce((s, e) => s + Number(e.miles), 0), [ytdEntries]);
-  const ytdDeduction = ytdTotalMiles * IRS_MILEAGE_RATE;
+  const ytdDeduction = useMemo(
+    () => ytdEntries.reduce((s, e) => s + Number(e.miles) * getIrsMileageRate(e.year), 0),
+    [ytdEntries],
+  );
 
   const byCompany = useMemo(() => {
     const map: Record<string, number> = {};
@@ -173,7 +176,7 @@ export default function Mileage() {
       const amount = Math.abs(Number(tx.amount) || 0);
       map.set(tx.source_id, (map.get(tx.source_id) || 0) + (tx.transaction_type === "income" ? amount : tx.transaction_type === "expense" ? -amount : 0));
     }
-    for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - Number(e.miles) * IRS_MILEAGE_RATE);
+    for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - Number(e.miles) * getIrsMileageRate(e.year));
     return map;
   }, [businessCompanies, transactions, ytdEntries]);
 
@@ -233,7 +236,7 @@ export default function Mileage() {
 
   function exportCSV() {
     const headers = ["Month", "Year", "Company", "Miles", "Deduction"];
-    const rows = ytdEntries.map((e) => [MONTHS[e.month - 1], e.year, e.company_name, e.miles, (Number(e.miles) * IRS_MILEAGE_RATE).toFixed(2)]);
+    const rows = ytdEntries.map((e) => [MONTHS[e.month - 1], e.year, e.company_name, e.miles, (Number(e.miles) * getIrsMileageRate(e.year)).toFixed(2)]);
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -353,10 +356,17 @@ export default function Mileage() {
         <TabsContent value="mileage" className="space-y-6 mt-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Monthly Miles</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-card-foreground">{monthTotalMiles.toLocaleString()}</p><p className="text-xs text-muted-foreground">{MONTHS[selectedMonth - 1]} {selectedYear}</p></CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Monthly Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(monthDeduction)}</p><p className="text-xs text-muted-foreground">@ ${IRS_MILEAGE_RATE}/mile</p></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Monthly Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(monthDeduction)}</p><p className="text-xs text-muted-foreground">@ ${getIrsMileageRate(selectedYear)}/mile</p></CardContent></Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">YTD Miles</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-card-foreground">{ytdTotalMiles.toLocaleString()}</p><p className="text-xs text-muted-foreground">{selectedYear}</p></CardContent></Card>
             <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">YTD Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(ytdDeduction)}</p><p className="text-xs text-muted-foreground">Business mileage deduction</p></CardContent></Card>
           </div>
+
+          <p className="text-xs text-muted-foreground -mt-2">
+            {selectedYear === 2026
+              ? "2026 IRS business mileage rate: 72.5¢ per mile."
+              : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
+            {" "}K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
+          </p>
 
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
             <div className="flex gap-3">
@@ -391,7 +401,7 @@ export default function Mileage() {
                       <span className="text-card-foreground">{name}</span>
                       <div className="text-right">
                         <span className="font-semibold tabular-nums">{miles.toLocaleString()} mi</span>
-                        <span className="text-muted-foreground ml-3 text-xs">{fmt(miles * IRS_MILEAGE_RATE)}</span>
+                        <span className="text-muted-foreground ml-3 text-xs">{fmt(miles * getIrsMileageRate(selectedYear))}</span>
                       </div>
                     </div>
                   ))}
@@ -425,7 +435,7 @@ export default function Mileage() {
                       )}
                     </span>
                     <span className="text-sm tabular-nums text-right">{Number(entry.miles).toLocaleString()}</span>
-                    <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * IRS_MILEAGE_RATE)}</span>
+                    <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * getIrsMileageRate(entry.year))}</span>
                     <div className="flex gap-1 justify-end">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditMileage(entry)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(entry.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -723,7 +733,15 @@ export default function Mileage() {
               <Input type="number" min="0" step="0.1" value={addMiles} onChange={(e) => setAddMiles(e.target.value)} placeholder="0" />
             </div>
             <p className="text-xs text-muted-foreground">
-              For {MONTHS[selectedMonth - 1]} {selectedYear} • Deduction: {fmt((parseFloat(addMiles) || 0) * IRS_MILEAGE_RATE)}
+              For {MONTHS[selectedMonth - 1]} {selectedYear} • Deduction: {fmt((parseFloat(addMiles) || 0) * getIrsMileageRate(selectedYear))}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {selectedYear === 2026
+                ? "2026 IRS business mileage rate: 72.5¢ per mile."
+                : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>

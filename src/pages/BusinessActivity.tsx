@@ -35,7 +35,7 @@ import { Search, Plus, Trash2, Download, MoreHorizontal, Pencil, DollarSign, Lin
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
 import { mapToScheduleC, SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
-import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -1027,7 +1027,7 @@ export default function Transactions() {
         if (filterCompany === "all") return true;
         return m.company_id === filterCompany;
       })
-      .reduce((s, m) => s + Number(m.miles) * IRS_MILEAGE_RATE, 0);
+      .reduce((s, m) => s + Number(m.miles) * getIrsMileageRate(m.year), 0);
 
     const expenses = txExpenses + mileageDed;
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
