@@ -428,7 +428,7 @@ export default function Mileage() {
                       )}
                     </span>
                     <span className="text-sm tabular-nums text-right">{Number(entry.miles).toLocaleString()}</span>
-                    <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * IRS_MILEAGE_RATE)}</span>
+                    <span className="text-sm tabular-nums text-right text-success">{fmt(Number(entry.miles) * getIrsMileageRate(entry.year))}</span>
                     <div className="flex gap-1 justify-end">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditMileage(entry)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(entry.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
