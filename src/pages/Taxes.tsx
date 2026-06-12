@@ -462,7 +462,6 @@ export default function Taxes() {
           manualSavings={sharedQrInput.manualSavings}
           showRecommendedPayment
           onLogPayment={() => {
-            const { getActivePaymentTarget } = require("@/lib/quarterRecommendation");
             const target = getActivePaymentTarget(new Date());
             resetPaymentForm();
             setPaymentQuarter(`Q${target.quarter}`);
