@@ -545,7 +545,10 @@ export function useTaxEstimate(): {
       }
 
       const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
-      const mileageDeduction = totalMiles * IRS_MILEAGE_RATE;
+      const mileageDeduction = (mileageEntries || []).reduce(
+        (s, e) => s + Number(e.miles) * getIrsMileageRate(e.year),
+        0,
+      );
 
       const txActualWithholding = scope.transactions
         .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
