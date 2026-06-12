@@ -394,7 +394,7 @@ export default function Mileage() {
                       <span className="text-card-foreground">{name}</span>
                       <div className="text-right">
                         <span className="font-semibold tabular-nums">{miles.toLocaleString()} mi</span>
-                        <span className="text-muted-foreground ml-3 text-xs">{fmt(miles * IRS_MILEAGE_RATE)}</span>
+                        <span className="text-muted-foreground ml-3 text-xs">{fmt(miles * getIrsMileageRate(selectedYear))}</span>
                       </div>
                     </div>
                   ))}
