@@ -410,6 +410,10 @@ export default function Dashboard() {
               showQuarterNavigation={false}
               linkDeadlineToTaxOverview
               manualSavings={sharedQrInput.manualSavings}
+              initialView={(() => {
+                const c = getCurrentQuarter(new Date());
+                return { year: c.deadline.getFullYear() === new Date().getFullYear() + 1 && c.quarter === 4 ? new Date().getFullYear() : c.deadline.getFullYear() - (c.quarter === 4 ? 0 : 0), quarter: c.quarter as 1 | 2 | 3 | 4 };
+              })()}
             />
           )}
         />
