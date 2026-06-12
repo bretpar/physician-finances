@@ -726,7 +726,15 @@ export default function Mileage() {
               <Input type="number" min="0" step="0.1" value={addMiles} onChange={(e) => setAddMiles(e.target.value)} placeholder="0" />
             </div>
             <p className="text-xs text-muted-foreground">
-              For {MONTHS[selectedMonth - 1]} {selectedYear} • Deduction: {fmt((parseFloat(addMiles) || 0) * IRS_MILEAGE_RATE)}
+              For {MONTHS[selectedMonth - 1]} {selectedYear} • Deduction: {fmt((parseFloat(addMiles) || 0) * getIrsMileageRate(selectedYear))}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {selectedYear === 2026
+                ? "2026 IRS business mileage rate: 72.5¢ per mile."
+                : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
