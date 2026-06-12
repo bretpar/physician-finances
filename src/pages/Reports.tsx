@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
