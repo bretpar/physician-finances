@@ -1027,7 +1027,7 @@ export default function Transactions() {
         if (filterCompany === "all") return true;
         return m.company_id === filterCompany;
       })
-      .reduce((s, m) => s + Number(m.miles) * IRS_MILEAGE_RATE, 0);
+      .reduce((s, m) => s + Number(m.miles) * getIrsMileageRate(m.year), 0);
 
     const expenses = txExpenses + mileageDed;
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
