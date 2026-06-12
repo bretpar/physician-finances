@@ -17,7 +17,7 @@ import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info,
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { HsaLedgerSection } from "@/components/settings/HsaSection";
-import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, IRS_MILEAGE_RATE, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
+import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, getIrsMileageRate, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
