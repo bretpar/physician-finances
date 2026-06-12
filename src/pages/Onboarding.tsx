@@ -338,19 +338,13 @@ export default function Onboarding() {
 
   const skipCompanyStep = async () => {
     if (saving) return;
-    setSaving(true);
-    try {
-      setCompanyDrafts([]);
-      const nextStep = 3;
-      await persist({ onboardingComplete: false, onboardingStep: nextStep });
-      patch({ onboardingStep: nextStep });
-      sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-      setStep(nextStep);
-    } catch (error: any) {
-      toast.error(error.message || "Could not save onboarding.");
-    } finally {
-      setSaving(false);
-    }
+    // Ignore blank placeholder rows so "Skip for now" works from a fresh
+    // signup where the company step auto-seeds an empty draft.
+    setCompanyDrafts((current) => current.filter((c) => c.name.trim()));
+    // Step 2 is the final step (TOTAL_STEPS === 2). Skipping here should
+    // complete onboarding and route to the dashboard, never advance to a
+    // nonexistent step 3.
+    await completeOnboarding();
   };
 
   async function createOnboardingCompanies() {
