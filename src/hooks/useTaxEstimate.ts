@@ -4,7 +4,7 @@ import { useIncomeEntries, useWeightedIncome } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { useMileageYTD, IRS_MILEAGE_RATE } from "@/hooks/useMileage";
+import { useMileageYTD, IRS_MILEAGE_RATE, getIrsMileageRate } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
 import { aggregateInvestmentTaxBuckets, sumInvestmentActualTaxSaved, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
