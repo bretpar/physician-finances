@@ -63,7 +63,7 @@ export default function Onboarding() {
   const { user, loading: authLoading } = useAuth();
   const { data: taxSettings, isLoading } = useTaxSettings(!!user);
   const updateTaxSettings = useUpdateTaxSettings();
-  const [step, setStep] = useState(() => Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1);
+  const [step, setStep] = useState(() => Math.min(TOTAL_STEPS, Math.max(1, Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1)));
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
   const COMPANY_DRAFTS_KEY = "paycheckmd-onboarding-company-drafts";
@@ -338,19 +338,13 @@ export default function Onboarding() {
 
   const skipCompanyStep = async () => {
     if (saving) return;
-    setSaving(true);
-    try {
-      setCompanyDrafts([]);
-      const nextStep = 3;
-      await persist({ onboardingComplete: false, onboardingStep: nextStep });
-      patch({ onboardingStep: nextStep });
-      sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
-      setStep(nextStep);
-    } catch (error: any) {
-      toast.error(error.message || "Could not save onboarding.");
-    } finally {
-      setSaving(false);
-    }
+    // Ignore blank placeholder rows so "Skip for now" works from a fresh
+    // signup where the company step auto-seeds an empty draft.
+    setCompanyDrafts((current) => current.filter((c) => c.name.trim()));
+    // Step 2 is the final step (TOTAL_STEPS === 2). Skipping here should
+    // complete onboarding and route to the dashboard, never advance to a
+    // nonexistent step 3.
+    await completeOnboarding();
   };
 
   async function createOnboardingCompanies() {
@@ -771,8 +765,8 @@ export default function Onboarding() {
           <div className="flex items-center gap-3">
             <BrandLogo className="h-10 w-10 rounded-xl" />
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">Step {step} of {TOTAL_STEPS}</p>
-              <div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} /></div>
+              <p className="text-xs font-medium text-muted-foreground">Step {Math.min(step, TOTAL_STEPS)} of {TOTAL_STEPS}</p>
+              <div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(Math.min(step, TOTAL_STEPS) / TOTAL_STEPS) * 100}%` }} /></div>
             </div>
           </div>
 
