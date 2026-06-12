@@ -765,8 +765,8 @@ export default function Onboarding() {
           <div className="flex items-center gap-3">
             <BrandLogo className="h-10 w-10 rounded-xl" />
             <div className="min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">Step {step} of {TOTAL_STEPS}</p>
-              <div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} /></div>
+              <p className="text-xs font-medium text-muted-foreground">Step {Math.min(step, TOTAL_STEPS)} of {TOTAL_STEPS}</p>
+              <div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(Math.min(step, TOTAL_STEPS) / TOTAL_STEPS) * 100}%` }} /></div>
             </div>
           </div>
 
