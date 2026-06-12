@@ -24,6 +24,7 @@ import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/M
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
+import { getCurrentQuarter } from "@/lib/quarters";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { normalizeFilingType } from "@/lib/filingTypes";
 
@@ -409,6 +410,10 @@ export default function Dashboard() {
               showQuarterNavigation={false}
               linkDeadlineToTaxOverview
               manualSavings={sharedQrInput.manualSavings}
+              initialView={{
+                year: new Date().getFullYear(),
+                quarter: getCurrentQuarter(new Date()).quarter as 1 | 2 | 3 | 4,
+              }}
             />
           )}
         />

@@ -56,6 +56,12 @@ interface QuarterlyTrackerProps {
   /** Manual `tax_savings` rows; counted as Saved (not Paid) by the canonical
    *  recommendation helper. */
   manualSavings?: Array<{ savings_date?: string; amount: number | string }>;
+  /** Optional override for the initial displayed quarter. When omitted, the
+   *  tracker uses `getActivePaymentTarget(now)` (which prefers an in-window
+   *  payment deadline like Q2-on-Jun-11). Pass `getCurrentQuarter(now)` to
+   *  force the IRS estimated-tax income period instead — used by the
+   *  Dashboard fallback when the Q-payment callout is hidden. */
+  initialView?: { year: number; quarter: 1 | 2 | 3 | 4 };
 }
 
 const fmt = (n: number) =>
@@ -145,9 +151,13 @@ export default function QuarterlyTracker({
   showRecommendedPayment = false,
   onLogPayment,
   manualSavings = [],
+  initialView,
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
-  const initial = useMemo(() => currentOwningYear(), []);
+  const initial = useMemo(
+    () => initialView ?? currentOwningYear(),
+    [initialView?.year, initialView?.quarter],
+  );
   const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
 
   const q = useMemo(() => buildQuarter(view.year, view.quarter), [view]);
