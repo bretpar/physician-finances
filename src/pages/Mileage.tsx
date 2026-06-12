@@ -236,7 +236,7 @@ export default function Mileage() {
 
   function exportCSV() {
     const headers = ["Month", "Year", "Company", "Miles", "Deduction"];
-    const rows = ytdEntries.map((e) => [MONTHS[e.month - 1], e.year, e.company_name, e.miles, (Number(e.miles) * IRS_MILEAGE_RATE).toFixed(2)]);
+    const rows = ytdEntries.map((e) => [MONTHS[e.month - 1], e.year, e.company_name, e.miles, (Number(e.miles) * getIrsMileageRate(e.year)).toFixed(2)]);
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
