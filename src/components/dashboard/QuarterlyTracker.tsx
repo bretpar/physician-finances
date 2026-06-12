@@ -51,6 +51,8 @@ interface QuarterlyTrackerProps {
   /** When true, render the "Recommended quarterly payment" header card with the
    *  full quarter-target / paid / saved / remaining breakdown. Tax Overview. */
   showRecommendedPayment?: boolean;
+  /** Optional CTA shown inside the recommended-payment card. */
+  onLogPayment?: () => void;
   /** Manual `tax_savings` rows; counted as Saved (not Paid) by the canonical
    *  recommendation helper. */
   manualSavings?: Array<{ savings_date?: string; amount: number | string }>;
@@ -141,6 +143,7 @@ export default function QuarterlyTracker({
   linkDeadlineToTaxOverview = false,
   breakdownTitle = "This quarter by company",
   showRecommendedPayment = false,
+  onLogPayment,
   manualSavings = [],
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
@@ -151,6 +154,7 @@ export default function QuarterlyTracker({
   const isCurrentQuarter = view.quarter === initial.quarter && view.year === initial.year;
 
   const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // ── Canonical recommendation (single source of truth) ─────────────────
   // Quarter target, paid, saved, progress, recommended payment, and source
@@ -286,72 +290,49 @@ export default function QuarterlyTracker({
       <CardContent className={cn("space-y-4", showQuarterNavigation ? "pb-10" : "pb-4")}>
         {showRecommendedPayment && (
           <div className="rounded-lg border-2 border-primary/30 bg-primary/[0.04] p-4 space-y-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 font-medium">
-                  Recommended quarterly payment
-                </p>
-                <p className="mt-1 text-3xl sm:text-4xl font-bold tabular-nums text-primary whitespace-nowrap">
-                  {fmt(recommendation.recommendedPaymentToMake)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Amount to submit for {recommendation.quarterLabel} after W-2 withholding, other actual withholding, and estimated payments already made. Saved reserves are not subtracted.
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Due date</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{recommendation.deadlineLabel}, {recommendation.taxYear}</p>
-              </div>
-            </div>
-            <div className={cn("grid gap-3 pt-1 border-t border-primary/15", recommendation.otherWithheldThisQuarter > 0 ? "grid-cols-2 sm:grid-cols-6" : "grid-cols-2 sm:grid-cols-5") }>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Quarter target</p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.quarterTarget)}</p>
-              </div>
-              <div>
-                <div className="flex items-center gap-1">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Federal W-2 withholding paid</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground/80 font-medium">
+                    Recommended Quarterly Payment
+                  </p>
                   <TooltipProvider delayDuration={150}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button type="button" aria-label="What's included in Federal W-2 withholding paid" className="text-muted-foreground hover:text-foreground">
-                          <Info className="h-3 w-3" />
+                        <button
+                          type="button"
+                          aria-label="About recommended quarterly payment"
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs text-xs">
-                        Includes federal income tax withheld from W-2 paychecks. Does not include W-2 Social Security or Medicare payroll taxes. Self-employment tax for 1099 income is included in the quarterly tax target.
+                        Amount to submit for {recommendation.quarterLabel} after W-2 withholding, other actual withholding, and estimated payments already made. Saved reserves are not subtracted.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.w2WithheldThisQuarter)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Estimated payments made</p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.estimatedPaymentsMade)}</p>
-              </div>
-              {recommendation.otherWithheldThisQuarter > 0 && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Other withholding paid</p>
-                  <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.otherWithheldThisQuarter)}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved/reserved but not paid</p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.savedThisQuarter)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Recommended payment remaining</p>
-                <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{fmt(recommendation.stillNeedToSave)}</p>
+                <p className="mt-1 text-3xl sm:text-4xl font-bold tabular-nums text-primary whitespace-nowrap">
+                  {fmt(recommendation.recommendedPaymentToMake)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Due date: {recommendation.deadlineLabel}, {recommendation.taxYear}
+                </p>
               </div>
             </div>
+            {onLogPayment && (
+              <Button type="button" onClick={onLogPayment} className="w-full sm:w-auto">
+                Log {recommendation.quarterLabel} Payment
+              </Button>
+            )}
           </div>
         )}
         {/* Primary numbers */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="min-w-0">
             <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
-              Paid + Saved QTD
+              Paid + Saved
             </p>
             <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums text-foreground whitespace-nowrap">
               {fmt(progressAmount)}
@@ -397,8 +378,43 @@ export default function QuarterlyTracker({
         {/* Compact status callout */}
         <div className={cn("flex items-center gap-2 text-sm", toneStyles.text)}>
           <Icon className={cn("h-4 w-4 shrink-0", toneStyles.accent)} />
-          <span className="truncate">{message}</span>
+          <span className="truncate">
+            {showRecommendedPayment && quarterTarget > 0 && progressAmount >= expectedByNow
+              ? `${q.label} complete`
+              : message}
+          </span>
         </div>
+
+        {/* Quarterly payment details (collapsible) */}
+        {showRecommendedPayment && (
+          <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <div className="overflow-hidden rounded-lg border bg-card/50">
+              <CollapsibleTrigger className="w-full px-3 py-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground hover:bg-accent/30 transition-colors rounded-lg">
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", detailsOpen && "rotate-180")} />
+                <span>Quarterly payment details</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="divide-y divide-border border-t text-sm">
+                  {[
+                    { label: "Quarter target", value: recommendation.quarterTarget },
+                    { label: "Federal W-2 withholding paid", value: recommendation.w2WithheldThisQuarter },
+                    { label: "Estimated payments made", value: recommendation.estimatedPaymentsMade },
+                    ...(recommendation.otherWithheldThisQuarter > 0
+                      ? [{ label: "Other withholding paid", value: recommendation.otherWithheldThisQuarter }]
+                      : []),
+                    { label: "Saved/reserved but not paid", value: recommendation.savedThisQuarter },
+                    { label: "Recommended payment remaining", value: recommendation.stillNeedToSave },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                      <span className="text-foreground/90 min-w-0 break-words">{row.label}</span>
+                      <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(row.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        )}
 
 
         {showTaxOverviewCta && (
