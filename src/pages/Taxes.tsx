@@ -461,6 +461,13 @@ export default function Taxes() {
           breakdownTitle="This quarter by source"
           manualSavings={sharedQrInput.manualSavings}
           showRecommendedPayment
+          onLogPayment={() => {
+            const { getActivePaymentTarget } = require("@/lib/quarterRecommendation");
+            const target = getActivePaymentTarget(new Date());
+            resetPaymentForm();
+            setPaymentQuarter(`Q${target.quarter}`);
+            setPaymentOpen(true);
+          }}
         />
       </section>}
 
