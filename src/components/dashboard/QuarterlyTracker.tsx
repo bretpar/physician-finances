@@ -151,9 +151,13 @@ export default function QuarterlyTracker({
   showRecommendedPayment = false,
   onLogPayment,
   manualSavings = [],
+  initialView,
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
-  const initial = useMemo(() => currentOwningYear(), []);
+  const initial = useMemo(
+    () => initialView ?? currentOwningYear(),
+    [initialView?.year, initialView?.quarter],
+  );
   const [view, setView] = useState<{ year: number; quarter: 1 | 2 | 3 | 4 }>(initial);
 
   const q = useMemo(() => buildQuarter(view.year, view.quarter), [view]);
