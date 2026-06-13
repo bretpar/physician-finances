@@ -172,6 +172,19 @@ export function useSyncTransactions() {
       qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
+      const itemResults: Array<{ institution_name: string | null; status: string; error?: string }> =
+        data?.item_results || [];
+      const failed = itemResults.filter((r) => r.status === "error");
+      if (failed.length > 0) {
+        const names = failed
+          .map((r) => r.institution_name || "Unknown")
+          .slice(0, 3)
+          .join(", ");
+        const extra = failed.length > 3 ? ` +${failed.length - 3} more` : "";
+        const firstErr = failed[0].error ? ` — ${failed[0].error}` : "";
+        toast.error(`Sync failed for ${names}${extra}${firstErr}`);
+        return;
+      }
       if (silent) return;
       toast.success(data?.mode === "backfill" ? "Backfill complete" : "Sync complete", {
         description: syncSummary(data),

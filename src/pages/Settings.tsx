@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Plus, Trash2, Building2, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, ChevronDown, ChevronRight, Users, UserCircle, Info,
+  Lock, ChevronDown, ChevronRight, Users, UserCircle, Info, AlertTriangle,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1630,6 +1630,48 @@ function ConnectedAccountsSection() {
   const [editCompanyId, setEditCompanyId] = useState<string>("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
+  const [reconnectingItemId, setReconnectingItemId] = useState<string | null>(null);
+
+  const isNeedsReauth = (item: any) =>
+    item?.status === "needs_reauth" || item?.status === "login_required" || item?.status === "error";
+
+  const handleReconnect = async (itemId: string) => {
+    if (reconnectingItemId) return;
+    setReconnectingItemId(itemId);
+    try {
+      const { data, error } = await supabase.functions.invoke("plaid-create-link-token", {
+        body: { item_id: itemId, update_mode: true },
+      });
+      if (error || !data?.link_token) {
+        toast.error("Failed to start reconnect flow");
+        return;
+      }
+      if (!(window as any).Plaid) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Failed to load Plaid"));
+          document.head.appendChild(script);
+        });
+      }
+      const handler = (window as any).Plaid.create({
+        token: data.link_token,
+        onSuccess: () => {
+          toast.success("Connection restored");
+          setSyncingItemId(itemId);
+          syncMutation.mutate(itemId, { onSettled: () => setSyncingItemId(null) });
+        },
+        onExit: () => {},
+      });
+      handler.open();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to open reconnect flow");
+    } finally {
+      setReconnectingItemId(null);
+    }
+  };
 
   // Post-link review modal
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
@@ -1914,16 +1956,60 @@ function ConnectedAccountsSection() {
                       <Landmark className="h-5 w-5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-card-foreground truncate">{item.institution_name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-card-foreground truncate">{item.institution_name}</p>
+                        {isNeedsReauth(item) ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Reconnect required
+                          </Badge>
+                        ) : (item as any).sync_status === "syncing" ? (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Syncing…
+                          </Badge>
+                        ) : (item as any).sync_status === "error" ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Sync failed
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate">
-                        {accounts.length} account{accounts.length !== 1 ? "s" : ""} · synced {formatDate(item.last_synced_at)}
+                        {accounts.length} account{accounts.length !== 1 ? "s" : ""} · synced {formatDate((item as any).last_successful_sync_at || item.last_synced_at)}
+                        {(item as any).sync_status === "error" && (item as any).last_sync_error
+                          ? ` · ${(item as any).last_sync_error}`
+                          : ""}
                       </p>
                     </div>
+                    {isNeedsReauth(item) && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={(e) => { e.stopPropagation(); handleReconnect(item.id); }}
+                        disabled={reconnectingItemId === item.id}
+                        className="gap-1.5 flex-shrink-0"
+                      >
+                        {reconnectingItemId === item.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        )}
+                        Reconnect
+                      </Button>
+                    )}
                     <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform flex-shrink-0", expanded && "rotate-180")} />
                   </button>
 
                   {expanded && (
                     <div className="border-t border-border bg-muted/10">
+                      {/* Sync diagnostics */}
+                      <div className="px-3 py-2 border-b border-border bg-card text-xs text-muted-foreground grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                        <div>Item status: <span className="font-medium text-card-foreground">{item.status || "active"}</span></div>
+                        <div>Sync status: <span className="font-medium text-card-foreground">{(item as any).sync_status || "idle"}</span></div>
+                        <div>Last successful sync: <span className="font-medium text-card-foreground">{formatDate((item as any).last_successful_sync_at || item.last_synced_at)}</span></div>
+                        <div>Last sync attempt: <span className="font-medium text-card-foreground">{formatDate((item as any).last_sync_attempt_at)}</span></div>
+                        {(item as any).last_sync_error && (
+                          <div className="sm:col-span-2 text-destructive">Last error: {(item as any).last_sync_error}</div>
+                        )}
+                      </div>
                       {/* Action row — separated from header */}
                       <div className="flex flex-wrap items-center gap-2 p-3 border-b border-border bg-card">
                         <Button
@@ -1933,8 +2019,23 @@ function ConnectedAccountsSection() {
                           className="gap-1.5"
                         >
                           {itemSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                          Refresh
+                          Sync Now
                         </Button>
+                        {isNeedsReauth(item) && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleReconnect(item.id)}
+                            disabled={reconnectingItemId === item.id}
+                            className="gap-1.5"
+                          >
+                            {reconnectingItemId === item.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                            )}
+                            Reconnect
+                          </Button>
+                        )}
                         <Button
                           variant="outline" size="sm"
                           onClick={() => backfillMutation.mutate(undefined)}
@@ -1952,6 +2053,7 @@ function ConnectedAccountsSection() {
                           <Unplug className="h-3.5 w-3.5" /> Disconnect
                         </Button>
                       </div>
+
 
                       {accounts.length > 0 && (
                         <div className="p-3 space-y-2">

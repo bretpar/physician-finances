@@ -468,12 +468,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Hidden/terminal statuses we never attempt to sync.
+    const HIDDEN_STATUSES = ["disconnected", "deleted", "inactive"];
     let itemsQuery = adminClient
       .from("plaid_items")
       .select("*")
       .eq("user_id", user.id)
-      .eq("status", "active");
-    if (targetItemId) itemsQuery = itemsQuery.eq("id", targetItemId);
+      .not("status", "in", `(${HIDDEN_STATUSES.map((s) => `"${s}"`).join(",")})`);
+    if (targetItemId) {
+      // Per-item Sync Now: allow attempt even if status is needs_reauth/error
+      // so the UI can surface the latest Plaid error message.
+      itemsQuery = itemsQuery.eq("id", targetItemId);
+    }
 
     const { data: plaidItems, error: itemsError } = await itemsQuery;
     if (itemsError || !plaidItems?.length) {
@@ -483,7 +489,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Per-item results returned to the caller so the UI can surface failures.
+    const itemResults: Array<{
+      item_id: string;
+      institution_name: string | null;
+      status: "success" | "skipped" | "error";
+      error?: string;
+      error_code?: string;
+      item_status?: string;
+    }> = [];
+
     // Mark all targeted items as syncing + record attempt timestamp.
+    // Safe stuck-sync handling: a previously-stuck 'syncing' state is simply
+    // overwritten here so the user can retry without manual intervention.
     const nowIso = new Date().toISOString();
     if (plaidItems?.length) {
       await adminClient
@@ -638,8 +656,27 @@ Deno.serve(async (req) => {
         let cursor = item.cursor || undefined;
         let cursorToSave = item.cursor || undefined;
         let itemHadPersistError = false;
+        let plaidErrorPayload: any = null;
 
         let accessToken = accessTokens.get(item.id) || item.access_token;
+
+        if (!accessToken) {
+          await adminClient
+            .from("plaid_items")
+            .update({
+              sync_status: "error",
+              last_sync_error: "Missing access token — please reconnect",
+            })
+            .eq("id", item.id);
+          itemResults.push({
+            item_id: item.id,
+            institution_name: item.institution_name,
+            status: "error",
+            error: "Missing access token — please reconnect",
+            item_status: item.status,
+          });
+          continue;
+        }
 
         while (hasMore && !itemHadPersistError) {
           const syncBody: Record<string, unknown> = {
@@ -658,7 +695,8 @@ Deno.serve(async (req) => {
 
           const syncData = await syncRes.json();
           if (!syncRes.ok) {
-            console.error("Plaid sync error:", syncData);
+            console.error("Plaid sync error:", { item_id: item.id, syncData });
+            plaidErrorPayload = syncData;
             itemHadPersistError = true;
             break;
           }
@@ -690,14 +728,8 @@ Deno.serve(async (req) => {
               rawImported++;
             } else if (relinked) {
               totalRelinked++;
-              // Relinked to an existing routed row from a prior connection. Do
-              // not re-route — routeRawPlaidTransaction's hasExistingRoute
-              // check would treat it as a duplicate anyway, and we want to
-              // preserve any user edits / company assignment on the existing
-              // app-level transaction row.
               continue;
             } else {
-              // Same plaid_transaction_id already imported — treat as modified.
               totalModified++;
             }
 
@@ -738,7 +770,6 @@ Deno.serve(async (req) => {
               break;
             }
 
-            // Prefer posted/final data over pending, but preserve user edits.
             const { data: appTx } = await adminClient
               .from("transactions")
               .select("id, user_edited")
@@ -764,9 +795,6 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (plaidTx) {
-              // Preserve user-edited app rows: detach the plaid ref and mark
-              // status instead of hard-deleting. Plain unedited rows can be
-              // removed as before.
               const { data: appRow } = await adminClient
                 .from("transactions")
                 .select("id, user_edited")
@@ -796,6 +824,9 @@ Deno.serve(async (req) => {
 
         if (!itemHadPersistError) {
           const successIso = new Date().toISOString();
+          // Clear any prior login_required/error/needs_reauth on success.
+          const itemStatusUpdate =
+            item.status === "active" ? {} : { status: "active" };
           await adminClient
             .from("plaid_items")
             .update({
@@ -804,17 +835,59 @@ Deno.serve(async (req) => {
               last_successful_sync_at: successIso,
               last_sync_error: null,
               sync_status: "idle",
+              ...itemStatusUpdate,
             })
             .eq("id", item.id);
+          itemResults.push({
+            item_id: item.id,
+            institution_name: item.institution_name,
+            status: "success",
+            item_status: "active",
+          });
         } else {
-          console.error("Plaid cursor not advanced because raw persistence/routing failed", { item_id: item.id, institution_name: item.institution_name });
-          await adminClient
-            .from("plaid_items")
-            .update({
-              sync_status: "error",
-              last_sync_error: "Sync failed — see edge function logs",
-            })
-            .eq("id", item.id);
+          // Capture concise Plaid error code/message and map auth failures.
+          const errCode: string | undefined = plaidErrorPayload?.error_code;
+          const errMsg: string =
+            plaidErrorPayload?.error_message ||
+            plaidErrorPayload?.display_message ||
+            errCode ||
+            "Sync failed — see edge function logs";
+          const conciseErr = errCode ? `${errCode}: ${errMsg}` : errMsg;
+
+          const authErrorCodes = new Set([
+            "ITEM_LOGIN_REQUIRED",
+            "PENDING_EXPIRATION",
+            "PENDING_DISCONNECT",
+            "USER_PERMISSION_REVOKED",
+            "ACCESS_NOT_GRANTED",
+          ]);
+          const needsReauth = errCode ? authErrorCodes.has(errCode) : false;
+
+          const itemUpdate: Record<string, unknown> = {
+            sync_status: "error",
+            last_sync_error: conciseErr,
+          };
+          if (needsReauth) {
+            itemUpdate.status = errCode === "ITEM_LOGIN_REQUIRED" ? "login_required" : "needs_reauth";
+          }
+
+          console.error("Plaid cursor not advanced because sync failed", {
+            item_id: item.id,
+            institution_name: item.institution_name,
+            error_code: errCode,
+            error_message: errMsg,
+          });
+
+          await adminClient.from("plaid_items").update(itemUpdate).eq("id", item.id);
+
+          itemResults.push({
+            item_id: item.id,
+            institution_name: item.institution_name,
+            status: "error",
+            error: conciseErr,
+            error_code: errCode,
+            item_status: (itemUpdate.status as string | undefined) || item.status,
+          });
         }
       }
     }
@@ -857,6 +930,8 @@ Deno.serve(async (req) => {
       balances_refreshed: balancesRefreshed,
       balance_warnings: balanceWarnings,
       account_logs,
+      item_results: itemResults,
+      all_items_ok: itemResults.length === 0 || itemResults.every((r) => r.status === "success"),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Error:", err);
