@@ -1550,6 +1550,13 @@ export default function PersonalIncome() {
         onClose={() => setMobileViewerEntryId(null)}
       />
 
+      {/* Link to bank transaction modal */}
+      <IncomeLinkModal
+        entry={linkModalEntry}
+        open={!!linkModalEntry}
+        onOpenChange={(open) => { if (!open) setLinkModalEntry(null); }}
+      />
+
       {/* Per-transaction tax-savings reminder */}
       <SimpleTaxReminderModal
         open={showRecommendation}
