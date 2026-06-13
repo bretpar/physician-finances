@@ -208,62 +208,56 @@ async function hasExistingRoute(adminClient: any, rawPlaidId: string) {
   return !!incomeEntry;
 }
 
-async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, routing: string): Promise<RouteResult> {
-  if (routing === "needs_review") return "needs_review";
-  if (routing !== "business" && routing !== "personal") return "skipped";
-  if (await hasExistingRoute(ctx.adminClient, plaidTxRow.id)) return "duplicate";
+// income_entries.income_type CHECK constraint allowed values (must match DB).
+const ALLOWED_INCOME_TYPES = new Set([
+  "w2", "1099", "k1", "other", "1099_schedule_c", "k1_partnership",
+  "scorp_w2", "scorp_distribution", "w2_user", "w2_partner",
+  "short_term_gain", "long_term_gain", "dividend", "interest",
+  "rental", "other_income", "loss",
+]);
 
-  const raw = plaidTxRow.raw_json || {};
-  const amount = Number(raw.amount ?? plaidTxRow.amount ?? 0);
-  const txnName = raw.merchant_name || raw.name || plaidTxRow.merchant_name || plaidTxRow.name || "";
-
-  if (routing === "personal") {
-    const isIncome = amount < 0;
-    const { error } = await ctx.adminClient.from("income_entries").insert({
-      user_id: ctx.user.id,
-      organization_id: ctx.orgId,
-      name: txnName,
-      company: ctx.item?.institution_name || plaidTxRow.account_source || "Imported bank account",
-      income_type: "W2",
-      source_bucket: "personal",
-      tax_category: "ordinary",
-      income_date: raw.date || plaidTxRow.date,
-      gross_amount: Math.abs(amount),
-      paycheck_amount: isIncome ? Math.abs(amount) : 0,
-      deposited_amount: isIncome ? Math.abs(amount) : 0,
-      is_actual: true,
-      include_in_tax_estimate: isIncome,
-      include_in_cash_flow: true,
-      linked_transaction_id: plaidTxRow.id,
-      notes: `Imported from ${ctx.item?.institution_name || "bank account"} (personal account)`,
-    });
-    if (error) {
-      console.error("Route personal income_entry error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
-      ctx.lastRouteError = `Routing personal income failed: ${error.message || error.code || "unknown DB error"}`;
-      return "error";
-    }
-    return "routed";
-  }
-
-  const isExpense = amount > 0;
-  const isLiability = isLiabilityAccount(ctx.accounts, plaidTxRow.plaid_account_id);
+/**
+ * Classify a raw plaid transaction's "shape" before routing.
+ * Returns one of:
+ *   "transfer"      - movement between accounts / cc payment / loan payment
+ *   "expense"       - positive amount (money out)
+ *   "income"        - negative amount (money in) that is NOT transfer-like
+ *   "ambiguous"     - cannot safely classify (e.g. zero, weird category)
+ */
+function classifyPlaidShape(
+  raw: any,
+  plaidTxRow: any,
+  amount: number,
+  isLiability: boolean,
+): "transfer" | "expense" | "income" | "ambiguous" {
+  const txnName =
+    raw.merchant_name || raw.name || plaidTxRow.merchant_name || plaidTxRow.name || "";
   const nameHint = looksLikeTransfer(txnName);
-  const plaidCategory = (raw.personal_finance_category?.primary || plaidTxRow.category_raw || "").toUpperCase();
-  const plaidIsTransfer = plaidCategory === "TRANSFER_IN" || plaidCategory === "TRANSFER_OUT" || plaidCategory === "LOAN_PAYMENTS" || plaidCategory === "BANK_FEES";
+  const plaidCategory = (
+    raw.personal_finance_category?.primary || plaidTxRow.category_raw || ""
+  ).toUpperCase();
+  const plaidIsTransfer =
+    plaidCategory === "TRANSFER_IN" ||
+    plaidCategory === "TRANSFER_OUT" ||
+    plaidCategory === "LOAN_PAYMENTS";
 
-  let txType = isExpense ? "expense" : "income";
-  let transferSubtype: string | null = null;
-  if (!isExpense && isLiability) {
-    txType = "transfer";
-    transferSubtype = "credit_card_payment";
-  } else if (plaidIsTransfer && plaidCategory !== "BANK_FEES") {
-    txType = "transfer";
-    transferSubtype = "account_transfer";
-  } else if (nameHint) {
-    txType = "transfer";
-    transferSubtype = isLiability ? "credit_card_payment" : "account_transfer";
-  }
+  if (plaidIsTransfer || nameHint) return "transfer";
+  // Inflow to a liability/credit card account is a payment, not income.
+  if (amount < 0 && isLiability) return "transfer";
+  if (amount > 0) return "expense";
+  if (amount < 0) return "income";
+  return "ambiguous";
+}
 
+async function insertAppTransaction(
+  ctx: RouteContext,
+  plaidTxRow: any,
+  raw: any,
+  amount: number,
+  txnName: string,
+  txType: "expense" | "transfer" | "income",
+  transferSubtype: string | null,
+): Promise<RouteResult> {
   const bizInfo = ctx.accountBizMap[plaidTxRow.plaid_account_id];
   const { data: existing } = await ctx.adminClient
     .from("transactions")
@@ -295,8 +289,8 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
   });
 
   if (error) {
-    console.error("Route business transaction error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
-    ctx.lastRouteError = `Routing business transaction failed: ${error.message || error.code || "unknown DB error"}`;
+    console.error("Insert app transaction error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
+    ctx.lastRouteError = `Routing transaction failed: ${error.message || error.code || "unknown DB error"}`;
     return "error";
   }
 
@@ -309,6 +303,77 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
     raw_amount: amount,
   });
   return "routed";
+}
+
+async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, routing: string): Promise<RouteResult> {
+  if (routing === "needs_review") return "needs_review";
+  if (routing !== "business" && routing !== "personal") return "skipped";
+  if (await hasExistingRoute(ctx.adminClient, plaidTxRow.id)) return "duplicate";
+
+  const raw = plaidTxRow.raw_json || {};
+  const amount = Number(raw.amount ?? plaidTxRow.amount ?? 0);
+  const txnName = raw.merchant_name || raw.name || plaidTxRow.merchant_name || plaidTxRow.name || "";
+  const isLiability = isLiabilityAccount(ctx.accounts, plaidTxRow.plaid_account_id);
+  const shape = classifyPlaidShape(raw, plaidTxRow, amount, isLiability);
+
+  if (routing === "personal") {
+    // Only true inflows that aren't transfers get inserted as income_entries.
+    // Transfers, credit-card payments, and expenses go into the transactions
+    // ledger (excluded from reports for transfers) so the DB CHECK constraint
+    // on income_entries.income_type is never violated.
+    if (shape === "transfer") {
+      const subtype = isLiability ? "credit_card_payment" : "account_transfer";
+      return insertAppTransaction(ctx, plaidTxRow, raw, amount, txnName, "transfer", subtype);
+    }
+    if (shape === "expense") {
+      return insertAppTransaction(ctx, plaidTxRow, raw, amount, txnName, "expense", null);
+    }
+    if (shape === "ambiguous") {
+      ctx.lastRouteError = "Could not classify income type safely — left for review";
+      return "needs_review";
+    }
+
+    // shape === "income": personal paycheck-like inflow.
+    const incomeType = "w2";
+    if (!ALLOWED_INCOME_TYPES.has(incomeType)) {
+      ctx.lastRouteError = `Unsupported income_type "${incomeType}"`;
+      return "needs_review";
+    }
+    const { error } = await ctx.adminClient.from("income_entries").insert({
+      user_id: ctx.user.id,
+      organization_id: ctx.orgId,
+      name: txnName,
+      company: ctx.item?.institution_name || plaidTxRow.account_source || "Imported bank account",
+      income_type: incomeType,
+      source_bucket: "personal",
+      tax_category: "ordinary",
+      income_date: raw.date || plaidTxRow.date,
+      gross_amount: Math.abs(amount),
+      paycheck_amount: Math.abs(amount),
+      deposited_amount: Math.abs(amount),
+      is_actual: true,
+      include_in_tax_estimate: true,
+      include_in_cash_flow: true,
+      linked_transaction_id: plaidTxRow.id,
+      notes: `Imported from ${ctx.item?.institution_name || "bank account"} (personal account)`,
+    });
+    if (error) {
+      console.error("Route personal income_entry error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
+      ctx.lastRouteError = `Routing personal income failed: ${error.message || error.code || "unknown DB error"}`;
+      // Do not abort the whole sync — leave this txn for manual review.
+      return "needs_review";
+    }
+    return "routed";
+  }
+
+  // routing === "business"
+  let txType: "expense" | "transfer" | "income" = amount > 0 ? "expense" : "income";
+  let transferSubtype: string | null = null;
+  if (shape === "transfer") {
+    txType = "transfer";
+    transferSubtype = isLiability ? "credit_card_payment" : "account_transfer";
+  }
+  return insertAppTransaction(ctx, plaidTxRow, raw, amount, txnName, txType, transferSubtype);
 }
 
 async function runCronFanOut(req: Request): Promise<Response> {
