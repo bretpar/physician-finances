@@ -1032,8 +1032,12 @@ export default function PersonalIncome() {
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = formatDate(entry.income_date);
                   const badges: LedgerRowBadge[] = [];
-                  if ((entry as any).needs_review) {
-                    badges.push({ label: "Review", tone: "warning" });
+                  if (linkedEntryMap.has(entry.id)) {
+                    badges.push({ label: "Linked", tone: "success" });
+                  } else if ((entry as any).needs_review) {
+                    badges.push({ label: "Needs Review", tone: "warning" });
+                  } else if ((entry as any).reviewed_at && (entry as any).origin_type === "planner_converted") {
+                    badges.push({ label: "Reviewed", tone: "neutral" });
                   }
                   const isMobileSelected = mobileSelectedOrder.includes(entry.id);
 
