@@ -761,12 +761,16 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            const result = await routeRawPlaidTransaction(routeContextFor(item), plaidTxRow, routing);
+            const result = await routeRawPlaidTransaction(itemCtx, plaidTxRow, routing);
             if (result === "routed") { stat.routed++; totalRouted++; }
             else if (result === "needs_review") { stat.needs_review++; totalNeedsReview++; }
             else if (result === "duplicate") { totalDuplicates++; }
             else if (result === "skipped") { stat.skipped++; totalSkipped++; }
-            else if (result === "error") { itemHadPersistError = true; break; }
+            else if (result === "error") {
+              persistErrorMessage = itemCtx.lastRouteError || persistErrorMessage || "Failed to route a Plaid transaction";
+              itemHadPersistError = true;
+              break;
+            }
           }
 
           if (itemHadPersistError) break;
