@@ -468,12 +468,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Hidden/terminal statuses we never attempt to sync.
+    const HIDDEN_STATUSES = ["disconnected", "deleted", "inactive"];
     let itemsQuery = adminClient
       .from("plaid_items")
       .select("*")
       .eq("user_id", user.id)
-      .eq("status", "active");
-    if (targetItemId) itemsQuery = itemsQuery.eq("id", targetItemId);
+      .not("status", "in", `(${HIDDEN_STATUSES.map((s) => `"${s}"`).join(",")})`);
+    if (targetItemId) {
+      // Per-item Sync Now: allow attempt even if status is needs_reauth/error
+      // so the UI can surface the latest Plaid error message.
+      itemsQuery = itemsQuery.eq("id", targetItemId);
+    }
 
     const { data: plaidItems, error: itemsError } = await itemsQuery;
     if (itemsError || !plaidItems?.length) {
@@ -483,7 +489,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Per-item results returned to the caller so the UI can surface failures.
+    const itemResults: Array<{
+      item_id: string;
+      institution_name: string | null;
+      status: "success" | "skipped" | "error";
+      error?: string;
+      error_code?: string;
+      item_status?: string;
+    }> = [];
+
     // Mark all targeted items as syncing + record attempt timestamp.
+    // Safe stuck-sync handling: a previously-stuck 'syncing' state is simply
+    // overwritten here so the user can retry without manual intervention.
     const nowIso = new Date().toISOString();
     if (plaidItems?.length) {
       await adminClient
