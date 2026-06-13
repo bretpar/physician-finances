@@ -58,6 +58,29 @@ export default function Dashboard() {
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
   const [profileFirstName, setProfileFirstName] = useState<string>("");
 
+  // ── Background stale sync: if any connected Plaid item has not had a
+  // successful sync in >24h, fire a single silent background sync per browser
+  // session. Webhooks + daily 2 AM cron stay primary; this is a fallback.
+  const { data: plaidItemsForSync = [] } = usePlaidItems();
+  const bgSyncMutation = useSyncTransactions();
+  useEffect(() => {
+    if (!user) return;
+    if (!plaidItemsForSync.length) return;
+    const sessionKey = `dashboard:bgSyncFired:${user.id}`;
+    if (sessionStorage.getItem(sessionKey)) return;
+    const STALE_MS = 24 * 60 * 60 * 1000; // TODO: 12h for premium
+    const stale = (plaidItemsForSync as any[]).some((it) => {
+      if (it.status !== "active") return false;
+      const ts = it.last_successful_sync_at || it.last_synced_at;
+      if (!ts) return true;
+      return Date.now() - new Date(ts).getTime() > STALE_MS;
+    });
+    if (!stale) return;
+    sessionStorage.setItem(sessionKey, "1");
+    bgSyncMutation.mutate({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, plaidItemsForSync.length]);
+
   useEffect(() => {
     const dismissed = localStorage.getItem("paycheckmd-household-income-profile-review-dismissed") === "true" || !!rates?.onboardingBannerDismissed;
     setShowProfileReviewBanner(rates?.onboardingComplete == null && !dismissed);
