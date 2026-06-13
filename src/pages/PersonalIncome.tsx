@@ -827,7 +827,7 @@ export default function PersonalIncome() {
 
 
       {/* Filters */}
-      {(fromPlannerCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
+      {(fromPlannerCount > 0 || needsReviewCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={filterReview === "needs_review" ? "default" : "outline"}
