@@ -239,6 +239,7 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
     });
     if (error) {
       console.error("Route personal income_entry error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
+      ctx.lastRouteError = `Routing personal income failed: ${error.message || error.code || "unknown DB error"}`;
       return "error";
     }
     return "routed";
