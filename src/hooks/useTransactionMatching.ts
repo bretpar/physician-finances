@@ -491,11 +491,19 @@ const isManualLikeSource = (s: string | null | undefined) =>
 /**
  * Canonical row selector for a linked group.
  *
- * Rule order (highest wins):
- *  A) Most-complete tax/accounting data: counts non-empty enrichment fields
- *     on the transaction row itself AND on its linked income_entry (if any).
- *  B) Origin: manual/planner beats imported (plaid).
- *  C) Earliest created_at.
+ * Global hierarchy (highest wins):
+ *  1) Origin tier: manual / planner / app-created rows ALWAYS beat
+ *     imported (plaid/merged) rows. An imported row can only be canonical
+ *     when every candidate in the group is imported.
+ *  2) Within the same origin tier: most-complete tax/accounting data.
+ *     Counts non-empty enrichment fields on the transaction row itself
+ *     AND on its linked income_entry (if any).
+ *  3) Earliest created_at.
+ *
+ * This guarantees a Plaid/imported row can never overwrite or hide a
+ * richer manual/planner accounting row during linking, even when the
+ * Plaid row carries vendor / account / posted-date metadata that would
+ * otherwise boost its completeness score.
  *
  * Exported for unit testing.
  */
@@ -526,12 +534,15 @@ export function pickCanonicalLinkedRow<T extends CanonicalCandidate>(rows: T[]):
     if (Number(r.actual_withholding || 0) > 0) completeness++;
     if (r.receipt_url) completeness++;
     completeness += Math.max(0, Number(r.incomeEnrichmentScore || 0));
+    // Origin is the PRIMARY sort key. Manual/planner = 1, imported
+    // (plaid/merged) = 0. Completeness only breaks ties within the same
+    // tier, so Plaid metadata can never outrank a manual/planner row.
     const originRank = isManualLikeSource(r.source_type) ? 1 : 0;
     return { row: r, completeness, originRank, createdAt: r.created_at };
   });
   scored.sort((a, b) => {
-    if (b.completeness !== a.completeness) return b.completeness - a.completeness;
     if (b.originRank !== a.originRank) return b.originRank - a.originRank;
+    if (b.completeness !== a.completeness) return b.completeness - a.completeness;
     return a.createdAt.localeCompare(b.createdAt);
   });
   return scored[0].row;
