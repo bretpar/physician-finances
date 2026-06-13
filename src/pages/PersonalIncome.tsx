@@ -1616,6 +1616,27 @@ export default function PersonalIncome() {
           : gross - withheld - stateW - preTax - ret401k - hsa - healthcare - otherDed;
         const isYtd = !!(e as any).linked_ytd_catchup_id;
         const fromPlanner = (e as any).origin_type === "planner_converted";
+        const linkedGroupId = e.id
+          ? Array.from(incomeMatchGroups?.entries?.() || []).find(([, items]) =>
+              items.some((it) => it.entry.id === e.id),
+            )?.[0]
+          : undefined;
+        const linkedSiblings = (linkedGroupId ? incomeMatchGroups?.get(linkedGroupId) || [] : []).filter(
+          (it) => it.entry.id !== e.id,
+        );
+        // Pick the best imported/Plaid sibling to surface a confirmed bank
+        // deposit amount alongside payroll net. Canonical payroll fields are
+        // never overwritten — this is display-only.
+        const importedSibling = linkedSiblings.find((it) => isImportedCashIncomeRow(it.entry));
+        const bankDeposit = importedSibling
+          ? Number(
+              importedSibling.entry.deposited_amount ??
+                importedSibling.entry.gross_amount ??
+                importedSibling.entry.paycheck_amount ??
+                0,
+            ) || 0
+          : null;
+        const depositVariance = bankDeposit != null ? bankDeposit - netReceived : null;
         const sections: DetailSection[] = [
           {
             title: "Basic details",
@@ -1630,6 +1651,16 @@ export default function PersonalIncome() {
             fields: [
               { label: "Gross", value: fmt(gross), mono: true },
               { label: "Net received", value: fmt(netReceived), mono: true },
+              ...(bankDeposit != null
+                ? [{ label: "Bank deposit", value: fmt(bankDeposit), mono: true }]
+                : []),
+              ...(depositVariance != null && Math.abs(depositVariance) >= 0.01
+                ? [{
+                    label: "Deposit variance",
+                    value: `${depositVariance >= 0 ? "+" : "−"}${fmt(Math.abs(depositVariance))}`,
+                    mono: true,
+                  }]
+                : []),
               ...(withheld > 0 ? [{ label: "Federal paid", value: fmt(withheld), mono: true }] : []),
               ...(stateIncomeTaxEnabled && stateW > 0 ? [{ label: "State withheld", value: fmt(stateW), mono: true }] : []),
               ...(preTax > 0 ? [{ label: "Pre-tax", value: fmt(preTax), mono: true }] : []),
@@ -1641,14 +1672,7 @@ export default function PersonalIncome() {
             ],
           },
         ];
-        const linkedGroupId = e.id
-          ? Array.from(incomeMatchGroups?.entries?.() || []).find(([, items]) =>
-              items.some((it) => it.entry.id === e.id),
-            )?.[0]
-          : undefined;
-        const linkedSiblings = (linkedGroupId ? incomeMatchGroups?.get(linkedGroupId) || [] : []).filter(
-          (it) => it.entry.id !== e.id,
-        );
+
         return (
           <TransactionDetailSheet
             open={!!detailEntry}
