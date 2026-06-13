@@ -31,6 +31,7 @@ export function IncomeLinkModal({ entry, open, onOpenChange }: Props) {
   const { data: allEntries = [] } = usePersonalIncomeEntries();
   const { data: matchGroups } = useIncomeMatchGroups();
   const createLink = useCreateIncomeMatchGroup();
+  const markReviewed = useMarkIncomeReviewed();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const linkedEntryIds = useMemo(() => {
