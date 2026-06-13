@@ -220,6 +220,10 @@ export default function PersonalIncome() {
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
   const { actualEstimate, currentPaceEstimate, forecastEstimate } = useTaxEstimate();
+  const needsReviewCount = useMemo(
+    () => rawEntries.filter((e: any) => e.needs_review).length,
+    [rawEntries],
+  );
   const stateIncomeTaxEnabled = !!taxSettings?.stateIncomeTaxEnabled;
   const w2RecMethod = taxSettings?.w2PaycheckRecMethod || "annual_w4";
   const w4Calc = useW4Calculation();
