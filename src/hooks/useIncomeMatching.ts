@@ -63,7 +63,7 @@ export function useIncomeMatchGroups() {
  * with no payroll/tax detail. These rows confirm cash but must never be
  * chosen as canonical when an accounting/payroll row exists in the group.
  */
-function isImportedCashIncomeRow(e: PersonalIncomeEntry): boolean {
+export function isImportedCashIncomeRow(e: PersonalIncomeEntry): boolean {
   const origin = (e as any).origin_type as string | null | undefined;
   if (origin === "planner_converted" || origin === "ytd_catchup" || origin === "manual") {
     return false;
