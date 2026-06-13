@@ -10,7 +10,7 @@ export function usePlaidItems() {
       const { data, error } = await (supabase as any)
         .from("plaid_items_safe")
         .select("*")
-        .eq("status", "active")
+        .neq("status", "disconnected")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
