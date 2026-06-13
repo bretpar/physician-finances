@@ -676,6 +676,9 @@ Deno.serve(async (req) => {
         let cursorToSave = item.cursor || undefined;
         let itemHadPersistError = false;
         let plaidErrorPayload: any = null;
+        let persistErrorMessage: string | null = null;
+        // Stable per-item context so routing failures bubble back via lastRouteError.
+        const itemCtx: RouteContext = { adminClient, user, orgId, item, accounts, accountBizMap, newlyAdded, lastRouteError: null };
 
         let accessToken = accessTokens.get(item.id) || item.access_token;
 
