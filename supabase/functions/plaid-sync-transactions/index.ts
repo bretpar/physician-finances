@@ -905,7 +905,40 @@ Deno.serve(async (req) => {
             item_status: (itemUpdate.status as string | undefined) || item.status,
           });
         }
+       } catch (itemErr) {
+         // Defensive catch: any unexpected exception while processing this
+         // item is converted to an error state so the UI never gets stuck on
+         // "syncing". The cursor is NOT advanced because the success branch
+         // never ran.
+         const msg = itemErr instanceof Error ? itemErr.message : String(itemErr);
+         console.error("Plaid sync threw for item", { item_id: item.id, error: msg });
+         await adminClient
+           .from("plaid_items")
+           .update({ sync_status: "error", last_sync_error: msg.slice(0, 500) })
+           .eq("id", item.id);
+         itemResults.push({
+           item_id: item.id,
+           institution_name: item.institution_name,
+           status: "error",
+           error: msg,
+           item_status: item.status,
+         });
+       }
       }
+    }
+
+    // Final safety net: any targeted item still flagged 'syncing' (e.g. we
+    // bailed out of the loop early without resolving it) is downgraded to
+    // error so the UI never spins forever.
+    if (targetedItemIds.length) {
+      await adminClient
+        .from("plaid_items")
+        .update({
+          sync_status: "error",
+          last_sync_error: "Sync did not complete. Please retry.",
+        })
+        .in("id", targetedItemIds)
+        .eq("sync_status", "syncing");
     }
 
     if (newlyAdded.length > 1) {
