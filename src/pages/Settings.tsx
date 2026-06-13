@@ -1621,6 +1621,35 @@ function ConnectedAccountsSection() {
   const bulkApplyMutation = useBulkApplyAccountBusiness();
   const backfillMutation = useBackfillPlaidTransactions();
   const reviewAccountsMutation = useReviewAccounts();
+  const queryClient = useQueryClient();
+
+  // Emergency cleanup on mount: any item still flagged 'syncing' with a
+  // stale (>15 min) last attempt is downgraded to error so the UI never
+  // shows a permanent spinner left over from a crashed prior run.
+  useEffect(() => {
+    if (!plaidItems?.length) return;
+    const cutoff = Date.now() - 15 * 60 * 1000;
+    const stuckIds = (plaidItems as any[])
+      .filter((it) => {
+        if (it?.sync_status !== "syncing") return false;
+        const ts = it?.last_sync_attempt_at ? new Date(it.last_sync_attempt_at).getTime() : 0;
+        return ts === 0 || ts < cutoff;
+      })
+      .map((it) => it.id);
+    if (stuckIds.length === 0) return;
+    (async () => {
+      await (supabase as any)
+        .from("plaid_items")
+        .update({
+          sync_status: "error",
+          last_sync_error: "Previous sync did not complete. Please retry.",
+        })
+        .in("id", stuckIds);
+      queryClient.invalidateQueries({ queryKey: ["plaid-items"] });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plaidItemsLoading]);
+
 
   const [linkLoading, setLinkLoading] = useState(false);
   const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
@@ -1634,6 +1663,21 @@ function ConnectedAccountsSection() {
 
   const isNeedsReauth = (item: any) =>
     item?.status === "needs_reauth" || item?.status === "login_required" || item?.status === "error";
+
+  // A sync is considered "live" only if the item was marked syncing AND the
+  // attempt is recent (≤15 min). Anything older is treated as a stalled sync
+  // so the user can retry instead of staring at a permanent spinner.
+  const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
+  const isActivelySyncing = (item: any) => {
+    if (item?.sync_status !== "syncing") return false;
+    const ts = item?.last_sync_attempt_at ? new Date(item.last_sync_attempt_at).getTime() : 0;
+    return ts > 0 && Date.now() - ts < STUCK_THRESHOLD_MS;
+  };
+  const isStalledSync = (item: any) => {
+    if (item?.sync_status !== "syncing") return false;
+    const ts = item?.last_sync_attempt_at ? new Date(item.last_sync_attempt_at).getTime() : 0;
+    return ts === 0 || Date.now() - ts >= STUCK_THRESHOLD_MS;
+  };
 
   const handleReconnect = async (itemId: string) => {
     if (reconnectingItemId) return;
@@ -1962,9 +2006,13 @@ function ConnectedAccountsSection() {
                           <Badge variant="destructive" className="text-[10px] gap-1">
                             <AlertTriangle className="h-3 w-3" /> Reconnect required
                           </Badge>
-                        ) : (item as any).sync_status === "syncing" ? (
+                        ) : isActivelySyncing(item) ? (
                           <Badge variant="secondary" className="text-[10px] gap-1">
                             <Loader2 className="h-3 w-3 animate-spin" /> Syncing…
+                          </Badge>
+                        ) : isStalledSync(item) ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Sync stalled — retry available
                           </Badge>
                         ) : (item as any).sync_status === "error" ? (
                           <Badge variant="destructive" className="text-[10px] gap-1">
@@ -1974,7 +2022,7 @@ function ConnectedAccountsSection() {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {accounts.length} account{accounts.length !== 1 ? "s" : ""} · synced {formatDate((item as any).last_successful_sync_at || item.last_synced_at)}
-                        {(item as any).sync_status === "error" && (item as any).last_sync_error
+                        {((item as any).sync_status === "error" || isStalledSync(item)) && (item as any).last_sync_error
                           ? ` · ${(item as any).last_sync_error}`
                           : ""}
                       </p>

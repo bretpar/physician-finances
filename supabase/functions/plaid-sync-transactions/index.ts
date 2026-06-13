@@ -499,15 +499,29 @@ Deno.serve(async (req) => {
       item_status?: string;
     }> = [];
 
+    // Stuck-sync protection: any item previously marked 'syncing' whose last
+    // attempt is older than 15 minutes is reset to error so retries aren't
+    // blocked and the UI doesn't spin forever.
+    const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
+    const stuckCutoffIso = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString();
+    await adminClient
+      .from("plaid_items")
+      .update({
+        sync_status: "error",
+        last_sync_error: "Previous sync did not complete. Please retry.",
+      })
+      .eq("user_id", user.id)
+      .eq("sync_status", "syncing")
+      .lt("last_sync_attempt_at", stuckCutoffIso);
+
     // Mark all targeted items as syncing + record attempt timestamp.
-    // Safe stuck-sync handling: a previously-stuck 'syncing' state is simply
-    // overwritten here so the user can retry without manual intervention.
     const nowIso = new Date().toISOString();
-    if (plaidItems?.length) {
+    const targetedItemIds: string[] = (plaidItems || []).map((i: any) => i.id);
+    if (targetedItemIds.length) {
       await adminClient
         .from("plaid_items")
         .update({ sync_status: "syncing", last_sync_attempt_at: nowIso })
-        .in("id", plaidItems.map((i: any) => i.id));
+        .in("id", targetedItemIds);
     }
 
     let rawImported = 0;
@@ -652,6 +666,8 @@ Deno.serve(async (req) => {
       }
     } else {
       for (const item of plaidItems) {
+       try {
+
         let hasMore = true;
         let cursor = item.cursor || undefined;
         let cursorToSave = item.cursor || undefined;
@@ -889,7 +905,40 @@ Deno.serve(async (req) => {
             item_status: (itemUpdate.status as string | undefined) || item.status,
           });
         }
+       } catch (itemErr) {
+         // Defensive catch: any unexpected exception while processing this
+         // item is converted to an error state so the UI never gets stuck on
+         // "syncing". The cursor is NOT advanced because the success branch
+         // never ran.
+         const msg = itemErr instanceof Error ? itemErr.message : String(itemErr);
+         console.error("Plaid sync threw for item", { item_id: item.id, error: msg });
+         await adminClient
+           .from("plaid_items")
+           .update({ sync_status: "error", last_sync_error: msg.slice(0, 500) })
+           .eq("id", item.id);
+         itemResults.push({
+           item_id: item.id,
+           institution_name: item.institution_name,
+           status: "error",
+           error: msg,
+           item_status: item.status,
+         });
+       }
       }
+    }
+
+    // Final safety net: any targeted item still flagged 'syncing' (e.g. we
+    // bailed out of the loop early without resolving it) is downgraded to
+    // error so the UI never spins forever.
+    if (targetedItemIds.length) {
+      await adminClient
+        .from("plaid_items")
+        .update({
+          sync_status: "error",
+          last_sync_error: "Sync did not complete. Please retry.",
+        })
+        .in("id", targetedItemIds)
+        .eq("sync_status", "syncing");
     }
 
     if (newlyAdded.length > 1) {
@@ -935,6 +984,23 @@ Deno.serve(async (req) => {
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Error:", err);
+    // Best-effort: clear any items left in 'syncing' state for this user so
+    // the UI never spins forever after an unexpected top-level failure.
+    try {
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const errMsg = err instanceof Error ? err.message : String(err);
+      // We don't always have a user here; scope to any rows updated in the
+      // last 30 minutes still flagged 'syncing'.
+      const recentIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      await admin
+        .from("plaid_items")
+        .update({ sync_status: "error", last_sync_error: `Sync aborted: ${errMsg.slice(0, 300)}` })
+        .eq("sync_status", "syncing")
+        .gt("last_sync_attempt_at", recentIso);
+    } catch (_) { /* ignore */ }
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
