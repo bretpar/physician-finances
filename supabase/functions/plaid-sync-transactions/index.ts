@@ -984,6 +984,23 @@ Deno.serve(async (req) => {
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Error:", err);
+    // Best-effort: clear any items left in 'syncing' state for this user so
+    // the UI never spins forever after an unexpected top-level failure.
+    try {
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const errMsg = err instanceof Error ? err.message : String(err);
+      // We don't always have a user here; scope to any rows updated in the
+      // last 30 minutes still flagged 'syncing'.
+      const recentIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      await admin
+        .from("plaid_items")
+        .update({ sync_status: "error", last_sync_error: `Sync aborted: ${errMsg.slice(0, 300)}` })
+        .eq("sync_status", "syncing")
+        .gt("last_sync_attempt_at", recentIso);
+    } catch (_) { /* ignore */ }
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
