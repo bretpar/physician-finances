@@ -308,12 +308,19 @@ export default function PersonalIncome() {
   // federal_withholding / taxes_withheld here. See src/lib/canonicalWithholding.ts.
   const canonicalWithholding = useCanonicalWithholding("PersonalIncome");
 
-  // Summary stats (income breakdown only — withholding handled by canonical hook).
+  // Summary stats. The "Taxes Withheld" card is derived from the SAME visible/
+  // active canonical Personal Income entries shown in the ledger — NOT from
+  // useCanonicalWithholding() which spans personal+business+projected and
+  // caused page-level drift ($1,869 vs $1,262) with the W-2 breakdown.
   const totals = useMemo(() => {
     const stats = entries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);
         const isW2 = isW2Type(hydrateIncomeType(e));
+        // Canonical federal payroll total (handles taxes_withheld precedence;
+        // avoids double-counting split federal/ss/medicare fields).
+        const rowFedTotal = isW2 ? getTotalFederalPaid(e) : 0;
+        const rowStateW = isW2 ? Number(e.state_withholding || 0) : 0;
         return {
           totalIncome: acc.totalIncome + (e.income_type === "loss" ? -Math.abs(amt) : amt),
           w2Income: acc.w2Income + (isW2 ? amt : 0),
@@ -322,18 +329,20 @@ export default function PersonalIncome() {
           w2FederalWH: acc.w2FederalWH + (isW2 ? Number(e.federal_withholding || 0) : 0),
           w2SsWH: acc.w2SsWH + (isW2 ? Number(e.ss_withholding || 0) : 0),
           w2MedicareWH: acc.w2MedicareWH + (isW2 ? Number(e.medicare_withholding || 0) : 0),
+          w2FedTotal: acc.w2FedTotal + rowFedTotal,
+          w2StateWH: acc.w2StateWH + rowStateW,
         };
       },
-      { totalIncome: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0, w2FederalWH: 0, w2SsWH: 0, w2MedicareWH: 0 }
+      { totalIncome: 0, w2Income: 0, capitalGains: 0, passiveIncome: 0, w2FederalWH: 0, w2SsWH: 0, w2MedicareWH: 0, w2FedTotal: 0, w2StateWH: 0 }
     );
     return {
       ...stats,
       w2PayrollTaxTotal: stats.w2FederalWH + stats.w2SsWH + stats.w2MedicareWH,
       totalWithheld: stateIncomeTaxEnabled
-        ? canonicalWithholding.actual.total
-        : canonicalWithholding.actual.federal,
+        ? stats.w2FedTotal + stats.w2StateWH
+        : stats.w2FedTotal,
     };
-  }, [entries, canonicalWithholding, stateIncomeTaxEnabled]);
+  }, [entries, stateIncomeTaxEnabled]);
 
 
   // Base withholding recommendation for Modal 1
