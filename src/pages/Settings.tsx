@@ -1977,9 +1977,13 @@ function ConnectedAccountsSection() {
                           <Badge variant="destructive" className="text-[10px] gap-1">
                             <AlertTriangle className="h-3 w-3" /> Reconnect required
                           </Badge>
-                        ) : (item as any).sync_status === "syncing" ? (
+                        ) : isActivelySyncing(item) ? (
                           <Badge variant="secondary" className="text-[10px] gap-1">
                             <Loader2 className="h-3 w-3 animate-spin" /> Syncing…
+                          </Badge>
+                        ) : isStalledSync(item) ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Sync stalled — retry available
                           </Badge>
                         ) : (item as any).sync_status === "error" ? (
                           <Badge variant="destructive" className="text-[10px] gap-1">
@@ -1989,7 +1993,7 @@ function ConnectedAccountsSection() {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {accounts.length} account{accounts.length !== 1 ? "s" : ""} · synced {formatDate((item as any).last_successful_sync_at || item.last_synced_at)}
-                        {(item as any).sync_status === "error" && (item as any).last_sync_error
+                        {((item as any).sync_status === "error" || isStalledSync(item)) && (item as any).last_sync_error
                           ? ` · ${(item as any).last_sync_error}`
                           : ""}
                       </p>
