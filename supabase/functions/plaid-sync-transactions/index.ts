@@ -930,6 +930,8 @@ Deno.serve(async (req) => {
       balances_refreshed: balancesRefreshed,
       balance_warnings: balanceWarnings,
       account_logs,
+      item_results: itemResults,
+      all_items_ok: itemResults.length === 0 || itemResults.every((r) => r.status === "success"),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("Error:", err);
