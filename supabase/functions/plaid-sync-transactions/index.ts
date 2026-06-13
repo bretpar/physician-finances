@@ -163,6 +163,7 @@ type RouteContext = {
   accounts: PlaidAccount[];
   accountBizMap: Record<string, { companyName: string; companyId: string | null; mode: string }>;
   newlyAdded: Array<{ id: string; plaid_account_id: string; amount: number; date: string; name: string; raw_amount: number }>;
+  lastRouteError?: string | null;
 };
 
 type RouteResult = "routed" | "duplicate" | "needs_review" | "skipped" | "error";
