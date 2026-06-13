@@ -1690,7 +1690,14 @@ export default function PersonalIncome() {
               onUnlink: linkedGroupId
                 ? (itemId) => unlinkIncomeMatchItem.mutate({ itemId, groupId: linkedGroupId })
                 : undefined,
-              onLink: () => { setDetailEntry(null); enterMobileSelectionWith(e.id); },
+              onLink: () => {
+                const target = e;
+                setDetailEntry(null);
+                // Open the Plaid candidate picker. Defer one tick so the
+                // detail drawer's close animation doesn't swallow the
+                // dialog open event.
+                setTimeout(() => setLinkModalEntry(target), 0);
+              },
             }}
             onEdit={() => { const target = e; setDetailEntry(null); openEdit(target); }}
             onDelete={isYtd ? undefined : () => { setDeleteId(e.id); setDetailEntry(null); }}
