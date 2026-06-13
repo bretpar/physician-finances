@@ -793,6 +793,7 @@ Deno.serve(async (req) => {
 
             if (rawUpdateError || !plaidRow) {
               console.error("Persist modified raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: rawUpdateError });
+              persistErrorMessage = `Updating Plaid transaction failed: ${rawUpdateError?.message || rawUpdateError?.code || "unknown DB error"}`;
               itemHadPersistError = true;
               break;
             }
