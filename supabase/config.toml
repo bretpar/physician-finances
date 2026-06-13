@@ -1,15 +1,4 @@
 project_id = "fiqnxprhvsadcqicczkg"
 
-[functions.admin-metrics]
-verify_jwt = false
-
-[functions.admin-list-users]
-verify_jwt = false
-
-# admin-delete-user intentionally not implemented yet; future write actions require super_admin-only safeguards.
-
-[functions.account-cleanup]
-verify_jwt = false
-
-[functions.onboarding-signup]
+[functions.plaid-webhook]
 verify_jwt = false
