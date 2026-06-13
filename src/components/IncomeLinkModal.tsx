@@ -59,11 +59,17 @@ export function IncomeLinkModal({ entry, open, onOpenChange }: Props) {
     createLink.mutate(
       { entryIds: [entry.id, selectedId] },
       {
-        onSuccess: () => {
-          // Linking implies user-reviewed: clear needs_review on both sides
-          // so the linked group no longer shows in the Needs Review filter.
-          if ((entry as any).needs_review) markReviewed.mutate(entry.id);
-          markReviewed.mutate(selectedId);
+        onSuccess: async () => {
+          // Linking implies user-reviewed. Clear needs_review on both
+          // sides directly (no extra toast) so the linked group disappears
+          // from the Needs Review filter.
+          try {
+            const { supabase } = await import("@/integrations/supabase/client");
+            await supabase
+              .from("income_entries")
+              .update({ needs_review: false, reviewed_at: new Date().toISOString() } as any)
+              .in("id", [entry.id, selectedId]);
+          } catch { /* non-fatal */ }
           toast.success("Income linked successfully. This paycheck will only be counted once.");
           setSelectedId(null);
           onOpenChange(false);
@@ -71,6 +77,7 @@ export function IncomeLinkModal({ entry, open, onOpenChange }: Props) {
       },
     );
   };
+
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
