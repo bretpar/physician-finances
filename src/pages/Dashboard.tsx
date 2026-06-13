@@ -14,6 +14,7 @@ import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
+import { usePlaidItems, useSyncTransactions } from "@/hooks/usePlaid";
 import DashboardQuarterlyPaymentCallout from "@/components/dashboard/QuarterlyPaymentCallout";
 import FinancialScore from "@/components/dashboard/FinancialScore";
 import PaycheckConfetti from "@/components/dashboard/PaycheckConfetti";
