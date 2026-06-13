@@ -965,10 +965,29 @@ export default function PersonalIncome() {
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenuItem onClick={() => openEdit(entry)}>
                       <Pencil className="h-4 w-4 mr-2" /> Edit
                     </DropdownMenuItem>
+                    {linkedEntryMap.has(entry.id) ? (
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const info = linkedEntryMap.get(entry.id);
+                          if (info) unlinkIncomeMatchItem.mutate({ itemId: entry.id, groupId: info.groupId });
+                        }}
+                      >
+                        <Unlink className="h-4 w-4 mr-2" /> Unlink transaction
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => setLinkModalEntry(entry)}>
+                        <Link2 className="h-4 w-4 mr-2" /> Link to bank transaction
+                      </DropdownMenuItem>
+                    )}
+                    {(entry as any).needs_review && (
+                      <DropdownMenuItem onClick={() => markReviewed.mutate(entry.id)}>
+                        <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as reviewed
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => {
                         if ((entry as any).linked_ytd_catchup_id) {
