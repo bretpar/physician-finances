@@ -483,6 +483,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Mark all targeted items as syncing + record attempt timestamp.
+    const nowIso = new Date().toISOString();
+    if (plaidItems?.length) {
+      await adminClient
+        .from("plaid_items")
+        .update({ sync_status: "syncing", last_sync_attempt_at: nowIso })
+        .in("id", plaidItems.map((i: any) => i.id));
+    }
+
     let rawImported = 0;
     let totalModified = 0;
     let totalSkipped = 0;
