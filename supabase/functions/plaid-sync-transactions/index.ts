@@ -163,6 +163,7 @@ type RouteContext = {
   accounts: PlaidAccount[];
   accountBizMap: Record<string, { companyName: string; companyId: string | null; mode: string }>;
   newlyAdded: Array<{ id: string; plaid_account_id: string; amount: number; date: string; name: string; raw_amount: number }>;
+  lastRouteError?: string | null;
 };
 
 type RouteResult = "routed" | "duplicate" | "needs_review" | "skipped" | "error";
@@ -238,6 +239,7 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
     });
     if (error) {
       console.error("Route personal income_entry error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
+      ctx.lastRouteError = `Routing personal income failed: ${error.message || error.code || "unknown DB error"}`;
       return "error";
     }
     return "routed";
@@ -294,6 +296,7 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
 
   if (error) {
     console.error("Route business transaction error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
+    ctx.lastRouteError = `Routing business transaction failed: ${error.message || error.code || "unknown DB error"}`;
     return "error";
   }
 
@@ -673,6 +676,9 @@ Deno.serve(async (req) => {
         let cursorToSave = item.cursor || undefined;
         let itemHadPersistError = false;
         let plaidErrorPayload: any = null;
+        let persistErrorMessage: string | null = null;
+        // Stable per-item context so routing failures bubble back via lastRouteError.
+        const itemCtx: RouteContext = { adminClient, user, orgId, item, accounts, accountBizMap, newlyAdded, lastRouteError: null };
 
         let accessToken = accessTokens.get(item.id) || item.access_token;
 
@@ -735,6 +741,7 @@ Deno.serve(async (req) => {
 
             if (plaidTxError || !plaidTxRow) {
               console.error("Persist raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: plaidTxError });
+              persistErrorMessage = `Persisting Plaid transaction failed: ${plaidTxError?.message || plaidTxError?.code || "unknown DB error"}`;
               itemHadPersistError = true;
               break;
             }
@@ -754,12 +761,16 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            const result = await routeRawPlaidTransaction(routeContextFor(item), plaidTxRow, routing);
+            const result = await routeRawPlaidTransaction(itemCtx, plaidTxRow, routing);
             if (result === "routed") { stat.routed++; totalRouted++; }
             else if (result === "needs_review") { stat.needs_review++; totalNeedsReview++; }
             else if (result === "duplicate") { totalDuplicates++; }
             else if (result === "skipped") { stat.skipped++; totalSkipped++; }
-            else if (result === "error") { itemHadPersistError = true; break; }
+            else if (result === "error") {
+              persistErrorMessage = itemCtx.lastRouteError || persistErrorMessage || "Failed to route a Plaid transaction";
+              itemHadPersistError = true;
+              break;
+            }
           }
 
           if (itemHadPersistError) break;
@@ -782,6 +793,7 @@ Deno.serve(async (req) => {
 
             if (rawUpdateError || !plaidRow) {
               console.error("Persist modified raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: rawUpdateError });
+              persistErrorMessage = `Updating Plaid transaction failed: ${rawUpdateError?.message || rawUpdateError?.code || "unknown DB error"}`;
               itemHadPersistError = true;
               break;
             }
@@ -862,16 +874,29 @@ Deno.serve(async (req) => {
           });
         } else {
           // Capture concise Plaid error code/message and map auth failures.
+          // If the failure was internal (DB / routing), surface persistErrorMessage
+          // instead of a meaningless generic message.
           const errCode: string | undefined = plaidErrorPayload?.error_code;
-          const errMsg: string =
-            plaidErrorPayload?.error_message ||
-            plaidErrorPayload?.display_message ||
-            errCode ||
-            "Sync failed — see edge function logs";
-          const conciseErr = errCode ? `${errCode}: ${errMsg}` : errMsg;
+          const errType: string | undefined = plaidErrorPayload?.error_type;
+          const plaidMsg: string | undefined =
+            plaidErrorPayload?.error_message || plaidErrorPayload?.display_message;
+          let conciseErr: string;
+          if (plaidErrorPayload) {
+            const base = plaidMsg || errCode || "Plaid sync failed";
+            conciseErr = errCode ? `${errCode}: ${base}` : base;
+          } else if (persistErrorMessage) {
+            conciseErr = persistErrorMessage;
+          } else {
+            conciseErr = "Sync failed at Plaid /transactions/sync — see edge function logs";
+          }
+          // Trim to keep DB column tidy.
+          conciseErr = conciseErr.slice(0, 500);
 
           const authErrorCodes = new Set([
             "ITEM_LOGIN_REQUIRED",
+            "ITEM_LOCKED",
+            "INVALID_ACCESS_TOKEN",
+            "INVALID_CREDENTIALS",
             "PENDING_EXPIRATION",
             "PENDING_DISCONNECT",
             "USER_PERMISSION_REVOKED",
@@ -891,7 +916,9 @@ Deno.serve(async (req) => {
             item_id: item.id,
             institution_name: item.institution_name,
             error_code: errCode,
-            error_message: errMsg,
+            error_type: errType,
+            error_message: plaidMsg,
+            persist_error: persistErrorMessage,
           });
 
           await adminClient.from("plaid_items").update(itemUpdate).eq("id", item.id);
