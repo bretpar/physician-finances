@@ -60,6 +60,10 @@ export function IncomeLinkModal({ entry, open, onOpenChange }: Props) {
       { entryIds: [entry.id, selectedId] },
       {
         onSuccess: () => {
+          // Linking implies user-reviewed: clear needs_review on both sides
+          // so the linked group no longer shows in the Needs Review filter.
+          if ((entry as any).needs_review) markReviewed.mutate(entry.id);
+          markReviewed.mutate(selectedId);
           toast.success("Income linked successfully. This paycheck will only be counted once.");
           setSelectedId(null);
           onOpenChange(false);
