@@ -874,16 +874,29 @@ Deno.serve(async (req) => {
           });
         } else {
           // Capture concise Plaid error code/message and map auth failures.
+          // If the failure was internal (DB / routing), surface persistErrorMessage
+          // instead of a meaningless generic message.
           const errCode: string | undefined = plaidErrorPayload?.error_code;
-          const errMsg: string =
-            plaidErrorPayload?.error_message ||
-            plaidErrorPayload?.display_message ||
-            errCode ||
-            "Sync failed — see edge function logs";
-          const conciseErr = errCode ? `${errCode}: ${errMsg}` : errMsg;
+          const errType: string | undefined = plaidErrorPayload?.error_type;
+          const plaidMsg: string | undefined =
+            plaidErrorPayload?.error_message || plaidErrorPayload?.display_message;
+          let conciseErr: string;
+          if (plaidErrorPayload) {
+            const base = plaidMsg || errCode || "Plaid sync failed";
+            conciseErr = errCode ? `${errCode}: ${base}` : base;
+          } else if (persistErrorMessage) {
+            conciseErr = persistErrorMessage;
+          } else {
+            conciseErr = "Sync failed at Plaid /transactions/sync — see edge function logs";
+          }
+          // Trim to keep DB column tidy.
+          conciseErr = conciseErr.slice(0, 500);
 
           const authErrorCodes = new Set([
             "ITEM_LOGIN_REQUIRED",
+            "ITEM_LOCKED",
+            "INVALID_ACCESS_TOKEN",
+            "INVALID_CREDENTIALS",
             "PENDING_EXPIRATION",
             "PENDING_DISCONNECT",
             "USER_PERMISSION_REVOKED",
@@ -903,7 +916,9 @@ Deno.serve(async (req) => {
             item_id: item.id,
             institution_name: item.institution_name,
             error_code: errCode,
-            error_message: errMsg,
+            error_type: errType,
+            error_message: plaidMsg,
+            persist_error: persistErrorMessage,
           });
 
           await adminClient.from("plaid_items").update(itemUpdate).eq("id", item.id);
