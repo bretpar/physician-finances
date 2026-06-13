@@ -10,13 +10,17 @@ export function usePlaidItems() {
       const { data, error } = await (supabase as any)
         .from("plaid_items_safe")
         .select("*")
-        .neq("status", "disconnected")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      const hiddenStatuses = new Set(["disconnected", "deleted", "inactive"]);
+      return (data || []).filter((item: any) => {
+        const status = String(item.status || "").toLowerCase();
+        return !hiddenStatuses.has(status);
+      });
     },
   });
 }
+
 
 // ---- Plaid Accounts ----
 export function usePlaidAccounts() {
