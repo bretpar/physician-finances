@@ -319,21 +319,27 @@ export default function Accounts() {
             {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Connect Account
           </Button>
-          {plaidItems.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={handleRefreshAll}
-              disabled={refreshingAll || syncMutation.isPending}
-              className="gap-2"
-            >
-              {refreshingAll || syncMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Refresh All
-            </Button>
-          )}
+          {plaidItems.length > 0 && (() => {
+            const anyError = (plaidItems as any[]).some((it) => it.sync_status === "error");
+            const cooldownActive = !anyError && cooldownRemaining > 0;
+            const cooldownMins = Math.ceil(cooldownRemaining / 60000);
+            return (
+              <Button
+                variant="outline"
+                onClick={handleRefreshAll}
+                disabled={refreshingAll || syncMutation.isPending || cooldownActive}
+                title={cooldownActive ? `Available again in ${cooldownMins}m` : "Refresh all connected accounts"}
+                className="gap-2"
+              >
+                {refreshingAll || syncMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {cooldownActive ? `Refresh All (${cooldownMins}m)` : "Refresh All"}
+              </Button>
+            );
+          })()}
         </div>
       </div>
 
