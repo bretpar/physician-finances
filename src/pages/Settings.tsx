@@ -1635,6 +1635,21 @@ function ConnectedAccountsSection() {
   const isNeedsReauth = (item: any) =>
     item?.status === "needs_reauth" || item?.status === "login_required" || item?.status === "error";
 
+  // A sync is considered "live" only if the item was marked syncing AND the
+  // attempt is recent (≤15 min). Anything older is treated as a stalled sync
+  // so the user can retry instead of staring at a permanent spinner.
+  const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
+  const isActivelySyncing = (item: any) => {
+    if (item?.sync_status !== "syncing") return false;
+    const ts = item?.last_sync_attempt_at ? new Date(item.last_sync_attempt_at).getTime() : 0;
+    return ts > 0 && Date.now() - ts < STUCK_THRESHOLD_MS;
+  };
+  const isStalledSync = (item: any) => {
+    if (item?.sync_status !== "syncing") return false;
+    const ts = item?.last_sync_attempt_at ? new Date(item.last_sync_attempt_at).getTime() : 0;
+    return ts === 0 || Date.now() - ts >= STUCK_THRESHOLD_MS;
+  };
+
   const handleReconnect = async (itemId: string) => {
     if (reconnectingItemId) return;
     setReconnectingItemId(itemId);
