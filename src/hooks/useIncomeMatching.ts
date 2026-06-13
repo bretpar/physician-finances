@@ -58,18 +58,63 @@ export function useIncomeMatchGroups() {
   });
 }
 
+/**
+ * True when this income_entry looks like a plain Plaid/imported bank deposit
+ * with no payroll/tax detail. These rows confirm cash but must never be
+ * chosen as canonical when an accounting/payroll row exists in the group.
+ */
+function isImportedCashIncomeRow(e: PersonalIncomeEntry): boolean {
+  const origin = (e as any).origin_type as string | null | undefined;
+  if (origin === "planner_converted" || origin === "ytd_catchup" || origin === "manual") {
+    return false;
+  }
+  const payroll =
+    Number(e.federal_withholding || 0) +
+    Number(e.state_withholding || 0) +
+    Number((e as any).ss_withholding || 0) +
+    Number((e as any).medicare_withholding || 0) +
+    Number(e.pre_tax_deductions || 0) +
+    Number(e.retirement_401k || 0) +
+    Number((e as any).healthcare_deduction || 0) +
+    Number(e.hsa_contribution || 0) +
+    Number((e as any).additional_tax_reserve || 0);
+  if (payroll > 0) return false;
+  // Heuristic for sync-created rows: linked to a Plaid transaction with
+  // gross == deposited and a "Imported from" note.
+  const note = String(e.notes || "").toLowerCase();
+  const grossEqDeposit =
+    Number(e.gross_amount || 0) > 0 &&
+    Math.abs(Number(e.gross_amount || 0) - Number(e.deposited_amount || 0)) < 0.01;
+  if ((e as any).linked_transaction_id && grossEqDeposit && note.includes("imported from")) {
+    return true;
+  }
+  if (note.includes("imported from")) return true;
+  return false;
+}
+
 function pickCanonicalIncomeEntry(entries: PersonalIncomeEntry[]): PersonalIncomeEntry {
-  // Prefer manual over planner-converted, then most-complete tax data, then earliest created.
+  // Global hierarchy:
+  //  1) Manual / planner / app-created (accounting/payroll source of truth)
+  //     ALWAYS beat Plaid/imported cash-confirmation rows.
+  //  2) Within the same origin tier, prefer payroll/tax completeness.
+  //  3) Tie-breaker: earliest created_at.
   const scored = entries.map((e) => {
     let completeness = 0;
+    if (Number(e.gross_amount || 0) > 0) completeness++;
     if (Number(e.federal_withholding || 0) > 0) completeness++;
     if (Number(e.state_withholding || 0) > 0) completeness++;
+    if (Number((e as any).ss_withholding || 0) > 0) completeness++;
+    if (Number((e as any).medicare_withholding || 0) > 0) completeness++;
+    if (Number(e.pre_tax_deductions || 0) > 0) completeness++;
     if (Number(e.retirement_401k || 0) > 0) completeness++;
+    if (Number((e as any).healthcare_deduction || 0) > 0) completeness++;
     if (Number(e.hsa_contribution || 0) > 0) completeness++;
     if (Number((e as any).additional_tax_reserve || 0) > 0) completeness++;
     if (e.notes && String(e.notes).trim()) completeness++;
     if (e.company && String(e.company).trim()) completeness++;
-    const originRank = (e as any).origin_type === "planner_converted" ? 0 : 1;
+    if (e.source_id) completeness++;
+    // Origin tier: accounting/payroll row = 1, imported cash row = 0.
+    const originRank = isImportedCashIncomeRow(e) ? 0 : 1;
     return { e, completeness, originRank };
   });
   scored.sort((a, b) => {
