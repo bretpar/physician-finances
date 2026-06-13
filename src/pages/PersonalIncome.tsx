@@ -906,11 +906,26 @@ export default function PersonalIncome() {
                   {formatDateShort(entry.income_date)}
                 </span>
                 <div className="min-w-0">
-                  <span className="text-sm font-medium text-foreground truncate block flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-foreground truncate block flex items-center gap-1.5 flex-wrap">
                     {entry.name}
                     {(entry as any).linked_ytd_catchup_id && (
                       <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
                         YTD
+                      </span>
+                    )}
+                    {linkedEntryMap.has(entry.id) && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                        <Link2 className="h-2.5 w-2.5" /> Linked
+                      </span>
+                    )}
+                    {(entry as any).needs_review && !linkedEntryMap.has(entry.id) && (
+                      <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                        Needs Review
+                      </span>
+                    )}
+                    {!(entry as any).needs_review && (entry as any).reviewed_at && (entry as any).origin_type === "planner_converted" && !linkedEntryMap.has(entry.id) && (
+                      <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        Reviewed
                       </span>
                     )}
                   </span>
@@ -920,7 +935,7 @@ export default function PersonalIncome() {
                       Setup income through {formatMonthYear(entry.income_date)}
                     </span>
                   )}
-                  {entry.notes?.includes("Converted from planned income") && (
+                  {(entry as any).origin_type === "planner_converted" && (
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">From Income Planner</span>
                   )}
                 </div>
