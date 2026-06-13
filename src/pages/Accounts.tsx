@@ -139,7 +139,7 @@ export default function Accounts() {
     item.status === "needs_reauth" || item.status === "login_required" || item.status === "error";
 
   const mostRecentSync: string | null = (plaidItems as any[]).reduce((acc: string | null, it: any) => {
-    const t = it.last_synced_at;
+    const t = it.last_successful_sync_at || it.last_synced_at;
     if (!t) return acc;
     if (!acc || new Date(t) > new Date(acc)) return t;
     return acc;
