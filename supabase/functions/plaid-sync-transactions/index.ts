@@ -296,6 +296,7 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
 
   if (error) {
     console.error("Route business transaction error:", { plaid_transaction_id: plaidTxRow.plaid_transaction_id, error });
+    ctx.lastRouteError = `Routing business transaction failed: ${error.message || error.code || "unknown DB error"}`;
     return "error";
   }
 
