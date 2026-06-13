@@ -23,7 +23,7 @@ import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { txTone } from "@/lib/transactionTones";
 import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
-import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem, useMarkIncomeReviewed } from "@/hooks/useIncomeMatching";
+import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem, useMarkIncomeReviewed, isImportedCashIncomeRow } from "@/hooks/useIncomeMatching";
 import { IncomeLinkModal } from "@/components/IncomeLinkModal";
 import { CheckCircle2, Unlink } from "lucide-react";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
