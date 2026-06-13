@@ -256,6 +256,7 @@ export type Database = {
           realized_gain_loss: number | null
           recommendation_status: string
           retirement_401k: number
+          reviewed_at: string | null
           source_bucket: string
           source_id: string | null
           ss_withholding: number
@@ -302,6 +303,7 @@ export type Database = {
           realized_gain_loss?: number | null
           recommendation_status?: string
           retirement_401k?: number
+          reviewed_at?: string | null
           source_bucket?: string
           source_id?: string | null
           ss_withholding?: number
@@ -348,6 +350,7 @@ export type Database = {
           realized_gain_loss?: number | null
           recommendation_status?: string
           retirement_401k?: number
+          reviewed_at?: string | null
           source_bucket?: string
           source_id?: string | null
           ss_withholding?: number

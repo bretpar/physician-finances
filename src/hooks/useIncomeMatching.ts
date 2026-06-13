@@ -209,3 +209,85 @@ export function useUnlinkIncomeMatchGroupItem() {
     onError: (e: any) => toast.error(e.message || "Could not unlink"),
   });
 }
+
+/**
+ * Suggest unlinked Personal Income entries that look like the same paycheck as
+ * the given entry. Used by the desktop "Link to bank transaction" modal.
+ * Score: amount closeness (max 50) + date proximity within ±7d (max 30) +
+ *        same source_id/company (15) + same canonical income_type (5).
+ */
+export interface IncomeLinkSuggestion {
+  entry: PersonalIncomeEntry;
+  score: number;
+  reason: string;
+}
+
+export function useSuggestedIncomeLinkCandidates(
+  target: PersonalIncomeEntry | null,
+  allEntries: PersonalIncomeEntry[],
+  linkedEntryIds: Set<string>,
+): IncomeLinkSuggestion[] {
+  if (!target) return [];
+  const tDate = new Date(target.income_date).getTime();
+  const tGross = Math.abs(Number(target.gross_amount) || 0);
+  const tDeposit = Math.abs(Number(target.deposited_amount) || 0);
+  const out: IncomeLinkSuggestion[] = [];
+  for (const e of allEntries) {
+    if (e.id === target.id) continue;
+    if (linkedEntryIds.has(e.id)) continue;
+    if ((e as any).status === "merged") continue;
+    const eDate = new Date(e.income_date).getTime();
+    const days = Math.abs((eDate - tDate) / 86400000);
+    if (days > 14) continue;
+    const eGross = Math.abs(Number(e.gross_amount) || 0);
+    const eDeposit = Math.abs(Number(e.deposited_amount) || 0);
+    const amts = [eGross, eDeposit].filter((n) => n > 0);
+    const refs = [tGross, tDeposit].filter((n) => n > 0);
+    let bestPctDiff = 1;
+    for (const a of amts) for (const r of refs) {
+      const diff = Math.abs(a - r) / Math.max(r, 1);
+      if (diff < bestPctDiff) bestPctDiff = diff;
+    }
+    if (bestPctDiff > 0.5) continue;
+    let score = 0;
+    score += Math.max(0, 50 - bestPctDiff * 100);
+    score += Math.max(0, 30 - days * 4);
+    if (target.source_id && e.source_id && target.source_id === e.source_id) score += 15;
+    else if (target.company && e.company && target.company.toLowerCase() === e.company.toLowerCase()) score += 10;
+    if (target.income_type && e.income_type && target.income_type === e.income_type) score += 5;
+    const reasons: string[] = [];
+    if (bestPctDiff < 0.02) reasons.push("amount matches");
+    else if (bestPctDiff < 0.1) reasons.push("similar amount");
+    if (days < 1) reasons.push("same date");
+    else if (days <= 3) reasons.push(`${Math.round(days)}d apart`);
+    else reasons.push(`${Math.round(days)}d apart`);
+    if (target.source_id && e.source_id && target.source_id === e.source_id) reasons.push("same employer");
+    out.push({ entry: e, score, reason: reasons.join(" · ") });
+  }
+  out.sort((a, b) => b.score - a.score);
+  return out;
+}
+
+/**
+ * Mark a planner-created Personal Income row as user-reviewed. Clears
+ * `needs_review` so it disappears from the Needs Review filter and stamps
+ * `reviewed_at` so the UI can show a "Reviewed" badge.
+ */
+export function useMarkIncomeReviewed() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entryId: string) => {
+      const { error } = await supabase
+        .from("income_entries")
+        .update({ needs_review: false, reviewed_at: new Date().toISOString() } as any)
+        .eq("id", entryId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      toast.success("Income marked as reviewed.");
+    },
+    onError: (e: any) => toast.error(e.message || "Could not mark reviewed"),
+  });
+}

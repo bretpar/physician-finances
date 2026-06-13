@@ -23,7 +23,9 @@ import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { txTone } from "@/lib/transactionTones";
 import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
-import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem } from "@/hooks/useIncomeMatching";
+import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem, useMarkIncomeReviewed } from "@/hooks/useIncomeMatching";
+import { IncomeLinkModal } from "@/components/IncomeLinkModal";
+import { CheckCircle2, Unlink } from "lucide-react";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
@@ -218,6 +220,10 @@ export default function PersonalIncome() {
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
   const { actualEstimate, currentPaceEstimate, forecastEstimate } = useTaxEstimate();
+  const needsReviewCount = useMemo(
+    () => rawEntries.filter((e: any) => e.needs_review).length,
+    [rawEntries],
+  );
   const stateIncomeTaxEnabled = !!taxSettings?.stateIncomeTaxEnabled;
   const w2RecMethod = taxSettings?.w2PaycheckRecMethod || "annual_w4";
   const w4Calc = useW4Calculation();
@@ -237,6 +243,18 @@ export default function PersonalIncome() {
   const { data: incomeMatchGroups } = useIncomeMatchGroups();
   const createIncomeMatchGroup = useCreateIncomeMatchGroup();
   const unlinkIncomeMatchItem = useUnlinkIncomeMatchGroupItem();
+  const markReviewed = useMarkIncomeReviewed();
+  const [linkModalEntry, setLinkModalEntry] = useState<PersonalIncomeEntry | null>(null);
+
+  // Map: entry.id -> { groupId, partnerCount }
+  const linkedEntryMap = useMemo(() => {
+    const m = new Map<string, { groupId: string; count: number }>();
+    if (!incomeMatchGroups) return m;
+    for (const [groupId, items] of incomeMatchGroups.entries()) {
+      for (const it of items) m.set(it.entry.id, { groupId, count: items.length });
+    }
+    return m;
+  }, [incomeMatchGroups]);
   const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
   const [mobileSelectedOrder, setMobileSelectedOrder] = useState<string[]>([]);
   const exitMobileSelection = () => {
@@ -809,7 +827,7 @@ export default function PersonalIncome() {
 
 
       {/* Filters */}
-      {(fromPlannerCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
+      {(fromPlannerCount > 0 || needsReviewCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={filterReview === "needs_review" ? "default" : "outline"}
@@ -892,11 +910,26 @@ export default function PersonalIncome() {
                   {formatDateShort(entry.income_date)}
                 </span>
                 <div className="min-w-0">
-                  <span className="text-sm font-medium text-foreground truncate block flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-foreground truncate block flex items-center gap-1.5 flex-wrap">
                     {entry.name}
                     {(entry as any).linked_ytd_catchup_id && (
                       <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">
                         YTD
+                      </span>
+                    )}
+                    {linkedEntryMap.has(entry.id) && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                        <Link2 className="h-2.5 w-2.5" /> Linked
+                      </span>
+                    )}
+                    {(entry as any).needs_review && !linkedEntryMap.has(entry.id) && (
+                      <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                        Needs Review
+                      </span>
+                    )}
+                    {!(entry as any).needs_review && (entry as any).reviewed_at && (entry as any).origin_type === "planner_converted" && !linkedEntryMap.has(entry.id) && (
+                      <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        Reviewed
                       </span>
                     )}
                   </span>
@@ -906,7 +939,7 @@ export default function PersonalIncome() {
                       Setup income through {formatMonthYear(entry.income_date)}
                     </span>
                   )}
-                  {entry.notes?.includes("Converted from planned income") && (
+                  {(entry as any).origin_type === "planner_converted" && (
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">From Income Planner</span>
                   )}
                 </div>
@@ -936,10 +969,29 @@ export default function PersonalIncome() {
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenuItem onClick={() => openEdit(entry)}>
                       <Pencil className="h-4 w-4 mr-2" /> Edit
                     </DropdownMenuItem>
+                    {linkedEntryMap.has(entry.id) ? (
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const info = linkedEntryMap.get(entry.id);
+                          if (info) unlinkIncomeMatchItem.mutate({ itemId: entry.id, groupId: info.groupId });
+                        }}
+                      >
+                        <Unlink className="h-4 w-4 mr-2" /> Unlink transaction
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => setLinkModalEntry(entry)}>
+                        <Link2 className="h-4 w-4 mr-2" /> Link to bank transaction
+                      </DropdownMenuItem>
+                    )}
+                    {(entry as any).needs_review && (
+                      <DropdownMenuItem onClick={() => markReviewed.mutate(entry.id)}>
+                        <CheckCircle2 className="h-4 w-4 mr-2" /> Mark as reviewed
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => {
                         if ((entry as any).linked_ytd_catchup_id) {
@@ -984,8 +1036,12 @@ export default function PersonalIncome() {
                   const reserve = Number((entry as any).additional_tax_reserve || 0);
                   const dateStr = formatDate(entry.income_date);
                   const badges: LedgerRowBadge[] = [];
-                  if ((entry as any).needs_review) {
-                    badges.push({ label: "Review", tone: "warning" });
+                  if (linkedEntryMap.has(entry.id)) {
+                    badges.push({ label: "Linked", tone: "success" });
+                  } else if ((entry as any).needs_review) {
+                    badges.push({ label: "Needs Review", tone: "warning" });
+                  } else if ((entry as any).reviewed_at && (entry as any).origin_type === "planner_converted") {
+                    badges.push({ label: "Reviewed", tone: "muted" });
                   }
                   const isMobileSelected = mobileSelectedOrder.includes(entry.id);
 
@@ -1496,6 +1552,13 @@ export default function PersonalIncome() {
         transactionId={mobileViewerEntryId}
         open={!!mobileViewerEntryId}
         onClose={() => setMobileViewerEntryId(null)}
+      />
+
+      {/* Link to bank transaction modal */}
+      <IncomeLinkModal
+        entry={linkModalEntry}
+        open={!!linkModalEntry}
+        onOpenChange={(open) => { if (!open) setLinkModalEntry(null); }}
       />
 
       {/* Per-transaction tax-savings reminder */}
