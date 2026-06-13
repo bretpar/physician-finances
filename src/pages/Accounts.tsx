@@ -190,12 +190,44 @@ export default function Accounts() {
   };
 
   // ── Refresh All: sync every healthy Plaid item for this user ──
+  // Cost guardrail: 30-minute cooldown per user, bypassed when the last
+  // attempt errored (so users can retry to clear a transient failure).
+  const MANUAL_COOLDOWN_MS = 30 * 60 * 1000;
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  const cooldownKey = (userId: string) => `plaid:lastManualSync:${userId}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const last = Number(localStorage.getItem(cooldownKey(user.id)) || 0);
+      const remaining = Math.max(0, MANUAL_COOLDOWN_MS - (Date.now() - last));
+      if (!cancelled) setCooldownRemaining(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
   const handleRefreshAll = async () => {
     const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
     if (healthy.length === 0) {
       toast.info("No healthy accounts to refresh");
       return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const last = Number(localStorage.getItem(cooldownKey(user.id)) || 0);
+      const allItemsOk = healthy.every((it: any) => it.sync_status !== "error");
+      const remaining = MANUAL_COOLDOWN_MS - (Date.now() - last);
+      if (allItemsOk && remaining > 0) {
+        const mins = Math.ceil(remaining / 60000);
+        toast.info(`Please wait ${mins} more minute${mins === 1 ? "" : "s"} before refreshing again`);
+        return;
+      }
     }
     setRefreshingAll(true);
     toast.message(`Refreshing ${healthy.length} account${healthy.length === 1 ? "" : "s"}…`);
@@ -212,18 +244,25 @@ export default function Accounts() {
       })
     );
     setRefreshingAll(false);
+    if (user) {
+      localStorage.setItem(cooldownKey(user.id), String(Date.now()));
+      setCooldownRemaining(MANUAL_COOLDOWN_MS);
+    }
     if (failed === 0) toast.success("Refresh complete");
     else toast.warning(`Refreshed ${ok}, ${failed} failed`);
   };
 
-  // ── Auto-refresh on mount: trigger a background sync if it's been > 5 min ──
+  // ── Auto-refresh on mount: trigger a background sync only when items are
+  // stale (>24h). TODO: drop to 12h for premium users when that flag exists.
+  const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
   useEffect(() => {
     if (isLoading) return;
     const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
     if (healthy.length === 0) return;
-    const stale = healthy.some((it) => {
-      if (!it.last_synced_at) return true;
-      return Date.now() - new Date(it.last_synced_at).getTime() > 5 * 60 * 1000;
+    const stale = healthy.some((it: any) => {
+      const ts = it.last_successful_sync_at || it.last_synced_at;
+      if (!ts) return true;
+      return Date.now() - new Date(ts).getTime() > STALE_THRESHOLD_MS;
     });
     if (!stale) return;
     syncMutation.mutate(undefined);
