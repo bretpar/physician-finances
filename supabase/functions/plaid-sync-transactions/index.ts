@@ -666,6 +666,8 @@ Deno.serve(async (req) => {
       }
     } else {
       for (const item of plaidItems) {
+       try {
+
         let hasMore = true;
         let cursor = item.cursor || undefined;
         let cursorToSave = item.cursor || undefined;
