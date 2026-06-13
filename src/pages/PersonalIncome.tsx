@@ -1714,12 +1714,23 @@ export default function PersonalIncome() {
               </section>
             }
             linked={{
-              items: linkedSiblings.map((it) => ({
-                id: it.itemId,
-                label: it.entry.name || "(No payor)",
-                amount: Number(it.entry.gross_amount) || 0,
-                date: formatDateShort(it.entry.income_date),
-              })),
+              items: linkedSiblings.map((it) => {
+                const imported = isImportedCashIncomeRow(it.entry);
+                const deposit = Number(
+                  it.entry.deposited_amount ?? it.entry.gross_amount ?? it.entry.paycheck_amount ?? 0,
+                ) || 0;
+                const acct = (it.entry as any).company || (it.entry as any).source_name || null;
+                const dateStr = formatDateShort(it.entry.income_date);
+                return {
+                  id: it.itemId,
+                  label: imported
+                    ? `${it.entry.name || "(No payor)"} — Bank deposit`
+                    : it.entry.name || "(No payor)",
+                  amount: imported ? deposit : Number(it.entry.gross_amount) || 0,
+                  date: imported && acct ? `${acct} · ${dateStr}` : dateStr,
+                };
+              }),
+
               onUnlink: linkedGroupId
                 ? (itemId) => unlinkIncomeMatchItem.mutate({ itemId, groupId: linkedGroupId })
                 : undefined,
