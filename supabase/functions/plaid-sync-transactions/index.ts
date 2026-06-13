@@ -741,6 +741,7 @@ Deno.serve(async (req) => {
 
             if (plaidTxError || !plaidTxRow) {
               console.error("Persist raw plaid_transaction error:", { account_id: txn.account_id, transaction_id: txn.transaction_id, error: plaidTxError });
+              persistErrorMessage = `Persisting Plaid transaction failed: ${plaidTxError?.message || plaidTxError?.code || "unknown DB error"}`;
               itemHadPersistError = true;
               break;
             }
