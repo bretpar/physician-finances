@@ -1630,6 +1630,48 @@ function ConnectedAccountsSection() {
   const [editCompanyId, setEditCompanyId] = useState<string>("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
+  const [reconnectingItemId, setReconnectingItemId] = useState<string | null>(null);
+
+  const isNeedsReauth = (item: any) =>
+    item?.status === "needs_reauth" || item?.status === "login_required" || item?.status === "error";
+
+  const handleReconnect = async (itemId: string) => {
+    if (reconnectingItemId) return;
+    setReconnectingItemId(itemId);
+    try {
+      const { data, error } = await supabase.functions.invoke("plaid-create-link-token", {
+        body: { item_id: itemId, update_mode: true },
+      });
+      if (error || !data?.link_token) {
+        toast.error("Failed to start reconnect flow");
+        return;
+      }
+      if (!(window as any).Plaid) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Failed to load Plaid"));
+          document.head.appendChild(script);
+        });
+      }
+      const handler = (window as any).Plaid.create({
+        token: data.link_token,
+        onSuccess: () => {
+          toast.success("Connection restored");
+          setSyncingItemId(itemId);
+          syncMutation.mutate(itemId, { onSettled: () => setSyncingItemId(null) });
+        },
+        onExit: () => {},
+      });
+      handler.open();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to open reconnect flow");
+    } finally {
+      setReconnectingItemId(null);
+    }
+  };
 
   // Post-link review modal
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
