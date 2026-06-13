@@ -13,7 +13,6 @@ import {
 import {
   useCreateIncomeMatchGroup,
   useIncomeMatchGroups,
-  useMarkIncomeReviewed,
   useSuggestedIncomeLinkCandidates,
 } from "@/hooks/useIncomeMatching";
 import { formatDateShort } from "@/lib/localDate";
