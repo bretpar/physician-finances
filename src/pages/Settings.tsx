@@ -2085,13 +2085,21 @@ function ConnectedAccountsSection() {
                           </Button>
                         )}
                         <Button
-                          variant="outline" size="sm"
-                          onClick={() => backfillMutation.mutate(undefined)}
+                          variant="ghost" size="sm"
+                          onClick={() => {
+                            const ok = window.confirm(
+                              "Advanced backfill will re-process every historical transaction Plaid has for this institution. " +
+                              "It may re-import older transactions and create duplicates if you have edited matching rows manually. " +
+                              "Use this only if Sync Now is not catching up. Continue?"
+                            );
+                            if (ok) backfillMutation.mutate(undefined);
+                          }}
                           disabled={backfillMutation.isPending}
-                          className="gap-1.5"
+                          className="gap-1.5 text-muted-foreground"
+                          title="Advanced: re-process all historical Plaid transactions for this institution"
                         >
                           {backfillMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                          Re-sync / Backfill
+                          Advanced backfill
                         </Button>
                         <Button
                           variant="ghost" size="sm"
