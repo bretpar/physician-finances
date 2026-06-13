@@ -499,15 +499,29 @@ Deno.serve(async (req) => {
       item_status?: string;
     }> = [];
 
+    // Stuck-sync protection: any item previously marked 'syncing' whose last
+    // attempt is older than 15 minutes is reset to error so retries aren't
+    // blocked and the UI doesn't spin forever.
+    const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
+    const stuckCutoffIso = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString();
+    await adminClient
+      .from("plaid_items")
+      .update({
+        sync_status: "error",
+        last_sync_error: "Previous sync did not complete. Please retry.",
+      })
+      .eq("user_id", user.id)
+      .eq("sync_status", "syncing")
+      .lt("last_sync_attempt_at", stuckCutoffIso);
+
     // Mark all targeted items as syncing + record attempt timestamp.
-    // Safe stuck-sync handling: a previously-stuck 'syncing' state is simply
-    // overwritten here so the user can retry without manual intervention.
     const nowIso = new Date().toISOString();
-    if (plaidItems?.length) {
+    const targetedItemIds: string[] = (plaidItems || []).map((i: any) => i.id);
+    if (targetedItemIds.length) {
       await adminClient
         .from("plaid_items")
         .update({ sync_status: "syncing", last_sync_attempt_at: nowIso })
-        .in("id", plaidItems.map((i: any) => i.id));
+        .in("id", targetedItemIds);
     }
 
     let rawImported = 0;
