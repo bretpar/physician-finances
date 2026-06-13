@@ -149,21 +149,26 @@ function syncSummary(data: any) {
 }
 
 // ---- Sync Transactions ----
+// Pass { silent: true } for background syncs (no success toast, error toast only).
+type SyncArg = string | undefined | { itemId?: string; silent?: boolean };
 export function useSyncTransactions() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (itemId?: string) => {
+    mutationFn: async (arg?: SyncArg) => {
+      const itemId = typeof arg === "string" ? arg : arg?.itemId;
+      const silent = typeof arg === "object" && arg?.silent;
       const { data, error } = await supabase.functions.invoke("plaid-sync-transactions", {
         body: itemId ? { item_id: itemId } : {},
       });
       if (error) throw error;
-      return data;
+      return { data, silent };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ data, silent }) => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
+      if (silent) return;
       toast.success(data?.mode === "backfill" ? "Backfill complete" : "Sync complete", {
         description: syncSummary(data),
       });

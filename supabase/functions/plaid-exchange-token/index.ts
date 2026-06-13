@@ -102,6 +102,33 @@ Deno.serve(async (req) => {
 
     const orgId = orgMember?.organization_id;
 
+    // Webhook URL for Plaid item updates (transactions, item errors, etc.)
+    const webhookUrl =
+      Deno.env.get("PLAID_WEBHOOK_URL") ||
+      (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/plaid-webhook` : null);
+
+    // Register webhook with Plaid (best effort — failure must not block the
+    // connection; daily cron + manual refresh remain as fallbacks).
+    if (webhookUrl) {
+      try {
+        const whRes = await fetch(`${plaidHost}/item/webhook/update`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: PLAID_CLIENT_ID,
+            secret: PLAID_SECRET,
+            access_token: exchangeData.access_token,
+            webhook: webhookUrl,
+          }),
+        });
+        if (!whRes.ok) {
+          console.error("Plaid webhook register failed:", await whRes.text());
+        }
+      } catch (e) {
+        console.error("Plaid webhook register exception:", e);
+      }
+    }
+
     // Save plaid_item with placeholder token (will be moved to vault)
     const { data: itemRow, error: insertError } = await adminClient.from("plaid_items").insert({
       user_id: user.id,
@@ -111,6 +138,7 @@ Deno.serve(async (req) => {
       institution_name: institution_name || "Unknown Bank",
       institution_id: institution_id || "",
       status: "active",
+      webhook_url: webhookUrl,
     }).select("id").single();
 
     if (insertError) {

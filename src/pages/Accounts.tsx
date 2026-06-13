@@ -139,7 +139,7 @@ export default function Accounts() {
     item.status === "needs_reauth" || item.status === "login_required" || item.status === "error";
 
   const mostRecentSync: string | null = (plaidItems as any[]).reduce((acc: string | null, it: any) => {
-    const t = it.last_synced_at;
+    const t = it.last_successful_sync_at || it.last_synced_at;
     if (!t) return acc;
     if (!acc || new Date(t) > new Date(acc)) return t;
     return acc;
@@ -190,12 +190,44 @@ export default function Accounts() {
   };
 
   // ── Refresh All: sync every healthy Plaid item for this user ──
+  // Cost guardrail: 30-minute cooldown per user, bypassed when the last
+  // attempt errored (so users can retry to clear a transient failure).
+  const MANUAL_COOLDOWN_MS = 30 * 60 * 1000;
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  const cooldownKey = (userId: string) => `plaid:lastManualSync:${userId}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+      const last = Number(localStorage.getItem(cooldownKey(user.id)) || 0);
+      const remaining = Math.max(0, MANUAL_COOLDOWN_MS - (Date.now() - last));
+      if (!cancelled) setCooldownRemaining(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
   const handleRefreshAll = async () => {
     const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
     if (healthy.length === 0) {
       toast.info("No healthy accounts to refresh");
       return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const last = Number(localStorage.getItem(cooldownKey(user.id)) || 0);
+      const allItemsOk = healthy.every((it: any) => it.sync_status !== "error");
+      const remaining = MANUAL_COOLDOWN_MS - (Date.now() - last);
+      if (allItemsOk && remaining > 0) {
+        const mins = Math.ceil(remaining / 60000);
+        toast.info(`Please wait ${mins} more minute${mins === 1 ? "" : "s"} before refreshing again`);
+        return;
+      }
     }
     setRefreshingAll(true);
     toast.message(`Refreshing ${healthy.length} account${healthy.length === 1 ? "" : "s"}…`);
@@ -212,18 +244,25 @@ export default function Accounts() {
       })
     );
     setRefreshingAll(false);
+    if (user) {
+      localStorage.setItem(cooldownKey(user.id), String(Date.now()));
+      setCooldownRemaining(MANUAL_COOLDOWN_MS);
+    }
     if (failed === 0) toast.success("Refresh complete");
     else toast.warning(`Refreshed ${ok}, ${failed} failed`);
   };
 
-  // ── Auto-refresh on mount: trigger a background sync if it's been > 5 min ──
+  // ── Auto-refresh on mount: trigger a background sync only when items are
+  // stale (>24h). TODO: drop to 12h for premium users when that flag exists.
+  const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
   useEffect(() => {
     if (isLoading) return;
     const healthy = (plaidItems as any[]).filter((it) => !isNeedsReauth(it));
     if (healthy.length === 0) return;
-    const stale = healthy.some((it) => {
-      if (!it.last_synced_at) return true;
-      return Date.now() - new Date(it.last_synced_at).getTime() > 5 * 60 * 1000;
+    const stale = healthy.some((it: any) => {
+      const ts = it.last_successful_sync_at || it.last_synced_at;
+      if (!ts) return true;
+      return Date.now() - new Date(ts).getTime() > STALE_THRESHOLD_MS;
     });
     if (!stale) return;
     syncMutation.mutate(undefined);
@@ -280,21 +319,27 @@ export default function Accounts() {
             {linkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Connect Account
           </Button>
-          {plaidItems.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={handleRefreshAll}
-              disabled={refreshingAll || syncMutation.isPending}
-              className="gap-2"
-            >
-              {refreshingAll || syncMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Refresh All
-            </Button>
-          )}
+          {plaidItems.length > 0 && (() => {
+            const anyError = (plaidItems as any[]).some((it) => it.sync_status === "error");
+            const cooldownActive = !anyError && cooldownRemaining > 0;
+            const cooldownMins = Math.ceil(cooldownRemaining / 60000);
+            return (
+              <Button
+                variant="outline"
+                onClick={handleRefreshAll}
+                disabled={refreshingAll || syncMutation.isPending || cooldownActive}
+                title={cooldownActive ? `Available again in ${cooldownMins}m` : "Refresh all connected accounts"}
+                className="gap-2"
+              >
+                {refreshingAll || syncMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {cooldownActive ? `Refresh All (${cooldownMins}m)` : "Refresh All"}
+              </Button>
+            );
+          })()}
         </div>
       </div>
 
@@ -318,14 +363,25 @@ export default function Accounts() {
                         <p className="text-sm font-medium text-card-foreground truncate">{item.institution_name}</p>
                         {isNeedsReauth(item) ? (
                           <Badge variant="destructive" className="text-[10px] gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Needs attention
+                            <AlertTriangle className="h-3 w-3" /> Reconnect required
+                          </Badge>
+                        ) : (item as any).sync_status === "syncing" ? (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Syncing…
+                          </Badge>
+                        ) : (item as any).sync_status === "error" ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Sync failed
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-[10px]">Connected</Badge>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Last synced {formatRelative(item.last_synced_at)}
+                        Last synced {formatRelative((item as any).last_successful_sync_at || item.last_synced_at)}
+                        {(item as any).sync_status === "error" && (item as any).last_sync_error
+                          ? ` · ${(item as any).last_sync_error}`
+                          : ""}
                       </p>
                     </div>
                   </div>

@@ -483,6 +483,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Mark all targeted items as syncing + record attempt timestamp.
+    const nowIso = new Date().toISOString();
+    if (plaidItems?.length) {
+      await adminClient
+        .from("plaid_items")
+        .update({ sync_status: "syncing", last_sync_attempt_at: nowIso })
+        .in("id", plaidItems.map((i: any) => i.id));
+    }
+
     let rawImported = 0;
     let totalModified = 0;
     let totalSkipped = 0;
@@ -755,7 +764,23 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (plaidTx) {
-              await adminClient.from("transactions").delete().eq("plaid_transaction_ref", plaidTx.id);
+              // Preserve user-edited app rows: detach the plaid ref and mark
+              // status instead of hard-deleting. Plain unedited rows can be
+              // removed as before.
+              const { data: appRow } = await adminClient
+                .from("transactions")
+                .select("id, user_edited")
+                .eq("plaid_transaction_ref", plaidTx.id)
+                .maybeSingle();
+
+              if (appRow?.user_edited) {
+                await adminClient
+                  .from("transactions")
+                  .update({ plaid_transaction_ref: null, match_status: "plaid_removed" })
+                  .eq("id", appRow.id);
+              } else if (appRow) {
+                await adminClient.from("transactions").delete().eq("id", appRow.id);
+              }
             }
 
             await adminClient
@@ -770,12 +795,26 @@ Deno.serve(async (req) => {
         }
 
         if (!itemHadPersistError) {
+          const successIso = new Date().toISOString();
           await adminClient
             .from("plaid_items")
-            .update({ cursor: cursorToSave || item.cursor, last_synced_at: new Date().toISOString() })
+            .update({
+              cursor: cursorToSave || item.cursor,
+              last_synced_at: successIso,
+              last_successful_sync_at: successIso,
+              last_sync_error: null,
+              sync_status: "idle",
+            })
             .eq("id", item.id);
         } else {
           console.error("Plaid cursor not advanced because raw persistence/routing failed", { item_id: item.id, institution_name: item.institution_name });
+          await adminClient
+            .from("plaid_items")
+            .update({
+              sync_status: "error",
+              last_sync_error: "Sync failed — see edge function logs",
+            })
+            .eq("id", item.id);
         }
       }
     }

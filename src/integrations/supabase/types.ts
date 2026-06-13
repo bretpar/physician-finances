@@ -806,12 +806,17 @@ export type Database = {
           institution_id: string
           institution_name: string
           item_id: string
+          last_successful_sync_at: string | null
+          last_sync_attempt_at: string | null
+          last_sync_error: string | null
           last_synced_at: string | null
           organization_id: string | null
           status: string
+          sync_status: string
           updated_at: string
           user_id: string
           vault_secret_id: string | null
+          webhook_url: string | null
         }
         Insert: {
           access_token: string
@@ -821,12 +826,17 @@ export type Database = {
           institution_id?: string
           institution_name?: string
           item_id: string
+          last_successful_sync_at?: string | null
+          last_sync_attempt_at?: string | null
+          last_sync_error?: string | null
           last_synced_at?: string | null
           organization_id?: string | null
           status?: string
+          sync_status?: string
           updated_at?: string
           user_id: string
           vault_secret_id?: string | null
+          webhook_url?: string | null
         }
         Update: {
           access_token?: string
@@ -836,12 +846,17 @@ export type Database = {
           institution_id?: string
           institution_name?: string
           item_id?: string
+          last_successful_sync_at?: string | null
+          last_sync_attempt_at?: string | null
+          last_sync_error?: string | null
           last_synced_at?: string | null
           organization_id?: string | null
           status?: string
+          sync_status?: string
           updated_at?: string
           user_id?: string
           vault_secret_id?: string | null
+          webhook_url?: string | null
         }
         Relationships: [
           {
@@ -2217,11 +2232,16 @@ export type Database = {
           institution_id: string | null
           institution_name: string | null
           item_id: string | null
+          last_successful_sync_at: string | null
+          last_sync_attempt_at: string | null
+          last_sync_error: string | null
           last_synced_at: string | null
           organization_id: string | null
           status: string | null
+          sync_status: string | null
           updated_at: string | null
           user_id: string | null
+          webhook_url: string | null
         }
         Insert: {
           created_at?: string | null
@@ -2230,11 +2250,16 @@ export type Database = {
           institution_id?: string | null
           institution_name?: string | null
           item_id?: string | null
+          last_successful_sync_at?: string | null
+          last_sync_attempt_at?: string | null
+          last_sync_error?: string | null
           last_synced_at?: string | null
           organization_id?: string | null
           status?: string | null
+          sync_status?: string | null
           updated_at?: string | null
           user_id?: string | null
+          webhook_url?: string | null
         }
         Update: {
           created_at?: string | null
@@ -2243,11 +2268,16 @@ export type Database = {
           institution_id?: string | null
           institution_name?: string | null
           item_id?: string | null
+          last_successful_sync_at?: string | null
+          last_sync_attempt_at?: string | null
+          last_sync_error?: string | null
           last_synced_at?: string | null
           organization_id?: string | null
           status?: string | null
+          sync_status?: string | null
           updated_at?: string | null
           user_id?: string | null
+          webhook_url?: string | null
         }
         Relationships: [
           {

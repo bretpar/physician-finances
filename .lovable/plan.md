@@ -1,47 +1,80 @@
-# Goal
-Make the W-2 reusable Codex scenario pass end-to-end for `brendantparker+codexw2@gmail.com` while preserving existing behavior for everyone else. Four distinct bugs, fixed with the smallest possible surface area.
+# Plaid Sync Improvements
 
-# Findings from the codebase
+Targeted change focused only on sync triggering, scheduling, metadata, and upsert safety. No refactor of unrelated Plaid, ledger, or tax code.
 
-1. **Safe erase** (`DangerZoneSection` + `account-cleanup` edge function): the edge function already resets `tax_settings` with `onboarding_complete=false`, and the client hard-navigates to `/onboarding?reset=1` after clearing React Query and `paycheckmd-*` storage. The previous regression test exists at `e2e/safe-erase-onboarding-routing.spec.ts`. If routing still fails for this user, the most likely cause is a stale `taxSettings` read racing the hard nav, or the Onboarding page redirecting on a transient cached value.
-2. **Multi-W2 persistence**: `Onboarding.createOnboardingCompanies` reads `supabase.from("companies").select("name, company_type")` without a `user_id` scope. Under org RLS this can return rows from other users in the same org and silently dedupe the new W-2 against another user's company. It also never captures `pay_frequency`, which is why “Not set” appears in Settings.
-3. **YTD W-2 → ledger**: `YtdCatchupForm` writes to `ytd_catchup_entries` only. `backfillYtdCatchupCompanies` only mirrors **1099/K-1** entries into `transactions`; W-2 catch-ups are never reflected as `income_entries`, so the Personal Income ledger shows zero.
-4. **Tax Overview zeros**: `useDashboardSummary` / Tax Overview read `income_entries` + tax engine; with no W-2 entries created, totals are 0. Fixing #3 fixes #4.
+## 1. Schema (one migration)
 
-# Changes
+Add to `public.plaid_items`:
+- `last_sync_attempt_at timestamptz`
+- `last_successful_sync_at timestamptz`
+- `last_sync_error text`
+- `sync_status text` — one of `idle | syncing | error` (default `idle`)
+- `webhook_url text` (for visibility; actual URL lives in env)
 
-## 1. Safe-erase routing hardening
-- `src/pages/Onboarding.tsx`: when the URL contains `?reset=1` OR `localStorage["paycheckmd:erase-complete"]` is set, force `taxSettings` to refetch on mount and never short-circuit redirect to `/` even if the in-flight query returns a stale `onboardingComplete=true`. Clear the marker once Onboarding is rendered with fresh `false`.
-- Keep `App.tsx` guard unchanged.
+Keep existing `last_synced_at` and `cursor` as-is for backward compat. The function will populate both `last_synced_at` and the new `last_successful_sync_at` on success so existing UI keeps working.
 
-## 2. W-2 onboarding company persistence
-- `src/lib/onboarding.ts`: extend `OnboardingCompanyDraft` with `payFrequency?: PayFrequency` (biweekly | weekly | semimonthly | monthly | quarterly | annual).
-- `src/pages/Onboarding.tsx`:
-  - Add a pay-frequency `<Select>` next to each company draft (W-2 rows only; default biweekly).
-  - Scope the dedupe query to `user_id`: `.select("name, company_type").eq("user_id", user.id)`.
-  - Pass `pay_frequency` into the insert payload.
+## 2. `plaid-sync-transactions` edge function changes (minimal)
 
-## 3. YTD W-2 → income_entries mirror
-- `src/hooks/useYtdCatchup.ts`:
-  - Extend `backfillYtdCatchupCompanies` (or add a sibling `mirrorW2YtdToIncome`) so each W-2 catch-up row is mirrored as a single `income_entries` row with `income_type="w2"`, `entry_kind="ytd_catchup"`, `gross_amount=gross_income`, federal/state/SS/Medicare withholding fields populated, `retirement_401k`, `healthcare_deduction`, `hsa_contribution`, `income_date=period_end`, `linked_ytd_catchup_id=<entry.id>`, `source_bucket="personal"`, `include_in_tax_estimate=true`.
-  - Idempotent: skip if an income_entries row already exists with that `linked_ytd_catchup_id`.
-  - Call this from `createOnboardingCompanies` (already calls the 1099 backfill).
+- At start of each item sync: set `sync_status='syncing'`, `last_sync_attempt_at=now()`.
+- On success: set `sync_status='idle'`, `last_successful_sync_at=now()`, clear `last_sync_error`.
+- On failure: set `sync_status='error'`, set `last_sync_error=<message>`.
+- **Removed handling fix**: when Plaid reports a transaction as removed, do not hard-delete the app `transactions` row if `user_edited = true`. Instead, mark it (set `excluded_from_reports=false` left alone; set a `match_status='plaid_removed'` and detach the `plaid_transaction_ref`). Always still delete the raw `plaid_transactions` mirror + write tombstone.
+- Modified handling already preserves user-edits via `user_edited` flag — leave unchanged.
+- Accept a new entry shape from the webhook handler: `{ item_id: "<uuid>" }` invoked with service role / cron secret will sync just that one item.
 
-## 4. Regression tests
-- Update `e2e/scenarios/w2-reusable-scenario.spec.ts` to:
-  - Set per-company pay frequency from the scenario object.
-  - After onboarding, assert each company's `pay_frequency` in Settings is not "Not set".
-  - Assert Personal Income ledger shows ≥1 W-2 entry per company with the right gross.
-  - Assert Tax Overview shows non-zero W-2 income and federal withholding ≥ scenario totals.
+## 3. New webhook handler: `supabase/functions/plaid-webhook/index.ts`
 
-# Non-goals / what I will NOT change
-- Tax engine math.
-- Anything that hardcodes this specific user.
-- The 1099/K-1 mirror path (already works for Business Activity).
-- AuthContext or the App route guard logic.
+- `verify_jwt = false` (Plaid calls anonymously).
+- Validates `webhook_type` and acts on:
+  - `TRANSACTIONS` / `SYNC_UPDATES_AVAILABLE` → look up `plaid_items` row by `plaid_item_id`, invoke `plaid-sync-transactions` with `{ item_id }` using the service role + cron secret.
+  - `ITEM` / `ERROR` or `PENDING_EXPIRATION` / `USER_PERMISSION_REVOKED` → update `plaid_items.status` to `needs_reauth` and `last_sync_error`.
+  - Other types: 200 OK no-op.
+- Returns 200 quickly; sync runs as background invoke.
 
-# Risk
-- Adding pay-frequency to onboarding changes existing onboarding UI (one extra select per row, defaulting to biweekly — safe).
-- YTD W-2 mirror could double-count if a user later imports payroll for the same period; mitigation: `entry_kind="ytd_catchup"` is excluded from projected matching today and the existing dedupe-cleanup card already handles linked YTD entries.
+`plaid-exchange-token`: pass `webhook: <PLAID_WEBHOOK_URL>` when calling `/item/public_token/exchange`-flow link token + on item creation. Store `webhook_url` on the row.
 
-Please confirm and I'll implement in one pass.
+Required env: `PLAID_WEBHOOK_URL` (e.g. `https://<project>.supabase.co/functions/v1/plaid-webhook`). I'll request this via the secrets flow.
+
+## 4. Daily cron at 2:00 AM Pacific
+
+Update `install_plaid_sync_cron_job` to schedule `'0 10 * * *'` UTC (= 2:00 AM PST / 3:00 AM PDT — acceptable per spec; pure 2 AM wall clock requires DST-aware scheduling pg_cron does not support). Existing fan-out body and `x-cron-secret` flow unchanged. The cron job runs regardless of login.
+
+The cron function already skips non-active items; we'll additionally skip items with `status in ('needs_reauth','disconnected','error')`.
+
+## 5. Frontend: stale gate, cooldown, login trigger
+
+**`src/pages/Accounts.tsx`**
+- Bump stale threshold from 5 min → 24 h. (TODO comment for premium 12 h tier.)
+- "Refresh All" button: 30-minute cooldown per user stored in `localStorage` key `plaid:lastManualSync:<userId>`. Cooldown bypassed if last attempt errored. Show remaining time in disabled tooltip.
+- Per-item rows: show "Syncing…", "Sync failed: <msg>", or "Reconnect required" using new metadata; otherwise "Last synced X ago".
+
+**Dashboard login trigger** (`src/pages/Dashboard.tsx`)
+- On mount, if any active item's `last_successful_sync_at` is >24 h old (or null), fire a single background `syncMutation.mutate(undefined)` — no UI block, no toast on success, error toast only.
+- Guard with a session-scoped flag (`sessionStorage`) so it doesn't refire on remounts within the same session.
+
+No noisy toasts on routine syncs; only actionable errors.
+
+## 6. Tests
+
+Only nearby tests touched:
+- `supabase/functions/plaid-exchange-token/rls_test.ts` / `sandbox_test.ts` — leave alone unless webhook field breaks them.
+- No existing client tests for Accounts sync; skip per spec.
+
+## Files
+
+New:
+- `supabase/functions/plaid-webhook/index.ts`
+- one migration adding the 4 columns + updating `install_plaid_sync_cron_job` + re-installing the cron with the new schedule (insert tool, since it uses the secret).
+
+Edited:
+- `supabase/functions/plaid-sync-transactions/index.ts` (metadata writes, removed-transaction guard, accept `item_id` from webhook)
+- `supabase/functions/plaid-exchange-token/index.ts` (set `webhook` + `webhook_url`)
+- `src/hooks/usePlaid.ts` (expose new metadata fields)
+- `src/pages/Accounts.tsx` (24 h stale gate, 30 min cooldown, status UI)
+- `src/pages/Dashboard.tsx` (stale-only background sync once per session)
+
+## Secret needed
+
+`PLAID_WEBHOOK_URL` — I'll request it after you approve the plan; you'll paste `https://fiqnxprhvsadcqicczkg.supabase.co/functions/v1/plaid-webhook`.
+
+Approve and I'll ship it.
