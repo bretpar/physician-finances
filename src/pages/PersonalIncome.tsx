@@ -239,6 +239,18 @@ export default function PersonalIncome() {
   const { data: incomeMatchGroups } = useIncomeMatchGroups();
   const createIncomeMatchGroup = useCreateIncomeMatchGroup();
   const unlinkIncomeMatchItem = useUnlinkIncomeMatchGroupItem();
+  const markReviewed = useMarkIncomeReviewed();
+  const [linkModalEntry, setLinkModalEntry] = useState<PersonalIncomeEntry | null>(null);
+
+  // Map: entry.id -> { groupId, partnerCount }
+  const linkedEntryMap = useMemo(() => {
+    const m = new Map<string, { groupId: string; count: number }>();
+    if (!incomeMatchGroups) return m;
+    for (const [groupId, items] of incomeMatchGroups.entries()) {
+      for (const it of items) m.set(it.entry.id, { groupId, count: items.length });
+    }
+    return m;
+  }, [incomeMatchGroups]);
   const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
   const [mobileSelectedOrder, setMobileSelectedOrder] = useState<string[]>([]);
   const exitMobileSelection = () => {
