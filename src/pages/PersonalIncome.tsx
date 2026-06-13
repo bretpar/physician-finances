@@ -23,7 +23,7 @@ import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { txTone } from "@/lib/transactionTones";
 import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
-import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem, useMarkIncomeReviewed } from "@/hooks/useIncomeMatching";
+import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem, useMarkIncomeReviewed, isImportedCashIncomeRow } from "@/hooks/useIncomeMatching";
 import { IncomeLinkModal } from "@/components/IncomeLinkModal";
 import { CheckCircle2, Unlink } from "lucide-react";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
@@ -1616,6 +1616,27 @@ export default function PersonalIncome() {
           : gross - withheld - stateW - preTax - ret401k - hsa - healthcare - otherDed;
         const isYtd = !!(e as any).linked_ytd_catchup_id;
         const fromPlanner = (e as any).origin_type === "planner_converted";
+        const linkedGroupId = e.id
+          ? Array.from(incomeMatchGroups?.entries?.() || []).find(([, items]) =>
+              items.some((it) => it.entry.id === e.id),
+            )?.[0]
+          : undefined;
+        const linkedSiblings = (linkedGroupId ? incomeMatchGroups?.get(linkedGroupId) || [] : []).filter(
+          (it) => it.entry.id !== e.id,
+        );
+        // Pick the best imported/Plaid sibling to surface a confirmed bank
+        // deposit amount alongside payroll net. Canonical payroll fields are
+        // never overwritten — this is display-only.
+        const importedSibling = linkedSiblings.find((it) => isImportedCashIncomeRow(it.entry));
+        const bankDeposit = importedSibling
+          ? Number(
+              importedSibling.entry.deposited_amount ??
+                importedSibling.entry.gross_amount ??
+                importedSibling.entry.paycheck_amount ??
+                0,
+            ) || 0
+          : null;
+        const depositVariance = bankDeposit != null ? bankDeposit - netReceived : null;
         const sections: DetailSection[] = [
           {
             title: "Basic details",
@@ -1630,6 +1651,16 @@ export default function PersonalIncome() {
             fields: [
               { label: "Gross", value: fmt(gross), mono: true },
               { label: "Net received", value: fmt(netReceived), mono: true },
+              ...(bankDeposit != null
+                ? [{ label: "Bank deposit", value: fmt(bankDeposit), mono: true }]
+                : []),
+              ...(depositVariance != null && Math.abs(depositVariance) >= 0.01
+                ? [{
+                    label: "Deposit variance",
+                    value: `${depositVariance >= 0 ? "+" : "−"}${fmt(Math.abs(depositVariance))}`,
+                    mono: true,
+                  }]
+                : []),
               ...(withheld > 0 ? [{ label: "Federal paid", value: fmt(withheld), mono: true }] : []),
               ...(stateIncomeTaxEnabled && stateW > 0 ? [{ label: "State withheld", value: fmt(stateW), mono: true }] : []),
               ...(preTax > 0 ? [{ label: "Pre-tax", value: fmt(preTax), mono: true }] : []),
@@ -1641,14 +1672,7 @@ export default function PersonalIncome() {
             ],
           },
         ];
-        const linkedGroupId = e.id
-          ? Array.from(incomeMatchGroups?.entries?.() || []).find(([, items]) =>
-              items.some((it) => it.entry.id === e.id),
-            )?.[0]
-          : undefined;
-        const linkedSiblings = (linkedGroupId ? incomeMatchGroups?.get(linkedGroupId) || [] : []).filter(
-          (it) => it.entry.id !== e.id,
-        );
+
         return (
           <TransactionDetailSheet
             open={!!detailEntry}
@@ -1690,12 +1714,23 @@ export default function PersonalIncome() {
               </section>
             }
             linked={{
-              items: linkedSiblings.map((it) => ({
-                id: it.itemId,
-                label: it.entry.name || "(No payor)",
-                amount: Number(it.entry.gross_amount) || 0,
-                date: formatDateShort(it.entry.income_date),
-              })),
+              items: linkedSiblings.map((it) => {
+                const imported = isImportedCashIncomeRow(it.entry);
+                const deposit = Number(
+                  it.entry.deposited_amount ?? it.entry.gross_amount ?? it.entry.paycheck_amount ?? 0,
+                ) || 0;
+                const acct = (it.entry as any).company || (it.entry as any).source_name || null;
+                const dateStr = formatDateShort(it.entry.income_date);
+                return {
+                  id: it.itemId,
+                  label: imported
+                    ? `${it.entry.name || "(No payor)"} — Bank deposit`
+                    : it.entry.name || "(No payor)",
+                  amount: imported ? deposit : Number(it.entry.gross_amount) || 0,
+                  date: imported && acct ? `${acct} · ${dateStr}` : dateStr,
+                };
+              }),
+
               onUnlink: linkedGroupId
                 ? (itemId) => unlinkIncomeMatchItem.mutate({ itemId, groupId: linkedGroupId })
                 : undefined,
