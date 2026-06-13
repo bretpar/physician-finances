@@ -357,14 +357,25 @@ export default function Accounts() {
                         <p className="text-sm font-medium text-card-foreground truncate">{item.institution_name}</p>
                         {isNeedsReauth(item) ? (
                           <Badge variant="destructive" className="text-[10px] gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Needs attention
+                            <AlertTriangle className="h-3 w-3" /> Reconnect required
+                          </Badge>
+                        ) : (item as any).sync_status === "syncing" ? (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Syncing…
+                          </Badge>
+                        ) : (item as any).sync_status === "error" ? (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Sync failed
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-[10px]">Connected</Badge>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Last synced {formatRelative(item.last_synced_at)}
+                        Last synced {formatRelative((item as any).last_successful_sync_at || item.last_synced_at)}
+                        {(item as any).sync_status === "error" && (item as any).last_sync_error
+                          ? ` · ${(item as any).last_sync_error}`
+                          : ""}
                       </p>
                     </div>
                   </div>
