@@ -1037,7 +1037,7 @@ export default function PersonalIncome() {
                   } else if ((entry as any).needs_review) {
                     badges.push({ label: "Needs Review", tone: "warning" });
                   } else if ((entry as any).reviewed_at && (entry as any).origin_type === "planner_converted") {
-                    badges.push({ label: "Reviewed", tone: "neutral" });
+                    badges.push({ label: "Reviewed", tone: "muted" });
                   }
                   const isMobileSelected = mobileSelectedOrder.includes(entry.id);
 
