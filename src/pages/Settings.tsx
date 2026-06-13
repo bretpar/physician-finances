@@ -1621,6 +1621,35 @@ function ConnectedAccountsSection() {
   const bulkApplyMutation = useBulkApplyAccountBusiness();
   const backfillMutation = useBackfillPlaidTransactions();
   const reviewAccountsMutation = useReviewAccounts();
+  const queryClient = useQueryClient();
+
+  // Emergency cleanup on mount: any item still flagged 'syncing' with a
+  // stale (>15 min) last attempt is downgraded to error so the UI never
+  // shows a permanent spinner left over from a crashed prior run.
+  useEffect(() => {
+    if (!plaidItems?.length) return;
+    const cutoff = Date.now() - 15 * 60 * 1000;
+    const stuckIds = (plaidItems as any[])
+      .filter((it) => {
+        if (it?.sync_status !== "syncing") return false;
+        const ts = it?.last_sync_attempt_at ? new Date(it.last_sync_attempt_at).getTime() : 0;
+        return ts === 0 || ts < cutoff;
+      })
+      .map((it) => it.id);
+    if (stuckIds.length === 0) return;
+    (async () => {
+      await (supabase as any)
+        .from("plaid_items")
+        .update({
+          sync_status: "error",
+          last_sync_error: "Previous sync did not complete. Please retry.",
+        })
+        .in("id", stuckIds);
+      queryClient.invalidateQueries({ queryKey: ["plaid-items"] });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plaidItemsLoading]);
+
 
   const [linkLoading, setLinkLoading] = useState(false);
   const [disconnectItemId, setDisconnectItemId] = useState<string | null>(null);
