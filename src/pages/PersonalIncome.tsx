@@ -1650,16 +1650,20 @@ export default function PersonalIncome() {
             title: "Tax details",
             fields: [
               { label: "Gross", value: fmt(gross), mono: true },
-              { label: "Net received", value: fmt(netReceived), mono: true },
-              ...(bankDeposit != null
-                ? [{ label: "Bank deposit", value: fmt(bankDeposit), mono: true }]
-                : []),
-              ...(depositVariance != null && Math.abs(depositVariance) >= 0.01
-                ? [{
-                    label: "Deposit variance",
-                    value: `${depositVariance >= 0 ? "+" : "−"}${fmt(Math.abs(depositVariance))}`,
-                    mono: true,
-                  }]
+              {
+                label: "Net received",
+                value: fmt(bankDeposit != null ? bankDeposit : netReceived),
+                mono: true,
+              },
+              ...(bankDeposit != null && depositVariance != null && Math.abs(depositVariance) >= 0.01
+                ? [
+                    { label: "Calculated payroll net", value: fmt(netReceived), mono: true },
+                    {
+                      label: "Deposit variance",
+                      value: `${depositVariance >= 0 ? "+" : "−"}${fmt(Math.abs(depositVariance))}`,
+                      mono: true,
+                    },
+                  ]
                 : []),
               ...(withheld > 0 ? [{ label: "Federal paid", value: fmt(withheld), mono: true }] : []),
               ...(stateIncomeTaxEnabled && stateW > 0 ? [{ label: "State withheld", value: fmt(stateW), mono: true }] : []),
