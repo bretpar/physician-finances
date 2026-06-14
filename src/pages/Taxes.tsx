@@ -40,6 +40,7 @@ import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { getActivePaymentTarget } from "@/lib/quarterRecommendation";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
