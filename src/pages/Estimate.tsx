@@ -188,7 +188,7 @@ export default function Estimate() {
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 sm:py-10">
+    <main className="min-h-screen bg-background px-4 py-6 sm:py-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }}
@@ -375,7 +375,7 @@ export default function Estimate() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
 

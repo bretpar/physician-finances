@@ -121,7 +121,7 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-10">
+    <main className="min-h-screen bg-background px-4 py-10">
       <Card className="mx-auto w-full max-w-md">
         <CardContent className="space-y-6 p-6 sm:p-8">
           <div className="flex items-center gap-3">
@@ -196,6 +196,6 @@ export default function Signup() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
