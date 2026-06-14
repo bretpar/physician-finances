@@ -96,8 +96,8 @@ export default function Taxes() {
   const [paymentDeleteId, setPaymentDeleteId] = useState<string | null>(null);
 
   const [showHow, setShowHow] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [showCalcDetails, setShowCalcDetails] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading || investmentLoading;
 
@@ -224,7 +224,7 @@ export default function Taxes() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Tax Overview</TabsTrigger>
           <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>
@@ -350,73 +350,7 @@ export default function Taxes() {
         </Card>
       </div>
 
-      {/* ── Tax Calculation Details ── */}
-      <Collapsible open={showCalcDetails} onOpenChange={setShowCalcDetails}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
-            <ChevronDown className={cn("h-4 w-4 transition-transform", showCalcDetails && "rotate-180")} />
-            Tax calculation details
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2">
-          <Card>
-            <CardContent className="pt-4 pb-4 space-y-2 text-sm">
-              {(() => {
-                const filingLabel =
-                  rates?.filingStatus === "married_filing_jointly"
-                    ? "Married Filing Jointly"
-                    : "Single";
-                return (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Filing status</span>
-                      <span className="font-medium">{filingLabel}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tax state</span>
-                      <span className="font-medium">{rates?.stateOfResidence ? rates.stateOfResidence : "—"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Gross income</span>
-                      <span className="font-medium tabular-nums">{fmt(totalGrossIncome)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Business profit used for tax calculation</span>
-                      <span className="font-medium tabular-nums">{fmt(e?.netBusinessProfit ?? 0)}</span>
-                    </div>
-                    <div className="border-t border-border my-1.5" />
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Federal income tax estimate</span>
-                      <span className="font-medium tabular-nums">{fmt(debug?.federalIncomeTax ?? e?.federalTax ?? 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Self-employment tax estimate</span>
-                      <span className="font-medium tabular-nums">{fmt(debug?.selfEmploymentTax ?? e?.seTax?.total ?? 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">State income tax estimate</span>
-                      <span className="font-medium tabular-nums">{fmt(debug?.stateTax ?? e?.stateTax ?? 0)}</span>
-                    </div>
-                    <div className="border-t border-border my-1.5" />
-                    <div className="flex justify-between font-semibold">
-                      <span>Total estimated tax</span>
-                      <span className="tabular-nums">{fmt(debug?.totalEstimatedTax ?? e?.totalTaxLiability ?? 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Effective tax rate</span>
-                      <span className="font-medium tabular-nums">{overviewEffectiveRate.toFixed(1)}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Recommended reserve / set-aside</span>
-                      <span className="font-medium tabular-nums">{fmt(debug?.recommendedSetAside ?? remainingTax)}</span>
-                    </div>
-                  </>
-                );
-              })()}
-            </CardContent>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
+      {/* Tax Calculation Details moved below the quarterly tracker */}
 
       {isW2Only && debug && (
         <Card>
@@ -470,86 +404,43 @@ export default function Taxes() {
         />
       </section>}
 
-      {/* ── Actions ── */}
-      {!isW2Only && <div className="flex gap-3 flex-wrap">
-        <Button onClick={() => { resetSavingsForm(); setSavingsOpen(true); }} className="gap-2">
-          <Plus className="h-4 w-4" /> Log Tax Savings
-        </Button>
-        <Button variant="outline" onClick={() => { resetPaymentForm(); setPaymentOpen(true); }} className="gap-2">
-          <Plus className="h-4 w-4" /> Log Tax Payment
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <a href="https://www.irs.gov/payments/direct-pay" target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="h-4 w-4 mr-2" /> IRS Direct Pay
-          </a>
-        </Button>
-      </div>}
-
-      {/* ── How This Estimate Works ── */}
-      <Collapsible open={showHow} onOpenChange={setShowHow}>
+      {/* ── Tax Calculation Details (compact, after the quarterly widget) ── */}
+      <Collapsible open={showCalcDetails} onOpenChange={setShowCalcDetails}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
-            <ChevronDown className={cn("h-4 w-4 transition-transform", showHow && "rotate-180")} />
-            How this estimate works
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showCalcDetails && "rotate-180")} />
+            Tax calculation details
           </Button>
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          <Card className="mt-2">
-            <CardContent className="pt-4 pb-4 space-y-2 text-sm text-muted-foreground">
-              <p>Your tax estimate is calculated automatically using the following approach:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>We combine your <strong>actual income received</strong> with any <strong>projected future income</strong> to estimate your annual total.</li>
-                <li>We subtract deductions — pre-tax contributions, retirement, {isW2Only ? "and your standard or itemized deduction" : "business expenses, and your standard deduction"}.</li>
-                <li>We apply <strong>federal tax brackets</strong> to your estimated taxable income{isW2Only ? " and state tax where applicable" : ", plus self-employment tax and state tax where applicable"}.</li>
-                <li>We subtract taxes already withheld from paychecks and any quarterly payments you've made.</li>
-                <li>The remaining amount is spread across remaining months to give you a <strong>recommended monthly set-aside</strong>.</li>
-              </ul>
-              <p>When you add income, we recommend how much to withhold based on this projected annual model — not a simple flat rate.</p>
-            </CardContent>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
-
-      {/* ── Advanced Breakdown ── */}
-      <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
-            <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvanced && "rotate-180")} />
-            Advanced tax breakdown
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 mt-2">
+        <CollapsibleContent className="mt-2">
           {e && debug && (
             <Card>
               <CardContent className="pt-4 pb-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Federal tax before credits</span><span className="font-medium">{fmt(debug.federalTaxBeforeCredits)}</span></div>
-                {debug.taxCredits > 0 && (
-                  <div className="flex justify-between text-primary"><span>Child &amp; dependent credits</span><span>−{fmt(debug.taxCredits)}</span></div>
-                )}
-                <div className="flex justify-between"><span className="text-muted-foreground">Federal tax after credits</span><span className="font-medium">{fmt(debug.federalIncomeTax)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Self-Employment Tax</span><span className="font-medium">{fmt(debug.selfEmploymentTax)}</span></div>
-                {debug.stateTax > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">State Tax</span><span className="font-medium">{fmt(debug.stateTax)}</span></div>
-                )}
-                <div className="border-t border-border pt-2 flex justify-between font-semibold">
-                  <span>Total Estimated Tax</span><span>{fmt(debug.totalEstimatedTax)}</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Federal tax after credits</span>
+                  <span className="font-medium tabular-nums">{fmt(debug.federalIncomeTax)}</span>
                 </div>
-                {(taxMode === "actual" ? canonicalWithholding.actual.federal : canonicalWithholding.forecast.federal) > 0 && (
-                  <div className="flex justify-between text-primary"><span>Federal withholding paid</span><span>−{fmt(taxMode === "actual" ? canonicalWithholding.actual.federal : canonicalWithholding.forecast.federal)}</span></div>
-                )}
-                {(taxMode === "actual" ? canonicalWithholding.actual.state : canonicalWithholding.forecast.state) > 0 && (
-                  <div className="flex justify-between text-primary"><span>State withholding paid</span><span>−{fmt(taxMode === "actual" ? canonicalWithholding.actual.state : canonicalWithholding.forecast.state)}</span></div>
-                )}
-                {estPaymentsMade > 0 && (
-                  <div className="flex justify-between text-primary"><span>Estimated payments made</span><span>−{fmt(estPaymentsMade)}</span></div>
-                )}
-                <div className="border-t border-border pt-2 flex justify-between font-semibold">
-                  <span>Remaining tax due</span>
-                  <span className={remainingTax > 0 ? "text-destructive" : "text-primary"}>{fmt(remainingTax)}</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Self-employment tax</span>
+                  <span className="font-medium tabular-nums">{fmt(debug.selfEmploymentTax)}</span>
                 </div>
-                <div className="flex justify-between text-xs text-muted-foreground pt-1">
-                  <span>Effective Rate: {overviewEffectiveRate.toFixed(1)}%</span>
-                  <span>Marginal Rate: {(e.marginalRate ?? 0).toFixed(1)}%</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">State tax</span>
+                  <span className="font-medium tabular-nums">{fmt(debug.stateTax)}</span>
+                </div>
+                <div className="border-t border-border my-1.5" />
+                <div className="flex justify-between font-semibold">
+                  <span>Total estimated tax</span>
+                  <span className="tabular-nums">{fmt(debug.totalEstimatedTax)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tax payments / withholding counted</span>
+                  <span className="font-medium tabular-nums">−{fmt(debug.countedCreditsTotal)}</span>
+                </div>
+                <div className="border-t border-border my-1.5" />
+                <div className="flex justify-between font-semibold">
+                  <span>Remaining projected tax</span>
+                  <span className={cn("tabular-nums", remainingTax > 0 ? "text-destructive" : "text-primary")}>{fmt(remainingTax)}</span>
                 </div>
               </CardContent>
             </Card>
@@ -557,7 +448,46 @@ export default function Taxes() {
         </CollapsibleContent>
       </Collapsible>
 
-      {(taxMode === "actual" ? actualDebug : forecastDebug) && (
+      {/* ── Actions ── */}
+      {!isW2Only && <div className="space-y-2">
+        <div className="flex gap-3 flex-wrap">
+          <Button onClick={() => { resetPaymentForm(); setPaymentOpen(true); }} className="gap-2">
+            <Plus className="h-4 w-4" /> Log tax payment
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href="https://www.irs.gov/payments/direct-pay" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4 mr-2" /> Pay IRS
+            </a>
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground max-w-2xl">
+          Tax payments are amounts actually paid to the IRS or state. Money you have only saved is not counted as paid until you log a tax payment.
+        </p>
+      </div>}
+
+      {/* ── How we calculated this ── */}
+      <Collapsible open={showHow} onOpenChange={setShowHow}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showHow && "rotate-180")} />
+            How we calculated this
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Card className="mt-2">
+            <CardContent className="pt-4 pb-4 space-y-3 text-sm text-muted-foreground">
+              <p>
+                We estimate your annual income using actual income plus planned income when enabled. Then we subtract deductions, apply federal/state/self-employment tax rules, subtract taxes already paid, and calculate your recommended quarterly payment or remaining tax need.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setActiveTab("breakdown")}>
+                View full tax breakdown
+              </Button>
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {import.meta.env.DEV && (taxMode === "actual" ? actualDebug : forecastDebug) && (
         <TaxDebugPanel
           debug={(taxMode === "actual" ? actualDebug : forecastDebug)!}
           label={taxMode === "forecast" ? "Income Planner — Tax Calculation Debug" : "Taxes Tab — Actual Calculation Debug"}
