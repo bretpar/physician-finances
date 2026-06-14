@@ -34,6 +34,8 @@ const entries: SitemapEntry[] = [
   { path: "/stocks", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/reports", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/settings", changefreq: "monthly", priority: "0.4", lastmod: today },
+  { path: "/estimate", changefreq: "monthly", priority: "0.7", lastmod: today },
+  { path: "/blog/1099-tax-deductions", changefreq: "monthly", priority: "0.8", lastmod: today },
 ];
 
 function generateSitemap(entries: SitemapEntry[]) {
