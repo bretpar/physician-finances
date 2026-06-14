@@ -78,7 +78,7 @@ export default function AgiReconciliationPanel({ data }: { data: TaxBreakdownRes
       op: "subtract",
       details: [
         { label: "Non-W-2 pre-tax deductions only", value: data.preTaxDeductions },
-        { label: "Deduction source breakdown", value: data.deductionSourceBreakdown || "No source breakdown available" },
+        { label: "Where deductions came from", value: data.deductionSourceBreakdown || "No source details available" },
       ],
     },
     {
@@ -131,7 +131,7 @@ export default function AgiReconciliationPanel({ data }: { data: TaxBreakdownRes
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <CircleDollarSign className="h-4 w-4 text-primary" />
-              AGI reconciliation
+              How adjusted gross income is calculated
             </CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">Click any row to see the values behind it.</p>
           </div>
