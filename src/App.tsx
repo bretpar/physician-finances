@@ -22,6 +22,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Onboarding from "@/pages/Onboarding";
 import { OnboardingErrorBoundary } from "@/components/OnboardingErrorBoundary";
 import Estimate from "@/pages/Estimate";
+import Tax1099Deductions from "@/pages/blog/Tax1099Deductions";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
