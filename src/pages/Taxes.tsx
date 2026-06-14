@@ -40,6 +40,7 @@ import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { getActivePaymentTarget } from "@/lib/quarterRecommendation";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -143,9 +144,11 @@ export default function Taxes() {
     currentPaceEstimate,
     forecastEstimate: taxMode === "actual" ? (currentPaceEstimate ?? actualEstimate) : forecastEstimate,
   });
-  const overviewEffectiveRate = rates?.withholdingMethod === "flat_estimate"
-    ? overviewProfile.federalProfileRate
-    : e?.effectiveRate ?? overviewProfile.canonicalEffectiveTaxRate;
+  const overviewEffectiveRate = getDisplayedEffectiveRatePct({
+    taxSettings: rates,
+    modeEstimate: e,
+    profile: overviewProfile,
+  });
   const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
   const totalCovered = debug?.countedCreditsTotal ?? 0;
   const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
@@ -286,7 +289,7 @@ export default function Taxes() {
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-muted-foreground">{isW2Only ? "Household Income" : "Total Gross Income"}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Gross Income</p>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>

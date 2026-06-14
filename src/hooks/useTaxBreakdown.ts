@@ -47,6 +47,7 @@ import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import {
   ORDINARY_BRACKETS,
   calcBracketTax,
@@ -880,7 +881,13 @@ export function useTaxBreakdown(
       currentPaceEstimate,
       forecastEstimate,
     });
-    const effectiveRate = ((settings?.withholdingMethod === "flat_estimate" ? profile.federalProfileRate : profile.canonicalEffectiveTaxRate) || 0) / 100;
+    // Shared display helper — keeps Tax Overview and Tax Breakdown identical
+    // for the same user and same selected mode (Actual Only vs Planned).
+    const effectiveRate = getDisplayedEffectiveRatePct({
+      taxSettings: settings,
+      modeEstimate: estimate,
+      profile,
+    }) / 100;
     const marginalRate = getMarginalRate(taxableOrdinaryIncome, ordBrackets);
 
     // Withholding override → annual target (planning layer only)

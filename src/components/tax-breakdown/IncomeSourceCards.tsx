@@ -163,7 +163,10 @@ function W2Card({ data, mode }: { data: W2Breakdown; mode: TaxBreakdownMode }) {
           ) : (
             <Row label="Gross wages" value={fmt(data.grossWages)} muted />
           )}
-          <Row label="Federal tax withheld" value={`−${fmt(data.federalWithheld)}`} muted />
+          <Row label="Federal payroll taxes withheld" value={`−${fmt(data.federalWithheld)}`} muted />
+          <p className="text-[10px] text-muted-foreground -mt-1 pl-1">
+            Includes federal income tax, Social Security, and Medicare.
+          </p>
           {data.stateWithheld > 0 && <Row label="State tax withheld" value={`−${fmt(data.stateWithheld)}`} muted />}
           {data.preTaxDeductions > 0 && <Row label="Pre-tax deductions" value={`−${fmt(data.preTaxDeductions)}`} muted />}
           {data.retirement401k > 0 && <Row label="401(k) contribution" value={`−${fmt(data.retirement401k)}`} muted />}
