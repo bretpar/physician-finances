@@ -5,3 +5,4 @@
 ## Pages
 
 - [Tax Estimate](/estimate): Public quick tax estimator for physicians with W-2 and/or 1099 income.
+- [1099 Tax Deductions Guide](/blog/1099-tax-deductions): Guide to common freelance and independent-contractor write-offs including home office, mileage, health insurance, retirement, and QBI.
