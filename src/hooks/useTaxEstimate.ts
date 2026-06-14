@@ -461,7 +461,11 @@ export function useTaxEstimate(): {
       );
 
 
-    if (overlapDebug.length > 0 && typeof window !== "undefined") {
+    if (
+      overlapDebug.length > 0 &&
+      typeof window !== "undefined" &&
+      import.meta.env?.MODE !== "production"
+    ) {
       // eslint-disable-next-line no-console
       console.warn("[useTaxEstimate] YTD catch-up overlap detected — catch-up totals reduced to prevent double-counting:", overlapDebug);
     }
