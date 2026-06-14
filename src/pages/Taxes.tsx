@@ -224,7 +224,7 @@ export default function Taxes() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Tax Overview</TabsTrigger>
           <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>
