@@ -27,8 +27,11 @@ const entries: SitemapEntry[] = [
   { path: "/projected-income", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/deductions", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/taxes", changefreq: "weekly", priority: "0.9", lastmod: today },
+  { path: "/tax-planning", changefreq: "weekly", priority: "0.8", lastmod: today },
   { path: "/transactions", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/accounts", changefreq: "weekly", priority: "0.6", lastmod: today },
+  { path: "/mileage", changefreq: "weekly", priority: "0.7", lastmod: today },
+  { path: "/stocks", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/reports", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/settings", changefreq: "monthly", priority: "0.4", lastmod: today },
 ];
