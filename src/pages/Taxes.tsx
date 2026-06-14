@@ -96,8 +96,8 @@ export default function Taxes() {
   const [paymentDeleteId, setPaymentDeleteId] = useState<string | null>(null);
 
   const [showHow, setShowHow] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [showCalcDetails, setShowCalcDetails] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading || investmentLoading;
 
