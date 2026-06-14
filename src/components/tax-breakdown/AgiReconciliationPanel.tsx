@@ -78,7 +78,7 @@ export default function AgiReconciliationPanel({ data }: { data: TaxBreakdownRes
       op: "subtract",
       details: [
         { label: "Non-W-2 pre-tax deductions only", value: data.preTaxDeductions },
-        { label: "Deduction source breakdown", value: data.deductionSourceBreakdown || "No source breakdown available" },
+        { label: "Where deductions came from", value: data.deductionSourceBreakdown || "No source details available" },
       ],
     },
     {
