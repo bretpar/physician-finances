@@ -81,7 +81,7 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
           <BrandLogo className="mx-auto h-12 w-12 rounded-xl object-fill" />
-          <CardTitle className="text-2xl">Welcome to Paycheck MD</CardTitle>
+          <h1 className="text-2xl font-semibold leading-none tracking-tight">Welcome to Paycheck MD</h1>
           <CardDescription>{resetMode ? "Reset your password" : "Sign in to your account to continue"}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -114,6 +114,7 @@ export default function Login() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword(!showPassword)}
                 >

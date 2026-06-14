@@ -118,6 +118,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-sidebar-foreground truncate">{organizationName || "Physician Portal"}</p>
           </div>
           <button
+            aria-label="Close menu"
             className="ml-auto lg:hidden text-sidebar-foreground"
             onClick={() => setMobileOpen(false)}
           >
