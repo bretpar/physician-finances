@@ -698,7 +698,7 @@ export default function Onboarding() {
 
   if (showIncomeMethodPicker) {
     return (
-      <div data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
+    <main data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
         <Card className="mx-auto w-full max-w-2xl">
           <CardContent className="space-y-6 p-5 sm:p-8">
             <div className="flex items-center gap-3">
@@ -753,12 +753,12 @@ export default function Onboarding() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
+    <main data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
 
       <Card className="mx-auto w-full max-w-2xl">
         <CardContent className="space-y-6 p-5 sm:p-8">
@@ -1054,6 +1054,6 @@ export default function Onboarding() {
           })()}
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
