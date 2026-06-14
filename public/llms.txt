@@ -1,0 +1,7 @@
+# Paycheck MD
+
+> Physician tax planning and income tracking for W-2 and 1099 physicians. Paycheck MD helps doctors track income, withholding, tax reserves, and estimated tax progress across employment types.
+
+## Pages
+
+- [Tax Estimate](/estimate): Public quick tax estimator for physicians with W-2 and/or 1099 income.
