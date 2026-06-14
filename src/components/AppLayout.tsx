@@ -194,7 +194,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         >
           <div className="lg:pt-0">{children}</div>
         </main>
-      </main>
+      </div>
     </div>
   );
 }
