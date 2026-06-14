@@ -48,7 +48,7 @@ export default function ResetPassword() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 text-center">
           <BrandLogo className="mx-auto h-12 w-12 rounded-xl object-fill" />
-          <CardTitle className="text-2xl">Set a new password</CardTitle>
+          <h1 className="text-2xl font-semibold leading-none tracking-tight">Set a new password</h1>
           <CardDescription>Enter a new password for your Paycheck MD account.</CardDescription>
         </CardHeader>
         <CardContent>
