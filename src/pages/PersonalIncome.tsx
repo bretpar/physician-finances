@@ -1730,11 +1730,15 @@ export default function PersonalIncome() {
             }
             linked={{
               items: linkedSiblings.map((it) => {
-                const imported = isImportedCashIncomeRow(it.entry);
-                const deposit = Number(
-                  it.entry.deposited_amount ?? it.entry.gross_amount ?? it.entry.paycheck_amount ?? 0,
-                ) || 0;
-                const acct = (it.entry as any).company || (it.entry as any).source_name || null;
+                const imported =
+                  isImportedCashIncomeRow(it.entry) ||
+                  (importedSibling?.entry.id === it.entry.id);
+                const deposit = siblingDeposit(it.entry);
+                const acct =
+                  (it.entry as any).account_source ||
+                  (it.entry as any).source_name ||
+                  (it.entry as any).company ||
+                  null;
                 const dateStr = formatDateShort(it.entry.income_date);
                 return {
                   id: it.itemId,
