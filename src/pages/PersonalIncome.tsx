@@ -1627,15 +1627,26 @@ export default function PersonalIncome() {
         // Pick the best imported/Plaid sibling to surface a confirmed bank
         // deposit amount alongside payroll net. Canonical payroll fields are
         // never overwritten — this is display-only.
-        const importedSibling = linkedSiblings.find((it) => isImportedCashIncomeRow(it.entry));
-        const bankDeposit = importedSibling
-          ? Number(
-              importedSibling.entry.deposited_amount ??
-                importedSibling.entry.gross_amount ??
-                importedSibling.entry.paycheck_amount ??
-                0,
-            ) || 0
-          : null;
+        const hasPayrollFields = (en: any) =>
+          (Number(en.federal_withholding || 0) +
+            Number(en.state_withholding || 0) +
+            Number(en.ss_withholding || 0) +
+            Number(en.medicare_withholding || 0) +
+            Number(en.pre_tax_deductions || 0) +
+            Number(en.retirement_401k || 0) +
+            Number(en.healthcare_deduction || 0) +
+            Number(en.hsa_contribution || 0) +
+            Number(en.additional_tax_reserve || 0)) > 0;
+        const siblingDeposit = (en: any) =>
+          Number(en.deposited_amount ?? en.gross_amount ?? en.paycheck_amount ?? 0) || 0;
+        const importedSibling =
+          linkedSiblings.find((it) => isImportedCashIncomeRow(it.entry)) ||
+          (linkedSiblings.length === 1 &&
+          !hasPayrollFields(linkedSiblings[0].entry) &&
+          siblingDeposit(linkedSiblings[0].entry) > 0
+            ? linkedSiblings[0]
+            : null);
+        const bankDeposit = importedSibling ? siblingDeposit(importedSibling.entry) : null;
         const depositVariance = bankDeposit != null ? bankDeposit - netReceived : null;
         const sections: DetailSection[] = [
           {
@@ -1719,11 +1730,15 @@ export default function PersonalIncome() {
             }
             linked={{
               items: linkedSiblings.map((it) => {
-                const imported = isImportedCashIncomeRow(it.entry);
-                const deposit = Number(
-                  it.entry.deposited_amount ?? it.entry.gross_amount ?? it.entry.paycheck_amount ?? 0,
-                ) || 0;
-                const acct = (it.entry as any).company || (it.entry as any).source_name || null;
+                const imported =
+                  isImportedCashIncomeRow(it.entry) ||
+                  (importedSibling?.entry.id === it.entry.id);
+                const deposit = siblingDeposit(it.entry);
+                const acct =
+                  (it.entry as any).account_source ||
+                  (it.entry as any).source_name ||
+                  (it.entry as any).company ||
+                  null;
                 const dateStr = formatDateShort(it.entry.income_date);
                 return {
                   id: it.itemId,
