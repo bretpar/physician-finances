@@ -184,7 +184,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             })()}
           </h2>
         </header>
-        <div
+        <main
           ref={scrollRef}
           className="flex-1 overflow-y-auto overflow-x-hidden px-4 lg:px-6 lg:py-6 min-w-0"
           style={{
@@ -193,7 +193,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           }}
         >
           <div className="lg:pt-0">{children}</div>
-        </div>
+        </main>
       </main>
     </div>
   );
