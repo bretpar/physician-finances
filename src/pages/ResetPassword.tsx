@@ -44,7 +44,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-3 text-center">
           <BrandLogo className="mx-auto h-12 w-12 rounded-xl object-fill" />
@@ -108,6 +108,6 @@ export default function ResetPassword() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

@@ -77,7 +77,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
           <BrandLogo className="mx-auto h-12 w-12 rounded-xl object-fill" />
@@ -138,6 +138,6 @@ export default function Login() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }
