@@ -289,7 +289,7 @@ export default function Taxes() {
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-muted-foreground">{isW2Only ? "Household Income" : "Total Gross Income"}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Gross Income</p>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
