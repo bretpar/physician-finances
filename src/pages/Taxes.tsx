@@ -143,9 +143,11 @@ export default function Taxes() {
     currentPaceEstimate,
     forecastEstimate: taxMode === "actual" ? (currentPaceEstimate ?? actualEstimate) : forecastEstimate,
   });
-  const overviewEffectiveRate = rates?.withholdingMethod === "flat_estimate"
-    ? overviewProfile.federalProfileRate
-    : e?.effectiveRate ?? overviewProfile.canonicalEffectiveTaxRate;
+  const overviewEffectiveRate = getDisplayedEffectiveRatePct({
+    taxSettings: rates,
+    modeEstimate: e,
+    profile: overviewProfile,
+  });
   const estPaymentsMade = debug?.estimatedPaymentsMade ?? 0;
   const totalCovered = debug?.countedCreditsTotal ?? 0;
   const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
