@@ -47,6 +47,7 @@ import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import {
   ORDINARY_BRACKETS,
   calcBracketTax,
