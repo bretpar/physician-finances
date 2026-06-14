@@ -4,44 +4,13 @@ import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/BrandLogo";
 
 const CANONICAL = "https://app.paycheckmd.com/blog/1099-tax-deductions";
-const TITLE = "1099 Tax Deductions: The Complete Guide for Freelancers (2026)";
+const TITLE = "1099 Tax Deductions Guide for Freelancers | Paycheck MD";
 const DESCRIPTION =
-  "A practical guide to 1099 tax deductions for freelancers and independent contractors — home office, mileage, health insurance, retirement, and more.";
-
-function setMeta(name: string, content: string, attr: "name" | "property" = "name") {
-  let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
-  if (!el) {
-    el = document.createElement("meta");
-    el.setAttribute(attr, name);
-    document.head.appendChild(el);
-  }
-  el.setAttribute("content", content);
-}
-
-function setLink(rel: string, href: string) {
-  let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
-  if (!el) {
-    el = document.createElement("link");
-    el.setAttribute("rel", rel);
-    document.head.appendChild(el);
-  }
-  el.setAttribute("href", href);
-}
+  "Complete guide to 1099 tax deductions: home office, mileage, health insurance, retirement, QBI, and more.";
 
 export default function Tax1099Deductions() {
+  // Article JSON-LD only — title/description/canonical/og are managed by RouteHead.
   useEffect(() => {
-    const prevTitle = document.title;
-    document.title = TITLE;
-    setMeta("description", DESCRIPTION);
-    setLink("canonical", CANONICAL);
-    setMeta("og:title", TITLE, "property");
-    setMeta("og:description", DESCRIPTION, "property");
-    setMeta("og:type", "article", "property");
-    setMeta("og:url", CANONICAL, "property");
-    setMeta("twitter:card", "summary_large_image");
-    setMeta("twitter:title", TITLE);
-    setMeta("twitter:description", DESCRIPTION);
-
     const ld = document.createElement("script");
     ld.type = "application/ld+json";
     ld.text = JSON.stringify({
@@ -57,10 +26,11 @@ export default function Tax1099Deductions() {
     });
     document.head.appendChild(ld);
     return () => {
-      document.title = prevTitle;
       document.head.removeChild(ld);
     };
   }, []);
+
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">

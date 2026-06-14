@@ -28,6 +28,7 @@ import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
+import { RouteHead } from "@/components/RouteHead";
 
 const queryClient = new QueryClient();
 
@@ -128,6 +129,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <RouteHead />
           <AppRoutes />
         </BrowserRouter>
       </TooltipProvider>
