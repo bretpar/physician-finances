@@ -309,6 +309,7 @@ interface SelfEmploymentBreakdown {
   medicare: number;
   additionalMedicare: number;
   socialSecurityCapped: boolean;
+  wageBaseDetail: SeWageBaseDetail;
 }
 
 function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEmploymentBreakdown {
@@ -333,7 +334,22 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
   if (entrySEBase > 0) {
     const baseForRate = entryGross > 0 ? entryGross : entryNetSE;
     if (baseForRate <= 0) {
-      return { socialSecurity: 0, medicare: 0, additionalMedicare: 0, socialSecurityCapped };
+      return {
+        socialSecurity: 0,
+        medicare: 0,
+        additionalMedicare: 0,
+        socialSecurityCapped,
+        wageBaseDetail: {
+          ssWageBase,
+          w2WagesCounted: w2Wages,
+          priorSeBaseCounted: currentSEBase,
+          entrySeBase: entrySEBase,
+          ssRemainingBefore,
+          ssTaxableForEntry: 0,
+          partiallyCapped: false,
+          fullyCapped: socialSecurityCapped,
+        },
+      };
     }
     const ssTaxable = Math.min(entrySEBase, ssRemainingBefore);
     const ssTax = ssTaxable * SS_RATE;
@@ -343,11 +359,22 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
     const overThreshold = Math.max(0, totalEarningsAfter - addlThreshold);
     const addlBase = Math.max(0, Math.min(entrySEBase, overThreshold));
     const addlMedicareTax = addlBase * MEDICARE_ADDITIONAL_RATE;
+    const partiallyCapped = ssTaxable > 0 && ssTaxable < entrySEBase;
     return {
       socialSecurity: (ssTax / baseForRate) * 100,
       medicare: (medicareTax / baseForRate) * 100,
       additionalMedicare: (addlMedicareTax / baseForRate) * 100,
       socialSecurityCapped,
+      wageBaseDetail: {
+        ssWageBase,
+        w2WagesCounted: w2Wages,
+        priorSeBaseCounted: currentSEBase,
+        entrySeBase: entrySEBase,
+        ssRemainingBefore,
+        ssTaxableForEntry: ssTaxable,
+        partiallyCapped,
+        fullyCapped: socialSecurityCapped,
+      },
     };
   }
 
@@ -361,6 +388,16 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
     medicare: medicareMarginal * 100,
     additionalMedicare: addlMarginal * 100,
     socialSecurityCapped,
+    wageBaseDetail: {
+      ssWageBase,
+      w2WagesCounted: w2Wages,
+      priorSeBaseCounted: currentSEBase,
+      entrySeBase: 0,
+      ssRemainingBefore,
+      ssTaxableForEntry: 0,
+      partiallyCapped: false,
+      fullyCapped: socialSecurityCapped,
+    },
   };
 }
 
