@@ -183,6 +183,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.employeeRole !== undefined) dbUpdates.employee_role = updates.employeeRole;
     if (updates.projectedAnnualGross !== undefined) dbUpdates.projected_annual_gross = updates.projectedAnnualGross;
     if (updates.expectedFederalWithholdingPerPaycheck !== undefined) dbUpdates.expected_federal_withholding_per_paycheck = updates.expectedFederalWithholdingPerPaycheck;
+    if (updates.k1TaxTreatment !== undefined) dbUpdates.k1_tax_treatment = updates.k1TaxTreatment;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
