@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { FilingType, ToggleKey } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { mergeCompanies as mergeCompaniesApi } from "@/lib/mergeCompanies";
+import type { K1TaxTreatment } from "@/lib/k1TaxTreatment";
 
 export type SetasideMethod = "recommended" | "flat_percentage" | "none";
 
