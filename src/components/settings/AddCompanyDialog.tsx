@@ -66,10 +66,12 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
   const [remainingPaychecks, setRemainingPaychecks] = useState<string>("");
   const [projectedGross, setProjectedGross] = useState<string>("");
   const [expectedWithholding, setExpectedWithholding] = useState<string>("");
+  const [k1Treatment, setK1Treatment] = useState<K1TaxTreatment>(K1_TAX_TREATMENT_DEFAULT);
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const isW2 = incomeType === "w2";
+  const isK1 = incomeType === "k1_partnership";
 
   function resetAndClose() {
     setName("");
