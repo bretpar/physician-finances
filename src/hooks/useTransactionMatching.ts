@@ -760,14 +760,48 @@ export function useCreateMatchGroup() {
           .in("id", mergedIds);
         if (e2) throw e2;
       }
+
+      // Backfill deposited_amount on the canonical row's linked income_entry
+      // with the largest imported (Plaid) deposit in the group — but never
+      // overwrite a user-edited net (only when missing/zero or equal to gross).
+      try {
+        const plaidRow = (rows as any[]).find(
+          (r) => mergedIds.includes(r.id) && r.source_type === "plaid",
+        ) ?? (rows as any[]).find((r) => mergedIds.includes(r.id));
+        const plaidAbs = Math.abs(Number(plaidRow?.amount) || 0);
+        if (plaidAbs > 0) {
+          const { data: linkedIE } = await supabase
+            .from("income_entries")
+            .select("id, deposited_amount, paycheck_amount")
+            .eq("linked_transaction_id", canonical.id)
+            .maybeSingle();
+          if (linkedIE) {
+            const dep = Number((linkedIE as any).deposited_amount) || 0;
+            const gross = Number((linkedIE as any).paycheck_amount) || 0;
+            const isMissing = dep <= 0;
+            const equalsGross = gross > 0 && Math.abs(dep - gross) < 0.01;
+            if (isMissing || equalsGross) {
+              await supabase
+                .from("income_entries")
+                .update({ deposited_amount: plaidAbs } as any)
+                .eq("id", (linkedIE as any).id);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[LinkTx] group deposited_amount backfill skipped:", err);
+      }
+
       return groupId;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["match-groups"] });
       qc.invalidateQueries({ queryKey: ["transaction-links"] });
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
       toast.success("Transactions linked.");
     },
+
     onError: (e: any) => toast.error(e.message || "Could not link transactions"),
   });
 }
