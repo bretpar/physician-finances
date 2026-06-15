@@ -313,6 +313,8 @@ export function RecommendedSetAsideInfo({ rate, breakdown, taxableBase, k1Treatm
             personalDetail={personalDetail}
             businessDetail={businessDetail}
             taxableBase={taxableBase}
+            k1Treatment={k1Treatment}
+            isK1={isK1}
           />
         </DialogContent>
       </Dialog>
