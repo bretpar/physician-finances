@@ -75,6 +75,8 @@ interface BodyProps {
   personalDetail?: string;
   businessDetail?: string;
   taxableBase?: TaxableBaseBreakdown;
+  k1Treatment?: K1TaxTreatment | null;
+  isK1?: boolean;
 }
 
 const fmtUsd = (n: number) =>
