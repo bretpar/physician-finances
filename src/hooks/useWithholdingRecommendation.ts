@@ -104,6 +104,7 @@ export function useWithholdingRecommendation() {
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        isSelfEmploymentTaxable,
       } = input;
 
       if (!settings || grossIncome <= 0) return null;
