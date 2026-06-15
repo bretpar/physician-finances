@@ -366,31 +366,29 @@ export function useLinkTransactions() {
       if (e2) throw e2;
 
       // If the canonical (manual/planner) row has a linked income_entry,
-      // backfill its deposited_amount with the Plaid net deposit. We only
-      // overwrite when the existing deposited_amount is missing/zero or
-      // equals the gross paycheck — never trample a user-edited net.
+      // backfill its deposited_amount with the Plaid net deposit. Plaid is
+      // the cashflow source of truth for Net Received once linked. We
+      // overwrite when there's no clear evidence the user manually edited
+      // Net Received (see canPlaidOverwriteDeposited).
       try {
         const plaidAbs = Math.abs(Number((plaidRow as any).amount) || 0);
         const { data: linkedIE } = await supabase
           .from("income_entries")
-          .select("id, deposited_amount, paycheck_amount")
+          .select(
+            "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, other_deductions, origin_type, entry_kind, origin_planner_conversion_id, notes",
+          )
           .eq("linked_transaction_id", manualTxId)
           .maybeSingle();
-        if (linkedIE && plaidAbs > 0) {
-          const dep = Number((linkedIE as any).deposited_amount) || 0;
-          const gross = Number((linkedIE as any).paycheck_amount) || 0;
-          const isMissing = dep <= 0;
-          const equalsGross = gross > 0 && Math.abs(dep - gross) < 0.01;
-          if (isMissing || equalsGross) {
-            await supabase
-              .from("income_entries")
-              .update({ deposited_amount: plaidAbs } as any)
-              .eq("id", (linkedIE as any).id);
-          }
+        if (linkedIE && plaidAbs > 0 && canPlaidOverwriteDeposited(linkedIE as any)) {
+          await supabase
+            .from("income_entries")
+            .update({ deposited_amount: plaidAbs } as any)
+            .eq("id", (linkedIE as any).id);
         }
       } catch (err) {
         console.warn("[LinkTx] deposited_amount backfill skipped:", err);
       }
+
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
