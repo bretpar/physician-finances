@@ -110,6 +110,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         employeeRole: ((c as any).employee_role ?? null) as "primary" | "spouse" | null,
         projectedAnnualGross: (c as any).projected_annual_gross != null ? Number((c as any).projected_annual_gross) : null,
         expectedFederalWithholdingPerPaycheck: (c as any).expected_federal_withholding_per_paycheck != null ? Number((c as any).expected_federal_withholding_per_paycheck) : null,
+        k1TaxTreatment: ((c as any).k1_tax_treatment ?? null) as K1TaxTreatment | null,
       }))
     );
     setLoading(false);
