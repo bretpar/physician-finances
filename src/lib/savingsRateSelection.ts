@@ -18,7 +18,7 @@
  * separation is consistent regardless of which method the user picked.
  */
 import { SE_TAX_RATE, SE_INCOME_FACTOR, MEDICARE_ADDITIONAL_RATE, type TaxEstimate } from "@/lib/taxEngine";
-import { SS_RATE, MEDICARE_RATE, getTaxYearConfig } from "@/lib/taxBrackets";
+import { SS_RATE, MEDICARE_RATE, getTaxYearConfig, ACTIVE_TAX_YEAR } from "@/lib/taxBrackets";
 import { isW2FilingType, normalizeFilingType } from "@/lib/filingTypes";
 
 export type IncomeBucket = "personal" | "business";
@@ -67,6 +67,8 @@ export interface SavingsRateInput {
 }
 
 export interface SeWageBaseDetail {
+  /** Tax year the wage base applies to. */
+  taxYear: number;
   /** Annual Social Security wage base for the active tax year (dollars). */
   ssWageBase: number;
   /** W-2 wages already counted toward the wage base (dollars). */
@@ -79,6 +81,8 @@ export interface SeWageBaseDetail {
   ssRemainingBefore: number;
   /** Portion of this entry's SE base that is subject to SE Social Security (dollars). */
   ssTaxableForEntry: number;
+  /** Portion of this entry's SE base that is ABOVE the Social Security cap (dollars). */
+  ssAboveCapForEntry: number;
   /** True when the entry crosses the cap — some but not all of its SE base is SS-taxable. */
   partiallyCapped: boolean;
   /** True when the wage base is fully used and no SE Social Security applies to this entry. */
@@ -341,18 +345,21 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
         additionalMedicare: 0,
         socialSecurityCapped,
         wageBaseDetail: {
+          taxYear: ACTIVE_TAX_YEAR,
           ssWageBase,
           w2WagesCounted: w2Wages,
           priorSeBaseCounted: currentSEBase,
           entrySeBase: entrySEBase,
           ssRemainingBefore,
           ssTaxableForEntry: 0,
+          ssAboveCapForEntry: entrySEBase,
           partiallyCapped: false,
           fullyCapped: socialSecurityCapped,
         },
       };
     }
     const ssTaxable = Math.min(entrySEBase, ssRemainingBefore);
+    const ssAboveCap = Math.max(0, entrySEBase - ssTaxable);
     const ssTax = ssTaxable * SS_RATE;
     const medicareTax = entrySEBase * MEDICARE_RATE;
     const totalEarningsBefore = w2Wages + currentSEBase;
@@ -367,12 +374,14 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
       additionalMedicare: (addlMedicareTax / baseForRate) * 100,
       socialSecurityCapped,
       wageBaseDetail: {
+        taxYear: ACTIVE_TAX_YEAR,
         ssWageBase,
         w2WagesCounted: w2Wages,
         priorSeBaseCounted: currentSEBase,
         entrySeBase: entrySEBase,
         ssRemainingBefore,
         ssTaxableForEntry: ssTaxable,
+        ssAboveCapForEntry: ssAboveCap,
         partiallyCapped,
         fullyCapped: socialSecurityCapped,
       },
@@ -390,12 +399,14 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
     additionalMedicare: addlMarginal * 100,
     socialSecurityCapped,
     wageBaseDetail: {
+      taxYear: ACTIVE_TAX_YEAR,
       ssWageBase,
       w2WagesCounted: w2Wages,
       priorSeBaseCounted: currentSEBase,
       entrySeBase: 0,
       ssRemainingBefore,
       ssTaxableForEntry: 0,
+      ssAboveCapForEntry: 0,
       partiallyCapped: false,
       fullyCapped: socialSecurityCapped,
     },

@@ -115,6 +115,9 @@ function TaxableBasePanel({ tb }: { tb: TaxableBaseBreakdown }) {
   );
 }
 
+/** Full uncapped active K-1 / 1099 SE Social Security rate: 12.4% × 92.35%. */
+const FULL_SE_SOCIAL_SECURITY_RATE_PCT = 12.4 * 0.9235; // ≈ 11.45
+
 function SsWageBasePanel({
   detail,
   seSocialSecurityPct,
@@ -124,41 +127,50 @@ function SsWageBasePanel({
   seSocialSecurityPct: number;
   isCapped: boolean;
 }) {
+  // Only render when SE Social Security is actually reduced below the full
+  // uncapped rate (≈11.45%). At full rate there's nothing to explain.
+  const isReduced = isCapped || detail.partiallyCapped ||
+    seSocialSecurityPct < FULL_SE_SOCIAL_SECURITY_RATE_PCT - 0.05;
+  if (!isReduced) return null;
+
   const remainingAfter = Math.max(0, detail.ssRemainingBefore - detail.ssTaxableForEntry);
-  const reduced = (detail.partiallyCapped || isCapped) && detail.entrySeBase > 0;
   const reasonParts: string[] = [];
   if (detail.w2WagesCounted > 0) reasonParts.push(`${fmtUsd(detail.w2WagesCounted)} of W-2 wages`);
-  if (detail.priorSeBaseCounted > 0) reasonParts.push(`${fmtUsd(detail.priorSeBaseCounted)} of prior SE income`);
+  if (detail.priorSeBaseCounted > 0) reasonParts.push(`${fmtUsd(detail.priorSeBaseCounted)} of other active 1099/K-1 earned income`);
   const reasonText = reasonParts.length > 0
-    ? `${reasonParts.join(" and ")} already count toward the ${fmtUsd(detail.ssWageBase)} Social Security wage base.`
-    : `The Social Security wage base of ${fmtUsd(detail.ssWageBase)} has been reached.`;
+    ? `${reasonParts.join(" and ")} already count toward the ${detail.taxYear} Social Security wage base of ${fmtUsd(detail.ssWageBase)}.`
+    : `The ${detail.taxYear} Social Security wage base of ${fmtUsd(detail.ssWageBase)} has been reached.`;
+
   return (
-    <div className="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs space-y-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-        Social Security wage base
+    <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 mb-1">
+        Social Security wage base ({detail.taxYear})
       </p>
-      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Annual wage base</span><span className="tabular-nums">{fmtUsd(detail.ssWageBase)}</span></div>
-      <div className="flex justify-between gap-3"><span className="text-muted-foreground">W-2 wages counted</span><span className="tabular-nums">{fmtUsd(detail.w2WagesCounted)}</span></div>
-      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Prior SE / K-1 counted (×92.35%)</span><span className="tabular-nums">{fmtUsd(detail.priorSeBaseCounted)}</span></div>
-      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Remaining before this entry</span><span className="tabular-nums">{fmtUsd(detail.ssRemainingBefore)}</span></div>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Annual SS wage base</span><span className="tabular-nums">{fmtUsd(detail.ssWageBase)}</span></div>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">W-2 wages counted toward cap</span><span className="tabular-nums">{fmtUsd(detail.w2WagesCounted)}</span></div>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Other 1099/K-1 active earned income counted (×92.35%)</span><span className="tabular-nums">{fmtUsd(detail.priorSeBaseCounted)}</span></div>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Remaining wage base before this transaction</span><span className="tabular-nums">{fmtUsd(detail.ssRemainingBefore)}</span></div>
       {detail.entrySeBase > 0 && (
         <>
-          <div className="flex justify-between gap-3"><span className="text-muted-foreground">This entry SE base (×92.35%)</span><span className="tabular-nums">{fmtUsd(detail.entrySeBase)}</span></div>
-          <div className="flex justify-between gap-3"><span className="text-muted-foreground">SS-taxable portion of entry</span><span className="tabular-nums">{fmtUsd(detail.ssTaxableForEntry)}</span></div>
-          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Remaining after this entry</span><span className="tabular-nums">{fmtUsd(remainingAfter)}</span></div>
+          <div className="border-t border-amber-500/20 my-1" />
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">This transaction SE base (×92.35%)</span><span className="tabular-nums">{fmtUsd(detail.entrySeBase)}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Portion subject to SE Social Security</span><span className="tabular-nums">{fmtUsd(detail.ssTaxableForEntry)}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Portion above the SS cap (no SS tax)</span><span className="tabular-nums">{fmtUsd(detail.ssAboveCapForEntry)}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Wage base remaining after</span><span className="tabular-nums">{fmtUsd(remainingAfter)}</span></div>
         </>
       )}
       <div className="flex justify-between gap-3 pt-1">
         <span className="text-foreground font-medium">Cap status</span>
-        <span className={isCapped ? "text-emerald-600 dark:text-emerald-400 font-medium" : detail.partiallyCapped ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}>
-          {isCapped ? "Fully capped" : detail.partiallyCapped ? "Partially capped" : "Not capped"}
+        <span className={isCapped ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-amber-700 dark:text-amber-400 font-medium"}>
+          {isCapped ? "Fully capped" : "Partially capped"}
         </span>
       </div>
-      {reduced && (
-        <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug pt-1">
-          SE Social Security is reduced to {seSocialSecurityPct.toFixed(2)}% (full rate ≈ 11.45%) because {reasonText}
-        </p>
-      )}
+      <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug pt-1">
+        SE Social Security is {seSocialSecurityPct.toFixed(2)}% instead of the full ~{FULL_SE_SOCIAL_SECURITY_RATE_PCT.toFixed(2)}% because {reasonText}
+      </p>
+      <p className="text-[11px] text-muted-foreground leading-snug">
+        SE Medicare (2.9% × 92.35% ≈ 2.68%) still applies to all SE income — it has no wage-base cap.
+      </p>
     </div>
   );
 }
