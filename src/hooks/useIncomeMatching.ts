@@ -92,6 +92,41 @@ export function isImportedCashIncomeRow(e: PersonalIncomeEntry): boolean {
   return false;
 }
 
+/**
+ * Returns true when the canonical income_entry's current `deposited_amount`
+ * is safe to overwrite with an imported Plaid deposit on link. Gross / payroll
+ * fields are NEVER touched here.
+ */
+export function canPlaidOverwriteCanonicalDeposit(e: PersonalIncomeEntry): boolean {
+  const dep = Number((e as any).deposited_amount) || 0;
+  if (dep <= 0) return true;
+  const gross = Number(e.gross_amount) || Number((e as any).paycheck_amount) || 0;
+  if (gross > 0 && Math.abs(dep - gross) < 0.01) return true;
+  const origin = String((e as any).origin_type || "").toLowerCase();
+  const kind = String((e as any).entry_kind || "").toLowerCase();
+  if (
+    origin === "planner_converted" ||
+    kind === "planner_conversion" ||
+    (e as any).origin_planner_conversion_id
+  ) {
+    return true;
+  }
+  const notes = String(e.notes || "").toLowerCase();
+  if (notes.includes("from planner")) return true;
+  const fed = Number(e.federal_withholding) || 0;
+  const ss = Number((e as any).ss_withholding) || 0;
+  const med = Number((e as any).medicare_withholding) || 0;
+  const state = Number(e.state_withholding) || 0;
+  const preTax = Number(e.pre_tax_deductions) || 0;
+  const ret = Number(e.retirement_401k) || 0;
+  const hsa = Number(e.hsa_contribution) || 0;
+  const health = Number((e as any).healthcare_deduction) || 0;
+  const other = Number((e as any).other_deductions) || 0;
+  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health - other);
+  if (calcNet > 0 && Math.abs(dep - calcNet) < 0.5) return true;
+  return false;
+}
+
 function pickCanonicalIncomeEntry(entries: PersonalIncomeEntry[]): PersonalIncomeEntry {
   // Global hierarchy:
   //  1) Manual / planner / app-created (accounting/payroll source of truth)
