@@ -1,0 +1,2 @@
+ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS k1_tax_treatment text NULL;
+COMMENT ON COLUMN public.companies.k1_tax_treatment IS 'K-1 entity tax treatment: active_partnership | guaranteed_payments | passive | scorp_distribution. Drives whether SE tax is added to the recommended set-aside.';

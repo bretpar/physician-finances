@@ -508,6 +508,18 @@ export default function Transactions() {
       });
     }
   }, [transactions, companies, bulkUpdateMutation]);
+  const k1TreatmentForEntry = useMemo(() => {
+    const ft = normalizeFilingType(incomeForm.income_type);
+    if (ft !== "k1_partnership") return null;
+    return selectedIncomeCompany?.k1TaxTreatment ?? null;
+  }, [incomeForm.income_type, selectedIncomeCompany]);
+  const isSelfEmploymentTaxableOverride = useMemo<boolean | null | undefined>(() => {
+    const ft = normalizeFilingType(incomeForm.income_type);
+    if (ft !== "k1_partnership") return undefined;
+    if (k1TreatmentForEntry === "active_partnership" || k1TreatmentForEntry === "guaranteed_payments") return true;
+    if (k1TreatmentForEntry === "passive" || k1TreatmentForEntry === "scorp_distribution") return false;
+    return undefined;
+  }, [incomeForm.income_type, k1TreatmentForEntry]);
   const recommendation = useMemo(() => {
     if (grossIncome <= 0) return null;
     return getRecommendation({
@@ -520,8 +532,9 @@ export default function Transactions() {
       companyId: selectedIncomeCompany?.id ?? null,
       applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
       includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
+      isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
-  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, isEditingIncome, selectedIncomeCompany]);
+  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, isEditingIncome, selectedIncomeCompany, isSelfEmploymentTaxableOverride]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   const calculatedNet = useMemo(() => {
@@ -1914,6 +1927,8 @@ export default function Transactions() {
                         hsa: num(incomeForm.hsa_contribution),
                         otherPreTax: num(incomeForm.pre_tax_deductions),
                       }}
+                      k1Treatment={k1TreatmentForEntry}
+                      isK1={normalizeFilingType(incomeForm.income_type) === "k1_partnership"}
                     />
                   </p>
                 </div>

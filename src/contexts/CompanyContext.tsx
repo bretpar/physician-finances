@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { FilingType, ToggleKey } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { mergeCompanies as mergeCompaniesApi } from "@/lib/mergeCompanies";
+import type { K1TaxTreatment } from "@/lib/k1TaxTreatment";
 
 export type SetasideMethod = "recommended" | "flat_percentage" | "none";
 
@@ -40,6 +41,8 @@ export interface Company {
   projectedAnnualGross: number | null;
   /** Optional user-supplied expected federal withholding per paycheck. */
   expectedFederalWithholdingPerPaycheck: number | null;
+  /** K-1 entity tax treatment. Null = unset (UI should warn). Only meaningful for K-1 companies. */
+  k1TaxTreatment: K1TaxTreatment | null;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
@@ -107,6 +110,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         employeeRole: ((c as any).employee_role ?? null) as "primary" | "spouse" | null,
         projectedAnnualGross: (c as any).projected_annual_gross != null ? Number((c as any).projected_annual_gross) : null,
         expectedFederalWithholdingPerPaycheck: (c as any).expected_federal_withholding_per_paycheck != null ? Number((c as any).expected_federal_withholding_per_paycheck) : null,
+        k1TaxTreatment: ((c as any).k1_tax_treatment ?? null) as K1TaxTreatment | null,
       }))
     );
     setLoading(false);
@@ -152,6 +156,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       employee_role: company.employeeRole ?? null,
       projected_annual_gross: company.projectedAnnualGross ?? null,
       expected_federal_withholding_per_paycheck: company.expectedFederalWithholdingPerPaycheck ?? null,
+      k1_tax_treatment: company.k1TaxTreatment ?? null,
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
@@ -178,6 +183,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.employeeRole !== undefined) dbUpdates.employee_role = updates.employeeRole;
     if (updates.projectedAnnualGross !== undefined) dbUpdates.projected_annual_gross = updates.projectedAnnualGross;
     if (updates.expectedFederalWithholdingPerPaycheck !== undefined) dbUpdates.expected_federal_withholding_per_paycheck = updates.expectedFederalWithholdingPerPaycheck;
+    if (updates.k1TaxTreatment !== undefined) dbUpdates.k1_tax_treatment = updates.k1TaxTreatment;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }

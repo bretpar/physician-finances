@@ -21,6 +21,11 @@ import { toast } from "sonner";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { FilingType } from "@/lib/filingTypes";
+import {
+  K1_TAX_TREATMENT_OPTIONS,
+  K1_TAX_TREATMENT_DEFAULT,
+  type K1TaxTreatment,
+} from "@/lib/k1TaxTreatment";
 
 interface AddCompanyDialogProps {
   open: boolean;
@@ -61,10 +66,12 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
   const [remainingPaychecks, setRemainingPaychecks] = useState<string>("");
   const [projectedGross, setProjectedGross] = useState<string>("");
   const [expectedWithholding, setExpectedWithholding] = useState<string>("");
+  const [k1Treatment, setK1Treatment] = useState<K1TaxTreatment>(K1_TAX_TREATMENT_DEFAULT);
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const isW2 = incomeType === "w2";
+  const isK1 = incomeType === "k1_partnership";
 
   function resetAndClose() {
     setName("");
@@ -74,6 +81,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
     setRemainingPaychecks("");
     setProjectedGross("");
     setExpectedWithholding("");
+    setK1Treatment(K1_TAX_TREATMENT_DEFAULT);
     setNameError(null);
     onOpenChange(false);
   }
@@ -110,6 +118,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
           isW2 && expectedWithholding.trim() !== ""
             ? Number(expectedWithholding)
             : null,
+        k1TaxTreatment: isK1 ? k1Treatment : null,
       });
       resetAndClose();
     } catch (e: any) {
@@ -172,6 +181,30 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
                 </SelectContent>
               </Select>
             </div>
+
+            {isK1 && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  K-1 tax treatment
+                </Label>
+                <Select value={k1Treatment} onValueChange={(v) => setK1Treatment(v as K1TaxTreatment)}>
+                  <SelectTrigger data-testid="settings-company-k1-treatment-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {K1_TAX_TREATMENT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground/80 mt-1 leading-snug">
+                  {K1_TAX_TREATMENT_OPTIONS.find((o) => o.value === k1Treatment)?.description}
+                </p>
+              </div>
+            )}
+
 
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">

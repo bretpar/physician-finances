@@ -30,6 +30,9 @@ export interface WithholdingInput {
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
+  /** Explicit override — true forces SE tax included, false forces it excluded.
+   *  Used to apply K-1 entity tax-treatment (active vs passive). */
+  isSelfEmploymentTaxable?: boolean | null;
 }
 
 export interface WithholdingRecommendation {
@@ -101,6 +104,7 @@ export function useWithholdingRecommendation() {
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        isSelfEmploymentTaxable,
       } = input;
 
       if (!settings || grossIncome <= 0) return null;
@@ -130,6 +134,7 @@ export function useWithholdingRecommendation() {
           companyId,
           applyBusinessStateTax,
           includeSETaxInRecommendation,
+          isSelfEmploymentTaxable,
           filingStatus: (settings as any)?.filingStatus ?? undefined,
           entryGrossAmount: netTaxableForEntry,
         });
@@ -237,6 +242,7 @@ export function useWithholdingRecommendation() {
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        isSelfEmploymentTaxable,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
         entryGrossAmount: netTaxableForEntry,
       });

@@ -28,6 +28,7 @@ export type Database = {
           id: string
           include_in_tax: boolean
           include_se_tax_in_recommendation: boolean
+          k1_tax_treatment: string | null
           merged_into_company_id: string | null
           name: string
           nickname: string
@@ -53,6 +54,7 @@ export type Database = {
           id?: string
           include_in_tax?: boolean
           include_se_tax_in_recommendation?: boolean
+          k1_tax_treatment?: string | null
           merged_into_company_id?: string | null
           name?: string
           nickname?: string
@@ -78,6 +80,7 @@ export type Database = {
           id?: string
           include_in_tax?: boolean
           include_se_tax_in_recommendation?: boolean
+          k1_tax_treatment?: string | null
           merged_into_company_id?: string | null
           name?: string
           nickname?: string
