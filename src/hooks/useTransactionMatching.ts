@@ -646,7 +646,7 @@ export function useCreateMatchGroup() {
       const { data: rows, error: fErr } = await supabase
         .from("transactions")
         .select(
-          "id, amount, source_type, transaction_type, linked_group_id, match_status, created_at, category, source_id, vendor, notes, recommended_withholding, actual_withholding, receipt_url"
+          "id, amount, source_type, transaction_type, transaction_date, account_source, linked_group_id, match_status, created_at, category, source_id, vendor, notes, recommended_withholding, actual_withholding, receipt_url"
         )
         .in("id", transactionIds);
       if (fErr) throw fErr;
