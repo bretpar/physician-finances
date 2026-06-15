@@ -578,6 +578,18 @@ export function useManualPlannerConvert() {
       }
       const conversionId = (conv as any).id as string;
 
+      // Compute take-home / deposited amount from planner fields so the
+      // ledger row Net Received matches the planner's estimated take-home.
+      const estimatedTakeHome = Math.max(
+        0,
+        input.grossAmount
+          - (input.taxesWithheld || 0)
+          - (input.preTaxDeductions || 0)
+          - (input.retirement401k || 0)
+          - (input.healthcareDeduction || 0)
+          - (input.hsaContribution || 0),
+      );
+
       // 2. Create the ledger row
       if (input.ledgerBucket === "personal") {
         const { data: ie, error } = await supabase
@@ -593,6 +605,7 @@ export function useManualPlannerConvert() {
             income_date: input.occurrenceDate,
             gross_amount: input.grossAmount,
             paycheck_amount: input.grossAmount,
+            deposited_amount: estimatedTakeHome,
             federal_withholding: input.federalWithholding,
             state_withholding: input.stateWithholding,
             ss_withholding: input.ssWithholding,
@@ -650,9 +663,53 @@ export function useManualPlannerConvert() {
           await supabase.from("planner_conversions").delete().eq("id", conversionId);
           throw error;
         }
+        const txId = (tx as any).id as string;
+
+        // Also create a linked income_entries row so Business Activity's
+        // Edit Income form and Tax Details Net Received pick up the saved
+        // planner paycheck fields (401(k), pre-tax, healthcare, HSA,
+        // withholdings, and estimated take-home).
+        const { error: ieErr } = await supabase
+          .from("income_entries")
+          .insert({
+            user_id: user.id,
+            organization_id: orgId,
+            name: input.label,
+            company: input.label,
+            source_id: input.sourceId,
+            income_type: input.incomeType,
+            ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
+            income_date: input.occurrenceDate,
+            gross_amount: input.grossAmount,
+            paycheck_amount: input.grossAmount,
+            deposited_amount: estimatedTakeHome,
+            federal_withholding: input.federalWithholding,
+            state_withholding: input.stateWithholding,
+            ss_withholding: input.ssWithholding,
+            medicare_withholding: input.medicareWithholding,
+            taxes_withheld: input.taxesWithheld,
+            pre_tax_deductions: input.preTaxDeductions,
+            retirement_401k: input.retirement401k,
+            healthcare_deduction: input.healthcareDeduction,
+            hsa_contribution: input.hsaContribution,
+            source_bucket: "business",
+            tax_category: "ordinary",
+            is_actual: true,
+            include_in_tax_estimate: true,
+            include_in_cash_flow: false,
+            status: "received",
+            linked_transaction_id: txId,
+            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+          } as any);
+        if (ieErr) {
+          console.warn("[planner-convert] business income_entry insert failed", ieErr);
+        }
+
         await supabase
           .from("planner_conversions")
-          .update({ transaction_id: (tx as any).id })
+          .update({ transaction_id: txId })
           .eq("id", conversionId);
       }
       return { conversionId, alreadyExisted: false };
@@ -662,8 +719,11 @@ export function useManualPlannerConvert() {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["match-groups"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       toast.success("Converted to ledger");
     },
+
     onError: (e: Error) => toast.error(e.message),
   });
 }
