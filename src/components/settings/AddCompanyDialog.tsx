@@ -182,6 +182,30 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
               </Select>
             </div>
 
+            {isK1 && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  K-1 tax treatment
+                </Label>
+                <Select value={k1Treatment} onValueChange={(v) => setK1Treatment(v as K1TaxTreatment)}>
+                  <SelectTrigger data-testid="settings-company-k1-treatment-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {K1_TAX_TREATMENT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground/80 mt-1 leading-snug">
+                  {K1_TAX_TREATMENT_OPTIONS.find((o) => o.value === k1Treatment)?.description}
+                </p>
+              </div>
+            )}
+
+
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
                 Employee role{isMFJ ? "" : " (defaults to You)"}
