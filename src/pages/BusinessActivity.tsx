@@ -585,10 +585,31 @@ export default function Transactions() {
     })) : undefined;
     const siblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
     const linkedPlaidAmt = Math.abs(Number((tx as any).linked_plaid_amount) || 0);
+    // Treat a deposited_amount that exactly equals gross as a planner placeholder,
+    // not as a real bank deposit (planner conversion writes gross there by default).
+    const lGrossForNet = linked ? Number(linked.paycheck_amount) || 0 : Math.abs(Number(tx.amount) || 0);
+    const lDepRaw = Number(linked?.deposited_amount) || 0;
+    const lDepUsable = lDepRaw > 0 && Math.abs(lDepRaw - lGrossForNet) > 0.5 ? lDepRaw : 0;
+    const lFedH = linked ? getCanonicalTotalFederalPayrollTaxes(linked as any) : 0;
+    const lCalcNet = linked
+      ? Math.max(
+          0,
+          lGrossForNet
+            - lFedH
+            - (Number((linked as any).state_withholding) || 0)
+            - (Number(linked.pre_tax_deductions) || 0)
+            - (Number(linked.retirement_401k) || 0)
+            - (Number((linked as any).hsa_contribution) || 0)
+            - (Number((linked as any).healthcare_deduction) || 0)
+            - (Number((linked as any).other_deductions) || 0),
+        )
+      : 0;
     const netReceivedHydrate =
       siblingAmt > 0 ? siblingAmt
       : linkedPlaidAmt > 0 ? linkedPlaidAmt
-      : (linked && linked.deposited_amount ? Number(linked.deposited_amount) : 0);
+      : lDepUsable > 0 ? lDepUsable
+      : lCalcNet > 0 && lCalcNet < lGrossForNet ? lCalcNet
+      : 0;
 
     if (txType === "income") {
       setIncomeForm({
