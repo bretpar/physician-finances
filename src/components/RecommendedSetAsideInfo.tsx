@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { SavingsRateResult } from "@/lib/savingsRateSelection";
+import { getK1TreatmentMeta, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
 
 export interface TaxableBaseBreakdown {
   gross: number;
@@ -18,6 +19,10 @@ interface Props {
   rate: number;
   breakdown?: SavingsRateResult | null;
   taxableBase?: TaxableBaseBreakdown;
+  /** Optional K-1 entity tax treatment for K-1 entries. */
+  k1Treatment?: K1TaxTreatment | null;
+  /** True when the linked entity is a K-1 partnership. */
+  isK1?: boolean;
 }
 
 type LineStatus = "included" | "no-rate" | "off";
