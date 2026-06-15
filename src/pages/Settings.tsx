@@ -1444,6 +1444,49 @@ function CompaniesSection() {
                                 </p>
                               </div>
                             </div>
+
+                            {getValue(company, "companyType") === "k1_partnership" && (() => {
+                              const treatment = (getValue(company, "k1TaxTreatment") as K1TaxTreatment | null) ?? null;
+                              return (
+                                <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground">K-1 tax treatment</Label>
+                                  <Select
+                                    value={treatment ?? "unset"}
+                                    onValueChange={(v) =>
+                                      setField(
+                                        company.id,
+                                        "k1TaxTreatment",
+                                        v === "unset" ? null : (v as K1TaxTreatment),
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger data-testid="settings-company-k1-treatment-select">
+                                      <SelectValue placeholder="Select treatment" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="unset">Not set</SelectItem>
+                                      {K1_TAX_TREATMENT_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {treatment ? (
+                                    <p className="text-[11px] text-muted-foreground/80 leading-snug">
+                                      {K1_TAX_TREATMENT_OPTIONS.find((o) => o.value === treatment)?.description}
+                                    </p>
+                                  ) : (
+                                    <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 px-2.5 py-2 text-[11px] leading-snug">
+                                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                      <span>
+                                        K-1 tax treatment is not set. Active partnership income may require self-employment tax. Please confirm whether this K-1 is active, passive, guaranteed payment, or S-corp distribution.
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
