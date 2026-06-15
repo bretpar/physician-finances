@@ -2347,10 +2347,17 @@ export default function Transactions() {
           const lHealth = Number((linked as any).healthcare_deduction) || 0;
           const lOther = Number((linked as any).other_deductions) || 0;
           const lReserve = Number((linked as any).additional_tax_reserve) || 0;
-          const lNetExplicit = (linked as any).net_amount;
-          const lNet = lNetExplicit != null && lNetExplicit !== ""
-            ? Number(lNetExplicit) || 0
-            : lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther;
+          // Net received priority:
+          //   1) explicit deposited_amount on the linked income_entry
+          //   2) calculated take-home (gross − withholding − pre-tax − 401k − HSA − healthcare − other)
+          //   3) gross (fallback so users still see a number)
+          const lDeposited = Number((linked as any).deposited_amount) || 0;
+          const lLinkedPlaidAmt = Math.abs(Number((tx as any).linked_plaid_amount) || 0);
+          const calcNet = Math.max(0, lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther);
+          const lNet = lDeposited > 0
+            ? lDeposited
+            : (lLinkedPlaidAmt > 0 ? lLinkedPlaidAmt : (calcNet > 0 ? calcNet : lGross));
+
           sections.push({
             title: "Tax details",
             fields: [
