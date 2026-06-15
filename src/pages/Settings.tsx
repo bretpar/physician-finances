@@ -36,6 +36,10 @@ import {
 } from "@/lib/filingTypes";
 import { ledgerForIncomeType, ledgerLabel } from "@/lib/ledgerRouting";
 import {
+  K1_TAX_TREATMENT_OPTIONS,
+  type K1TaxTreatment,
+} from "@/lib/k1TaxTreatment";
+import {
   usePlaidItems,
   usePlaidAccounts,
   usePlaidNeedsReviewTransactions,
