@@ -345,18 +345,21 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
         additionalMedicare: 0,
         socialSecurityCapped,
         wageBaseDetail: {
+          taxYear: ACTIVE_TAX_YEAR,
           ssWageBase,
           w2WagesCounted: w2Wages,
           priorSeBaseCounted: currentSEBase,
           entrySeBase: entrySEBase,
           ssRemainingBefore,
           ssTaxableForEntry: 0,
+          ssAboveCapForEntry: entrySEBase,
           partiallyCapped: false,
           fullyCapped: socialSecurityCapped,
         },
       };
     }
     const ssTaxable = Math.min(entrySEBase, ssRemainingBefore);
+    const ssAboveCap = Math.max(0, entrySEBase - ssTaxable);
     const ssTax = ssTaxable * SS_RATE;
     const medicareTax = entrySEBase * MEDICARE_RATE;
     const totalEarningsBefore = w2Wages + currentSEBase;
@@ -371,12 +374,14 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
       additionalMedicare: (addlMedicareTax / baseForRate) * 100,
       socialSecurityCapped,
       wageBaseDetail: {
+        taxYear: ACTIVE_TAX_YEAR,
         ssWageBase,
         w2WagesCounted: w2Wages,
         priorSeBaseCounted: currentSEBase,
         entrySeBase: entrySEBase,
         ssRemainingBefore,
         ssTaxableForEntry: ssTaxable,
+        ssAboveCapForEntry: ssAboveCap,
         partiallyCapped,
         fullyCapped: socialSecurityCapped,
       },
@@ -394,12 +399,14 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
     additionalMedicare: addlMarginal * 100,
     socialSecurityCapped,
     wageBaseDetail: {
+      taxYear: ACTIVE_TAX_YEAR,
       ssWageBase,
       w2WagesCounted: w2Wages,
       priorSeBaseCounted: currentSEBase,
       entrySeBase: 0,
       ssRemainingBefore,
       ssTaxableForEntry: 0,
+      ssAboveCapForEntry: 0,
       partiallyCapped: false,
       fullyCapped: socialSecurityCapped,
     },
