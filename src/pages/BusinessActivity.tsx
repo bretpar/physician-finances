@@ -1927,6 +1927,8 @@ export default function Transactions() {
                         hsa: num(incomeForm.hsa_contribution),
                         otherPreTax: num(incomeForm.pre_tax_deductions),
                       }}
+                      k1Treatment={k1TreatmentForEntry}
+                      isK1={normalizeFilingType(incomeForm.income_type) === "k1_partnership"}
                     />
                   </p>
                 </div>
