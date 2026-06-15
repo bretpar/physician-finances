@@ -134,6 +134,7 @@ export function useWithholdingRecommendation() {
           companyId,
           applyBusinessStateTax,
           includeSETaxInRecommendation,
+          isSelfEmploymentTaxable,
           filingStatus: (settings as any)?.filingStatus ?? undefined,
           entryGrossAmount: netTaxableForEntry,
         });
