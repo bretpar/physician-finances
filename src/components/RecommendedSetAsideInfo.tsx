@@ -4,7 +4,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import type { SavingsRateResult } from "@/lib/savingsRateSelection";
+import type { SavingsRateResult, SeWageBaseDetail } from "@/lib/savingsRateSelection";
 import { getK1TreatmentMeta, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
 
 export interface TaxableBaseBreakdown {
@@ -115,6 +115,54 @@ function TaxableBasePanel({ tb }: { tb: TaxableBaseBreakdown }) {
   );
 }
 
+function SsWageBasePanel({
+  detail,
+  seSocialSecurityPct,
+  isCapped,
+}: {
+  detail: SeWageBaseDetail;
+  seSocialSecurityPct: number;
+  isCapped: boolean;
+}) {
+  const remainingAfter = Math.max(0, detail.ssRemainingBefore - detail.ssTaxableForEntry);
+  const reduced = (detail.partiallyCapped || isCapped) && detail.entrySeBase > 0;
+  const reasonParts: string[] = [];
+  if (detail.w2WagesCounted > 0) reasonParts.push(`${fmtUsd(detail.w2WagesCounted)} of W-2 wages`);
+  if (detail.priorSeBaseCounted > 0) reasonParts.push(`${fmtUsd(detail.priorSeBaseCounted)} of prior SE income`);
+  const reasonText = reasonParts.length > 0
+    ? `${reasonParts.join(" and ")} already count toward the ${fmtUsd(detail.ssWageBase)} Social Security wage base.`
+    : `The Social Security wage base of ${fmtUsd(detail.ssWageBase)} has been reached.`;
+  return (
+    <div className="mt-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+        Social Security wage base
+      </p>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Annual wage base</span><span className="tabular-nums">{fmtUsd(detail.ssWageBase)}</span></div>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">W-2 wages counted</span><span className="tabular-nums">{fmtUsd(detail.w2WagesCounted)}</span></div>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Prior SE / K-1 counted (×92.35%)</span><span className="tabular-nums">{fmtUsd(detail.priorSeBaseCounted)}</span></div>
+      <div className="flex justify-between gap-3"><span className="text-muted-foreground">Remaining before this entry</span><span className="tabular-nums">{fmtUsd(detail.ssRemainingBefore)}</span></div>
+      {detail.entrySeBase > 0 && (
+        <>
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">This entry SE base (×92.35%)</span><span className="tabular-nums">{fmtUsd(detail.entrySeBase)}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">SS-taxable portion of entry</span><span className="tabular-nums">{fmtUsd(detail.ssTaxableForEntry)}</span></div>
+          <div className="flex justify-between gap-3"><span className="text-muted-foreground">Remaining after this entry</span><span className="tabular-nums">{fmtUsd(remainingAfter)}</span></div>
+        </>
+      )}
+      <div className="flex justify-between gap-3 pt-1">
+        <span className="text-foreground font-medium">Cap status</span>
+        <span className={isCapped ? "text-emerald-600 dark:text-emerald-400 font-medium" : detail.partiallyCapped ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}>
+          {isCapped ? "Fully capped" : detail.partiallyCapped ? "Partially capped" : "Not capped"}
+        </span>
+      </div>
+      {reduced && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug pt-1">
+          SE Social Security is reduced to {seSocialSecurityPct.toFixed(2)}% (full rate ≈ 11.45%) because {reasonText}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail, taxableBase, k1Treatment, isK1 }: BodyProps) {
   const sourceLabel = breakdown?.baseRateSource === "federalEffectiveRate"
     ? "federalEffectiveRate"
@@ -201,6 +249,13 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
                       <span>↳ Additional Medicare (0.9%)</span>
                       <span>{(components?.seAdditionalMedicare ?? 0).toFixed(2)}%</span>
                     </div>
+                  )}
+                  {components?.seWageBaseDetail && (
+                    <SsWageBasePanel
+                      detail={components.seWageBaseDetail}
+                      seSocialSecurityPct={components?.seSocialSecurity ?? 0}
+                      isCapped={!!components?.seSocialSecurityCapped}
+                    />
                   )}
                 </>
               ) : (
