@@ -232,6 +232,13 @@ export function useWithholdingRecommendation() {
       // set-aside style recommendation is still appropriate. Use the blended
       // rate (federal + SE + state business) for this entry, then subtract
       // any withholding already applied to THIS paycheck. Floor at 0.
+      // When editing an existing entry, the entry is already inside
+      // actualEstimate.seIncome — subtract it so the wage-base accounting
+      // doesn't double-count this entry against the SS cap.
+      const baseCurrentNetSE = Math.max(0, Number(actualEstimate?.seIncome ?? 0));
+      const currentNetSEForBreakdown = alreadyIncludedInEstimate
+        ? Math.max(0, baseCurrentNetSE - grossIncome)
+        : baseCurrentNetSE;
       const rateSelection = getSavingsRateForIncomeBucket({
         incomeBucket: "business",
         incomeType,
@@ -244,6 +251,8 @@ export function useWithholdingRecommendation() {
         includeSETaxInRecommendation,
         isSelfEmploymentTaxable,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
+        currentW2Wages: Math.max(0, Number(actualEstimate?.w2Income ?? 0)),
+        currentNetSEIncome: currentNetSEForBreakdown,
         entryGrossAmount: netTaxableForEntry,
       });
       const rateToUse = rateSelection.rate;
