@@ -156,6 +156,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       employee_role: company.employeeRole ?? null,
       projected_annual_gross: company.projectedAnnualGross ?? null,
       expected_federal_withholding_per_paycheck: company.expectedFederalWithholdingPerPaycheck ?? null,
+      k1_tax_treatment: company.k1TaxTreatment ?? null,
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Company added");
