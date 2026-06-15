@@ -4,7 +4,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import type { SavingsRateResult } from "@/lib/savingsRateSelection";
+import type { SavingsRateResult, SeWageBaseDetail } from "@/lib/savingsRateSelection";
 import { getK1TreatmentMeta, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
 
 export interface TaxableBaseBreakdown {
