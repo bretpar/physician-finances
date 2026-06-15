@@ -41,6 +41,8 @@ export interface Company {
   projectedAnnualGross: number | null;
   /** Optional user-supplied expected federal withholding per paycheck. */
   expectedFederalWithholdingPerPaycheck: number | null;
+  /** K-1 entity tax treatment. Null = unset (UI should warn). Only meaningful for K-1 companies. */
+  k1TaxTreatment: K1TaxTreatment | null;
 }
 
 export const DEFAULT_COMPANIES: Company[] = [];
