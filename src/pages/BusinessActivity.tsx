@@ -2337,6 +2337,23 @@ export default function Transactions() {
             ],
           },
         ];
+        // Compute linked Plaid/imported sibling once, so it applies whether or
+        // not this canonical income transaction has a linked income_entries row.
+        const lLinkedPlaidAmt = Math.abs(Number((tx as any).linked_plaid_amount) || 0);
+        const grossForSiblingCompare = Math.abs(Number(tx.amount) || 0);
+        const plaidSibling = isIncomeTx ? (linkedSiblings.find((it) => {
+          const t: any = it.transaction;
+          if ((tx as any).linked_plaid_transaction_id && t.id === (tx as any).linked_plaid_transaction_id) return true;
+          if (t.source_type === "plaid") return true;
+          if (t.source_type === "merged") return true;
+          if ((it as any).source === "imported") return true;
+          return false;
+        }) || linkedSiblings.find((it) => {
+          const amt = Math.abs(Number(it.transaction.amount) || 0);
+          return amt > 0 && Math.abs(amt - grossForSiblingCompare) > 0.5;
+        })) : undefined;
+        const lSiblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
+
         if (linked) {
           const lGross = Number(linked.paycheck_amount) || 0;
           const lFed = getCanonicalTotalFederalPayrollTaxes(linked as any);
@@ -2354,18 +2371,6 @@ export default function Transactions() {
           //   4) calculated take-home (gross − withholding − pre-tax − 401k − HSA − healthcare − other)
           //   5) gross (fallback so users still see a number)
           const lDeposited = Number((linked as any).deposited_amount) || 0;
-          const lLinkedPlaidAmt = Math.abs(Number((tx as any).linked_plaid_amount) || 0);
-          const plaidSibling = linkedSiblings.find((it) => {
-            const t: any = it.transaction;
-            if ((tx as any).linked_plaid_transaction_id && t.id === (tx as any).linked_plaid_transaction_id) return true;
-            if (t.source_type === "plaid") return true;
-            if ((it as any).source === "imported") return true;
-            return false;
-          }) || linkedSiblings.find((it) => {
-            const amt = Math.abs(Number(it.transaction.amount) || 0);
-            return amt > 0 && Math.abs(amt - lGross) > 0.5;
-          });
-          const lSiblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
           const calcNet = Math.max(0, lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther);
           const lNet = lSiblingAmt > 0
             ? lSiblingAmt
@@ -2389,12 +2394,15 @@ export default function Transactions() {
             ],
           });
         } else if (isIncomeTx) {
+          // No linked income_entries row — still honor a linked Plaid/imported
+          // sibling so Net Received reflects the actual bank deposit.
           const gAmt = Math.abs(Number(tx.amount) || 0);
+          const nAmt = lSiblingAmt > 0 ? lSiblingAmt : (lLinkedPlaidAmt > 0 ? lLinkedPlaidAmt : gAmt);
           sections.push({
             title: "Tax details",
             fields: [
               { label: "Gross", value: fmt(gAmt), mono: true },
-              { label: "Net received", value: fmt(gAmt), mono: true },
+              { label: "Net received", value: fmt(nAmt), mono: true },
             ],
           });
         }
