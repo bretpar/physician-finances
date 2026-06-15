@@ -229,7 +229,7 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
   );
 }
 
-export function RecommendedSetAsideInfo({ rate, breakdown, taxableBase }: Props) {
+export function RecommendedSetAsideInfo({ rate, breakdown, taxableBase, k1Treatment, isK1 }: Props) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const { data: taxSettings } = useTaxSettings();
