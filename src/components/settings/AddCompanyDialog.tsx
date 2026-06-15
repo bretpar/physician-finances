@@ -81,6 +81,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
     setRemainingPaychecks("");
     setProjectedGross("");
     setExpectedWithholding("");
+    setK1Treatment(K1_TAX_TREATMENT_DEFAULT);
     setNameError(null);
     onOpenChange(false);
   }
