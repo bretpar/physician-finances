@@ -202,6 +202,13 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
                       <span>{(components?.seAdditionalMedicare ?? 0).toFixed(2)}%</span>
                     </div>
                   )}
+                  {components?.seWageBaseDetail && (
+                    <SsWageBasePanel
+                      detail={components.seWageBaseDetail}
+                      seSocialSecurityPct={components?.seSocialSecurity ?? 0}
+                      isCapped={!!components?.seSocialSecurityCapped}
+                    />
+                  )}
                 </>
               ) : (
                 <div className="flex justify-between gap-3"><span>Self-employment tax</span><span>Not added</span></div>
