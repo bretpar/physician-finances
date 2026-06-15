@@ -366,31 +366,29 @@ export function useLinkTransactions() {
       if (e2) throw e2;
 
       // If the canonical (manual/planner) row has a linked income_entry,
-      // backfill its deposited_amount with the Plaid net deposit. We only
-      // overwrite when the existing deposited_amount is missing/zero or
-      // equals the gross paycheck — never trample a user-edited net.
+      // backfill its deposited_amount with the Plaid net deposit. Plaid is
+      // the cashflow source of truth for Net Received once linked. We
+      // overwrite when there's no clear evidence the user manually edited
+      // Net Received (see canPlaidOverwriteDeposited).
       try {
         const plaidAbs = Math.abs(Number((plaidRow as any).amount) || 0);
         const { data: linkedIE } = await supabase
           .from("income_entries")
-          .select("id, deposited_amount, paycheck_amount")
+          .select(
+            "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, other_deductions, origin_type, entry_kind, origin_planner_conversion_id, notes",
+          )
           .eq("linked_transaction_id", manualTxId)
           .maybeSingle();
-        if (linkedIE && plaidAbs > 0) {
-          const dep = Number((linkedIE as any).deposited_amount) || 0;
-          const gross = Number((linkedIE as any).paycheck_amount) || 0;
-          const isMissing = dep <= 0;
-          const equalsGross = gross > 0 && Math.abs(dep - gross) < 0.01;
-          if (isMissing || equalsGross) {
-            await supabase
-              .from("income_entries")
-              .update({ deposited_amount: plaidAbs } as any)
-              .eq("id", (linkedIE as any).id);
-          }
+        if (linkedIE && plaidAbs > 0 && canPlaidOverwriteDeposited(linkedIE as any)) {
+          await supabase
+            .from("income_entries")
+            .update({ deposited_amount: plaidAbs } as any)
+            .eq("id", (linkedIE as any).id);
         }
       } catch (err) {
         console.warn("[LinkTx] deposited_amount backfill skipped:", err);
       }
+
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
@@ -519,6 +517,52 @@ const isManualLikeSource = (s: string | null | undefined) =>
   !s || s === "manual" || s === "planner";
 
 /**
+ * Returns true when the income_entry's current `deposited_amount` is safe to
+ * overwrite with the newly linked Plaid deposit. Gross income / withholding /
+ * 401(k) / deductions / company / notes are NEVER touched here.
+ *
+ * Safe-to-overwrite cases:
+ *   a) deposited_amount is missing/zero
+ *   b) deposited_amount equals gross (placeholder)
+ *   c) entry came from planner conversion (origin_type/entry_kind/origin_planner_conversion_id)
+ *   d) notes mention "From planner"
+ *   e) deposited_amount equals the calculated take-home from saved planner fields
+ *
+ * Only a clear user-edited net (none of the above) blocks overwrite.
+ */
+export function canPlaidOverwriteDeposited(ie: any): boolean {
+  const dep = Number(ie?.deposited_amount) || 0;
+  if (dep <= 0) return true;
+  const gross =
+    Number(ie?.paycheck_amount) || Number(ie?.gross_amount) || 0;
+  if (gross > 0 && Math.abs(dep - gross) < 0.01) return true;
+  const origin = String(ie?.origin_type || "").toLowerCase();
+  const kind = String(ie?.entry_kind || "").toLowerCase();
+  if (
+    origin === "planner_converted" ||
+    kind === "planner_conversion" ||
+    ie?.origin_planner_conversion_id
+  ) {
+    return true;
+  }
+  const notes = String(ie?.notes || "").toLowerCase();
+  if (notes.includes("from planner")) return true;
+  // Compare to calculated take-home from saved planner fields.
+  const fed = Number(ie?.federal_withholding) || 0;
+  const ss = Number(ie?.ss_withholding) || 0;
+  const med = Number(ie?.medicare_withholding) || 0;
+  const state = Number(ie?.state_withholding) || 0;
+  const preTax = Number(ie?.pre_tax_deductions) || 0;
+  const ret = Number(ie?.retirement_401k) || 0;
+  const hsa = Number(ie?.hsa_contribution) || 0;
+  const health = Number(ie?.healthcare_deduction) || 0;
+  const other = Number(ie?.other_deductions) || 0;
+  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health - other);
+  if (calcNet > 0 && Math.abs(dep - calcNet) < 0.5) return true;
+  return false;
+}
+
+/**
  * Canonical row selector for a linked group.
  *
  * Global hierarchy (highest wins):
@@ -602,7 +646,7 @@ export function useCreateMatchGroup() {
       const { data: rows, error: fErr } = await supabase
         .from("transactions")
         .select(
-          "id, amount, source_type, transaction_type, linked_group_id, match_status, created_at, category, source_id, vendor, notes, recommended_withholding, actual_withholding, receipt_url"
+          "id, amount, source_type, transaction_type, transaction_date, account_source, linked_group_id, match_status, created_at, category, source_id, vendor, notes, recommended_withholding, actual_withholding, receipt_url"
         )
         .in("id", transactionIds);
       if (fErr) throw fErr;
@@ -747,9 +791,26 @@ export function useCreateMatchGroup() {
       // Canonical row stays active and owns the link metadata; every other
       // row in the group becomes status='merged' so all downstream totals
       // (ledger, dashboard, tax, reports, exports) count the group once.
+      // Identify the imported/Plaid sibling (if any) so we can denormalize
+      // its net deposit metadata onto the canonical row.
+      const plaidRow =
+        (rows as any[]).find((r) => mergedIds.includes(r.id) && r.source_type === "plaid") ??
+        (rows as any[]).find((r) => mergedIds.includes(r.id) && isImportedSource(r.source_type)) ??
+        null;
+      const plaidAbsSigned = plaidRow ? Number(plaidRow.amount) : null;
+      const canonicalUpdate: Record<string, any> = {
+        match_status: "linked",
+        linked_group_id: groupId,
+      };
+      if (plaidRow) {
+        canonicalUpdate.linked_plaid_transaction_id = plaidRow.id;
+        canonicalUpdate.linked_plaid_amount = plaidAbsSigned;
+        canonicalUpdate.linked_plaid_posted_date = plaidRow.transaction_date ?? null;
+        canonicalUpdate.linked_plaid_account = plaidRow.account_source ?? null;
+      }
       const { error: e1 } = await supabase
         .from("transactions")
-        .update({ match_status: "linked", linked_group_id: groupId } as any)
+        .update(canonicalUpdate as any)
         .eq("id", canonical.id);
       if (e1) throw e1;
 
@@ -762,35 +823,30 @@ export function useCreateMatchGroup() {
       }
 
       // Backfill deposited_amount on the canonical row's linked income_entry
-      // with the largest imported (Plaid) deposit in the group — but never
-      // overwrite a user-edited net (only when missing/zero or equal to gross).
+      // with the imported Plaid deposit. Plaid is the cashflow source of
+      // truth for Net Received; we only skip when there's clear evidence the
+      // user manually edited Net Received (see canPlaidOverwriteDeposited).
       try {
-        const plaidRow = (rows as any[]).find(
-          (r) => mergedIds.includes(r.id) && r.source_type === "plaid",
-        ) ?? (rows as any[]).find((r) => mergedIds.includes(r.id));
         const plaidAbs = Math.abs(Number(plaidRow?.amount) || 0);
         if (plaidAbs > 0) {
           const { data: linkedIE } = await supabase
             .from("income_entries")
-            .select("id, deposited_amount, paycheck_amount")
+            .select(
+              "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, other_deductions, origin_type, entry_kind, origin_planner_conversion_id, notes",
+            )
             .eq("linked_transaction_id", canonical.id)
             .maybeSingle();
-          if (linkedIE) {
-            const dep = Number((linkedIE as any).deposited_amount) || 0;
-            const gross = Number((linkedIE as any).paycheck_amount) || 0;
-            const isMissing = dep <= 0;
-            const equalsGross = gross > 0 && Math.abs(dep - gross) < 0.01;
-            if (isMissing || equalsGross) {
-              await supabase
-                .from("income_entries")
-                .update({ deposited_amount: plaidAbs } as any)
-                .eq("id", (linkedIE as any).id);
-            }
+          if (linkedIE && canPlaidOverwriteDeposited(linkedIE as any)) {
+            await supabase
+              .from("income_entries")
+              .update({ deposited_amount: plaidAbs } as any)
+              .eq("id", (linkedIE as any).id);
           }
         }
       } catch (err) {
         console.warn("[LinkTx] group deposited_amount backfill skipped:", err);
       }
+
 
       return groupId;
     },

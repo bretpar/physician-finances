@@ -92,6 +92,41 @@ export function isImportedCashIncomeRow(e: PersonalIncomeEntry): boolean {
   return false;
 }
 
+/**
+ * Returns true when the canonical income_entry's current `deposited_amount`
+ * is safe to overwrite with an imported Plaid deposit on link. Gross / payroll
+ * fields are NEVER touched here.
+ */
+export function canPlaidOverwriteCanonicalDeposit(e: PersonalIncomeEntry): boolean {
+  const dep = Number((e as any).deposited_amount) || 0;
+  if (dep <= 0) return true;
+  const gross = Number(e.gross_amount) || Number((e as any).paycheck_amount) || 0;
+  if (gross > 0 && Math.abs(dep - gross) < 0.01) return true;
+  const origin = String((e as any).origin_type || "").toLowerCase();
+  const kind = String((e as any).entry_kind || "").toLowerCase();
+  if (
+    origin === "planner_converted" ||
+    kind === "planner_conversion" ||
+    (e as any).origin_planner_conversion_id
+  ) {
+    return true;
+  }
+  const notes = String(e.notes || "").toLowerCase();
+  if (notes.includes("from planner")) return true;
+  const fed = Number(e.federal_withholding) || 0;
+  const ss = Number((e as any).ss_withholding) || 0;
+  const med = Number((e as any).medicare_withholding) || 0;
+  const state = Number(e.state_withholding) || 0;
+  const preTax = Number(e.pre_tax_deductions) || 0;
+  const ret = Number(e.retirement_401k) || 0;
+  const hsa = Number(e.hsa_contribution) || 0;
+  const health = Number((e as any).healthcare_deduction) || 0;
+  const other = Number((e as any).other_deductions) || 0;
+  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health - other);
+  if (calcNet > 0 && Math.abs(dep - calcNet) < 0.5) return true;
+  return false;
+}
+
 function pickCanonicalIncomeEntry(entries: PersonalIncomeEntry[]): PersonalIncomeEntry {
   // Global hierarchy:
   //  1) Manual / planner / app-created (accounting/payroll source of truth)
@@ -162,9 +197,8 @@ export function useCreateIncomeMatchGroup() {
       }
 
       const canonical = pickCanonicalIncomeEntry(rows as PersonalIncomeEntry[]);
-      const mergedIds = (rows as PersonalIncomeEntry[])
-        .filter((r) => r.id !== canonical.id)
-        .map((r) => r.id);
+      const mergedEntries = (rows as PersonalIncomeEntry[]).filter((r) => r.id !== canonical.id);
+      const mergedIds = mergedEntries.map((r) => r.id);
 
       const groupId = crypto.randomUUID();
       const linkRows = mergedIds.map((mid) => ({
@@ -178,6 +212,30 @@ export function useCreateIncomeMatchGroup() {
       }));
       const { error: iErr } = await supabase.from("income_entry_links").insert(linkRows as any);
       if (iErr) throw iErr;
+
+      // Backfill canonical deposited_amount from the imported cash sibling.
+      // Plaid/imported is the cashflow source of truth for Net Received once
+      // linked. We NEVER touch gross_amount/paycheck_amount, withholding,
+      // 401(k), HSA, healthcare, pre-tax, company, source, type, or notes.
+      try {
+        const imported =
+          mergedEntries.find((e) => isImportedCashIncomeRow(e)) ?? null;
+        if (imported) {
+          const importedDeposit =
+            Number((imported as any).deposited_amount) ||
+            Number(imported.gross_amount) ||
+            Number((imported as any).paycheck_amount) ||
+            0;
+          if (importedDeposit > 0 && canPlaidOverwriteCanonicalDeposit(canonical)) {
+            await supabase
+              .from("income_entries")
+              .update({ deposited_amount: importedDeposit } as any)
+              .eq("id", canonical.id);
+          }
+        }
+      } catch (err) {
+        console.warn("[LinkIncome] deposited_amount backfill skipped:", err);
+      }
 
       // Soft-merge sibling entries so totals count the group once.
       if (mergedIds.length > 0) {
