@@ -2348,16 +2348,30 @@ export default function Transactions() {
           const lOther = Number((linked as any).other_deductions) || 0;
           const lReserve = Number((linked as any).additional_tax_reserve) || 0;
           // Net received priority:
-          //   1) Plaid/imported deposit on the linked transaction (cash truth)
-          //   2) explicit deposited_amount on the linked income_entry
-          //   3) calculated take-home (gross − withholding − pre-tax − 401k − HSA − healthcare − other)
-          //   4) gross (fallback so users still see a number)
+          //   1) Plaid/imported sibling amount loaded in linkedSiblings (cash truth)
+          //   2) denormalized tx.linked_plaid_amount on the canonical row
+          //   3) explicit deposited_amount on the linked income_entry
+          //   4) calculated take-home (gross − withholding − pre-tax − 401k − HSA − healthcare − other)
+          //   5) gross (fallback so users still see a number)
           const lDeposited = Number((linked as any).deposited_amount) || 0;
           const lLinkedPlaidAmt = Math.abs(Number((tx as any).linked_plaid_amount) || 0);
+          const plaidSibling = linkedSiblings.find((it) => {
+            const t: any = it.transaction;
+            if ((tx as any).linked_plaid_transaction_id && t.id === (tx as any).linked_plaid_transaction_id) return true;
+            if (t.source_type === "plaid") return true;
+            if ((it as any).source === "imported") return true;
+            return false;
+          }) || linkedSiblings.find((it) => {
+            const amt = Math.abs(Number(it.transaction.amount) || 0);
+            return amt > 0 && Math.abs(amt - lGross) > 0.5;
+          });
+          const lSiblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
           const calcNet = Math.max(0, lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther);
-          const lNet = lLinkedPlaidAmt > 0
-            ? lLinkedPlaidAmt
-            : (lDeposited > 0 ? lDeposited : (calcNet > 0 ? calcNet : lGross));
+          const lNet = lSiblingAmt > 0
+            ? lSiblingAmt
+            : (lLinkedPlaidAmt > 0
+              ? lLinkedPlaidAmt
+              : (lDeposited > 0 ? lDeposited : (calcNet > 0 ? calcNet : lGross)));
 
           sections.push({
             title: "Tax details",
