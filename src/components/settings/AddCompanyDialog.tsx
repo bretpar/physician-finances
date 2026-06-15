@@ -21,6 +21,11 @@ import { toast } from "sonner";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { FilingType } from "@/lib/filingTypes";
+import {
+  K1_TAX_TREATMENT_OPTIONS,
+  K1_TAX_TREATMENT_DEFAULT,
+  type K1TaxTreatment,
+} from "@/lib/k1TaxTreatment";
 
 interface AddCompanyDialogProps {
   open: boolean;
