@@ -517,6 +517,52 @@ const isManualLikeSource = (s: string | null | undefined) =>
   !s || s === "manual" || s === "planner";
 
 /**
+ * Returns true when the income_entry's current `deposited_amount` is safe to
+ * overwrite with the newly linked Plaid deposit. Gross income / withholding /
+ * 401(k) / deductions / company / notes are NEVER touched here.
+ *
+ * Safe-to-overwrite cases:
+ *   a) deposited_amount is missing/zero
+ *   b) deposited_amount equals gross (placeholder)
+ *   c) entry came from planner conversion (origin_type/entry_kind/origin_planner_conversion_id)
+ *   d) notes mention "From planner"
+ *   e) deposited_amount equals the calculated take-home from saved planner fields
+ *
+ * Only a clear user-edited net (none of the above) blocks overwrite.
+ */
+export function canPlaidOverwriteDeposited(ie: any): boolean {
+  const dep = Number(ie?.deposited_amount) || 0;
+  if (dep <= 0) return true;
+  const gross =
+    Number(ie?.paycheck_amount) || Number(ie?.gross_amount) || 0;
+  if (gross > 0 && Math.abs(dep - gross) < 0.01) return true;
+  const origin = String(ie?.origin_type || "").toLowerCase();
+  const kind = String(ie?.entry_kind || "").toLowerCase();
+  if (
+    origin === "planner_converted" ||
+    kind === "planner_conversion" ||
+    ie?.origin_planner_conversion_id
+  ) {
+    return true;
+  }
+  const notes = String(ie?.notes || "").toLowerCase();
+  if (notes.includes("from planner")) return true;
+  // Compare to calculated take-home from saved planner fields.
+  const fed = Number(ie?.federal_withholding) || 0;
+  const ss = Number(ie?.ss_withholding) || 0;
+  const med = Number(ie?.medicare_withholding) || 0;
+  const state = Number(ie?.state_withholding) || 0;
+  const preTax = Number(ie?.pre_tax_deductions) || 0;
+  const ret = Number(ie?.retirement_401k) || 0;
+  const hsa = Number(ie?.hsa_contribution) || 0;
+  const health = Number(ie?.healthcare_deduction) || 0;
+  const other = Number(ie?.other_deductions) || 0;
+  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health - other);
+  if (calcNet > 0 && Math.abs(dep - calcNet) < 0.5) return true;
+  return false;
+}
+
+/**
  * Canonical row selector for a linked group.
  *
  * Global hierarchy (highest wins):
