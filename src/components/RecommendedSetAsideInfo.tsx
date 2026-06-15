@@ -301,21 +301,28 @@ export function RecommendedSetAsideInfo({ rate, breakdown, taxableBase, k1Treatm
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>How this is calculated</DialogTitle>
+        <DialogContent
+          className="p-0 gap-0 flex flex-col w-full sm:max-w-md max-h-[85vh] overflow-hidden
+            max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:translate-x-0 max-sm:translate-y-0
+            max-sm:max-w-full max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0
+            sm:rounded-lg"
+        >
+          <DialogHeader className="sticky top-0 z-10 flex flex-row items-center justify-between gap-3 border-b bg-background px-4 py-3 space-y-0 text-left">
+            <DialogTitle className="text-base font-semibold">How this is calculated</DialogTitle>
           </DialogHeader>
-          <InfoBody
-            rate={rate}
-            breakdown={breakdown}
-            personalStatus={personalStatus}
-            businessStatus={businessStatus}
-            personalDetail={personalDetail}
-            businessDetail={businessDetail}
-            taxableBase={taxableBase}
-            k1Treatment={k1Treatment}
-            isK1={isK1}
-          />
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-4">
+            <InfoBody
+              rate={rate}
+              breakdown={breakdown}
+              personalStatus={personalStatus}
+              businessStatus={businessStatus}
+              personalDetail={personalDetail}
+              businessDetail={businessDetail}
+              taxableBase={taxableBase}
+              k1Treatment={k1Treatment}
+              isK1={isK1}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </>
