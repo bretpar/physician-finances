@@ -204,6 +204,7 @@ export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateRe
       components.seMedicare = seBreakdown.medicare;
       components.seAdditionalMedicare = seBreakdown.additionalMedicare;
       components.seSocialSecurityCapped = seBreakdown.socialSecurityCapped;
+      components.seWageBaseDetail = seBreakdown.wageBaseDetail;
       components.selfEmployment = seBreakdown.socialSecurity + seBreakdown.medicare + seBreakdown.additionalMedicare;
     }
     components.businessState = getBusinessStateRate(settings, input);
