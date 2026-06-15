@@ -115,13 +115,15 @@ function TaxableBasePanel({ tb }: { tb: TaxableBaseBreakdown }) {
   );
 }
 
-function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail, taxableBase }: BodyProps) {
+function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail, taxableBase, k1Treatment, isK1 }: BodyProps) {
   const sourceLabel = breakdown?.baseRateSource === "federalEffectiveRate"
     ? "federalEffectiveRate"
     : breakdown?.baseRateSource === "effectiveRate"
       ? "effectiveRate"
       : "manualEffectiveTaxRate";
   const components = breakdown?.components;
+  const k1Meta = getK1TreatmentMeta(k1Treatment);
+  const seCapped = !!components?.seSocialSecurityCapped;
 
   return (
     <div className="space-y-4 text-sm">
@@ -129,6 +131,31 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Total tax rate</p>
         <p className="text-3xl font-bold text-primary mt-0.5">{rate.toFixed(1)}%</p>
       </div>
+
+      {isK1 && (
+        k1Meta ? (
+          <div className={`rounded-md border px-3 py-2 text-xs ${k1Meta.seTaxable ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-border bg-muted/40 text-foreground"}`}>
+            <p className="font-medium">
+              K-1 treatment: {k1Meta.shortLabel} — {k1Meta.seTaxable ? "SE tax included" : "SE tax not applied"}
+            </p>
+            <p className="text-[11px] opacity-80 mt-0.5 leading-snug">{k1Meta.description}</p>
+            {k1Meta.seTaxable && seCapped && (
+              <p className="text-[11px] opacity-80 mt-1 leading-snug">
+                Social Security SE tax may be reduced because prior W-2 wages already count toward the annual Social Security wage base.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 px-3 py-2 text-xs flex items-start gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              K-1 tax treatment is not set. Active partnership income may require self-employment tax. Please confirm whether this K-1 is active, passive, guaranteed payment, or S-corp distribution in Settings → Companies.
+            </span>
+          </div>
+        )
+      )}
+
+
 
       <p className="text-foreground">
         This amount is based on your total tax rate, which may include:
