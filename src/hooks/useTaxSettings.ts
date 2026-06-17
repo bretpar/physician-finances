@@ -161,74 +161,113 @@ export function useTaxSettings(enabled = true) {
         .eq("user_id", userId)
         .limit(1)
         .maybeSingle();
-      if (error) throw error;
-      if (!data) return DEFAULT_RATES;
-      const d = data as any;
-      return {
-        id: data.id,
-        filingStatus: (data.filing_status as TaxRates["filingStatus"]) || "single",
-        lastYearTax: Number(data.last_year_tax) || 0,
-        standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,
-        ssWageCap: Number(data.ss_wage_cap) || 168600,
-        taxMode: (d.tax_mode as TaxRates["taxMode"]) || "projected_brackets",
-        manualEffectiveTaxRate: d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null,
-        withholdingMethod: (d.withholding_method as WithholdingMethod) || "dynamic_planner",
-        w2PaycheckRecMethod: (d.w2_paycheck_rec_method as W2PaycheckRecMethod) || "annual_w4",
-        deductionType: (d.deduction_type as DeductionType) || "standard",
-        itemizedDeductionAmount: Number(d.itemized_deduction_amount) || 0,
-        qualifyingChildrenCount: Number(d.qualifying_children_count) || 0,
-        otherDependentsCount: Number(d.other_dependents_count) || 0,
-        withholdingOverrideType: (d.withholding_override_type as WithholdingOverrideType) || "none",
-        withholdingOverridePercent: d.withholding_override_percent != null ? Number(d.withholding_override_percent) : null,
-        withholdingOverrideAmount: d.withholding_override_amount != null ? Number(d.withholding_override_amount) : null,
-        stateIncomeTaxEnabled: !!(d.state_income_tax_enabled ?? d.state_tax_enabled),
-        stateTaxEnabled: !!(d.state_income_tax_enabled ?? d.state_tax_enabled),
-        stateOfResidence: (d.state_of_residence as string) || "",
-        personalStateTaxMode: (d.personal_state_tax_mode as PersonalStateTaxMode) || "none",
-        personalStateTaxRate: Number(d.personal_state_tax_rate) || 0,
-        personalStateTaxAnnualEstimate: Number(d.personal_state_tax_annual_estimate) || 0,
-        businessStateTaxEnabled: !!d.business_state_tax_enabled,
-        businessStateTaxRate: Number(d.business_state_tax_rate) || 0,
-        businessStateTaxBase: (d.business_state_tax_base as BusinessStateTaxBase) || "net_profit",
-        businessStateTaxApplicationMode: (d.business_state_tax_application_mode as BusinessStateTaxApplicationMode) || "all_business",
-        businessStateTaxCompanyIds: Array.isArray(d.business_state_tax_company_ids) ? (d.business_state_tax_company_ids as string[]) : [],
-        hsaEnabled: !!d.hsa_enabled,
-        hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
-        householdIncomeStreams: {
-          w2Income: d.household_w2_income_enabled ?? true,
-          spouseW2Income: d.household_spouse_w2_income_enabled ?? true,
-          additionalW2Job: d.household_additional_w2_job_enabled ?? true,
-          business1099Income: d.household_business_1099_income_enabled ?? true,
-          k1PartnershipIncome: d.household_k1_partnership_income_enabled ?? true,
-          sCorpIncome: d.household_scorp_income_enabled ?? true,
-          rentalIncome: d.household_rental_income_enabled ?? true,
-          investmentIncome: d.household_investment_income_enabled ?? true,
-          otherIncome: d.household_other_income_enabled ?? true,
-        },
-        autoConvertFutureIncomeToLedger: !!d.auto_convert_future_income_to_ledger,
-        timezone: (d.timezone as string | null) ?? null,
-        quarterlyTrackerMethod: (d.quarterly_tracker_method as QuarterlyTrackerMethod) || "even",
-        onboardingComplete: d.onboarding_complete ?? null,
-        onboardingBannerDismissed: !!d.onboarding_banner_dismissed,
-        onboardingFirstName: (d.onboarding_first_name as string) || "",
-        onboardingStep: Math.min(6, Math.max(1, Number(d.onboarding_step) || 1)),
-        incomeProfileType: (d.income_profile_type as IncomeProfileType) || "w2_plus_business",
-        enabledIncomeSources: {
-          w2: !!(d.enabled_income_sources?.w2 ?? true),
-          form1099: !!(d.enabled_income_sources?.form1099 ?? true),
-          k1: !!(d.enabled_income_sources?.k1 ?? true),
-        },
-        enabledPersonalIncomeTypes: Array.isArray(d.enabled_personal_income_types) ? d.enabled_personal_income_types : [],
-        taxRecommendationMethod: (d.tax_recommendation_method as TaxRecommendationMethod) || ((d.withholding_method === "flat_estimate" ? "flat_rate" : d.withholding_method) as TaxRecommendationMethod) || "dynamic_planner",
-        flatFederalRate: d.flat_federal_rate != null ? Number(d.flat_federal_rate) : (d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null),
-        flatStateRate: d.flat_state_rate != null ? Number(d.flat_state_rate) : null,
-        deductionStrategy: (d.deduction_strategy as DeductionStrategy) || ((d.deduction_type === "itemized" ? "itemized" : "standard") as DeductionStrategy),
-        enabledDeductionTypes: Array.isArray(d.enabled_deduction_types) ? d.enabled_deduction_types : [],
-        subscriptionTier: (d.subscription_tier as OnboardingSubscriptionTier) || "premium",
-        ytdCatchupChoice: (d.ytd_catchup_choice as TaxRates["ytdCatchupChoice"]) ?? null,
-      } as TaxRates;
+      if (error) {
+        console.error("[useTaxSettings] failed to load tax_settings", {
+          userId,
+          code: (error as any).code,
+          message: error.message,
+        });
+        // Throw so ProtectedRoutes keeps the query in a loading/error state
+        // rather than treating a permission failure as "onboarding incomplete".
+        throw error;
+      }
+      if (!data) {
+        console.warn("[useTaxSettings] no tax_settings row found, attempting recovery insert", { userId });
+        // Safe fallback: create a row for this user so they're not trapped in
+        // onboarding due to a missing row. We do NOT set onboarding_complete;
+        // truly new users still complete onboarding normally.
+        const { data: inserted, error: insertErr } = await supabase
+          .from("tax_settings")
+          .insert({ user_id: userId } as any)
+          .select("*")
+          .maybeSingle();
+        if (insertErr) {
+          console.error("[useTaxSettings] recovery insert failed", {
+            userId,
+            code: (insertErr as any).code,
+            message: insertErr.message,
+          });
+          return DEFAULT_RATES;
+        }
+        console.info("[useTaxSettings] recovery insert succeeded", { userId, id: (inserted as any)?.id });
+        return mapTaxSettingsRow(inserted);
+      }
+      console.debug("[useTaxSettings] loaded tax_settings", {
+        userId,
+        id: (data as any).id,
+        onboarding_complete: (data as any).onboarding_complete,
+      });
+      return mapTaxSettingsRow(data);
     },
   });
+}
+
+function mapTaxSettingsRow(data: any): TaxRates {
+  if (!data) return DEFAULT_RATES;
+  const d = data as any;
+  return {
+    id: data.id,
+    filingStatus: (data.filing_status as TaxRates["filingStatus"]) || "single",
+    lastYearTax: Number(data.last_year_tax) || 0,
+    standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,
+    ssWageCap: Number(data.ss_wage_cap) || 168600,
+    taxMode: (d.tax_mode as TaxRates["taxMode"]) || "projected_brackets",
+    manualEffectiveTaxRate: d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null,
+    withholdingMethod: (d.withholding_method as WithholdingMethod) || "dynamic_planner",
+    w2PaycheckRecMethod: (d.w2_paycheck_rec_method as W2PaycheckRecMethod) || "annual_w4",
+    deductionType: (d.deduction_type as DeductionType) || "standard",
+    itemizedDeductionAmount: Number(d.itemized_deduction_amount) || 0,
+    qualifyingChildrenCount: Number(d.qualifying_children_count) || 0,
+    otherDependentsCount: Number(d.other_dependents_count) || 0,
+    withholdingOverrideType: (d.withholding_override_type as WithholdingOverrideType) || "none",
+    withholdingOverridePercent: d.withholding_override_percent != null ? Number(d.withholding_override_percent) : null,
+    withholdingOverrideAmount: d.withholding_override_amount != null ? Number(d.withholding_override_amount) : null,
+    stateIncomeTaxEnabled: !!(d.state_income_tax_enabled ?? d.state_tax_enabled),
+    stateTaxEnabled: !!(d.state_income_tax_enabled ?? d.state_tax_enabled),
+    stateOfResidence: (d.state_of_residence as string) || "",
+    personalStateTaxMode: (d.personal_state_tax_mode as PersonalStateTaxMode) || "none",
+    personalStateTaxRate: Number(d.personal_state_tax_rate) || 0,
+    personalStateTaxAnnualEstimate: Number(d.personal_state_tax_annual_estimate) || 0,
+    businessStateTaxEnabled: !!d.business_state_tax_enabled,
+    businessStateTaxRate: Number(d.business_state_tax_rate) || 0,
+    businessStateTaxBase: (d.business_state_tax_base as BusinessStateTaxBase) || "net_profit",
+    businessStateTaxApplicationMode: (d.business_state_tax_application_mode as BusinessStateTaxApplicationMode) || "all_business",
+    businessStateTaxCompanyIds: Array.isArray(d.business_state_tax_company_ids) ? (d.business_state_tax_company_ids as string[]) : [],
+    hsaEnabled: !!d.hsa_enabled,
+    hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
+    householdIncomeStreams: {
+      w2Income: d.household_w2_income_enabled ?? true,
+      spouseW2Income: d.household_spouse_w2_income_enabled ?? true,
+      additionalW2Job: d.household_additional_w2_job_enabled ?? true,
+      business1099Income: d.household_business_1099_income_enabled ?? true,
+      k1PartnershipIncome: d.household_k1_partnership_income_enabled ?? true,
+      sCorpIncome: d.household_scorp_income_enabled ?? true,
+      rentalIncome: d.household_rental_income_enabled ?? true,
+      investmentIncome: d.household_investment_income_enabled ?? true,
+      otherIncome: d.household_other_income_enabled ?? true,
+    },
+    autoConvertFutureIncomeToLedger: !!d.auto_convert_future_income_to_ledger,
+    timezone: (d.timezone as string | null) ?? null,
+    quarterlyTrackerMethod: (d.quarterly_tracker_method as QuarterlyTrackerMethod) || "even",
+    onboardingComplete: d.onboarding_complete ?? null,
+    onboardingBannerDismissed: !!d.onboarding_banner_dismissed,
+    onboardingFirstName: (d.onboarding_first_name as string) || "",
+    onboardingStep: Math.min(6, Math.max(1, Number(d.onboarding_step) || 1)),
+    incomeProfileType: (d.income_profile_type as IncomeProfileType) || "w2_plus_business",
+    enabledIncomeSources: {
+      w2: !!(d.enabled_income_sources?.w2 ?? true),
+      form1099: !!(d.enabled_income_sources?.form1099 ?? true),
+      k1: !!(d.enabled_income_sources?.k1 ?? true),
+    },
+    enabledPersonalIncomeTypes: Array.isArray(d.enabled_personal_income_types) ? d.enabled_personal_income_types : [],
+    taxRecommendationMethod: (d.tax_recommendation_method as TaxRecommendationMethod) || ((d.withholding_method === "flat_estimate" ? "flat_rate" : d.withholding_method) as TaxRecommendationMethod) || "dynamic_planner",
+    flatFederalRate: d.flat_federal_rate != null ? Number(d.flat_federal_rate) : (d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null),
+    flatStateRate: d.flat_state_rate != null ? Number(d.flat_state_rate) : null,
+    deductionStrategy: (d.deduction_strategy as DeductionStrategy) || ((d.deduction_type === "itemized" ? "itemized" : "standard") as DeductionStrategy),
+    enabledDeductionTypes: Array.isArray(d.enabled_deduction_types) ? d.enabled_deduction_types : [],
+    subscriptionTier: (d.subscription_tier as OnboardingSubscriptionTier) || "premium",
+    ytdCatchupChoice: (d.ytd_catchup_choice as TaxRates["ytdCatchupChoice"]) ?? null,
+  } as TaxRates;
 }
 
 export function useUpdateTaxSettings() {
