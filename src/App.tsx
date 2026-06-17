@@ -36,7 +36,7 @@ const queryClient = new QueryClient();
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings(!!user);
+  const { data: taxSettings, isLoading: settingsLoading, isError: settingsError, error: settingsErrorObj } = useTaxSettings(!!user);
 
   if (loading) {
     return (
@@ -62,9 +62,15 @@ function ProtectedRoutes() {
     return <OnboardingErrorBoundary><Onboarding /></OnboardingErrorBoundary>;
   }
 
-  if (taxSettings?.onboardingComplete !== true) {
+  // Defensive: if we couldn't load tax_settings (e.g. RLS/permissions error),
+  // don't silently bounce the user to onboarding — that would trap completed
+  // users. Stay on the current route and surface the issue in the console.
+  if (settingsError) {
+    console.error("[ProtectedRoutes] tax_settings failed to load; not redirecting to onboarding", settingsErrorObj);
+  } else if (taxSettings?.onboardingComplete !== true) {
     return <Navigate to="/onboarding" replace />;
   }
+
 
   return (
     <CompanyProvider>
