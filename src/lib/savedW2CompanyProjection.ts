@@ -60,10 +60,14 @@ export function computeSavedW2CompanyProjectionAddon(
     const ft = normalizeFilingType(c.companyType);
     if (ft !== "w2" && ft !== "scorp_w2") continue;
     if (args.coveredCompanyIds.has(c.id)) continue;
+    // Irregular / locums / per-diem W-2 employers don't auto-project future
+    // income — the user enters paychecks manually or via Income Planner.
+    if (c.payFrequency === "irregular") continue;
 
     const annual = c.projectedAnnualGross;
     const perPaycheckFed = c.expectedFederalWithholdingPerPaycheck;
     if (annual == null && perPaycheckFed == null) continue;
+
 
     const ytd = args.ytdGrossByCompanyKey.get(ytdCompanyKey(c.name)) || 0;
     const grossAddon = annual != null ? Math.max(0, annual - ytd) : 0;
