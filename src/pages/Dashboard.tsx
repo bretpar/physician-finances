@@ -213,6 +213,7 @@ export default function Dashboard() {
     () => buildQuarterRecommendation({ ...sharedQrInput, now }),
     [sharedQrInput, now],
   );
+  const { data: ytdMileageDashboard = [] } = useMileageYTD(currentYear);
 
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
     return <DashboardSkeleton />;
@@ -291,7 +292,6 @@ export default function Dashboard() {
     for (const st of streams || []) m.set(st.id, Number((st as any).forecast_expense_per_period || 0));
     return m;
   })();
-  const { data: ytdMileageDashboard = [] } = useMileageYTD(currentYear);
   const scheduleCBusinessProfit = (() => {
     const actualRev = (transactions || [])
       .filter((t) => {
