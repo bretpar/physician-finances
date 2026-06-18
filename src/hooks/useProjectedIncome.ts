@@ -1095,6 +1095,34 @@ export function generateProjectedPaychecks(
       continue;
     }
 
+    // Irregular / locums / per-diem: no auto-generated recurring paychecks.
+    // Future planned paychecks for these streams come only from explicit
+    // user-entered overrides (Income Planner) or from manually-entered actual
+    // income on the Personal Income page.
+    if (stream.pay_frequency === "irregular") {
+      for (const [key, override] of overrideMap.entries()) {
+        if (!key.startsWith(`${stream.id}:`)) continue;
+        if (override.action !== "modify") continue;
+        const dateStr = override.new_date || override.override_date;
+        const d = parseISO(dateStr);
+        if (isAfter(d, yearEnd) || isBefore(d, yearStart)) continue;
+        rawPaychecks.push({
+          date: dateStr,
+          grossAmount: override.paycheck_amount,
+          taxesWithheld: override.taxes_withheld,
+          retirement401k: override.retirement_401k,
+          preTaxDeductions: override.pre_tax_deductions,
+          healthcareDeduction: stream.healthcare_deduction || 0,
+          hsaContribution: stream.hsa_contribution || 0,
+          type: "paycheck", label: stream.company, streamId: stream.id,
+          isSkipped: false, isModified: true,
+          streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
+        });
+      }
+      continue;
+    }
+
+
     // Recurring streams — generate from start of year (or stream start) through year end
     const end = stream.end_date ? parseISO(stream.end_date) : yearEnd;
     const effectiveStart = isBefore(start, yearStart) ? yearStart : start;
