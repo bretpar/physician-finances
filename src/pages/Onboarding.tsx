@@ -990,9 +990,16 @@ export default function Onboarding() {
                               <SelectItem value="monthly" data-testid={`onboarding-pay-frequency-${index}-option-monthly`}>Monthly (once per month)</SelectItem>
                               <SelectItem value="quarterly" data-testid={`onboarding-pay-frequency-${index}-option-quarterly`}>Quarterly</SelectItem>
                               <SelectItem value="annual" data-testid={`onboarding-pay-frequency-${index}-option-annual`}>Annual</SelectItem>
+                              <SelectItem value="irregular" data-testid={`onboarding-pay-frequency-${index}-option-irregular`}>Irregular / Locums / Per-diem</SelectItem>
                             </SelectContent>
                           </Select>
+                          {company.payFrequency === "irregular" && (
+                            <p className="text-xs text-muted-foreground mt-1.5">
+                              Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule.
+                            </p>
+                          )}
                         </div>
+
                         {merged.filingStatus === "married_filing_jointly" && (
                           <div className="mt-3">
                             <Label htmlFor={`company-employee-role-${index}`}>Whose W-2 is this?</Label>
