@@ -213,6 +213,7 @@ export default function Dashboard() {
     () => buildQuarterRecommendation({ ...sharedQrInput, now }),
     [sharedQrInput, now],
   );
+  const { data: ytdMileageDashboard = [] } = useMileageYTD(currentYear);
 
   if (txLoading || ratesLoading || incLoading || piLoading || estLoading) {
     return <DashboardSkeleton />;
