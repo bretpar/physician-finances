@@ -35,6 +35,8 @@ import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitle
 import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
 import { Button } from "@/components/ui/button";
 
+import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { data: transactions, isLoading: txLoading } = useTransactions();
