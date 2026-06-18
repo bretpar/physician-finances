@@ -482,6 +482,34 @@ export default function Onboarding() {
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}) {
     if (!settingsId) throw new Error("Onboarding settings are still loading. Please try again in a moment.");
+    // SECURITY: Re-validate auth with the server (getUser, not getSession)
+    // and confirm the settings row we're about to write actually belongs to
+    // the current authenticated user. This blocks any edge case where a
+    // stale settingsId from a previous user's React Query cache could be
+    // applied to the wrong account.
+    const { data: authData } = await supabase.auth.getUser();
+    const authUid = authData?.user?.id ?? null;
+    if (!authUid) {
+      throw new Error("You are signed out. Please sign in again.");
+    }
+    if (user && user.id !== authUid) {
+      console.error("[onboarding] auth uid mismatch with context user", { contextUser: user.id, authUid });
+      throw new Error("Session changed. Please reload and try again.");
+    }
+    const { data: ownerRow, error: ownerErr } = await supabase
+      .from("tax_settings")
+      .select("id, user_id")
+      .eq("id", settingsId)
+      .maybeSingle();
+    if (ownerErr) throw ownerErr;
+    if (!ownerRow || ownerRow.user_id !== authUid) {
+      console.error("[onboarding] refusing write — settings row does not belong to current user", {
+        settingsId,
+        ownerUserId: ownerRow?.user_id,
+        authUid,
+      });
+      throw new Error("Onboarding session is out of sync. Please reload and try again.");
+    }
     const next = { ...merged, filingStatus: filingStatusRef.current, ...partial };
     const sources = incomeProfileToSources(next.incomeProfileType);
     // Dashboard Personalization defaults should reflect the income types the
