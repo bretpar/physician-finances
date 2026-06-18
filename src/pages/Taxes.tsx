@@ -58,6 +58,9 @@ const PAYMENT_QUARTERS = [
 ];
 
 export default function Taxes() {
+  // Idempotent repair: restore any YTD catch-up rows whose ledger mirror
+  // was lost to a previous timeout. Safe no-op when everything is intact.
+  useRepairYtdCatchupMirrors();
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug } = useTaxEstimate();
   // CANONICAL withholding — single source of truth shared with Paychecks and Withholding Guide.
