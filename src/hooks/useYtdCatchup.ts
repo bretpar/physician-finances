@@ -1,8 +1,10 @@
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { formatMonthYear } from "@/lib/localDate";
+
 
 export type YtdCatchupSourceType = "w2" | "1099_k1" | "other";
 export type YtdCatchupOwnerPerson = "taxpayer" | "spouse";
@@ -764,4 +766,125 @@ export function aggregateYtdCatchup(entries: YtdCatchupEntry[] | undefined, taxY
   totals.netBusinessProfit = Math.max(0, totals.grossIncome - totals.businessExpenses);
   return totals;
 }
+
+/**
+ * Idempotent repair pass: for every ytd_catchup_entries row owned by the
+ * current user, ensure the appropriate ledger mirror exists.
+ *
+ *   - w2 / other   → income_entries row linked by linked_ytd_catchup_id
+ *   - 1099_k1      → transactions row(s) linked by origin_ytd_catchup_id
+ *
+ * If a mirror is missing (e.g. a previous save timed out between the
+ * catch-up insert and the syncCatchupMirror call), we re-run
+ * syncCatchupMirror — which itself matches existing rows first and so is
+ * safe to invoke when a mirror already exists. This is how a VA Hospital
+ * W-2 that lost its mirror to a transient timeout gets restored on the
+ * next Personal Income / Tax Overview hydration without creating
+ * duplicates.
+ */
+export async function repairYtdCatchupMirrors(): Promise<{
+  checked: number;
+  repaired: number;
+  failed: number;
+}> {
+  const { data: userRes } = await supabase.auth.getUser();
+  const user = userRes?.user;
+  if (!user) return { checked: 0, repaired: 0, failed: 0 };
+
+  const { data: entriesRaw, error: entriesErr } = await (supabase as any)
+    .from("ytd_catchup_entries")
+    .select("*")
+    .eq("user_id", user.id);
+  if (entriesErr || !entriesRaw?.length) {
+    return { checked: 0, repaired: 0, failed: 0 };
+  }
+  const entries = entriesRaw as YtdCatchupEntry[];
+  const ids = entries.map((e) => e.id);
+
+  // Bulk-fetch existing mirrors so we don't do N+1 round trips.
+  const incomeMirrorIds = new Set<string>();
+  const txIncomeMirrorIds = new Set<string>();
+  try {
+    const { data: incomeRows } = await (supabase as any)
+      .from("income_entries")
+      .select("linked_ytd_catchup_id")
+      .in("linked_ytd_catchup_id", ids);
+    for (const r of (incomeRows || []) as any[]) {
+      if (r.linked_ytd_catchup_id) incomeMirrorIds.add(String(r.linked_ytd_catchup_id));
+    }
+  } catch (e) {
+    console.warn("[repairYtdCatchupMirrors] income mirror lookup failed", e);
+  }
+  try {
+    const { data: txRows } = await (supabase as any)
+      .from("transactions")
+      .select("origin_ytd_catchup_id, transaction_type")
+      .in("origin_ytd_catchup_id", ids)
+      .eq("transaction_type", "income");
+    for (const r of (txRows || []) as any[]) {
+      if (r.origin_ytd_catchup_id) txIncomeMirrorIds.add(String(r.origin_ytd_catchup_id));
+    }
+  } catch (e) {
+    console.warn("[repairYtdCatchupMirrors] tx mirror lookup failed", e);
+  }
+
+  let repaired = 0;
+  let failed = 0;
+  for (const entry of entries) {
+    const isBusiness = entry.source_type === "1099_k1";
+    const hasIncomeMirror = incomeMirrorIds.has(entry.id);
+    const hasTxMirror = txIncomeMirrorIds.has(entry.id);
+    const needsRepair = isBusiness
+      ? !hasTxMirror && (Number(entry.gross_income) || 0) > 0
+      : !hasIncomeMirror;
+    if (!needsRepair) continue;
+    try {
+      await syncCatchupMirror({
+        catchupEntry: entry,
+        userId: user.id,
+        orgId: entry.organization_id ?? null,
+      });
+      repaired++;
+    } catch (e) {
+      failed++;
+      console.warn("[repairYtdCatchupMirrors] repair failed for", entry.id, e);
+    }
+  }
+  return { checked: entries.length, repaired, failed };
+}
+
+/**
+ * Side-effect hook: on hydration of Personal Income / Tax Overview, run a
+ * one-shot idempotent repair pass for missing YTD catch-up mirror rows.
+ * Safe to mount in multiple pages — the underlying query is shared/cached
+ * by React Query, and syncCatchupMirror is itself idempotent.
+ */
+export function useRepairYtdCatchupMirrors() {
+  const qc = useQueryClient();
+  const toastedRef = useRef(false);
+  const q = useQuery({
+    queryKey: ["ytd_catchup_mirror_repair"],
+    queryFn: repairYtdCatchupMirrors,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+  useEffect(() => {
+    if (!q.data) return;
+    if (q.data.repaired > 0) {
+      qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+    }
+    if (q.data.failed > 0 && !toastedRef.current) {
+      toastedRef.current = true;
+      toast.error(
+        `Could not fully restore ${q.data.failed} YTD catch-up ledger row(s). Re-saving the affected employer from Settings → YTD catch-up will retry.`,
+        { duration: 8000 },
+      );
+    }
+  }, [q.data, qc]);
+  return q;
+}
+
 

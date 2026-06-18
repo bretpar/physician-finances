@@ -25,6 +25,7 @@ import W4PaycheckAdjustmentCard from "@/components/tax/W4PaycheckAdjustmentCard"
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
 import TaxDebugPanel from "@/components/TaxDebugPanel";
 
@@ -57,6 +58,9 @@ const PAYMENT_QUARTERS = [
 ];
 
 export default function Taxes() {
+  // Idempotent repair: restore any YTD catch-up rows whose ledger mirror
+  // was lost to a previous timeout. Safe no-op when everything is intact.
+  useRepairYtdCatchupMirrors();
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug } = useTaxEstimate();
   // CANONICAL withholding — single source of truth shared with Paychecks and Withholding Guide.

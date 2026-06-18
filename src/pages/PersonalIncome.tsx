@@ -30,6 +30,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
+import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { formatDate, formatDateShort, formatMonthYear } from "@/lib/localDate";
@@ -190,6 +191,9 @@ const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown }
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
+  // Idempotent repair: restore any YTD catch-up rows whose ledger mirror
+  // was lost to a previous timeout. Safe no-op when everything is intact.
+  useRepairYtdCatchupMirrors();
   const { data: rawEntriesUnsafe = [], isLoading } = usePersonalIncomeEntries();
   const { companies } = useCompanies();
   const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
