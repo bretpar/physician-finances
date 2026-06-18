@@ -236,7 +236,13 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
                   ))}
                 </SelectContent>
               </Select>
+              {isW2 && frequency === "irregular" && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule.
+                </p>
+              )}
             </div>
+
 
             <div className={isW2 ? "" : "opacity-60"}>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
