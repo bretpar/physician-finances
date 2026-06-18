@@ -54,6 +54,22 @@ export default function Accounts() {
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
   const [editMode, setEditMode] = useState<string>("unassigned");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
+  const [plaidStatus, setPlaidStatus] = useState<{ plaid_env: string; sandbox_qa: boolean; configured: boolean; is_production: boolean } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.functions.invoke("plaid-status");
+        if (!cancelled && data) setPlaidStatus(data as any);
+      } catch (e) {
+        console.warn("plaid-status fetch failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const isSandboxMode = plaidStatus && plaidStatus.plaid_env !== "production";
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
