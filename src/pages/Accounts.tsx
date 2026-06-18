@@ -54,6 +54,22 @@ export default function Accounts() {
   const [editingAccount, setEditingAccount] = useState<any | null>(null);
   const [editMode, setEditMode] = useState<string>("unassigned");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
+  const [plaidStatus, setPlaidStatus] = useState<{ plaid_env: string; sandbox_qa: boolean; configured: boolean; is_production: boolean } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.functions.invoke("plaid-status");
+        if (!cancelled && data) setPlaidStatus(data as any);
+      } catch (e) {
+        console.warn("plaid-status fetch failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const isSandboxMode = plaidStatus && plaidStatus.plaid_env !== "production";
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
@@ -305,6 +321,24 @@ export default function Accounts() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto w-full min-w-0">
+      {isSandboxMode && (
+        <div
+          role="status"
+          aria-label="Plaid Sandbox Test Mode"
+          className="rounded-md border border-yellow-400 bg-yellow-50 text-yellow-900 p-3 text-sm flex items-start gap-2"
+        >
+          <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <div className="font-semibold">Plaid Sandbox / Test Mode</div>
+            <div className="text-xs mt-1">
+              No real banks are connected. Use sandbox credentials —{" "}
+              <code className="font-mono">user_good</code> /{" "}
+              <code className="font-mono">pass_good</code> (MFA: <code className="font-mono">1234</code>).
+              {plaidStatus?.sandbox_qa ? " Real-bank Link is blocked (ENABLE_PLAID_SANDBOX_QA=true)." : ""}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-base font-semibold text-foreground">Bank Connections</h3>
