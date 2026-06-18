@@ -35,7 +35,9 @@ Deno.serve(async (req) => {
     }
 
     const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID");
-    const PLAID_ENV = Deno.env.get("PLAID_ENV") || "sandbox";
+    const SANDBOX_QA = (Deno.env.get("ENABLE_PLAID_SANDBOX_QA") || "").toLowerCase() === "true";
+    // QA flag forces sandbox regardless of PLAID_ENV, preventing accidental real-bank Link.
+    const PLAID_ENV = SANDBOX_QA ? "sandbox" : (Deno.env.get("PLAID_ENV") || "sandbox");
     const PLAID_SECRET =
       PLAID_ENV === "sandbox"
         ? (Deno.env.get("PLAID_SECRET_SANDBOX") || Deno.env.get("PLAID_SECRET"))
@@ -43,10 +45,10 @@ Deno.serve(async (req) => {
 
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
       console.error("Plaid not configured: missing PLAID_CLIENT_ID or PLAID_SECRET");
-      return json(
-        { error: "plaid_not_configured", message: "Bank connection is not configured yet. Please contact support." },
-        503,
-      );
+      const msg = SANDBOX_QA && PLAID_ENV === "sandbox" && !PLAID_SECRET
+        ? "Plaid Sandbox is not configured. Set PLAID_SECRET_SANDBOX before running QA. Real-bank Link is blocked while ENABLE_PLAID_SANDBOX_QA=true."
+        : "Bank connection is not configured yet. Please contact support.";
+      return json({ error: "plaid_not_configured", message: msg }, 503);
     }
 
     const plaidHost =
