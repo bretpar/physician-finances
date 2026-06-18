@@ -30,6 +30,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
+import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { formatDate, formatDateShort, formatMonthYear } from "@/lib/localDate";
