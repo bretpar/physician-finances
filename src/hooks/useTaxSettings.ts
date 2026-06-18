@@ -337,8 +337,27 @@ export function useUpdateTaxSettings() {
       if (rest.subscriptionTier !== undefined) payload.subscription_tier = rest.subscriptionTier;
       if (rest.ytdCatchupChoice !== undefined) payload.ytd_catchup_choice = rest.ytdCatchupChoice;
 
-      const { error } = await supabase.from("tax_settings").update(payload as any).eq("id", id);
+      // SECURITY: Always scope the update by the current auth user as well
+      // as the row id. RLS already enforces this server-side, but adding
+      // `.eq("user_id", auth.uid)` ensures a stale `id` from a previous
+      // user's cache cannot accidentally rewrite the wrong account's row.
+      const { data: authData } = await supabase.auth.getUser();
+      const authUid = authData?.user?.id ?? null;
+      if (!authUid) {
+        throw new Error("You are signed out. Please sign in again.");
+      }
+      const { error, data: updated } = await supabase
+        .from("tax_settings")
+        .update(payload as any)
+        .eq("id", id)
+        .eq("user_id", authUid)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!updated) {
+        console.error("[useUpdateTaxSettings] update affected no row — likely cross-user id", { id, authUid });
+        throw new Error("Could not save settings. Please reload and try again.");
+      }
       return rest;
     },
     onSuccess: async (updates) => {
