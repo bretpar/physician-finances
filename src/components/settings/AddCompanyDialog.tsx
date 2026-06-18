@@ -47,6 +47,7 @@ const FREQUENCY_OPTIONS = [
   { value: "biweekly", label: "Biweekly" },
   { value: "semimonthly", label: "Semimonthly" },
   { value: "monthly", label: "Monthly" },
+  { value: "irregular", label: "Irregular / Locums / Per-diem" },
 ];
 
 function toFilingType(t: IncomeTypeOption): FilingType {
