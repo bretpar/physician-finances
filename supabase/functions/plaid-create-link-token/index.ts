@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    return json({ link_token: data.link_token });
+    return json({ link_token: data.link_token, plaid_env: PLAID_ENV, sandbox_qa: SANDBOX_QA });
   } catch (err) {
     console.error("plaid-create-link-token unexpected error:", err);
     return json(
