@@ -25,6 +25,7 @@ import W4PaycheckAdjustmentCard from "@/components/tax/W4PaycheckAdjustmentCard"
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
 import TaxDebugPanel from "@/components/TaxDebugPanel";
 
