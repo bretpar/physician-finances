@@ -191,6 +191,9 @@ const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown }
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
 
 export default function PersonalIncome() {
+  // Idempotent repair: restore any YTD catch-up rows whose ledger mirror
+  // was lost to a previous timeout. Safe no-op when everything is intact.
+  useRepairYtdCatchupMirrors();
   const { data: rawEntriesUnsafe = [], isLoading } = usePersonalIncomeEntries();
   const { companies } = useCompanies();
   const [filterReview, setFilterReview] = useState<"all" | "needs_review">("all");
