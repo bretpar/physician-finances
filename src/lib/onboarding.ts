@@ -15,7 +15,8 @@ export type OnboardingPayFrequency =
   | "semimonthly"
   | "monthly"
   | "quarterly"
-  | "annual";
+  | "annual"
+  | "irregular";
 
 export interface OnboardingCompanyDraft {
   name: string;

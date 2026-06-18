@@ -94,6 +94,9 @@ export function defaultRemainingPaychecks(frequency: string, today: Date = new D
     case "annually":
     case "single":
       return 1;
+    case "irregular":
+      // Irregular / locums / per-diem: no scheduled paychecks; user enters manually.
+      return 0;
     default:
       return Math.max(0, Math.floor(daysLeft / 14));
   }

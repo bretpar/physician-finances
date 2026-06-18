@@ -1531,9 +1531,16 @@ function CompaniesSection() {
                                 <SelectItem value="biweekly" data-testid="company-pay-frequency-option-biweekly">Biweekly</SelectItem>
                                 <SelectItem value="semimonthly" data-testid="company-pay-frequency-option-semimonthly">Semimonthly</SelectItem>
                                 <SelectItem value="monthly" data-testid="company-pay-frequency-option-monthly">Monthly</SelectItem>
+                                <SelectItem value="irregular" data-testid="company-pay-frequency-option-irregular">Irregular / Locums / Per-diem</SelectItem>
                               </SelectContent>
                             </Select>
+                            {freq === "irregular" && (
+                              <p className="text-xs text-muted-foreground mt-1.5">
+                                Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule.
+                              </p>
+                            )}
                           </div>
+
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
                             <Input
