@@ -61,6 +61,72 @@ function toFilingType(t: IncomeTypeOption): FilingType {
   return t as FilingType;
 }
 
+function W4ProjectionFields({
+  isW2,
+  remainingPaychecks,
+  setRemainingPaychecks,
+  projectedGross,
+  setProjectedGross,
+  expectedWithholding,
+  setExpectedWithholding,
+}: {
+  isW2: boolean;
+  remainingPaychecks: string;
+  setRemainingPaychecks: (v: string) => void;
+  projectedGross: string;
+  setProjectedGross: (v: string) => void;
+  expectedWithholding: string;
+  setExpectedWithholding: (v: string) => void;
+}) {
+  return (
+    <>
+      <div className={isW2 ? "" : "opacity-60"}>
+        <Label className="text-xs text-muted-foreground mb-1.5 block">
+          Remaining paychecks this year
+        </Label>
+        <Input
+          data-testid="settings-company-remaining-paychecks-input"
+          type="number"
+          inputMode="numeric"
+          value={remainingPaychecks}
+          onChange={(e) => setRemainingPaychecks(e.target.value)}
+          placeholder="Auto"
+          disabled={!isW2}
+        />
+      </div>
+
+      <div>
+        <Label className="text-xs text-muted-foreground mb-1.5 block">
+          Projected annual gross income (optional)
+        </Label>
+        <Input
+          data-testid="settings-company-projected-annual-gross-input"
+          type="number"
+          inputMode="decimal"
+          value={projectedGross}
+          onChange={(e) => setProjectedGross(e.target.value)}
+          placeholder="0"
+        />
+      </div>
+
+      <div className={isW2 ? "" : "opacity-60"}>
+        <Label className="text-xs text-muted-foreground mb-1.5 block">
+          Expected federal withholding per paycheck (optional)
+        </Label>
+        <Input
+          data-testid="settings-company-expected-federal-withholding-input"
+          type="number"
+          inputMode="decimal"
+          value={expectedWithholding}
+          onChange={(e) => setExpectedWithholding(e.target.value)}
+          placeholder="0"
+          disabled={!isW2}
+        />
+      </div>
+    </>
+  );
+}
+
 export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) {
   const { addCompany } = useCompanies();
   const { data: taxSettings } = useTaxSettings();
@@ -92,6 +158,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
     setExpectedWithholding("");
     setK1Treatment(K1_TAX_TREATMENT_DEFAULT);
     setNameError(null);
+    setShowW4Fields(false);
     onOpenChange(false);
   }
 
@@ -214,7 +281,6 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
               </div>
             )}
 
-
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
                 Employee role{isMFJ ? "" : " (defaults to You)"}
@@ -253,7 +319,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
               )}
             </div>
 
-            {isIrregular && (
+            {isIrregular ? (
               <Collapsible open={showW4Fields} onOpenChange={setShowW4Fields}>
                 <CollapsibleTrigger asChild>
                   <button type="button" className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
@@ -262,59 +328,27 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
                   </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3">
-            )}
-
-            {(!isIrregular || showW4Fields) && (
-              <>
-                <div className={isW2 ? "" : "opacity-60"}>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">
-                    Remaining paychecks this year
-                  </Label>
-                  <Input
-                    data-testid="settings-company-remaining-paychecks-input"
-                    type="number"
-                    inputMode="numeric"
-                    value={remainingPaychecks}
-                    onChange={(e) => setRemainingPaychecks(e.target.value)}
-                    placeholder="Auto"
-                    disabled={!isW2}
+                  <W4ProjectionFields
+                    isW2={isW2}
+                    remainingPaychecks={remainingPaychecks}
+                    setRemainingPaychecks={setRemainingPaychecks}
+                    projectedGross={projectedGross}
+                    setProjectedGross={setProjectedGross}
+                    expectedWithholding={expectedWithholding}
+                    setExpectedWithholding={setExpectedWithholding}
                   />
-                </div>
-
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">
-                    Projected annual gross income (optional)
-                  </Label>
-                  <Input
-                    data-testid="settings-company-projected-annual-gross-input"
-                    type="number"
-                    inputMode="decimal"
-                    value={projectedGross}
-                    onChange={(e) => setProjectedGross(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-
-                <div className={isW2 ? "" : "opacity-60"}>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">
-                    Expected federal withholding per paycheck (optional)
-                  </Label>
-                  <Input
-                    data-testid="settings-company-expected-federal-withholding-input"
-                    type="number"
-                    inputMode="decimal"
-                    value={expectedWithholding}
-                    onChange={(e) => setExpectedWithholding(e.target.value)}
-                    placeholder="0"
-                    disabled={!isW2}
-                  />
-                </div>
-              </>
-            )}
-
-            {isIrregular && (
                 </CollapsibleContent>
               </Collapsible>
+            ) : (
+              <W4ProjectionFields
+                isW2={isW2}
+                remainingPaychecks={remainingPaychecks}
+                setRemainingPaychecks={setRemainingPaychecks}
+                projectedGross={projectedGross}
+                setProjectedGross={setProjectedGross}
+                expectedWithholding={expectedWithholding}
+                setExpectedWithholding={setExpectedWithholding}
+              />
             )}
           </div>
 
