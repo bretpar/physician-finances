@@ -94,7 +94,7 @@ export function buildIncomeEntryRow(
     source_id: entry.source_id ?? null,
     income_type: toCanonicalIncomeType(entry.income_type),
     ui_income_subtype: entry.ui_income_subtype ?? entry.income_type ?? null,
-    income_date: entry.income_date || new Date().toISOString().split("T")[0],
+    income_date: entry.income_date || getTodayLocalDateString(),
     gross_amount: gross,
     paycheck_amount: money(paycheck),
     deposited_amount: money(deposited),
