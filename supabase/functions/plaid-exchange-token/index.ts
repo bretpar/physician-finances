@@ -14,7 +14,11 @@ Deno.serve(async (req) => {
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID");
-    const PLAID_SECRET = Deno.env.get("PLAID_SECRET");
+    const SANDBOX_QA = (Deno.env.get("ENABLE_PLAID_SANDBOX_QA") || "").toLowerCase() === "true";
+    const PLAID_ENV_RESOLVED = SANDBOX_QA ? "sandbox" : (Deno.env.get("PLAID_ENV") || "sandbox");
+    const PLAID_SECRET = PLAID_ENV_RESOLVED === "sandbox"
+      ? (Deno.env.get("PLAID_SECRET_SANDBOX") || Deno.env.get("PLAID_SECRET"))
+      : Deno.env.get("PLAID_SECRET");
 
     const missing: string[] = [];
     if (!SUPABASE_URL) missing.push("SUPABASE_URL");
