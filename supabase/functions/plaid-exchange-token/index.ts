@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const PLAID_ENV = Deno.env.get("PLAID_ENV") || "sandbox";
+    const PLAID_ENV = PLAID_ENV_RESOLVED;
 
     const plaidHost = PLAID_ENV === "production"
       ? "https://production.plaid.com"
