@@ -155,12 +155,14 @@ export function useTaxSettings(enabled = true) {
     enabled: enabled && !!userId,
     queryFn: async () => {
 
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from("tax_settings")
         .select("*")
         .eq("user_id", userId)
-        .limit(1)
-        .maybeSingle();
+        .order("onboarding_complete", { ascending: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(2);
       if (error) {
         console.error("[useTaxSettings] failed to load tax_settings", {
           userId,
@@ -170,6 +172,14 @@ export function useTaxSettings(enabled = true) {
         // Throw so ProtectedRoutes keeps the query in a loading/error state
         // rather than treating a permission failure as "onboarding incomplete".
         throw error;
+      }
+      const data = rows?.[0] ?? null;
+      if ((rows?.length || 0) > 1) {
+        console.warn("[useTaxSettings] duplicate tax_settings rows detected; using authoritative row", {
+          userId,
+          selectedId: (data as any)?.id,
+          selectedOnboardingComplete: (data as any)?.onboarding_complete,
+        });
       }
       if (!data) {
         console.warn("[useTaxSettings] no tax_settings row found, attempting recovery insert", { userId });
@@ -275,6 +285,7 @@ export function useUpdateTaxSettings() {
   return useMutation({
     mutationFn: async (settings: Partial<TaxRates> & { id: string }) => {
       const { id, ...rest } = settings;
+      const cacheUpdates = { ...rest };
       const payload: Record<string, unknown> = {};
       if (rest.filingStatus !== undefined) payload.filing_status = rest.filingStatus;
       if (rest.lastYearTax !== undefined) payload.last_year_tax = rest.lastYearTax;
@@ -322,7 +333,11 @@ export function useUpdateTaxSettings() {
       if (rest.autoConvertFutureIncomeToLedger !== undefined) payload.auto_convert_future_income_to_ledger = rest.autoConvertFutureIncomeToLedger;
       if (rest.timezone !== undefined) payload.timezone = rest.timezone;
       if ((rest as any).quarterlyTrackerMethod !== undefined) payload.quarterly_tracker_method = (rest as any).quarterlyTrackerMethod;
-      if (rest.onboardingComplete !== undefined) payload.onboarding_complete = rest.onboardingComplete;
+      if (rest.onboardingComplete === true) payload.onboarding_complete = true;
+      if (rest.onboardingComplete === false) {
+        console.warn("[useUpdateTaxSettings] ignored attempt to reset onboarding_complete to false", { id });
+        delete cacheUpdates.onboardingComplete;
+      }
       if (rest.onboardingBannerDismissed !== undefined) payload.onboarding_banner_dismissed = rest.onboardingBannerDismissed;
       if (rest.onboardingFirstName !== undefined) payload.onboarding_first_name = rest.onboardingFirstName;
       if (rest.onboardingStep !== undefined) payload.onboarding_step = rest.onboardingStep;
@@ -346,6 +361,13 @@ export function useUpdateTaxSettings() {
       if (!authUid) {
         throw new Error("You are signed out. Please sign in again.");
       }
+      if ("onboarding_complete" in payload) {
+        console.info("[useUpdateTaxSettings] writing onboarding_complete", {
+          id,
+          authUid,
+          onboarding_complete: payload.onboarding_complete,
+        });
+      }
       const { error, data: updated } = await supabase
         .from("tax_settings")
         .update(payload as any)
@@ -358,7 +380,7 @@ export function useUpdateTaxSettings() {
         console.error("[useUpdateTaxSettings] update affected no row — likely cross-user id", { id, authUid });
         throw new Error("Could not save settings. Please reload and try again.");
       }
-      return rest;
+      return cacheUpdates;
     },
     onSuccess: async (updates) => {
       qc.setQueriesData<TaxRates>(

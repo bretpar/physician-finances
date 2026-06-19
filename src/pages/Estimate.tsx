@@ -401,7 +401,6 @@ async function persistEstimateToSettings(userId: string, input: QuickEstimateInp
 
   const payload: Record<string, unknown> = {
     onboarding_first_name: firstName,
-    onboarding_complete: false,
     onboarding_step: 2,
     income_profile_type: incomeProfile,
     enabled_income_sources: enabledIncomeSources,
@@ -412,6 +411,11 @@ async function persistEstimateToSettings(userId: string, input: QuickEstimateInp
     enabled_deduction_types: enabledDeductions,
     hsa_enabled: input.hsa > 0,
   };
+  console.info("[estimate] writing tax_settings defaults", {
+    userId,
+    settingsId: settingsRow.id,
+    preservesOnboardingComplete: true,
+  });
   if (input.state) {
     payload.state_of_residence = input.state;
     payload.state_income_tax_enabled = true;

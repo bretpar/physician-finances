@@ -66,7 +66,7 @@ export default function Onboarding() {
   const updateTaxSettings = useUpdateTaxSettings();
   const [step, setStep] = useState(() => Math.min(TOTAL_STEPS, Math.max(1, Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1)));
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
+  const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS }));
   const COMPANY_DRAFTS_KEY = "paycheckmd-onboarding-company-drafts";
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>(() => {
     try {
@@ -262,7 +262,7 @@ export default function Onboarding() {
 
 
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
-  if (user && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
+  if (user && !saving && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
 
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
@@ -311,7 +311,7 @@ export default function Onboarding() {
     setStep(nextStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
     patch({ onboardingStep: nextStep });
-    if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
+    if (settingsId) await persist({ onboardingStep: nextStep }, "goBack");
   };
 
   const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
@@ -481,7 +481,7 @@ export default function Onboarding() {
   }
 
 
-  async function persist(partial: Partial<UserOnboardingSettings> = {}) {
+  async function persist(partial: Partial<UserOnboardingSettings> = {}, context = "onboarding") {
     if (!settingsId) throw new Error("Onboarding settings are still loading. Please try again in a moment.");
     // SECURITY: Re-validate auth with the server (getUser, not getSession)
     // and confirm the settings row we're about to write actually belongs to
@@ -528,10 +528,16 @@ export default function Onboarding() {
       business1099Income: sources.form1099 && has1099Company,
       k1PartnershipIncome: sources.k1 && hasK1Company,
     };
+    console.info("[onboarding] write", {
+      context,
+      settingsId,
+      userId: authUid,
+      onboardingComplete: partial.onboardingComplete,
+    });
     await updateTaxSettings.mutateAsync({
       id: settingsId,
       filingStatus: next.filingStatus,
-      onboardingComplete: next.onboardingComplete,
+      ...(partial.onboardingComplete !== undefined ? { onboardingComplete: partial.onboardingComplete } : {}),
       onboardingFirstName: next.firstName,
       onboardingStep: next.onboardingStep,
       incomeProfileType: next.incomeProfileType,
@@ -565,7 +571,7 @@ export default function Onboarding() {
         setSaving(true);
         try {
           await createOnboardingCompanies();
-          await persist({ onboardingComplete: false, onboardingStep: 2 });
+          await persist({ onboardingStep: 2 }, "company-continue");
           setCatchupSubStep("ask");
         } catch (error: any) {
           console.error("[onboarding] company continue failed", error);
@@ -631,7 +637,7 @@ export default function Onboarding() {
         const emailLocal = user?.email ? user.email.split("@")[0] : "";
         const finalFirstName = merged.firstName.trim() || (metadataFirst?.trim() || "") || emailLocal || "Friend";
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
-        await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
+        await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingStep: nextStep }, "step-continue");
         patch({ firstName: finalFirstName });
       }
       patch({ onboardingStep: nextStep });
@@ -648,17 +654,30 @@ export default function Onboarding() {
   // Temporary MVP behavior: all users receive full access (premium) on
   // onboarding completion. Re-enable plan selection when paid tiers launch.
   async function readServerOnboardingComplete(id: string): Promise<boolean | null> {
+    if (!user?.id) return null;
     try {
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from("tax_settings")
-        .select("onboarding_complete")
-        .eq("id", id)
-        .maybeSingle();
+        .select("id, onboarding_complete, updated_at, created_at")
+        .eq("user_id", user.id)
+        .order("onboarding_complete", { ascending: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(2);
       if (error) {
         console.warn("[onboarding] verification read error", error);
         return null;
       }
-      return data?.onboarding_complete === true;
+      const row = rows?.[0] ?? null;
+      if ((rows?.length || 0) > 1) {
+        console.warn("[onboarding] verification found duplicate tax_settings rows; using authoritative row", {
+          userId: user.id,
+          expectedSettingsId: id,
+          selectedSettingsId: (row as any)?.id,
+          onboarding_complete: (row as any)?.onboarding_complete,
+        });
+      }
+      return row?.onboarding_complete === true;
     } catch (e) {
       console.warn("[onboarding] verification read threw", e);
       return null;
@@ -695,7 +714,7 @@ export default function Onboarding() {
 
       // 1. Primary persist via the standard mutation.
       try {
-        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan }, "completeOnboarding");
       } catch (persistErr: any) {
         console.warn("[onboarding] primary persist threw — will verify server state", persistErr);
       }
@@ -714,7 +733,8 @@ export default function Onboarding() {
             onboarding_step: TOTAL_STEPS,
             subscription_tier: selectedPlan,
           } as any)
-          .eq("id", settingsId);
+          .eq("id", settingsId)
+          .eq("user_id", user.id);
         if (retryError) {
           console.error("[onboarding] direct update retry failed", retryError);
         }
@@ -757,7 +777,7 @@ export default function Onboarding() {
       // back here on every page load. They can re-run setup from Settings.
       if (settingsId) {
         try {
-          await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+          await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS }, `chooseIncomeMethod:${method}`);
         } catch (e) {
           console.warn("[onboarding] chooseIncomeMethod persist threw — will verify", e);
         }
@@ -767,7 +787,8 @@ export default function Onboarding() {
           await supabase
             .from("tax_settings")
             .update({ onboarding_complete: true, onboarding_step: TOTAL_STEPS } as any)
-            .eq("id", settingsId);
+            .eq("id", settingsId)
+            .eq("user_id", user!.id);
           verified = await readServerOnboardingComplete(settingsId);
         }
         console.info("[onboarding] chooseIncomeMethod verification:final", { settingsId, verified });
