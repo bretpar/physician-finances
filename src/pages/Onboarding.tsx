@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronLeft, PencilLine, Building2, CalendarClock, LineChart } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +60,7 @@ function SelectCard({ selected, title, description, onClick, children }: { selec
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const { data: taxSettings, isLoading } = useTaxSettings(!!user);
   const updateTaxSettings = useUpdateTaxSettings();
@@ -646,6 +647,40 @@ export default function Onboarding() {
 
   // Temporary MVP behavior: all users receive full access (premium) on
   // onboarding completion. Re-enable plan selection when paid tiers launch.
+  async function readServerOnboardingComplete(id: string): Promise<boolean | null> {
+    try {
+      const { data, error } = await supabase
+        .from("tax_settings")
+        .select("onboarding_complete")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) {
+        console.warn("[onboarding] verification read error", error);
+        return null;
+      }
+      return data?.onboarding_complete === true;
+    } catch (e) {
+      console.warn("[onboarding] verification read threw", e);
+      return null;
+    }
+  }
+
+  async function finalizeAndNavigate(id: string, selectedPlan: "premium" | "free") {
+    // Refresh client-side tax settings cache so route guards see the new
+    // onboarding_complete value before we navigate to "/".
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["tax_settings"] }),
+      qc.refetchQueries({ queryKey: ["tax_settings"] }),
+    ]);
+    patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+    sessionStorage.removeItem("paycheckmd-onboarding-step");
+    sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
+    sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
+    console.info("[onboarding] completion:success", { settingsId: id, selectedPlan });
+    toast.success("Onboarding complete!");
+    navigate("/", { replace: true });
+  }
+
   async function completeOnboarding() {
     if (saving) return;
     if (!settingsId) {
@@ -657,63 +692,51 @@ export default function Onboarding() {
     try {
       const selectedPlan = "premium" as const;
       console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
-      await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
-      // Verification read is best-effort: if it returns false/null we
-      // re-issue a minimal direct update rather than throwing, so the user
-      // is never stranded on /onboarding after a successful persist.
+
+      // 1. Primary persist via the standard mutation.
       try {
-        const { data: completionRow } = await supabase
-          .from("tax_settings")
-          .select("onboarding_complete")
-          .eq("id", settingsId)
-          .maybeSingle();
-        if (completionRow?.onboarding_complete !== true) {
-          console.warn("[onboarding] completion verification false — retrying direct update");
-          const { error: retryError } = await supabase
-            .from("tax_settings")
-            .update({ onboarding_complete: true, onboarding_step: TOTAL_STEPS, subscription_tier: selectedPlan } as any)
-            .eq("id", settingsId);
-          if (retryError) throw retryError;
-        }
-      } catch (verifyError) {
-        console.warn("[onboarding] completion verification failed (non-fatal)", verifyError);
+        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+      } catch (persistErr: any) {
+        console.warn("[onboarding] primary persist threw — will verify server state", persistErr);
       }
-      patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
-      sessionStorage.removeItem("paycheckmd-onboarding-step");
-      sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
-      sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
-      console.info("[onboarding] completion:success", { settingsId, selectedPlan });
-      toast.success("Onboarding complete!");
-      navigate("/", { replace: true });
-      window.setTimeout(() => {
-        if (window.location.pathname.startsWith("/onboarding")) {
-          window.location.replace("/");
+
+      // 2. Verify server-side value.
+      console.info("[onboarding] verification:start", { settingsId });
+      let verified = await readServerOnboardingComplete(settingsId);
+
+      // 3. If not true, run a deterministic direct update and verify again.
+      if (verified !== true) {
+        console.warn("[onboarding] completion verification false — running direct update retry");
+        const { error: retryError } = await supabase
+          .from("tax_settings")
+          .update({
+            onboarding_complete: true,
+            onboarding_step: TOTAL_STEPS,
+            subscription_tier: selectedPlan,
+          } as any)
+          .eq("id", settingsId);
+        if (retryError) {
+          console.error("[onboarding] direct update retry failed", retryError);
         }
-      }, 500);
+        verified = await readServerOnboardingComplete(settingsId);
+      }
+
+      console.info("[onboarding] verification:final", { settingsId, verified });
+
+      if (verified === true) {
+        await finalizeAndNavigate(settingsId, selectedPlan);
+      } else {
+        // Stay on /onboarding; do NOT navigate with stale local state.
+        toast.error("We could not confirm your onboarding was saved. Please tap Continue again.");
+      }
     } catch (error: any) {
       console.error("[onboarding] completion failed", { step, catchupSubStep, settingsId }, error);
-      // Recovery: if the persist call failed (e.g. transient "Failed to fetch"),
-      // re-check whether onboarding actually completed on the server before
-      // stranding the user on /onboarding with a Saving… spinner.
-      let recovered = false;
-      try {
-        const { data: row } = await supabase
-          .from("tax_settings")
-          .select("onboarding_complete")
-          .eq("id", settingsId)
-          .maybeSingle();
-        if (row?.onboarding_complete === true) {
-          patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
-          sessionStorage.removeItem("paycheckmd-onboarding-step");
-          sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
-          sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
-          navigate("/", { replace: true });
-          recovered = true;
-        }
-      } catch (recheckError) {
-        console.warn("[onboarding] post-failure recheck errored", recheckError);
-      }
-      if (!recovered) {
+      // Last-resort recheck: maybe persist succeeded server-side despite a
+      // transient network error during the mutation roundtrip.
+      const verified = await readServerOnboardingComplete(settingsId);
+      if (verified === true) {
+        await finalizeAndNavigate(settingsId, "premium");
+      } else {
         const isNetwork = typeof error?.message === "string" && /failed to fetch|network|timeout/i.test(error.message);
         toast.error(isNetwork
           ? "Network hiccup saving onboarding. Please tap Continue again."
@@ -725,6 +748,7 @@ export default function Onboarding() {
   }
 
 
+
   async function chooseIncomeMethod(method: "manual" | "bank" | "ytd" | "planner") {
     if (saving) return;
     setSaving(true);
@@ -732,7 +756,30 @@ export default function Onboarding() {
       // Mark onboarding complete so the user lands in the app and is not bounced
       // back here on every page load. They can re-run setup from Settings.
       if (settingsId) {
-        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+        try {
+          await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+        } catch (e) {
+          console.warn("[onboarding] chooseIncomeMethod persist threw — will verify", e);
+        }
+        let verified = await readServerOnboardingComplete(settingsId);
+        if (verified !== true) {
+          console.warn("[onboarding] chooseIncomeMethod verification false — direct update retry");
+          await supabase
+            .from("tax_settings")
+            .update({ onboarding_complete: true, onboarding_step: TOTAL_STEPS } as any)
+            .eq("id", settingsId);
+          verified = await readServerOnboardingComplete(settingsId);
+        }
+        console.info("[onboarding] chooseIncomeMethod verification:final", { settingsId, verified });
+        if (verified !== true) {
+          toast.error("We could not confirm your choice was saved. Please tap again.");
+          return;
+        }
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["tax_settings"] }),
+          qc.refetchQueries({ queryKey: ["tax_settings"] }),
+        ]);
+        patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
       }
       sessionStorage.removeItem("paycheckmd-onboarding-start");
       sessionStorage.removeItem("paycheckmd-onboarding-step");
