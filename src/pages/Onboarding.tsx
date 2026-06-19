@@ -692,7 +692,33 @@ export default function Onboarding() {
       }, 500);
     } catch (error: any) {
       console.error("[onboarding] completion failed", { step, catchupSubStep, settingsId }, error);
-      toast.error(error?.message ? `Could not complete onboarding: ${error.message}` : "Could not complete onboarding. Please try again.");
+      // Recovery: if the persist call failed (e.g. transient "Failed to fetch"),
+      // re-check whether onboarding actually completed on the server before
+      // stranding the user on /onboarding with a Saving… spinner.
+      let recovered = false;
+      try {
+        const { data: row } = await supabase
+          .from("tax_settings")
+          .select("onboarding_complete")
+          .eq("id", settingsId)
+          .maybeSingle();
+        if (row?.onboarding_complete === true) {
+          patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+          sessionStorage.removeItem("paycheckmd-onboarding-step");
+          sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
+          sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
+          navigate("/", { replace: true });
+          recovered = true;
+        }
+      } catch (recheckError) {
+        console.warn("[onboarding] post-failure recheck errored", recheckError);
+      }
+      if (!recovered) {
+        const isNetwork = typeof error?.message === "string" && /failed to fetch|network|timeout/i.test(error.message);
+        toast.error(isNetwork
+          ? "Network hiccup saving onboarding. Please tap Continue again."
+          : (error?.message ? `Could not complete onboarding: ${error.message}` : "Could not complete onboarding. Please try again."));
+      }
     } finally {
       setSaving(false);
     }

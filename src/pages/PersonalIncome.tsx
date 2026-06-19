@@ -33,7 +33,7 @@ import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
 import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
-import { formatDate, formatDateShort, formatMonthYear } from "@/lib/localDate";
+import { formatDate, formatDateShort, formatMonthYear, getTodayLocalDateString } from "@/lib/localDate";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { isFeatureEnabled } from "@/lib/featureFlags";
@@ -130,7 +130,7 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  date: new Date().toISOString().split("T")[0],
+  date: getTodayLocalDateString(),
   title: "",
   income_type: "w2_user",
   gross_amount: "",
