@@ -756,7 +756,30 @@ export default function Onboarding() {
       // Mark onboarding complete so the user lands in the app and is not bounced
       // back here on every page load. They can re-run setup from Settings.
       if (settingsId) {
-        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+        try {
+          await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+        } catch (e) {
+          console.warn("[onboarding] chooseIncomeMethod persist threw — will verify", e);
+        }
+        let verified = await readServerOnboardingComplete(settingsId);
+        if (verified !== true) {
+          console.warn("[onboarding] chooseIncomeMethod verification false — direct update retry");
+          await supabase
+            .from("tax_settings")
+            .update({ onboarding_complete: true, onboarding_step: TOTAL_STEPS } as any)
+            .eq("id", settingsId);
+          verified = await readServerOnboardingComplete(settingsId);
+        }
+        console.info("[onboarding] chooseIncomeMethod verification:final", { settingsId, verified });
+        if (verified !== true) {
+          toast.error("We could not confirm your choice was saved. Please tap again.");
+          return;
+        }
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["tax_settings"] }),
+          qc.refetchQueries({ queryKey: ["tax_settings"] }),
+        ]);
+        patch({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
       }
       sessionStorage.removeItem("paycheckmd-onboarding-start");
       sessionStorage.removeItem("paycheckmd-onboarding-step");
