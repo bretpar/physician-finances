@@ -76,8 +76,10 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
   const [k1Treatment, setK1Treatment] = useState<K1TaxTreatment>(K1_TAX_TREATMENT_DEFAULT);
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showW4Fields, setShowW4Fields] = useState(false);
 
   const isW2 = incomeType === "w2";
+  const isIrregular = isW2 && frequency === "irregular";
   const isK1 = incomeType === "k1_partnership";
 
   function resetAndClose() {
