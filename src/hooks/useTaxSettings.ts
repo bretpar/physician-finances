@@ -202,7 +202,7 @@ export function useTaxSettings(enabled = true) {
         console.info("[useTaxSettings] recovery insert succeeded", { userId, id: (inserted as any)?.id });
         return mapTaxSettingsRow(inserted);
       }
-      console.info("[useTaxSettings] route-guard read tax_settings", {
+      console.debug("[useTaxSettings] loaded tax_settings", {
         userId,
         id: (data as any).id,
         onboarding_complete: (data as any).onboarding_complete,
