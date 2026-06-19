@@ -787,7 +787,8 @@ export default function Onboarding() {
           await supabase
             .from("tax_settings")
             .update({ onboarding_complete: true, onboarding_step: TOTAL_STEPS } as any)
-            .eq("id", settingsId);
+            .eq("id", settingsId)
+            .eq("user_id", user!.id);
           verified = await readServerOnboardingComplete(settingsId);
         }
         console.info("[onboarding] chooseIncomeMethod verification:final", { settingsId, verified });
