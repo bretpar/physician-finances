@@ -481,7 +481,7 @@ export default function Onboarding() {
   }
 
 
-  async function persist(partial: Partial<UserOnboardingSettings> = {}) {
+  async function persist(partial: Partial<UserOnboardingSettings> = {}, context = "onboarding") {
     if (!settingsId) throw new Error("Onboarding settings are still loading. Please try again in a moment.");
     // SECURITY: Re-validate auth with the server (getUser, not getSession)
     // and confirm the settings row we're about to write actually belongs to
@@ -528,10 +528,16 @@ export default function Onboarding() {
       business1099Income: sources.form1099 && has1099Company,
       k1PartnershipIncome: sources.k1 && hasK1Company,
     };
+    console.info("[onboarding] write", {
+      context,
+      settingsId,
+      userId: authUid,
+      onboardingComplete: partial.onboardingComplete,
+    });
     await updateTaxSettings.mutateAsync({
       id: settingsId,
       filingStatus: next.filingStatus,
-      onboardingComplete: next.onboardingComplete,
+      ...(partial.onboardingComplete !== undefined ? { onboardingComplete: partial.onboardingComplete } : {}),
       onboardingFirstName: next.firstName,
       onboardingStep: next.onboardingStep,
       incomeProfileType: next.incomeProfileType,
