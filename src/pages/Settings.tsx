@@ -1155,6 +1155,7 @@ function CompaniesSection() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState<Record<string, boolean>>({});
   const [advancedOpenIds, setAdvancedOpenIds] = useState<Set<string>>(new Set());
+  const [w4OpenIds, setW4OpenIds] = useState<Set<string>>(new Set());
   const [confirmDiscardId, setConfirmDiscardId] = useState<string | null>(null);
 
   const dirtyIds = Object.keys(drafts);
