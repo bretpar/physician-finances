@@ -155,12 +155,14 @@ export function useTaxSettings(enabled = true) {
     enabled: enabled && !!userId,
     queryFn: async () => {
 
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from("tax_settings")
         .select("*")
         .eq("user_id", userId)
-        .limit(1)
-        .maybeSingle();
+        .order("onboarding_complete", { ascending: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(2);
       if (error) {
         console.error("[useTaxSettings] failed to load tax_settings", {
           userId,
@@ -170,6 +172,14 @@ export function useTaxSettings(enabled = true) {
         // Throw so ProtectedRoutes keeps the query in a loading/error state
         // rather than treating a permission failure as "onboarding incomplete".
         throw error;
+      }
+      const data = rows?.[0] ?? null;
+      if ((rows?.length || 0) > 1) {
+        console.warn("[useTaxSettings] duplicate tax_settings rows detected; using authoritative row", {
+          userId,
+          selectedId: (data as any)?.id,
+          selectedOnboardingComplete: (data as any)?.onboarding_complete,
+        });
       }
       if (!data) {
         console.warn("[useTaxSettings] no tax_settings row found, attempting recovery insert", { userId });
@@ -192,7 +202,7 @@ export function useTaxSettings(enabled = true) {
         console.info("[useTaxSettings] recovery insert succeeded", { userId, id: (inserted as any)?.id });
         return mapTaxSettingsRow(inserted);
       }
-      console.debug("[useTaxSettings] loaded tax_settings", {
+      console.info("[useTaxSettings] route-guard read tax_settings", {
         userId,
         id: (data as any).id,
         onboarding_complete: (data as any).onboarding_complete,
