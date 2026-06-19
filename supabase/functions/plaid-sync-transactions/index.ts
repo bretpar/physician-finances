@@ -479,14 +479,19 @@ Deno.serve(async (req) => {
     const targetPlaidAccountId = body?.plaid_account_id;
 
     const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID");
-    const PLAID_SECRET = Deno.env.get("PLAID_SECRET");
-    const PLAID_ENV = Deno.env.get("PLAID_ENV") || "sandbox";
+    const SANDBOX_QA = (Deno.env.get("ENABLE_PLAID_SANDBOX_QA") || "").toLowerCase() === "true";
+    const PLAID_ENV = SANDBOX_QA ? "sandbox" : (Deno.env.get("PLAID_ENV") || "sandbox");
+    const PLAID_SECRET = PLAID_ENV === "sandbox"
+      ? (Deno.env.get("PLAID_SECRET_SANDBOX") || Deno.env.get("PLAID_SECRET"))
+      : Deno.env.get("PLAID_SECRET");
 
     const plaidHost = PLAID_ENV === "production"
       ? "https://production.plaid.com"
       : PLAID_ENV === "development"
         ? "https://development.plaid.com"
         : "https://sandbox.plaid.com";
+
+    console.log("plaid-sync-transactions env", { plaid_env: PLAID_ENV, sandbox_qa: SANDBOX_QA });
 
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
