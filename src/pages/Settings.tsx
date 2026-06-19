@@ -1215,6 +1215,14 @@ function CompaniesSection() {
     });
   }
 
+  function toggleW4Fields(id: string) {
+    setW4OpenIds((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
   return (
     <>
       <AddCompanyDialog open={addCompanyOpen} onOpenChange={setAddCompanyOpen} />
