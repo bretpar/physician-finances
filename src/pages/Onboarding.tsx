@@ -571,7 +571,7 @@ export default function Onboarding() {
         setSaving(true);
         try {
           await createOnboardingCompanies();
-          await persist({ onboardingComplete: false, onboardingStep: 2 });
+          await persist({ onboardingStep: 2 }, "company-continue");
           setCatchupSubStep("ask");
         } catch (error: any) {
           console.error("[onboarding] company continue failed", error);
@@ -637,7 +637,7 @@ export default function Onboarding() {
         const emailLocal = user?.email ? user.email.split("@")[0] : "";
         const finalFirstName = merged.firstName.trim() || (metadataFirst?.trim() || "") || emailLocal || "Friend";
         await supabase.from("profiles").update({ first_name: finalFirstName }).eq("user_id", user!.id);
-        await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingComplete: false, onboardingStep: nextStep });
+        await persist({ firstName: finalFirstName, filingStatus: merged.filingStatus, onboardingStep: nextStep }, "step-continue");
         patch({ firstName: finalFirstName });
       }
       patch({ onboardingStep: nextStep });
@@ -701,7 +701,7 @@ export default function Onboarding() {
 
       // 1. Primary persist via the standard mutation.
       try {
-        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan });
+        await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan }, "completeOnboarding");
       } catch (persistErr: any) {
         console.warn("[onboarding] primary persist threw — will verify server state", persistErr);
       }
