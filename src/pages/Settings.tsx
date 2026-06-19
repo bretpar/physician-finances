@@ -1715,8 +1715,24 @@ function ConnectedAccountsSection() {
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
   const [reconnectingItemId, setReconnectingItemId] = useState<string | null>(null);
 
+  const [plaidStatus, setPlaidStatus] = useState<{ plaid_env?: string; sandbox_qa?: boolean; configured?: boolean; is_production?: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.functions.invoke("plaid-status");
+        if (!cancelled && data) setPlaidStatus(data as any);
+      } catch (e) {
+        console.warn("plaid-status fetch failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const isSandboxMode = !!plaidStatus && (plaidStatus.sandbox_qa === true || plaidStatus.is_production === false);
+
   const isNeedsReauth = (item: any) =>
     item?.status === "needs_reauth" || item?.status === "login_required" || item?.status === "error";
+
 
   // A sync is considered "live" only if the item was marked syncing AND the
   // attempt is recent (≤15 min). Anything older is treated as a stalled sync
@@ -1970,9 +1986,15 @@ function ConnectedAccountsSection() {
 
   return (
     <>
+      {isSandboxMode && (
+        <div className="mb-3 rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-200">
+          Plaid Sandbox / Test Mode is active. Use <code className="font-mono">user_good</code> / <code className="font-mono">pass_good</code> / <code className="font-mono">1234</code>. Real-bank connections are blocked.
+        </div>
+      )}
       <SectionCard
         title="Connected Accounts"
         icon={<Landmark className="h-5 w-5" />}
+
         summary={plaidItems.length > 0 ? `(${plaidItems.length} institution${plaidItems.length !== 1 ? "s" : ""}, ${totalAccounts} account${totalAccounts !== 1 ? "s" : ""})` : ""}
         description="Manage linked banks. Assign each account to a destination."
         defaultOpen={false}
