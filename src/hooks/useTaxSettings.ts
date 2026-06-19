@@ -332,7 +332,10 @@ export function useUpdateTaxSettings() {
       if (rest.autoConvertFutureIncomeToLedger !== undefined) payload.auto_convert_future_income_to_ledger = rest.autoConvertFutureIncomeToLedger;
       if (rest.timezone !== undefined) payload.timezone = rest.timezone;
       if ((rest as any).quarterlyTrackerMethod !== undefined) payload.quarterly_tracker_method = (rest as any).quarterlyTrackerMethod;
-      if (rest.onboardingComplete !== undefined) payload.onboarding_complete = rest.onboardingComplete;
+      if (rest.onboardingComplete === true) payload.onboarding_complete = true;
+      if (rest.onboardingComplete === false) {
+        console.warn("[useUpdateTaxSettings] ignored attempt to reset onboarding_complete to false", { id });
+      }
       if (rest.onboardingBannerDismissed !== undefined) payload.onboarding_banner_dismissed = rest.onboardingBannerDismissed;
       if (rest.onboardingFirstName !== undefined) payload.onboarding_first_name = rest.onboardingFirstName;
       if (rest.onboardingStep !== undefined) payload.onboarding_step = rest.onboardingStep;
@@ -355,6 +358,13 @@ export function useUpdateTaxSettings() {
       const authUid = authData?.user?.id ?? null;
       if (!authUid) {
         throw new Error("You are signed out. Please sign in again.");
+      }
+      if ("onboarding_complete" in payload) {
+        console.info("[useUpdateTaxSettings] writing onboarding_complete", {
+          id,
+          authUid,
+          onboarding_complete: payload.onboarding_complete,
+        });
       }
       const { error, data: updated } = await supabase
         .from("tax_settings")
