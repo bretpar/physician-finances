@@ -654,17 +654,30 @@ export default function Onboarding() {
   // Temporary MVP behavior: all users receive full access (premium) on
   // onboarding completion. Re-enable plan selection when paid tiers launch.
   async function readServerOnboardingComplete(id: string): Promise<boolean | null> {
+    if (!user?.id) return null;
     try {
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from("tax_settings")
-        .select("onboarding_complete")
-        .eq("id", id)
-        .maybeSingle();
+        .select("id, onboarding_complete, updated_at, created_at")
+        .eq("user_id", user.id)
+        .order("onboarding_complete", { ascending: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(2);
       if (error) {
         console.warn("[onboarding] verification read error", error);
         return null;
       }
-      return data?.onboarding_complete === true;
+      const row = rows?.[0] ?? null;
+      if ((rows?.length || 0) > 1) {
+        console.warn("[onboarding] verification found duplicate tax_settings rows; using authoritative row", {
+          userId: user.id,
+          expectedSettingsId: id,
+          selectedSettingsId: (row as any)?.id,
+          onboarding_complete: (row as any)?.onboarding_complete,
+        });
+      }
+      return row?.onboarding_complete === true;
     } catch (e) {
       console.warn("[onboarding] verification read threw", e);
       return null;
@@ -720,7 +733,8 @@ export default function Onboarding() {
             onboarding_step: TOTAL_STEPS,
             subscription_tier: selectedPlan,
           } as any)
-          .eq("id", settingsId);
+          .eq("id", settingsId)
+          .eq("user_id", user.id);
         if (retryError) {
           console.error("[onboarding] direct update retry failed", retryError);
         }
