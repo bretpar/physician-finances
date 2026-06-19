@@ -60,6 +60,7 @@ function SelectCard({ selected, title, description, onClick, children }: { selec
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const { data: taxSettings, isLoading } = useTaxSettings(!!user);
   const updateTaxSettings = useUpdateTaxSettings();
