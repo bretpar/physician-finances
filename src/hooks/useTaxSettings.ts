@@ -285,6 +285,7 @@ export function useUpdateTaxSettings() {
   return useMutation({
     mutationFn: async (settings: Partial<TaxRates> & { id: string }) => {
       const { id, ...rest } = settings;
+      const cacheUpdates = { ...rest };
       const payload: Record<string, unknown> = {};
       if (rest.filingStatus !== undefined) payload.filing_status = rest.filingStatus;
       if (rest.lastYearTax !== undefined) payload.last_year_tax = rest.lastYearTax;
@@ -335,6 +336,7 @@ export function useUpdateTaxSettings() {
       if (rest.onboardingComplete === true) payload.onboarding_complete = true;
       if (rest.onboardingComplete === false) {
         console.warn("[useUpdateTaxSettings] ignored attempt to reset onboarding_complete to false", { id });
+        delete cacheUpdates.onboardingComplete;
       }
       if (rest.onboardingBannerDismissed !== undefined) payload.onboarding_banner_dismissed = rest.onboardingBannerDismissed;
       if (rest.onboardingFirstName !== undefined) payload.onboarding_first_name = rest.onboardingFirstName;
@@ -378,7 +380,7 @@ export function useUpdateTaxSettings() {
         console.error("[useUpdateTaxSettings] update affected no row — likely cross-user id", { id, authUid });
         throw new Error("Could not save settings. Please reload and try again.");
       }
-      return rest;
+      return cacheUpdates;
     },
     onSuccess: async (updates) => {
       qc.setQueriesData<TaxRates>(
