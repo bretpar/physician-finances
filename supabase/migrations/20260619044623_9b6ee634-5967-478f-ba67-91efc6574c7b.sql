@@ -1,0 +1,1 @@
+ALTER VIEW public.plaid_items_safe SET (security_invoker = true);
