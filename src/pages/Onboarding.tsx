@@ -763,7 +763,7 @@ export default function Onboarding() {
       // back here on every page load. They can re-run setup from Settings.
       if (settingsId) {
         try {
-          await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS });
+          await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS }, `chooseIncomeMethod:${method}`);
         } catch (e) {
           console.warn("[onboarding] chooseIncomeMethod persist threw — will verify", e);
         }
