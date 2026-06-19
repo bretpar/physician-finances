@@ -1510,6 +1510,59 @@ function CompaniesSection() {
                     const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
                     const projGross = getValue(company, "projectedAnnualGross") as number | null;
                     const expFedWh = getValue(company, "expectedFederalWithholdingPerPaycheck") as number | null;
+                    const isIrregular = freq === "irregular";
+                    const w4Open = w4OpenIds.has(company.id);
+                    const projectionFields = (
+                      <>
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
+                          <Input
+                            data-testid="settings-company-row-remaining-paychecks-input"
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            placeholder="Auto"
+                            value={override ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setField(company.id, "remainingPaychecksOverride", v === "" ? null : Math.max(0, Math.floor(Number(v) || 0)));
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Projected annual gross (optional)</Label>
+                          <Input
+                            data-testid="settings-company-row-projected-annual-gross-input"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            inputMode="decimal"
+                            placeholder="e.g. 250000"
+                            value={projGross ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setField(company.id, "projectedAnnualGross", v === "" ? null : Math.max(0, Number(v) || 0));
+                            }}
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Expected federal withholding per paycheck (optional)</Label>
+                          <Input
+                            data-testid="settings-company-row-expected-federal-withholding-input"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            inputMode="decimal"
+                            placeholder="e.g. 1200"
+                            value={expFedWh ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setField(company.id, "expectedFederalWithholdingPerPaycheck", v === "" ? null : Math.max(0, Number(v) || 0));
+                            }}
+                          />
+                        </div>
+                      </>
+                    );
                     return (
                       <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
                         <p className="text-xs font-semibold text-foreground">W-4 / paycheck settings</p>
@@ -1543,60 +1596,30 @@ function CompaniesSection() {
                                 <SelectItem value="irregular" data-testid="company-pay-frequency-option-irregular">Irregular / Locums / Per-diem</SelectItem>
                               </SelectContent>
                             </Select>
-                            {freq === "irregular" && (
-                              <p className="text-xs text-muted-foreground mt-1.5">
-                                Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule.
-                              </p>
-                            )}
+                            <p className="text-xs text-muted-foreground mt-1.5">
+                              {isIrregular
+                                ? "Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule. You can add actual paychecks as they come in or add optional planned paychecks in the Income Planner."
+                                : "Fixed-schedule W-2 employers get automatic paycheck projections."}
+                            </p>
                           </div>
 
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
-                            <Input
-                              data-testid="settings-company-row-remaining-paychecks-input"
-                              type="number"
-                              min={0}
-                              inputMode="numeric"
-                              placeholder="Auto"
-                              value={override ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setField(company.id, "remainingPaychecksOverride", v === "" ? null : Math.max(0, Math.floor(Number(v) || 0)));
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-1.5 block">Projected annual gross (optional)</Label>
-                            <Input
-                              data-testid="settings-company-row-projected-annual-gross-input"
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              inputMode="decimal"
-                              placeholder="e.g. 250000"
-                              value={projGross ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setField(company.id, "projectedAnnualGross", v === "" ? null : Math.max(0, Number(v) || 0));
-                              }}
-                            />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <Label className="text-xs text-muted-foreground mb-1.5 block">Expected federal withholding per paycheck (optional)</Label>
-                            <Input
-                              data-testid="settings-company-row-expected-federal-withholding-input"
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              inputMode="decimal"
-                              placeholder="e.g. 1200"
-                              value={expFedWh ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setField(company.id, "expectedFederalWithholdingPerPaycheck", v === "" ? null : Math.max(0, Number(v) || 0));
-                              }}
-                            />
-                          </div>
+                          {isIrregular ? (
+                            <div className="sm:col-span-2">
+                              <Collapsible open={w4Open} onOpenChange={() => toggleW4Fields(company.id)}>
+                                <CollapsibleTrigger asChild>
+                                  <button type="button" className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                                    {w4Open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                    Show W-4 projection fields
+                                  </button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {projectionFields}
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </div>
+                          ) : (
+                            projectionFields
+                          )}
                         </div>
                         <p className="text-[11px] text-muted-foreground">
                           Used by the W-4 Paycheck Adjustment worksheet. Leave remaining paychecks blank to auto-detect from your paycheck history.
