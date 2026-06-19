@@ -1715,8 +1715,24 @@ function ConnectedAccountsSection() {
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
   const [reconnectingItemId, setReconnectingItemId] = useState<string | null>(null);
 
+  const [plaidStatus, setPlaidStatus] = useState<{ plaid_env?: string; sandbox_qa?: boolean; configured?: boolean; is_production?: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.functions.invoke("plaid-status");
+        if (!cancelled && data) setPlaidStatus(data as any);
+      } catch (e) {
+        console.warn("plaid-status fetch failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const isSandboxMode = !!plaidStatus && (plaidStatus.sandbox_qa === true || plaidStatus.is_production === false);
+
   const isNeedsReauth = (item: any) =>
     item?.status === "needs_reauth" || item?.status === "login_required" || item?.status === "error";
+
 
   // A sync is considered "live" only if the item was marked syncing AND the
   // attempt is recent (≤15 min). Anything older is treated as a stalled sync
