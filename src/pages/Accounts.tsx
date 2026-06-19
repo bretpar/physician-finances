@@ -69,7 +69,7 @@ export default function Accounts() {
     return () => { cancelled = true; };
   }, []);
 
-  const isSandboxMode = plaidStatus && plaidStatus.plaid_env !== "production";
+  const isSandboxMode = plaidStatus && (plaidStatus.sandbox_qa === true || plaidStatus.is_production === false);
 
   const handleConnectBank = async () => {
     setLinkLoading(true);
@@ -329,12 +329,9 @@ export default function Accounts() {
         >
           <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <div>
-            <div className="font-semibold">Plaid Sandbox / Test Mode</div>
+            <div className="font-semibold">Plaid Sandbox / Test Mode is active.</div>
             <div className="text-xs mt-1">
-              No real banks are connected. Use sandbox credentials —{" "}
-              <code className="font-mono">user_good</code> /{" "}
-              <code className="font-mono">pass_good</code> (MFA: <code className="font-mono">1234</code>).
-              {plaidStatus?.sandbox_qa ? " Real-bank Link is blocked (ENABLE_PLAID_SANDBOX_QA=true)." : ""}
+              Use <code className="font-mono">user_good</code> / <code className="font-mono">pass_good</code> / <code className="font-mono">1234</code>. Real-bank connections are blocked.
             </div>
           </div>
         </div>
