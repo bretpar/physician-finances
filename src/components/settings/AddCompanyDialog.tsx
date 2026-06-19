@@ -17,6 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
