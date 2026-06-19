@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
 import { isBusinessIncomeType } from "@/lib/ledgerRouting";
+import { getTodayLocalDateString } from "@/lib/localDate";
 
 export interface PersonalIncomeEntry {
   id: string;
