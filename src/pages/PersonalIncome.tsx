@@ -130,7 +130,7 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  date: new Date().toISOString().split("T")[0],
+  date: getTodayLocalDateString(),
   title: "",
   income_type: "w2_user",
   gross_amount: "",
