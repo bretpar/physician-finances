@@ -244,57 +244,78 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
                   ))}
                 </SelectContent>
               </Select>
-              {isW2 && frequency === "irregular" && (
+              {isW2 && (
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule.
+                  {isIrregular
+                    ? "Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule. You can add actual paychecks as they come in or add optional planned paychecks in the Income Planner."
+                    : "Fixed-schedule W-2 employers get automatic paycheck projections."}
                 </p>
               )}
             </div>
 
+            {isIrregular && (
+              <Collapsible open={showW4Fields} onOpenChange={setShowW4Fields}>
+                <CollapsibleTrigger asChild>
+                  <button type="button" className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
+                    {showW4Fields ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    Show W-4 projection fields
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3">
+            )}
 
-            <div className={isW2 ? "" : "opacity-60"}>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Remaining paychecks this year
-              </Label>
-              <Input
-                data-testid="settings-company-remaining-paychecks-input"
-                type="number"
-                inputMode="numeric"
-                value={remainingPaychecks}
-                onChange={(e) => setRemainingPaychecks(e.target.value)}
-                placeholder="Auto"
-                disabled={!isW2}
-              />
-            </div>
+            {(!isIrregular || showW4Fields) && (
+              <>
+                <div className={isW2 ? "" : "opacity-60"}>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Remaining paychecks this year
+                  </Label>
+                  <Input
+                    data-testid="settings-company-remaining-paychecks-input"
+                    type="number"
+                    inputMode="numeric"
+                    value={remainingPaychecks}
+                    onChange={(e) => setRemainingPaychecks(e.target.value)}
+                    placeholder="Auto"
+                    disabled={!isW2}
+                  />
+                </div>
 
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Projected annual gross income (optional)
-              </Label>
-              <Input
-                data-testid="settings-company-projected-annual-gross-input"
-                type="number"
-                inputMode="decimal"
-                value={projectedGross}
-                onChange={(e) => setProjectedGross(e.target.value)}
-                placeholder="0"
-              />
-            </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Projected annual gross income (optional)
+                  </Label>
+                  <Input
+                    data-testid="settings-company-projected-annual-gross-input"
+                    type="number"
+                    inputMode="decimal"
+                    value={projectedGross}
+                    onChange={(e) => setProjectedGross(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
 
-            <div className={isW2 ? "" : "opacity-60"}>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Expected federal withholding per paycheck (optional)
-              </Label>
-              <Input
-                data-testid="settings-company-expected-federal-withholding-input"
-                type="number"
-                inputMode="decimal"
-                value={expectedWithholding}
-                onChange={(e) => setExpectedWithholding(e.target.value)}
-                placeholder="0"
-                disabled={!isW2}
-              />
-            </div>
+                <div className={isW2 ? "" : "opacity-60"}>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Expected federal withholding per paycheck (optional)
+                  </Label>
+                  <Input
+                    data-testid="settings-company-expected-federal-withholding-input"
+                    type="number"
+                    inputMode="decimal"
+                    value={expectedWithholding}
+                    onChange={(e) => setExpectedWithholding(e.target.value)}
+                    placeholder="0"
+                    disabled={!isW2}
+                  />
+                </div>
+              </>
+            )}
+
+            {isIrregular && (
+                </CollapsibleContent>
+              </Collapsible>
+            )}
           </div>
 
           <DialogFooter className="px-5 py-3 border-t bg-background shrink-0 flex-row justify-end gap-2 sm:space-x-0">
