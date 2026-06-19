@@ -66,7 +66,7 @@ export default function Onboarding() {
   const updateTaxSettings = useUpdateTaxSettings();
   const [step, setStep] = useState(() => Math.min(TOTAL_STEPS, Math.max(1, Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1)));
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS, onboardingComplete: false }));
+  const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS }));
   const COMPANY_DRAFTS_KEY = "paycheckmd-onboarding-company-drafts";
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>(() => {
     try {
@@ -262,7 +262,7 @@ export default function Onboarding() {
 
 
   if (!authLoading && !user) return <Navigate to="/signup" replace />;
-  if (user && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
+  if (user && !saving && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
 
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
@@ -311,7 +311,7 @@ export default function Onboarding() {
     setStep(nextStep);
     sessionStorage.setItem("paycheckmd-onboarding-step", String(nextStep));
     patch({ onboardingStep: nextStep });
-    if (settingsId) await persist({ onboardingStep: nextStep, onboardingComplete: false });
+    if (settingsId) await persist({ onboardingStep: nextStep }, "goBack");
   };
 
   const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
