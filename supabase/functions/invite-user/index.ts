@@ -87,9 +87,33 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 400,
+    const raw = error instanceof Error ? error.message : String(error);
+    // Log the full error server-side for debugging; never return it to the client.
+    console.error("invite-user error:", raw);
+
+    // Map known error categories to safe, generic client messages.
+    const lower = raw.toLowerCase();
+    let status = 400;
+    let safeMessage = "Unable to invite user. Please try again.";
+    if (lower.includes("not authenticated")) {
+      status = 401;
+      safeMessage = "Not authenticated";
+    } else if (lower.includes("insufficient permissions") || lower.includes("not authorized")) {
+      status = 403;
+      safeMessage = "Insufficient permissions";
+    } else if (lower.includes("missing required fields")) {
+      status = 400;
+      safeMessage = "Missing required fields";
+    } else if (lower.includes("owner role")) {
+      status = 400;
+      safeMessage = "Cannot invite users with owner role";
+    } else if (lower.includes("already") || lower.includes("registered") || lower.includes("duplicate")) {
+      status = 409;
+      safeMessage = "This user is already a member or has a pending invite.";
+    }
+
+    return new Response(JSON.stringify({ error: safeMessage }), {
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
