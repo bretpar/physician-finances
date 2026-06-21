@@ -1698,7 +1698,7 @@ function CompaniesSection() {
 /* ──────────────────────────────────────────────────────────── */
 function ConnectedAccountsSection() {
   const { companies } = useCompanies();
-  const { data: plaidItems = [], isLoading: plaidItemsLoading } = usePlaidItems();
+  const { data: plaidItems = [], isLoading: plaidItemsLoading, error: plaidItemsError } = usePlaidItems();
   const { data: plaidAccounts = [] } = usePlaidAccounts();
   const { data: needsReviewTransactions = [] } = usePlaidNeedsReviewTransactions();
   const syncMutation = useSyncTransactions();
