@@ -750,7 +750,7 @@ Deno.serve(async (req) => {
         // Stable per-item context so routing failures bubble back via lastRouteError.
         const itemCtx: RouteContext = { adminClient, user, orgId, item, accounts, accountBizMap, newlyAdded, lastRouteError: null };
 
-        let accessToken = accessTokens.get(item.id) || item.access_token;
+        let accessToken = accessTokens.get(item.id);
 
         if (!accessToken) {
           await adminClient
