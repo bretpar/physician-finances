@@ -2052,6 +2052,12 @@ function ConnectedAccountsSection() {
       >
         {plaidItemsLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : plaidItemsError ? (
+          <div className="text-center py-8">
+            <Landmark className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-destructive">Connected accounts could not be loaded.</p>
+            <p className="text-xs text-muted-foreground mt-1">Please refresh the page or try again later.</p>
+          </div>
         ) : plaidItems.length === 0 ? (
           <div className="text-center py-8">
             <Landmark className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
