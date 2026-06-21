@@ -687,7 +687,7 @@ Deno.serve(async (req) => {
             balanceWarnings.push({
               item_id: item.id,
               institution_name: item.institution_name,
-              error: `account ${acct.account_id}: ${updErr.message}`,
+              error: "balance update failed",
             });
           } else if ((count ?? 0) > 0) {
             balancesRefreshed++;
@@ -698,7 +698,7 @@ Deno.serve(async (req) => {
         balanceWarnings.push({
           item_id: item.id,
           institution_name: item.institution_name,
-          error: e instanceof Error ? e.message : String(e),
+          error: "balance refresh unavailable",
         });
       }
     }
