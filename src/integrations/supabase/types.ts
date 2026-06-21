@@ -805,7 +805,6 @@ export type Database = {
       }
       plaid_items: {
         Row: {
-          access_token: string
           created_at: string
           cursor: string | null
           id: string
@@ -825,7 +824,6 @@ export type Database = {
           webhook_url: string | null
         }
         Insert: {
-          access_token: string
           created_at?: string
           cursor?: string | null
           id?: string
@@ -845,7 +843,6 @@ export type Database = {
           webhook_url?: string | null
         }
         Update: {
-          access_token?: string
           created_at?: string
           cursor?: string | null
           id?: string
