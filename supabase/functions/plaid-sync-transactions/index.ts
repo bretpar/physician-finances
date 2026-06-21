@@ -619,7 +619,7 @@ Deno.serve(async (req) => {
     // independently of mode and reuse the token for /transactions/sync below.
     const accessTokens = new Map<string, string>();
     for (const item of plaidItems) {
-      let accessToken = item.access_token;
+      let accessToken: string | undefined;
       if (item.vault_secret_id) {
         const { data: vaultToken, error: vaultErr } = await adminClient.rpc("get_plaid_access_token", { _item_id: item.id });
         if (!vaultErr && vaultToken) accessToken = vaultToken;
@@ -687,7 +687,7 @@ Deno.serve(async (req) => {
             balanceWarnings.push({
               item_id: item.id,
               institution_name: item.institution_name,
-              error: `account ${acct.account_id}: ${updErr.message}`,
+              error: "balance update failed",
             });
           } else if ((count ?? 0) > 0) {
             balancesRefreshed++;
@@ -698,7 +698,7 @@ Deno.serve(async (req) => {
         balanceWarnings.push({
           item_id: item.id,
           institution_name: item.institution_name,
-          error: e instanceof Error ? e.message : String(e),
+          error: "balance refresh unavailable",
         });
       }
     }
@@ -750,7 +750,7 @@ Deno.serve(async (req) => {
         // Stable per-item context so routing failures bubble back via lastRouteError.
         const itemCtx: RouteContext = { adminClient, user, orgId, item, accounts, accountBizMap, newlyAdded, lastRouteError: null };
 
-        let accessToken = accessTokens.get(item.id) || item.access_token;
+        let accessToken = accessTokens.get(item.id);
 
         if (!accessToken) {
           await adminClient

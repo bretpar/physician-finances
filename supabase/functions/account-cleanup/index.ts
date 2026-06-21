@@ -253,10 +253,7 @@ export async function handler(req: Request) {
       console.error("account-cleanup data delete failed", deleteError);
       return jsonResponse(req, {
         ok: false,
-        error: "Failed to delete account data",
-        failedStep: (deleteError as CleanupStepError).step || "deleteUserData",
-        failedTable: (deleteError as CleanupStepError).table || null,
-        detail: (deleteError as Error).message,
+        error: "Account deletion incomplete. Please contact support.",
       }, 500);
     }
 
@@ -270,22 +267,17 @@ export async function handler(req: Request) {
       console.error("account-cleanup deleteUser failed", authDelErr);
       return jsonResponse(req, {
         ok: false,
-        error: "Failed to delete auth user",
-        failedStep: "auth.deleteUser",
-        detail: authDelErr.message,
+        error: "Account deletion incomplete. Please contact support.",
       }, 500);
     }
 
     logStep("complete", { userId });
-    return jsonResponse(req, { ok: true, action: "delete", cleanup: cleanupResult });
+    return jsonResponse(req, { ok: true, action: "delete", cleanup: { deletedOrganizations: cleanupResult.deletedOrganizations } });
   } catch (error) {
     console.error("account-cleanup error", error);
     return jsonResponse(req, {
       ok: false,
-      error: "Internal error",
-      failedStep: (error as CleanupStepError).step || "handler",
-      failedTable: (error as CleanupStepError).table || null,
-      detail: (error as Error).message,
+      error: "Account deletion incomplete. Please contact support.",
     }, 500);
   }
 }
