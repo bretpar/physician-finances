@@ -11,13 +11,28 @@ const corsHeaders = {
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return mismatch === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const cronSecret = Deno.env.get("CRON_SECRET");
   if (!cronSecret) {
-    return new Response(JSON.stringify({ error: "CRON_SECRET not configured" }), {
+    return new Response(JSON.stringify({ error: "Server misconfigured" }), {
       status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const provided = req.headers.get("x-cron-secret") || "";
+  if (!provided || !timingSafeEqual(provided, cronSecret)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -29,7 +44,8 @@ Deno.serve(async (req) => {
 
   const { error } = await admin.rpc("install_plaid_sync_cron_job", { _secret: cronSecret });
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("install-plaid-cron rpc failed", error);
+    return new Response(JSON.stringify({ error: "Failed to install cron job" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
