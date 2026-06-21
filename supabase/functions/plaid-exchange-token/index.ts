@@ -133,11 +133,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Save plaid_item with placeholder token (will be moved to vault)
+    // Save plaid_item; the access token itself is written to Vault below.
     const { data: itemRow, error: insertError } = await adminClient.from("plaid_items").insert({
       user_id: user.id,
       organization_id: orgId,
-      access_token: "**pending_vault**",
       item_id: exchangeData.item_id,
       institution_name: institution_name || "Unknown Bank",
       institution_id: institution_id || "",
@@ -147,7 +146,7 @@ Deno.serve(async (req) => {
 
     if (insertError) {
       console.error("Insert error:", insertError);
-      return new Response(JSON.stringify({ error: `Failed to save connection: ${insertError.message}` }), {
+      return new Response(JSON.stringify({ error: "Failed to save connection. Please try again." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -163,7 +162,7 @@ Deno.serve(async (req) => {
       // Roll back the placeholder row so we never leave a token unstored.
       await adminClient.from("plaid_items").delete().eq("id", itemRow.id);
       return new Response(JSON.stringify({
-        error: `Failed to securely store bank connection: ${vaultError.message || "vault unavailable"}`,
+        error: "Failed to securely store bank connection. Please contact support.",
       }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
