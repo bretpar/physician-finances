@@ -619,7 +619,7 @@ Deno.serve(async (req) => {
     // independently of mode and reuse the token for /transactions/sync below.
     const accessTokens = new Map<string, string>();
     for (const item of plaidItems) {
-      let accessToken = item.access_token;
+      let accessToken: string | undefined;
       if (item.vault_secret_id) {
         const { data: vaultToken, error: vaultErr } = await adminClient.rpc("get_plaid_access_token", { _item_id: item.id });
         if (!vaultErr && vaultToken) accessToken = vaultToken;
