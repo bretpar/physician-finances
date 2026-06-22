@@ -611,6 +611,13 @@ export default function Reports() {
   }
 
   function exportTaxPDF() {
+    // Open the review modal first so users can verify summary values
+    // before the file is downloaded. Actual download happens in
+    // confirmExportTaxPDF.
+    setPdfPreviewOpen(true);
+  }
+
+  function confirmExportTaxPDF() {
     logExportPayload("pdf");
     let appendixTxs: TransactionRow[] | undefined;
     if (includeAppendix) {
@@ -648,6 +655,7 @@ export default function Reports() {
       includeAppendix,
       transactions: appendixTxs,
     });
+    setPdfPreviewOpen(false);
   }
 
   function downloadBlob(content: string, filename: string) {
