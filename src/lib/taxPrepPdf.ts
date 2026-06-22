@@ -622,6 +622,51 @@ function renderAppendix(doc: jsPDF, data: TaxPrepPdfInput, generatedAt: string) 
   }
 }
 
+function renderWorksheetForEntity(doc: jsPDF, w: BusinessWorksheet) {
+  const isK1 = (w.type ?? "").toLowerCase().includes("k-1");
+  const incomeLabel = isK1 ? "Active K-1 Income" : "Gross receipts / sales";
+  const cats = w.categories.filter((c) => c.amount > 0);
+  const body: any[][] = [
+    [
+      { content: incomeLabel, styles: { fontStyle: "bold" } },
+      { content: fmt(w.grossReceipts), styles: { fontStyle: "bold", halign: "right" } },
+    ],
+    ...(cats.length === 0
+      ? [[{ content: "No expenses recorded for this entity.", colSpan: 2, styles: { halign: "center", textColor: 120 } }]]
+      : cats.map((c) => [c.label, fmt(c.amount)])),
+    [
+      { content: "Total Expenses", styles: { fontStyle: "bold" } },
+      { content: fmt(w.totalExpenses), styles: { fontStyle: "bold", halign: "right" } },
+    ],
+    [
+      { content: "Net Profit / Loss", styles: { fontStyle: "bold" } },
+      { content: fmt(w.netProfit), styles: { fontStyle: "bold", halign: "right" } },
+    ],
+  ];
+
+  // Header line
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(25);
+  doc.text(w.entity, MARGIN_X, CONTENT_TOP + 4);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(110);
+  doc.text(
+    `${isK1 ? "Active K-1 Expense Summary" : "Schedule C Worksheet"} · ${w.type ?? "—"}`,
+    MARGIN_X,
+    CONTENT_TOP + 18,
+  );
+
+  renderTable(
+    doc,
+    CONTENT_TOP + 28,
+    [[isK1 ? "Active K-1 Line" : "Schedule C Line", "Amount"]],
+    body,
+    { moneyCols: [1] },
+  );
+}
+
 // ─────────────────────────────────────────────────────────── Main ────
 
 export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
