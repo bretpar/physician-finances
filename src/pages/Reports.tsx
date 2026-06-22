@@ -218,21 +218,30 @@ export default function Reports() {
   }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY, businessCompanyNames]);
 
   // ──── Annual Tax Summary — Business / Schedule C ────
+  // Restrict to business reporting companies (1099 + active K-1) so that
+  // W-2 employer / passive K-1 income or expenses never leak into the
+  // Schedule C / business sections.
   const taxData = useMemo(() => {
     const yearStart = `${taxYear}-01-01`;
     const yearEnd = `${taxYear}-12-31`;
 
+    const entityAllowed = (entity: string | null | undefined): boolean => {
+      if (taxCompany === "all") return isBusinessReportTx(entity);
+      if (!businessCompanyNames.has(taxCompany)) return false;
+      return entity === taxCompany;
+    };
+
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (taxCompany !== "all" && t.entity !== taxCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });
 
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (taxCompany !== "all" && t.entity !== taxCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });
 
@@ -241,13 +250,19 @@ export default function Reports() {
 
     let mileageDed = 0;
     if (taxCompany === "all") {
-      for (const v of mileageByCompanyName.values()) mileageDed += v;
-    } else {
+      for (const [name, v] of mileageByCompanyName.entries()) {
+        if (businessCompanyNames.has(name)) mileageDed += v;
+      }
+    } else if (businessCompanyNames.has(taxCompany)) {
       mileageDed = mileageByCompanyName.get(taxCompany) || 0;
     }
     const homeOfficeDed = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
-      .filter((d) => taxCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === taxCompany)
+      .filter((d) => {
+        const cName = companies.find((c) => c.id === d.company_id)?.name;
+        if (!cName || !businessCompanyNames.has(cName)) return false;
+        return taxCompany === "all" || cName === taxCompany;
+      })
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
     const totalExpenses = txExpenseTotal + mileageDed + homeOfficeDed;
 
@@ -270,7 +285,7 @@ export default function Reports() {
       incomeTxs,
       expenseTxs,
     };
-  }, [transactions, taxCompany, taxYear, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
+  }, [transactions, taxCompany, taxYear, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY, businessCompanyNames]);
 
   // ──── Income Summary (Section 1) ────
   const incomeSummary = useMemo(() => {
