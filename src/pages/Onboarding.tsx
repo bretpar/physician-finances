@@ -424,6 +424,15 @@ export default function Onboarding() {
       const includeSeTax = isK1
         ? company.k1SeTaxable === "active"
         : true;
+      // Persist explicit K-1 treatment so Reports classification doesn't
+      // have to rely on the SE-tax fallback. "Unsure" leaves it null.
+      const k1Treatment: "active_partnership" | "passive" | null = isK1
+        ? company.k1SeTaxable === "active"
+          ? "active_partnership"
+          : company.k1SeTaxable === "passive"
+            ? "passive"
+            : null
+        : null;
       const row = {
         user_id: user.id,
         organization_id: orgId,
@@ -438,6 +447,7 @@ export default function Onboarding() {
         advanced_field_visibility: {},
         apply_business_state_tax: true,
         include_se_tax_in_recommendation: includeSeTax,
+        k1_tax_treatment: k1Treatment,
         pay_frequency: company.type === "w2" ? (company.payFrequency || "biweekly") : null,
         projected_annual_gross: company.projectedAnnualGross ?? null,
         // Persist W-2 spouse/primary ownership so the W-4 page and Personal
@@ -453,7 +463,10 @@ export default function Onboarding() {
           patch.company_type = companyType;
           patch.source_kind = row.source_kind;
         }
-        if (isK1) patch.include_se_tax_in_recommendation = includeSeTax;
+        if (isK1) {
+          patch.include_se_tax_in_recommendation = includeSeTax;
+          if (k1Treatment !== null) patch.k1_tax_treatment = k1Treatment;
+        }
         if (company.type === "w2") {
           // Row-scoped: persist each W-2 employer's own role independently.
           // Default to "primary" when the draft never set one so the DB
