@@ -429,7 +429,7 @@ function renderDeductions(doc: jsPDF, data: TaxPrepPdfInput) {
 }
 
 function renderK1Summary(doc: jsPDF, data: TaxPrepPdfInput) {
-  let y = CONTENT_TOP + 8;
+  let y = CONTENT_TOP + 24;
 
   // Active K-1
   doc.setFont("helvetica", "bold");
