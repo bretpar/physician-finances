@@ -29,6 +29,7 @@ import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
+import Trust from "@/pages/Trust";
 import { RouteHead } from "@/components/RouteHead";
 
 const queryClient = new QueryClient();
