@@ -1032,6 +1032,75 @@ export default function Reports() {
             </div>
           </SectionCard>
 
+          {/* QA — Export Preview (dev only or ?qa=1 / localStorage qa-export-preview=1) */}
+          {(import.meta.env.DEV ||
+            (typeof window !== "undefined" &&
+              (window.localStorage.getItem("qa-export-preview") === "1" ||
+                new URLSearchParams(window.location.search).get("qa") === "1"))) && (
+            <Collapsible>
+              <div className="rounded-lg border border-dashed border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/20">
+                <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100/40 dark:hover:bg-amber-900/20 rounded-t-lg">
+                  <span>QA · Export Preview (exact CSV / PDF payload)</span>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="px-4 py-3 space-y-3 text-xs">
+                    <div className="text-muted-foreground">
+                      Company: <span className="font-mono">{exportPayload.companyLabel}</span> · Year:{" "}
+                      <span className="font-mono">{exportPayload.taxYear}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                      <KVRow label="W-2 Income" value={fmt(exportPayload.income.w2)} />
+                      <KVRow label="1099 Income" value={fmt(exportPayload.income.income1099)} />
+                      <KVRow label="Active K-1 Income" value={fmt(exportPayload.income.k1Active ?? 0)} />
+                      <KVRow label="Passive K-1 Income" value={fmt(exportPayload.income.k1Passive ?? 0)} />
+                      <KVRow label="Total Gross Income" value={fmt(exportPayload.income.total)} bold />
+                      <KVRow label="Business Gross Receipts" value={fmt(exportPayload.business.grossReceipts)} />
+                      <KVRow label="Business Expenses" value={fmt(exportPayload.business.totalExpenses)} />
+                      <KVRow label="Business Net Profit" value={fmt(exportPayload.business.netProfit)} bold />
+                    </div>
+                    <div>
+                      <div className="font-medium mb-1">Business entities (1099 + active K-1)</div>
+                      {exportPayload.businessEntityRows.length === 0 ? (
+                        <div className="text-muted-foreground">— none —</div>
+                      ) : (
+                        <table className="w-full text-xs font-mono">
+                          <thead className="text-muted-foreground">
+                            <tr><th className="text-left">Entity</th><th className="text-right">Income</th><th className="text-right">Expenses</th><th className="text-right">Net</th></tr>
+                          </thead>
+                          <tbody>
+                            {exportPayload.businessEntityRows.map((r) => (
+                              <tr key={r.entity}><td>{r.entity}</td><td className="text-right">{fmt(r.income)}</td><td className="text-right">{fmt(r.expenses)}</td><td className="text-right">{fmt(r.net)}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium mb-1">Passive K-1 entities (excluded from business profit)</div>
+                      {exportPayload.passiveK1Rows.length === 0 ? (
+                        <div className="text-muted-foreground">— none —</div>
+                      ) : (
+                        <table className="w-full text-xs font-mono">
+                          <thead className="text-muted-foreground">
+                            <tr><th className="text-left">Entity</th><th className="text-right">Income</th></tr>
+                          </thead>
+                          <tbody>
+                            {exportPayload.passiveK1Rows.map((r) => (
+                              <tr key={r.entity}><td>{r.entity}</td><td className="text-right">{fmt(r.income)}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          )}
+
+
+
           <p className="text-xs text-muted-foreground text-center">
             Tax-prep worksheet for reference — not an official IRS form. Use alongside Schedule C and your tax pro when filing.
             {taxSettings?.stateIncomeTaxEnabled === false && (
