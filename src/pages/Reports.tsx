@@ -619,9 +619,10 @@ export default function Reports() {
       tax: taxSummary,
       quarters: quarterly,
       businessEntityRows,
+      businessWorksheets,
       passiveK1Rows,
     };
-  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames, companies, taxSettings, currentYear, forecastEstimate, actualEstimate]);
+  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames, companies, taxSettings, currentYear, forecastEstimate, actualEstimate, homeOfficeDeductions, mileageByCompanyName, businessCompanyNames]);
 
   function logExportPayload(kind: "csv" | "pdf") {
     if (!import.meta.env.DEV) return;
