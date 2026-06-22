@@ -92,6 +92,29 @@ export default function Reports() {
   const VEHICLE_CATEGORY = "Car and truck expenses";
   const HOME_OFFICE_CATEGORY = HOME_OFFICE_REPORT_LABEL;
 
+  // Names of companies that count as business reporting entities (1099 + active K-1).
+  // Used everywhere business income/expenses are aggregated for reports.
+  const businessCompanyNames = useMemo(
+    () => getBusinessReportingCompanyNames(companies),
+    [companies],
+  );
+  const passiveK1CompanyNames = useMemo(
+    () => getPassiveK1CompanyNames(companies),
+    [companies],
+  );
+
+  /**
+   * True when a transaction should flow into business reports based on its
+   * `entity`. When no filter is set ("all"), only entities that belong to
+   * business reporting companies (1099 or active K-1) are included — W-2
+   * employers, passive K-1, and unknown entities are excluded so business
+   * report numbers cannot leak.
+   */
+  const isBusinessReportTx = (entity: string | null | undefined): boolean => {
+    if (!entity) return false;
+    return businessCompanyNames.has(entity);
+  };
+
   // Resolve mileage entries to a company NAME (Reports filters by entity name).
   const mileageByCompanyName = useMemo(() => {
     const m = new Map<string, number>();
