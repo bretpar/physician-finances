@@ -368,7 +368,7 @@ export default function Reports() {
         if (q && byQ[q] !== undefined) byQ[q] += Number(p.amount);
       }
       return [1, 2, 3, 4].map((q) => ({
-        quarter: `Q${q}` as const,
+        quarter: `Q${q}` as "Q1" | "Q2" | "Q3" | "Q4",
         recommended: 0,
         paid: byQ[`Q${q}`],
         remaining: 0,
