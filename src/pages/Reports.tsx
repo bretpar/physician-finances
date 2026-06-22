@@ -802,7 +802,8 @@ export default function Reports() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
               <KVRow label="W-2 Income" value={fmt(incomeSummary.w2)} />
               <KVRow label="1099 Income" value={fmt(incomeSummary.income1099)} />
-              <KVRow label="K-1 Income" value={fmt(incomeSummary.k1)} />
+              <KVRow label="K-1 Income (Active)" value={fmt(incomeSummary.k1Active)} />
+              <KVRow label="K-1 Income (Passive)" value={fmt(incomeSummary.k1Passive)} />
               <KVRow label="Investment Income (capital gains)" value={fmt(incomeSummary.investment)} />
               <KVRow label="Interest Income" value={fmt(incomeSummary.interest)} />
               <KVRow label="Dividend Income" value={fmt(incomeSummary.dividend)} />
