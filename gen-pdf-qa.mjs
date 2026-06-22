@@ -5,7 +5,7 @@ const origSave = jsPDF.prototype.save;
 jsPDF.prototype.save = function(name) {
   const buf = this.output("arraybuffer");
   writeFileSync("/tmp/pdfqa/out.pdf", Buffer.from(buf));
-  console.log("saved", name, buf.byteLength, "bytes");
+  console.error("saved", name, buf.byteLength, "bytes");
 };
 const { exportTaxPrepPdf } = await import("./src/lib/taxPrepPdf.ts");
 exportTaxPrepPdf({
@@ -56,3 +56,4 @@ exportTaxPrepPdf({
     { date: "2026-05-13", vendor: "Conference Fee", category: "Legal and professional services", amount: 1200, type: "expense", entity: "Vituity" },
   ],
 });
+console.error("done");
