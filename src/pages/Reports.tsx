@@ -34,6 +34,12 @@ import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { HOME_OFFICE_REPORT_LABEL } from "@/lib/homeOfficeDeduction";
 import { classifyPersonalIncome } from "@/lib/incomeClassification";
 import { exportTaxPrepPdf, type TransactionRow } from "@/lib/taxPrepPdf";
+import {
+  getBusinessReportingCompanyNames,
+  getPassiveK1CompanyNames,
+  isActiveK1Company,
+  isPassiveK1Company,
+} from "@/lib/reportingAggregation";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
