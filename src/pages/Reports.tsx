@@ -389,7 +389,7 @@ export default function Reports() {
         manualSavings: quarterInputBase.manualSavings,
       });
       return {
-        quarter: `Q${q}` as const,
+        quarter: `Q${q}` as "Q1" | "Q2" | "Q3" | "Q4",
         recommended: rec.recommendedPaymentToMake,
         paid: rec.paidThisQuarter,
         remaining: rec.recommendedPaymentToMake,
