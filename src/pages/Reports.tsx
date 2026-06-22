@@ -568,33 +568,27 @@ export default function Reports() {
   }
 
   function exportTaxCSV() {
-    const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
+    logExportPayload("csv");
+    const { companyLabel, income, business, deductions: ded, tax, quarters } = exportPayload;
     let csv = `Annual Tax Summary\nCompany,${companyLabel}\nTax Year,${taxYear}\n\n`;
-    csv += `INCOME SUMMARY\nW-2 Income,${incomeSummary.w2}\n1099 Income,${incomeSummary.income1099}\nK-1 Income (Active),${incomeSummary.k1Active}\nK-1 Income (Passive),${incomeSummary.k1Passive}\nK-1 Income (Total),${incomeSummary.k1}\nInvestment (cap gains),${incomeSummary.investment}\nInterest Income,${incomeSummary.interest}\nDividend Income,${incomeSummary.dividend}\nTotal Gross Income,${incomeSummary.total}\n\n`;
-    csv += `BUSINESS / SCHEDULE C\nGross Receipts/Sales,${taxData.grossIncome}\n`;
-    for (const cat of EXPENSE_CATEGORIES) {
-      csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
+    csv += `INCOME SUMMARY\nW-2 Income,${income.w2}\n1099 Income,${income.income1099}\nK-1 Income (Active),${income.k1Active}\nK-1 Income (Passive),${income.k1Passive}\nK-1 Income (Total),${income.k1}\nInvestment (cap gains),${income.investment}\nInterest Income,${income.interest}\nDividend Income,${income.dividend}\nTotal Gross Income,${income.total}\n\n`;
+    csv += `BUSINESS / SCHEDULE C\nGross Receipts/Sales,${business.grossReceipts}\n`;
+    for (const c of business.categories) {
+      if (c.label === HOME_OFFICE_REPORT_LABEL && c.amount <= 0) continue;
+      csv += `"${c.label}",${c.amount}\n`;
     }
-    if (taxData.homeOfficeDeduction > 0) csv += `"${HOME_OFFICE_REPORT_LABEL}",${taxData.homeOfficeDeduction}\n`;
-    csv += `Total Expenses,${taxData.totalExpenses}\nNet Profit/Loss,${taxData.netProfit}\n\n`;
-    csv += `DEDUCTIONS\nHSA Contributions,${deductions.hsa}\n401(k) / Retirement,${deductions.retirement401k}\nMileage,${deductions.mileage}\nHome Office,${deductions.homeOffice}\nHealthcare,${deductions.healthcare}\n\n`;
-    csv += `TAX SUMMARY\nFederal Tax Estimate,${taxSummary.federal}\nState Tax Estimate,${taxSummary.state}\nSelf-Employment Tax,${taxSummary.selfEmployment}\nEstimated Annual Tax Liability,${taxSummary.totalLiability}\nTaxes Already Withheld,${taxSummary.withheld}\nTax Reserve Saved,${taxSummary.reserveSaved}\nQuarterly Payments Made,${taxSummary.paymentsMade}\nRemaining Estimated Liability,${taxSummary.remaining}\n\n`;
+    csv += `Total Expenses,${business.totalExpenses}\nNet Profit/Loss,${business.netProfit}\n\n`;
+    csv += `DEDUCTIONS\nHSA Contributions,${ded.hsa}\n401(k) / Retirement,${ded.retirement401k}\nMileage,${ded.mileage}\nHome Office,${ded.homeOffice}\nHealthcare,${ded.healthcare}\n\n`;
+    csv += `TAX SUMMARY\nFederal Tax Estimate,${tax.federal}\nState Tax Estimate,${tax.state}\nSelf-Employment Tax,${tax.selfEmployment}\nEstimated Annual Tax Liability,${tax.totalLiability}\nTaxes Already Withheld,${tax.withheld}\nTax Reserve Saved,${tax.reserveSaved}\nQuarterly Payments Made,${tax.paymentsMade}\nRemaining Estimated Liability,${tax.remaining}\n\n`;
     csv += `QUARTERLY\nQuarter,Recommended,Paid,Remaining\n`;
-    for (const q of quarterly) {
+    for (const q of quarters) {
       csv += `${q.quarter},${q.recommended},${q.paid ?? ""},${q.remaining ?? ""}\n`;
     }
     downloadBlob(csv, `tax-summary-${taxYear}.csv`);
   }
 
   function exportTaxPDF() {
-    const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
-    const categories = EXPENSE_CATEGORIES.map((cat) => ({
-      label: cat,
-      amount: taxData.byCategory[cat] || 0,
-    }));
-    if (taxData.homeOfficeDeduction > 0) {
-      categories.push({ label: HOME_OFFICE_REPORT_LABEL, amount: taxData.homeOfficeDeduction });
-    }
+    logExportPayload("pdf");
     let appendixTxs: TransactionRow[] | undefined;
     if (includeAppendix) {
       const yearStart = `${taxYear}-01-01`;
@@ -615,18 +609,13 @@ export default function Reports() {
         }));
     }
     exportTaxPrepPdf({
-      taxYear,
-      companyLabel,
-      income: incomeSummary,
-      business: {
-        grossReceipts: taxData.grossIncome,
-        categories,
-        totalExpenses: taxData.totalExpenses,
-        netProfit: taxData.netProfit,
-      },
-      deductions,
-      tax: taxSummary,
-      quarters: quarterly,
+      taxYear: exportPayload.taxYear,
+      companyLabel: exportPayload.companyLabel,
+      income: exportPayload.income,
+      business: exportPayload.business,
+      deductions: exportPayload.deductions,
+      tax: exportPayload.tax,
+      quarters: exportPayload.quarters,
       includeAppendix,
       transactions: appendixTxs,
     });
