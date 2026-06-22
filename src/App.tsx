@@ -29,6 +29,7 @@ import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
+import Trust from "@/pages/Trust";
 import { RouteHead } from "@/components/RouteHead";
 
 const queryClient = new QueryClient();
@@ -125,7 +126,9 @@ function AppRoutes() {
       <Route path="/blog/1099-tax-deductions" element={<Tax1099Deductions />} />
       <Route path="/blog/physician-scorp-vs-sole-proprietorship" element={<PhysicianScorpVsSoleProprietorship />} />
       <Route path="/diagnostics/build" element={<DiagnosticsBuild />} />
+      <Route path="/trust" element={<Trust />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
+
     </Routes>
   );
 }
