@@ -16,6 +16,9 @@ export interface IncomeSummaryRows {
   w2: number;
   income1099: number;
   k1: number;
+  /** Optional split — when present, rendered as separate lines. */
+  k1Active?: number;
+  k1Passive?: number;
   investment: number;
   interest: number;
   dividend: number;
