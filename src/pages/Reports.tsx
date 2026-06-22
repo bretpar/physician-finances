@@ -1058,6 +1058,82 @@ export default function Reports() {
             </Collapsible>
           </SectionCard>
 
+          {/* Section 2b — Business Worksheets by Entity */}
+          {exportPayload.businessWorksheets.length > 0 && (
+            <SectionCard
+              title="2b. Business Worksheets by Entity"
+              subtitle="One Schedule C / Active K-1 worksheet per business — easier to enter into TurboTax or hand to a CPA"
+            >
+              <div className="space-y-4">
+                {exportPayload.businessWorksheets.map((w) => {
+                  const isK1 = (w.type || "").toLowerCase().includes("k-1");
+                  return (
+                    <div key={w.entity} className="rounded-lg border border-border overflow-hidden">
+                      <div className="px-4 py-2.5 bg-muted/40 border-b border-border flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{w.entity}</p>
+                          <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                            {isK1 ? "Active K-1 Expense Summary" : "Schedule C Worksheet"} · {w.type}
+                          </p>
+                        </div>
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-muted-foreground">
+                            {isK1 ? "K-1 Income" : "Gross Receipts"}:{" "}
+                            <span className="font-semibold text-foreground tabular-nums">{fmt(w.grossReceipts)}</span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            Net:{" "}
+                            <span
+                              className={`font-semibold tabular-nums ${
+                                w.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                              }`}
+                            >
+                              {fmt(w.netProfit)}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {w.categories.filter((c) => c.amount > 0).length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-muted-foreground">
+                            No expenses recorded for this entity in {taxYear}.
+                          </div>
+                        ) : (
+                          w.categories
+                            .filter((c) => c.amount > 0)
+                            .map((c) => (
+                              <div key={c.label} className="flex justify-between px-4 py-1.5">
+                                <span className="text-sm">{c.label}</span>
+                                <span className="text-sm tabular-nums">{fmt(c.amount)}</span>
+                              </div>
+                            ))
+                        )}
+                      </div>
+                      <div className="divide-y divide-border border-t border-border bg-muted/10">
+                        <div className="flex justify-between px-4 py-2">
+                          <span className="text-sm font-semibold">Total Expenses</span>
+                          <span className="text-sm font-bold tabular-nums">{fmt(w.totalExpenses)}</span>
+                        </div>
+                        <div className="flex justify-between px-4 py-2.5">
+                          <span className="text-sm font-bold">Net Profit / Loss</span>
+                          <span
+                            className={`text-base font-bold tabular-nums ${
+                              w.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                            }`}
+                          >
+                            {fmt(w.netProfit)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
+          )}
+
+
+
           {/* Section 3 — Deductions Summary */}
           <SectionCard title="3. Deductions Summary" subtitle="Above-the-line and tax-tracked deductions">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
