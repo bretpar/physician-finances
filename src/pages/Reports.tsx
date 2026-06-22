@@ -524,6 +524,66 @@ export default function Reports() {
       }))
       .sort((a, b) => b.income - a.income);
 
+    // ── Per-entity Schedule C / Active K-1 worksheets ──
+    // Reuses the same income/expense txs that drive the combined taxData totals,
+    // then layers in per-entity mileage and home office. No new tax calcs.
+    const entityNamesForWorksheets = new Set<string>();
+    for (const t of taxData.incomeTxs) if (t.entity) entityNamesForWorksheets.add(t.entity);
+    for (const t of taxData.expenseTxs) if (t.entity) entityNamesForWorksheets.add(t.entity);
+
+    const homeOfficeByEntity = new Map<string, number>();
+    for (const d of homeOfficeDeductions) {
+      if (!d.include_in_tax_calculation || d.status !== "active") continue;
+      const cName = companies.find((c) => c.id === d.company_id)?.name;
+      if (!cName || !businessCompanyNames.has(cName)) continue;
+      if (taxCompany !== "all" && cName !== taxCompany) continue;
+      homeOfficeByEntity.set(cName, (homeOfficeByEntity.get(cName) || 0) + Number(d.allowed_amount || 0));
+    }
+
+    const businessWorksheets = [...entityNamesForWorksheets]
+      .filter((name) => businessCompanyNames.has(name))
+      .map((name) => {
+        const type = entityType(name);
+        const incomeTxs = taxData.incomeTxs.filter((t) => t.entity === name);
+        const expenseTxs = taxData.expenseTxs.filter((t) => t.entity === name);
+        const grossReceipts = incomeTxs.reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+
+        const byCat: Record<string, number> = {};
+        for (const cat of EXPENSE_CATEGORIES) byCat[cat] = 0;
+        for (const t of expenseTxs) {
+          const cat = mapLegacyCategory(t.category);
+          byCat[cat] = (byCat[cat] || 0) + Math.abs(Number(t.amount) || 0);
+        }
+        const mileageForEntity = mileageByCompanyName.get(name) || 0;
+        if (mileageForEntity > 0) {
+          byCat[VEHICLE_CATEGORY] = (byCat[VEHICLE_CATEGORY] || 0) + mileageForEntity;
+        }
+        const homeOfficeForEntity = homeOfficeByEntity.get(name) || 0;
+
+        const cats: { label: string; amount: number }[] = EXPENSE_CATEGORIES.map((c) => ({
+          label: c,
+          amount: byCat[c] || 0,
+        }));
+        if (homeOfficeForEntity > 0) {
+          cats.push({ label: HOME_OFFICE_REPORT_LABEL, amount: homeOfficeForEntity });
+        }
+
+        const totalExpenses =
+          expenseTxs.reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0) +
+          mileageForEntity +
+          homeOfficeForEntity;
+
+        return {
+          entity: name,
+          type,
+          grossReceipts,
+          categories: cats,
+          totalExpenses,
+          netProfit: grossReceipts - totalExpenses,
+        };
+      })
+      .sort((a, b) => b.grossReceipts - a.grossReceipts);
+
     // Passive K-1 rows (income only, excluded from business profit).
     const yearStart = `${taxYear}-01-01`;
     const yearEnd = `${taxYear}-12-31`;
