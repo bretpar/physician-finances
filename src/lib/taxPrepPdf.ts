@@ -19,13 +19,13 @@ const fmt = (n: number) =>
 // Values <= 1 are treated as fractions and scaled up; values > 1 are assumed
 // to already be expressed in percent and rendered as-is. The tax engine emits
 // percent units (see calculateEffectiveRate), so this avoids a double-multiply.
-const pct = (n: number) => {
+export const pct = (n: number) => {
   const v = Number(n) || 0;
   const asPercent = Math.abs(v) <= 1 ? v * 100 : v;
   return `${asPercent.toFixed(2)}%`;
 };
 
-const FILING_STATUS_LABEL: Record<string, string> = {
+export const FILING_STATUS_LABEL: Record<string, string> = {
   single: "Single",
   married_filing_jointly: "Married Filing Jointly",
   married_filing_separately: "Married Filing Separately",

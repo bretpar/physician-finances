@@ -33,7 +33,8 @@ import { Download, FileText, Building2, ChevronDown } from "lucide-react";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { HOME_OFFICE_REPORT_LABEL } from "@/lib/homeOfficeDeduction";
 import { classifyPersonalIncome } from "@/lib/incomeClassification";
-import { exportTaxPrepPdf, type TransactionRow } from "@/lib/taxPrepPdf";
+import { exportTaxPrepPdf, pct, FILING_STATUS_LABEL, type TransactionRow } from "@/lib/taxPrepPdf";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   getBusinessReportingCompanyNames,
   getPassiveK1CompanyNames,
@@ -139,6 +140,7 @@ export default function Reports() {
   const [taxYear, setTaxYear] = useState(String(currentYear));
   const [taxCompany, setTaxCompany] = useState("all");
   const [includeAppendix, setIncludeAppendix] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [scheduleCOpen, setScheduleCOpen] = useState(false);
   const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(Number(taxYear));
 
@@ -609,6 +611,13 @@ export default function Reports() {
   }
 
   function exportTaxPDF() {
+    // Open the review modal first so users can verify summary values
+    // before the file is downloaded. Actual download happens in
+    // confirmExportTaxPDF.
+    setPdfPreviewOpen(true);
+  }
+
+  function confirmExportTaxPDF() {
     logExportPayload("pdf");
     let appendixTxs: TransactionRow[] | undefined;
     if (includeAppendix) {
@@ -646,6 +655,7 @@ export default function Reports() {
       includeAppendix,
       transactions: appendixTxs,
     });
+    setPdfPreviewOpen(false);
   }
 
   function downloadBlob(content: string, filename: string) {
@@ -1136,6 +1146,78 @@ export default function Reports() {
           </p>
         </TabsContent>
       </Tabs>
+
+      {/* Review Tax Prep PDF — preview the Page 1 summary cards before download */}
+      <Dialog open={pdfPreviewOpen} onOpenChange={setPdfPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review Tax Prep PDF</DialogTitle>
+            <DialogDescription>
+              These are the summary values that will appear on Page 1 of your Tax Prep PDF.
+              Review them before downloading.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { label: "Tax Year", value: exportPayload.taxYear },
+              {
+                label: "Filing Status",
+                value: exportPayload.filingStatus
+                  ? FILING_STATUS_LABEL[exportPayload.filingStatus] ?? exportPayload.filingStatus
+                  : "—",
+              },
+              { label: "Total Gross Income", value: fmt(exportPayload.income.total), emphasis: true },
+              {
+                label: "Total Taxable Income",
+                value:
+                  exportPayload.taxableIncome !== undefined
+                    ? fmt(exportPayload.taxableIncome)
+                    : "—",
+              },
+              {
+                label: "Effective Tax Rate",
+                value:
+                  exportPayload.effectiveRate !== undefined
+                    ? pct(exportPayload.effectiveRate)
+                    : "—",
+              },
+              {
+                label: "Estimated Annual Tax Liability",
+                value: fmt(exportPayload.tax.totalLiability),
+                emphasis: true,
+              },
+              { label: "Taxes Already Withheld", value: fmt(exportPayload.tax.withheld) },
+              { label: "Tax Reserve Saved", value: fmt(exportPayload.tax.reserveSaved) },
+              {
+                label: "Remaining Estimated Liability",
+                value: fmt(exportPayload.tax.remaining),
+                emphasis: true,
+              },
+            ].map((c) => (
+              <div
+                key={c.label}
+                className={`rounded-md border p-3 ${c.emphasis ? "bg-muted/50" : "bg-background"}`}
+              >
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {c.label}
+                </div>
+                <div className={`mt-1 font-semibold ${c.emphasis ? "text-base" : "text-sm"}`}>
+                  {c.value}
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPdfPreviewOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmExportTaxPDF}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
