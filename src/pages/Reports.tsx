@@ -524,6 +524,66 @@ export default function Reports() {
       }))
       .sort((a, b) => b.income - a.income);
 
+    // ── Per-entity Schedule C / Active K-1 worksheets ──
+    // Reuses the same income/expense txs that drive the combined taxData totals,
+    // then layers in per-entity mileage and home office. No new tax calcs.
+    const entityNamesForWorksheets = new Set<string>();
+    for (const t of taxData.incomeTxs) if (t.entity) entityNamesForWorksheets.add(t.entity);
+    for (const t of taxData.expenseTxs) if (t.entity) entityNamesForWorksheets.add(t.entity);
+
+    const homeOfficeByEntity = new Map<string, number>();
+    for (const d of homeOfficeDeductions) {
+      if (!d.include_in_tax_calculation || d.status !== "active") continue;
+      const cName = companies.find((c) => c.id === d.company_id)?.name;
+      if (!cName || !businessCompanyNames.has(cName)) continue;
+      if (taxCompany !== "all" && cName !== taxCompany) continue;
+      homeOfficeByEntity.set(cName, (homeOfficeByEntity.get(cName) || 0) + Number(d.allowed_amount || 0));
+    }
+
+    const businessWorksheets = [...entityNamesForWorksheets]
+      .filter((name) => businessCompanyNames.has(name))
+      .map((name) => {
+        const type = entityType(name);
+        const incomeTxs = taxData.incomeTxs.filter((t) => t.entity === name);
+        const expenseTxs = taxData.expenseTxs.filter((t) => t.entity === name);
+        const grossReceipts = incomeTxs.reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+
+        const byCat: Record<string, number> = {};
+        for (const cat of EXPENSE_CATEGORIES) byCat[cat] = 0;
+        for (const t of expenseTxs) {
+          const cat = mapLegacyCategory(t.category);
+          byCat[cat] = (byCat[cat] || 0) + Math.abs(Number(t.amount) || 0);
+        }
+        const mileageForEntity = mileageByCompanyName.get(name) || 0;
+        if (mileageForEntity > 0) {
+          byCat[VEHICLE_CATEGORY] = (byCat[VEHICLE_CATEGORY] || 0) + mileageForEntity;
+        }
+        const homeOfficeForEntity = homeOfficeByEntity.get(name) || 0;
+
+        const cats: { label: string; amount: number }[] = EXPENSE_CATEGORIES.map((c) => ({
+          label: c,
+          amount: byCat[c] || 0,
+        }));
+        if (homeOfficeForEntity > 0) {
+          cats.push({ label: HOME_OFFICE_REPORT_LABEL, amount: homeOfficeForEntity });
+        }
+
+        const totalExpenses =
+          expenseTxs.reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0) +
+          mileageForEntity +
+          homeOfficeForEntity;
+
+        return {
+          entity: name,
+          type,
+          grossReceipts,
+          categories: cats,
+          totalExpenses,
+          netProfit: grossReceipts - totalExpenses,
+        };
+      })
+      .sort((a, b) => b.grossReceipts - a.grossReceipts);
+
     // Passive K-1 rows (income only, excluded from business profit).
     const yearStart = `${taxYear}-01-01`;
     const yearEnd = `${taxYear}-12-31`;
@@ -559,9 +619,10 @@ export default function Reports() {
       tax: taxSummary,
       quarters: quarterly,
       businessEntityRows,
+      businessWorksheets,
       passiveK1Rows,
     };
-  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames, companies, taxSettings, currentYear, forecastEstimate, actualEstimate]);
+  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames, companies, taxSettings, currentYear, forecastEstimate, actualEstimate, homeOfficeDeductions, mileageByCompanyName, businessCompanyNames]);
 
   function logExportPayload(kind: "csv" | "pdf") {
     if (!import.meta.env.DEV) return;
@@ -648,6 +709,7 @@ export default function Reports() {
       income: exportPayload.income,
       business: exportPayload.business,
       businessEntityRows: exportPayload.businessEntityRows,
+      businessWorksheets: exportPayload.businessWorksheets,
       passiveK1Rows: exportPayload.passiveK1Rows,
       deductions: exportPayload.deductions,
       tax: exportPayload.tax,
@@ -995,6 +1057,82 @@ export default function Reports() {
               </CollapsibleContent>
             </Collapsible>
           </SectionCard>
+
+          {/* Section 2b — Business Worksheets by Entity */}
+          {exportPayload.businessWorksheets.length > 0 && (
+            <SectionCard
+              title="2b. Business Worksheets by Entity"
+              subtitle="One Schedule C / Active K-1 worksheet per business — easier to enter into TurboTax or hand to a CPA"
+            >
+              <div className="space-y-4">
+                {exportPayload.businessWorksheets.map((w) => {
+                  const isK1 = (w.type || "").toLowerCase().includes("k-1");
+                  return (
+                    <div key={w.entity} className="rounded-lg border border-border overflow-hidden">
+                      <div className="px-4 py-2.5 bg-muted/40 border-b border-border flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{w.entity}</p>
+                          <p className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                            {isK1 ? "Active K-1 Expense Summary" : "Schedule C Worksheet"} · {w.type}
+                          </p>
+                        </div>
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-muted-foreground">
+                            {isK1 ? "K-1 Income" : "Gross Receipts"}:{" "}
+                            <span className="font-semibold text-foreground tabular-nums">{fmt(w.grossReceipts)}</span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            Net:{" "}
+                            <span
+                              className={`font-semibold tabular-nums ${
+                                w.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                              }`}
+                            >
+                              {fmt(w.netProfit)}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {w.categories.filter((c) => c.amount > 0).length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-muted-foreground">
+                            No expenses recorded for this entity in {taxYear}.
+                          </div>
+                        ) : (
+                          w.categories
+                            .filter((c) => c.amount > 0)
+                            .map((c) => (
+                              <div key={c.label} className="flex justify-between px-4 py-1.5">
+                                <span className="text-sm">{c.label}</span>
+                                <span className="text-sm tabular-nums">{fmt(c.amount)}</span>
+                              </div>
+                            ))
+                        )}
+                      </div>
+                      <div className="divide-y divide-border border-t border-border bg-muted/10">
+                        <div className="flex justify-between px-4 py-2">
+                          <span className="text-sm font-semibold">Total Expenses</span>
+                          <span className="text-sm font-bold tabular-nums">{fmt(w.totalExpenses)}</span>
+                        </div>
+                        <div className="flex justify-between px-4 py-2.5">
+                          <span className="text-sm font-bold">Net Profit / Loss</span>
+                          <span
+                            className={`text-base font-bold tabular-nums ${
+                              w.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                            }`}
+                          >
+                            {fmt(w.netProfit)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
+          )}
+
+
 
           {/* Section 3 — Deductions Summary */}
           <SectionCard title="3. Deductions Summary" subtitle="Above-the-line and tax-tracked deductions">

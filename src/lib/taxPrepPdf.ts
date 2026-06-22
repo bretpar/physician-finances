@@ -100,6 +100,15 @@ export interface TransactionRow {
   entity?: string;
 }
 
+export interface BusinessWorksheet {
+  entity: string;
+  type?: string; // "1099 / Schedule C" | "K-1 (Active)"
+  grossReceipts: number;
+  categories: Array<{ label: string; amount: number }>;
+  totalExpenses: number;
+  netProfit: number;
+}
+
 export interface TaxPrepPdfInput {
   taxYear: string;
   companyLabel: string;
@@ -109,6 +118,7 @@ export interface TaxPrepPdfInput {
   income: IncomeSummaryRows;
   business: BusinessSummaryRows;
   businessEntityRows?: BusinessEntityRow[];
+  businessWorksheets?: BusinessWorksheet[];
   passiveK1Rows?: PassiveK1Row[];
   deductions: DeductionRows;
   tax: TaxSummaryRows;
@@ -612,6 +622,51 @@ function renderAppendix(doc: jsPDF, data: TaxPrepPdfInput, generatedAt: string) 
   }
 }
 
+function renderWorksheetForEntity(doc: jsPDF, w: BusinessWorksheet) {
+  const isK1 = (w.type ?? "").toLowerCase().includes("k-1");
+  const incomeLabel = isK1 ? "Active K-1 Income" : "Gross receipts / sales";
+  const cats = w.categories.filter((c) => c.amount > 0);
+  const body: any[][] = [
+    [
+      { content: incomeLabel, styles: { fontStyle: "bold" } },
+      { content: fmt(w.grossReceipts), styles: { fontStyle: "bold", halign: "right" } },
+    ],
+    ...(cats.length === 0
+      ? [[{ content: "No expenses recorded for this entity.", colSpan: 2, styles: { halign: "center", textColor: 120 } }]]
+      : cats.map((c) => [c.label, fmt(c.amount)])),
+    [
+      { content: "Total Expenses", styles: { fontStyle: "bold" } },
+      { content: fmt(w.totalExpenses), styles: { fontStyle: "bold", halign: "right" } },
+    ],
+    [
+      { content: "Net Profit / Loss", styles: { fontStyle: "bold" } },
+      { content: fmt(w.netProfit), styles: { fontStyle: "bold", halign: "right" } },
+    ],
+  ];
+
+  // Header line
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(25);
+  doc.text(w.entity, MARGIN_X, CONTENT_TOP + 4);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(110);
+  doc.text(
+    `${isK1 ? "Active K-1 Expense Summary" : "Schedule C Worksheet"} · ${w.type ?? "—"}`,
+    MARGIN_X,
+    CONTENT_TOP + 18,
+  );
+
+  renderTable(
+    doc,
+    CONTENT_TOP + 28,
+    [[isK1 ? "Active K-1 Line" : "Schedule C Line", "Amount"]],
+    body,
+    { moneyCols: [1] },
+  );
+}
+
 // ─────────────────────────────────────────────────────────── Main ────
 
 export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
@@ -622,11 +677,46 @@ export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
     { title: "Tax Preparation Summary", render: () => renderSummaryCards(doc, data) },
     { title: "Income Summary", render: () => renderIncomeSummary(doc, data) },
     { title: "Business Summary by Entity", render: () => renderBusinessByEntity(doc, data) },
-    { title: "Schedule C — Expense Breakdown", render: () => renderScheduleC(doc, data) },
+    { title: "Schedule C — Combined Expense Breakdown", render: () => renderScheduleC(doc, data) },
+  ];
+
+  // Per-entity worksheet pages (one per 1099 / active K-1 business).
+  const worksheets = data.businessWorksheets ?? [];
+  if (worksheets.length > 0) {
+    pages.push({
+      title: "Business Worksheets by Entity",
+      render: () => {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(80);
+        doc.text(
+          `${worksheets.length} business ${worksheets.length === 1 ? "entity" : "entities"} — one worksheet per business follows.`,
+          MARGIN_X,
+          CONTENT_TOP + 8,
+        );
+        const list = worksheets.map((w, i) => `${i + 1}. ${w.entity}  (${w.type ?? "—"})`);
+        list.forEach((line, i) => {
+          doc.setFontSize(10);
+          doc.setTextColor(40);
+          doc.text(line, MARGIN_X, CONTENT_TOP + 36 + i * 16);
+        });
+      },
+    });
+    worksheets.forEach((w) => {
+      pages.push({
+        title: (w.type ?? "").toLowerCase().includes("k-1")
+          ? `Active K-1 Worksheet — ${w.entity}`
+          : `Schedule C Worksheet — ${w.entity}`,
+        render: () => renderWorksheetForEntity(doc, w),
+      });
+    });
+  }
+
+  pages.push(
     { title: "Deductions Summary", render: () => renderDeductions(doc, data) },
     { title: "K-1 Summary", render: () => renderK1Summary(doc, data) },
     { title: "Quarterly Tax Planning", render: () => renderQuarterly(doc, data) },
-  ];
+  );
 
   pages.forEach((p, i) => {
     if (i > 0) doc.addPage();
