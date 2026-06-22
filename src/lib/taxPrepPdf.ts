@@ -100,6 +100,15 @@ export interface TransactionRow {
   entity?: string;
 }
 
+export interface BusinessWorksheet {
+  entity: string;
+  type?: string; // "1099 / Schedule C" | "K-1 (Active)"
+  grossReceipts: number;
+  categories: Array<{ label: string; amount: number }>;
+  totalExpenses: number;
+  netProfit: number;
+}
+
 export interface TaxPrepPdfInput {
   taxYear: string;
   companyLabel: string;
@@ -109,6 +118,7 @@ export interface TaxPrepPdfInput {
   income: IncomeSummaryRows;
   business: BusinessSummaryRows;
   businessEntityRows?: BusinessEntityRow[];
+  businessWorksheets?: BusinessWorksheet[];
   passiveK1Rows?: PassiveK1Row[];
   deductions: DeductionRows;
   tax: TaxSummaryRows;
