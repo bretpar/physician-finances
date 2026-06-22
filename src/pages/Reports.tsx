@@ -476,6 +476,85 @@ export default function Reports() {
     });
   }, [taxYear, currentYear, quarterInputBase, taxPayments]);
 
+  // ──── Shared Export Payload (CSV + PDF + QA preview) ────
+  // Reuses the exact same computed objects already shown on the page so we
+  // never recompute totals for exports. Also exposes entity-level business
+  // rows and passive K-1 rows used by the QA preview panel below.
+  const exportPayload = useMemo(() => {
+    const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
+    const categories = EXPENSE_CATEGORIES.map((cat) => ({
+      label: cat,
+      amount: taxData.byCategory[cat] || 0,
+    }));
+    if (taxData.homeOfficeDeduction > 0) {
+      categories.push({ label: HOME_OFFICE_REPORT_LABEL, amount: taxData.homeOfficeDeduction });
+    }
+
+    // Entity-level business rows (only includes 1099 + active K-1 entities).
+    const entityMap = new Map<string, { income: number; expenses: number }>();
+    for (const t of taxData.incomeTxs) {
+      const key = t.entity || "—";
+      const row = entityMap.get(key) || { income: 0, expenses: 0 };
+      row.income += Math.abs(Number(t.amount) || 0);
+      entityMap.set(key, row);
+    }
+    for (const t of taxData.expenseTxs) {
+      const key = t.entity || "—";
+      const row = entityMap.get(key) || { income: 0, expenses: 0 };
+      row.expenses += Math.abs(Number(t.amount) || 0);
+      entityMap.set(key, row);
+    }
+    const businessEntityRows = [...entityMap.entries()]
+      .map(([entity, v]) => ({ entity, income: v.income, expenses: v.expenses, net: v.income - v.expenses }))
+      .sort((a, b) => b.income - a.income);
+
+    // Passive K-1 rows (income only, excluded from business profit).
+    const yearStart = `${taxYear}-01-01`;
+    const yearEnd = `${taxYear}-12-31`;
+    const passiveMap = new Map<string, number>();
+    for (const t of transactions) {
+      if (t.transaction_type !== "income") continue;
+      if (t.transaction_date < yearStart || t.transaction_date > yearEnd) continue;
+      if (!t.entity || !passiveK1CompanyNames.has(t.entity)) continue;
+      passiveMap.set(t.entity, (passiveMap.get(t.entity) || 0) + Math.abs(Number(t.amount) || 0));
+    }
+    const passiveK1Rows = [...passiveMap.entries()]
+      .map(([entity, income]) => ({ entity, income }))
+      .sort((a, b) => b.income - a.income);
+
+    return {
+      taxYear,
+      companyLabel,
+      income: incomeSummary,
+      business: {
+        grossReceipts: taxData.grossIncome,
+        categories,
+        totalExpenses: taxData.totalExpenses,
+        netProfit: taxData.netProfit,
+      },
+      deductions,
+      tax: taxSummary,
+      quarters: quarterly,
+      businessEntityRows,
+      passiveK1Rows,
+    };
+  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames]);
+
+  function logExportPayload(kind: "csv" | "pdf") {
+    if (!import.meta.env.DEV) return;
+    // eslint-disable-next-line no-console
+    console.info(`[Reports] Export ${kind.toUpperCase()} payload`, {
+      taxYear: exportPayload.taxYear,
+      company: exportPayload.companyLabel,
+      income: exportPayload.income,
+      businessGrossReceipts: exportPayload.business.grossReceipts,
+      businessExpenses: exportPayload.business.totalExpenses,
+      businessNetProfit: exportPayload.business.netProfit,
+      businessEntityRows: exportPayload.businessEntityRows,
+      passiveK1Rows: exportPayload.passiveK1Rows,
+    });
+  }
+
   // ──── CSV Export (existing logic, reorganized) ────
   function exportPLCSV() {
     const companyLabel = plCompany === "all" ? "All Companies" : plCompany;
@@ -489,33 +568,27 @@ export default function Reports() {
   }
 
   function exportTaxCSV() {
-    const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
+    logExportPayload("csv");
+    const { companyLabel, income, business, deductions: ded, tax, quarters } = exportPayload;
     let csv = `Annual Tax Summary\nCompany,${companyLabel}\nTax Year,${taxYear}\n\n`;
-    csv += `INCOME SUMMARY\nW-2 Income,${incomeSummary.w2}\n1099 Income,${incomeSummary.income1099}\nK-1 Income (Active),${incomeSummary.k1Active}\nK-1 Income (Passive),${incomeSummary.k1Passive}\nK-1 Income (Total),${incomeSummary.k1}\nInvestment (cap gains),${incomeSummary.investment}\nInterest Income,${incomeSummary.interest}\nDividend Income,${incomeSummary.dividend}\nTotal Gross Income,${incomeSummary.total}\n\n`;
-    csv += `BUSINESS / SCHEDULE C\nGross Receipts/Sales,${taxData.grossIncome}\n`;
-    for (const cat of EXPENSE_CATEGORIES) {
-      csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
+    csv += `INCOME SUMMARY\nW-2 Income,${income.w2}\n1099 Income,${income.income1099}\nK-1 Income (Active),${income.k1Active}\nK-1 Income (Passive),${income.k1Passive}\nK-1 Income (Total),${income.k1}\nInvestment (cap gains),${income.investment}\nInterest Income,${income.interest}\nDividend Income,${income.dividend}\nTotal Gross Income,${income.total}\n\n`;
+    csv += `BUSINESS / SCHEDULE C\nGross Receipts/Sales,${business.grossReceipts}\n`;
+    for (const c of business.categories) {
+      if (c.label === HOME_OFFICE_REPORT_LABEL && c.amount <= 0) continue;
+      csv += `"${c.label}",${c.amount}\n`;
     }
-    if (taxData.homeOfficeDeduction > 0) csv += `"${HOME_OFFICE_REPORT_LABEL}",${taxData.homeOfficeDeduction}\n`;
-    csv += `Total Expenses,${taxData.totalExpenses}\nNet Profit/Loss,${taxData.netProfit}\n\n`;
-    csv += `DEDUCTIONS\nHSA Contributions,${deductions.hsa}\n401(k) / Retirement,${deductions.retirement401k}\nMileage,${deductions.mileage}\nHome Office,${deductions.homeOffice}\nHealthcare,${deductions.healthcare}\n\n`;
-    csv += `TAX SUMMARY\nFederal Tax Estimate,${taxSummary.federal}\nState Tax Estimate,${taxSummary.state}\nSelf-Employment Tax,${taxSummary.selfEmployment}\nEstimated Annual Tax Liability,${taxSummary.totalLiability}\nTaxes Already Withheld,${taxSummary.withheld}\nTax Reserve Saved,${taxSummary.reserveSaved}\nQuarterly Payments Made,${taxSummary.paymentsMade}\nRemaining Estimated Liability,${taxSummary.remaining}\n\n`;
+    csv += `Total Expenses,${business.totalExpenses}\nNet Profit/Loss,${business.netProfit}\n\n`;
+    csv += `DEDUCTIONS\nHSA Contributions,${ded.hsa}\n401(k) / Retirement,${ded.retirement401k}\nMileage,${ded.mileage}\nHome Office,${ded.homeOffice}\nHealthcare,${ded.healthcare}\n\n`;
+    csv += `TAX SUMMARY\nFederal Tax Estimate,${tax.federal}\nState Tax Estimate,${tax.state}\nSelf-Employment Tax,${tax.selfEmployment}\nEstimated Annual Tax Liability,${tax.totalLiability}\nTaxes Already Withheld,${tax.withheld}\nTax Reserve Saved,${tax.reserveSaved}\nQuarterly Payments Made,${tax.paymentsMade}\nRemaining Estimated Liability,${tax.remaining}\n\n`;
     csv += `QUARTERLY\nQuarter,Recommended,Paid,Remaining\n`;
-    for (const q of quarterly) {
+    for (const q of quarters) {
       csv += `${q.quarter},${q.recommended},${q.paid ?? ""},${q.remaining ?? ""}\n`;
     }
     downloadBlob(csv, `tax-summary-${taxYear}.csv`);
   }
 
   function exportTaxPDF() {
-    const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
-    const categories = EXPENSE_CATEGORIES.map((cat) => ({
-      label: cat,
-      amount: taxData.byCategory[cat] || 0,
-    }));
-    if (taxData.homeOfficeDeduction > 0) {
-      categories.push({ label: HOME_OFFICE_REPORT_LABEL, amount: taxData.homeOfficeDeduction });
-    }
+    logExportPayload("pdf");
     let appendixTxs: TransactionRow[] | undefined;
     if (includeAppendix) {
       const yearStart = `${taxYear}-01-01`;
@@ -536,18 +609,13 @@ export default function Reports() {
         }));
     }
     exportTaxPrepPdf({
-      taxYear,
-      companyLabel,
-      income: incomeSummary,
-      business: {
-        grossReceipts: taxData.grossIncome,
-        categories,
-        totalExpenses: taxData.totalExpenses,
-        netProfit: taxData.netProfit,
-      },
-      deductions,
-      tax: taxSummary,
-      quarters: quarterly,
+      taxYear: exportPayload.taxYear,
+      companyLabel: exportPayload.companyLabel,
+      income: exportPayload.income,
+      business: exportPayload.business,
+      deductions: exportPayload.deductions,
+      tax: exportPayload.tax,
+      quarters: exportPayload.quarters,
       includeAppendix,
       transactions: appendixTxs,
     });
@@ -963,6 +1031,75 @@ export default function Reports() {
               </table>
             </div>
           </SectionCard>
+
+          {/* QA — Export Preview (dev only or ?qa=1 / localStorage qa-export-preview=1) */}
+          {(import.meta.env.DEV ||
+            (typeof window !== "undefined" &&
+              (window.localStorage.getItem("qa-export-preview") === "1" ||
+                new URLSearchParams(window.location.search).get("qa") === "1"))) && (
+            <Collapsible>
+              <div className="rounded-lg border border-dashed border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/20">
+                <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100/40 dark:hover:bg-amber-900/20 rounded-t-lg">
+                  <span>QA · Export Preview (exact CSV / PDF payload)</span>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="px-4 py-3 space-y-3 text-xs">
+                    <div className="text-muted-foreground">
+                      Company: <span className="font-mono">{exportPayload.companyLabel}</span> · Year:{" "}
+                      <span className="font-mono">{exportPayload.taxYear}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                      <KVRow label="W-2 Income" value={fmt(exportPayload.income.w2)} />
+                      <KVRow label="1099 Income" value={fmt(exportPayload.income.income1099)} />
+                      <KVRow label="Active K-1 Income" value={fmt(exportPayload.income.k1Active ?? 0)} />
+                      <KVRow label="Passive K-1 Income" value={fmt(exportPayload.income.k1Passive ?? 0)} />
+                      <KVRow label="Total Gross Income" value={fmt(exportPayload.income.total)} bold />
+                      <KVRow label="Business Gross Receipts" value={fmt(exportPayload.business.grossReceipts)} />
+                      <KVRow label="Business Expenses" value={fmt(exportPayload.business.totalExpenses)} />
+                      <KVRow label="Business Net Profit" value={fmt(exportPayload.business.netProfit)} bold />
+                    </div>
+                    <div>
+                      <div className="font-medium mb-1">Business entities (1099 + active K-1)</div>
+                      {exportPayload.businessEntityRows.length === 0 ? (
+                        <div className="text-muted-foreground">— none —</div>
+                      ) : (
+                        <table className="w-full text-xs font-mono">
+                          <thead className="text-muted-foreground">
+                            <tr><th className="text-left">Entity</th><th className="text-right">Income</th><th className="text-right">Expenses</th><th className="text-right">Net</th></tr>
+                          </thead>
+                          <tbody>
+                            {exportPayload.businessEntityRows.map((r) => (
+                              <tr key={r.entity}><td>{r.entity}</td><td className="text-right">{fmt(r.income)}</td><td className="text-right">{fmt(r.expenses)}</td><td className="text-right">{fmt(r.net)}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium mb-1">Passive K-1 entities (excluded from business profit)</div>
+                      {exportPayload.passiveK1Rows.length === 0 ? (
+                        <div className="text-muted-foreground">— none —</div>
+                      ) : (
+                        <table className="w-full text-xs font-mono">
+                          <thead className="text-muted-foreground">
+                            <tr><th className="text-left">Entity</th><th className="text-right">Income</th></tr>
+                          </thead>
+                          <tbody>
+                            {exportPayload.passiveK1Rows.map((r) => (
+                              <tr key={r.entity}><td>{r.entity}</td><td className="text-right">{fmt(r.income)}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          )}
+
+
 
           <p className="text-xs text-muted-foreground text-center">
             Tax-prep worksheet for reference — not an official IRS form. Use alongside Schedule C and your tax pro when filing.
