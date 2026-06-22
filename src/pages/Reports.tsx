@@ -140,6 +140,7 @@ export default function Reports() {
   const [taxYear, setTaxYear] = useState(String(currentYear));
   const [taxCompany, setTaxCompany] = useState("all");
   const [includeAppendix, setIncludeAppendix] = useState(false);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [scheduleCOpen, setScheduleCOpen] = useState(false);
   const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(Number(taxYear));
 
