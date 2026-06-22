@@ -1,21 +1,39 @@
 import { useState, useMemo } from "react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useIncomeEntries } from "@/hooks/useIncome";
+import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
+import { useInvestmentIncomeEntries, aggregateInvestmentTaxBuckets } from "@/hooks/useInvestmentIncome";
+import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
+import { useTaxPayments } from "@/hooks/useTaxPayments";
+import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
+import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import { mapLegacyCategory, EXPENSE_CATEGORIES } from "@/components/ExpenseCategoryCombobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, FileText, Building2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Download, FileText, Building2, ChevronDown } from "lucide-react";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { HOME_OFFICE_REPORT_LABEL } from "@/lib/homeOfficeDeduction";
+import { classifyPersonalIncome } from "@/lib/incomeClassification";
+import { exportTaxPrepPdf, type TransactionRow } from "@/lib/taxPrepPdf";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -51,18 +69,24 @@ function getDateRange(quick: QuickRange): { from: string; to: string } {
 export default function Reports() {
   const { data: transactions = [] } = useTransactions();
   const { data: incomeEntries = [] } = useIncomeEntries();
+  const { data: personalEntries = [] } = usePersonalIncomeEntries();
+  const { data: investmentEntries = [] } = useInvestmentIncomeEntries();
+  const { data: retirementContribs = [] } = useRetirementContributions();
+  const annualizedRetirement = useAnnualizedContributions(retirementContribs);
+  const { data: taxPayments = [] } = useTaxPayments();
+  const { data: taxSavings = [] } = useTaxSavings();
   const { companies } = useCompanies();
   const currentYearForMileage = new Date().getFullYear();
   const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
   const { data: hsaRows = [] } = useHsaContributions(currentYearForMileage);
   const { actualEstimate, forecastEstimate } = useTaxEstimate();
   const { data: taxSettings } = useTaxSettings();
+  const quarterInputBase = useQuarterRecommendationInput();
 
   const VEHICLE_CATEGORY = "Car and truck expenses";
   const HOME_OFFICE_CATEGORY = HOME_OFFICE_REPORT_LABEL;
 
-  // Resolve a mileage entry to a company NAME (Reports filters by entity name).
-  // Entries with no company_id are skipped — they never count toward any company total.
+  // Resolve mileage entries to a company NAME (Reports filters by entity name).
   const mileageByCompanyName = useMemo(() => {
     const m = new Map<string, number>();
     for (const e of ytdMileage) {
@@ -85,6 +109,8 @@ export default function Reports() {
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState(String(currentYear));
   const [taxCompany, setTaxCompany] = useState("all");
+  const [includeAppendix, setIncludeAppendix] = useState(false);
+  const [scheduleCOpen, setScheduleCOpen] = useState(false);
   const { data: homeOfficeDeductions = [] } = useHomeOfficeDeductions(Number(taxYear));
 
   const dateRange = useMemo(() => {
@@ -94,8 +120,6 @@ export default function Reports() {
 
   // ──── P&L Computation ────
   const plData = useMemo(() => {
-    // CANONICAL: drop personal / excluded / transfer rows from BOTH the
-    // income and expense sides so exported P&L reflects business activity.
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
       if (isExcludedFromBusiness(t as any)) return false;
@@ -117,14 +141,12 @@ export default function Reports() {
     const grossIncome = incomeTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
     const txExpenseTotal = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
 
-    // Mileage deduction allocated to selected company (or all assigned mileage)
     let mileageDed = 0;
     if (plCompany === "all") {
       for (const v of mileageByCompanyName.values()) mileageDed += v;
     } else {
       mileageDed = mileageByCompanyName.get(plCompany) || 0;
     }
-    // Category breakdown — fold mileage into "Car and truck expenses"
     const byCategory: Record<string, number> = {};
     for (const t of expenseTxs) {
       const cat = mapLegacyCategory(t.category);
@@ -140,10 +162,17 @@ export default function Reports() {
     if (homeOfficeDed > 0) byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
     const totalExpenses = txExpenseTotal + mileageDed + homeOfficeDed;
-    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, homeOfficeDeduction: homeOfficeDed, netProfit: grossIncome - totalExpenses, byCategory, expenseTxs, incomeTxs };
+    return {
+      grossIncome,
+      totalExpenses,
+      mileageDeduction: mileageDed,
+      homeOfficeDeduction: homeOfficeDed,
+      netProfit: grossIncome - totalExpenses,
+      byCategory,
+    };
   }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
 
-  // ──── Annual Tax Summary Computation ────
+  // ──── Annual Tax Summary — Business / Schedule C ────
   const taxData = useMemo(() => {
     const yearStart = `${taxYear}-01-01`;
     const yearEnd = `${taxYear}-12-31`;
@@ -165,7 +194,6 @@ export default function Reports() {
     const grossIncome = incomeTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
     const txExpenseTotal = expenseTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
 
-    // Mileage deduction → folded into "Car and truck expenses" Schedule C bucket
     let mileageDed = 0;
     if (taxCompany === "all") {
       for (const v of mileageByCompanyName.values()) mileageDed += v;
@@ -187,43 +215,189 @@ export default function Reports() {
     byCategory[VEHICLE_CATEGORY] = (byCategory[VEHICLE_CATEGORY] || 0) + mileageDed;
     byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
-    return { grossIncome, totalExpenses, mileageDeduction: mileageDed, homeOfficeDeduction: homeOfficeDed, netProfit: grossIncome - totalExpenses, byCategory };
+    return {
+      grossIncome,
+      totalExpenses,
+      mileageDeduction: mileageDed,
+      homeOfficeDeduction: homeOfficeDed,
+      netProfit: grossIncome - totalExpenses,
+      byCategory,
+      incomeTxs,
+      expenseTxs,
+    };
   }, [transactions, taxCompany, taxYear, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
 
-  // ──── HSA summary (deductions/reporting) — for Tax Summary (annual) ────
-  const hsaSummary = useMemo(() => {
-    const yearMatch = (d: string) => d?.startsWith(taxYear);
-    const rows = hsaRows.filter((r) => yearMatch(r.contribution_date));
-    const payroll = rows.filter((r) => r.source_type === "payroll").reduce((s, r) => s + Number(r.amount), 0);
-    const individual = rows.filter((r) => r.source_type === "individual").reduce((s, r) => s + Number(r.amount), 0);
-    // Deductible = total HSA flowed into AGI deductions (no double-counting in engine)
-    const deductible = payroll + individual;
-    return { payroll, individual, total: payroll + individual, deductible };
-  }, [hsaRows, taxYear]);
-
-  // Healthcare deductions (separate from HSA) for the tax year — sourced from income entries
-  const healthcareDeductionAnnual = useMemo(() => {
+  // ──── Income Summary (Section 1) ────
+  const incomeSummary = useMemo(() => {
     const yearStart = `${taxYear}-01-01`;
     const yearEnd = `${taxYear}-12-31`;
-    return incomeEntries
-      .filter((e) => e.income_date >= yearStart && e.income_date <= yearEnd)
-      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
-  }, [incomeEntries, taxYear]);
+    const companyByName = new Map(companies.map((c) => [c.name, c]));
 
-  // ──── HSA + Healthcare for the P&L date range ────
-  const plDeductions = useMemo(() => {
-    const inRange = (d: string) =>
-      (!dateRange.from || d >= dateRange.from) && (!dateRange.to || d <= dateRange.to);
-    const hsaRowsInRange = hsaRows.filter((r) => inRange(r.contribution_date));
-    const hsaPayroll = hsaRowsInRange.filter((r) => r.source_type === "payroll").reduce((s, r) => s + Number(r.amount), 0);
-    const hsaIndividual = hsaRowsInRange.filter((r) => r.source_type === "individual").reduce((s, r) => s + Number(r.amount), 0);
-    const healthcare = incomeEntries
-      .filter((e) => inRange(e.income_date))
-      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
-    return { hsaPayroll, hsaIndividual, hsaTotal: hsaPayroll + hsaIndividual, healthcare };
-  }, [hsaRows, incomeEntries, dateRange]);
+    // Business income txs split by company filing type
+    let bizW2 = 0;
+    let biz1099 = 0;
+    let bizK1 = 0;
+    let bizOther = 0;
+    for (const t of transactions) {
+      if (t.transaction_type !== "income") continue;
+      if (isExcludedFromBusiness(t as any)) continue;
+      if (t.transaction_date < yearStart || t.transaction_date > yearEnd) continue;
+      if (taxCompany !== "all" && t.entity !== taxCompany) continue;
+      const amt = Math.abs(Number(t.amount) || 0);
+      const c = companyByName.get(t.entity || "");
+      const ct = c?.companyType;
+      if (ct === "w2" || ct === "scorp_w2") bizW2 += amt;
+      else if (ct === "1099_schedule_c") biz1099 += amt;
+      else if (ct === "k1_partnership") bizK1 += amt;
+      else bizOther += amt;
+    }
 
-  // ──── Export helpers ────
+    // Personal income entries
+    let perW2 = 0;
+    let perOrdinary = 0;
+    let interest = 0;
+    let dividend = 0;
+    let perCapGains = 0;
+    for (const e of personalEntries) {
+      if (e.income_date < yearStart || e.income_date > yearEnd) continue;
+      if (taxCompany !== "all" && (e as any).company !== taxCompany) continue;
+      const amt = Number(e.gross_amount || 0);
+      const subtype = (e as any).ui_income_subtype?.toLowerCase() || "";
+      const cat = classifyPersonalIncome(e as any);
+      if (subtype === "interest") interest += amt;
+      else if (subtype === "dividend" || subtype === "dividends") dividend += amt;
+      else if (cat === "w2") perW2 += amt;
+      else if (cat === "capital_gains") perCapGains += amt;
+      else if (cat === "loss") {
+        /* skip — losses tracked in tax engine */
+      } else perOrdinary += amt;
+    }
+
+    // Investment income (year-filtered)
+    const investYearEntries = investmentEntries.filter(
+      (e) => e.entry_date >= yearStart && e.entry_date <= yearEnd,
+    );
+    const investBuckets = aggregateInvestmentTaxBuckets(investYearEntries);
+    const investmentTotal = investBuckets.shortTermSales + investBuckets.longTermSales;
+    const investmentDividends = investBuckets.dividends;
+
+    const w2 = bizW2 + perW2;
+    const income1099 = biz1099 + perOrdinary + bizOther;
+    const k1 = bizK1;
+    const investment = perCapGains + investmentTotal;
+    const dividendTotal = dividend + investmentDividends;
+    const total = w2 + income1099 + k1 + investment + interest + dividendTotal;
+
+    return { w2, income1099, k1, investment, interest, dividend: dividendTotal, total };
+  }, [transactions, personalEntries, investmentEntries, taxYear, taxCompany, companies]);
+
+  // ──── Deductions Summary (Section 3) ────
+  const deductions = useMemo(() => {
+    const yearMatch = (d: string) => d?.startsWith(taxYear);
+    const hsaForYear = hsaRows
+      .filter((r) => yearMatch(r.contribution_date))
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const healthcareForYear = incomeEntries
+      .filter((e) => yearMatch(e.income_date))
+      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
+    const homeOfficeTotal = homeOfficeDeductions
+      .filter((d) => d.include_in_tax_calculation && d.status === "active")
+      .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
+    // For current year use annualized projection; for past years use 0 (not stored historically)
+    const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.total : 0;
+    return {
+      hsa: hsaForYear,
+      healthcare: healthcareForYear,
+      mileage: taxData.mileageDeduction,
+      homeOffice: homeOfficeTotal,
+      retirement401k,
+    };
+  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.total, taxYear, currentYear]);
+
+  // ──── Tax Summary (Section 4) ────
+  const taxSummary = useMemo(() => {
+    const isCurrentYear = Number(taxYear) === currentYear;
+    const est = isCurrentYear ? (forecastEstimate ?? actualEstimate) : null;
+    const yearMatch = (d: string) => d?.startsWith(taxYear);
+    const paymentsMade = taxPayments
+      .filter((p) => Number(p.applied_tax_year) === Number(taxYear))
+      .reduce((s, p) => s + Number(p.amount), 0);
+    const reserveSaved = taxSavings
+      .filter((s) => yearMatch(s.savings_date))
+      .reduce((sum, s) => sum + Number(s.amount), 0);
+
+    if (!est) {
+      return {
+        totalLiability: 0,
+        federal: 0,
+        state: 0,
+        selfEmployment: 0,
+        withheld: 0,
+        reserveSaved,
+        paymentsMade,
+        remaining: 0,
+        available: false,
+      };
+    }
+    const state = (est.personalStateTax || 0) + (est.businessStateTax || 0);
+    const withheld = est.taxesAlreadyWithheld || 0;
+    const totalLiability = est.totalTaxLiability || 0;
+    const remaining = Math.max(0, totalLiability - withheld - paymentsMade - reserveSaved);
+    return {
+      totalLiability,
+      federal: est.federalTax || 0,
+      state,
+      selfEmployment: est.seTax?.total || 0,
+      withheld,
+      reserveSaved,
+      paymentsMade,
+      remaining,
+      available: true,
+    };
+  }, [actualEstimate, forecastEstimate, taxYear, currentYear, taxPayments, taxSavings]);
+
+  // ──── Quarterly (Section 5) ────
+  const quarterly = useMemo(() => {
+    const isCurrentYear = Number(taxYear) === currentYear;
+    if (!isCurrentYear) {
+      // For prior years, just show payments paid per quarter
+      const byQ: Record<string, number> = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
+      for (const p of taxPayments) {
+        if (Number(p.applied_tax_year) !== Number(taxYear)) continue;
+        const q = p.applied_quarter || p.quarter;
+        if (q && byQ[q] !== undefined) byQ[q] += Number(p.amount);
+      }
+      return [1, 2, 3, 4].map((q) => ({
+        quarter: `Q${q}` as "Q1" | "Q2" | "Q3" | "Q4",
+        recommended: 0,
+        paid: byQ[`Q${q}`],
+        remaining: 0,
+      }));
+    }
+    return [1, 2, 3, 4].map((q) => {
+      const rec = buildQuarterRecommendation({
+        year: Number(taxYear),
+        quarter: q as 1 | 2 | 3 | 4,
+        annualTaxLiability: quarterInputBase.annualTaxLiability,
+        quarterMethod: quarterInputBase.quarterMethod,
+        incomeEntries: quarterInputBase.incomeEntries,
+        personalEntries: quarterInputBase.personalEntries,
+        transactions: quarterInputBase.transactions,
+        investmentEntries: quarterInputBase.investmentEntries,
+        projectedPaychecks: quarterInputBase.projectedPaychecks,
+        payments: quarterInputBase.payments,
+        manualSavings: quarterInputBase.manualSavings,
+      });
+      return {
+        quarter: `Q${q}` as "Q1" | "Q2" | "Q3" | "Q4",
+        recommended: rec.recommendedPaymentToMake,
+        paid: rec.paidThisQuarter,
+        remaining: rec.recommendedPaymentToMake,
+      };
+    });
+  }, [taxYear, currentYear, quarterInputBase, taxPayments]);
+
+  // ──── CSV Export (existing logic, reorganized) ────
   function exportPLCSV() {
     const companyLabel = plCompany === "all" ? "All Companies" : plCompany;
     let csv = `Profit & Loss Report\nCompany,${companyLabel}\nDate Range,${dateRange.from} to ${dateRange.to}\n\n`;
@@ -232,81 +406,81 @@ export default function Reports() {
     for (const [cat, amt] of Object.entries(plData.byCategory).sort((a, b) => a[0].localeCompare(b[0]))) {
       if (amt > 0) csv += `"${cat}",${amt}\n`;
     }
-    csv += `\nAbove-the-Line / Personal Deductions (informational; not in Net Profit)\n`;
-    csv += `HSA Contribution - Payroll (pre-tax),${plDeductions.hsaPayroll}\n`;
-    csv += `HSA Contribution - Individual (above-the-line),${plDeductions.hsaIndividual}\n`;
-    csv += `HSA Contribution - Total,${plDeductions.hsaTotal}\n`;
-    csv += `Healthcare Deduction (premiums/medical),${plDeductions.healthcare}\n`;
     downloadBlob(csv, "profit-loss-report.csv");
   }
 
   function exportTaxCSV() {
     const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
-    let csv = `Annual Tax Summary - Schedule C Style\nCompany,${companyLabel}\nTax Year,${taxYear}\n\n`;
-    csv += `INCOME\nGross Receipts/Sales,${taxData.grossIncome}\n\n`;
-    csv += `EXPENSES\nCategory,Annual Total\n`;
+    let csv = `Annual Tax Summary\nCompany,${companyLabel}\nTax Year,${taxYear}\n\n`;
+    csv += `INCOME SUMMARY\nW-2 Income,${incomeSummary.w2}\n1099 Income,${incomeSummary.income1099}\nK-1 Income,${incomeSummary.k1}\nInvestment (cap gains),${incomeSummary.investment}\nInterest Income,${incomeSummary.interest}\nDividend Income,${incomeSummary.dividend}\nTotal Gross Income,${incomeSummary.total}\n\n`;
+    csv += `BUSINESS / SCHEDULE C\nGross Receipts/Sales,${taxData.grossIncome}\n`;
     for (const cat of EXPENSE_CATEGORIES) {
       csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
     }
-    if (taxData.homeOfficeDeduction > 0) {
-      csv += `"${HOME_OFFICE_REPORT_LABEL}",${taxData.homeOfficeDeduction}\n`;
+    if (taxData.homeOfficeDeduction > 0) csv += `"${HOME_OFFICE_REPORT_LABEL}",${taxData.homeOfficeDeduction}\n`;
+    csv += `Total Expenses,${taxData.totalExpenses}\nNet Profit/Loss,${taxData.netProfit}\n\n`;
+    csv += `DEDUCTIONS\nHSA Contributions,${deductions.hsa}\n401(k) / Retirement,${deductions.retirement401k}\nMileage,${deductions.mileage}\nHome Office,${deductions.homeOffice}\nHealthcare,${deductions.healthcare}\n\n`;
+    csv += `TAX SUMMARY\nFederal Tax Estimate,${taxSummary.federal}\nState Tax Estimate,${taxSummary.state}\nSelf-Employment Tax,${taxSummary.selfEmployment}\nEstimated Annual Tax Liability,${taxSummary.totalLiability}\nTaxes Already Withheld,${taxSummary.withheld}\nTax Reserve Saved,${taxSummary.reserveSaved}\nQuarterly Payments Made,${taxSummary.paymentsMade}\nRemaining Estimated Liability,${taxSummary.remaining}\n\n`;
+    csv += `QUARTERLY\nQuarter,Recommended,Paid,Remaining\n`;
+    for (const q of quarterly) {
+      csv += `${q.quarter},${q.recommended},${q.paid ?? ""},${q.remaining ?? ""}\n`;
     }
-    csv += `\nTotal Expenses,${taxData.totalExpenses}\nNet Profit/Loss,${taxData.netProfit}\n`;
-    csv += `\nABOVE-THE-LINE / PERSONAL DEDUCTIONS (separate from Schedule C)\n`;
-    csv += `Item,Amount\n`;
-    csv += `HSA Contribution - Payroll (pre-tax via W-2),${hsaSummary.payroll}\n`;
-    csv += `HSA Contribution - Individual (Form 8889),${hsaSummary.individual}\n`;
-    csv += `HSA Contribution - Total,${hsaSummary.total}\n`;
-    csv += `Healthcare Deduction (premiums/medical),${healthcareDeductionAnnual}\n`;
-
-    // ── Tax Rate Breakdown (only meaningful for the current tax year) ──
-    const isCurrentYear = Number(taxYear) === currentYear;
-    const est = forecastEstimate ?? actualEstimate;
-    if (isCurrentYear && est && est.totalIncome > 0) {
-      const totalIncome = est.totalIncome;
-      const pct = (n: number) => ((n / totalIncome) * 100).toFixed(2) + "%";
-      const fedRate = pct(est.federalTax);
-      const seRate = pct(est.seTax?.total || 0);
-      const personalStateRate = pct(est.personalStateTax || 0);
-      const businessStateRate = pct(est.businessStateTax || 0);
-      const allInRate = est.effectiveRate.toFixed(2) + "%";
-      const stateEnabled = !!taxSettings?.stateIncomeTaxEnabled;
-      const businessStateEnabled = !!taxSettings?.businessStateTaxEnabled;
-      const basis = forecastEstimate ? "Current + Planned income" : "Current income (actuals)";
-
-      csv += `\nTAX RATE BREAKDOWN (for CPA reference)\n`;
-      csv += `Basis,${basis}\n`;
-      csv += `Total Income (basis for rates),${totalIncome.toFixed(2)}\n`;
-      csv += `Component,Tax Amount,Effective Rate (% of total income)\n`;
-      csv += `Federal Income Tax,${est.federalTax.toFixed(2)},${fedRate}\n`;
-      csv += `Self-Employment Tax (SS + Medicare),${(est.seTax?.total || 0).toFixed(2)},${seRate}\n`;
-      if (stateEnabled) {
-        csv += `Personal State Income Tax,${(est.personalStateTax || 0).toFixed(2)},${personalStateRate}\n`;
-      } else {
-        csv += `Personal State Income Tax,Not enabled,-\n`;
-      }
-      if (businessStateEnabled) {
-        const baseLabel = taxSettings?.businessStateTaxBase === "net_profit" ? "net business profit" : "gross business income";
-        csv += `Business State Tax (${baseLabel} @ ${taxSettings?.businessStateTaxRate?.toFixed(2)}%),${(est.businessStateTax || 0).toFixed(2)},${businessStateRate}\n`;
-      } else {
-        csv += `Business State Tax,Not enabled,-\n`;
-      }
-      csv += `Total Tax Liability,${est.totalTaxLiability.toFixed(2)},${allInRate}\n`;
-      csv += `\nMarginal Federal Bracket,${(est.marginalRate * 100).toFixed(1)}%\n`;
-      csv += `All-In Effective Tax Rate,${allInRate}\n`;
-      csv += `Note,Rates above are computed as (component tax / total income) using the same engine that drives in-app savings recommendations.\n`;
-    } else {
-      csv += `\nTAX RATE BREAKDOWN\n`;
-      csv += `Note,Rate breakdown is only generated for the current tax year (${currentYear}).\n`;
-    }
-
     downloadBlob(csv, `tax-summary-${taxYear}.csv`);
+  }
+
+  function exportTaxPDF() {
+    const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
+    const categories = EXPENSE_CATEGORIES.map((cat) => ({
+      label: cat,
+      amount: taxData.byCategory[cat] || 0,
+    }));
+    if (taxData.homeOfficeDeduction > 0) {
+      categories.push({ label: HOME_OFFICE_REPORT_LABEL, amount: taxData.homeOfficeDeduction });
+    }
+    let appendixTxs: TransactionRow[] | undefined;
+    if (includeAppendix) {
+      const yearStart = `${taxYear}-01-01`;
+      const yearEnd = `${taxYear}-12-31`;
+      appendixTxs = transactions
+        .filter((t) => {
+          if (t.transaction_date < yearStart || t.transaction_date > yearEnd) return false;
+          if (taxCompany !== "all" && t.entity !== taxCompany) return false;
+          return true;
+        })
+        .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
+        .map((t) => ({
+          date: t.transaction_date,
+          vendor: t.vendor || "—",
+          category: mapLegacyCategory(t.category) || t.category || "—",
+          amount: Math.abs(Number(t.amount) || 0),
+          type: t.transaction_type as "income" | "expense",
+        }));
+    }
+    exportTaxPrepPdf({
+      taxYear,
+      companyLabel,
+      income: incomeSummary,
+      business: {
+        grossReceipts: taxData.grossIncome,
+        categories,
+        totalExpenses: taxData.totalExpenses,
+        netProfit: taxData.netProfit,
+      },
+      deductions,
+      tax: taxSummary,
+      quarters: quarterly,
+      includeAppendix,
+      transactions: appendixTxs,
+    });
   }
 
   function downloadBlob(content: string, filename: string) {
     const blob = new Blob([content], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -322,14 +496,89 @@ export default function Reports() {
     return [...yrs].sort().reverse();
   }, [transactions, currentYear]);
 
+  // ── Small UI helpers ──
+  const SummaryCard = ({
+    label,
+    value,
+    accent,
+  }: {
+    label: string;
+    value: string;
+    accent?: "primary" | "success" | "destructive" | "muted";
+  }) => {
+    const color =
+      accent === "success"
+        ? "text-emerald-600 dark:text-emerald-400"
+        : accent === "destructive"
+          ? "text-destructive"
+          : accent === "primary"
+            ? "text-primary"
+            : "text-foreground";
+    return (
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+        <p className={`text-lg font-semibold tabular-nums ${color}`}>{value}</p>
+      </div>
+    );
+  };
+
+  const SectionCard = ({
+    title,
+    subtitle,
+    children,
+  }: {
+    title: string;
+    subtitle?: string;
+    children: React.ReactNode;
+  }) => (
+    <section className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="px-5 py-3 border-b border-border bg-muted/30">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+
+  const KVRow = ({
+    label,
+    value,
+    bold,
+    accent,
+  }: {
+    label: string;
+    value: string;
+    bold?: boolean;
+    accent?: "success" | "destructive" | "muted";
+  }) => {
+    const color =
+      accent === "success"
+        ? "text-emerald-600 dark:text-emerald-400"
+        : accent === "destructive"
+          ? "text-destructive"
+          : accent === "muted"
+            ? "text-muted-foreground"
+            : "text-foreground";
+    return (
+      <div className="flex justify-between py-2 border-b border-border last:border-0">
+        <span className={`text-sm ${bold ? "font-semibold" : ""} text-foreground`}>{label}</span>
+        <span className={`text-sm tabular-nums ${bold ? "font-bold" : ""} ${color}`}>{value}</span>
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto">
       <h1 className="text-xl font-semibold text-foreground">Reports</h1>
 
       <Tabs defaultValue="pnl" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="pnl" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Profit & Loss</TabsTrigger>
-          <TabsTrigger value="tax" className="gap-1.5"><Building2 className="h-3.5 w-3.5" /> Annual Tax Summary</TabsTrigger>
+          <TabsTrigger value="pnl" className="gap-1.5">
+            <FileText className="h-3.5 w-3.5" /> Profit & Loss
+          </TabsTrigger>
+          <TabsTrigger value="tax" className="gap-1.5">
+            <Building2 className="h-3.5 w-3.5" /> Annual Tax Summary
+          </TabsTrigger>
         </TabsList>
 
         {/* ══════════ PROFIT & LOSS ══════════ */}
@@ -380,28 +629,21 @@ export default function Reports() {
             </Button>
           </div>
 
-          {/* Summary cards */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground mb-1">Gross Income</p>
-              <p className="text-lg font-semibold text-foreground">{fmt(plData.grossIncome)}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground mb-1">Total Expenses</p>
-              <p className="text-lg font-semibold text-foreground">{fmt(plData.totalExpenses)}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground mb-1">Net Profit / Loss</p>
-              <p className={`text-lg font-semibold ${plData.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                {fmt(plData.netProfit)}
-              </p>
-            </div>
+            <SummaryCard label="Gross Income" value={fmt(plData.grossIncome)} />
+            <SummaryCard label="Total Expenses" value={fmt(plData.totalExpenses)} />
+            <SummaryCard
+              label="Net Profit / Loss"
+              value={fmt(plData.netProfit)}
+              accent={plData.netProfit >= 0 ? "success" : "destructive"}
+            />
           </div>
 
-          {/* Category breakdown */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b border-border bg-muted/40">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expense Breakdown by Category</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Expense Breakdown by Category
+              </p>
             </div>
             <div className="divide-y divide-border">
               {Object.entries(plData.byCategory)
@@ -421,8 +663,8 @@ export default function Reports() {
         </TabsContent>
 
         {/* ══════════ ANNUAL TAX SUMMARY ══════════ */}
-        <TabsContent value="tax" className="space-y-4">
-          {/* Filters */}
+        <TabsContent value="tax" className="space-y-5">
+          {/* Filters + Export dropdown */}
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Company</label>
@@ -443,111 +685,210 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5 ml-auto" onClick={exportTaxCSV}>
-              <Download className="h-3.5 w-3.5" /> Export CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 ml-auto">
+                  <Download className="h-3.5 w-3.5" /> Export <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="text-xs">Export Format</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportTaxCSV}>
+                  <FileText className="h-3.5 w-3.5 mr-2" /> CSV Export
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportTaxPDF}>
+                  <FileText className="h-3.5 w-3.5 mr-2" /> Tax Prep PDF
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={includeAppendix}
+                  onCheckedChange={(v) => setIncludeAppendix(!!v)}
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  Include detailed transaction appendix
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          {/* Schedule C-style worksheet */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-border bg-muted/30">
-              <h2 className="text-base font-semibold text-foreground">Schedule C Tax Worksheet</h2>
-              <div className="flex gap-6 mt-1">
-                <p className="text-xs text-muted-foreground">Company: <span className="font-medium text-foreground">{taxCompany === "all" ? "All Companies" : taxCompany}</span></p>
-                <p className="text-xs text-muted-foreground">Tax Year: <span className="font-medium text-foreground">{taxYear}</span></p>
-              </div>
-            </div>
+          {/* Top-level summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <SummaryCard label="Total Gross Income" value={fmt(incomeSummary.total)} accent="primary" />
+            <SummaryCard label="Business Net Profit" value={fmt(taxData.netProfit)} accent={taxData.netProfit >= 0 ? "success" : "destructive"} />
+            <SummaryCard label="Estimated Tax Liability" value={fmt(taxSummary.totalLiability)} />
+            <SummaryCard label="Remaining Liability" value={fmt(taxSummary.remaining)} accent={taxSummary.remaining > 0 ? "destructive" : "success"} />
+          </div>
 
-            {/* Income section */}
-            <div className="border-b border-border">
-              <div className="px-6 py-2 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Part I — Income</p>
-              </div>
-              <div className="divide-y divide-border">
-                <div className="flex justify-between px-6 py-2.5">
-                  <span className="text-sm text-foreground">1. Gross receipts or sales</span>
-                  <span className="text-sm font-semibold text-foreground tabular-nums">{fmt(taxData.grossIncome)}</span>
-                </div>
-                <div className="flex justify-between px-6 py-2.5 bg-muted/10">
-                  <span className="text-sm font-semibold text-foreground">Total Income</span>
-                  <span className="text-sm font-bold text-foreground tabular-nums">{fmt(taxData.grossIncome)}</span>
-                </div>
-              </div>
+          {/* Section 1 — Income Summary */}
+          <SectionCard title="1. Income Summary" subtitle={`All income sources for ${taxYear}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+              <KVRow label="W-2 Income" value={fmt(incomeSummary.w2)} />
+              <KVRow label="1099 Income" value={fmt(incomeSummary.income1099)} />
+              <KVRow label="K-1 Income" value={fmt(incomeSummary.k1)} />
+              <KVRow label="Investment Income (capital gains)" value={fmt(incomeSummary.investment)} />
+              <KVRow label="Interest Income" value={fmt(incomeSummary.interest)} />
+              <KVRow label="Dividend Income" value={fmt(incomeSummary.dividend)} />
             </div>
+            <div className="mt-3 pt-3 border-t border-border flex justify-between">
+              <span className="text-sm font-semibold text-foreground">Total Gross Income</span>
+              <span className="text-base font-bold text-primary tabular-nums">{fmt(incomeSummary.total)}</span>
+            </div>
+          </SectionCard>
 
-            {/* Expenses section */}
-            <div className="border-b border-border">
-              <div className="px-6 py-2 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Part II — Expenses</p>
-              </div>
-              <div className="divide-y divide-border">
-                {EXPENSE_CATEGORIES.map((cat, i) => {
-                  const amt = taxData.byCategory[cat] || 0;
-                  return (
-                    <div key={cat} className={`flex justify-between px-6 py-2 ${amt === 0 ? "opacity-50" : ""}`}>
-                      <span className="text-sm text-foreground">{i + 8}. {cat}</span>
-                      <span className="text-sm tabular-nums text-foreground">{amt > 0 ? fmt(amt) : "—"}</span>
-                    </div>
-                  );
-                })}
-                {taxData.homeOfficeDeduction > 0 && (
-                  <div className="flex justify-between px-6 py-2">
-                    <span className="text-sm text-foreground">Business use of home / Home office deduction</span>
-                    <span className="text-sm tabular-nums text-foreground">{fmt(taxData.homeOfficeDeduction)}</span>
+          {/* Section 2 — Business Summary (Schedule C, collapsible) */}
+          <SectionCard title="2. Business Summary" subtitle="Schedule C — gross receipts, IRS expense categories, net profit">
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <SummaryCard label="Gross Receipts" value={fmt(taxData.grossIncome)} />
+              <SummaryCard label="Total Expenses" value={fmt(taxData.totalExpenses)} />
+              <SummaryCard
+                label="Net Profit / Loss"
+                value={fmt(taxData.netProfit)}
+                accent={taxData.netProfit >= 0 ? "success" : "destructive"}
+              />
+            </div>
+            <Collapsible open={scheduleCOpen} onOpenChange={setScheduleCOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 transition-transform ${scheduleCOpen ? "rotate-180" : ""}`}
+                  />
+                  {scheduleCOpen ? "Hide" : "Show"} Schedule C Worksheet
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3">
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <div className="px-4 py-2 bg-muted/30 border-b border-border">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Part I — Income
+                    </p>
                   </div>
+                  <div className="divide-y divide-border">
+                    <div className="flex justify-between px-4 py-2">
+                      <span className="text-sm">1. Gross receipts or sales</span>
+                      <span className="text-sm font-semibold tabular-nums">{fmt(taxData.grossIncome)}</span>
+                    </div>
+                  </div>
+                  <div className="px-4 py-2 bg-muted/30 border-y border-border">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Part II — Expenses
+                    </p>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {EXPENSE_CATEGORIES.map((cat, i) => {
+                      const amt = taxData.byCategory[cat] || 0;
+                      return (
+                        <div key={cat} className={`flex justify-between px-4 py-1.5 ${amt === 0 ? "opacity-50" : ""}`}>
+                          <span className="text-sm">{i + 8}. {cat}</span>
+                          <span className="text-sm tabular-nums">{amt > 0 ? fmt(amt) : "—"}</span>
+                        </div>
+                      );
+                    })}
+                    {taxData.homeOfficeDeduction > 0 && (
+                      <div className="flex justify-between px-4 py-1.5">
+                        <span className="text-sm">{HOME_OFFICE_REPORT_LABEL}</span>
+                        <span className="text-sm tabular-nums">{fmt(taxData.homeOfficeDeduction)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="divide-y divide-border border-t border-border bg-muted/10">
+                    <div className="flex justify-between px-4 py-2">
+                      <span className="text-sm font-semibold">Total Expenses</span>
+                      <span className="text-sm font-bold tabular-nums">{fmt(taxData.totalExpenses)}</span>
+                    </div>
+                    <div className="flex justify-between px-4 py-2.5">
+                      <span className="text-sm font-bold">Net Profit / Loss</span>
+                      <span
+                        className={`text-base font-bold tabular-nums ${
+                          taxData.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                        }`}
+                      >
+                        {fmt(taxData.netProfit)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </SectionCard>
+
+          {/* Section 3 — Deductions Summary */}
+          <SectionCard title="3. Deductions Summary" subtitle="Above-the-line and tax-tracked deductions">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+              <KVRow label="HSA Contributions" value={fmt(deductions.hsa)} />
+              <KVRow label="401(k) / Retirement Contributions" value={fmt(deductions.retirement401k)} />
+              <KVRow label="Mileage Deduction" value={fmt(deductions.mileage)} />
+              <KVRow label="Home Office Deduction" value={fmt(deductions.homeOffice)} />
+              <KVRow label="Healthcare Deduction" value={fmt(deductions.healthcare)} />
+            </div>
+            <div className="mt-3 pt-3 border-t border-border flex justify-between">
+              <span className="text-sm font-semibold text-foreground">Total Deductions</span>
+              <span className="text-base font-bold text-foreground tabular-nums">
+                {fmt(
+                  deductions.hsa +
+                    deductions.retirement401k +
+                    deductions.mileage +
+                    deductions.homeOffice +
+                    deductions.healthcare,
                 )}
-              </div>
+              </span>
             </div>
+          </SectionCard>
 
-            {/* Summary */}
-            <div>
-              <div className="px-6 py-2 bg-muted/20">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Summary</p>
-              </div>
-              <div className="divide-y divide-border">
-                <div className="flex justify-between px-6 py-2.5">
-                  <span className="text-sm font-semibold text-foreground">Total Expenses</span>
-                  <span className="text-sm font-bold text-foreground tabular-nums">{fmt(taxData.totalExpenses)}</span>
-                </div>
-                <div className="flex justify-between px-6 py-3 bg-muted/10">
-                  <span className="text-sm font-bold text-foreground">Net Profit / Loss</span>
-                  <span className={`text-base font-bold tabular-nums ${taxData.netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                    {fmt(taxData.netProfit)}
-                  </span>
-                </div>
-              </div>
+          {/* Section 4 — Tax Summary */}
+          <SectionCard title="4. Tax Summary" subtitle="From the in-app tax engine">
+            {!taxSummary.available ? (
+              <p className="text-sm text-muted-foreground">
+                Tax engine estimates are only available for the current tax year ({currentYear}).
+                Payments and reserve totals for {taxYear} are shown below.
+              </p>
+            ) : null}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+              <KVRow label="Federal Tax Estimate" value={fmt(taxSummary.federal)} />
+              <KVRow label="State Tax Estimate" value={fmt(taxSummary.state)} />
+              <KVRow label="Self-Employment Tax Estimate" value={fmt(taxSummary.selfEmployment)} />
+              <KVRow label="Estimated Annual Tax Liability" value={fmt(taxSummary.totalLiability)} bold />
+              <KVRow label="Taxes Already Withheld" value={fmt(taxSummary.withheld)} accent="success" />
+              <KVRow label="Tax Reserve Saved" value={fmt(taxSummary.reserveSaved)} accent="success" />
+              <KVRow label="Quarterly Payments Made" value={fmt(taxSummary.paymentsMade)} accent="success" />
+              <KVRow label="Remaining Estimated Liability" value={fmt(taxSummary.remaining)} bold accent={taxSummary.remaining > 0 ? "destructive" : "success"} />
             </div>
-          </div>
+          </SectionCard>
 
-          {/* HSA summary */}
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-3">HSA Contributions ({taxYear})</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Payroll HSA</p>
-                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.payroll)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Individual HSA</p>
-                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.individual)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total HSA</p>
-                <p className="text-base font-semibold text-foreground tabular-nums">{fmt(hsaSummary.total)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Deductible (applied)</p>
-                <p className="text-base font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(hsaSummary.deductible)}</p>
-              </div>
+          {/* Section 5 — Quarterly Tax Summary */}
+          <SectionCard title="5. Quarterly Tax Summary" subtitle="Recommended estimated payments by quarter">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
+                    <th className="text-left py-2 font-medium">Quarter</th>
+                    <th className="text-right py-2 font-medium">Recommended</th>
+                    <th className="text-right py-2 font-medium">Paid</th>
+                    <th className="text-right py-2 font-medium">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quarterly.map((q) => (
+                    <tr key={q.quarter} className="border-b border-border last:border-0">
+                      <td className="py-2.5 font-medium text-foreground">{q.quarter}</td>
+                      <td className="py-2.5 text-right tabular-nums">{fmt(q.recommended)}</td>
+                      <td className="py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                        {q.paid !== undefined ? fmt(q.paid) : "—"}
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        {q.remaining !== undefined ? fmt(q.remaining) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2">
-              Payroll HSA flows in via paycheck pre-tax; Individual HSA is added as an above-the-line deduction. Both are counted once in the tax engine.
-            </p>
-          </div>
+          </SectionCard>
 
           <p className="text-xs text-muted-foreground text-center">
-            This is a tax-prep worksheet for reference — not an official IRS form. Use alongside Schedule C when filing.
+            Tax-prep worksheet for reference — not an official IRS form. Use alongside Schedule C and your tax pro when filing.
+            {taxSettings?.stateIncomeTaxEnabled === false && (
+              <> · State tax not enabled in Tax Profile.</>
+            )}
           </p>
         </TabsContent>
       </Tabs>
