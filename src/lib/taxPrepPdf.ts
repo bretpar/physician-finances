@@ -500,8 +500,8 @@ function renderQuarterly(doc: jsPDF, data: TaxPrepPdfInput) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(25);
-  doc.text("Annual Totals", MARGIN_X, y);
-  renderTable(doc, y + 6, [["Item", "Amount"]], totalsBody, { moneyCols: [1] });
+  doc.text("Annual Totals", MARGIN_X, y + 8);
+  renderTable(doc, y + 14, [["Item", "Amount"]], totalsBody, { moneyCols: [1] });
 }
 
 function renderAppendix(doc: jsPDF, data: TaxPrepPdfInput, generatedAt: string) {
