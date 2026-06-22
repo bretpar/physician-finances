@@ -312,9 +312,10 @@ export default function Reports() {
       if (ct === "w2" || ct === "scorp_w2") bizW2 += amt;
       else if (ct === "1099_schedule_c") biz1099 += amt;
       else if (ct === "k1_partnership") {
+        // Uses k1TaxTreatment when set, else falls back to
+        // includeSETaxInRecommendation (true = active, false = passive).
         if (isPassiveK1Company(c)) bizK1Passive += amt;
         else if (isActiveK1Company(c)) bizK1Active += amt;
-        else bizK1Active += amt; // null/unset treatment defaults to active
       } else bizOther += amt;
     }
 
