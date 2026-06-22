@@ -15,7 +15,15 @@ const fmt = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n || 0);
 
-const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
+// Accepts a rate that may be a fraction (0.281) OR already in percent (28.1).
+// Values <= 1 are treated as fractions and scaled up; values > 1 are assumed
+// to already be expressed in percent and rendered as-is. The tax engine emits
+// percent units (see calculateEffectiveRate), so this avoids a double-multiply.
+const pct = (n: number) => {
+  const v = Number(n) || 0;
+  const asPercent = Math.abs(v) <= 1 ? v * 100 : v;
+  return `${asPercent.toFixed(2)}%`;
+};
 
 const FILING_STATUS_LABEL: Record<string, string> = {
   single: "Single",
