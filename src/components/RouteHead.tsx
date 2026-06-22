@@ -134,6 +134,14 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
         "Complete guide to 1099 tax deductions: home office, mileage, health insurance, retirement, QBI, and more.",
     },
   },
+  {
+    pattern: "/trust",
+    meta: {
+      title: "Trust & Security | Paycheck MD",
+      description:
+        "How Paycheck MD protects physician financial data — access controls, hosting, subprocessors, retention, and security contact.",
+    },
+  },
 ];
 
 const DEFAULT_META: Meta = {
