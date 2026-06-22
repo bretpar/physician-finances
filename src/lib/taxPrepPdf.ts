@@ -677,11 +677,46 @@ export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
     { title: "Tax Preparation Summary", render: () => renderSummaryCards(doc, data) },
     { title: "Income Summary", render: () => renderIncomeSummary(doc, data) },
     { title: "Business Summary by Entity", render: () => renderBusinessByEntity(doc, data) },
-    { title: "Schedule C — Expense Breakdown", render: () => renderScheduleC(doc, data) },
+    { title: "Schedule C — Combined Expense Breakdown", render: () => renderScheduleC(doc, data) },
+  ];
+
+  // Per-entity worksheet pages (one per 1099 / active K-1 business).
+  const worksheets = data.businessWorksheets ?? [];
+  if (worksheets.length > 0) {
+    pages.push({
+      title: "Business Worksheets by Entity",
+      render: () => {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(80);
+        doc.text(
+          `${worksheets.length} business ${worksheets.length === 1 ? "entity" : "entities"} — one worksheet per business follows.`,
+          MARGIN_X,
+          CONTENT_TOP + 8,
+        );
+        const list = worksheets.map((w, i) => `${i + 1}. ${w.entity}  (${w.type ?? "—"})`);
+        list.forEach((line, i) => {
+          doc.setFontSize(10);
+          doc.setTextColor(40);
+          doc.text(line, MARGIN_X, CONTENT_TOP + 36 + i * 16);
+        });
+      },
+    });
+    worksheets.forEach((w) => {
+      pages.push({
+        title: (w.type ?? "").toLowerCase().includes("k-1")
+          ? `Active K-1 Worksheet — ${w.entity}`
+          : `Schedule C Worksheet — ${w.entity}`,
+        render: () => renderWorksheetForEntity(doc, w),
+      });
+    });
+  }
+
+  pages.push(
     { title: "Deductions Summary", render: () => renderDeductions(doc, data) },
     { title: "K-1 Summary", render: () => renderK1Summary(doc, data) },
     { title: "Quarterly Tax Planning", render: () => renderQuarterly(doc, data) },
-  ];
+  );
 
   pages.forEach((p, i) => {
     if (i > 0) doc.addPage();
