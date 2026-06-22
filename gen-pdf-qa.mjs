@@ -1,15 +1,13 @@
 import { writeFileSync } from "node:fs";
-// Bun-friendly: use the source TS via tsx-style import through dynamic require? Use bun import.
-const { exportTaxPrepPdf } = await import("/dev-server/src/lib/taxPrepPdf.ts");
-
-// Monkey-patch doc.save to capture instead of writing in browser
-const origSave = (await import("jspdf")).default.prototype.save;
-(await import("jspdf")).default.prototype.save = function(name) {
+import jsPDFMod from "jspdf";
+const jsPDF = jsPDFMod.jsPDF || jsPDFMod.default || jsPDFMod;
+const origSave = jsPDF.prototype.save;
+jsPDF.prototype.save = function(name) {
   const buf = this.output("arraybuffer");
   writeFileSync("/tmp/pdfqa/out.pdf", Buffer.from(buf));
-  console.log("saved", name, "->", buf.byteLength, "bytes");
+  console.log("saved", name, buf.byteLength, "bytes");
 };
-
+const { exportTaxPrepPdf } = await import("./src/lib/taxPrepPdf.ts");
 exportTaxPrepPdf({
   taxYear: "2026",
   companyLabel: "All Companies",
@@ -31,8 +29,7 @@ exportTaxPrepPdf({
       { label: "Utilities", amount: 2200 },
       { label: "Home office (Form 8829)", amount: 3600 },
     ],
-    totalExpenses: 36800,
-    netProfit: 143200,
+    totalExpenses: 36800, netProfit: 143200,
   },
   businessEntityRows: [
     { entity: "WWEP", type: "1099 / Schedule C", income: 130000, expenses: 28000, net: 102000 },
