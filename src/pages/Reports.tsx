@@ -490,7 +490,7 @@ export default function Reports() {
   function exportTaxCSV() {
     const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
     let csv = `Annual Tax Summary\nCompany,${companyLabel}\nTax Year,${taxYear}\n\n`;
-    csv += `INCOME SUMMARY\nW-2 Income,${incomeSummary.w2}\n1099 Income,${incomeSummary.income1099}\nK-1 Income,${incomeSummary.k1}\nInvestment (cap gains),${incomeSummary.investment}\nInterest Income,${incomeSummary.interest}\nDividend Income,${incomeSummary.dividend}\nTotal Gross Income,${incomeSummary.total}\n\n`;
+    csv += `INCOME SUMMARY\nW-2 Income,${incomeSummary.w2}\n1099 Income,${incomeSummary.income1099}\nK-1 Income (Active),${incomeSummary.k1Active}\nK-1 Income (Passive),${incomeSummary.k1Passive}\nK-1 Income (Total),${incomeSummary.k1}\nInvestment (cap gains),${incomeSummary.investment}\nInterest Income,${incomeSummary.interest}\nDividend Income,${incomeSummary.dividend}\nTotal Gross Income,${incomeSummary.total}\n\n`;
     csv += `BUSINESS / SCHEDULE C\nGross Receipts/Sales,${taxData.grossIncome}\n`;
     for (const cat of EXPENSE_CATEGORIES) {
       csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
