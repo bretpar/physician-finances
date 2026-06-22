@@ -34,6 +34,12 @@ import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { HOME_OFFICE_REPORT_LABEL } from "@/lib/homeOfficeDeduction";
 import { classifyPersonalIncome } from "@/lib/incomeClassification";
 import { exportTaxPrepPdf, type TransactionRow } from "@/lib/taxPrepPdf";
+import {
+  getBusinessReportingCompanyNames,
+  getPassiveK1CompanyNames,
+  isActiveK1Company,
+  isPassiveK1Company,
+} from "@/lib/reportingAggregation";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -86,6 +92,29 @@ export default function Reports() {
   const VEHICLE_CATEGORY = "Car and truck expenses";
   const HOME_OFFICE_CATEGORY = HOME_OFFICE_REPORT_LABEL;
 
+  // Names of companies that count as business reporting entities (1099 + active K-1).
+  // Used everywhere business income/expenses are aggregated for reports.
+  const businessCompanyNames = useMemo(
+    () => getBusinessReportingCompanyNames(companies),
+    [companies],
+  );
+  const passiveK1CompanyNames = useMemo(
+    () => getPassiveK1CompanyNames(companies),
+    [companies],
+  );
+
+  /**
+   * True when a transaction should flow into business reports based on its
+   * `entity`. When no filter is set ("all"), only entities that belong to
+   * business reporting companies (1099 or active K-1) are included — W-2
+   * employers, passive K-1, and unknown entities are excluded so business
+   * report numbers cannot leak.
+   */
+  const isBusinessReportTx = (entity: string | null | undefined): boolean => {
+    if (!entity) return false;
+    return businessCompanyNames.has(entity);
+  };
+
   // Resolve mileage entries to a company NAME (Reports filters by entity name).
   const mileageByCompanyName = useMemo(() => {
     const m = new Map<string, number>();
@@ -120,10 +149,20 @@ export default function Reports() {
 
   // ──── P&L Computation ────
   const plData = useMemo(() => {
+    // Restrict by entity: when "all", include only business reporting companies
+    // (1099 + active K-1). When a specific company is selected, include it only
+    // if it is itself a business reporting company — W-2 / passive K-1 don't
+    // belong in business P&L.
+    const entityAllowed = (entity: string | null | undefined): boolean => {
+      if (plCompany === "all") return isBusinessReportTx(entity);
+      if (!businessCompanyNames.has(plCompany)) return false;
+      return entity === plCompany;
+    };
+
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (plCompany !== "all" && t.entity !== plCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
       return true;
@@ -132,7 +171,7 @@ export default function Reports() {
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (plCompany !== "all" && t.entity !== plCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
       return true;
@@ -143,8 +182,10 @@ export default function Reports() {
 
     let mileageDed = 0;
     if (plCompany === "all") {
-      for (const v of mileageByCompanyName.values()) mileageDed += v;
-    } else {
+      for (const [name, v] of mileageByCompanyName.entries()) {
+        if (businessCompanyNames.has(name)) mileageDed += v;
+      }
+    } else if (businessCompanyNames.has(plCompany)) {
       mileageDed = mileageByCompanyName.get(plCompany) || 0;
     }
     const byCategory: Record<string, number> = {};
@@ -157,7 +198,11 @@ export default function Reports() {
     }
     const homeOfficeDed = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
-      .filter((d) => plCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === plCompany)
+      .filter((d) => {
+        const cName = companies.find((c) => c.id === d.company_id)?.name;
+        if (!cName || !businessCompanyNames.has(cName)) return false;
+        return plCompany === "all" || cName === plCompany;
+      })
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
     if (homeOfficeDed > 0) byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
@@ -170,24 +215,33 @@ export default function Reports() {
       netProfit: grossIncome - totalExpenses,
       byCategory,
     };
-  }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
+  }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY, businessCompanyNames]);
 
   // ──── Annual Tax Summary — Business / Schedule C ────
+  // Restrict to business reporting companies (1099 + active K-1) so that
+  // W-2 employer / passive K-1 income or expenses never leak into the
+  // Schedule C / business sections.
   const taxData = useMemo(() => {
     const yearStart = `${taxYear}-01-01`;
     const yearEnd = `${taxYear}-12-31`;
 
+    const entityAllowed = (entity: string | null | undefined): boolean => {
+      if (taxCompany === "all") return isBusinessReportTx(entity);
+      if (!businessCompanyNames.has(taxCompany)) return false;
+      return entity === taxCompany;
+    };
+
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (taxCompany !== "all" && t.entity !== taxCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });
 
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (taxCompany !== "all" && t.entity !== taxCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       return t.transaction_date >= yearStart && t.transaction_date <= yearEnd;
     });
 
@@ -196,13 +250,19 @@ export default function Reports() {
 
     let mileageDed = 0;
     if (taxCompany === "all") {
-      for (const v of mileageByCompanyName.values()) mileageDed += v;
-    } else {
+      for (const [name, v] of mileageByCompanyName.entries()) {
+        if (businessCompanyNames.has(name)) mileageDed += v;
+      }
+    } else if (businessCompanyNames.has(taxCompany)) {
       mileageDed = mileageByCompanyName.get(taxCompany) || 0;
     }
     const homeOfficeDed = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
-      .filter((d) => taxCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === taxCompany)
+      .filter((d) => {
+        const cName = companies.find((c) => c.id === d.company_id)?.name;
+        if (!cName || !businessCompanyNames.has(cName)) return false;
+        return taxCompany === "all" || cName === taxCompany;
+      })
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
     const totalExpenses = txExpenseTotal + mileageDed + homeOfficeDed;
 
@@ -225,7 +285,7 @@ export default function Reports() {
       incomeTxs,
       expenseTxs,
     };
-  }, [transactions, taxCompany, taxYear, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
+  }, [transactions, taxCompany, taxYear, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY, businessCompanyNames]);
 
   // ──── Income Summary (Section 1) ────
   const incomeSummary = useMemo(() => {
@@ -233,10 +293,13 @@ export default function Reports() {
     const yearEnd = `${taxYear}-12-31`;
     const companyByName = new Map(companies.map((c) => [c.name, c]));
 
-    // Business income txs split by company filing type
+    // Business income txs split by company filing type / K-1 treatment.
+    // Active K-1 is treated as business-like (joins 1099 in business totals);
+    // passive K-1 is reported separately as passive K-1 income.
     let bizW2 = 0;
     let biz1099 = 0;
-    let bizK1 = 0;
+    let bizK1Active = 0;
+    let bizK1Passive = 0;
     let bizOther = 0;
     for (const t of transactions) {
       if (t.transaction_type !== "income") continue;
@@ -248,8 +311,11 @@ export default function Reports() {
       const ct = c?.companyType;
       if (ct === "w2" || ct === "scorp_w2") bizW2 += amt;
       else if (ct === "1099_schedule_c") biz1099 += amt;
-      else if (ct === "k1_partnership") bizK1 += amt;
-      else bizOther += amt;
+      else if (ct === "k1_partnership") {
+        if (isPassiveK1Company(c)) bizK1Passive += amt;
+        else if (isActiveK1Company(c)) bizK1Active += amt;
+        else bizK1Active += amt; // null/unset treatment defaults to active
+      } else bizOther += amt;
     }
 
     // Personal income entries
@@ -283,12 +349,24 @@ export default function Reports() {
 
     const w2 = bizW2 + perW2;
     const income1099 = biz1099 + perOrdinary + bizOther;
-    const k1 = bizK1;
+    const k1Active = bizK1Active;
+    const k1Passive = bizK1Passive;
+    const k1 = k1Active + k1Passive;
     const investment = perCapGains + investmentTotal;
     const dividendTotal = dividend + investmentDividends;
     const total = w2 + income1099 + k1 + investment + interest + dividendTotal;
 
-    return { w2, income1099, k1, investment, interest, dividend: dividendTotal, total };
+    return {
+      w2,
+      income1099,
+      k1,
+      k1Active,
+      k1Passive,
+      investment,
+      interest,
+      dividend: dividendTotal,
+      total,
+    };
   }, [transactions, personalEntries, investmentEntries, taxYear, taxCompany, companies]);
 
   // ──── Deductions Summary (Section 3) ────
@@ -412,7 +490,7 @@ export default function Reports() {
   function exportTaxCSV() {
     const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
     let csv = `Annual Tax Summary\nCompany,${companyLabel}\nTax Year,${taxYear}\n\n`;
-    csv += `INCOME SUMMARY\nW-2 Income,${incomeSummary.w2}\n1099 Income,${incomeSummary.income1099}\nK-1 Income,${incomeSummary.k1}\nInvestment (cap gains),${incomeSummary.investment}\nInterest Income,${incomeSummary.interest}\nDividend Income,${incomeSummary.dividend}\nTotal Gross Income,${incomeSummary.total}\n\n`;
+    csv += `INCOME SUMMARY\nW-2 Income,${incomeSummary.w2}\n1099 Income,${incomeSummary.income1099}\nK-1 Income (Active),${incomeSummary.k1Active}\nK-1 Income (Passive),${incomeSummary.k1Passive}\nK-1 Income (Total),${incomeSummary.k1}\nInvestment (cap gains),${incomeSummary.investment}\nInterest Income,${incomeSummary.interest}\nDividend Income,${incomeSummary.dividend}\nTotal Gross Income,${incomeSummary.total}\n\n`;
     csv += `BUSINESS / SCHEDULE C\nGross Receipts/Sales,${taxData.grossIncome}\n`;
     for (const cat of EXPENSE_CATEGORIES) {
       csv += `"${cat}",${taxData.byCategory[cat] || 0}\n`;
@@ -724,7 +802,8 @@ export default function Reports() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
               <KVRow label="W-2 Income" value={fmt(incomeSummary.w2)} />
               <KVRow label="1099 Income" value={fmt(incomeSummary.income1099)} />
-              <KVRow label="K-1 Income" value={fmt(incomeSummary.k1)} />
+              <KVRow label="K-1 Income (Active)" value={fmt(incomeSummary.k1Active)} />
+              <KVRow label="K-1 Income (Passive)" value={fmt(incomeSummary.k1Passive)} />
               <KVRow label="Investment Income (capital gains)" value={fmt(incomeSummary.investment)} />
               <KVRow label="Interest Income" value={fmt(incomeSummary.interest)} />
               <KVRow label="Dividend Income" value={fmt(incomeSummary.dividend)} />

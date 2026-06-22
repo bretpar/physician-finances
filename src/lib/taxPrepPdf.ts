@@ -16,6 +16,9 @@ export interface IncomeSummaryRows {
   w2: number;
   income1099: number;
   k1: number;
+  /** Optional split — when present, rendered as separate lines. */
+  k1Active?: number;
+  k1Passive?: number;
   investment: number;
   interest: number;
   dividend: number;
@@ -123,17 +126,25 @@ export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
 
   // ── 1. Income Summary
   section("1. Income Summary");
-  renderTable(
-    moneyRows([
-      ["W-2 Income", data.income.w2],
-      ["1099 Income", data.income.income1099],
-      ["K-1 Income", data.income.k1],
-      ["Investment Income (capital gains)", data.income.investment],
-      ["Interest Income", data.income.interest],
-      ["Dividend Income", data.income.dividend],
-      ["Total Gross Income", data.income.total, true],
-    ]),
+  const hasK1Split =
+    data.income.k1Active !== undefined || data.income.k1Passive !== undefined;
+  const incomeRows: Array<[string, number, boolean?]> = [
+    ["W-2 Income", data.income.w2],
+    ["1099 Income", data.income.income1099],
+  ];
+  if (hasK1Split) {
+    incomeRows.push(["K-1 Income (Active)", data.income.k1Active ?? 0]);
+    incomeRows.push(["K-1 Income (Passive)", data.income.k1Passive ?? 0]);
+  } else {
+    incomeRows.push(["K-1 Income", data.income.k1]);
+  }
+  incomeRows.push(
+    ["Investment Income (capital gains)", data.income.investment],
+    ["Interest Income", data.income.interest],
+    ["Dividend Income", data.income.dividend],
+    ["Total Gross Income", data.income.total, true],
   );
+  renderTable(moneyRows(incomeRows));
 
   // ── 2. Business Summary (Schedule C)
   section("2. Business Summary (Schedule C)");
