@@ -491,6 +491,14 @@ export default function Reports() {
     }
 
     // Entity-level business rows (only includes 1099 + active K-1 entities).
+    const companyByName = new Map(companies.map((c) => [c.name, c]));
+    const entityType = (name: string): string => {
+      const c = companyByName.get(name);
+      if (!c) return "—";
+      if (c.companyType === "1099_schedule_c") return "1099 / Schedule C";
+      if (isActiveK1Company(c)) return "K-1 (Active)";
+      return "—";
+    };
     const entityMap = new Map<string, { income: number; expenses: number }>();
     for (const t of taxData.incomeTxs) {
       const key = t.entity || "—";
@@ -505,7 +513,13 @@ export default function Reports() {
       entityMap.set(key, row);
     }
     const businessEntityRows = [...entityMap.entries()]
-      .map(([entity, v]) => ({ entity, income: v.income, expenses: v.expenses, net: v.income - v.expenses }))
+      .map(([entity, v]) => ({
+        entity,
+        type: entityType(entity),
+        income: v.income,
+        expenses: v.expenses,
+        net: v.income - v.expenses,
+      }))
       .sort((a, b) => b.income - a.income);
 
     // Passive K-1 rows (income only, excluded from business profit).
@@ -522,9 +536,16 @@ export default function Reports() {
       .map(([entity, income]) => ({ entity, income }))
       .sort((a, b) => b.income - a.income);
 
+    // Filing status / taxable income / effective rate (current-year estimate only)
+    const isCurrentYear = Number(taxYear) === currentYear;
+    const est = isCurrentYear ? (forecastEstimate ?? actualEstimate) : null;
+
     return {
       taxYear,
       companyLabel,
+      filingStatus: taxSettings?.filingStatus,
+      taxableIncome: est?.taxableIncome,
+      effectiveRate: est?.effectiveRate,
       income: incomeSummary,
       business: {
         grossReceipts: taxData.grossIncome,
@@ -538,7 +559,7 @@ export default function Reports() {
       businessEntityRows,
       passiveK1Rows,
     };
-  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames]);
+  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames, companies, taxSettings, currentYear, forecastEstimate, actualEstimate]);
 
   function logExportPayload(kind: "csv" | "pdf") {
     if (!import.meta.env.DEV) return;
@@ -606,13 +627,19 @@ export default function Reports() {
           category: mapLegacyCategory(t.category) || t.category || "—",
           amount: Math.abs(Number(t.amount) || 0),
           type: t.transaction_type as "income" | "expense",
+          entity: t.entity || "Unassigned",
         }));
     }
     exportTaxPrepPdf({
       taxYear: exportPayload.taxYear,
       companyLabel: exportPayload.companyLabel,
+      filingStatus: exportPayload.filingStatus,
+      taxableIncome: exportPayload.taxableIncome,
+      effectiveRate: exportPayload.effectiveRate,
       income: exportPayload.income,
       business: exportPayload.business,
+      businessEntityRows: exportPayload.businessEntityRows,
+      passiveK1Rows: exportPayload.passiveK1Rows,
       deductions: exportPayload.deductions,
       tax: exportPayload.tax,
       quarters: exportPayload.quarters,
