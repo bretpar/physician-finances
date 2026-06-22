@@ -33,7 +33,8 @@ import { Download, FileText, Building2, ChevronDown } from "lucide-react";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { HOME_OFFICE_REPORT_LABEL } from "@/lib/homeOfficeDeduction";
 import { classifyPersonalIncome } from "@/lib/incomeClassification";
-import { exportTaxPrepPdf, type TransactionRow } from "@/lib/taxPrepPdf";
+import { exportTaxPrepPdf, pct, FILING_STATUS_LABEL, type TransactionRow } from "@/lib/taxPrepPdf";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   getBusinessReportingCompanyNames,
   getPassiveK1CompanyNames,
