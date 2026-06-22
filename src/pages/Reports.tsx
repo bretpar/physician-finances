@@ -149,10 +149,20 @@ export default function Reports() {
 
   // ──── P&L Computation ────
   const plData = useMemo(() => {
+    // Restrict by entity: when "all", include only business reporting companies
+    // (1099 + active K-1). When a specific company is selected, include it only
+    // if it is itself a business reporting company — W-2 / passive K-1 don't
+    // belong in business P&L.
+    const entityAllowed = (entity: string | null | undefined): boolean => {
+      if (plCompany === "all") return isBusinessReportTx(entity);
+      if (!businessCompanyNames.has(plCompany)) return false;
+      return entity === plCompany;
+    };
+
     const expenseTxs = transactions.filter((t) => {
       if (t.transaction_type !== "expense") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (plCompany !== "all" && t.entity !== plCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
       return true;
@@ -161,7 +171,7 @@ export default function Reports() {
     const incomeTxs = transactions.filter((t) => {
       if (t.transaction_type !== "income") return false;
       if (isExcludedFromBusiness(t as any)) return false;
-      if (plCompany !== "all" && t.entity !== plCompany) return false;
+      if (!entityAllowed(t.entity)) return false;
       if (dateRange.from && t.transaction_date < dateRange.from) return false;
       if (dateRange.to && t.transaction_date > dateRange.to) return false;
       return true;
@@ -172,8 +182,10 @@ export default function Reports() {
 
     let mileageDed = 0;
     if (plCompany === "all") {
-      for (const v of mileageByCompanyName.values()) mileageDed += v;
-    } else {
+      for (const [name, v] of mileageByCompanyName.entries()) {
+        if (businessCompanyNames.has(name)) mileageDed += v;
+      }
+    } else if (businessCompanyNames.has(plCompany)) {
       mileageDed = mileageByCompanyName.get(plCompany) || 0;
     }
     const byCategory: Record<string, number> = {};
@@ -186,7 +198,11 @@ export default function Reports() {
     }
     const homeOfficeDed = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
-      .filter((d) => plCompany === "all" || companies.find((c) => c.id === d.company_id)?.name === plCompany)
+      .filter((d) => {
+        const cName = companies.find((c) => c.id === d.company_id)?.name;
+        if (!cName || !businessCompanyNames.has(cName)) return false;
+        return plCompany === "all" || cName === plCompany;
+      })
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
     if (homeOfficeDed > 0) byCategory[HOME_OFFICE_CATEGORY] = homeOfficeDed;
 
@@ -199,7 +215,7 @@ export default function Reports() {
       netProfit: grossIncome - totalExpenses,
       byCategory,
     };
-  }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY]);
+  }, [transactions, plCompany, dateRange, mileageByCompanyName, homeOfficeDeductions, companies, HOME_OFFICE_CATEGORY, businessCompanyNames]);
 
   // ──── Annual Tax Summary — Business / Schedule C ────
   const taxData = useMemo(() => {
