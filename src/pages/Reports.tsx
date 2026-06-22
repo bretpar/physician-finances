@@ -293,10 +293,13 @@ export default function Reports() {
     const yearEnd = `${taxYear}-12-31`;
     const companyByName = new Map(companies.map((c) => [c.name, c]));
 
-    // Business income txs split by company filing type
+    // Business income txs split by company filing type / K-1 treatment.
+    // Active K-1 is treated as business-like (joins 1099 in business totals);
+    // passive K-1 is reported separately as passive K-1 income.
     let bizW2 = 0;
     let biz1099 = 0;
-    let bizK1 = 0;
+    let bizK1Active = 0;
+    let bizK1Passive = 0;
     let bizOther = 0;
     for (const t of transactions) {
       if (t.transaction_type !== "income") continue;
@@ -308,8 +311,11 @@ export default function Reports() {
       const ct = c?.companyType;
       if (ct === "w2" || ct === "scorp_w2") bizW2 += amt;
       else if (ct === "1099_schedule_c") biz1099 += amt;
-      else if (ct === "k1_partnership") bizK1 += amt;
-      else bizOther += amt;
+      else if (ct === "k1_partnership") {
+        if (isPassiveK1Company(c)) bizK1Passive += amt;
+        else if (isActiveK1Company(c)) bizK1Active += amt;
+        else bizK1Active += amt; // null/unset treatment defaults to active
+      } else bizOther += amt;
     }
 
     // Personal income entries
@@ -343,12 +349,24 @@ export default function Reports() {
 
     const w2 = bizW2 + perW2;
     const income1099 = biz1099 + perOrdinary + bizOther;
-    const k1 = bizK1;
+    const k1Active = bizK1Active;
+    const k1Passive = bizK1Passive;
+    const k1 = k1Active + k1Passive;
     const investment = perCapGains + investmentTotal;
     const dividendTotal = dividend + investmentDividends;
     const total = w2 + income1099 + k1 + investment + interest + dividendTotal;
 
-    return { w2, income1099, k1, investment, interest, dividend: dividendTotal, total };
+    return {
+      w2,
+      income1099,
+      k1,
+      k1Active,
+      k1Passive,
+      investment,
+      interest,
+      dividend: dividendTotal,
+      total,
+    };
   }, [transactions, personalEntries, investmentEntries, taxYear, taxCompany, companies]);
 
   // ──── Deductions Summary (Section 3) ────
