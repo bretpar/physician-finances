@@ -12,7 +12,7 @@ function PatchedJsPDF(...args) {
   return inst;
 }
 PatchedJsPDF.prototype = OrigJsPDF.prototype;
-jspdfNs.jsPDF = PatchedJsPDF;
+Object.defineProperty(jspdfNs, "jsPDF", { value: PatchedJsPDF, configurable: true });
 Object.defineProperty(jspdfNs, "default", { value: PatchedJsPDF, configurable: true });
 
 const { exportTaxPrepPdf } = await import("./src/lib/taxPrepPdf.ts");
