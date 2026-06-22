@@ -627,13 +627,19 @@ export default function Reports() {
           category: mapLegacyCategory(t.category) || t.category || "—",
           amount: Math.abs(Number(t.amount) || 0),
           type: t.transaction_type as "income" | "expense",
+          entity: t.entity || "Unassigned",
         }));
     }
     exportTaxPrepPdf({
       taxYear: exportPayload.taxYear,
       companyLabel: exportPayload.companyLabel,
+      filingStatus: exportPayload.filingStatus,
+      taxableIncome: exportPayload.taxableIncome,
+      effectiveRate: exportPayload.effectiveRate,
       income: exportPayload.income,
       business: exportPayload.business,
+      businessEntityRows: exportPayload.businessEntityRows,
+      passiveK1Rows: exportPayload.passiveK1Rows,
       deductions: exportPayload.deductions,
       tax: exportPayload.tax,
       quarters: exportPayload.quarters,
