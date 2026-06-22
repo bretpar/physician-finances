@@ -709,6 +709,7 @@ export default function Reports() {
       income: exportPayload.income,
       business: exportPayload.business,
       businessEntityRows: exportPayload.businessEntityRows,
+      businessWorksheets: exportPayload.businessWorksheets,
       passiveK1Rows: exportPayload.passiveK1Rows,
       deductions: exportPayload.deductions,
       tax: exportPayload.tax,
