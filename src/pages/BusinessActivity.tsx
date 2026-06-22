@@ -1049,29 +1049,33 @@ export default function Transactions() {
 
   const summaryStats = useMemo(() => {
     // CANONICAL EXCLUSION: personal / excluded / transfer rows never count
-    // toward business revenue or deductible business expense.
+    // toward business revenue or deductible business expense. Unassigned or
+    // auto-assigned (Plaid, un-edited) bank interest is also excluded — it
+    // only counts as business income when the user explicitly assigns it.
+    // W-2 income is never business activity.
     //
-    // SCHEDULE-C-ONLY SCOPE: the Business Activity summary cards represent
-    // 1099 / Schedule C business activity. Active K-1 partnership income is
-    // still taxed and tracked elsewhere (Tax Overview, SE tax) but it must
-    // NOT inflate "Business Revenue / Deductions / Profit" here.
+    // BUSINESS ACTIVITY SCOPE: includes 1099 / Schedule C business income
+    // AND active K-1 partnership business income. Both flow through here
+    // because they are the operating business activity for a physician
+    // (sole proprietorship + partnership distributions). Passive interest,
+    // personal items, transfers, and W-2 wages are excluded.
     //
-    // YTD catch-up mirror rows (origin_type='ytd_catchup') only count as
-    // 1099 Schedule C business income when the underlying catch-up is
-    // 1099_schedule_c. K-1 catch-ups are intentionally excluded.
-    const isScheduleCCompany = (sourceId: string | null | undefined): boolean => {
+    // YTD catch-up mirror rows (origin_type='ytd_catchup') count when the
+    // underlying catch-up is either 1099_schedule_c or k1_partnership.
+    const BUSINESS_COMPANY_TYPES = new Set(["1099_schedule_c", "k1_partnership"]);
+    const isBusinessActivityCompany = (sourceId: string | null | undefined): boolean => {
       if (!sourceId) return false;
       const c = companyById.get(sourceId);
-      return !!c && c.companyType === "1099_schedule_c";
+      return !!c && BUSINESS_COMPANY_TYPES.has(c.companyType);
     };
-    const isScheduleCMirrorCatchup = (t: any): boolean => {
+    const isBusinessActivityMirrorCatchup = (t: any): boolean => {
       if (t?.origin_type !== "ytd_catchup") return false;
-      return String(t?.company_type || "") === "1099_schedule_c";
+      return BUSINESS_COMPANY_TYPES.has(String(t?.company_type || ""));
     };
     const businessFiltered = filtered.filter((t) =>
       !isExcludedFromBusiness(t as any) &&
       !isUnassignedOrAutoAssignedInterest(t) &&
-      (isScheduleCCompany(t.source_id) || isScheduleCMirrorCatchup(t))
+      (isBusinessActivityCompany(t.source_id) || isBusinessActivityMirrorCatchup(t))
     );
     const revenue = businessFiltered
       .filter((t) => t.transaction_type === "income")
