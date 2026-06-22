@@ -476,6 +476,85 @@ export default function Reports() {
     });
   }, [taxYear, currentYear, quarterInputBase, taxPayments]);
 
+  // ──── Shared Export Payload (CSV + PDF + QA preview) ────
+  // Reuses the exact same computed objects already shown on the page so we
+  // never recompute totals for exports. Also exposes entity-level business
+  // rows and passive K-1 rows used by the QA preview panel below.
+  const exportPayload = useMemo(() => {
+    const companyLabel = taxCompany === "all" ? "All Companies" : taxCompany;
+    const categories = EXPENSE_CATEGORIES.map((cat) => ({
+      label: cat,
+      amount: taxData.byCategory[cat] || 0,
+    }));
+    if (taxData.homeOfficeDeduction > 0) {
+      categories.push({ label: HOME_OFFICE_REPORT_LABEL, amount: taxData.homeOfficeDeduction });
+    }
+
+    // Entity-level business rows (only includes 1099 + active K-1 entities).
+    const entityMap = new Map<string, { income: number; expenses: number }>();
+    for (const t of taxData.incomeTxs) {
+      const key = t.entity || "—";
+      const row = entityMap.get(key) || { income: 0, expenses: 0 };
+      row.income += Math.abs(Number(t.amount) || 0);
+      entityMap.set(key, row);
+    }
+    for (const t of taxData.expenseTxs) {
+      const key = t.entity || "—";
+      const row = entityMap.get(key) || { income: 0, expenses: 0 };
+      row.expenses += Math.abs(Number(t.amount) || 0);
+      entityMap.set(key, row);
+    }
+    const businessEntityRows = [...entityMap.entries()]
+      .map(([entity, v]) => ({ entity, income: v.income, expenses: v.expenses, net: v.income - v.expenses }))
+      .sort((a, b) => b.income - a.income);
+
+    // Passive K-1 rows (income only, excluded from business profit).
+    const yearStart = `${taxYear}-01-01`;
+    const yearEnd = `${taxYear}-12-31`;
+    const passiveMap = new Map<string, number>();
+    for (const t of transactions) {
+      if (t.transaction_type !== "income") continue;
+      if (t.transaction_date < yearStart || t.transaction_date > yearEnd) continue;
+      if (!t.entity || !passiveK1CompanyNames.has(t.entity)) continue;
+      passiveMap.set(t.entity, (passiveMap.get(t.entity) || 0) + Math.abs(Number(t.amount) || 0));
+    }
+    const passiveK1Rows = [...passiveMap.entries()]
+      .map(([entity, income]) => ({ entity, income }))
+      .sort((a, b) => b.income - a.income);
+
+    return {
+      taxYear,
+      companyLabel,
+      income: incomeSummary,
+      business: {
+        grossReceipts: taxData.grossIncome,
+        categories,
+        totalExpenses: taxData.totalExpenses,
+        netProfit: taxData.netProfit,
+      },
+      deductions,
+      tax: taxSummary,
+      quarters: quarterly,
+      businessEntityRows,
+      passiveK1Rows,
+    };
+  }, [taxCompany, taxYear, taxData, incomeSummary, deductions, taxSummary, quarterly, transactions, passiveK1CompanyNames]);
+
+  function logExportPayload(kind: "csv" | "pdf") {
+    if (!import.meta.env.DEV) return;
+    // eslint-disable-next-line no-console
+    console.info(`[Reports] Export ${kind.toUpperCase()} payload`, {
+      taxYear: exportPayload.taxYear,
+      company: exportPayload.companyLabel,
+      income: exportPayload.income,
+      businessGrossReceipts: exportPayload.business.grossReceipts,
+      businessExpenses: exportPayload.business.totalExpenses,
+      businessNetProfit: exportPayload.business.netProfit,
+      businessEntityRows: exportPayload.businessEntityRows,
+      passiveK1Rows: exportPayload.passiveK1Rows,
+    });
+  }
+
   // ──── CSV Export (existing logic, reorganized) ────
   function exportPLCSV() {
     const companyLabel = plCompany === "all" ? "All Companies" : plCompany;
