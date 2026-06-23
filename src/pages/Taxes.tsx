@@ -249,9 +249,6 @@ export default function Taxes() {
               Estimate extra withholding needed on each W-2 paycheck.
             </p>
           </div>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            This calculator looks at your full-year tax picture after W-2 withholding, estimated payments, actual tax savings, and optional planned non-W-2 reserves. Use the extra per paycheck amount when updating your W-4.
-          </p>
           <W4PaycheckAdjustmentCard />
         </TabsContent>
 
