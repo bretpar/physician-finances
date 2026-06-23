@@ -1163,590 +1163,361 @@ export default function W4PaycheckAdjustmentCard() {
   // Hide card entirely if user has no W-2 streams at all — nothing to recommend.
   if (sourceRows.length === 0) return null;
 
+  const employerRecs = effectiveRows.map((r) => {
+    const a = allocations.find((x) => x.streamId === r.streamId);
+    const perPaycheck = a?.step4cPerPaycheck ?? 0;
+    const annualForEmployer = perPaycheck * r.remainingPaychecks;
+    return { row: r, perPaycheck, annualForEmployer, allocation: a };
+  });
+  const recsWithExtra = employerRecs.filter((e) => e.perPaycheck > 0);
+  const hasAnyDataWarning =
+    dataCompleteness.missingYtdAggregate ||
+    dataCompleteness.missingFutureAggregate ||
+    dataCompleteness.anyPartialEmployer;
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          Recommended Extra Withholding
-          <TooltipProvider>
+    <TooltipProvider>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            Recommended W-4 change
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  aria-label="About recommended plan"
+                  aria-label="About this estimate"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Info className="h-4 w-4" />
                 </button>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
-                <p className="text-sm font-medium">Recommended plan</p>
-                <p className="mt-1 text-xs">
-                  Based on your current income and projected income, if you continue saving{" "}
-                  <span className="font-semibold">{businessReserveRate.toFixed(1)}%</span>{" "}
-                  from future 1099/business income, here is what to enter on your W-4.
+                <p className="text-xs">
+                  This estimate uses your W-2 paychecks, YTD withholding, estimated
+                  payments, saved tax entries, and selected income plans.
                 </p>
               </TooltipContent>
             </Tooltip>
-          </TooltipProvider>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Stable, machine-readable W-4 summary outputs. Hidden from sighted
-            users (sr-only) but always present so automated audits can assert
-            calculator correctness without scraping fragile visual copy. */}
-        <div className="sr-only" aria-hidden="true" data-testid="w4-summary-outputs">
-          <span data-testid="w4-projected-household-gross" data-value={projectedHouseholdGross}>
-            {fmt(projectedHouseholdGross)}
-          </span>
-          <span data-testid="w4-projected-federal-withholding" data-value={projectedFederalWithholding}>
-            {fmt(projectedFederalWithholding)}
-          </span>
-          <span data-testid="w4-annual-tax-gap" data-value={annualTaxGap}>
-            {fmt(annualTaxGap)}
-          </span>
-          <span data-testid="w4-annual-tax-surplus" data-value={annualTaxSurplus}>
-            {fmt(annualTaxSurplus)}
-          </span>
-          <span data-testid="w4-total-extra-withholding-needed" data-value={totalExtraThroughYearEnd}>
-            {fmt(totalExtraThroughYearEnd)}
-          </span>
-        </div>
-
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Per-paycheck targets can show extra needed on individual checks, but
-          W-4 changes are based on your full annual tax picture after counting
-          W-2 withholding, estimated payments, actual savings, and optional
-          planned non-W-2 reserves.
-        </p>
-        <p
-          className="text-xs text-muted-foreground leading-relaxed"
-          data-testid="w4-fica-disclaimer"
-        >
-          This recommendation only covers federal income tax. Social Security
-          and Medicare are handled through payroll and are not added to W-4
-          Step 4(c).
-        </p>
-        {sourceRows.some((r: any) => r.__isYtdFallback) && (
-          <p
-            className="text-xs text-muted-foreground leading-relaxed"
-            data-testid="w4-ytd-estimate-note"
-          >
-            Remaining paychecks and gross are <span className="font-medium">estimated</span> from your
-            year-to-date W-2 entries because you have not set up projected income streams yet.
-            Add pay frequency and remaining paychecks in Settings for a more precise recommendation.
-          </p>
-        )}
-
-        {/* Data-completeness warnings — make it obvious when the W-4 estimate
-            may be inaccurate because YTD or future paycheck data is missing.
-            These do NOT change the recommendation math; they only explain it. */}
-        {(dataCompleteness.missingYtdAggregate ||
-          dataCompleteness.missingFutureAggregate ||
-          dataCompleteness.anyPartialEmployer ||
-          dataCompleteness.multipleW2 ||
-          dataCompleteness.anyFuture) && (
-          <div className="space-y-2" data-testid="w4-data-warnings">
-            {dataCompleteness.missingYtdAggregate && (
-              <div
-                className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground"
-                data-testid="w4-warning-missing-ytd"
-              >
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
-                <p>
-                  Your W-4 estimate may be inaccurate because YTD paystub
-                  information is missing. Go to{" "}
-                  <Link
-                    to="/settings"
-                    className="font-medium underline underline-offset-2"
-                  >
-                    Settings → W-2 Employers
-                  </Link>{" "}
-                  and add YTD gross income and YTD federal withholding.
-                </p>
-              </div>
-            )}
-            {dataCompleteness.missingFutureAggregate && (
-              <div
-                className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground"
-                data-testid="w4-warning-missing-future"
-              >
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
-                <p>
-                  Your W-4 estimate may be incomplete because future paycheck
-                  information is missing. Go to{" "}
-                  <Link
-                    to="/settings"
-                    className="font-medium underline underline-offset-2"
-                  >
-                    Settings → W-2 Employers
-                  </Link>{" "}
-                  and add projected annual income, pay frequency, and expected
-                  federal withholding per paycheck.
-                </p>
-              </div>
-            )}
-            {dataCompleteness.anyPartialEmployer &&
-              !dataCompleteness.missingYtdAggregate &&
-              !dataCompleteness.missingFutureAggregate && (
-                <div
-                  className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground"
-                  data-testid="w4-warning-partial-employer"
-                >
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
-                  <p>
-                    One or more W-2 employers is missing YTD or future paycheck
-                    information.{" "}
-                    <Link
-                      to="/settings"
-                      className="font-medium underline underline-offset-2"
-                    >
-                      Open Settings → W-2 Employers
-                    </Link>{" "}
-                    to fill in the missing values.
-                  </p>
-                </div>
-              )}
-            {/* Tier-aware data-source message. Tells the user where the W-4
-                future projection is coming from and (for premium) nudges
-                Income Streams as the more accurate path. */}
-            {dataCompleteness.anyFuture && !isPremium && (
-              <div
-                className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
-                data-testid="w4-source-free"
-              >
-                <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                <p>
-                  Your W-4 estimate uses manual employer settings. Add
-                  projected salary, remaining paychecks, and expected
-                  withholding in{" "}
-                  <Link
-                    to="/settings"
-                    className="font-medium underline underline-offset-2"
-                  >
-                    Settings → W-2 Employers
-                  </Link>{" "}
-                  for a basic estimate.
-                </p>
-              </div>
-            )}
-            {isPremium &&
-              dataCompleteness.anyFuture &&
-              !dataCompleteness.anyStream && (
-                <div
-                  className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground"
-                  data-testid="w4-source-premium-no-stream"
-                >
-                  <Info className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                  <p>
-                    Your W-4 estimate is using manual Settings. Add{" "}
-                    <Link
-                      to="/projected-income"
-                      className="font-medium underline underline-offset-2"
-                    >
-                      Income Streams
-                    </Link>{" "}
-                    for a more accurate paycheck-by-paycheck projection.
-                  </p>
-                </div>
-              )}
-            {isPremium && dataCompleteness.anyStream && (
-              <div
-                className="flex items-start gap-2 rounded-md border border-success/40 bg-success/10 p-3 text-xs text-foreground"
-                data-testid="w4-source-premium-stream"
-              >
-                <Info className="h-4 w-4 mt-0.5 shrink-0 text-success" />
-                <p>
-                  Your W-4 estimate is using active Income Streams and your
-                  YTD paystub data.
-                </p>
-              </div>
-            )}
-            {dataCompleteness.multipleW2 && (
-              <div
-                className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
-                data-testid="w4-multi-employer-note"
-              >
-                <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                <p>
-                  Multiple W-2 jobs can cause under-withholding because each
-                  employer may withhold as if it is your only job. This W-4
-                  estimate combines all W-2 income and withholding to check
-                  whether extra withholding is needed.
-                </p>
-              </div>
-            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Stable, machine-readable W-4 summary outputs for audits. */}
+          <div className="sr-only" aria-hidden="true" data-testid="w4-summary-outputs">
+            <span data-testid="w4-projected-household-gross" data-value={projectedHouseholdGross}>
+              {fmt(projectedHouseholdGross)}
+            </span>
+            <span data-testid="w4-projected-federal-withholding" data-value={projectedFederalWithholding}>
+              {fmt(projectedFederalWithholding)}
+            </span>
+            <span data-testid="w4-annual-tax-gap" data-value={annualTaxGap}>
+              {fmt(annualTaxGap)}
+            </span>
+            <span data-testid="w4-annual-tax-surplus" data-value={annualTaxSurplus}>
+              {fmt(annualTaxSurplus)}
+            </span>
+            <span data-testid="w4-total-extra-withholding-needed" data-value={totalExtraThroughYearEnd}>
+              {fmt(totalExtraThroughYearEnd)}
+            </span>
+            <span data-testid="w4-fica-disclaimer">
+              W-4 extra withholding only applies to federal income tax. Social Security and Medicare are handled through payroll.
+            </span>
           </div>
-        )}
 
-        <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="w4-count-nonw2" className="text-sm font-medium text-foreground">
-              Count planned 1099/business/K-1 tax reserves
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              When on, we assume you will save the recommended tax reserve from
-              future non-W-2 income, so your W-4 only needs to cover the remaining
-              gap. When off, your W-4 will try to cover more of your total annual
-              tax burden.
-            </p>
-          </div>
-          <Switch
-            id="w4-count-nonw2"
-            checked={countPlannedNonW2Reserves}
-            onCheckedChange={handleToggleChange}
-          />
-        </div>
-
-        {/* Per-employer W-4 allocation table — always rendered so automated
-            audits can locate every W-2 job row regardless of gap/surplus
-            state. The label makes it unambiguous that the "Extra" column is
-            per paycheck, not annual. */}
-        <div
-          data-testid="w4-recommendation-table"
-          data-row-count={effectiveRows.length}
-          data-annual-tax-gap={annualTaxGap}
-          data-annual-tax-surplus={annualTaxSurplus}
-          className="overflow-x-auto rounded-md border border-border hidden sm:block"
-        >
-          <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-muted-foreground">
-              <tr>
-                <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap">Employer</th>
-                <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap">Employee</th>
-                <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap">Pay frequency</th>
-                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Remaining paychecks</th>
-                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Projected gross</th>
-                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Projected future fed. withholding</th>
-                <th className="text-right font-medium px-2 py-1.5 whitespace-nowrap">Extra / paycheck</th>
-              </tr>
-            </thead>
-            <tbody>
-              {effectiveRows.map((r) => {
-                const a = allocations.find((x) => x.streamId === r.streamId);
-                const perPaycheck = a?.step4cPerPaycheck ?? 0;
+          {/* Hero: per-employer extra-per-paycheck recommendation */}
+          {recsWithExtra.length === 0 ? (
+            <div
+              className="rounded-lg border border-success/40 bg-success/5 p-4 text-sm text-foreground"
+              data-testid="w4-hero-empty"
+            >
+              No extra W-4 withholding needed right now.
+            </div>
+          ) : (
+            <div className="space-y-3" data-testid="w4-hero">
+              {recsWithExtra.map(({ row: r, perPaycheck, annualForEmployer }) => {
                 const slug = employerSlug(r.company);
-                // Determine employee (primary/spouse). Saved company role
-                // (Settings) takes precedence; fall back to source_id /
-                // ledger-derived role for legacy data.
-                const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
-                const byName = employeeByEmployerName.get(normalizeEmployerName(r.company));
-                let employee: "primary" | "spouse" = byName ?? "primary";
-                if (!byName) {
-                  for (const sid of sourceIds) {
-                    const tag = employeeBySourceId.get(sid);
-                    if (tag === "spouse") { employee = "spouse"; break; }
-                    if (tag === "primary") employee = "primary";
-                  }
-                }
-                const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
-                return (
-                  <tr
-                    key={`tbl-${r.streamId}`}
-                    className="border-t border-border"
-                    data-testid={`w4-job-row-${slug}`}
-                    data-employer={r.company}
-                    data-employee={employee}
-                    data-frequency={r.payFrequency}
-                    data-remaining-paychecks={r.remainingPaychecks}
-                    data-projected-gross={r.remainingGross}
-                    data-projected-fed-withholding={r.expectedNormalWithholding}
-                    data-extra-per-paycheck={perPaycheck}
-                  >
-                    <td className="px-2 py-1.5 text-foreground truncate max-w-[160px]">{r.company}</td>
-                    <td className="px-2 py-1.5 text-foreground" data-testid={`w4-job-employee-${slug}`}>{employeeLabel}</td>
-                    <td className="px-2 py-1.5 text-foreground" data-testid={`w4-job-frequency-${slug}`}>
-                      {formatFrequencyLabel(r.payFrequency).replace(" paycheck", "")}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums" data-testid={`w4-job-remaining-paychecks-${slug}`}>
-                      {r.remainingPaychecks}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums" data-testid={`w4-job-projected-gross-${slug}`}>
-                      {fmt(r.remainingGross)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums" data-testid={`w4-job-projected-fed-withholding-${slug}`}>
-                      {fmt(r.expectedNormalWithholding)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary" data-testid={`w4-job-extra-per-paycheck-${slug}`}>
-                      {fmt(perPaycheck)} <span className="text-[10px] font-normal text-muted-foreground">/ paycheck</span>
-                    </td>
-                  </tr>
-                );
-              })}
-              {effectiveRows.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-2 py-3 text-center text-muted-foreground">
-                    No active W-2 employers to allocate withholding across.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          <p className="px-2 py-1.5 text-[10px] text-muted-foreground border-t border-border">
-            Extra column is the recommended additional withholding <span className="font-semibold">per paycheck</span> (not annual).
-          </p>
-        </div>
-
-        {/* Mobile employer cards — same data as the table, collapsed for small screens */}
-        <div className="sm:hidden space-y-3">
-          {effectiveRows.map((r) => {
-            const a = allocations.find((x) => x.streamId === r.streamId);
-            const perPaycheck = a?.step4cPerPaycheck ?? 0;
-            const slug = employerSlug(r.company);
-            const sourceIds = ((r as any).uniqueSourceIds as string[] | undefined) ?? [];
-            const byName = employeeByEmployerName.get(normalizeEmployerName(r.company));
-            let employee: "primary" | "spouse" = byName ?? "primary";
-            if (!byName) {
-              for (const sid of sourceIds) {
-                const tag = employeeBySourceId.get(sid);
-                if (tag === "spouse") { employee = "spouse"; break; }
-                if (tag === "primary") employee = "primary";
-              }
-            }
-            const employeeLabel = employee === "spouse" ? "Spouse" : "Primary";
-            return (
-              <div
-                key={`mob-${r.streamId}`}
-                className="rounded-md border border-border p-3 space-y-2 bg-background"
-                data-testid={`w4-mobile-card-${slug}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{r.company}</p>
-                    <p className="text-xs text-muted-foreground">{employeeLabel} · {formatFrequencyLabel(r.payFrequency).replace(" paycheck", "")}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-base font-semibold tabular-nums text-primary">{fmt(perPaycheck)}</p>
-                    <p className="text-[10px] text-muted-foreground">extra / paycheck</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <p className="text-muted-foreground">Remaining</p>
-                    <p className="font-medium tabular-nums text-foreground">{r.remainingPaychecks}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Projected gross</p>
-                    <p className="font-medium tabular-nums text-foreground">{fmt(r.remainingGross)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Projected future fed. withholding</p>
-                    <p className="font-medium tabular-nums text-foreground">{fmt(r.expectedNormalWithholding)}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {effectiveRows.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No active W-2 employers to allocate withholding across.
-            </p>
-          )}
-        </div>
-
-
-        {remainingW4Gap <= 0 ? (
-          <div className="space-y-1 text-sm text-foreground">
-            <p>
-              No W-4 change is recommended because your projected annual tax
-              ({fmt(projectedTotalTax)}) is already covered by actual
-              withholding ({fmt(taxesAlreadyWithheld)}), expected future W-2
-              withholding ({fmt(expectedFutureNormalW2Withholding)}),
-              estimated payments ({fmt(estPaymentsAlreadyMade)}), and
-              user-entered tax savings ({fmt(actualTaxSavedOrPaid)}).
-            </p>
-            {projectedPlannedFutureBusinessReserves > 0 && !countPlannedNonW2Reserves && (
-              <p className="text-xs text-muted-foreground">
-                Note: ~{fmt(projectedPlannedFutureBusinessReserves)} of
-                recommended future 1099/business/K-1 reserves is intentionally
-                <span className="italic"> not</span> counted as already saved.
-                Turn on the toggle below to assume you will save those reserves,
-                or enter actual saved/reserved amounts.
-              </p>
-            )}
-          </div>
-        ) : (
-          <>
-            <p className="text-sm text-foreground">
-              For your W-2 jobs, enter the following extra withholding amounts in Form W-4 Step 4(c).{" "}
-              <span className="text-muted-foreground">
-                Annual gap remaining: <span className="font-semibold text-foreground">{fmt(remainingW4Gap)}</span>.
-              </span>
-            </p>
-
-            <div className="space-y-3">
-              {effectiveRows.map((r) => {
-                const a = allocations.find((x) => x.streamId === r.streamId);
-                const perPaycheck = a?.step4cPerPaycheck ?? 0;
-                const annualForEmployer = perPaycheck * r.remainingPaychecks;
                 return (
                   <div
-                    key={r.streamId}
-                    className="rounded-md border border-border p-3 space-y-2"
+                    key={`hero-${r.streamId}`}
+                    className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2"
+                    data-testid={`w4-hero-card-${slug}`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <p className="text-sm font-medium text-foreground truncate">{r.company}</p>
-                      <div className="text-right shrink-0">
-                        <p className="text-base font-semibold tabular-nums text-primary">
-                          {fmt(perPaycheck)}{" "}
-                          <span className="text-xs font-normal text-muted-foreground">/ paycheck</span>
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Enter in W-4 Step 4(c) · ≈ {fmt(annualForEmployer)} annual
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Based on {formatFrequencyLabel(r.payFrequency).toLowerCase()} and{" "}
-                      {r.remainingPaychecks} remaining paycheck{r.remainingPaychecks === 1 ? "" : "s"} this year
-                      {r.remainingPaychecks > 0
-                        ? ` (annual ${fmt(annualForEmployer)} ÷ ${r.remainingPaychecks} = ${fmt(perPaycheck)} per paycheck).`
-                        : "."}
+                    <p className="text-sm font-medium text-foreground break-words">
+                      {r.company}
                     </p>
-                    {(r as any).missingSettings && (
-                      <p className="text-xs text-warning flex items-start gap-1.5">
-                        <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                        <span>
-                          <Link to="/settings" className="underline hover:text-foreground">
-                            Add paycheck settings in Settings
-                          </Link>{" "}
-                          to improve this recommendation.
-                        </span>
-                      </p>
-                    )}
+                    <p className="text-3xl sm:text-4xl font-bold tabular-nums text-primary leading-tight">
+                      {fmt(perPaycheck)}
+                      <span className="text-sm font-medium text-muted-foreground ml-1">
+                        per paycheck
+                      </span>
+                    </p>
+                    <p className="text-sm text-foreground flex items-center gap-1.5 flex-wrap">
+                      Enter this in Form W-4 Step 4(c).
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="About W-4 Step 4(c)"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">
+                            Step 4(c) is where you enter extra federal income tax to
+                            withhold from each paycheck.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Based on {r.remainingPaychecks} remaining paycheck
+                      {r.remainingPaychecks === 1 ? "" : "s"} · about{" "}
+                      {fmt(annualForEmployer)} extra this year.
+                    </p>
                   </div>
                 );
               })}
             </div>
+          )}
 
-            <p className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              <span>
-                Total extra W-2 withholding planned through year-end:{" "}
-                <span className="font-semibold text-foreground">{fmt(totalExtraThroughYearEnd)}</span>
-              </span>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="About this estimate"
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-xs">
-                      This is an estimate based on your current income, projected income, withholding
-                      method, and saved/paid tax entries. Confirm changes with your payroll system or
-                      the IRS withholding estimator.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </p>
-          </>
-        )}
+          {/* Remaining annual W-4 gap summary line */}
+          <div className="flex items-center justify-between gap-2 text-sm flex-wrap">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              Remaining annual W-4 gap
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About remaining annual W-4 gap"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-xs">
+                    The remaining federal income tax gap after W-2 withholding,
+                    estimated payments, saved tax entries, and optional planned
+                    non-W-2 reserves.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </span>
+            <span className="font-semibold tabular-nums text-foreground">
+              {fmt(remainingW4Gap)}
+            </span>
+          </div>
 
-        <Collapsible open={showHow} onOpenChange={setShowHow}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-muted-foreground gap-1 px-0">
-              <ChevronDown className={cn("h-4 w-4 transition-transform", showHow && "rotate-180")} />
-              Show how this was calculated
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="mt-2 space-y-1 rounded-md border border-border p-3 text-sm">
-              <Row label="Annual estimated tax liability" value={fmt(projectedTotalTax)} />
-              <Row label="Actual W-2 withholding YTD" value={fmt(taxesAlreadyWithheld)} />
-              <Row
-                label="Projected future W-2 withholding"
-                value={fmt(expectedFutureNormalW2Withholding)}
-              />
-              <Row label="Actual tax saved YTD (user-entered)" value={fmt(actualTaxSavedOrPaid)} />
-              <Row label="Estimated payments already made" value={fmt(estPaymentsAlreadyMade)} />
-              {(() => {
-                const counted = plannedFutureBusinessReservesCounted;
-                const recommended = projectedPlannedFutureBusinessReserves;
-                const sameAmount = Math.abs(counted - recommended) < 0.5;
-                if (countPlannedNonW2Reserves && sameAmount) {
-                  // Toggle on and counted equals recommended — show once.
-                  return (
-                    <Row
-                      label={`Planned future 1099/business/K-1 reserves (${businessReserveRate.toFixed(1)}%)`}
-                      value={fmt(counted)}
-                    />
-                  );
-                }
-                return (
-                  <>
-                    <Row
-                      label={`Planned future 1099/business/K-1 reserves counted (${businessReserveRate.toFixed(1)}%)`}
-                      value={
-                        countPlannedNonW2Reserves ? fmt(counted) : `${fmt(0)} (toggle off)`
-                      }
-                    />
-                    <Row
-                      label="Planned future 1099/business/K-1 reserves recommended"
-                      value={fmt(recommended)}
-                    />
-                  </>
-                );
-              })()}
-              <div className="my-1 border-t border-border" />
-              <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
+          {/* Compact non-W-2 reserves toggle */}
+          <div className="rounded-md border border-border p-3 flex items-center justify-between gap-3">
+            <Label
+              htmlFor="w4-count-nonw2"
+              className="text-sm font-medium text-foreground flex items-center gap-1.5"
+            >
+              Count planned 1099/business/K-1 tax reserves
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About counting planned non-W-2 reserves"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-xs">
+                    When on, we assume you will save the recommended tax reserve
+                    from future non-W-2 income, so your W-4 only covers the
+                    remaining gap. When off, your W-4 may try to cover more of
+                    your total annual tax burden.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </Label>
+            <Switch
+              id="w4-count-nonw2"
+              checked={countPlannedNonW2Reserves}
+              onCheckedChange={handleToggleChange}
+            />
+          </div>
 
-
-              {allocations.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs font-medium text-foreground">Per employer breakdown</p>
-                  {allocations.map((a) => {
-                    const row = employerRows.find((r) => r.streamId === a.streamId) as
-                      | (EmployerRow & { uniqueSourceIds?: string[]; overlapDateCount?: number })
-                      | undefined;
-                    const streamCount = row?.streamIds?.length ?? 1;
-                    const sourceCount = row?.uniqueSourceIds?.length ?? 0;
-                    const overlapCount = row?.overlapDateCount ?? 0;
-                    return (
-                      <div
-                        key={a.streamId}
-                        className="rounded-md bg-muted/40 p-2 space-y-1"
-                      >
-                        <p className="text-xs font-medium text-foreground">{a.company}</p>
-                        <RowSmall
-                          label="Expected normal W-2 withholding (projected)"
-                          value={fmt(a.expectedNormalWithholding)}
-                        />
-                        <RowSmall
-                          label="Allocated share of remaining gap"
-                          value={fmt(a.employerGap)}
-                        />
-                        <RowSmall
-                          label="Step 4(c) extra withholding per paycheck"
-                          value={`${fmt(a.step4cPerPaycheck)} / paycheck`}
-                        />
-                        <p className="text-[10px] text-muted-foreground/80">
-                          Employer: <span className="font-medium">{a.company}</span> · key:{" "}
-                          <span className="font-mono">{a.streamId}</span> · streams: {streamCount}
-                          {" · "}source IDs: {sourceCount}
-                          {overlapCount > 0 ? ` · overlapping dates ignored: ${overlapCount}` : ""}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="pt-2 text-xs text-muted-foreground">
-                Allocated across {allocations.length} W-2 job{allocations.length === 1 ? "" : "s"} by
-                remaining paycheck schedule and remaining gross W-2 income.
-              </div>
+          {/* Compact data-completeness warning (single line, links to Settings) */}
+          {hasAnyDataWarning && (
+            <div
+              className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-foreground"
+              data-testid="w4-data-warning"
+            >
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
+              <p>
+                Some W-2 employer data is missing — this estimate may be
+                inaccurate.{" "}
+                <Link to="/settings" className="font-medium underline underline-offset-2">
+                  Open Settings → W-2 Employers
+                </Link>
+                .
+              </p>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          )}
 
-      </CardContent>
-    </Card>
+          {/* Multi-W-2 helper tooltip line (compact) */}
+          {dataCompleteness.multipleW2 && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              Multiple W-2 jobs detected
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About multiple W-2 jobs"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-xs">
+                    Multiple W-2 jobs can cause under-withholding because each
+                    employer may withhold as if it is your only job.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </p>
+          )}
+
+          {/* Collapsed calculation details */}
+          <Collapsible open={showHow} onOpenChange={setShowHow}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-muted-foreground gap-1 px-0">
+                <ChevronDown
+                  className={cn("h-4 w-4 transition-transform", showHow && "rotate-180")}
+                />
+                Show calculation details
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2 space-y-3 rounded-md border border-border p-3">
+                <div className="space-y-1">
+                  <Row label="Estimated annual tax liability" value={fmt(projectedTotalTax)} />
+                  <Row label="Actual W-2 withholding YTD" value={fmt(taxesAlreadyWithheld)} />
+                  <Row
+                    label="Projected future W-2 withholding"
+                    value={fmt(expectedFutureNormalW2Withholding)}
+                  />
+                  <Row label="Actual tax saved YTD" value={fmt(actualTaxSavedOrPaid)} />
+                  <Row
+                    label="Estimated payments already made"
+                    value={fmt(estPaymentsAlreadyMade)}
+                  />
+                  <Row
+                    label="Planned future 1099/business/K-1 reserves"
+                    value={
+                      countPlannedNonW2Reserves
+                        ? fmt(plannedFutureBusinessReservesCounted)
+                        : `${fmt(0)} (toggle off)`
+                    }
+                  />
+                  <div className="my-1 border-t border-border" />
+                  <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
+                </div>
+
+                {employerRecs.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-foreground">
+                      Per employer
+                    </p>
+                    {/* Desktop table */}
+                    <div className="overflow-x-auto rounded-md border border-border hidden sm:block">
+                      <table
+                        className="w-full text-xs"
+                        data-testid="w4-recommendation-table"
+                      >
+                        <thead className="bg-muted/40 text-muted-foreground">
+                          <tr>
+                            <th className="text-left font-medium px-2 py-1.5">Employer</th>
+                            <th className="text-right font-medium px-2 py-1.5">
+                              Extra / paycheck
+                            </th>
+                            <th className="text-right font-medium px-2 py-1.5">
+                              Annual extra
+                            </th>
+                            <th className="text-right font-medium px-2 py-1.5">
+                              Remaining paychecks
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {employerRecs.map(({ row: r, perPaycheck, annualForEmployer }) => {
+                            const slug = employerSlug(r.company);
+                            return (
+                              <tr
+                                key={`tbl-${r.streamId}`}
+                                className="border-t border-border"
+                                data-testid={`w4-job-row-${slug}`}
+                              >
+                                <td className="px-2 py-1.5 text-foreground break-words max-w-[200px]">
+                                  {r.company}
+                                </td>
+                                <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-primary">
+                                  {fmt(perPaycheck)}
+                                </td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">
+                                  {fmt(annualForEmployer)}
+                                </td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">
+                                  {r.remainingPaychecks}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Mobile stacked rows */}
+                    <div className="sm:hidden space-y-2">
+                      {employerRecs.map(({ row: r, perPaycheck, annualForEmployer }) => {
+                        const slug = employerSlug(r.company);
+                        return (
+                          <div
+                            key={`mob-${r.streamId}`}
+                            className="rounded-md border border-border p-2 space-y-1"
+                            data-testid={`w4-mobile-card-${slug}`}
+                          >
+                            <p className="text-sm font-medium text-foreground break-words">
+                              {r.company}
+                            </p>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Extra / paycheck</span>
+                              <span className="font-semibold tabular-nums text-primary">
+                                {fmt(perPaycheck)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Annual extra</span>
+                              <span className="tabular-nums text-foreground">
+                                {fmt(annualForEmployer)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">
+                                Remaining paychecks
+                              </span>
+                              <span className="tabular-nums text-foreground">
+                                {r.remainingPaychecks}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </CardContent>
+      </Card>
+    </TooltipProvider>
   );
 }
 
