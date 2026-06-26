@@ -1267,7 +1267,7 @@ export default function W4PaycheckAdjustmentCard() {
                       </span>
                     </p>
                     <p className="text-sm text-foreground flex items-center gap-1.5 flex-wrap">
-                      Enter this in Form W-4 Step 4(c).
+                      Enter this amount in Form W-4 Step 4(c).
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
