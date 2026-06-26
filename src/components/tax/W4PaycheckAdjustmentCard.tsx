@@ -697,6 +697,22 @@ export default function W4PaycheckAdjustmentCard() {
 
   const [showHow, setShowHow] = useState(false);
 
+  // Show the "Include business tax reserves" toggle only when the user has
+  // active non-W-2 income (1099, business, or active K-1). Pure W-2 households
+  // have nothing to reserve, so the toggle would be confusing noise.
+  const hasNonW2Income = useMemo(() => {
+    const streamHasNonW2 = (streams || []).some((s) => {
+      if (!s.is_active) return false;
+      const ft = normalizeFilingType(s.company_type);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+    if (streamHasNonW2) return true;
+    return (companies || []).some((c) => {
+      const ft = normalizeFilingType(c.companyType);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+  }, [streams, companies]);
+
   const businessRateSel = getSavingsRateForIncomeBucket({
     incomeBucket: "business",
     incomeType: "1099",
