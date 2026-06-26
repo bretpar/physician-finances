@@ -1368,7 +1368,7 @@ export default function W4PaycheckAdjustmentCard() {
           {/* Multi-W-2 helper tooltip line (compact) */}
           {dataCompleteness.multipleW2 && (
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              Multiple W-2 jobs detected
+              Multiple W-2 jobs are included in this estimate.
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
