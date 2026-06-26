@@ -1196,7 +1196,7 @@ export default function W4PaycheckAdjustmentCard() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
-            Recommended W-4 change
+            Recommended extra W-4 withholding
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
