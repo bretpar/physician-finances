@@ -697,6 +697,22 @@ export default function W4PaycheckAdjustmentCard() {
 
   const [showHow, setShowHow] = useState(false);
 
+  // Show the "Include business tax reserves" toggle only when the user has
+  // active non-W-2 income (1099, business, or active K-1). Pure W-2 households
+  // have nothing to reserve, so the toggle would be confusing noise.
+  const hasNonW2Income = useMemo(() => {
+    const streamHasNonW2 = (streams || []).some((s) => {
+      if (!s.is_active) return false;
+      const ft = normalizeFilingType(s.company_type);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+    if (streamHasNonW2) return true;
+    return (companies || []).some((c) => {
+      const ft = normalizeFilingType(c.companyType);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+  }, [streams, companies]);
+
   const businessRateSel = getSavingsRateForIncomeBucket({
     incomeBucket: "business",
     incomeType: "1099",
@@ -1180,7 +1196,7 @@ export default function W4PaycheckAdjustmentCard() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
-            Recommended W-4 change
+            Recommended extra W-4 withholding
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -1251,7 +1267,7 @@ export default function W4PaycheckAdjustmentCard() {
                       </span>
                     </p>
                     <p className="text-sm text-foreground flex items-center gap-1.5 flex-wrap">
-                      Enter this in Form W-4 Step 4(c).
+                      Enter this amount in Form W-4 Step 4(c).
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
@@ -1281,15 +1297,15 @@ export default function W4PaycheckAdjustmentCard() {
             </div>
           )}
 
-          {/* Remaining annual W-4 gap summary line */}
-          <div className="flex items-center justify-between gap-2 text-sm flex-wrap">
+          {/* Estimated remaining annual gap — secondary to per-paycheck hero */}
+          <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
             <span className="text-muted-foreground flex items-center gap-1.5">
-              Remaining annual W-4 gap
+              Estimated remaining annual gap
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label="About remaining annual W-4 gap"
+                    aria-label="About estimated remaining annual gap"
                     className="text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <Info className="h-3.5 w-3.5" />
@@ -1304,44 +1320,32 @@ export default function W4PaycheckAdjustmentCard() {
                 </TooltipContent>
               </Tooltip>
             </span>
-            <span className="font-semibold tabular-nums text-foreground">
+            <span className="tabular-nums text-muted-foreground">
               {fmt(remainingW4Gap)}
             </span>
           </div>
 
-          {/* Compact non-W-2 reserves toggle */}
-          <div className="rounded-md border border-border p-3 flex items-center justify-between gap-3">
-            <Label
-              htmlFor="w4-count-nonw2"
-              className="text-sm font-medium text-foreground flex items-center gap-1.5"
-            >
-              Count planned 1099/business/K-1 tax reserves
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="About counting planned non-W-2 reserves"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-xs">
-                    When on, we assume you will save the recommended tax reserve
-                    from future non-W-2 income, so your W-4 only covers the
-                    remaining gap. When off, your W-4 may try to cover more of
-                    your total annual tax burden.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </Label>
-            <Switch
-              id="w4-count-nonw2"
-              checked={countPlannedNonW2Reserves}
-              onCheckedChange={handleToggleChange}
-            />
-          </div>
+          {/* Compact non-W-2 reserves toggle — hidden for W-2-only users */}
+          {hasNonW2Income && (
+            <div className="rounded-md border border-border p-3 flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <Label
+                  htmlFor="w4-count-nonw2"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Include business tax reserves
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Counts planned 1099/K-1 tax savings when estimating your W-4 gap.
+                </p>
+              </div>
+              <Switch
+                id="w4-count-nonw2"
+                checked={countPlannedNonW2Reserves}
+                onCheckedChange={handleToggleChange}
+              />
+            </div>
+          )}
 
           {/* Compact data-completeness warning (single line, links to Settings) */}
           {hasAnyDataWarning && (
@@ -1364,7 +1368,7 @@ export default function W4PaycheckAdjustmentCard() {
           {/* Multi-W-2 helper tooltip line (compact) */}
           {dataCompleteness.multipleW2 && (
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              Multiple W-2 jobs detected
+              Multiple W-2 jobs are included in this estimate.
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
