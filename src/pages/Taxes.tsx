@@ -253,7 +253,7 @@ export default function Taxes() {
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6 mt-0">
-      {(() => null)()}
+      {/* ── Header ── */}
       {/* ── Header ── */}
       <div className="space-y-3">
         <div className="flex items-start justify-between flex-wrap gap-3">
