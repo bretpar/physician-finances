@@ -253,90 +253,109 @@ export default function Taxes() {
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6 mt-0">
-      {/* ── Header ── */}
-      {/* ── Header ── */}
-      <div className="space-y-3">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Tax Overview</h1>
-            <p className="text-sm text-muted-foreground">
-              {isW2Only ? "Household income, withholding, and projected refund or amount due" : "Current vs forecasted tax estimates"}
-            </p>
-          </div>
-          <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
-            <button
-              onClick={() => setTaxMode("forecast")}
-              className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                taxMode === "forecast"
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-primary/30"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Planned Income
-            </button>
-            <button
-              onClick={() => setTaxMode("actual")}
-              className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                taxMode === "actual"
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-primary/30"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Actual Only
-            </button>
-          </div>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Tax Overview</h1>
+          <p className="text-sm text-muted-foreground">
+            {isW2Only ? "Household income, withholding, and projected refund or amount due" : "Current vs forecasted tax estimates"}
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {taxMode === "actual"
-            ? "Actual Only: uses income already entered."
-            : "Include Planned Income: adds future planned income to estimate the year."}
-        </p>
+        <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
+          <button
+            onClick={() => setTaxMode("forecast")}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              taxMode === "forecast"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Planned Income
+          </button>
+          <button
+            onClick={() => setTaxMode("actual")}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              taxMode === "actual"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Actual Only
+          </button>
+        </div>
       </div>
 
-      {/* ── 1. Tax status card ── */}
-      {(() => {
-        const target = getActivePaymentTarget(new Date());
-        const dueMetaMap: Record<number, string> = { 1: "April 15", 2: "June 15", 3: "September 15", 4: "January 15" };
-        const dueYear = target.quarter === 4 ? target.year + 1 : target.year;
-        const dueDateLong = `${dueMetaMap[target.quarter]}, ${dueYear}`;
-        const onTrack = remainingTax <= 0;
-        return (
-          <Card className="border-primary/30">
-            <CardContent className="p-5 space-y-3">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tax status</p>
-                  <p className={cn("mt-1 text-2xl sm:text-3xl font-bold tabular-nums", onTrack ? "text-primary" : "text-destructive")}>
-                    {onTrack ? "You're on track" : `Set aside ${fmt(remainingTax)} more`}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Based on your current income, deductions, withholding, tax reserves, and logged payments.
-                  </p>
-                </div>
-              </div>
-              {!isW2Only && (
-                <div>
-                  <Button
-                    onClick={() => {
-                      resetPaymentForm();
-                      setPaymentQuarter(`Q${target.quarter}`);
-                      setPaymentOpen(true);
-                    }}
-                    className="gap-2"
-                  >
-                    <Plus className="h-4 w-4" /> Log Q{target.quarter} Payment
-                  </Button>
-                  <p className="mt-2 text-xs text-muted-foreground">Due {dueDateLong}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })()}
+      <div data-testid="tax-overview-summary" className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">Total Gross Income</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's included?">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    Gross income fed into the tax engine before any deductions. Includes W-2, 1099, K-1, personal income entries, dividends, capital gains, rental, and YTD catch-ups. In Planned Income mode it also adds future planned paychecks — that's the same number shown as "Expected Annual Income" on the Dashboard. Switch to "Actual Only" to see just what's been received so far.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(totalGrossIncome)}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Before deductions</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">Total Taxable Income</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's subtracted?">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    Taxable income after the standard or itemized deduction, pre-tax payroll items (401(k), HSA, health premiums), business expenses, mileage, home-office deduction, and the deductible half of SE tax. This is why it's lower than Total Gross Income — and why neither matches the Dashboard's gross "Expected Annual Income" exactly.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(e?.taxableIncome ?? 0)}</p>
+            <p className="mt-2 text-xs text-muted-foreground">After eligible deductions</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-muted-foreground">Effective Tax Rate</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    {isW2Only
+                      ? "This is the shared household rate used for paycheck withholding guidance."
+                      : "This is the effective tax rate used to estimate extra tax savings needed from W-2 paychecks. Business income may also have additional self-employment or business taxes calculated separately."}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-primary">{overviewEffectiveRate.toFixed(1)}%</p>
+            <p className="mt-2 text-xs text-muted-foreground">Used for W-2 savings guidance</p>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* ── 2. Recommended quarterly payment (inside QuarterlyTracker) ── */}
+      {/* Tax Calculation Details moved below the quarterly tracker */}
+
       {isW2Only && debug && (
         <Card>
           <CardContent className="p-5 space-y-3">
@@ -377,7 +396,7 @@ export default function Taxes() {
           personalBucketRate={personalRate}
           businessBucketRate={businessRate}
           effectiveTaxRate={trackerEffectiveTaxRate}
-          breakdownTitle="Show this quarter by source"
+          breakdownTitle="This quarter by source"
           manualSavings={sharedQrInput.manualSavings}
           showRecommendedPayment
           onLogPayment={() => {
@@ -389,81 +408,12 @@ export default function Taxes() {
         />
       </section>}
 
-      {/* ── 3. Annual summary cards ── */}
-      <div data-testid="tax-overview-summary" className="grid gap-4 grid-cols-1 md:grid-cols-3">
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-muted-foreground">Total Gross Income</p>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's included?">
-                      <Info className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    Gross income before deductions. Includes W-2, 1099, K-1, personal, dividends, capital gains, rental, and YTD catch-ups. In Planned Income mode it also adds future planned paychecks.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(totalGrossIncome)}</p>
-            <p className="mt-2 text-xs text-muted-foreground">Before deductions</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-muted-foreground">Total Taxable Income</p>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button type="button" className="text-muted-foreground hover:text-foreground" aria-label="What's subtracted?">
-                      <Info className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    After the standard or itemized deduction, pre-tax payroll items (401(k), HSA, premiums), business expenses, mileage, home-office, and the deductible half of SE tax.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmt(e?.taxableIncome ?? 0)}</p>
-            <p className="mt-2 text-xs text-muted-foreground">After eligible deductions</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-muted-foreground">Effective Tax Rate</p>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button type="button" className="text-muted-foreground hover:text-foreground">
-                      <Info className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    {isW2Only
-                      ? "Shared household rate used for paycheck withholding guidance."
-                      : "Effective tax rate used to estimate extra tax savings needed from W-2 paychecks. Business income may also have SE or business taxes calculated separately."}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <p className="mt-2 text-3xl font-bold tabular-nums text-primary">{overviewEffectiveRate.toFixed(1)}%</p>
-            <p className="mt-2 text-xs text-muted-foreground">Used for W-2 savings guidance</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── 4. Annual tax breakdown (collapsed) ── */}
+      {/* ── Tax Calculation Details (compact, after the quarterly widget) ── */}
       <Collapsible open={showCalcDetails} onOpenChange={setShowCalcDetails}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
             <ChevronDown className={cn("h-4 w-4 transition-transform", showCalcDetails && "rotate-180")} />
-            Show annual tax breakdown
+            Tax calculation details
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
@@ -471,7 +421,7 @@ export default function Taxes() {
             <Card>
               <CardContent className="pt-4 pb-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Federal income tax (after credits)</span>
+                  <span className="text-muted-foreground">Federal tax after credits</span>
                   <span className="font-medium tabular-nums">{fmt(debug.federalIncomeTax)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -496,12 +446,6 @@ export default function Taxes() {
                   <span>Remaining projected tax</span>
                   <span className={cn("tabular-nums", remainingTax > 0 ? "text-destructive" : "text-primary")}>{fmt(remainingTax)}</span>
                 </div>
-                <p className="pt-2 text-xs text-muted-foreground">
-                  For full breakdown including Social Security, Medicare, capital gains, deductions and credits, open the Tax Breakdown tab.
-                </p>
-                <Button variant="outline" size="sm" onClick={() => setActiveTab("breakdown")}>
-                  View full tax breakdown
-                </Button>
               </CardContent>
             </Card>
           )}
