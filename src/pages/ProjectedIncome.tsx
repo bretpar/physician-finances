@@ -1535,24 +1535,29 @@ export default function ProjectedIncome() {
               </CollapsibleContent>
             </Collapsible>
 
-            {num(form.paycheck_amount) > 0 && (
-              <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                <span className="text-muted-foreground">Est. take-home: </span>
-                <span className="font-semibold text-foreground">
-                  {fmtFull(Math.max(0,
-                    num(form.paycheck_amount)
-                    - num(form.taxes_withheld)
-                    - num(form.federal_withholding)
-                    - num(form.state_withholding)
-                    - num(form.ss_withholding)
-                    - num(form.medicare_withholding)
-                    - num(form.retirement_401k)
-                    - num(form.healthcare_deduction)
-                    - num(form.pre_tax_deductions)
-                  ))}
-                </span>
-              </div>
-            )}
+            {num(form.paycheck_amount) > 0 && (() => {
+              // Federal payroll taxes are a single bucket. Prefer the canonical
+              // total (taxes_withheld) when populated; otherwise sum the
+              // federal/SS/Medicare breakdown. Never subtract both.
+              const totalFederal = num(form.taxes_withheld) > 0
+                ? num(form.taxes_withheld)
+                : num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding);
+              const takeHome = Math.max(0,
+                num(form.paycheck_amount)
+                - totalFederal
+                - num(form.state_withholding)
+                - num(form.retirement_401k)
+                - num(form.healthcare_deduction)
+                - num(form.pre_tax_deductions)
+              );
+              return (
+                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Est. take-home: </span>
+                  <span className="font-semibold text-foreground">{fmtFull(takeHome)}</span>
+                </div>
+              );
+            })()}
+
           </div>
 
           <DialogFooter>
