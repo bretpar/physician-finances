@@ -1257,7 +1257,10 @@ export default function W4PaycheckAdjustmentCard() {
                     className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2"
                     data-testid={`w4-hero-card-${slug}`}
                   >
-                    <p className="text-sm font-medium text-foreground break-words">
+                    <p
+                      className="text-sm font-medium text-foreground break-words [overflow-wrap:anywhere] hyphens-auto leading-snug"
+                      title={r.company}
+                    >
                       {r.company}
                     </p>
                     <p className="text-3xl sm:text-4xl font-bold tabular-nums text-primary leading-tight">
