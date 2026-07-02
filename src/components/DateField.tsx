@@ -16,6 +16,8 @@ interface DateFieldProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  /** Month to display when the popover opens if `value` is empty (yyyy-MM-dd). */
+  defaultMonth?: string;
 }
 
 /**
