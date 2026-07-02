@@ -1628,16 +1628,51 @@ export default function ProjectedIncome() {
             Override the default amounts for this specific date only. The rest of the stream stays unchanged.
           </p>
           <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>Date</Label>
-              <DateField
-                value={overrideForm.new_date}
-                onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
-              />
-              {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
-                <p className="text-xs text-muted-foreground">
-                  Moved from original date {overrideTarget?.date}.
-                </p>
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Original scheduled date
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums">
+                    {overrideTarget?.date}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Label htmlFor="move-date-toggle" className="text-xs">
+                    Move paycheck date
+                  </Label>
+                  <Switch
+                    id="move-date-toggle"
+                    checked={overrideForm.move_date_enabled}
+                    onCheckedChange={(checked) =>
+                      setOverrideForm((p) => ({
+                        ...p,
+                        move_date_enabled: checked,
+                        // When turning OFF, snap the form date back to the anchor so the
+                        // "moved from" hint disappears and future saves stay null.
+                        new_date: checked ? p.new_date : (overrideTarget?.date || p.new_date),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Use this only if the actual paycheck moved to a different date.
+              </p>
+              {overrideForm.move_date_enabled && (
+                <div className="space-y-1.5 pt-1">
+                  <Label className="text-xs">New paycheck date</Label>
+                  <DateField
+                    value={overrideForm.new_date}
+                    onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
+                  />
+                  {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
+                    <p className="text-xs text-muted-foreground">
+                      Moved from original date {overrideTarget?.date}.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
             <div className="space-y-1.5">
