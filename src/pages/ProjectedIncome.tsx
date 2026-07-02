@@ -589,13 +589,19 @@ export default function ProjectedIncome() {
     // Anchor date = the original scheduled occurrence. If this entry was already moved,
     // the anchor lives on the override row, otherwise it's the entry's own date.
     const anchorDate = existing?.override_date || entry.date;
+    // Default "Move paycheck date" OFF. Only pre-enable if the saved override
+    // already has an explicit different new_date — preserves prior legitimate
+    // moves without opting new edits into date-moving by default.
+    const priorMoved =
+      !!existing?.new_date && existing.new_date !== anchorDate;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
       pre_tax_deductions: String(entry.preTaxDeductions),
       notes: existing?.notes || "",
-      new_date: existing?.new_date || entry.date,
+      new_date: priorMoved ? (existing!.new_date as string) : anchorDate,
+      move_date_enabled: priorMoved,
     });
     setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
@@ -603,9 +609,13 @@ export default function ProjectedIncome() {
   const handleOverrideSubmit = () => {
     if (!overrideTarget) return;
     const existing = overrideLookup.get(`${overrideTarget.streamId}:${overrideTarget.date}`);
-    // If user picked the same date as the anchor, treat as "no move"
+    // Only persist new_date when the user explicitly enabled "Move paycheck date"
+    // AND picked a date different from the original occurrence. Otherwise save
+    // null so a stale form value can't silently move the paycheck.
     const movedDate =
-      overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
+      overrideForm.move_date_enabled &&
+      overrideForm.new_date &&
+      overrideForm.new_date !== overrideTarget.date
         ? overrideForm.new_date
         : null;
     const payload = {
