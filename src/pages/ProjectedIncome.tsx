@@ -878,7 +878,11 @@ export default function ProjectedIncome() {
               summaryBits.push(`${matchedEntries.length} matched`);
             if (skippedCount > 0)
               summaryBits.push(`${skippedCount} skipped`);
-            const summaryLabel = isPast && !isExpanded && summaryBits.length
+            // Show converted/skipped counts whenever a month has any — even
+            // upcoming or current months — so the collapsed row reflects
+            // ledger state, not just "1 paycheck / $2,100".
+            const hasLedgerState = convertedEntries.length > 0 || matchedEntries.length > 0 || skippedCount > 0;
+            const summaryLabel = !isExpanded && hasLedgerState && summaryBits.length
               ? summaryBits.join(" · ")
               : countableEntries > 0
                 ? countLabel
