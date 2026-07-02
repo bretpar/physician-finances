@@ -52,7 +52,6 @@ const baseStream = (over: Partial<ProjectedIncomeStream> = {}): ProjectedIncomeS
   state_withholding: 0,
   ss_withholding: 0,
   medicare_withholding: 0,
-  total_federal_payroll_taxes: 0,
   retirement_401k: 0,
   healthcare_deduction: 0,
   hsa_contribution: 0,
