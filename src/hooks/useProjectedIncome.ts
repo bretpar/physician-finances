@@ -990,16 +990,18 @@ export function useUpdateOverride() {
 export function useDeleteOverride() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (arg: string | { id: string; silent?: boolean }) => {
+      const id = typeof arg === "string" ? arg : arg.id;
       const { error } = await supabase
         .from("projected_income_overrides")
         .delete()
         .eq("id", id);
       if (error) throw error;
+      return { silent: typeof arg === "string" ? false : !!arg.silent };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
-      toast.success("Override removed");
+      if (!result?.silent) toast.success("Override removed");
     },
     onError: (e) => toast.error(e.message),
   });
