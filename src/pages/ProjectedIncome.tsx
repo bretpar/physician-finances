@@ -1002,11 +1002,17 @@ export default function ProjectedIncome() {
                                 <AlertCircle className="h-2.5 w-2.5" /> Past due
                               </Badge>
                             )}
-                            {isConverted && (
-                              <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
-                                <CheckCircle2 className="h-2.5 w-2.5" /> Converted
-                              </Badge>
-                            )}
+                            {isConverted && (() => {
+                              const ledgerDate = conversionLedgerDate.get(`${entry.streamId}:${entry.date}`);
+                              const _t = (entry.streamCompanyType || "").toLowerCase();
+                              const targetLabel = (_t === "1099" || _t === "k1" || _t === "1099_schedule_c" || _t === "k1_partnership" || _t === "scorp_distribution") ? "Business" : "Personal Income";
+                              return (
+                                <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
+                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                  Converted to {targetLabel}{ledgerDate ? ` · ${ledgerDate.slice(5)}` : ""}
+                                </Badge>
+                              );
+                            })()}
                             {isSkipped && !isConverted && (
                               <Badge variant="outline" className="text-xs shrink-0 border-destructive/40 text-destructive">Skipped</Badge>
                             )}
