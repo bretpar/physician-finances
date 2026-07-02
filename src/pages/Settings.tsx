@@ -2715,6 +2715,14 @@ export default function Settings() {
       <ConnectedAccountsSection />
       <TeamSection />
       <BuildInfoSection />
+      <SectionCard
+        title="Data Maintenance"
+        icon={<Calculator className="h-5 w-5" />}
+        description="Clean up orphaned rows left behind by deleted Income Planner streams or bank transactions."
+        hideActionBar
+      >
+        <OrphanIncomeCleanupCard />
+      </SectionCard>
       <DangerZoneSection />
     </div>
   );
