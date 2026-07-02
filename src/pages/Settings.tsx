@@ -56,6 +56,7 @@ import { ForecastingAutomationSection } from "@/components/settings/ForecastingA
 import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
 import AddCompanyDialog from "@/components/settings/AddCompanyDialog";
 import { DangerZoneSection } from "@/components/settings/DangerZoneSection";
+import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
@@ -2714,6 +2715,14 @@ export default function Settings() {
       <ConnectedAccountsSection />
       <TeamSection />
       <BuildInfoSection />
+      <SectionCard
+        title="Data Maintenance"
+        icon={<Calculator className="h-5 w-5" />}
+        description="Clean up orphaned rows left behind by deleted Income Planner streams or bank transactions."
+        hideActionBar
+      >
+        <OrphanIncomeCleanupCard />
+      </SectionCard>
       <DangerZoneSection />
     </div>
   );

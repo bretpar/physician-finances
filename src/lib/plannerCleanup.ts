@@ -200,7 +200,7 @@ export interface OrphanPlannerEntry {
 export async function fetchOrphanPlannerEntries(): Promise<OrphanPlannerEntry[]> {
   const { data } = await supabase
     .from("income_entries")
-    .select("id, company, income_date, paycheck_amount, notes, linked_transaction_id, origin_planner_conversion_id, origin_type")
+    .select("id, company, income_date, paycheck_amount, notes, linked_transaction_id, origin_planner_conversion_id, origin_type, created_at, updated_at")
     .eq("origin_type", "planner_converted");
   const rows = (data || []) as any[];
   if (rows.length === 0) return [];
@@ -217,9 +217,23 @@ export async function fetchOrphanPlannerEntries(): Promise<OrphanPlannerEntry[]>
     for (const c of (convs || []) as any[]) liveConvIds.add(c.id);
   }
 
+  // Exact notes strings the planner writes at creation. Any deviation
+  // (user typed anything, appended a note, etc.) disqualifies the row.
+  const PLANNER_NOTES_EXACT = new Set(["From planner", "From planner (bonus)"]);
+
   return rows
     .filter((r) => !r.origin_planner_conversion_id || !liveConvIds.has(r.origin_planner_conversion_id))
-    .filter((r) => notesLooksPlannerCreated(r.notes) && !r.linked_transaction_id)
+    .filter((r) => {
+      if (r.linked_transaction_id) return false;
+      if (r.origin_type !== "planner_converted") return false;
+      const notes = (r.notes || "").trim();
+      if (!PLANNER_NOTES_EXACT.has(notes)) return false;
+      // Not user-edited: updated_at must be within 2s of created_at.
+      const created = r.created_at ? new Date(r.created_at).getTime() : 0;
+      const updated = r.updated_at ? new Date(r.updated_at).getTime() : 0;
+      if (created && updated && Math.abs(updated - created) > 2000) return false;
+      return true;
+    })
     .map((r) => ({
       id: r.id,
       company: r.company,
