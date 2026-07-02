@@ -753,7 +753,7 @@ export default function ProjectedIncome() {
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">{isW2Only ? "Withholding Guide" : "Income Planner"}</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Income Planner</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {isW2Only
             ? "Your paycheck already withholds some taxes. This guide checks whether your current and expected withholding is enough for your projected household tax bill."
