@@ -1741,7 +1741,7 @@ export default function PersonalIncome() {
           sections.push({
             title: "Source: Income Planner",
             fields: [
-              { label: "Created from", value: "Income Planner auto-conversion" },
+              { label: "Created from", value: "Converted from Income Planner" },
               ...(plannerStream?.company
                 ? [{ label: "Stream", value: plannerStream.company }]
                 : []),

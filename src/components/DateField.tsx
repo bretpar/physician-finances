@@ -16,6 +16,8 @@ interface DateFieldProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  /** Month to display when the popover opens if `value` is empty (yyyy-MM-dd). */
+  defaultMonth?: string;
 }
 
 /**
@@ -29,6 +31,7 @@ export function DateField({
   className,
   disabled,
   id,
+  defaultMonth,
 }: DateFieldProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -37,6 +40,13 @@ export function DateField({
     const d = parse(value, "yyyy-MM-dd", new Date());
     return isValid(d) ? d : undefined;
   }, [value]);
+
+  const defaultMonthDate = React.useMemo(() => {
+    if (parsed) return parsed;
+    if (!defaultMonth) return undefined;
+    const d = parse(defaultMonth, "yyyy-MM-dd", new Date());
+    return isValid(d) ? d : undefined;
+  }, [parsed, defaultMonth]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -60,6 +70,7 @@ export function DateField({
         <Calendar
           mode="single"
           selected={parsed}
+          defaultMonth={defaultMonthDate}
           onSelect={(date) => {
             if (date) {
               onChange(format(date, "yyyy-MM-dd"));

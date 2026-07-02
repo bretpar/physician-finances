@@ -687,9 +687,10 @@ export default function ProjectedIncome() {
       new_date: movedDate,
     };
     if (existing) {
-      deleteOverride.mutate(existing.id, {
-        onSuccess: () => addOverride.mutate(payload),
-      });
+      deleteOverride.mutate(
+        { id: existing.id, silent: true },
+        { onSuccess: () => addOverride.mutate(payload) },
+      );
     } else {
       addOverride.mutate(payload);
     }
@@ -752,7 +753,7 @@ export default function ProjectedIncome() {
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">{isW2Only ? "Withholding Guide" : "Income Planner"}</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Income Planner</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {isW2Only
             ? "Your paycheck already withholds some taxes. This guide checks whether your current and expected withholding is enough for your projected household tax bill."
@@ -1752,11 +1753,15 @@ export default function ProjectedIncome() {
                   <Label className="text-xs">New paycheck date</Label>
                   <DateField
                     value={overrideForm.new_date}
+                    defaultMonth={overrideTarget?.date}
                     onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
                   />
-                  {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
+                  {overrideTarget?.date && (
                     <p className="text-xs text-muted-foreground">
-                      Moved from original date {overrideTarget?.date}.
+                      Originally scheduled {formatDate(overrideTarget.date)}
+                      {overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
+                        ? ` · Moved to ${formatDate(overrideForm.new_date)}`
+                        : ""}
                     </p>
                   )}
                 </div>
