@@ -78,7 +78,7 @@ export function usePlannerConversionFallback() {
           qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
           qc.invalidateQueries({ queryKey: ["income_entries"] });
           qc.invalidateQueries({ queryKey: ["projected_income_streams"] });
-          qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+          qc.invalidateQueries({ queryKey: ["planner_conversions"] }); qc.invalidateQueries({ queryKey: ["planner_conversions_full"] });
         }
       } catch (err) {
         console.error("planner conversion fallback failed", err);
