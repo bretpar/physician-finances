@@ -114,7 +114,16 @@ export function ForecastingAutomationSection({ bare = false }: { bare?: boolean 
               aria-label="Toggle auto-convert future income"
             />
           </div>
+          {isOn && (
+            <p className="mt-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40 rounded-md px-2.5 py-1.5">
+              Heads up: when a planned paycheck date arrives, PaycheckMD will
+              create a reviewable Personal Income entry (or Business income for
+              1099/K-1 streams). You can trace any created row back to its
+              planner occurrence from the Personal Income detail drawer.
+            </p>
+          )}
         </div>
+
 
         {isOn && (
           <div>
