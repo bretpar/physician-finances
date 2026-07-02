@@ -353,6 +353,34 @@ export function usePlannerConversions() {
   });
 }
 
+/**
+ * Full planner_conversions row — used by ledger detail drawers to look up
+ * the originating stream + occurrence for any `origin_planner_conversion_id`.
+ */
+export interface PlannerConversionFull {
+  id: string;
+  stream_id: string | null;
+  bonus_event_id: string | null;
+  occurrence_date: string;
+  status: string;
+  ledger_bucket: string | null;
+  income_entry_id: string | null;
+  transaction_id: string | null;
+  needs_review_reason: string | null;
+}
+export function usePlannerConversionsFull() {
+  return useQuery({
+    queryKey: ["planner_conversions_full"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("planner_conversions")
+        .select("id, stream_id, bonus_event_id, occurrence_date, status, ledger_bucket, income_entry_id, transaction_id, needs_review_reason");
+      if (error) throw error;
+      return (data || []) as PlannerConversionFull[];
+    },
+  });
+}
+
 /* ─── Mutations ─── */
 
 export function buildProjectedIncomeStreamInsert(
@@ -487,7 +515,7 @@ export function useConfirmSuggestedMatch() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] }); qc.invalidateQueries({ queryKey: ["planner_conversions_full"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
@@ -715,7 +743,7 @@ export function useManualPlannerConvert() {
       return { conversionId, alreadyExisted: false };
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] }); qc.invalidateQueries({ queryKey: ["planner_conversions_full"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });

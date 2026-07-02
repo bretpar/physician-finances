@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Plus, Trash2, Pencil, ChevronDown, ChevronRight,
   DollarSign, TrendingUp, Calendar, PiggyBank, Shield,
@@ -256,6 +256,9 @@ export default function ProjectedIncome() {
     return new Set([current]);
   });
   const [showPreviousMonths, setShowPreviousMonths] = useState(false);
+  const [highlightKey, setHighlightKey] = useState<string | null>(null);
+  const rowRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Override edit state
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
@@ -298,6 +301,23 @@ export default function ProjectedIncome() {
     }
     return map;
   }, [overrides]);
+
+  // For any converted planner occurrence, look up the ledger date shown on the
+  // resulting Personal/Business income row so the planner can display the
+  // "→ Personal Income (MM-DD)" trace-back next to the Converted badge.
+  const conversionLedgerDate = useMemo(() => {
+    const map = new Map<string, string>(); // `${stream_id}:${occurrence_date}` -> income_date
+    const incomeById = new Map<string, string>();
+    for (const e of incomeEntries || []) incomeById.set(e.id, e.income_date);
+    for (const c of plannerConversions || []) {
+      if (!c.stream_id || !c.occurrence_date) continue;
+      const iid = (c as any).income_entry_id as string | null;
+      if (iid && incomeById.has(iid)) {
+        map.set(`${c.stream_id}:${c.occurrence_date}`, incomeById.get(iid)!);
+      }
+    }
+    return map;
+  }, [plannerConversions, incomeEntries]);
 
   // Map business transactions to the matchable shape (income-typed only —
   // mirrors the bucket router in generateProjectedPaychecks).
@@ -379,6 +399,42 @@ export default function ProjectedIncome() {
       return next;
     });
   };
+
+  // Deep-link from "View in Income Planner" (Personal Income drawer).
+  // Expand the target month, scroll the row into view, briefly ring it.
+  useEffect(() => {
+    const raw = searchParams.get("highlight");
+    if (!raw) return;
+    const [, dateStr] = raw.split(":");
+    if (!dateStr) return;
+    const monthIdx = parseInt(dateStr.split("-")[1], 10) - 1;
+    if (Number.isFinite(monthIdx)) {
+      setExpandedMonths((prev) => {
+        if (prev.has(monthIdx)) return prev;
+        const next = new Set(prev);
+        next.add(monthIdx);
+        return next;
+      });
+      const today = new Date();
+      if (monthIdx < today.getMonth()) setShowPreviousMonths(true);
+    }
+    setHighlightKey(raw);
+    // Give the collapsible time to open before scrolling.
+    const t = setTimeout(() => {
+      const el = rowRefs.current.get(raw);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      // Clear the query param so the highlight is a one-shot.
+      const next = new URLSearchParams(searchParams);
+      next.delete("highlight");
+      setSearchParams(next, { replace: true });
+    }, 300);
+    // Fade the highlight after a few seconds.
+    const t2 = setTimeout(() => setHighlightKey(null), 3500);
+    return () => { clearTimeout(t); clearTimeout(t2); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get("highlight")]);
 
   const setField = (key: keyof StreamForm, value: string | boolean) =>
     setForm((p) => ({ ...p, [key]: value }));
@@ -812,6 +868,21 @@ export default function ProjectedIncome() {
             const isPast = idx < currentMonth;
             const isCurrent = idx === currentMonth;
             const countLabel = `${countableEntries} ${countableEntries === 1 ? "paycheck" : "paychecks"}`;
+            const skippedCount = entries.filter((e) => e.matchStatus === "skipped").length;
+            // Prior-month collapsed summary: surface converted/skipped counts so
+            // ledger rows can be explained even when the month is collapsed.
+            const summaryBits: string[] = [];
+            if (convertedEntries.length > 0)
+              summaryBits.push(`${convertedEntries.length} converted`);
+            if (matchedEntries.length > 0)
+              summaryBits.push(`${matchedEntries.length} matched`);
+            if (skippedCount > 0)
+              summaryBits.push(`${skippedCount} skipped`);
+            const summaryLabel = isPast && !isExpanded && summaryBits.length
+              ? summaryBits.join(" · ")
+              : countableEntries > 0
+                ? countLabel
+                : "";
 
             return (
               <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
@@ -834,13 +905,14 @@ export default function ProjectedIncome() {
                       <span className="font-medium text-foreground truncate">{monthName}</span>
                     </div>
                     <span className="text-xs sm:text-sm text-muted-foreground text-center truncate">
-                      {countableEntries > 0 ? countLabel : ""}
+                      {summaryLabel}
                     </span>
                     <span className="text-sm font-semibold text-foreground text-right whitespace-nowrap">
                       {rowTotal > 0 ? fmt(rowTotal) : ""}
                     </span>
                   </button>
                 </CollapsibleTrigger>
+
 
                 <CollapsibleContent>
                   <div className="ml-4 mr-1 mt-1 mb-2 space-y-2">
@@ -881,13 +953,18 @@ export default function ProjectedIncome() {
                       const viewDestination = isBizType ? "/business-activity" : "/personal-income";
                       const viewLabel = isBizType ? "Business Activity" : "Personal Income";
 
+                      const rowKey = `${entry.streamId}:${entry.date}`;
+                      const isHighlighted = highlightKey === rowKey;
                       return (
                         <div
                           key={i}
+                          ref={(el) => { rowRefs.current.set(rowKey, el); }}
                           role="button"
                           tabIndex={0}
                           onClick={() => setDetailEntry(entry)}
                           className={`flex items-start sm:items-center justify-between gap-2 px-3 py-2.5 rounded-md border bg-card cursor-pointer hover:bg-muted/30 transition-colors ${
+                            isHighlighted ? "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse " : ""
+                          }${
                             isConverted
                               ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20 opacity-70"
                               : isSkipped
@@ -925,11 +1002,17 @@ export default function ProjectedIncome() {
                                 <AlertCircle className="h-2.5 w-2.5" /> Past due
                               </Badge>
                             )}
-                            {isConverted && (
-                              <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
-                                <CheckCircle2 className="h-2.5 w-2.5" /> Converted
-                              </Badge>
-                            )}
+                            {isConverted && (() => {
+                              const ledgerDate = conversionLedgerDate.get(`${entry.streamId}:${entry.date}`);
+                              const _t = (entry.streamCompanyType || "").toLowerCase();
+                              const targetLabel = (_t === "1099" || _t === "k1" || _t === "1099_schedule_c" || _t === "k1_partnership" || _t === "scorp_distribution") ? "Business" : "Personal Income";
+                              return (
+                                <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
+                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                  Converted to {targetLabel}{ledgerDate ? ` · ${ledgerDate.slice(5)}` : ""}
+                                </Badge>
+                              );
+                            })()}
                             {isSkipped && !isConverted && (
                               <Badge variant="outline" className="text-xs shrink-0 border-destructive/40 text-destructive">Skipped</Badge>
                             )}

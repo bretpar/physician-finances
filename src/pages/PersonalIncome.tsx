@@ -29,6 +29,8 @@ import { CheckCircle2, Unlink } from "lucide-react";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import { usePlannerConversionsFull, useProjectedStreams, useStreamOverrides } from "@/hooks/useProjectedIncome";
+import { useNavigate } from "react-router-dom";
 import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
 import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
@@ -216,6 +218,28 @@ export default function PersonalIncome() {
     [rawEntries],
   );
   const addMutation = useAddPersonalIncome();
+  const navigate = useNavigate();
+  const { data: plannerConversionsFull } = usePlannerConversionsFull();
+  const { data: projectedStreams } = useProjectedStreams();
+  const { data: streamOverrides } = useStreamOverrides();
+  const plannerConversionsById = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof plannerConversionsFull>[number]>();
+    for (const c of plannerConversionsFull || []) map.set(c.id, c);
+    return map;
+  }, [plannerConversionsFull]);
+  const streamById = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof projectedStreams>[number]>();
+    for (const s of projectedStreams || []) map.set(s.id, s);
+    return map;
+  }, [projectedStreams]);
+  const overrideByStreamDate = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof streamOverrides>[number]>();
+    for (const o of streamOverrides || []) {
+      map.set(`${o.stream_id}:${o.override_date}`, o);
+      if (o.new_date) map.set(`${o.stream_id}:${o.new_date}`, o);
+    }
+    return map;
+  }, [streamOverrides]);
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
   const createSource = useCreateIncomeSource();
@@ -1620,6 +1644,22 @@ export default function PersonalIncome() {
           : gross - withheld - stateW - preTax - ret401k - hsa - healthcare - otherDed;
         const isYtd = !!(e as any).linked_ytd_catchup_id;
         const fromPlanner = (e as any).origin_type === "planner_converted";
+        const plannerConvId = (e as any).origin_planner_conversion_id as string | null | undefined;
+        const plannerConv = plannerConvId ? plannerConversionsById.get(plannerConvId) : undefined;
+        const plannerStream = plannerConv?.stream_id ? streamById.get(plannerConv.stream_id) : undefined;
+        const plannerOverride =
+          plannerConv?.stream_id && plannerConv?.occurrence_date
+            ? overrideByStreamDate.get(`${plannerConv.stream_id}:${plannerConv.occurrence_date}`)
+            : undefined;
+        const plannerOccurrenceKind: "normal" | "modified" | "moved" | "skipped" | null = plannerOverride
+          ? plannerOverride.action === "skip"
+            ? "skipped"
+            : plannerOverride.new_date && plannerOverride.new_date !== plannerOverride.override_date
+              ? "moved"
+              : "modified"
+          : plannerConv
+            ? "normal"
+            : null;
         const linkedGroupId = e.id
           ? Array.from(incomeMatchGroups?.entries?.() || []).find(([, items]) =>
               items.some((it) => it.entry.id === e.id),
@@ -1691,6 +1731,32 @@ export default function PersonalIncome() {
             ],
           },
         ];
+        if (fromPlanner) {
+          const kindLabel: Record<string, string> = {
+            normal: "Normal scheduled paycheck",
+            modified: "Modified (amount or withholdings edited)",
+            moved: "Moved to a different date",
+            skipped: "Marked skipped in planner",
+          };
+          sections.push({
+            title: "Source: Income Planner",
+            fields: [
+              { label: "Created from", value: "Income Planner auto-conversion" },
+              ...(plannerStream?.company
+                ? [{ label: "Stream", value: plannerStream.company }]
+                : []),
+              ...(plannerConv?.occurrence_date
+                ? [{ label: "Planned occurrence date", value: formatDate(plannerConv.occurrence_date) }]
+                : []),
+              ...(plannerOccurrenceKind
+                ? [{ label: "Occurrence type", value: kindLabel[plannerOccurrenceKind] }]
+                : []),
+              ...(plannerConv?.status && plannerConv.status !== "converted"
+                ? [{ label: "Conversion status", value: plannerConv.status.replace(/_/g, " ") }]
+                : []),
+            ],
+          });
+        }
 
         return (
           <TransactionDetailSheet
@@ -1705,7 +1771,7 @@ export default function PersonalIncome() {
               badges: [
                 ...((e as any).needs_review ? [{ label: "Review", tone: "warning" as const }] : []),
                 ...(isYtd ? [{ label: "YTD Catch-Up", tone: "muted" as const }] : []),
-                ...(fromPlanner ? [{ label: "From Planner", tone: "success" as const }] : []),
+                ...(fromPlanner ? [{ label: "Created from Income Planner", tone: "success" as const }] : []),
                 ...(withheld > 0 ? [{ label: `Withheld ${fmt(withheld)}`, tone: "muted" as const }] : []),
                 ...(reserve > 0 ? [{ label: `Reserve ${fmt(reserve)}`, tone: "default" as const }] : []),
               ],
@@ -1713,6 +1779,34 @@ export default function PersonalIncome() {
             sections={sections}
             extraContent={
               <section className="space-y-3">
+                {fromPlanner && plannerConv && (
+                  <div className="rounded-md border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 px-3 py-2.5 space-y-2">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      This entry was auto-created from an Income Planner paycheck
+                      {plannerStream?.company ? ` for ${plannerStream.company}` : ""}
+                      {plannerConv.occurrence_date ? ` scheduled ${formatDate(plannerConv.occurrence_date)}` : ""}.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => {
+                        if (!plannerConv.stream_id) {
+                          navigate("/projected-income");
+                          return;
+                        }
+                        navigate(
+                          `/projected-income?highlight=${encodeURIComponent(
+                            `${plannerConv.stream_id}:${plannerConv.occurrence_date}`,
+                          )}`,
+                        );
+                      }}
+                    >
+                      <Link2 className="h-3 w-3" /> View in Income Planner
+                    </Button>
+                  </div>
+                )}
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Receipts</h3>
                 <TransactionAttachments
                   transactionId={e.id}

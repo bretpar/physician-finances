@@ -137,7 +137,7 @@ export function DuplicateConversionsReview() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] }); qc.invalidateQueries({ queryKey: ["planner_conversions_full"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
@@ -155,7 +155,7 @@ export function DuplicateConversionsReview() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] }); qc.invalidateQueries({ queryKey: ["planner_conversions_full"] });
       toast.success("Dismissed — planned occurrence preserved");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -198,7 +198,7 @@ export function DuplicateConversionsReview() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
+      qc.invalidateQueries({ queryKey: ["planner_conversions"] }); qc.invalidateQueries({ queryKey: ["planner_conversions_full"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       toast.success("New ledger row created");
