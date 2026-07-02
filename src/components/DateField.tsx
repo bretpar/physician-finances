@@ -70,6 +70,7 @@ export function DateField({
         <Calendar
           mode="single"
           selected={parsed}
+          defaultMonth={defaultMonthDate}
           onSelect={(date) => {
             if (date) {
               onChange(format(date, "yyyy-MM-dd"));
