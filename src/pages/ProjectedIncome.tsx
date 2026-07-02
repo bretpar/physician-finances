@@ -1753,11 +1753,15 @@ export default function ProjectedIncome() {
                   <Label className="text-xs">New paycheck date</Label>
                   <DateField
                     value={overrideForm.new_date}
+                    defaultMonth={overrideTarget?.date}
                     onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
                   />
-                  {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
+                  {overrideTarget?.date && (
                     <p className="text-xs text-muted-foreground">
-                      Moved from original date {overrideTarget?.date}.
+                      Originally scheduled {formatDisplayDate(overrideTarget.date)}
+                      {overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
+                        ? ` · Moved to ${formatDisplayDate(overrideForm.new_date)}`
+                        : ""}
                     </p>
                   )}
                 </div>
