@@ -687,9 +687,10 @@ export default function ProjectedIncome() {
       new_date: movedDate,
     };
     if (existing) {
-      deleteOverride.mutate(existing.id, {
-        onSuccess: () => addOverride.mutate(payload),
-      });
+      deleteOverride.mutate(
+        { id: existing.id, silent: true },
+        { onSuccess: () => addOverride.mutate(payload) },
+      );
     } else {
       addOverride.mutate(payload);
     }
