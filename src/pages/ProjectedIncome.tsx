@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -142,6 +143,12 @@ interface OverrideForm {
   pre_tax_deductions: string;
   notes: string;
   new_date: string;
+  /**
+   * Explicit opt-in for moving the paycheck to a different date. When false,
+   * `new_date` is ignored on save (persisted as null) — protects against
+   * accidentally moving a paycheck just by editing its amount.
+   */
+  move_date_enabled: boolean;
 }
 
 const emptyForm = (monthIdx?: number): StreamForm => {
@@ -253,7 +260,7 @@ export default function ProjectedIncome() {
   // Override edit state
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
-    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "",
+    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "", move_date_enabled: false,
   });
 
   // Bonus edit state
@@ -583,13 +590,19 @@ export default function ProjectedIncome() {
     // Anchor date = the original scheduled occurrence. If this entry was already moved,
     // the anchor lives on the override row, otherwise it's the entry's own date.
     const anchorDate = existing?.override_date || entry.date;
+    // Default "Move paycheck date" OFF. Only pre-enable if the saved override
+    // already has an explicit different new_date — preserves prior legitimate
+    // moves without opting new edits into date-moving by default.
+    const priorMoved =
+      !!existing?.new_date && existing.new_date !== anchorDate;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
       pre_tax_deductions: String(entry.preTaxDeductions),
       notes: existing?.notes || "",
-      new_date: existing?.new_date || entry.date,
+      new_date: priorMoved ? (existing!.new_date as string) : anchorDate,
+      move_date_enabled: priorMoved,
     });
     setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
@@ -597,9 +610,13 @@ export default function ProjectedIncome() {
   const handleOverrideSubmit = () => {
     if (!overrideTarget) return;
     const existing = overrideLookup.get(`${overrideTarget.streamId}:${overrideTarget.date}`);
-    // If user picked the same date as the anchor, treat as "no move"
+    // Only persist new_date when the user explicitly enabled "Move paycheck date"
+    // AND picked a date different from the original occurrence. Otherwise save
+    // null so a stale form value can't silently move the paycheck.
     const movedDate =
-      overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
+      overrideForm.move_date_enabled &&
+      overrideForm.new_date &&
+      overrideForm.new_date !== overrideTarget.date
         ? overrideForm.new_date
         : null;
     const payload = {
@@ -1611,16 +1628,51 @@ export default function ProjectedIncome() {
             Override the default amounts for this specific date only. The rest of the stream stays unchanged.
           </p>
           <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label>Date</Label>
-              <DateField
-                value={overrideForm.new_date}
-                onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
-              />
-              {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
-                <p className="text-xs text-muted-foreground">
-                  Moved from original date {overrideTarget?.date}.
-                </p>
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Original scheduled date
+                  </div>
+                  <div className="text-sm font-semibold tabular-nums">
+                    {overrideTarget?.date}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Label htmlFor="move-date-toggle" className="text-xs">
+                    Move paycheck date
+                  </Label>
+                  <Switch
+                    id="move-date-toggle"
+                    checked={overrideForm.move_date_enabled}
+                    onCheckedChange={(checked) =>
+                      setOverrideForm((p) => ({
+                        ...p,
+                        move_date_enabled: checked,
+                        // When turning OFF, snap the form date back to the anchor so the
+                        // "moved from" hint disappears and future saves stay null.
+                        new_date: checked ? p.new_date : (overrideTarget?.date || p.new_date),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Use this only if the actual paycheck moved to a different date.
+              </p>
+              {overrideForm.move_date_enabled && (
+                <div className="space-y-1.5 pt-1">
+                  <Label className="text-xs">New paycheck date</Label>
+                  <DateField
+                    value={overrideForm.new_date}
+                    onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
+                  />
+                  {overrideForm.new_date && overrideForm.new_date !== overrideTarget?.date && (
+                    <p className="text-xs text-muted-foreground">
+                      Moved from original date {overrideTarget?.date}.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
             <div className="space-y-1.5">
