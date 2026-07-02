@@ -1758,9 +1758,9 @@ export default function ProjectedIncome() {
                   />
                   {overrideTarget?.date && (
                     <p className="text-xs text-muted-foreground">
-                      Originally scheduled {formatDisplayDate(overrideTarget.date)}
+                      Originally scheduled {formatDate(overrideTarget.date)}
                       {overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
-                        ? ` · Moved to ${formatDisplayDate(overrideForm.new_date)}`
+                        ? ` · Moved to ${formatDate(overrideForm.new_date)}`
                         : ""}
                     </p>
                   )}
