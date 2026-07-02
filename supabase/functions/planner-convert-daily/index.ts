@@ -58,6 +58,9 @@ interface Override {
   taxes_withheld: number;
   retirement_401k: number;
   pre_tax_deductions: number;
+  /** Optional moved date — must match the client's generateProjectedPaychecks
+   * behavior so cron and client agree on which calendar date is converted. */
+  new_date: string | null;
 }
 
 const BUSINESS_TYPES = new Set([
