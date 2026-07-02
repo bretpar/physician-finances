@@ -142,6 +142,12 @@ interface OverrideForm {
   pre_tax_deductions: string;
   notes: string;
   new_date: string;
+  /**
+   * Explicit opt-in for moving the paycheck to a different date. When false,
+   * `new_date` is ignored on save (persisted as null) — protects against
+   * accidentally moving a paycheck just by editing its amount.
+   */
+  move_date_enabled: boolean;
 }
 
 const emptyForm = (monthIdx?: number): StreamForm => {
