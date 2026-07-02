@@ -145,8 +145,9 @@ function generateOccurrences(
       const tax = ov?.action === "modify" ? ov.taxes_withheld : s.taxes_withheld;
       const ret = ov?.action === "modify" ? ov.retirement_401k : s.retirement_401k;
       const pre = ov?.action === "modify" ? ov.pre_tax_deductions : s.pre_tax_deductions;
+      const emittedDate = ov?.action === "modify" && ov.new_date ? ov.new_date : dStr;
       out.push({
-        date: dStr, amount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: pre,
+        date: emittedDate, amount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: pre,
         healthcareDeduction: s.healthcare_deduction || 0, hsaContribution: s.hsa_contribution || 0,
         type: "paycheck", streamId: s.id, bonusId: null, isSkipped: skip,
       });
