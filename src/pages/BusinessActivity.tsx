@@ -2428,18 +2428,22 @@ export default function Transactions() {
           const lOther = Number((linked as any).other_deductions) || 0;
           const lReserve = Number((linked as any).additional_tax_reserve) || 0;
           // Net received priority:
-          //   1) Plaid/imported sibling amount loaded in linkedSiblings (cash truth)
-          //   2) denormalized tx.linked_plaid_amount on the canonical row
-          //   3) explicit deposited_amount on the linked income_entry
+          //   1) explicit user-saved deposited_amount on the linked income_entry
+          //      (source of truth — must beat imported Plaid amounts)
+          //   2) Plaid/imported sibling amount loaded in linkedSiblings (cash truth fallback)
+          //   3) denormalized tx.linked_plaid_amount on the canonical row
           //   4) calculated take-home (gross − withholding − pre-tax − 401k − HSA − healthcare − other)
           //   5) gross (fallback so users still see a number)
           const lDeposited = Number((linked as any).deposited_amount) || 0;
+          const lDepositedUsable = lDeposited > 0 && Math.abs(lDeposited - lGross) > 0.5 ? lDeposited : 0;
           const calcNet = Math.max(0, lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther);
-          const lNet = lSiblingAmt > 0
-            ? lSiblingAmt
-            : (lLinkedPlaidAmt > 0
-              ? lLinkedPlaidAmt
-              : (lDeposited > 0 ? lDeposited : (calcNet > 0 ? calcNet : lGross)));
+          const lNet = lDepositedUsable > 0
+            ? lDepositedUsable
+            : (lSiblingAmt > 0
+              ? lSiblingAmt
+              : (lLinkedPlaidAmt > 0
+                ? lLinkedPlaidAmt
+                : (calcNet > 0 ? calcNet : lGross)));
 
           sections.push({
             title: "Tax details",
