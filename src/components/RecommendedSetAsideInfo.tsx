@@ -297,9 +297,9 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
 
   return (
     <div className="space-y-4 text-sm">
-      <div className="rounded-lg border bg-muted/40 px-4 py-3">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Recommended set-aside rate</p>
-        <p className="text-3xl font-bold text-primary mt-0.5">{rate.toFixed(1)}%</p>
+      <div className="rounded-lg border bg-muted/40 px-4 py-3 max-sm:px-3 max-sm:py-2.5">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground truncate">Recommended set-aside rate</p>
+        <p className="text-2xl sm:text-3xl font-bold text-primary mt-0.5">{rate.toFixed(1)}%</p>
       </div>
 
       {breakdown && <RateBreakdownCard components={components} rate={rate} />}
