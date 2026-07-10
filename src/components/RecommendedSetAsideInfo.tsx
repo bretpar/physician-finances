@@ -184,14 +184,14 @@ interface BreakdownLine {
 
 function RateBreakdownLine({ line }: { line: BreakdownLine }) {
   return (
-    <div className="flex justify-between gap-3">
-      <span className="flex items-center gap-1.5">
-        <span className="h-1 w-1 rounded-full bg-primary/60" />
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5 sm:gap-3">
+      <span className="flex items-center gap-1.5 min-w-0">
+        <span className="h-1 w-1 rounded-full bg-primary/60 shrink-0" />
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 cursor-help">
-              {line.label}
-              <HelpCircle className="h-3 w-3 text-muted-foreground/70" />
+            <span className="inline-flex items-center gap-1 cursor-help min-w-0">
+              <span className="truncate">{line.label}</span>
+              <HelpCircle className="h-3 w-3 text-muted-foreground/70 shrink-0" />
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-xs">
@@ -199,7 +199,7 @@ function RateBreakdownLine({ line }: { line: BreakdownLine }) {
           </TooltipContent>
         </Tooltip>
       </span>
-      <span className="tabular-nums">
+      <span className="tabular-nums text-foreground sm:shrink-0">
         {line.value.toFixed(2)}%
         {line.note && (
           <span className="ml-1.5 text-emerald-600 dark:text-emerald-400">
@@ -256,19 +256,19 @@ function RateBreakdownCard({
   ];
 
   return (
-    <div className="rounded-md border bg-background px-3 py-2 text-xs">
+    <div className="rounded-md border bg-background px-3 py-2 text-xs max-sm:px-2.5 max-sm:py-2">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
         Rate Breakdown
       </p>
-      <div className="space-y-1 text-foreground">
+      <div className="space-y-1.5 sm:space-y-1 text-foreground">
         {lines.map((line) => (
           <RateBreakdownLine key={line.label} line={line} />
         ))}
       </div>
       <div className="border-t border-border my-2" />
-      <div className="flex justify-between gap-3 font-semibold text-foreground">
-        <span>Total Recommended Rate</span>
-        <span className="tabular-nums">{rate.toFixed(2)}%</span>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5 sm:gap-3 font-semibold text-foreground">
+        <span className="truncate">Total Recommended Rate</span>
+        <span className="tabular-nums shrink-0">{rate.toFixed(2)}%</span>
       </div>
     </div>
   );
@@ -297,9 +297,9 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
 
   return (
     <div className="space-y-4 text-sm">
-      <div className="rounded-lg border bg-muted/40 px-4 py-3">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Recommended set-aside rate</p>
-        <p className="text-3xl font-bold text-primary mt-0.5">{rate.toFixed(1)}%</p>
+      <div className="rounded-lg border bg-muted/40 px-4 py-3 max-sm:px-3 max-sm:py-2.5">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground truncate">Recommended set-aside rate</p>
+        <p className="text-2xl sm:text-3xl font-bold text-primary mt-0.5">{rate.toFixed(1)}%</p>
       </div>
 
       {breakdown && <RateBreakdownCard components={components} rate={rate} />}
