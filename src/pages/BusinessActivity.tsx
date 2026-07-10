@@ -2119,7 +2119,7 @@ export default function Transactions() {
                   {showField("net_received") && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received<LegacyNote field="net_received" /></Label>
-                      <Input type="number" min="0" step="0.01" placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"} value={incomeForm.net_received} onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))} />
+                      <Input type="number" min="0" step="0.01" placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"} value={incomeForm.net_received} onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))} data-testid="ba-income-net-received" />
                       <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
                     </div>
                   )}
