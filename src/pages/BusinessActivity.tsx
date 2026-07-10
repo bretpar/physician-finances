@@ -2216,9 +2216,10 @@ export default function Transactions() {
               ) : <div />}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowIncomeForm(false)}>Cancel</Button>
-                <Button onClick={saveIncome} disabled={!incomeForm.name.trim() || !incomeForm.date || grossIncome <= 0}>
+                <Button onClick={saveIncome} disabled={!incomeForm.name.trim() || !incomeForm.date || grossIncome <= 0} data-testid="ba-income-save">
                   {isEditingIncome ? "Save" : "Add Income"}
                 </Button>
+
               </div>
             </div>
           </div>
