@@ -2429,23 +2429,17 @@ export default function Transactions() {
           const lHealth = Number((linked as any).healthcare_deduction) || 0;
           const lOther = Number((linked as any).other_deductions) || 0;
           const lReserve = Number((linked as any).additional_tax_reserve) || 0;
-          // Net received priority:
-          //   1) explicit user-saved deposited_amount on the linked income_entry
-          //      (source of truth — must beat imported Plaid amounts)
-          //   2) Plaid/imported sibling amount loaded in linkedSiblings (cash truth fallback)
-          //   3) denormalized tx.linked_plaid_amount on the canonical row
-          //   4) calculated take-home (gross − withholding − pre-tax − 401k − HSA − healthcare − other)
-          //   5) gross (fallback so users still see a number)
-          const lDeposited = Number((linked as any).deposited_amount) || 0;
-          const lDepositedUsable = lDeposited > 0 && Math.abs(lDeposited - lGross) > 0.5 ? lDeposited : 0;
+          // Net Received precedence — resolved via the shared helper so the
+          // edit modal, transaction detail, CSV export, and reports stay in
+          // lockstep. See src/lib/netReceivedPrecedence.ts for the rules.
           const calcNet = Math.max(0, lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther);
-          const lNet = lDepositedUsable > 0
-            ? lDepositedUsable
-            : (lSiblingAmt > 0
-              ? lSiblingAmt
-              : (lLinkedPlaidAmt > 0
-                ? lLinkedPlaidAmt
-                : (calcNet > 0 ? calcNet : lGross)));
+          const lNet = resolveNetReceived({
+            gross: lGross,
+            savedDeposited: (linked as any).deposited_amount,
+            siblingAmount: lSiblingAmt,
+            linkedPlaidAmount: lLinkedPlaidAmt,
+            calculatedNet: calcNet,
+          });
 
           sections.push({
             title: "Tax details",
@@ -2463,10 +2457,15 @@ export default function Transactions() {
             ],
           });
         } else if (isIncomeTx) {
-          // No linked income_entries row — still honor a linked Plaid/imported
-          // sibling so Net Received reflects the actual bank deposit.
+          // No linked income_entries row — still resolve Net Received through
+          // the shared helper so an imported Plaid sibling (or denormalized
+          // linked_plaid_amount) shows the actual bank deposit.
           const gAmt = Math.abs(Number(tx.amount) || 0);
-          const nAmt = lSiblingAmt > 0 ? lSiblingAmt : (lLinkedPlaidAmt > 0 ? lLinkedPlaidAmt : gAmt);
+          const nAmt = resolveNetReceived({
+            gross: gAmt,
+            siblingAmount: lSiblingAmt,
+            linkedPlaidAmount: lLinkedPlaidAmt,
+          });
           sections.push({
             title: "Tax details",
             fields: [
@@ -2475,6 +2474,7 @@ export default function Transactions() {
             ],
           });
         }
+
         const badges = [];
         if (tx.needs_review) badges.push({ label: "Review", tone: "warning" as const });
         if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "success" as const });
