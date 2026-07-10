@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Info, CheckCircle2, MinusCircle, AlertTriangle } from "lucide-react";
+import { Info, CheckCircle2, MinusCircle, AlertTriangle, HelpCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -175,6 +175,42 @@ function SsWageBasePanel({
   );
 }
 
+interface BreakdownLine {
+  label: string;
+  value: number;
+  note?: string;
+  tooltip: string;
+}
+
+function RateBreakdownLine({ line }: { line: BreakdownLine }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="flex items-center gap-1.5">
+        <span className="h-1 w-1 rounded-full bg-primary/60" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 cursor-help">
+              {line.label}
+              <HelpCircle className="h-3 w-3 text-muted-foreground/70" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <p className="text-xs">{line.tooltip}</p>
+          </TooltipContent>
+        </Tooltip>
+      </span>
+      <span className="tabular-nums">
+        {line.value.toFixed(2)}%
+        {line.note && (
+          <span className="ml-1.5 text-emerald-600 dark:text-emerald-400">
+            ✓ {line.note}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function RateBreakdownCard({
   components,
   rate,
@@ -190,16 +226,33 @@ function RateBreakdownCard({
     (components?.employeeMedicare ?? 0);
   const ssWageBaseReached = components?.seSocialSecurityCapped && ssRate === 0;
 
-  const lines = [
-    { label: "Federal income tax", value: components?.federal ?? 0 },
+  const lines: BreakdownLine[] = [
+    {
+      label: "Federal income tax",
+      value: components?.federal ?? 0,
+      tooltip: "Estimated federal income tax rate based on your projected annual taxable income and filing status.",
+    },
     {
       label: "Social Security",
       value: ssRate,
       note: ssWageBaseReached ? "Wage base reached" : undefined,
+      tooltip: "Self-employment or employee Social Security tax. Drops to $0 once your annual wages hit the Social Security wage base.",
     },
-    { label: "Medicare", value: medicareRate },
-    { label: "Business tax", value: components?.businessState ?? 0 },
-    { label: "State income tax", value: components?.personalState ?? 0 },
+    {
+      label: "Medicare",
+      value: medicareRate,
+      tooltip: "Self-employment or employee Medicare tax. Applies to all earned income with no wage-base cap.",
+    },
+    {
+      label: "Business tax",
+      value: components?.businessState ?? 0,
+      tooltip: "State or local business taxes, such as Washington B&O tax, if enabled for your business.",
+    },
+    {
+      label: "State income tax",
+      value: components?.personalState ?? 0,
+      tooltip: "Estimated state income tax rate if state income tax is enabled in your tax settings.",
+    },
   ];
 
   return (
@@ -209,20 +262,7 @@ function RateBreakdownCard({
       </p>
       <div className="space-y-1 text-foreground">
         {lines.map((line) => (
-          <div key={line.label} className="flex justify-between gap-3">
-            <span className="flex items-center gap-1.5">
-              <span className="h-1 w-1 rounded-full bg-primary/60" />
-              {line.label}
-            </span>
-            <span className="tabular-nums">
-              {line.value.toFixed(2)}%
-              {line.note && (
-                <span className="ml-1.5 text-emerald-600 dark:text-emerald-400">
-                  ✓ {line.note}
-                </span>
-              )}
-            </span>
-          </div>
+          <RateBreakdownLine key={line.label} line={line} />
         ))}
       </div>
       <div className="border-t border-border my-2" />
