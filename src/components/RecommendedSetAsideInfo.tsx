@@ -258,9 +258,11 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
   return (
     <div className="space-y-4 text-sm">
       <div className="rounded-lg border bg-muted/40 px-4 py-3">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Total tax rate</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Recommended set-aside rate</p>
         <p className="text-3xl font-bold text-primary mt-0.5">{rate.toFixed(1)}%</p>
       </div>
+
+      {breakdown && <RateBreakdownCard components={components} rate={rate} />}
 
       {isK1 && (
         k1Meta ? (
@@ -285,18 +287,15 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
         )
       )}
 
-
-
       <p className="text-foreground">
-        This amount is based on your total tax rate, which may include:
+        Your recommended set-aside rate combines the taxes that apply to this income. Depending on your situation, some items (such as Social Security after reaching the annual wage base or state income tax) may not apply.
       </p>
-      <ul className="space-y-1 text-foreground/90 list-disc pl-5">
-        <li>Federal income taxes</li>
-        <li>Business taxes</li>
-        <li>Self-employment taxes (Social Security &amp; Medicare)</li>
-        <li>Additional self-employment tax burden (1099 / K-1 income)</li>
-        <li>State taxes (if enabled)</li>
-      </ul>
+
+      {(() => {
+        const ssRate =
+          (components?.seSocialSecurity ?? 0) + (components?.employeeSocialSecurity ?? 0);
+        return components?.seSocialSecurityCapped && ssRate === 0 ? <SsWageBaseCallout /> : null;
+      })()}
 
       <div className="space-y-2">
         {taxableBase && <TaxableBasePanel tb={taxableBase} />}
