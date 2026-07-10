@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip, Link2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip, Link2, Info, X } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { MoreHorizontal, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LedgerRow, MonthHeader, groupByMonth, type LedgerRowBadge } from "@/components/LedgerRow";
 import { txTone } from "@/lib/transactionTones";
@@ -265,6 +266,7 @@ export default function PersonalIncome() {
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<PersonalIncomeEntry | null>(null);
+  const [taxesWithheldOpen, setTaxesWithheldOpen] = useState(false);
   const uploadAttachments = useUploadAttachments();
 
   // ─── Mobile multi-select / linking ───
@@ -801,66 +803,82 @@ export default function PersonalIncome() {
           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">W2 Income</p>
           <p className="text-sm sm:text-xl font-bold text-card-foreground truncate">{fmt(totals.w2Income)}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4">
-          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">Taxes Withheld</p>
-          <p className="text-sm sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{fmt(totals.totalWithheld)}</p>
-        </div>
+        <Popover open={taxesWithheldOpen} onOpenChange={setTaxesWithheldOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="rounded-lg border border-border bg-card px-3 py-2 sm:p-4 text-left w-full"
+              aria-label="Taxes Withheld breakdown"
+            >
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">
+                  Taxes Withheld
+                </p>
+                {totals.w2PayrollTaxTotal > 0 && (
+                  <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+                )}
+              </div>
+              <p className="text-sm sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">{fmt(totals.totalWithheld)}</p>
+            </button>
+          </PopoverTrigger>
+          {totals.w2PayrollTaxTotal > 0 && (
+            <PopoverContent
+              side="bottom"
+              align="center"
+              sideOffset={6}
+              className="w-[18rem] sm:w-80 p-0"
+            >
+              <div className="p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    W-2 Taxes Withheld
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTaxesWithheldOpen(false)}
+                    className="rounded p-1 hover:bg-muted -mr-1 -mt-1"
+                    aria-label="Close breakdown"
+                  >
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Federal Income Tax</span>
+                    <span
+                      className="text-sm font-semibold text-card-foreground"
+                      data-testid="w2-federal-withheld"
+                    >
+                      {fmt(totals.w2FederalWH)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Social Security</span>
+                    <span
+                      className="text-sm font-semibold text-card-foreground"
+                      data-testid="w2-ss-withheld"
+                    >
+                      {fmt(totals.w2SsWH)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Medicare</span>
+                    <span
+                      className="text-sm font-semibold text-card-foreground"
+                      data-testid="w2-medicare-withheld"
+                    >
+                      {fmt(totals.w2MedicareWH)}
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground leading-snug border-t border-border pt-2">
+                  Quarterly estimated tax recommendations only use federal income tax withholding as a payment credit.
+                </p>
+              </div>
+            </PopoverContent>
+          )}
+        </Popover>
       </div>
-
-      {/* W-2 payroll tax withholding breakdown — read-only visibility for
-          federal income tax vs Social Security vs Medicare. Sourced directly
-          from saved W-2 entry fields; this does not change tax math. */}
-      {totals.w2PayrollTaxTotal > 0 && (
-        <div
-          className="rounded-lg border border-border bg-card p-3 sm:p-4"
-          data-testid="w2-withholding-breakdown"
-        >
-          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-            W-2 Taxes Withheld (Breakdown)
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-            <div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Federal income tax</p>
-              <p
-                className="text-sm sm:text-base font-semibold text-card-foreground"
-                data-testid="w2-federal-withheld"
-              >
-                {fmt(totals.w2FederalWH)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Social Security</p>
-              <p
-                className="text-sm sm:text-base font-semibold text-card-foreground"
-                data-testid="w2-ss-withheld"
-              >
-                {fmt(totals.w2SsWH)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Medicare</p>
-              <p
-                className="text-sm sm:text-base font-semibold text-card-foreground"
-                data-testid="w2-medicare-withheld"
-              >
-                {fmt(totals.w2MedicareWH)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Total W-2 taxes</p>
-              <p
-                className="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-400"
-                data-testid="w2-total-withheld"
-              >
-                {fmt(totals.w2PayrollTaxTotal)}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
-                Includes Social Security and Medicare. Quarterly estimated tax recommendations only use federal income tax withholding as a payment credit.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
 
       {/* Filters */}
