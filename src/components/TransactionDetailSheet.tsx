@@ -252,11 +252,12 @@ export function TransactionDetailSheet({
               </Button>
             )}
             {!hideEdit && onEdit && (
-              <Button size="sm" onClick={onEdit} className="gap-1.5">
+              <Button size="sm" onClick={onEdit} className="gap-1.5" data-testid="tx-detail-edit">
                 <Pencil className="h-4 w-4" />
                 {editLabel}
               </Button>
             )}
+
           </div>
         </div>
       </SheetContent>
