@@ -175,6 +175,76 @@ function SsWageBasePanel({
   );
 }
 
+function RateBreakdownCard({
+  components,
+  rate,
+}: {
+  components: SavingsRateResult["components"];
+  rate: number;
+}) {
+  const ssRate =
+    (components?.seSocialSecurity ?? 0) + (components?.employeeSocialSecurity ?? 0);
+  const medicareRate =
+    (components?.seMedicare ?? 0) +
+    (components?.seAdditionalMedicare ?? 0) +
+    (components?.employeeMedicare ?? 0);
+  const ssWageBaseReached = components?.seSocialSecurityCapped && ssRate === 0;
+
+  const lines = [
+    { label: "Federal income tax", value: components?.federal ?? 0 },
+    {
+      label: "Social Security",
+      value: ssRate,
+      note: ssWageBaseReached ? "Wage base reached" : undefined,
+    },
+    { label: "Medicare", value: medicareRate },
+    { label: "Business tax", value: components?.businessState ?? 0 },
+    { label: "State income tax", value: components?.personalState ?? 0 },
+  ];
+
+  return (
+    <div className="rounded-md border bg-background px-3 py-2 text-xs">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+        Rate Breakdown
+      </p>
+      <div className="space-y-1 text-foreground">
+        {lines.map((line) => (
+          <div key={line.label} className="flex justify-between gap-3">
+            <span className="flex items-center gap-1.5">
+              <span className="h-1 w-1 rounded-full bg-primary/60" />
+              {line.label}
+            </span>
+            <span className="tabular-nums">
+              {line.value.toFixed(2)}%
+              {line.note && (
+                <span className="ml-1.5 text-emerald-600 dark:text-emerald-400">
+                  ✓ {line.note}
+                </span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-border my-2" />
+      <div className="flex justify-between gap-3 font-semibold text-foreground">
+        <span>Total Recommended Rate</span>
+        <span className="tabular-nums">{rate.toFixed(2)}%</span>
+      </div>
+    </div>
+  );
+}
+
+function SsWageBaseCallout() {
+  return (
+    <div className="rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-xs space-y-1">
+      <p className="font-semibold text-foreground">Why is my rate lower?</p>
+      <p className="text-muted-foreground leading-snug">
+        You&apos;ve already reached the annual Social Security wage base through your W-2 wages and/or previous self-employment income. Because of this, this income is no longer subject to the 12.4% Social Security tax. Medicare tax still applies.
+      </p>
+    </div>
+  );
+}
+
 function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail, taxableBase, k1Treatment, isK1 }: BodyProps) {
   const sourceLabel = breakdown?.baseRateSource === "federalEffectiveRate"
     ? "federalEffectiveRate"
