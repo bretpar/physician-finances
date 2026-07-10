@@ -7,13 +7,31 @@ import type { DbTransaction } from "@/hooks/useTransactions";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
-export interface SuggestedMatch {
+export type ConfidenceLabel = "Strong match" | "Possible match" | "Review needed";
+
+export interface SingleSuggestedMatch {
+  kind: "single";
   manualTx: DbTransaction;
   plaidTx: DbTransaction;
   confidence: number;
-  confidenceLabel: "Strong match" | "Possible match" | "Review needed";
+  confidenceLabel: ConfidenceLabel;
   reasons: string[];
 }
+
+export interface SplitSuggestedMatch {
+  kind: "split";
+  /** The single imported Plaid deposit covering multiple manual entries. */
+  plaidTx: DbTransaction;
+  /** 2-3 manual income entries whose net/gross sums to the deposit. */
+  manualTxs: DbTransaction[];
+  /** What we summed on the manual side (net when known, else gross). */
+  sumTarget: number;
+  confidence: number;
+  confidenceLabel: ConfidenceLabel;
+  reasons: string[];
+}
+
+export type SuggestedMatch = SingleSuggestedMatch | SplitSuggestedMatch;
 
 /**
  * Pure helper for the linking eligibility check. Determines which selected
