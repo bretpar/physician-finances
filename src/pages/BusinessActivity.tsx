@@ -604,10 +604,18 @@ export default function Transactions() {
             - (Number((linked as any).other_deductions) || 0),
         )
       : 0;
+    // Precedence:
+    //   1) Explicit user-saved deposited_amount on the linked income_entry
+    //      (source of truth — must beat any imported Plaid amount so a manual
+    //      correction is never overwritten on reopen).
+    //   2) Linked Plaid/imported sibling cash amount (initial fallback when
+    //      no saved deposited_amount exists yet).
+    //   3) Denormalized linked_plaid_amount on the canonical row.
+    //   4) Calculated take-home from gross − withholding − deductions.
     const netReceivedHydrate =
-      siblingAmt > 0 ? siblingAmt
+      lDepUsable > 0 ? lDepUsable
+      : siblingAmt > 0 ? siblingAmt
       : linkedPlaidAmt > 0 ? linkedPlaidAmt
-      : lDepUsable > 0 ? lDepUsable
       : lCalcNet > 0 && lCalcNet < lGrossForNet ? lCalcNet
       : 0;
 
