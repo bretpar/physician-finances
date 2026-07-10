@@ -2028,7 +2028,9 @@ export default function Transactions() {
                   value={incomeForm.gross_amount}
                   onChange={(e) => setIncomeForm((f) => ({ ...f, gross_amount: e.target.value }))}
                   placeholder="0.00"
+                  data-testid="ba-income-gross"
                 />
+
                 <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
               </div>
             </div>
