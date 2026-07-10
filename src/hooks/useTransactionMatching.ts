@@ -7,13 +7,31 @@ import type { DbTransaction } from "@/hooks/useTransactions";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 
-export interface SuggestedMatch {
+export type ConfidenceLabel = "Strong match" | "Possible match" | "Review needed";
+
+export interface SingleSuggestedMatch {
+  kind: "single";
   manualTx: DbTransaction;
   plaidTx: DbTransaction;
   confidence: number;
-  confidenceLabel: "Strong match" | "Possible match" | "Review needed";
+  confidenceLabel: ConfidenceLabel;
   reasons: string[];
 }
+
+export interface SplitSuggestedMatch {
+  kind: "split";
+  /** The single imported Plaid deposit covering multiple manual entries. */
+  plaidTx: DbTransaction;
+  /** 2-3 manual income entries whose net/gross sums to the deposit. */
+  manualTxs: DbTransaction[];
+  /** What we summed on the manual side (net when known, else gross). */
+  sumTarget: number;
+  confidence: number;
+  confidenceLabel: ConfidenceLabel;
+  reasons: string[];
+}
+
+export type SuggestedMatch = SingleSuggestedMatch | SplitSuggestedMatch;
 
 /**
  * Pure helper for the linking eligibility check. Determines which selected
@@ -251,6 +269,7 @@ export function useSuggestedMatches(
 
         const cappedScore = Math.min(score, 100);
         suggestions.push({
+          kind: "single",
           manualTx: m,
           plaidTx: p,
           confidence: cappedScore,
@@ -260,14 +279,122 @@ export function useSuggestedMatches(
       }
     }
 
-    suggestions.sort((a, b) => b.confidence - a.confidence);
+    // ── Split-deposit combos (one Plaid deposit ↔ multiple manual entries) ──
+    // For each unmatched income Plaid deposit, look for subsets of size 2-3
+    // manual income entries within ±7 days whose summed net (or gross fallback)
+    // is within 5% of the deposit. Combos beat singles on the same Plaid tx
+    // only when their score is higher.
+    const splitSuggestions: SplitSuggestedMatch[] = [];
+    const targetOf = (m: DbTransaction): number => {
+      const ie = incomeByTxId.get(m.id);
+      const dep = Number(ie?.deposited_amount || 0);
+      if (dep > 0) return dep;
+      const gross = Number(ie?.paycheck_amount || Math.abs(m.amount));
+      const tFed = ie ? getTotalFederalPaid(ie as any) : 0;
+      const stateW = Number((ie as any)?.state_withholding || 0);
+      const preTax = Number(ie?.pre_tax_deductions || 0);
+      const ret = Number(ie?.retirement_401k || 0);
+      const hc = Number((ie as any)?.healthcare_deduction || 0);
+      const hsa = Number((ie as any)?.hsa_contribution || 0);
+      const calcNet = Math.max(0, gross - tFed - stateW - preTax - ret - hc - hsa);
+      return calcNet > 0 ? calcNet : gross;
+    };
+
+    const incomePlaid = plaid.filter((p) => (p.transaction_type || "expense") === "income");
+    const incomeManual = manual.filter((m) => (m.transaction_type || "expense") === "income");
+
+    for (const p of incomePlaid) {
+      const pAmt = Math.abs(p.amount);
+      if (pAmt <= 0) continue;
+      const pDate = new Date(p.transaction_date).getTime();
+      // Candidates in ±7 day window, not ignored, not tied to a strong single.
+      const candidates = incomeManual.filter((m) => {
+        if (ignoredPairs.has(`${m.id}:${p.id}`)) return false;
+        const d = Math.abs(new Date(m.transaction_date).getTime() - pDate) / 86400000;
+        return d <= 7;
+      });
+      if (candidates.length < 2) continue;
+
+      // Skip if there's already a Strong single suggestion for this Plaid tx.
+      const strongSingle = suggestions.find(
+        (s) => s.kind === "single" && s.plaidTx.id === p.id && s.confidence >= 75,
+      );
+      if (strongSingle) continue;
+
+      const targets = candidates.map((m) => ({ tx: m, target: targetOf(m) }));
+
+      const tryCombo = (combo: Array<{ tx: DbTransaction; target: number }>) => {
+        const sum = combo.reduce((s, c) => s + c.target, 0);
+        if (sum <= 0) return;
+        const rel = Math.abs(pAmt - sum) / pAmt;
+        if (rel > 0.05) return;
+
+        // Score: base for split, adjusted by fit + shared entity + date spread.
+        let score = rel <= 0.02 ? 78 : 60;
+        const reasons: string[] = [
+          `Sum of ${combo.length} entries ${rel <= 0.005 ? "matches" : rel <= 0.02 ? "within 2% of" : "close to"} deposit`,
+        ];
+        const entities = new Set(combo.map((c) => c.tx.entity).filter((e) => e && e !== "Unassigned"));
+        if (entities.size === 1 && [...entities][0] === p.entity && p.entity !== "Unassigned") {
+          score += 8;
+          reasons.push("Same company");
+        }
+        const maxDayDiff = Math.max(
+          ...combo.map((c) => Math.abs(new Date(c.tx.transaction_date).getTime() - pDate) / 86400000),
+        );
+        if (maxDayDiff <= 3) reasons.push("All within 3 days");
+        else if (maxDayDiff <= 5) reasons.push("All within 5 days");
+        else reasons.push("All within 7 days");
+
+        const capped = Math.min(score, 100);
+        splitSuggestions.push({
+          kind: "split",
+          plaidTx: p,
+          manualTxs: combo.map((c) => c.tx),
+          sumTarget: sum,
+          confidence: capped,
+          confidenceLabel: getConfidenceLabel(capped),
+          reasons,
+        });
+      };
+
+      // Enumerate size-2 and size-3 combos (cap candidates to 6 nearest by date).
+      const nearest = targets
+        .slice()
+        .sort(
+          (a, b) =>
+            Math.abs(new Date(a.tx.transaction_date).getTime() - pDate) -
+            Math.abs(new Date(b.tx.transaction_date).getTime() - pDate),
+        )
+        .slice(0, 6);
+      for (let i = 0; i < nearest.length; i++) {
+        for (let j = i + 1; j < nearest.length; j++) {
+          tryCombo([nearest[i], nearest[j]]);
+          for (let k = j + 1; k < nearest.length; k++) {
+            tryCombo([nearest[i], nearest[j], nearest[k]]);
+          }
+        }
+      }
+    }
+
+    // Combine and dedupe: highest confidence wins; a tx (manual or plaid)
+    // may appear in at most one final suggestion.
+    const all: SuggestedMatch[] = [...suggestions, ...splitSuggestions];
+    all.sort((a, b) => b.confidence - a.confidence);
 
     const usedManual = new Set<string>();
     const usedPlaid = new Set<string>();
-    return suggestions.filter((s) => {
-      if (usedManual.has(s.manualTx.id) || usedPlaid.has(s.plaidTx.id)) return false;
-      usedManual.add(s.manualTx.id);
+    return all.filter((s) => {
+      if (s.kind === "single") {
+        if (usedManual.has(s.manualTx.id) || usedPlaid.has(s.plaidTx.id)) return false;
+        usedManual.add(s.manualTx.id);
+        usedPlaid.add(s.plaidTx.id);
+        return true;
+      }
+      if (usedPlaid.has(s.plaidTx.id)) return false;
+      if (s.manualTxs.some((m) => usedManual.has(m.id))) return false;
       usedPlaid.add(s.plaidTx.id);
+      for (const m of s.manualTxs) usedManual.add(m.id);
       return true;
     });
   }, [transactions, incomeEntries, ignores]);

@@ -1,77 +1,56 @@
-# Conflict-Resolving Transaction Linking
+## Goal
 
-## Scope
+Today the matcher only proposes 1-to-1 pairs and dedupes so each Plaid deposit appears in at most one suggestion. Split deposits (one Plaid credit that actually covers multiple paychecks/income entries, or several small Plaid credits that together cover one gross entry) get missed or, worse, force the user to pick a single "wrong" partner. This adds first-class detection and suggestion of split-deposit combinations, reusing the existing many-to-many match group plumbing (`useCreateMatchGroup`) so no backend changes are needed.
 
-Only the transaction-linking UX + a small merge engine. No tax math, withholding, ledger, or matching-eligibility logic is touched. Automatic-match tolerance and suggested-match scoring stay as-is.
+## Scope (UI + client logic only)
 
-## Current architecture (short review)
+No database migrations. No changes to tax math, save flow, or Plaid sync. Suggestion generation, conflict detection, and the suggested-match card are the only surfaces that change.
 
-- `useTransactionMatching.ts` (971 LOC) handles suggest/link/unlink. Linking is silent: it writes `transaction_links`, flips `status` on the non-canonical side, and lets the canonical row's fields win by default.
-- `IncomeLinkModal` picks the imported sibling and confirms; there is no field diff surfaced.
-- Downstream reads (fixed in the last turn) already respect explicit user-saved values (`deposited_amount`) over Plaid, so we don't need to alter reads.
+## Detection logic (`useSuggestedMatches`)
 
-## Design decision
+Extend the current 1-to-1 pass with a second "combination" pass:
 
-A field-level merge engine is the right upgrade over the "hierarchy silently wins" model:
+1. Group unmatched manual income entries by `entity`/company and by date bucket (±7 days from each Plaid deposit, same rule already used).
+2. For every unmatched Plaid income deposit `P`, look at the manual candidates in that window.
+   - Compute the target: prefer the sum of each manual entry's `deposited_amount` (net) when known, otherwise fall back to calculated net, otherwise gross — mirroring the existing 1-to-1 amount scoring.
+   - Enumerate subsets of size 2 and 3 (cap 3 to keep it O(n³) in a small window). Skip any subset whose best 1-to-1 pair for `P` is already a Strong match.
+   - Accept a combo when the summed target is within 2% (Strong) / 5% (Possible) of `|P.amount|`.
+3. Emit a new suggestion shape: `{ kind: "split", plaidTx, manualTxs: DbTransaction[], sumTarget, confidence, confidenceLabel, reasons }`. Existing 1-to-1 shape becomes `{ kind: "single", manualTx, plaidTx, ... }`.
+4. Dedup rules updated: a Plaid tx may appear in at most one suggestion (single OR split, whichever scored higher); a manual tx may appear in at most one suggestion. Split combos beat weaker singles on the same Plaid tx.
 
-1. **Merge engine** — one pure module compares field-by-field between the manual income entry / manual transaction and the Plaid transaction, returns a `FieldConflict[]` list with `{ field, label, currentValue, importedValue, defaultChoice, kind }`.
-2. **User-lock preservation** — decisions are persisted per link on `transaction_links` as a JSONB `field_locks` column (`{ deposited_amount: "current", transaction_date: "imported", vendor: {custom: "..."} }`). Any future Plaid resync respects these locks and never rewrites a locked field.
-3. **Field authority defaults** — Plaid amount is authoritative for `deposit_amount` only; user-entered gross / withholding / retirement / HSA / notes default to "current". Date defaults to imported (bank posts truth).
-4. **Both values preserved** — we never delete the Plaid sibling row; it stays marked `status='merged'` as today, so the raw bank amount remains queryable and continues to render on the linked-transaction card.
-5. **Large-diff banner** — reuse existing `matchTolerance` from `useTransactionMatching`; if delta > max(tolerance, 10%), show the informational banner.
+## Conflict detection
 
-## Deliverables
+- Reuse `computeLinkConflictsForPair` per manual↔plaid pair inside a split combo; surface any pair-level field conflicts (vendor/date/category/notes) aggregated into one Resolve Differences pass before creating the group.
+- New "sum mismatch" soft warning shown on the card when `|sum − plaid| / plaid` is between 0.5% and 5% (analogous to today's `showDiscrepancy`).
+- Refuse a split combo if any manual tx in it is already `match_status = "linked"` (already enforced by `useCreateMatchGroup`).
 
-### New files
-- `src/lib/linkMergeEngine.ts` — pure diff + default-choice logic + apply function; unit-tested.
-- `src/components/ResolveDifferencesModal.tsx` — table UI with per-row dropdown (Keep Current / Use Imported / Custom), large-diff banner, "Link Transactions" CTA.
-- `src/test/linkMergeEngine.test.ts` — covers: identical fields skipped, amount conflict, multi-field conflict, default-choice per field, custom override, large-diff flag, applying locks.
+## UI (`SuggestedMatches.tsx`)
 
-### Edited files
-- `src/hooks/useTransactionMatching.ts` — `linkManualToPlaid` (or equivalent) becomes a two-phase mutation: (a) compute conflicts via engine; if empty, link as today; (b) if conflicts, resolve caller supplies decisions before persisting. Adds writes of `field_locks` + applied field values.
-- `src/components/IncomeLinkModal.tsx` and `src/components/SuggestedMatches.tsx` — when the user confirms a link, if the engine returns conflicts, open `ResolveDifferencesModal` instead of firing the link mutation directly.
-- `supabase/functions/plaid-sync-transactions/index.ts` — before overwriting a linked canonical row's fields, read `field_locks` and skip any locked field. No change to import of new rows.
+- New card variant for `kind === "split"`:
+  - Left column lists the multiple manual entries stacked (vendor, gross, date, entity) with a small "×N split" badge.
+  - Right column shows the single Plaid deposit.
+  - Footer shows `sum $X vs deposit $Y (Δ $Z)` and reason chips ("Sum matches deposit", "Same company", "Within 3d").
+  - Confirm button calls a new `useConfirmSplitMatch` wrapper that:
+    1. Runs `computeLinkConflictsForPair` for each manual↔plaid pair, opens ResolveDifferencesModal once if any conflicts (aggregated), then
+    2. Calls `useCreateMatchGroup({ transactionIds: [...manualIds, plaidId] })` — existing hook already handles many-to-many, canonical-row selection, and soft-merging the Plaid side.
+  - Dismiss button ignores every pair in the combo via `useIgnoreMatch` in a batch.
 
-### Migration (single file)
-- Add `field_locks jsonb not null default '{}'::jsonb` to `public.transaction_links`. No policy changes needed (existing RLS covers it).
+## Tests
 
-## Technical details
+- Unit tests in `src/test/splitDepositMatching.test.ts`:
+  - Two manuals whose deposited sums equal a single Plaid deposit → one split suggestion, no singles.
+  - Three-manual combo, ±5 day window, same entity → Possible match.
+  - Combo whose sum is >5% off deposit → not suggested.
+  - Split combo takes precedence over a mediocre single suggestion competing for the same Plaid tx.
+  - Ignored-pair set suppresses combos that include any ignored pair.
 
-**Conflict shape**
+## Files changed
 
-```ts
-type FieldConflict = {
-  key: "gross_amount" | "deposited_amount" | "transaction_date" | "vendor"
-     | "category" | "notes" | "federal_withholding" | "state_withholding"
-     | "ss_withholding" | "medicare_withholding" | "retirement_401k"
-     | "hsa_contribution" | "pre_tax_deductions";
-  label: string;
-  kind: "money" | "date" | "text";
-  currentValue: string | number | null;
-  importedValue: string | number | null;
-  defaultChoice: "current" | "imported";
-  allowCustom: boolean;
-};
-```
-
-**Equality rules**
-- money: `Math.abs(a-b) < 0.005`
-- date: same ISO day
-- text: case-insensitive trim
-- null / undefined / 0 on one side and a real value on the other → NOT a conflict; the real value is auto-used.
-
-**Large-diff banner** fires when both sides have a positive amount and `|current - imported| / max(current, imported) > 0.10`.
-
-**Resync guard** in `plaid-sync-transactions`: when updating a linked canonical row, load `field_locks` from `transaction_links` and drop those keys from the update payload.
+- `src/hooks/useTransactionMatching.ts` — extend `SuggestedMatch` type (discriminated union), add combo pass, add `useConfirmSplitMatch` helper.
+- `src/components/SuggestedMatches.tsx` — render split variant, wire confirm/dismiss.
+- `src/test/splitDepositMatching.test.ts` — new tests.
 
 ## Out of scope
 
-- Tax engine, withholding recommendation, savings rate, ledger routing, planner conversion.
-- Auto-match tolerance / scoring logic in `useTransactionMatching`.
-- Unlink UX and orphan cleanup.
-
-## Verification
-
-- `bunx vitest run src/test/linkMergeEngine.test.ts` — new unit tests.
-- Existing suites: `linkEligibility.test.ts`, `transactionLinkingDedupe.test.ts` must still pass unchanged.
-- Manual: link a manual $7,330 income to a $1,410 Plaid deposit → modal appears with amount + description rows, banner shown; picking "Keep Current" for amount and "Use Imported" for description completes the link and survives a simulated resync.
+- Many-Plaid-to-one-manual (multiple small deposits for one gross entry). Same combinatorial logic applies but I'll defer unless you want it in this pass — say the word and I'll add the symmetric pass.
+- Backend-side split allocation (per-manual portion of the deposit). The existing group model treats them as linked without splitting the Plaid amount across manuals; deposited_amount stays per-entry as the user already set it.
