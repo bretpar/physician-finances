@@ -184,14 +184,14 @@ interface BreakdownLine {
 
 function RateBreakdownLine({ line }: { line: BreakdownLine }) {
   return (
-    <div className="flex justify-between gap-3">
-      <span className="flex items-center gap-1.5">
-        <span className="h-1 w-1 rounded-full bg-primary/60" />
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5 sm:gap-3">
+      <span className="flex items-center gap-1.5 min-w-0">
+        <span className="h-1 w-1 rounded-full bg-primary/60 shrink-0" />
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1 cursor-help">
-              {line.label}
-              <HelpCircle className="h-3 w-3 text-muted-foreground/70" />
+            <span className="inline-flex items-center gap-1 cursor-help min-w-0">
+              <span className="truncate">{line.label}</span>
+              <HelpCircle className="h-3 w-3 text-muted-foreground/70 shrink-0" />
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-xs">
@@ -199,7 +199,7 @@ function RateBreakdownLine({ line }: { line: BreakdownLine }) {
           </TooltipContent>
         </Tooltip>
       </span>
-      <span className="tabular-nums">
+      <span className="tabular-nums text-foreground sm:shrink-0">
         {line.value.toFixed(2)}%
         {line.note && (
           <span className="ml-1.5 text-emerald-600 dark:text-emerald-400">
