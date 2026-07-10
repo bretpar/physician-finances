@@ -1,0 +1,1 @@
+ALTER TABLE public.transaction_links ADD COLUMN IF NOT EXISTS field_locks jsonb NOT NULL DEFAULT '{}'::jsonb;

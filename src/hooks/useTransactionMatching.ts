@@ -274,6 +274,94 @@ export function useSuggestedMatches(
 }
 
 // ---- Link two transactions ----
+import type {
+  ConflictResolution,
+  FieldKey,
+  MergeInput,
+} from "@/lib/linkMergeEngine";
+import {
+  applyResolutions,
+  computeFieldConflicts,
+} from "@/lib/linkMergeEngine";
+
+/**
+ * Fetch the pair, compute the field-level diff, and return the conflicts
+ * that need user review. Fields that match on both sides — or where only
+ * one side has a value — are auto-merged and never surfaced. This is
+ * invoked BEFORE linking so the UI can open the Resolve Differences modal.
+ */
+export async function computeLinkConflictsForPair(
+  manualTxId: string,
+  plaidTxId: string,
+): Promise<{
+  conflicts: ReturnType<typeof computeFieldConflicts>;
+  currentAmount: number | null;
+  importedAmount: number | null;
+}> {
+  const { data: manualTx } = await supabase
+    .from("transactions")
+    .select("id, amount, transaction_date, vendor, category, notes")
+    .eq("id", manualTxId)
+    .maybeSingle();
+  const { data: plaidTx } = await supabase
+    .from("transactions")
+    .select("id, amount, transaction_date, vendor, category, notes")
+    .eq("id", plaidTxId)
+    .maybeSingle();
+  if (!manualTx || !plaidTx) {
+    return { conflicts: [], currentAmount: null, importedAmount: null };
+  }
+  const { data: linkedIE } = await supabase
+    .from("income_entries")
+    .select(
+      "id, gross_amount, paycheck_amount, deposited_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, retirement_401k, hsa_contribution, pre_tax_deductions",
+    )
+    .eq("linked_transaction_id", manualTxId)
+    .maybeSingle();
+
+  const current: MergeInput["current"] = {
+    gross_amount: linkedIE
+      ? Number((linkedIE as any).paycheck_amount ?? (linkedIE as any).gross_amount ?? 0) || null
+      : Math.abs(Number((manualTx as any).amount) || 0) || null,
+    deposited_amount: linkedIE ? Number((linkedIE as any).deposited_amount) || null : null,
+    transaction_date: (manualTx as any).transaction_date ?? null,
+    vendor: (manualTx as any).vendor ?? null,
+    category: (manualTx as any).category ?? null,
+    notes: (manualTx as any).notes ?? null,
+    federal_withholding: linkedIE ? Number((linkedIE as any).federal_withholding) || null : null,
+    state_withholding: linkedIE ? Number((linkedIE as any).state_withholding) || null : null,
+    ss_withholding: linkedIE ? Number((linkedIE as any).ss_withholding) || null : null,
+    medicare_withholding: linkedIE ? Number((linkedIE as any).medicare_withholding) || null : null,
+    retirement_401k: linkedIE ? Number((linkedIE as any).retirement_401k) || null : null,
+    hsa_contribution: linkedIE ? Number((linkedIE as any).hsa_contribution) || null : null,
+    pre_tax_deductions: linkedIE ? Number((linkedIE as any).pre_tax_deductions) || null : null,
+  };
+  const imported: MergeInput["imported"] = {
+    deposited_amount: Math.abs(Number((plaidTx as any).amount) || 0) || null,
+    transaction_date: (plaidTx as any).transaction_date ?? null,
+    vendor: (plaidTx as any).vendor ?? null,
+    category: (plaidTx as any).category ?? null,
+    notes: (plaidTx as any).notes ?? null,
+  };
+  const conflicts = computeFieldConflicts({ current, imported });
+  return {
+    conflicts,
+    currentAmount: current.deposited_amount ?? current.gross_amount ?? null,
+    importedAmount: imported.deposited_amount ?? null,
+  };
+}
+
+/**
+ * Columns that live directly on `transactions` (as opposed to `income_entries`).
+ * Everything else routes to the linked income_entry, when present.
+ */
+const TRANSACTION_LEVEL_KEYS: FieldKey[] = [
+  "transaction_date",
+  "vendor",
+  "category",
+  "notes",
+];
+
 export function useLinkTransactions() {
   const qc = useQueryClient();
   return useMutation({
@@ -281,10 +369,16 @@ export function useLinkTransactions() {
       manualTxId,
       plaidTxId,
       confidence,
+      resolutions,
     }: {
       manualTxId: string;
       plaidTxId: string;
       confidence?: number;
+      /**
+       * Per-field decisions from ResolveDifferencesModal. When omitted, we
+       * link with today's default behavior (no field overrides written).
+       */
+      resolutions?: ConflictResolution[];
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -293,7 +387,9 @@ export function useLinkTransactions() {
       // Validate both records exist before linking and pull the Plaid net
       // deposit metadata so we can denormalize it onto the manual row. The
       // manual row remains the source of truth — we never copy planned fields
-      // (amount/vendor/entity/category/etc.) from the Plaid row.
+      // (amount/vendor/entity/category/etc.) from the Plaid row EXCEPT where
+      // the user explicitly picked the imported (or a custom) value via the
+      // Resolve Differences modal.
       const { data: manualRow } = await supabase
         .from("transactions")
         .select("id")
@@ -317,9 +413,54 @@ export function useLinkTransactions() {
         );
       }
 
+      // Compute merge results from user resolutions (if any). We build BOTH:
+      //  - `fieldLocks` to persist on transaction_links, so future syncs
+      //    respect the user's choice per field.
+      //  - `appliedValues` split into transactions-level vs income-entry-level
+      //    updates, so we only touch each row's own columns.
+      let fieldLocks: Record<string, string> = {};
+      let appliedTxUpdate: Record<string, any> = {};
+      let appliedIEUpdate: Record<string, any> = {};
+      let userChoseDepositedAmount = false;
+      if (resolutions && resolutions.length > 0) {
+        // Rebuild the same MergeInput used to derive the conflicts. This
+        // keeps applyResolutions self-contained and doesn't require the
+        // caller to shuttle raw values back to the mutation.
+        const pair = await computeLinkConflictsForPair(manualTxId, plaidTxId);
+        // Note: `pair.conflicts` may be empty if data has drifted since the
+        // modal opened — applyResolutions only writes what's in `resolutions`,
+        // so that's fine.
+        const currentSide: MergeInput["current"] = {};
+        const importedSide: MergeInput["imported"] = {};
+        for (const c of pair.conflicts) {
+          (currentSide as any)[c.key] = c.currentValue;
+          (importedSide as any)[c.key] = c.importedValue;
+        }
+        const { appliedValues, fieldLocks: locks } = applyResolutions(
+          { current: currentSide, imported: importedSide },
+          resolutions,
+        );
+        for (const [k, v] of Object.entries(locks)) fieldLocks[k] = v as string;
+        for (const [k, v] of Object.entries(appliedValues)) {
+          if (v === undefined) continue;
+          if (k === "deposited_amount") {
+            userChoseDepositedAmount = true;
+            appliedIEUpdate.deposited_amount = v;
+            continue;
+          }
+          if (TRANSACTION_LEVEL_KEYS.includes(k as FieldKey)) {
+            appliedTxUpdate[k] = v;
+          } else {
+            appliedIEUpdate[k] = v;
+          }
+        }
+      }
+
       const groupId = crypto.randomUUID();
 
-      // Create link record
+      // Create link record — includes field_locks so future Plaid resyncs
+      // (or any code path that reads locks) will not silently overwrite the
+      // user's chosen values.
       const { error: linkErr } = await supabase.from("transaction_links").insert({
         user_id: user.id,
         organization_id: orgId,
@@ -329,26 +470,27 @@ export function useLinkTransactions() {
         status: "linked",
         confidence_score: confidence || null,
         created_by_user: true,
-      });
+        field_locks: fieldLocks,
+      } as any);
       if (linkErr) throw linkErr;
 
       // Update manual tx — it stays the canonical (active) row. We mutate
-      // ONLY link bookkeeping fields and the denormalized Plaid net deposit
-      // metadata. Planned/ledger fields (amount, vendor, entity, category,
-      // tax fields, healthcare/retirement deductions, etc.) are never
-      // touched here.
+      // ONLY link bookkeeping fields, denormalized Plaid net deposit
+      // metadata, and any field the user explicitly resolved via the modal.
+      const canonicalUpdate: Record<string, any> = {
+        match_status: "linked",
+        linked_group_id: groupId,
+        source_type: "merged",
+        status: "active",
+        linked_plaid_transaction_id: plaidTxId,
+        linked_plaid_amount: (plaidRow as any).amount ?? null,
+        linked_plaid_posted_date: (plaidRow as any).transaction_date ?? null,
+        linked_plaid_account: (plaidRow as any).account_source ?? null,
+        ...appliedTxUpdate,
+      };
       const { error: e1 } = await supabase
         .from("transactions")
-        .update({
-          match_status: "linked",
-          linked_group_id: groupId,
-          source_type: "merged",
-          status: "active",
-          linked_plaid_transaction_id: plaidTxId,
-          linked_plaid_amount: (plaidRow as any).amount ?? null,
-          linked_plaid_posted_date: (plaidRow as any).transaction_date ?? null,
-          linked_plaid_account: (plaidRow as any).account_source ?? null,
-        } as any)
+        .update(canonicalUpdate as any)
         .eq("id", manualTxId);
       if (e1) throw e1;
 
@@ -365,13 +507,13 @@ export function useLinkTransactions() {
         .eq("id", plaidTxId);
       if (e2) throw e2;
 
-      // If the canonical (manual/planner) row has a linked income_entry,
-      // backfill its deposited_amount with the Plaid net deposit. Plaid is
-      // the cashflow source of truth for Net Received once linked. We
-      // overwrite when there's no clear evidence the user manually edited
-      // Net Received (see canPlaidOverwriteDeposited).
+      // Deposited-amount handling on the linked income_entry:
+      //   1) If the user explicitly resolved deposited_amount in the modal,
+      //      write exactly the chosen value and skip the legacy overwrite.
+      //   2) Otherwise fall back to the existing canPlaidOverwriteDeposited
+      //      backfill (preserves prior behavior when the modal wasn't used).
+      // We also flush any other income-entry-level resolved fields here.
       try {
-        const plaidAbs = Math.abs(Number((plaidRow as any).amount) || 0);
         const { data: linkedIE } = await supabase
           .from("income_entries")
           .select(
@@ -379,14 +521,23 @@ export function useLinkTransactions() {
           )
           .eq("linked_transaction_id", manualTxId)
           .maybeSingle();
-        if (linkedIE && plaidAbs > 0 && canPlaidOverwriteDeposited(linkedIE as any)) {
-          await supabase
-            .from("income_entries")
-            .update({ deposited_amount: plaidAbs } as any)
-            .eq("id", (linkedIE as any).id);
+        if (linkedIE) {
+          const ieUpdate: Record<string, any> = { ...appliedIEUpdate };
+          if (!userChoseDepositedAmount) {
+            const plaidAbs = Math.abs(Number((plaidRow as any).amount) || 0);
+            if (plaidAbs > 0 && canPlaidOverwriteDeposited(linkedIE as any)) {
+              ieUpdate.deposited_amount = plaidAbs;
+            }
+          }
+          if (Object.keys(ieUpdate).length > 0) {
+            await supabase
+              .from("income_entries")
+              .update(ieUpdate as any)
+              .eq("id", (linkedIE as any).id);
+          }
         }
       } catch (err) {
-        console.warn("[LinkTx] deposited_amount backfill skipped:", err);
+        console.warn("[LinkTx] income_entry backfill skipped:", err);
       }
 
     },

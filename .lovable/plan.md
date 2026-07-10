@@ -1,80 +1,77 @@
-# Plaid Sync Improvements
+# Conflict-Resolving Transaction Linking
 
-Targeted change focused only on sync triggering, scheduling, metadata, and upsert safety. No refactor of unrelated Plaid, ledger, or tax code.
+## Scope
 
-## 1. Schema (one migration)
+Only the transaction-linking UX + a small merge engine. No tax math, withholding, ledger, or matching-eligibility logic is touched. Automatic-match tolerance and suggested-match scoring stay as-is.
 
-Add to `public.plaid_items`:
-- `last_sync_attempt_at timestamptz`
-- `last_successful_sync_at timestamptz`
-- `last_sync_error text`
-- `sync_status text` — one of `idle | syncing | error` (default `idle`)
-- `webhook_url text` (for visibility; actual URL lives in env)
+## Current architecture (short review)
 
-Keep existing `last_synced_at` and `cursor` as-is for backward compat. The function will populate both `last_synced_at` and the new `last_successful_sync_at` on success so existing UI keeps working.
+- `useTransactionMatching.ts` (971 LOC) handles suggest/link/unlink. Linking is silent: it writes `transaction_links`, flips `status` on the non-canonical side, and lets the canonical row's fields win by default.
+- `IncomeLinkModal` picks the imported sibling and confirms; there is no field diff surfaced.
+- Downstream reads (fixed in the last turn) already respect explicit user-saved values (`deposited_amount`) over Plaid, so we don't need to alter reads.
 
-## 2. `plaid-sync-transactions` edge function changes (minimal)
+## Design decision
 
-- At start of each item sync: set `sync_status='syncing'`, `last_sync_attempt_at=now()`.
-- On success: set `sync_status='idle'`, `last_successful_sync_at=now()`, clear `last_sync_error`.
-- On failure: set `sync_status='error'`, set `last_sync_error=<message>`.
-- **Removed handling fix**: when Plaid reports a transaction as removed, do not hard-delete the app `transactions` row if `user_edited = true`. Instead, mark it (set `excluded_from_reports=false` left alone; set a `match_status='plaid_removed'` and detach the `plaid_transaction_ref`). Always still delete the raw `plaid_transactions` mirror + write tombstone.
-- Modified handling already preserves user-edits via `user_edited` flag — leave unchanged.
-- Accept a new entry shape from the webhook handler: `{ item_id: "<uuid>" }` invoked with service role / cron secret will sync just that one item.
+A field-level merge engine is the right upgrade over the "hierarchy silently wins" model:
 
-## 3. New webhook handler: `supabase/functions/plaid-webhook/index.ts`
+1. **Merge engine** — one pure module compares field-by-field between the manual income entry / manual transaction and the Plaid transaction, returns a `FieldConflict[]` list with `{ field, label, currentValue, importedValue, defaultChoice, kind }`.
+2. **User-lock preservation** — decisions are persisted per link on `transaction_links` as a JSONB `field_locks` column (`{ deposited_amount: "current", transaction_date: "imported", vendor: {custom: "..."} }`). Any future Plaid resync respects these locks and never rewrites a locked field.
+3. **Field authority defaults** — Plaid amount is authoritative for `deposit_amount` only; user-entered gross / withholding / retirement / HSA / notes default to "current". Date defaults to imported (bank posts truth).
+4. **Both values preserved** — we never delete the Plaid sibling row; it stays marked `status='merged'` as today, so the raw bank amount remains queryable and continues to render on the linked-transaction card.
+5. **Large-diff banner** — reuse existing `matchTolerance` from `useTransactionMatching`; if delta > max(tolerance, 10%), show the informational banner.
 
-- `verify_jwt = false` (Plaid calls anonymously).
-- Validates `webhook_type` and acts on:
-  - `TRANSACTIONS` / `SYNC_UPDATES_AVAILABLE` → look up `plaid_items` row by `plaid_item_id`, invoke `plaid-sync-transactions` with `{ item_id }` using the service role + cron secret.
-  - `ITEM` / `ERROR` or `PENDING_EXPIRATION` / `USER_PERMISSION_REVOKED` → update `plaid_items.status` to `needs_reauth` and `last_sync_error`.
-  - Other types: 200 OK no-op.
-- Returns 200 quickly; sync runs as background invoke.
+## Deliverables
 
-`plaid-exchange-token`: pass `webhook: <PLAID_WEBHOOK_URL>` when calling `/item/public_token/exchange`-flow link token + on item creation. Store `webhook_url` on the row.
+### New files
+- `src/lib/linkMergeEngine.ts` — pure diff + default-choice logic + apply function; unit-tested.
+- `src/components/ResolveDifferencesModal.tsx` — table UI with per-row dropdown (Keep Current / Use Imported / Custom), large-diff banner, "Link Transactions" CTA.
+- `src/test/linkMergeEngine.test.ts` — covers: identical fields skipped, amount conflict, multi-field conflict, default-choice per field, custom override, large-diff flag, applying locks.
 
-Required env: `PLAID_WEBHOOK_URL` (e.g. `https://<project>.supabase.co/functions/v1/plaid-webhook`). I'll request this via the secrets flow.
+### Edited files
+- `src/hooks/useTransactionMatching.ts` — `linkManualToPlaid` (or equivalent) becomes a two-phase mutation: (a) compute conflicts via engine; if empty, link as today; (b) if conflicts, resolve caller supplies decisions before persisting. Adds writes of `field_locks` + applied field values.
+- `src/components/IncomeLinkModal.tsx` and `src/components/SuggestedMatches.tsx` — when the user confirms a link, if the engine returns conflicts, open `ResolveDifferencesModal` instead of firing the link mutation directly.
+- `supabase/functions/plaid-sync-transactions/index.ts` — before overwriting a linked canonical row's fields, read `field_locks` and skip any locked field. No change to import of new rows.
 
-## 4. Daily cron at 2:00 AM Pacific
+### Migration (single file)
+- Add `field_locks jsonb not null default '{}'::jsonb` to `public.transaction_links`. No policy changes needed (existing RLS covers it).
 
-Update `install_plaid_sync_cron_job` to schedule `'0 10 * * *'` UTC (= 2:00 AM PST / 3:00 AM PDT — acceptable per spec; pure 2 AM wall clock requires DST-aware scheduling pg_cron does not support). Existing fan-out body and `x-cron-secret` flow unchanged. The cron job runs regardless of login.
+## Technical details
 
-The cron function already skips non-active items; we'll additionally skip items with `status in ('needs_reauth','disconnected','error')`.
+**Conflict shape**
 
-## 5. Frontend: stale gate, cooldown, login trigger
+```ts
+type FieldConflict = {
+  key: "gross_amount" | "deposited_amount" | "transaction_date" | "vendor"
+     | "category" | "notes" | "federal_withholding" | "state_withholding"
+     | "ss_withholding" | "medicare_withholding" | "retirement_401k"
+     | "hsa_contribution" | "pre_tax_deductions";
+  label: string;
+  kind: "money" | "date" | "text";
+  currentValue: string | number | null;
+  importedValue: string | number | null;
+  defaultChoice: "current" | "imported";
+  allowCustom: boolean;
+};
+```
 
-**`src/pages/Accounts.tsx`**
-- Bump stale threshold from 5 min → 24 h. (TODO comment for premium 12 h tier.)
-- "Refresh All" button: 30-minute cooldown per user stored in `localStorage` key `plaid:lastManualSync:<userId>`. Cooldown bypassed if last attempt errored. Show remaining time in disabled tooltip.
-- Per-item rows: show "Syncing…", "Sync failed: <msg>", or "Reconnect required" using new metadata; otherwise "Last synced X ago".
+**Equality rules**
+- money: `Math.abs(a-b) < 0.005`
+- date: same ISO day
+- text: case-insensitive trim
+- null / undefined / 0 on one side and a real value on the other → NOT a conflict; the real value is auto-used.
 
-**Dashboard login trigger** (`src/pages/Dashboard.tsx`)
-- On mount, if any active item's `last_successful_sync_at` is >24 h old (or null), fire a single background `syncMutation.mutate(undefined)` — no UI block, no toast on success, error toast only.
-- Guard with a session-scoped flag (`sessionStorage`) so it doesn't refire on remounts within the same session.
+**Large-diff banner** fires when both sides have a positive amount and `|current - imported| / max(current, imported) > 0.10`.
 
-No noisy toasts on routine syncs; only actionable errors.
+**Resync guard** in `plaid-sync-transactions`: when updating a linked canonical row, load `field_locks` from `transaction_links` and drop those keys from the update payload.
 
-## 6. Tests
+## Out of scope
 
-Only nearby tests touched:
-- `supabase/functions/plaid-exchange-token/rls_test.ts` / `sandbox_test.ts` — leave alone unless webhook field breaks them.
-- No existing client tests for Accounts sync; skip per spec.
+- Tax engine, withholding recommendation, savings rate, ledger routing, planner conversion.
+- Auto-match tolerance / scoring logic in `useTransactionMatching`.
+- Unlink UX and orphan cleanup.
 
-## Files
+## Verification
 
-New:
-- `supabase/functions/plaid-webhook/index.ts`
-- one migration adding the 4 columns + updating `install_plaid_sync_cron_job` + re-installing the cron with the new schedule (insert tool, since it uses the secret).
-
-Edited:
-- `supabase/functions/plaid-sync-transactions/index.ts` (metadata writes, removed-transaction guard, accept `item_id` from webhook)
-- `supabase/functions/plaid-exchange-token/index.ts` (set `webhook` + `webhook_url`)
-- `src/hooks/usePlaid.ts` (expose new metadata fields)
-- `src/pages/Accounts.tsx` (24 h stale gate, 30 min cooldown, status UI)
-- `src/pages/Dashboard.tsx` (stale-only background sync once per session)
-
-## Secret needed
-
-`PLAID_WEBHOOK_URL` — I'll request it after you approve the plan; you'll paste `https://fiqnxprhvsadcqicczkg.supabase.co/functions/v1/plaid-webhook`.
-
-Approve and I'll ship it.
+- `bunx vitest run src/test/linkMergeEngine.test.ts` — new unit tests.
+- Existing suites: `linkEligibility.test.ts`, `transactionLinkingDedupe.test.ts` must still pass unchanged.
+- Manual: link a manual $7,330 income to a $1,410 Plaid deposit → modal appears with amount + description rows, banner shown; picking "Keep Current" for amount and "Use Imported" for description completes the link and survives a simulated resync.

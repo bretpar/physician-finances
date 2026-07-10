@@ -1769,6 +1769,7 @@ export type Database = {
           confidence_score: number | null
           created_at: string
           created_by_user: boolean
+          field_locks: Json
           id: string
           linked_at: string
           linked_group_id: string
@@ -1783,6 +1784,7 @@ export type Database = {
           confidence_score?: number | null
           created_at?: string
           created_by_user?: boolean
+          field_locks?: Json
           id?: string
           linked_at?: string
           linked_group_id: string
@@ -1797,6 +1799,7 @@ export type Database = {
           confidence_score?: number | null
           created_at?: string
           created_by_user?: boolean
+          field_locks?: Json
           id?: string
           linked_at?: string
           linked_group_id?: string
