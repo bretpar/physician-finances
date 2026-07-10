@@ -1954,8 +1954,10 @@ export default function Transactions() {
                   placeholder="e.g. ED Shift Pay"
                   value={incomeForm.name}
                   onChange={(e) => setIncomeForm((f) => ({ ...f, name: e.target.value }))}
+                  data-testid="ba-income-name"
                 />
               </div>
+
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
