@@ -1185,9 +1185,10 @@ export default function Transactions() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-foreground">Business Activity</h1>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:justify-end">
-          <Button variant="outline" size="sm" onClick={openAddIncome} className="gap-1.5 w-full sm:w-auto">
+          <Button variant="outline" size="sm" onClick={openAddIncome} className="gap-1.5 w-full sm:w-auto" data-testid="ba-add-income">
             <DollarSign className="h-3.5 w-3.5" /> Add Income
           </Button>
+
           <Button size="sm" onClick={openAddExpense} className="gap-1.5 w-full sm:w-auto">
             <Receipt className="h-3.5 w-3.5" /> Add Expense
           </Button>
@@ -1953,8 +1954,10 @@ export default function Transactions() {
                   placeholder="e.g. ED Shift Pay"
                   value={incomeForm.name}
                   onChange={(e) => setIncomeForm((f) => ({ ...f, name: e.target.value }))}
+                  data-testid="ba-income-name"
                 />
               </div>
+
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -2025,7 +2028,9 @@ export default function Transactions() {
                   value={incomeForm.gross_amount}
                   onChange={(e) => setIncomeForm((f) => ({ ...f, gross_amount: e.target.value }))}
                   placeholder="0.00"
+                  data-testid="ba-income-gross"
                 />
+
                 <p className="text-[10px] text-muted-foreground mt-1">Total income before taxes or deductions</p>
               </div>
             </div>
@@ -2092,7 +2097,8 @@ export default function Transactions() {
             {/* Advanced details (collapsible) — fields driven by per-company toggles */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+                <button data-testid="ba-income-advanced-toggle" className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+
                   {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   Advanced details
                 </button>
@@ -2114,7 +2120,7 @@ export default function Transactions() {
                   {showField("net_received") && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Net Received<LegacyNote field="net_received" /></Label>
-                      <Input type="number" min="0" step="0.01" placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"} value={incomeForm.net_received} onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))} />
+                      <Input type="number" min="0" step="0.01" placeholder={grossIncome > 0 ? fmt(calculatedNet) : "0.00"} value={incomeForm.net_received} onChange={(e) => setIncomeForm((f) => ({ ...f, net_received: e.target.value }))} data-testid="ba-income-net-received" />
                       <p className="text-[10px] text-muted-foreground mt-1">Amount deposited into your bank account</p>
                     </div>
                   )}
@@ -2210,9 +2216,10 @@ export default function Transactions() {
               ) : <div />}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowIncomeForm(false)}>Cancel</Button>
-                <Button onClick={saveIncome} disabled={!incomeForm.name.trim() || !incomeForm.date || grossIncome <= 0}>
+                <Button onClick={saveIncome} disabled={!incomeForm.name.trim() || !incomeForm.date || grossIncome <= 0} data-testid="ba-income-save">
                   {isEditingIncome ? "Save" : "Add Income"}
                 </Button>
+
               </div>
             </div>
           </div>
