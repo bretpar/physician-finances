@@ -1185,9 +1185,10 @@ export default function Transactions() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-foreground">Business Activity</h1>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:justify-end">
-          <Button variant="outline" size="sm" onClick={openAddIncome} className="gap-1.5 w-full sm:w-auto">
+          <Button variant="outline" size="sm" onClick={openAddIncome} className="gap-1.5 w-full sm:w-auto" data-testid="ba-add-income">
             <DollarSign className="h-3.5 w-3.5" /> Add Income
           </Button>
+
           <Button size="sm" onClick={openAddExpense} className="gap-1.5 w-full sm:w-auto">
             <Receipt className="h-3.5 w-3.5" /> Add Expense
           </Button>
