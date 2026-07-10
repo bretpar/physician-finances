@@ -1041,12 +1041,66 @@ export default function Transactions() {
   }
 
   function exportCSV() {
-    const headers = ["Date", "Transaction", "Amount", "Type", "Category"];
+    const headers = ["Date", "Transaction", "Amount", "Net Received", "Type", "Category"];
     const rows = filtered.map((t) => {
       const type = (t.transaction_type || "expense");
-      const displayAmt = type === "expense" ? -Math.abs(t.amount) : Math.abs(t.amount);
+      const isIncomeTx = type === "income";
+      const gross = Math.abs(Number(t.amount) || 0);
+      const displayAmt = type === "expense" ? -gross : gross;
       const typeLabel = type === "income" ? "Income" : type === "transfer" ? "Transfer" : "Expense";
-      return [t.transaction_date, t.vendor, displayAmt, typeLabel, t.category];
+
+      // Net Received precedence — resolved via the shared helper so CSV
+      // exports stay in lockstep with the edit modal and transaction detail.
+      // Only meaningful for income rows; expenses/transfers get "" so tax
+      // math never sees a spurious value in downstream consumers.
+      let netReceivedCol: string | number = "";
+      if (isIncomeTx) {
+        const linked = incomeByLinkedTx.get(t.id);
+        const groupItems = t.linked_group_id ? matchGroupsMap?.get(t.linked_group_id) : undefined;
+        const siblings = (groupItems || []).filter((it) => it.transaction.id !== t.id);
+        const linkedPlaidAmt = Math.abs(Number((t as any).linked_plaid_amount) || 0);
+        const plaidSibling =
+          siblings.find((it) => {
+            const st: any = it.transaction;
+            if ((t as any).linked_plaid_transaction_id && st.id === (t as any).linked_plaid_transaction_id) return true;
+            if (st.source_type === "plaid") return true;
+            if (st.source_type === "merged") return true;
+            if ((it as any).source === "imported") return true;
+            return false;
+          }) ||
+          siblings.find((it) => {
+            const amt = Math.abs(Number(it.transaction.amount) || 0);
+            return amt > 0 && Math.abs(amt - gross) > 0.5;
+          });
+        const siblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
+
+        if (linked) {
+          const lGross = Number(linked.paycheck_amount) || 0;
+          const lFed = getCanonicalTotalFederalPayrollTaxes(linked as any);
+          const lState = Number((linked as any).state_withholding) || 0;
+          const lPreTax = Number(linked.pre_tax_deductions) || 0;
+          const l401 = Number(linked.retirement_401k) || 0;
+          const lHsa = Number((linked as any).hsa_contribution) || 0;
+          const lHealth = Number((linked as any).healthcare_deduction) || 0;
+          const lOther = Number((linked as any).other_deductions) || 0;
+          const calcNet = Math.max(0, lGross - lFed - lState - lPreTax - l401 - lHsa - lHealth - lOther);
+          netReceivedCol = resolveNetReceived({
+            gross: lGross,
+            savedDeposited: (linked as any).deposited_amount,
+            siblingAmount: siblingAmt,
+            linkedPlaidAmount: linkedPlaidAmt,
+            calculatedNet: calcNet,
+          });
+        } else {
+          netReceivedCol = resolveNetReceived({
+            gross,
+            siblingAmount: siblingAmt,
+            linkedPlaidAmount: linkedPlaidAmt,
+          });
+        }
+      }
+
+      return [t.transaction_date, t.vendor, displayAmt, netReceivedCol, typeLabel, t.category];
     });
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -1054,6 +1108,7 @@ export default function Transactions() {
     const a = document.createElement("a"); a.href = url; a.download = "transactions.csv"; a.click();
     URL.revokeObjectURL(url);
   }
+
 
   const { data: ytdMileage = [] } = useMileageYTD(new Date().getFullYear());
 
