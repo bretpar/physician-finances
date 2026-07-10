@@ -803,7 +803,7 @@ export default function PersonalIncome() {
           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5 truncate">W2 Income</p>
           <p className="text-sm sm:text-xl font-bold text-card-foreground truncate">{fmt(totals.w2Income)}</p>
         </div>
-        <Popover>
+        <Popover open={taxesWithheldOpen} onOpenChange={setTaxesWithheldOpen}>
           <PopoverTrigger asChild>
             <button
               type="button"
