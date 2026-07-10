@@ -346,7 +346,7 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
               <span className="font-mono text-muted-foreground">{sourceLabel}</span>
             </div>
             <div className="mt-2 space-y-1 text-muted-foreground">
-              <div className="flex justify-between gap-3"><span>Federal base</span><span>{(components?.federal ?? 0).toFixed(2)}%</span></div>
+              <div className="flex justify-between gap-3"><span>Federal income tax rate</span><span>{(components?.federal ?? 0).toFixed(2)}%</span></div>
               {(components?.selfEmployment ?? 0) > 0 || components?.seSocialSecurityCapped ? (
                 <>
                   <div className="flex justify-between gap-3 pt-1">
@@ -399,7 +399,11 @@ function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDet
       </div>
 
       <p className="text-xs text-muted-foreground pt-1">
-        Based on your current + planned income
+        {breakdown?.method === "flat_estimate"
+          ? "Based on your selected flat rate"
+          : breakdown?.method === "dynamic_actual"
+            ? "Based on your current income"
+            : "Based on your current + planned income"}
       </p>
     </div>
   );
