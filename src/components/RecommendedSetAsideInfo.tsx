@@ -109,7 +109,7 @@ function TaxableBasePanel({ tb }: { tb: TaxableBaseBreakdown }) {
         <span className="tabular-nums text-primary">{fmtUsd(base)}</span>
       </div>
       <p className="text-[10px] text-muted-foreground pt-1 leading-snug">
-        Recommended set-aside = taxable base × total tax rate.
+        Recommended set-aside = taxable base × recommended set-aside rate.
       </p>
     </div>
   );
