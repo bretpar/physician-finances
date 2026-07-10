@@ -256,19 +256,19 @@ function RateBreakdownCard({
   ];
 
   return (
-    <div className="rounded-md border bg-background px-3 py-2 text-xs">
+    <div className="rounded-md border bg-background px-3 py-2 text-xs max-sm:px-2.5 max-sm:py-2">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
         Rate Breakdown
       </p>
-      <div className="space-y-1 text-foreground">
+      <div className="space-y-1.5 sm:space-y-1 text-foreground">
         {lines.map((line) => (
           <RateBreakdownLine key={line.label} line={line} />
         ))}
       </div>
       <div className="border-t border-border my-2" />
-      <div className="flex justify-between gap-3 font-semibold text-foreground">
-        <span>Total Recommended Rate</span>
-        <span className="tabular-nums">{rate.toFixed(2)}%</span>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5 sm:gap-3 font-semibold text-foreground">
+        <span className="truncate">Total Recommended Rate</span>
+        <span className="tabular-nums shrink-0">{rate.toFixed(2)}%</span>
       </div>
     </div>
   );
