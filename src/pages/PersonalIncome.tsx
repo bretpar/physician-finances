@@ -266,6 +266,7 @@ export default function PersonalIncome() {
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<PersonalIncomeEntry | null>(null);
+  const [taxesWithheldOpen, setTaxesWithheldOpen] = useState(false);
   const uploadAttachments = useUploadAttachments();
 
   // ─── Mobile multi-select / linking ───
