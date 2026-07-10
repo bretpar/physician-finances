@@ -4,7 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Link2, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import type { SuggestedMatch } from "@/hooks/useTransactionMatching";
-import { useLinkTransactions, useIgnoreMatch } from "@/hooks/useTransactionMatching";
+import {
+  computeLinkConflictsForPair,
+  useLinkTransactions,
+  useIgnoreMatch,
+} from "@/hooks/useTransactionMatching";
+import { ResolveDifferencesModal } from "@/components/ResolveDifferencesModal";
+import type { ConflictResolution, FieldConflict } from "@/lib/linkMergeEngine";
+import { toast } from "sonner";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -17,8 +24,63 @@ export default function SuggestedMatches({ suggestions }: Props) {
   const [expanded, setExpanded] = useState(true);
   const linkMutation = useLinkTransactions();
   const ignoreMutation = useIgnoreMatch();
+  const [resolveState, setResolveState] = useState<{
+    open: boolean;
+    manualTxId: string;
+    plaidTxId: string;
+    confidence?: number;
+    conflicts: FieldConflict[];
+    currentAmount: number | null;
+    importedAmount: number | null;
+  } | null>(null);
+  const [checking, setChecking] = useState<string | null>(null);
 
   if (suggestions.length === 0) return null;
+
+  const startLink = async (s: SuggestedMatch) => {
+    const key = `${s.manualTx.id}:${s.plaidTx.id}`;
+    setChecking(key);
+    try {
+      const { conflicts, currentAmount, importedAmount } =
+        await computeLinkConflictsForPair(s.manualTx.id, s.plaidTx.id);
+      if (conflicts.length === 0) {
+        linkMutation.mutate({
+          manualTxId: s.manualTx.id,
+          plaidTxId: s.plaidTx.id,
+          confidence: s.confidence,
+        });
+      } else {
+        setResolveState({
+          open: true,
+          manualTxId: s.manualTx.id,
+          plaidTxId: s.plaidTx.id,
+          confidence: s.confidence,
+          conflicts,
+          currentAmount,
+          importedAmount,
+        });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Could not prepare link");
+    } finally {
+      setChecking(null);
+    }
+  };
+
+  const onConfirmResolutions = (resolutions: ConflictResolution[]) => {
+    if (!resolveState) return;
+    linkMutation.mutate(
+      {
+        manualTxId: resolveState.manualTxId,
+        plaidTxId: resolveState.plaidTxId,
+        confidence: resolveState.confidence,
+        resolutions,
+      },
+      {
+        onSuccess: () => setResolveState(null),
+      },
+    );
+  };
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20 p-4 space-y-3">
@@ -43,15 +105,13 @@ export default function SuggestedMatches({ suggestions }: Props) {
       {expanded && (
         <div className="space-y-3">
           {suggestions.map((s, i) => {
-            // For income rows the manual amount is GROSS; the Plaid amount is the
-            // net deposit. A divergence >5% from the manual gross is worth flagging
-            // even when the suggestion is otherwise plausible — the user should
-            // confirm before we create a stored link.
             const isIncome = (s.manualTx.transaction_type || "expense") === "income";
             const manualAmt = Math.abs(s.manualTx.amount);
             const plaidAmt = Math.abs(s.plaidTx.amount);
             const rel = manualAmt > 0 ? Math.abs(plaidAmt - manualAmt) / manualAmt : 0;
             const showDiscrepancy = rel > 0.05;
+            const key = `${s.manualTx.id}:${s.plaidTx.id}`;
+            const isChecking = checking === key;
 
             return (
               <Card key={i} className="p-3 space-y-2">
@@ -79,9 +139,8 @@ export default function SuggestedMatches({ suggestions }: Props) {
                 </div>
                 {showDiscrepancy && isIncome && (
                   <div className="rounded-md border border-amber-300 bg-amber-100/60 dark:border-amber-800 dark:bg-amber-950/40 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-300">
-                    Deposit differs from planned net amount. Confirming will keep
-                    the planned gross and tax details and just record the net
-                    received.
+                    Deposit differs from planned net amount. You'll be asked to
+                    resolve the differences before linking.
                   </div>
                 )}
                 <div className="flex items-center justify-between">
@@ -119,17 +178,12 @@ export default function SuggestedMatches({ suggestions }: Props) {
                     </Button>
                     <Button
                       size="sm"
-                      onClick={() =>
-                        linkMutation.mutate({
-                          manualTxId: s.manualTx.id,
-                          plaidTxId: s.plaidTx.id,
-                          confidence: s.confidence,
-                        })
-                      }
-                      disabled={linkMutation.isPending}
+                      onClick={() => startLink(s)}
+                      disabled={linkMutation.isPending || isChecking}
                       className="text-xs gap-1"
                     >
-                      <Link2 className="h-3 w-3" /> Confirm match
+                      <Link2 className="h-3 w-3" />
+                      {isChecking ? "Checking…" : "Confirm match"}
                     </Button>
                   </div>
                 </div>
@@ -137,6 +191,20 @@ export default function SuggestedMatches({ suggestions }: Props) {
             );
           })}
         </div>
+      )}
+
+      {resolveState && (
+        <ResolveDifferencesModal
+          open={resolveState.open}
+          onOpenChange={(open) =>
+            setResolveState((s) => (s ? { ...s, open } : s))
+          }
+          conflicts={resolveState.conflicts}
+          currentAmount={resolveState.currentAmount}
+          importedAmount={resolveState.importedAmount}
+          onConfirm={onConfirmResolutions}
+          isSubmitting={linkMutation.isPending}
+        />
       )}
     </div>
   );
