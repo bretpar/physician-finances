@@ -293,7 +293,21 @@ export function useUnlinkIncomeMatchGroupItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ itemId, groupId }: { itemId: string; groupId: string }) => {
-      // Mark the link row(s) referencing this entry as unlinked.
+      // 1. Capture the current group participants BEFORE mutating anything.
+      const { data: allLinks } = await supabase
+        .from("income_entry_links")
+        .select("canonical_entry_id, merged_entry_id, status, created_by_user")
+        .eq("linked_group_id", groupId);
+      const participantIds = Array.from(
+        new Set(
+          ((allLinks || []) as any[])
+            .filter((l) => l.status === "linked" && l.created_by_user)
+            .flatMap((l) => [l.canonical_entry_id, l.merged_entry_id])
+            .filter(Boolean),
+        ),
+      );
+
+      // 2. Mark link rows referencing this entry as unlinked.
       const { error: uErr } = await supabase
         .from("income_entry_links")
         .update({ status: "unlinked" } as any)
@@ -303,29 +317,7 @@ export function useUnlinkIncomeMatchGroupItem() {
         .or(`canonical_entry_id.eq.${itemId},merged_entry_id.eq.${itemId}`);
       if (uErr) throw uErr;
 
-      // Restore the unlinked entry back to active, and if it represents a
-      // Plaid deposit, restore reportability on the underlying `transactions`
-      // row — but only when no other active canonical income_entries row
-      // still references the same deposit.
-      const { data: unlinkedRow } = await supabase
-        .from("income_entries")
-        .select("id, linked_transaction_id")
-        .eq("id", itemId)
-        .maybeSingle();
-      await supabase
-        .from("income_entries")
-        .update({ status: "received" } as any)
-        .eq("id", itemId);
-      const unlinkedLinkedTxId = (unlinkedRow as any)?.linked_transaction_id as string | null | undefined;
-      if (unlinkedLinkedTxId) {
-        try {
-          await restoreLinkedTransactionForIncomeEntry(unlinkedLinkedTxId, itemId);
-        } catch (err) {
-          console.warn("[UnlinkIncome] tx restore skipped:", err);
-        }
-      }
-
-      // If fewer than 2 entries remain in the group, dissolve it.
+      // 3. Determine what remains linked. If <2 remain, dissolve group.
       const { data: remaining } = await supabase
         .from("income_entry_links")
         .select("canonical_entry_id, merged_entry_id")
@@ -337,18 +329,50 @@ export function useUnlinkIncomeMatchGroupItem() {
           (remaining || []).flatMap((l: any) => [l.canonical_entry_id, l.merged_entry_id]).filter(Boolean),
         ),
       );
+
+      let removedIds: string[];
       if (remainingIds.length < 2) {
-        if (remainingIds.length > 0) {
-          await supabase
-            .from("income_entries")
-            .update({ status: "received" } as any)
-            .in("id", remainingIds);
-        }
+        // Dissolve: every participant is removed.
+        removedIds = participantIds;
         await supabase
           .from("income_entry_links")
           .update({ status: "unlinked" } as any)
           .eq("linked_group_id", groupId)
           .eq("created_by_user", true);
+      } else {
+        removedIds = [itemId];
+      }
+
+      if (removedIds.length === 0) return;
+
+      // 4. Restore ALL removed entries (canonical + previously-merged
+      //    imported siblings) back to active "received" status. This is
+      //    critical so a merged imported row reappears in the ledger and
+      //    can be relinked.
+      await supabase
+        .from("income_entries")
+        .update({ status: "received" } as any)
+        .in("id", removedIds);
+
+      // 5. For each removed entry that references a Plaid deposit, restore
+      //    the underlying transaction reportability — but only if no OTHER
+      //    still-active canonical Personal Income row represents the same
+      //    deposit. All removedIds are treated as "in-flight restore" and
+      //    excluded from the still-represented check.
+      const { data: removedRows } = await supabase
+        .from("income_entries")
+        .select("id, linked_transaction_id")
+        .in("id", removedIds);
+      const seenTxKeys = new Set<string>();
+      for (const r of (removedRows || []) as any[]) {
+        const linkedTxId = r.linked_transaction_id as string | null | undefined;
+        if (!linkedTxId || seenTxKeys.has(linkedTxId)) continue;
+        seenTxKeys.add(linkedTxId);
+        try {
+          await restoreLinkedTransactionForIncomeEntry(linkedTxId, removedIds);
+        } catch (err) {
+          console.warn("[UnlinkIncome] tx restore skipped:", err);
+        }
       }
     },
     onSuccess: () => {
