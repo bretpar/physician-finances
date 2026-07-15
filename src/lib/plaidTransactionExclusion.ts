@@ -56,18 +56,29 @@ export async function excludeLinkedTransactionForIncomeEntry(
  */
 export async function restoreLinkedTransactionForIncomeEntry(
   linkedTransactionId: string | null | undefined,
-  excludeIncomeEntryId?: string,
+  excludeIncomeEntryId?: string | string[],
 ): Promise<string[]> {
   if (!linkedTransactionId) return [];
+  const excludeSet = new Set(
+    Array.isArray(excludeIncomeEntryId)
+      ? excludeIncomeEntryId.filter(Boolean)
+      : excludeIncomeEntryId
+        ? [excludeIncomeEntryId]
+        : [],
+  );
   const { data: siblings } = await supabase
     .from("income_entries")
     .select("id, status")
     .eq("linked_transaction_id", linkedTransactionId);
+  // Only ACTIVE canonical representations block restoration. A "merged" row
+  // is a shadow of some canonical (the canonical is what represents the
+  // deposit for aggregation) — but if the caller is dissolving the group
+  // that produced that canonical, they must include those canonical IDs in
+  // excludeIncomeEntryId. An "unlinked" row is fully detached and never
+  // represents.
   const stillRepresented = ((siblings || []) as any[]).some((r) => {
-    if (excludeIncomeEntryId && r.id === excludeIncomeEntryId) return false;
-    // A "merged" sibling has already been folded into a canonical row — the
-    // canonical still represents this deposit, so keep the tx excluded.
-    return r.status !== "unlinked";
+    if (excludeSet.has(r.id)) return false;
+    return r.status !== "unlinked" && r.status !== "merged";
   });
   if (stillRepresented) return [];
   const txIds = await resolveTransactionIds(linkedTransactionId);
