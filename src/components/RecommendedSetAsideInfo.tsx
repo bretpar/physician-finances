@@ -236,131 +236,191 @@ function RateBreakdownCard({
   );
 }
 
-function SsWageBaseCallout() {
+interface ChecklistItem {
+  label: string;
+  reason?: string;
+}
+
+function IncludedRow({ label }: { label: string }) {
   return (
-    <div className="rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-xs space-y-1">
-      <p className="font-semibold text-foreground">Why is my rate lower?</p>
-      <p className="text-muted-foreground leading-snug">
-        You&apos;ve already reached the annual Social Security wage base through your W-2 wages and/or previous self-employment income. Because of this, this income is no longer subject to the 12.4% Social Security tax. Medicare tax still applies.
-      </p>
-    </div>
+    <li className="flex items-center gap-2 text-sm text-foreground">
+      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+      <span>{label}</span>
+    </li>
+  );
+}
+
+function ExcludedRow({ label, reason }: ChecklistItem) {
+  return (
+    <li className="flex items-start gap-2 text-sm">
+      <MinusCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+      <div className="leading-snug">
+        <span className="text-foreground">{label}</span>
+        {reason && <span className="text-muted-foreground"> – {reason}</span>}
+      </div>
+    </li>
   );
 }
 
 function InfoBody({ rate, breakdown, personalStatus, businessStatus, personalDetail, businessDetail, taxableBase, k1Treatment, isK1 }: BodyProps) {
-  const sourceLabel = breakdown?.baseRateSource === "federalEffectiveRate"
-    ? "federalEffectiveRate"
-    : breakdown?.baseRateSource === "effectiveRate"
-      ? "effectiveRate"
-      : "manualEffectiveTaxRate";
   const components = breakdown?.components;
   const k1Meta = getK1TreatmentMeta(k1Treatment);
-  const seCapped = !!components?.seSocialSecurityCapped;
+
+  // Derive checklist state from existing calculation results — no logic changes.
+  const federalRate = components?.federal ?? 0;
+  const seRate = components?.selfEmployment ?? 0;
+  const medicareRate =
+    (components?.seMedicare ?? 0) +
+    (components?.seAdditionalMedicare ?? 0) +
+    (components?.employeeMedicare ?? 0);
+  const ssRate =
+    (components?.seSocialSecurity ?? 0) + (components?.employeeSocialSecurity ?? 0);
+  const ssCapped = !!components?.seSocialSecurityCapped && ssRate === 0;
+
+  const included: string[] = [];
+  const excluded: ChecklistItem[] = [];
+
+  if (federalRate > 0) included.push("Federal income tax");
+  if (medicareRate > 0) included.push("Medicare");
+  if (seRate > 0) included.push("Self-employment tax");
+  if (ssRate > 0) included.push("Social Security");
+  if (personalStatus === "included") included.push("State income tax");
+  if (businessStatus === "included") included.push("Business tax");
+
+  if (ssCapped) {
+    excluded.push({ label: "Social Security", reason: "Annual wage base already reached" });
+  } else if (ssRate === 0 && seRate === 0 && federalRate > 0) {
+    // No SS/SE at all for this income (e.g. passive K-1) — mention only if federal applies so we don't spam empty state.
+    excluded.push({ label: "Social Security", reason: "Does not apply to this income" });
+  }
+  if (personalStatus === "off") {
+    excluded.push({ label: "State income tax", reason: "No state income tax applies" });
+  } else if (personalStatus === "no-rate") {
+    excluded.push({ label: "State income tax", reason: personalDetail || "Not configured" });
+  }
+  if (businessStatus === "no-rate") {
+    excluded.push({ label: "Business tax", reason: businessDetail || "Not configured" });
+  }
+
+  // Estimated dollar amount for the hero — pure display math from taxable base × rate.
+  const grossAmount = taxableBase?.gross ?? 0;
+  const preTax =
+    Math.max(0, taxableBase?.retirement401k ?? 0) +
+    Math.max(0, taxableBase?.healthInsurance ?? 0) +
+    Math.max(0, taxableBase?.hsa ?? 0) +
+    Math.max(0, taxableBase?.otherPreTax ?? 0);
+  const taxableAmount = Math.max(0, grossAmount - preTax);
+  const setAsideAmount = taxableAmount * (rate / 100);
 
   return (
-    <div className="space-y-4 text-sm">
-      <div className="rounded-lg border bg-muted/40 px-4 py-3 max-sm:px-3 max-sm:py-2.5">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground truncate">Recommended set-aside rate</p>
-        <p className="text-2xl sm:text-3xl font-bold text-primary mt-0.5">{rate.toFixed(1)}%</p>
+    <div className="space-y-5 text-sm">
+      {/* Hero — recommendation, front and center. */}
+      <div className="text-center py-2">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Recommended to Set Aside</p>
+        <p className="text-4xl sm:text-5xl font-bold text-primary mt-1 tabular-nums">
+          {rate.toFixed(1)}%
+        </p>
+        {grossAmount > 0 && (
+          <p className="text-sm text-muted-foreground mt-2">
+            ≈ <span className="font-medium text-foreground">{fmtUsd(setAsideAmount)}</span>{" "}
+            from this {fmtUsd(grossAmount)} income
+          </p>
+        )}
       </div>
 
-      {breakdown && <RateBreakdownCard components={components} rate={rate} />}
-
-      {isK1 && (
-        k1Meta ? (
-          <div className={`rounded-md border px-3 py-2 text-xs ${k1Meta.seTaxable ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-border bg-muted/40 text-foreground"}`}>
-            <p className="font-medium">
-              K-1 treatment: {k1Meta.shortLabel} — {k1Meta.seTaxable ? "SE tax included" : "SE tax not applied"}
-            </p>
-            <p className="text-[11px] opacity-80 mt-0.5 leading-snug">{k1Meta.description}</p>
-            {k1Meta.seTaxable && seCapped && (
-              <p className="text-[11px] opacity-80 mt-1 leading-snug">
-                Social Security SE tax may be reduced because prior W-2 wages already count toward the annual Social Security wage base.
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 px-3 py-2 text-xs flex items-start gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span>
-              K-1 tax treatment is not set. Active partnership income may require self-employment tax. Please confirm whether this K-1 is active, passive, guaranteed payment, or S-corp distribution in Settings → Companies.
-            </span>
-          </div>
-        )
+      {/* K-1 unset warning — only surfaces when treatment is missing. */}
+      {isK1 && !k1Meta && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 px-3 py-2 text-xs flex items-start gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>
+            K-1 tax treatment is not set. Confirm whether this K-1 is active, passive, guaranteed
+            payment, or S-corp distribution in Settings → Companies.
+          </span>
+        </div>
       )}
 
-      <p className="text-foreground">
-        Your recommended set-aside rate combines the taxes that apply to this income. Depending on your situation, some items (such as Social Security after reaching the annual wage base or state income tax) may not apply.
-      </p>
-
-      {(() => {
-        const ssRate =
-          (components?.seSocialSecurity ?? 0) + (components?.employeeSocialSecurity ?? 0);
-        return components?.seSocialSecurityCapped && ssRate === 0 ? <SsWageBaseCallout /> : null;
-      })()}
-
-      <div className="space-y-2">
-        {taxableBase && <TaxableBasePanel tb={taxableBase} />}
-        {breakdown && (
-          <div className="rounded-md border bg-background px-3 py-2 text-xs text-foreground">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-medium">Base rate source</span>
-              <span className="font-mono text-muted-foreground">{sourceLabel}</span>
-            </div>
-            <div className="mt-2 space-y-1 text-muted-foreground">
-              <div className="flex justify-between gap-3"><span>Federal income tax rate</span><span>{(components?.federal ?? 0).toFixed(2)}%</span></div>
-              {(components?.selfEmployment ?? 0) > 0 || components?.seSocialSecurityCapped ? (
-                <>
-                  <div className="flex justify-between gap-3 pt-1">
-                    <span className="font-medium text-foreground">Self-employment tax</span>
-                    <span>{(components?.selfEmployment ?? 0).toFixed(2)}%</span>
-                  </div>
-                  <div className="flex justify-between gap-3 pl-3">
-                    <span>↳ SE Social Security</span>
-                    <span className={components?.seSocialSecurityCapped ? "text-emerald-600 dark:text-emerald-400 font-medium" : ""}>
-                      {components?.seSocialSecurityCapped
-                        ? "$0 · wage base reached"
-                        : `${(components?.seSocialSecurity ?? 0).toFixed(2)}%`}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-3 pl-3">
-                    <span>↳ SE Medicare</span>
-                    <span>{(components?.seMedicare ?? 0).toFixed(2)}%</span>
-                  </div>
-                  {(components?.seAdditionalMedicare ?? 0) > 0 && (
-                    <div className="flex justify-between gap-3 pl-3">
-                      <span>↳ Additional Medicare (0.9%)</span>
-                      <span>{(components?.seAdditionalMedicare ?? 0).toFixed(2)}%</span>
-                    </div>
-                  )}
-                  {components?.seWageBaseDetail && (
-                    <SsWageBasePanel
-                      detail={components.seWageBaseDetail}
-                      seSocialSecurityPct={components?.seSocialSecurity ?? 0}
-                      isCapped={!!components?.seSocialSecurityCapped}
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="flex justify-between gap-3"><span>Self-employment tax</span><span>Not added</span></div>
-              )}
-              <div className="flex justify-between gap-3"><span>Business state/B&amp;O</span><span>{(components?.businessState ?? 0) > 0 ? `Added ${(components?.businessState ?? 0).toFixed(2)}%` : "Not added"}</span></div>
-            </div>
+      {/* Plain-language checklist replaces the percentage grid. */}
+      <div className="space-y-4">
+        {included.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Included in this recommendation
+            </p>
+            <ul className="space-y-1.5">
+              {included.map((label) => (
+                <IncludedRow key={label} label={label} />
+              ))}
+            </ul>
           </div>
         )}
-        <StateLine
-          label="Personal state income tax"
-          status={personalStatus}
-          detail={personalDetail}
-        />
-        <StateLine
-          label="Business state tax"
-          status={businessStatus}
-          detail={businessDetail}
-        />
+
+        {excluded.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Not included
+            </p>
+            <ul className="space-y-1.5">
+              {excluded.map((item) => (
+                <ExcludedRow key={item.label} label={item.label} reason={item.reason} />
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
-      <p className="text-xs text-muted-foreground pt-1">
+      {/* Contextual "why is my rate lower?" — only when the SS wage cap explains it. */}
+      {ssCapped && (
+        <div className="rounded-md bg-muted/40 px-3 py-2.5 text-xs">
+          <p className="font-medium text-foreground mb-1">Why is my rate lower?</p>
+          <p className="text-muted-foreground leading-relaxed">
+            You&apos;ve already reached the Social Security wage limit through your W-2 income, so
+            this income is no longer subject to Social Security tax.
+          </p>
+        </div>
+      )}
+
+      {/* Taxable base — collapsed by default. */}
+      {taxableBase && grossAmount > 0 && (
+        <Collapsible>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Taxable income used</p>
+              <p className="text-base font-semibold text-foreground tabular-nums">
+                {fmtUsd(taxableAmount)}
+              </p>
+            </div>
+            <CollapsibleTrigger className="group inline-flex items-center gap-1 text-xs text-primary hover:underline shrink-0">
+              <span>Show calculation</span>
+              <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="mt-2">
+            <TaxableBasePanel tb={taxableBase} />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Advanced — full percentage breakdown lives here. */}
+      {breakdown && (
+        <Collapsible>
+          <CollapsibleTrigger className="group w-full inline-flex items-center justify-between text-xs text-primary hover:underline">
+            <span>Advanced tax calculation</span>
+            <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-2">
+            <RateBreakdownCard components={components} rate={rate} />
+            {components?.seWageBaseDetail && (
+              <SsWageBasePanel
+                detail={components.seWageBaseDetail}
+                seSocialSecurityPct={components?.seSocialSecurity ?? 0}
+                isCapped={!!components?.seSocialSecurityCapped}
+              />
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      <p className="text-[11px] text-muted-foreground text-center">
         {breakdown?.method === "flat_estimate"
           ? "Based on your selected flat rate"
           : breakdown?.method === "dynamic_actual"
