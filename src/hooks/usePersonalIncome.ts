@@ -314,6 +314,10 @@ export function useDeletePersonalIncome() {
         console.warn("[DeletePersonalIncome] planner_conversions cleanup skipped:", err);
       }
 
+      // Remove the payroll HSA row (if any) before deleting the parent so
+      // HSA ledger rows tied to payroll income don't dangle.
+      await deleteLinkedPayrollHsaForIncomeEntry(id);
+
       const { error } = await supabase
         .from("income_entries")
         .delete()
@@ -338,6 +342,7 @@ export function useDeletePersonalIncome() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
       toast.success("Income entry deleted");
     },
     onError: (e) => toast.error(e.message),
