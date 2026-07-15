@@ -263,6 +263,20 @@ export function useCreateIncomeMatchGroup() {
           .in("id", mergedIds);
         if (uErr) throw uErr;
       }
+
+      // For every merged sibling that represents a Plaid deposit, mark the
+      // underlying canonical `transactions` row excluded/linked so it does
+      // not double-count in Dashboard / Tax Overview / reports. The row is
+      // preserved for bank history and unlink support.
+      for (const m of mergedEntries) {
+        const linkedTxId = (m as any).linked_transaction_id as string | null | undefined;
+        if (!linkedTxId) continue;
+        try {
+          await excludeLinkedTransactionForIncomeEntry(linkedTxId);
+        } catch (err) {
+          console.warn("[LinkIncome] tx exclusion skipped:", err);
+        }
+      }
       return groupId;
     },
     onSuccess: () => {
