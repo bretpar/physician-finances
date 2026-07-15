@@ -236,22 +236,21 @@ Plaid deposit for the AUTHENTICATED caller so automation can exercise the
 lifecycle: **Plaid import → planner match/link → unlink → relink → delete**
 — without ever using real Plaid Link or an OTP.
 
-### Authorization (both required)
+### Authorization
 
 - `Authorization: Bearer <user JWT>` — a real Supabase session for the
-  target QA account. The `user_id` is derived from this JWT; you cannot
-  pass a `user_id` in the body.
-- `x-qa-admin-token: <TEST_SEED_ADMIN_TOKEN>` — the project secret. Do NOT
-  commit its value.
+  target QA account. The `user_id` is derived from this JWT; any `user_id`
+  passed in the body is ignored.
 
 The caller's email must match one of:
 
 - `*@paycheckmd.test`
 - `brendantparker+*@gmail.com`
 
-Any other email is rejected with 403.
-
-Returns 503 when `TEST_SEED_ADMIN_TOKEN` is not configured.
+Any other authenticated email is rejected with 403. Unauthenticated
+requests are rejected with 401. No additional project secret is required
+— Codex can call the endpoint directly after signing in as an approved
+QA account.
 
 ### Actions
 
@@ -268,7 +267,6 @@ Returns 503 when `TEST_SEED_ADMIN_TOKEN` is not configured.
 ```
 curl -X POST "$SUPABASE_URL/functions/v1/qa-seed-plaid-lifecycle" \
   -H "Authorization: Bearer $USER_JWT" \
-  -H "x-qa-admin-token: $TEST_SEED_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"action":"seed","date":"2026-05-15"}'
 ```
@@ -284,7 +282,6 @@ and `initial_state`.
 ```
 curl -X POST "$SUPABASE_URL/functions/v1/qa-seed-plaid-lifecycle" \
   -H "Authorization: Bearer $USER_JWT" \
-  -H "x-qa-admin-token: $TEST_SEED_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"action":"reset"}'
 ```
@@ -292,6 +289,6 @@ curl -X POST "$SUPABASE_URL/functions/v1/qa-seed-plaid-lifecycle" \
 ### Warning
 
 This harness is QA-only. It does **not** bypass Plaid OTP for real bank
-connections and must not be enabled on production for real users. The
-allow-listed email patterns and admin token are the only guardrails —
-keep `TEST_SEED_ADMIN_TOKEN` secret.
+connections. The allow-listed email patterns are the only guardrail —
+production users with non-QA emails cannot invoke it.
+
