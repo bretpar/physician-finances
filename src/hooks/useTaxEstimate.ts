@@ -1,4 +1,6 @@
 import { useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useTaxModeStore, type TaxMode as SharedTaxMode } from "@/lib/taxModeStore";
 import { useIncomeEntries, useWeightedIncome } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
@@ -82,14 +84,30 @@ export function useTaxEstimate(): {
   //     appearing twice (e.g. user re-entered after a delete, or a manual
   //     entry + Plaid import both got promoted to income_entries). We keep the
   //     row that's still linked to a live transaction; otherwise we keep one.
+  // Raw Plaid transaction ids — `income_entries.linked_transaction_id` may
+  // point at a `plaid_transactions.id` for personal Plaid-imported deposits
+  // that never got promoted into the canonical `transactions` table. Those
+  // are NOT orphans and must not be dropped by the reconciliation below.
+  const { data: plaidTxIds } = useQuery({
+    queryKey: ["plaid_transaction_ids_for_orphan_check"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("plaid_transactions").select("id");
+      if (error) throw error;
+      return new Set(((data || []) as any[]).map((r) => r.id as string));
+    },
+    staleTime: 60_000,
+  });
+
   const reconciledIncomeEntries = useMemo(() => {
     if (!incomeEntries) return undefined;
     const liveTxIds = new Set((transactions || []).map((t) => t.id));
+    const validPlaidIds = plaidTxIds || new Set<string>();
 
-    // 1) Drop orphans (linked_transaction_id set but transaction missing)
+    // 1) Drop orphans (linked_transaction_id set but neither a live app
+    //    transaction nor a raw plaid_transaction row exists for it).
     const notOrphans = incomeEntries.filter((e) => {
       if (!e.linked_transaction_id) return true; // unlinked is fine
-      return liveTxIds.has(e.linked_transaction_id);
+      return liveTxIds.has(e.linked_transaction_id) || validPlaidIds.has(e.linked_transaction_id);
     });
 
     // 2) Dedupe by exact (company|date|amount). Prefer the live-linked row.
