@@ -28,45 +28,6 @@ interface Props {
 
 type LineStatus = "included" | "no-rate" | "off";
 
-interface LineProps {
-  label: string;
-  status: LineStatus;
-  detail?: string;
-}
-
-function StateLine({ label, status, detail }: LineProps) {
-  let tone: string;
-  let Icon = MinusCircle;
-  let statusText: string;
-
-  if (status === "included") {
-    tone = "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400";
-    Icon = CheckCircle2;
-    statusText = "Included";
-  } else if (status === "no-rate") {
-    tone = "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400";
-    Icon = AlertTriangle;
-    statusText = "Enabled · 0% rate";
-  } else {
-    tone = "border-muted-foreground/20 bg-muted/40 text-muted-foreground";
-    statusText = "Not included";
-  }
-
-  return (
-    <div className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs ${tone}`}>
-      <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-      <div className="leading-snug flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium">{label}</span>
-          <span className="text-[11px] opacity-90 shrink-0">{statusText}</span>
-        </div>
-        {detail && (
-          <span className="block text-[11px] opacity-80 mt-0.5">{detail}</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 interface BodyProps {
   rate: number;
