@@ -492,17 +492,67 @@ export function useConfirmSuggestedMatch() {
           .eq("id", conversionId);
       }
 
-      // Back-link the existing ledger row to the conversion so it shows as
-      // a stored "matched" relationship on subsequent renders.
+      // Back-link the existing ledger row to the conversion and, for personal
+      // income, copy the planner's payroll details onto the existing imported
+      // row. Ownership hierarchy:
+      //   Planner-owned (overwrites): gross_amount, paycheck_amount,
+      //     federal/state/ss/medicare withholding, taxes_withheld,
+      //     retirement_401k, healthcare_deduction, hsa_contribution,
+      //     pre_tax_deductions, company/source/ui_income_subtype when the
+      //     existing row is empty or an imported-cash row.
+      //   Bank-owned (preserved): deposited_amount (never overwritten by
+      //     planner gross), linked_transaction_id and any existing non-zero
+      //     Net Received value stay put.
       if (conversionId) {
         if (input.ledgerBucket === "personal") {
-          await supabase
-            .from("income_entries")
-            .update({
-              origin_type: "planner_converted",
-              origin_planner_conversion_id: conversionId,
-            } as any)
-            .eq("id", input.incomeEntryId);
+          const [{ data: stream }, { data: existingRow }, { data: overrideRow }] = await Promise.all([
+            supabase.from("projected_income_streams").select("*").eq("id", input.streamId).maybeSingle(),
+            supabase.from("income_entries").select("*").eq("id", input.incomeEntryId).maybeSingle(),
+            supabase.from("projected_income_overrides").select("*").eq("stream_id", input.streamId).eq("override_date", input.occurrenceDate).maybeSingle(),
+          ]);
+
+          const s: any = stream || {};
+          const ov: any = overrideRow || {};
+          const gross = Number(ov.paycheck_amount ?? s.paycheck_amount ?? 0) || 0;
+          const patch: Record<string, any> = {
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+            federal_withholding: Number(s.federal_withholding || 0),
+            state_withholding: Number(s.state_withholding || 0),
+            ss_withholding: Number(s.ss_withholding || 0),
+            medicare_withholding: Number(s.medicare_withholding || 0),
+            taxes_withheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            retirement_401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
+            healthcare_deduction: Number(s.healthcare_deduction || 0),
+            hsa_contribution: Number(s.hsa_contribution || 0),
+            pre_tax_deductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+          };
+          if (gross > 0) {
+            patch.gross_amount = gross;
+            patch.paycheck_amount = gross;
+          }
+          const existing: any = existingRow || {};
+          const existingIsImportedOnly =
+            !existing.company || String(existing.origin_type || "").toLowerCase() === "plaid_import" ||
+            (Boolean(existing.linked_transaction_id) &&
+              String(existing.notes || "").toLowerCase().includes("imported from"));
+          if (s.company && (existingIsImportedOnly || !existing.company)) {
+            patch.company = s.company;
+            if (!existing.name) patch.name = s.company;
+          }
+          if (s.source_id && !existing.source_id) patch.source_id = s.source_id;
+          if (s.ui_income_subtype && !existing.ui_income_subtype) {
+            patch.ui_income_subtype = s.ui_income_subtype;
+          }
+          // Never overwrite an existing non-zero deposited_amount with the
+          // planner gross. Only backfill when the imported row has no bank
+          // deposit recorded yet.
+          const existingDep = Number(existing.deposited_amount || 0);
+          if (existingDep <= 0 && gross > 0) {
+            // leave deposited_amount unset — take-home not known until bank confirms
+          }
+
+          await supabase.from("income_entries").update(patch as any).eq("id", input.incomeEntryId);
         } else {
           await supabase
             .from("transactions")
