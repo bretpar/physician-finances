@@ -72,19 +72,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const adminToken = Deno.env.get("TEST_SEED_ADMIN_TOKEN");
-  if (!adminToken) {
-    return json({ error: "QA seed harness disabled (TEST_SEED_ADMIN_TOKEN not set)" }, 503);
-  }
-  const provided = req.headers.get("x-qa-admin-token") || "";
-  if (provided !== adminToken) {
-    return json({ error: "Unauthorized: bad or missing x-qa-admin-token" }, 401);
-  }
-
   const authHeader = req.headers.get("Authorization") || "";
   if (!authHeader.toLowerCase().startsWith("bearer ")) {
     return json({ error: "Not authenticated" }, 401);
   }
+
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const ANON = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
