@@ -146,7 +146,7 @@ export function useTaxEstimate(): {
       }
     }
     return result;
-  }, [incomeEntries, transactions]);
+  }, [incomeEntries, transactions, plaidTxIds]);
 
   const weighted = useWeightedIncome(reconciledIncomeEntries);
   const annualizedRetirement = useAnnualizedContributions(retirementContribs);
