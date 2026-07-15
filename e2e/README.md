@@ -226,3 +226,72 @@ network/DNS/fetch errors — `EAI_AGAIN`, `ENOTFOUND`, `ECONNRESET`,
 errors (invalid email, weak password, duplicate user) surface immediately.
 If all retries fail you'll see: `Network transient: Supabase signup failed
 after retries`. Secrets like `TEST_SEED_ADMIN_TOKEN` are never logged.
+
+---
+
+## QA Plaid lifecycle seed (`qa-seed-plaid-lifecycle`)
+
+Server-side, QA-only seeder that creates one faithful imported personal W-2
+Plaid deposit for the AUTHENTICATED caller so automation can exercise the
+lifecycle: **Plaid import → planner match/link → unlink → relink → delete**
+— without ever using real Plaid Link or an OTP.
+
+### Authorization (both required)
+
+- `Authorization: Bearer <user JWT>` — a real Supabase session for the
+  target QA account. The `user_id` is derived from this JWT; you cannot
+  pass a `user_id` in the body.
+- `x-qa-admin-token: <TEST_SEED_ADMIN_TOKEN>` — the project secret. Do NOT
+  commit its value.
+
+The caller's email must match one of:
+
+- `*@paycheckmd.test`
+- `brendantparker+*@gmail.com`
+
+Any other email is rejected with 403.
+
+Returns 503 when `TEST_SEED_ADMIN_TOKEN` is not configured.
+
+### Actions
+
+`POST /functions/v1/qa-seed-plaid-lifecycle` with JSON body:
+
+- `{ "action": "seed", "date"?: "YYYY-MM-DD", "source_id"?: "<uuid>" }`
+- `{ "action": "reset" }`
+
+`seed` is idempotent — repeating replaces the caller's prior QA seed only.
+`reset` deletes only rows tagged `[qa-plaid-lifecycle]` for the caller.
+
+### Seed example
+
+```
+curl -X POST "$SUPABASE_URL/functions/v1/qa-seed-plaid-lifecycle" \
+  -H "Authorization: Bearer $USER_JWT" \
+  -H "x-qa-admin-token: $TEST_SEED_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"seed","date":"2026-05-15"}'
+```
+
+Response includes: `user_id`, `organization_id`, `plaid_item_id`,
+`plaid_account_id`, `plaid_transaction_id`, `app_transaction_id` (null —
+personal-account sync does not create one), `income_entry_id`,
+`linked_transaction_id`, `employer`, `source_id`, `date`, `deposit_amount`,
+and `initial_state`.
+
+### Reset example
+
+```
+curl -X POST "$SUPABASE_URL/functions/v1/qa-seed-plaid-lifecycle" \
+  -H "Authorization: Bearer $USER_JWT" \
+  -H "x-qa-admin-token: $TEST_SEED_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"reset"}'
+```
+
+### Warning
+
+This harness is QA-only. It does **not** bypass Plaid OTP for real bank
+connections and must not be enabled on production for real users. The
+allow-listed email patterns and admin token are the only guardrails —
+keep `TEST_SEED_ADMIN_TOKEN` secret.
