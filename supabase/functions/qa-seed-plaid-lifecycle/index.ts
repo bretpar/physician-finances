@@ -5,10 +5,9 @@
 // automation can exercise: import -> planner match/link -> unlink -> relink
 // -> delete, without ever touching real Plaid Link or an OTP.
 //
-// Auth: caller must supply BOTH:
-//   - a normal Supabase user JWT in Authorization: Bearer <jwt>
-//   - x-qa-admin-token: <TEST_SEED_ADMIN_TOKEN>
-//
+// Auth: caller must supply a normal Supabase user JWT in
+//   Authorization: Bearer <jwt>
+
 // The target user_id is ALWAYS derived from the JWT. Body user_id is ignored.
 // Only emails matching QA patterns are accepted:
 //   - *@paycheckmd.test
