@@ -62,12 +62,20 @@ export function useIncomeMatchGroups() {
  * True when this income_entry looks like a plain Plaid/imported bank deposit
  * with no payroll/tax detail. These rows confirm cash but must never be
  * chosen as canonical when an accounting/payroll row exists in the group.
+ *
+ * Detection is based on the row's actual provenance and contents so that
+ * legacy Plaid-created rows still saved with the default `origin_type = "manual"`
+ * are still recognized. A true user-entered manual payroll row is preserved
+ * as accounting by its withholding / retirement / healthcare / HSA / pre-tax
+ * fields — those signals defeat this detector.
  */
 export function isImportedCashIncomeRow(e: PersonalIncomeEntry): boolean {
-  const origin = (e as any).origin_type as string | null | undefined;
-  if (origin === "planner_converted" || origin === "ytd_catchup" || origin === "manual") {
-    return false;
-  }
+  const origin = String((e as any).origin_type || "").toLowerCase();
+  // Definitely accounting rows — never treat as imported cash.
+  if (origin === "planner_converted" || origin === "ytd_catchup") return false;
+  // Definitely imported by explicit tag.
+  if (origin === "plaid_import" || origin === "imported") return true;
+
   const payroll =
     Number(e.federal_withholding || 0) +
     Number(e.state_withholding || 0) +
@@ -78,17 +86,23 @@ export function isImportedCashIncomeRow(e: PersonalIncomeEntry): boolean {
     Number((e as any).healthcare_deduction || 0) +
     Number(e.hsa_contribution || 0) +
     Number((e as any).additional_tax_reserve || 0);
+  // Any user-entered payroll detail → this is an accounting row, not imported.
   if (payroll > 0) return false;
-  // Heuristic for sync-created rows: linked to a Plaid transaction with
-  // gross == deposited and a "Imported from" note.
+
   const note = String(e.notes || "").toLowerCase();
-  const grossEqDeposit =
-    Number(e.gross_amount || 0) > 0 &&
-    Math.abs(Number(e.gross_amount || 0) - Number(e.deposited_amount || 0)) < 0.01;
-  if ((e as any).linked_transaction_id && grossEqDeposit && note.includes("imported from")) {
-    return true;
-  }
-  if (note.includes("imported from")) return true;
+  const hasImportNote = note.includes("imported from");
+  const linkedTx = Boolean((e as any).linked_transaction_id);
+  const gross = Number(e.gross_amount || 0);
+  const deposit = Number(e.deposited_amount || 0);
+  const grossEqDeposit = gross > 0 && Math.abs(gross - deposit) < 0.01;
+
+  // Sync-created shape: linked Plaid transaction + gross == deposit + no payroll.
+  if (linkedTx && grossEqDeposit) return true;
+  // Explicit import provenance in notes.
+  if (hasImportNote) return true;
+  // Legacy Plaid rows w/ default origin_type='manual' that still carry the
+  // bank-transaction linkage and no payroll signal.
+  if (linkedTx && payroll === 0) return true;
   return false;
 }
 
