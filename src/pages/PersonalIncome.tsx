@@ -38,6 +38,7 @@ import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendati
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { formatDate, formatDateShort, formatMonthYear, getTodayLocalDateString } from "@/lib/localDate";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
+import { isPersonalIncomeReportable } from "@/lib/personalIncomeReportability";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { isFeatureEnabled } from "@/lib/featureFlags";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
@@ -343,7 +344,13 @@ export default function PersonalIncome() {
   // useCanonicalWithholding() which spans personal+business+projected and
   // caused page-level drift ($1,869 vs $1,262) with the W-2 breakdown.
   const totals = useMemo(() => {
-    const stats = entries.reduce(
+    // Exclude shadow rows (unlinked imported Plaid cash-confirmation) from
+    // aggregate totals so they don't double-count against the canonical
+    // planner/manual paycheck. They remain visible in the ledger below.
+    const reportableEntries = entries.filter((e) =>
+      isPersonalIncomeReportable(e as any),
+    );
+    const stats = reportableEntries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);
         const isW2 = isW2Type(hydrateIncomeType(e));
