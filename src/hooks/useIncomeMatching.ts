@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import {
+  excludeLinkedTransactionForIncomeEntry,
+  restoreLinkedTransactionForIncomeEntry,
+} from "@/lib/plaidTransactionExclusion";
 
 export interface IncomeMatchGroupItem {
   itemId: string;
