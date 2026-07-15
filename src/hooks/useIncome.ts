@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo, useCallback } from "react";
 import { isW2FilingType, isSelfEmployedFilingType, toCanonicalIncomeType } from "@/lib/filingTypes";
-import { syncPayrollHsaForIncome } from "@/hooks/useHsaContributions";
+import { syncIncomeEntryHsa, deleteLinkedPayrollHsaForIncomeEntry } from "@/lib/incomeEntryHsaSync";
 
 export type IncomeStatus = "projected" | "expected" | "received";
 
@@ -134,28 +134,18 @@ export function useAddIncome() {
       const transactionId = (txData as { id: string } | null)?.id || null;
       const incomeEntryId = (entryData as { id: string } | null)?.id || null;
 
-      // 3. Sync payroll HSA into hsa_contributions ledger
+      // 3. Sync payroll HSA into hsa_contributions ledger (canonical path).
       const hsaAmount = Number((entry as any).hsa_contribution || 0);
       if (entryData?.id) {
-        try {
-          const linkedHsaId = await syncPayrollHsaForIncome({
-            userId: user.id,
-            organizationId: orgId,
-            incomeEntryId: entryData.id,
-            existingHsaId: null,
-            amount: hsaAmount,
-            contributionDate: incomeDate,
-            companyId: (entry as any).source_id || null,
-          });
-          if (linkedHsaId) {
-            await supabase
-              .from("income_entries")
-              .update({ linked_hsa_contribution_id: linkedHsaId } as any)
-              .eq("id", entryData.id);
-          }
-        } catch (e) {
-          console.error("[useAddIncome] HSA sync failed", e);
-        }
+        await syncIncomeEntryHsa({
+          incomeEntryId: entryData.id,
+          userId: user.id,
+          organizationId: orgId,
+          amount: hsaAmount,
+          contributionDate: incomeDate,
+          companyId: (entry as any).source_id || null,
+          existingHsaId: null,
+        });
       }
 
       return { transactionId, incomeEntryId };
@@ -184,33 +174,25 @@ export function useUpdateIncome() {
         .eq("id", id);
       if (error) throw error;
 
-      // Sync payroll HSA if hsa_contribution was part of the update
+      // Sync payroll HSA if hsa_contribution was part of the update. We
+      // must always look up the current row so income_date/source_id/user
+      // are correct — an "update" may not include those fields.
       if ("hsa_contribution" in updates) {
-        try {
-          const { data: existing } = await supabase
-            .from("income_entries")
-            .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
-            .eq("id", id)
-            .single();
-          if (existing) {
-            const linkedHsaId = await syncPayrollHsaForIncome({
-              userId: (existing as any).user_id,
-              organizationId: (existing as any).organization_id,
-              incomeEntryId: id,
-              existingHsaId: (existing as any).linked_hsa_contribution_id,
-              amount: Number((updates as any).hsa_contribution || 0),
-              contributionDate: (updates as any).income_date || (existing as any).income_date,
-              companyId: (updates as any).source_id ?? (existing as any).source_id ?? null,
-            });
-            if (linkedHsaId !== (existing as any).linked_hsa_contribution_id) {
-              await supabase
-                .from("income_entries")
-                .update({ linked_hsa_contribution_id: linkedHsaId } as any)
-                .eq("id", id);
-            }
-          }
-        } catch (e) {
-          console.error("[useUpdateIncome] HSA sync failed", e);
+        const { data: existing } = await supabase
+          .from("income_entries")
+          .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
+          .eq("id", id)
+          .single();
+        if (existing) {
+          await syncIncomeEntryHsa({
+            incomeEntryId: id,
+            userId: (existing as any).user_id,
+            organizationId: (existing as any).organization_id,
+            amount: Number((updates as any).hsa_contribution || 0),
+            contributionDate: (updates as any).income_date || (existing as any).income_date,
+            companyId: (updates as any).source_id ?? (existing as any).source_id ?? null,
+            existingHsaId: (existing as any).linked_hsa_contribution_id ?? null,
+          });
         }
       }
     },
@@ -227,6 +209,9 @@ export function useDeleteIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove the payroll HSA row before the parent income_entry is
+      // deleted so payroll HSA rows never dangle in the HSA ledger.
+      await deleteLinkedPayrollHsaForIncomeEntry(id);
       const { error } = await supabase
         .from("income_entries")
         .delete()
@@ -235,6 +220,7 @@ export function useDeleteIncome() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
       toast.success("Income entry deleted");
     },
     onError: (e) => toast.error(e.message),

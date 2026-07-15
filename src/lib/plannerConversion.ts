@@ -14,6 +14,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { syncIncomeEntryHsa } from "@/lib/incomeEntryHsaSync";
 import { ledgerForIncomeType, isBusinessIncomeType } from "@/lib/ledgerRouting";
 import {
   generateProjectedPaychecks,
@@ -256,6 +257,21 @@ async function convertOne(args: ConvertOneArgs): Promise<"converted" | "duplicat
       .from("planner_conversions")
       .update({ income_entry_id: (ie as { id: string }).id })
       .eq("id", conversionId);
+    // Canonical payroll HSA sync so planner-converted paychecks with an HSA
+    // amount always create a linked payroll HSA row.
+    const newIeId = (ie as { id: string }).id;
+    const hsa = Number(paycheck.hsaContribution || 0);
+    if (hsa > 0) {
+      await syncIncomeEntryHsa({
+        incomeEntryId: newIeId,
+        userId,
+        organizationId,
+        amount: hsa,
+        contributionDate: paycheck.date,
+        companyId: stream.source_id ?? null,
+        existingHsaId: null,
+      });
+    }
     return "converted";
   }
 

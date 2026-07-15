@@ -5,6 +5,7 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
 import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 import { getTodayLocalDateString } from "@/lib/localDate";
+import { syncIncomeEntryHsa, deleteLinkedPayrollHsaForIncomeEntry } from "@/lib/incomeEntryHsaSync";
 
 export interface PersonalIncomeEntry {
   id: string;
@@ -143,7 +144,21 @@ export function useAddPersonalIncome() {
         .select("id")
         .single();
       if (error) throw error;
-      return data as { id: string } | null;
+      const created = data as { id: string } | null;
+
+      // Canonical payroll HSA sync.
+      if (created?.id && Number((row as any).hsa_contribution || 0) > 0) {
+        await syncIncomeEntryHsa({
+          incomeEntryId: created.id,
+          userId: user.id,
+          organizationId: orgId,
+          amount: Number((row as any).hsa_contribution || 0),
+          contributionDate: (row as any).income_date,
+          companyId: (row as any).source_id ?? null,
+          existingHsaId: null,
+        });
+      }
+      return created;
     },
     onSuccess: async () => {
       // Await the personal-income refetch so the ledger is guaranteed to be
@@ -154,6 +169,7 @@ export function useAddPersonalIncome() {
       await Promise.all([
         qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
         qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["hsa_contributions"] }),
       ]);
       toast.success("Personal income added");
     },
@@ -184,11 +200,34 @@ export function useUpdatePersonalIncome() {
         .update(safe)
         .eq("id", id);
       if (error) throw error;
+
+      // Canonical payroll HSA sync when the update touched hsa_contribution.
+      if ("hsa_contribution" in updates) {
+        const { data: existing } = await supabase
+          .from("income_entries")
+          .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (existing) {
+          await syncIncomeEntryHsa({
+            incomeEntryId: id,
+            userId: (existing as any).user_id,
+            organizationId: (existing as any).organization_id,
+            amount: Number((updates as any).hsa_contribution || 0),
+            contributionDate:
+              (updates as any).income_date || (existing as any).income_date,
+            companyId:
+              (updates as any).source_id ?? (existing as any).source_id ?? null,
+            existingHsaId: (existing as any).linked_hsa_contribution_id ?? null,
+          });
+        }
+      }
     },
     onSuccess: async () => {
       await Promise.all([
         qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
         qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["hsa_contributions"] }),
       ]);
       toast.success("Income entry updated");
     },
@@ -275,6 +314,10 @@ export function useDeletePersonalIncome() {
         console.warn("[DeletePersonalIncome] planner_conversions cleanup skipped:", err);
       }
 
+      // Remove the payroll HSA row (if any) before deleting the parent so
+      // HSA ledger rows tied to payroll income don't dangle.
+      await deleteLinkedPayrollHsaForIncomeEntry(id);
+
       const { error } = await supabase
         .from("income_entries")
         .delete()
@@ -299,6 +342,7 @@ export function useDeletePersonalIncome() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
       toast.success("Income entry deleted");
     },
     onError: (e) => toast.error(e.message),

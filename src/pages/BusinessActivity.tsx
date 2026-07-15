@@ -38,6 +38,7 @@ import { mapToScheduleC, SCHEDULE_C_CATEGORIES } from "@/lib/scheduleC";
 import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
+import { syncIncomeEntryHsa } from "@/lib/incomeEntryHsaSync";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
@@ -792,7 +793,7 @@ export default function Transactions() {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
                 const orgId = await getUserOrgId();
-                const { error } = await supabase.from("income_entries").insert({
+                const { data: created, error } = await supabase.from("income_entries").insert({
                   user_id: user.id,
                   organization_id: orgId,
                   name: incomeForm.name,
@@ -819,13 +820,29 @@ export default function Transactions() {
                   dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
                   quarterly_adjustment_amount: rec?.quarterlyAdjustmentAmount || 0,
                   recommendation_status: rec?.recommendationStatus || "on_track",
-                } as any);
+                } as any).select("id").single();
                 if (error) {
                   console.error("[saveIncome] Failed to create income_entry", error);
                   toast.error("Saved transaction but failed to save detailed fields");
                 } else {
                   console.log("[saveIncome] Created new income_entry for tx", editingIncomeTxId);
+                  // Canonical payroll HSA sync — matches useAddIncome path
+                  // so an HSA amount entered from the Business Activity
+                  // editor always produces a payroll HSA ledger row.
+                  const newIeId = (created as { id: string } | null)?.id;
+                  if (newIeId && Number(hsa || 0) > 0) {
+                    await syncIncomeEntryHsa({
+                      incomeEntryId: newIeId,
+                      userId: user.id,
+                      organizationId: orgId,
+                      amount: Number(hsa || 0),
+                      contributionDate: incomeForm.date,
+                      companyId: selectedIncomeCompany?.id || null,
+                      existingHsaId: null,
+                    });
+                  }
                   queryClient.invalidateQueries({ queryKey: ["income_entries"] });
+                  queryClient.invalidateQueries({ queryKey: ["hsa_contributions"] });
                 }
               } catch (e) {
                 console.error("[saveIncome] Error creating income_entry", e);

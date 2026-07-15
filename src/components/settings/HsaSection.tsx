@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HeartPulse, Plus, Trash2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -25,6 +25,8 @@ import {
   useDeleteHsaContribution,
   type HsaContribution,
 } from "@/hooks/useHsaContributions";
+import { backfillMissingPayrollHsaLinks } from "@/lib/incomeEntryHsaSync";
+import { useQueryClient } from "@tanstack/react-query";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { cn } from "@/lib/utils";
 
@@ -195,6 +197,23 @@ export function HsaLedgerSection() {
   const addManual = useAddManualHsaContribution();
   const del = useDeleteHsaContribution();
   const hsaEnabled = !!settings?.hsaEnabled;
+
+  // One-shot backfill: repair any income_entries whose payroll HSA row is
+  // missing (historical data written before syncIncomeEntryHsa was wired
+  // into every income_entry insert path). Idempotent — never creates
+  // duplicates and never touches manual/individual HSA rows.
+  const qc = useQueryClient();
+  const backfilledRef = useRef(false);
+  useEffect(() => {
+    if (backfilledRef.current) return;
+    backfilledRef.current = true;
+    backfillMissingPayrollHsaLinks().then((r) => {
+      if (r.repaired > 0) {
+        qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
+        qc.invalidateQueries({ queryKey: ["income_entries"] });
+      }
+    });
+  }, [qc]);
 
   const [addOpen, setAddOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
