@@ -105,10 +105,9 @@ export function useTaxEstimate(): {
 
     // 1) Drop orphans (linked_transaction_id set but neither a live app
     //    transaction nor a raw plaid_transaction row exists for it).
-    const notOrphans = incomeEntries.filter((e) => {
-      if (!e.linked_transaction_id) return true; // unlinked is fine
-      return liveTxIds.has(e.linked_transaction_id) || validPlaidIds.has(e.linked_transaction_id);
-    });
+    //    Delegated to the shared helper so the rule is testable in one place
+    //    and cannot drift between callers.
+    const notOrphans = filterNonOrphanIncomeEntries(incomeEntries, liveTxIds, validPlaidIds);
 
     // 2) Dedupe by exact (company|date|amount). Prefer the live-linked row.
     const byKey = new Map<string, typeof notOrphans[number]>();
