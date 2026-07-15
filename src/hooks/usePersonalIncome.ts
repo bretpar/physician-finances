@@ -209,6 +209,72 @@ export function useDeletePersonalIncome() {
         .maybeSingle();
       const linkedTxId = (existing as any)?.linked_transaction_id as string | null | undefined;
 
+      // STALE RELATIONSHIP CLEANUP (must run BEFORE the delete so we can
+      // still resolve which rows referenced this entry):
+      //
+      //   1. Any active income_entry_links referencing this entry are
+      //      transitioned to 'unlinked' so no active link points at a
+      //      deleted row. If dissolving the group leaves fewer than 2
+      //      active participants, dissolve the whole group so remaining
+      //      canonical siblings are restored to a plain state.
+      try {
+        const { data: linkRows } = await supabase
+          .from("income_entry_links")
+          .select("id, linked_group_id, canonical_entry_id, merged_entry_id, status, created_by_user")
+          .or(`canonical_entry_id.eq.${id},merged_entry_id.eq.${id}`)
+          .eq("status", "linked");
+        const affectedGroups = new Set<string>();
+        for (const l of (linkRows || []) as any[]) {
+          if (l.linked_group_id) affectedGroups.add(l.linked_group_id);
+        }
+        if ((linkRows || []).length > 0) {
+          await supabase
+            .from("income_entry_links")
+            .update({ status: "unlinked" } as any)
+            .or(`canonical_entry_id.eq.${id},merged_entry_id.eq.${id}`)
+            .eq("status", "linked");
+        }
+        for (const groupId of affectedGroups) {
+          const { data: remaining } = await supabase
+            .from("income_entry_links")
+            .select("canonical_entry_id, merged_entry_id")
+            .eq("linked_group_id", groupId)
+            .eq("status", "linked");
+          const ids = new Set<string>();
+          for (const r of (remaining || []) as any[]) {
+            if (r.canonical_entry_id) ids.add(r.canonical_entry_id);
+            if (r.merged_entry_id) ids.add(r.merged_entry_id);
+          }
+          if (ids.size < 2) {
+            // Dissolve residuals and restore any surviving merged rows.
+            await supabase
+              .from("income_entry_links")
+              .update({ status: "unlinked" } as any)
+              .eq("linked_group_id", groupId);
+            if (ids.size > 0) {
+              await supabase
+                .from("income_entries")
+                .update({ status: "received" } as any)
+                .in("id", Array.from(ids));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[DeletePersonalIncome] link cleanup skipped:", err);
+      }
+
+      //   2. planner_conversions.income_entry_id must not dangle after the
+      //      referenced income row is deleted. Null it so the planner can
+      //      re-produce or the user can re-associate a fresh entry.
+      try {
+        await supabase
+          .from("planner_conversions")
+          .update({ income_entry_id: null } as any)
+          .eq("income_entry_id", id);
+      } catch (err) {
+        console.warn("[DeletePersonalIncome] planner_conversions cleanup skipped:", err);
+      }
+
       const { error } = await supabase
         .from("income_entries")
         .delete()
