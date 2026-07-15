@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import {
+  excludeLinkedTransactionForIncomeEntry,
+  restoreLinkedTransactionForIncomeEntry,
+} from "@/lib/plaidTransactionExclusion";
 
 export interface IncomeMatchGroupItem {
   itemId: string;
@@ -259,6 +263,20 @@ export function useCreateIncomeMatchGroup() {
           .in("id", mergedIds);
         if (uErr) throw uErr;
       }
+
+      // For every merged sibling that represents a Plaid deposit, mark the
+      // underlying canonical `transactions` row excluded/linked so it does
+      // not double-count in Dashboard / Tax Overview / reports. The row is
+      // preserved for bank history and unlink support.
+      for (const m of mergedEntries) {
+        const linkedTxId = (m as any).linked_transaction_id as string | null | undefined;
+        if (!linkedTxId) continue;
+        try {
+          await excludeLinkedTransactionForIncomeEntry(linkedTxId);
+        } catch (err) {
+          console.warn("[LinkIncome] tx exclusion skipped:", err);
+        }
+      }
       return groupId;
     },
     onSuccess: () => {
@@ -285,11 +303,27 @@ export function useUnlinkIncomeMatchGroupItem() {
         .or(`canonical_entry_id.eq.${itemId},merged_entry_id.eq.${itemId}`);
       if (uErr) throw uErr;
 
-      // Restore the unlinked entry back to active.
+      // Restore the unlinked entry back to active, and if it represents a
+      // Plaid deposit, restore reportability on the underlying `transactions`
+      // row — but only when no other active canonical income_entries row
+      // still references the same deposit.
+      const { data: unlinkedRow } = await supabase
+        .from("income_entries")
+        .select("id, linked_transaction_id")
+        .eq("id", itemId)
+        .maybeSingle();
       await supabase
         .from("income_entries")
         .update({ status: "received" } as any)
         .eq("id", itemId);
+      const unlinkedLinkedTxId = (unlinkedRow as any)?.linked_transaction_id as string | null | undefined;
+      if (unlinkedLinkedTxId) {
+        try {
+          await restoreLinkedTransactionForIncomeEntry(unlinkedLinkedTxId, itemId);
+        } catch (err) {
+          console.warn("[UnlinkIncome] tx restore skipped:", err);
+        }
+      }
 
       // If fewer than 2 entries remain in the group, dissolve it.
       const { data: remaining } = await supabase

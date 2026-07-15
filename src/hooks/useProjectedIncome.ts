@@ -11,6 +11,7 @@ import {
   cleanupConvertedLedgerForBonus,
   PLANNER_CLEANUP_INVALIDATION_KEYS,
 } from "@/lib/plannerCleanup";
+import { excludeLinkedTransactionForIncomeEntry } from "@/lib/plaidTransactionExclusion";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
@@ -640,6 +641,19 @@ export function useConfirmSuggestedMatch() {
           }
 
           await supabase.from("income_entries").update(patch as any).eq("id", input.incomeEntryId);
+
+          // Once the canonical Personal Income row represents this deposit,
+          // the underlying Plaid `transactions` row (if any) must NOT count
+          // as independent income in Dashboard / Tax Overview / reports.
+          // Preserve it for bank history — just mark it excluded/linked.
+          const linkedTxId = (existing as any).linked_transaction_id as string | null | undefined;
+          if (linkedTxId) {
+            try {
+              await excludeLinkedTransactionForIncomeEntry(linkedTxId);
+            } catch (err) {
+              console.warn("[confirm-match] tx exclusion skipped:", err);
+            }
+          }
         } else {
           await supabase
             .from("transactions")
