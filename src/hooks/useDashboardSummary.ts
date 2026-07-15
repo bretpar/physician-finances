@@ -6,6 +6,7 @@ import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { aggregateInvestmentTaxBuckets, type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { isPersonalIncomeReportable } from "@/lib/personalIncomeReportability";
 
 export interface DashboardSummary {
   businessIncome: number;
@@ -49,8 +50,10 @@ export function useDashboardSummary(
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const businessNetIncome = businessIncome - businessExpenses;
 
-    // Personal income from personal income entries
-    const personal = personalEntries || [];
+    // Personal income from personal income entries. Filter through the
+    // shared reportability rule so shadow rows (merged/unlinked imports)
+    // never double-count against the canonical planner/manual paycheck.
+    const personal = (personalEntries || []).filter((e) => isPersonalIncomeReportable(e as any));
     const personalIncome = personal.reduce((s, e) => {
       const amt = Number(e.gross_amount);
       return s + (e.income_type === "loss" ? -Math.abs(amt) : amt);
