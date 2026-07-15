@@ -200,11 +200,35 @@ export function useDeletePersonalIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Capture the linked_transaction_id before deleting so we can decide
+      // whether to restore the underlying Plaid transaction's reportability.
+      const { data: existing } = await supabase
+        .from("income_entries")
+        .select("id, linked_transaction_id")
+        .eq("id", id)
+        .maybeSingle();
+      const linkedTxId = (existing as any)?.linked_transaction_id as string | null | undefined;
+
       const { error } = await supabase
         .from("income_entries")
         .delete()
         .eq("id", id);
       if (error) throw error;
+
+      // If the deleted row referenced a Plaid deposit, recompute whether
+      // any other active Personal Income row still represents it. If not,
+      // restore transaction reportability so it doesn't stay permanently
+      // excluded.
+      if (linkedTxId) {
+        try {
+          const { restoreLinkedTransactionForIncomeEntry } = await import(
+            "@/lib/plaidTransactionExclusion"
+          );
+          await restoreLinkedTransactionForIncomeEntry(linkedTxId, id);
+        } catch (err) {
+          console.warn("[DeletePersonalIncome] tx restore skipped:", err);
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["personal_income_entries"] });

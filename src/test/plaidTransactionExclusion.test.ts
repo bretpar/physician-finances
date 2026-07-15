@@ -121,6 +121,34 @@ describe("plaidTransactionExclusion helpers", () => {
     expect(ids).toEqual([]);
     expect(state.transactions[0].excluded_from_reports).toBe(true);
   });
+
+  it("dissolve unlink: excludeIds array restores tx even though merged sibling is still merged", async () => {
+    // Simulates the unlink path BEFORE we've flipped statuses back to
+    // "received" — caller passes all removed entry ids as the exclude list.
+    state.transactions.push({
+      id: "tx-5", transaction_type: "income",
+      excluded_from_reports: true, match_status: "linked",
+    });
+    state.income_entries.push({ id: "ie-can", linked_transaction_id: null, status: "received" });
+    state.income_entries.push({ id: "ie-imp", linked_transaction_id: "tx-5", status: "merged" });
+    const ids = await restoreLinkedTransactionForIncomeEntry("tx-5", ["ie-can", "ie-imp"]);
+    expect(ids).toEqual(["tx-5"]);
+    expect(state.transactions[0].excluded_from_reports).toBe(false);
+    expect(state.transactions[0].match_status).toBe("unmatched");
+  });
+
+  it("merged rows alone (without exclude) do not count as active representation", async () => {
+    state.transactions.push({
+      id: "tx-6", transaction_type: "income",
+      excluded_from_reports: true, match_status: "linked",
+    });
+    // Only a stale "merged" sibling exists and is NOT in the exclude list.
+    // Per new semantics merged rows are shadows, so restoration proceeds.
+    state.income_entries.push({ id: "ie-stale", linked_transaction_id: "tx-6", status: "merged" });
+    const ids = await restoreLinkedTransactionForIncomeEntry("tx-6");
+    expect(ids).toEqual(["tx-6"]);
+    expect(state.transactions[0].excluded_from_reports).toBe(false);
+  });
 });
 
 describe("two-paycheck QA regression aggregation", () => {
