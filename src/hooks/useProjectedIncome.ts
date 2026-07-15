@@ -26,6 +26,20 @@ export interface MatchableIncomeEntry {
   origin_planner_conversion_id?: string | null;
   /** "planner_conversion" indicates the entry is the confirmed actual for a projected paycheck. */
   entry_kind?: string | null;
+  /** Optional — helps detect an imported bank-deposit row so we can relax the net-vs-gross amount check. */
+  origin_type?: string | null;
+  linked_transaction_id?: string | null;
+  notes?: string | null;
+  gross_amount?: number | null;
+  deposited_amount?: number | null;
+  federal_withholding?: number | null;
+  state_withholding?: number | null;
+  ss_withholding?: number | null;
+  medicare_withholding?: number | null;
+  retirement_401k?: number | null;
+  pre_tax_deductions?: number | null;
+  healthcare_deduction?: number | null;
+  hsa_contribution?: number | null;
 }
 
 /** Minimal interface for business ledger transactions used in matching. */
@@ -189,6 +203,69 @@ export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
  * - Similar gross amount (within 10%)
  * - Same income type/company_type
  */
+function normalizeCompanyTokens(s: string): Set<string> {
+  const stopwords = new Set([
+    "llc","inc","pc","pllc","corp","corporation","co","company","the","of","and",
+    "hospital","hospitals","medical","health","healthcare","clinic","group","md",
+    "payroll","direct","dep","deposit","ach","llp","pa","llc.","assoc","associates",
+  ]);
+  return new Set(
+    (s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 3 && !stopwords.has(t)),
+  );
+}
+
+function companyMatchStrength(paycheckLabel: string, entryCompany: string): "strong" | "weak" | "none" {
+  const p = (paycheckLabel || "").toLowerCase().trim();
+  const e = (entryCompany || "").toLowerCase().trim();
+  if (!p || !e) return "none";
+  if (p === e || p.includes(e) || e.includes(p)) return "strong";
+  const pt = normalizeCompanyTokens(p);
+  const et = normalizeCompanyTokens(e);
+  for (const t of pt) if (et.has(t)) return "strong";
+  return "none";
+}
+
+function isImportedCashMatchable(e: MatchableIncomeEntry): boolean {
+  const origin = String(e.origin_type || "").toLowerCase();
+  if (origin === "plaid_import" || origin === "imported") return true;
+  if (origin === "planner_converted" || origin === "ytd_catchup") return false;
+  const payroll =
+    Number(e.federal_withholding || 0) +
+    Number(e.state_withholding || 0) +
+    Number(e.ss_withholding || 0) +
+    Number(e.medicare_withholding || 0) +
+    Number(e.pre_tax_deductions || 0) +
+    Number(e.retirement_401k || 0) +
+    Number(e.healthcare_deduction || 0) +
+    Number(e.hsa_contribution || 0);
+  if (payroll > 0) return false;
+  const note = String(e.notes || "").toLowerCase();
+  if (note.includes("imported from")) return true;
+  const linkedTx = Boolean(e.linked_transaction_id);
+  const gross = Number(e.gross_amount || 0);
+  const dep = Number(e.deposited_amount || 0);
+  if (linkedTx && gross > 0 && Math.abs(gross - dep) < 0.01) return true;
+  if (linkedTx && payroll === 0) return true;
+  return false;
+}
+
+/**
+ * Match a projected paycheck against actual income entries.
+ * Returns the best matching income entry or null.
+ *
+ * Scoring:
+ * - Date within ±3 days (required)
+ * - Source/company match (source_id > normalized company token > substring)
+ * - Amount similarity: gross-vs-gross when possible; for imported cash rows
+ *   the paycheck_amount reflects the bank net deposit, so we compare against
+ *   planned net (gross - taxes/withholding when available) with wider
+ *   tolerance and never *disqualify* on amount alone.
+ * - Threshold: date + one other strong signal (source or strong company).
+ */
 function findMatchingIncome(
   paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string; streamSourceId?: string | null },
   incomeEntries: MatchableIncomeEntry[],
@@ -211,29 +288,39 @@ function findMatchingIncome(
     else if (daysDiff <= 3) score += 15;
     else continue; // Skip if more than 3 days apart
 
-    // Source/company match — prefer source_id, fall back to company name substring
+    // Source/company match — prefer source_id, then normalized token, then substring
+    let companySignal: "source" | "strong" | "weak" | "none" = "none";
     if (paycheck.streamSourceId && entry.source_id && paycheck.streamSourceId === entry.source_id) {
       score += 30;
+      companySignal = "source";
     } else {
-      const pCompany = (paycheck.label || "").toLowerCase();
-      const eCompany = (entry.company || "").toLowerCase();
-      if (pCompany && eCompany && (pCompany.includes(eCompany) || eCompany.includes(pCompany))) {
+      const strength = companyMatchStrength(paycheck.label || "", entry.company || "");
+      if (strength === "strong") {
         score += 30;
+        companySignal = "strong";
       }
     }
 
-    // Amount similarity (within 10% of gross)
-    const gross = Number(entry.paycheck_amount);
-    if (gross > 0 && paycheck.grossAmount > 0) {
-      const diff = Math.abs(gross - paycheck.grossAmount);
+    const importedCash = isImportedCashMatchable(entry);
+    const grossOnEntry = Number(entry.gross_amount || 0);
+    // If the entry has its own gross (accounting row), compare gross↔gross.
+    // Otherwise fall back to paycheck_amount (net deposit for imported cash).
+    const referenceAmount = grossOnEntry > 0 ? grossOnEntry : Number(entry.paycheck_amount);
+    if (referenceAmount > 0 && paycheck.grossAmount > 0) {
+      const diff = Math.abs(referenceAmount - paycheck.grossAmount);
       const pct = diff / paycheck.grossAmount;
       if (pct === 0) score += 30;
       else if (pct <= 0.02) score += 25;
       else if (pct <= 0.05) score += 15;
       else if (pct <= 0.10) score += 5;
+      else if (importedCash && (companySignal === "source" || companySignal === "strong")) {
+        // Imported net-only row with strong source/company + date signal:
+        // don't disqualify. Small tolerance-based bonus for very rough closeness.
+        if (pct <= 0.5) score += 5;
+      }
     }
 
-    // Threshold: need at least date + one other signal
+    // Threshold: need at least date + one other strong signal.
     if (score >= 45 && (!bestMatch || score > bestMatch.score)) {
       bestMatch = { entry, score };
     }
@@ -492,17 +579,67 @@ export function useConfirmSuggestedMatch() {
           .eq("id", conversionId);
       }
 
-      // Back-link the existing ledger row to the conversion so it shows as
-      // a stored "matched" relationship on subsequent renders.
+      // Back-link the existing ledger row to the conversion and, for personal
+      // income, copy the planner's payroll details onto the existing imported
+      // row. Ownership hierarchy:
+      //   Planner-owned (overwrites): gross_amount, paycheck_amount,
+      //     federal/state/ss/medicare withholding, taxes_withheld,
+      //     retirement_401k, healthcare_deduction, hsa_contribution,
+      //     pre_tax_deductions, company/source/ui_income_subtype when the
+      //     existing row is empty or an imported-cash row.
+      //   Bank-owned (preserved): deposited_amount (never overwritten by
+      //     planner gross), linked_transaction_id and any existing non-zero
+      //     Net Received value stay put.
       if (conversionId) {
         if (input.ledgerBucket === "personal") {
-          await supabase
-            .from("income_entries")
-            .update({
-              origin_type: "planner_converted",
-              origin_planner_conversion_id: conversionId,
-            } as any)
-            .eq("id", input.incomeEntryId);
+          const [{ data: stream }, { data: existingRow }, { data: overrideRow }] = await Promise.all([
+            supabase.from("projected_income_streams").select("*").eq("id", input.streamId).maybeSingle(),
+            supabase.from("income_entries").select("*").eq("id", input.incomeEntryId).maybeSingle(),
+            supabase.from("projected_income_overrides").select("*").eq("stream_id", input.streamId).eq("override_date", input.occurrenceDate).maybeSingle(),
+          ]);
+
+          const s: any = stream || {};
+          const ov: any = overrideRow || {};
+          const gross = Number(ov.paycheck_amount ?? s.paycheck_amount ?? 0) || 0;
+          const patch: Record<string, any> = {
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+            federal_withholding: Number(s.federal_withholding || 0),
+            state_withholding: Number(s.state_withholding || 0),
+            ss_withholding: Number(s.ss_withholding || 0),
+            medicare_withholding: Number(s.medicare_withholding || 0),
+            taxes_withheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            retirement_401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
+            healthcare_deduction: Number(s.healthcare_deduction || 0),
+            hsa_contribution: Number(s.hsa_contribution || 0),
+            pre_tax_deductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+          };
+          if (gross > 0) {
+            patch.gross_amount = gross;
+            patch.paycheck_amount = gross;
+          }
+          const existing: any = existingRow || {};
+          const existingIsImportedOnly =
+            !existing.company || String(existing.origin_type || "").toLowerCase() === "plaid_import" ||
+            (Boolean(existing.linked_transaction_id) &&
+              String(existing.notes || "").toLowerCase().includes("imported from"));
+          if (s.company && (existingIsImportedOnly || !existing.company)) {
+            patch.company = s.company;
+            if (!existing.name) patch.name = s.company;
+          }
+          if (s.source_id && !existing.source_id) patch.source_id = s.source_id;
+          if (s.ui_income_subtype && !existing.ui_income_subtype) {
+            patch.ui_income_subtype = s.ui_income_subtype;
+          }
+          // Never overwrite an existing non-zero deposited_amount with the
+          // planner gross. Only backfill when the imported row has no bank
+          // deposit recorded yet.
+          const existingDep = Number(existing.deposited_amount || 0);
+          if (existingDep <= 0 && gross > 0) {
+            // leave deposited_amount unset — take-home not known until bank confirms
+          }
+
+          await supabase.from("income_entries").update(patch as any).eq("id", input.incomeEntryId);
         } else {
           await supabase
             .from("transactions")

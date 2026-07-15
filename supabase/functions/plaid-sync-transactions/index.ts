@@ -355,6 +355,7 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
       include_in_tax_estimate: true,
       include_in_cash_flow: true,
       linked_transaction_id: plaidTxRow.id,
+      origin_type: "plaid_import",
       notes: `Imported from ${ctx.item?.institution_name || "bank account"} (personal account)`,
     });
     if (error) {
