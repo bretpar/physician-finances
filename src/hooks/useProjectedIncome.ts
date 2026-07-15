@@ -11,6 +11,7 @@ import {
   cleanupConvertedLedgerForBonus,
   PLANNER_CLEANUP_INVALIDATION_KEYS,
 } from "@/lib/plannerCleanup";
+import { excludeLinkedTransactionForIncomeEntry } from "@/lib/plaidTransactionExclusion";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
