@@ -26,6 +26,20 @@ export interface MatchableIncomeEntry {
   origin_planner_conversion_id?: string | null;
   /** "planner_conversion" indicates the entry is the confirmed actual for a projected paycheck. */
   entry_kind?: string | null;
+  /** Optional — helps detect an imported bank-deposit row so we can relax the net-vs-gross amount check. */
+  origin_type?: string | null;
+  linked_transaction_id?: string | null;
+  notes?: string | null;
+  gross_amount?: number | null;
+  deposited_amount?: number | null;
+  federal_withholding?: number | null;
+  state_withholding?: number | null;
+  ss_withholding?: number | null;
+  medicare_withholding?: number | null;
+  retirement_401k?: number | null;
+  pre_tax_deductions?: number | null;
+  healthcare_deduction?: number | null;
+  hsa_contribution?: number | null;
 }
 
 /** Minimal interface for business ledger transactions used in matching. */
