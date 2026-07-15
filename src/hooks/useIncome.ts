@@ -209,6 +209,9 @@ export function useDeleteIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Remove the payroll HSA row before the parent income_entry is
+      // deleted so payroll HSA rows never dangle in the HSA ledger.
+      await deleteLinkedPayrollHsaForIncomeEntry(id);
       const { error } = await supabase
         .from("income_entries")
         .delete()
@@ -217,6 +220,7 @@ export function useDeleteIncome() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
+      qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
       toast.success("Income entry deleted");
     },
     onError: (e) => toast.error(e.message),
