@@ -303,11 +303,27 @@ export function useUnlinkIncomeMatchGroupItem() {
         .or(`canonical_entry_id.eq.${itemId},merged_entry_id.eq.${itemId}`);
       if (uErr) throw uErr;
 
-      // Restore the unlinked entry back to active.
+      // Restore the unlinked entry back to active, and if it represents a
+      // Plaid deposit, restore reportability on the underlying `transactions`
+      // row — but only when no other active canonical income_entries row
+      // still references the same deposit.
+      const { data: unlinkedRow } = await supabase
+        .from("income_entries")
+        .select("id, linked_transaction_id")
+        .eq("id", itemId)
+        .maybeSingle();
       await supabase
         .from("income_entries")
         .update({ status: "received" } as any)
         .eq("id", itemId);
+      const unlinkedLinkedTxId = (unlinkedRow as any)?.linked_transaction_id as string | null | undefined;
+      if (unlinkedLinkedTxId) {
+        try {
+          await restoreLinkedTransactionForIncomeEntry(unlinkedLinkedTxId, itemId);
+        } catch (err) {
+          console.warn("[UnlinkIncome] tx restore skipped:", err);
+        }
+      }
 
       // If fewer than 2 entries remain in the group, dissolve it.
       const { data: remaining } = await supabase
