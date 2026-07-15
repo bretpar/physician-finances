@@ -5,6 +5,7 @@ import { getUserOrgId } from "@/hooks/useOrgId";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
 import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 import { getTodayLocalDateString } from "@/lib/localDate";
+import { syncIncomeEntryHsa, deleteLinkedPayrollHsaForIncomeEntry } from "@/lib/incomeEntryHsaSync";
 
 export interface PersonalIncomeEntry {
   id: string;
@@ -143,7 +144,21 @@ export function useAddPersonalIncome() {
         .select("id")
         .single();
       if (error) throw error;
-      return data as { id: string } | null;
+      const created = data as { id: string } | null;
+
+      // Canonical payroll HSA sync.
+      if (created?.id && Number((row as any).hsa_contribution || 0) > 0) {
+        await syncIncomeEntryHsa({
+          incomeEntryId: created.id,
+          userId: user.id,
+          organizationId: orgId,
+          amount: Number((row as any).hsa_contribution || 0),
+          contributionDate: (row as any).income_date,
+          companyId: (row as any).source_id ?? null,
+          existingHsaId: null,
+        });
+      }
+      return created;
     },
     onSuccess: async () => {
       // Await the personal-income refetch so the ledger is guaranteed to be
@@ -154,6 +169,7 @@ export function useAddPersonalIncome() {
       await Promise.all([
         qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
         qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["hsa_contributions"] }),
       ]);
       toast.success("Personal income added");
     },
