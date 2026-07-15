@@ -18,6 +18,7 @@ import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { isFeatureEnabled } from "@/lib/featureFlags";
+import { filterNonOrphanIncomeEntries } from "@/lib/incomeOrphanFilter";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
