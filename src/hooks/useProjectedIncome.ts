@@ -203,6 +203,69 @@ export function isStreamExpired(stream: ProjectedIncomeStream): boolean {
  * - Similar gross amount (within 10%)
  * - Same income type/company_type
  */
+function normalizeCompanyTokens(s: string): Set<string> {
+  const stopwords = new Set([
+    "llc","inc","pc","pllc","corp","corporation","co","company","the","of","and",
+    "hospital","hospitals","medical","health","healthcare","clinic","group","md",
+    "payroll","direct","dep","deposit","ach","llp","pa","llc.","assoc","associates",
+  ]);
+  return new Set(
+    (s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 3 && !stopwords.has(t)),
+  );
+}
+
+function companyMatchStrength(paycheckLabel: string, entryCompany: string): "strong" | "weak" | "none" {
+  const p = (paycheckLabel || "").toLowerCase().trim();
+  const e = (entryCompany || "").toLowerCase().trim();
+  if (!p || !e) return "none";
+  if (p === e || p.includes(e) || e.includes(p)) return "strong";
+  const pt = normalizeCompanyTokens(p);
+  const et = normalizeCompanyTokens(e);
+  for (const t of pt) if (et.has(t)) return "strong";
+  return "none";
+}
+
+function isImportedCashMatchable(e: MatchableIncomeEntry): boolean {
+  const origin = String(e.origin_type || "").toLowerCase();
+  if (origin === "plaid_import" || origin === "imported") return true;
+  if (origin === "planner_converted" || origin === "ytd_catchup") return false;
+  const payroll =
+    Number(e.federal_withholding || 0) +
+    Number(e.state_withholding || 0) +
+    Number(e.ss_withholding || 0) +
+    Number(e.medicare_withholding || 0) +
+    Number(e.pre_tax_deductions || 0) +
+    Number(e.retirement_401k || 0) +
+    Number(e.healthcare_deduction || 0) +
+    Number(e.hsa_contribution || 0);
+  if (payroll > 0) return false;
+  const note = String(e.notes || "").toLowerCase();
+  if (note.includes("imported from")) return true;
+  const linkedTx = Boolean(e.linked_transaction_id);
+  const gross = Number(e.gross_amount || 0);
+  const dep = Number(e.deposited_amount || 0);
+  if (linkedTx && gross > 0 && Math.abs(gross - dep) < 0.01) return true;
+  if (linkedTx && payroll === 0) return true;
+  return false;
+}
+
+/**
+ * Match a projected paycheck against actual income entries.
+ * Returns the best matching income entry or null.
+ *
+ * Scoring:
+ * - Date within ±3 days (required)
+ * - Source/company match (source_id > normalized company token > substring)
+ * - Amount similarity: gross-vs-gross when possible; for imported cash rows
+ *   the paycheck_amount reflects the bank net deposit, so we compare against
+ *   planned net (gross - taxes/withholding when available) with wider
+ *   tolerance and never *disqualify* on amount alone.
+ * - Threshold: date + one other strong signal (source or strong company).
+ */
 function findMatchingIncome(
   paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string; streamSourceId?: string | null },
   incomeEntries: MatchableIncomeEntry[],
@@ -225,29 +288,39 @@ function findMatchingIncome(
     else if (daysDiff <= 3) score += 15;
     else continue; // Skip if more than 3 days apart
 
-    // Source/company match — prefer source_id, fall back to company name substring
+    // Source/company match — prefer source_id, then normalized token, then substring
+    let companySignal: "source" | "strong" | "weak" | "none" = "none";
     if (paycheck.streamSourceId && entry.source_id && paycheck.streamSourceId === entry.source_id) {
       score += 30;
+      companySignal = "source";
     } else {
-      const pCompany = (paycheck.label || "").toLowerCase();
-      const eCompany = (entry.company || "").toLowerCase();
-      if (pCompany && eCompany && (pCompany.includes(eCompany) || eCompany.includes(pCompany))) {
+      const strength = companyMatchStrength(paycheck.label || "", entry.company || "");
+      if (strength === "strong") {
         score += 30;
+        companySignal = "strong";
       }
     }
 
-    // Amount similarity (within 10% of gross)
-    const gross = Number(entry.paycheck_amount);
-    if (gross > 0 && paycheck.grossAmount > 0) {
-      const diff = Math.abs(gross - paycheck.grossAmount);
+    const importedCash = isImportedCashMatchable(entry);
+    const grossOnEntry = Number(entry.gross_amount || 0);
+    // If the entry has its own gross (accounting row), compare gross↔gross.
+    // Otherwise fall back to paycheck_amount (net deposit for imported cash).
+    const referenceAmount = grossOnEntry > 0 ? grossOnEntry : Number(entry.paycheck_amount);
+    if (referenceAmount > 0 && paycheck.grossAmount > 0) {
+      const diff = Math.abs(referenceAmount - paycheck.grossAmount);
       const pct = diff / paycheck.grossAmount;
       if (pct === 0) score += 30;
       else if (pct <= 0.02) score += 25;
       else if (pct <= 0.05) score += 15;
       else if (pct <= 0.10) score += 5;
+      else if (importedCash && (companySignal === "source" || companySignal === "strong")) {
+        // Imported net-only row with strong source/company + date signal:
+        // don't disqualify. Small tolerance-based bonus for very rough closeness.
+        if (pct <= 0.5) score += 5;
+      }
     }
 
-    // Threshold: need at least date + one other signal
+    // Threshold: need at least date + one other strong signal.
     if (score >= 45 && (!bestMatch || score > bestMatch.score)) {
       bestMatch = { entry, score };
     }
