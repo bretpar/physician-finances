@@ -255,11 +255,14 @@ export function useCreateIncomeMatchGroup() {
         console.warn("[LinkIncome] deposited_amount backfill skipped:", err);
       }
 
-      // Soft-merge sibling entries so totals count the group once.
+      // Soft-merge sibling entries so totals count the group once. Also
+      // re-enable include_in_tax_estimate on the (soon-to-be-)merged rows so
+      // if the link is dissolved later the shadow rule (set on unlink) is
+      // applied cleanly rather than left over from a prior state.
       if (mergedIds.length > 0) {
         const { error: uErr } = await supabase
           .from("income_entries")
-          .update({ status: "merged" } as any)
+          .update({ status: "merged", include_in_tax_estimate: true } as any)
           .in("id", mergedIds);
         if (uErr) throw uErr;
       }
@@ -345,27 +348,54 @@ export function useUnlinkIncomeMatchGroupItem() {
 
       if (removedIds.length === 0) return;
 
-      // 4. Restore ALL removed entries (canonical + previously-merged
-      //    imported siblings) back to active "received" status. This is
-      //    critical so a merged imported row reappears in the ledger and
-      //    can be relinked.
-      await supabase
+      // 4. Restore ALL removed entries back to visible "received" status so
+      //    they reappear in the ledger / linking UI and can be relinked.
+      //    IMPORTANT: for imported Plaid cash-confirmation rows we ALSO flip
+      //    off include_in_tax_estimate / include_in_cash_flow. Post-unlink
+      //    the imported row is still a "shadow" of the same paycheck (its
+      //    linked_transaction_id points at the deposit that the canonical
+      //    planner/manual row already represents in totals). Reportability
+      //    is governed by src/lib/personalIncomeReportability.ts and treats
+      //    include_in_tax_estimate=false as "not separately reportable"
+      //    while keeping the row visible. Canonical planner/manual/payroll
+      //    rows keep include flags = true.
+      const { data: removedRows } = await supabase
         .from("income_entries")
-        .update({ status: "received" } as any)
+        .select("*")
         .in("id", removedIds);
+      const removed = (removedRows || []) as any as PersonalIncomeEntry[];
+      const importedIds = removed
+        .filter((r) => isImportedCashIncomeRow(r))
+        .map((r) => r.id);
+      const canonicalIds = removed
+        .filter((r) => !isImportedCashIncomeRow(r))
+        .map((r) => r.id);
+
+      if (canonicalIds.length > 0) {
+        await supabase
+          .from("income_entries")
+          .update({ status: "received", include_in_tax_estimate: true } as any)
+          .in("id", canonicalIds);
+      }
+      if (importedIds.length > 0) {
+        await supabase
+          .from("income_entries")
+          .update({
+            status: "received",
+            include_in_tax_estimate: false,
+            include_in_cash_flow: false,
+          } as any)
+          .in("id", importedIds);
+      }
 
       // 5. For each removed entry that references a Plaid deposit, restore
       //    the underlying transaction reportability — but only if no OTHER
       //    still-active canonical Personal Income row represents the same
       //    deposit. All removedIds are treated as "in-flight restore" and
       //    excluded from the still-represented check.
-      const { data: removedRows } = await supabase
-        .from("income_entries")
-        .select("id, linked_transaction_id")
-        .in("id", removedIds);
       const seenTxKeys = new Set<string>();
-      for (const r of (removedRows || []) as any[]) {
-        const linkedTxId = r.linked_transaction_id as string | null | undefined;
+      for (const r of removed) {
+        const linkedTxId = (r as any).linked_transaction_id as string | null | undefined;
         if (!linkedTxId || seenTxKeys.has(linkedTxId)) continue;
         seenTxKeys.add(linkedTxId);
         try {
