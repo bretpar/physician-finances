@@ -200,11 +200,34 @@ export function useUpdatePersonalIncome() {
         .update(safe)
         .eq("id", id);
       if (error) throw error;
+
+      // Canonical payroll HSA sync when the update touched hsa_contribution.
+      if ("hsa_contribution" in updates) {
+        const { data: existing } = await supabase
+          .from("income_entries")
+          .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (existing) {
+          await syncIncomeEntryHsa({
+            incomeEntryId: id,
+            userId: (existing as any).user_id,
+            organizationId: (existing as any).organization_id,
+            amount: Number((updates as any).hsa_contribution || 0),
+            contributionDate:
+              (updates as any).income_date || (existing as any).income_date,
+            companyId:
+              (updates as any).source_id ?? (existing as any).source_id ?? null,
+            existingHsaId: (existing as any).linked_hsa_contribution_id ?? null,
+          });
+        }
+      }
     },
     onSuccess: async () => {
       await Promise.all([
         qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
         qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["hsa_contributions"] }),
       ]);
       toast.success("Income entry updated");
     },
