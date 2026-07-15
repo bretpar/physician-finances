@@ -5,10 +5,9 @@
 // automation can exercise: import -> planner match/link -> unlink -> relink
 // -> delete, without ever touching real Plaid Link or an OTP.
 //
-// Auth: caller must supply BOTH:
-//   - a normal Supabase user JWT in Authorization: Bearer <jwt>
-//   - x-qa-admin-token: <TEST_SEED_ADMIN_TOKEN>
-//
+// Auth: caller must supply a normal Supabase user JWT in
+//   Authorization: Bearer <jwt>
+
 // The target user_id is ALWAYS derived from the JWT. Body user_id is ignored.
 // Only emails matching QA patterns are accepted:
 //   - *@paycheckmd.test
@@ -30,8 +29,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-qa-admin-token",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+
 };
 
 const QA_TAG = "[qa-plaid-lifecycle]";
@@ -72,19 +72,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const adminToken = Deno.env.get("TEST_SEED_ADMIN_TOKEN");
-  if (!adminToken) {
-    return json({ error: "QA seed harness disabled (TEST_SEED_ADMIN_TOKEN not set)" }, 503);
-  }
-  const provided = req.headers.get("x-qa-admin-token") || "";
-  if (provided !== adminToken) {
-    return json({ error: "Unauthorized: bad or missing x-qa-admin-token" }, 401);
-  }
-
   const authHeader = req.headers.get("Authorization") || "";
   if (!authHeader.toLowerCase().startsWith("bearer ")) {
     return json({ error: "Not authenticated" }, 401);
   }
+
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const ANON = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
