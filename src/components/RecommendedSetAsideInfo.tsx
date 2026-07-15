@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Info, CheckCircle2, MinusCircle, AlertTriangle, HelpCircle } from "lucide-react";
+import { Info, Check, MinusCircle, AlertTriangle, HelpCircle, ChevronDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { SavingsRateResult, SeWageBaseDetail } from "@/lib/savingsRateSelection";
 import { getK1TreatmentMeta, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
