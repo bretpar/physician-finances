@@ -136,26 +136,47 @@ Deno.serve(async (req) => {
     //  5. plaid_items
     const counts: Record<string, number> = {
       income_entries: 0, transactions: 0, plaid_transactions: 0,
-      plaid_accounts: 0, plaid_items: 0,
+      plaid_accounts: 0, plaid_items: 0, planner_conversion_refs_cleared: 0,
     };
 
+    // Capture income_entry IDs slated for deletion so we can null out any
+    // planner_conversions.income_entry_id references before the delete.
+    // Preserves the planner_conversions row (and the underlying planner
+    // stream / occurrence) so the planner side is not silently wiped.
+    const idsToDelete = new Set<string>();
     if (plaidTx?.id) {
-      const { data: ie } = await admin
+      const { data: linkedRows } = await admin
+        .from("income_entries")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("linked_transaction_id", plaidTx.id);
+      for (const r of (linkedRows || []) as any[]) idsToDelete.add(r.id);
+    }
+    const { data: taggedRows } = await admin
+      .from("income_entries")
+      .select("id")
+      .eq("user_id", userId)
+      .like("notes", `%${QA_TAG}%`);
+    for (const r of (taggedRows || []) as any[]) idsToDelete.add(r.id);
+
+    if (idsToDelete.size > 0) {
+      const ids = Array.from(idsToDelete);
+      const { data: cleared } = await admin
+        .from("planner_conversions")
+        .update({ income_entry_id: null })
+        .eq("user_id", userId)
+        .in("income_entry_id", ids)
+        .select("id");
+      counts.planner_conversion_refs_cleared = cleared?.length || 0;
+
+      const { data: ieDel } = await admin
         .from("income_entries")
         .delete()
         .eq("user_id", userId)
-        .eq("linked_transaction_id", plaidTx.id)
+        .in("id", ids)
         .select("id");
-      counts.income_entries += ie?.length || 0;
+      counts.income_entries += ieDel?.length || 0;
     }
-    // Also sweep any tagged income_entries (safety net for prior partial seeds).
-    const { data: ieTagged } = await admin
-      .from("income_entries")
-      .delete()
-      .eq("user_id", userId)
-      .like("notes", `%${QA_TAG}%`)
-      .select("id");
-    counts.income_entries += ieTagged?.length || 0;
 
     if (plaidTx?.id) {
       const { data: tx } = await admin

@@ -594,8 +594,19 @@ export default function ProjectedIncome() {
       // (NOT the combined total). Combined total lives in taxes_withheld.
       federal_withholding: showField("federal_withholding") ? num(form.federal_withholding) : 0,
       state_withholding: showField("state_withholding") ? num(form.state_withholding) : 0,
-      ss_withholding: showField("ss_withholding") ? num(form.ss_withholding) : 0,
-      medicare_withholding: showField("medicare_withholding") ? num(form.medicare_withholding) : 0,
+      // SS/Medicare are collected via the TotalFederalTaxField breakdown
+      // whenever the federal withholding widget is shown (W-2 / S-Corp W-2),
+      // so persist them if either the individual toggle OR the parent
+      // federal_withholding widget is visible. Prevents silent zeroing when
+      // the per-company advanced toggles hide SS/Medicare individually.
+      ss_withholding:
+        showField("ss_withholding") || showField("federal_withholding")
+          ? num(form.ss_withholding)
+          : 0,
+      medicare_withholding:
+        showField("medicare_withholding") || showField("federal_withholding")
+          ? num(form.medicare_withholding)
+          : 0,
       retirement_401k: showField("retirement_401k") ? num(form.retirement_401k) : 0,
       healthcare_deduction: showField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
       hsa_contribution: showField("hsa_contribution") ? num(form.hsa_contribution) : 0,
