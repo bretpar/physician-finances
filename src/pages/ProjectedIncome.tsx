@@ -721,6 +721,12 @@ export default function ProjectedIncome() {
     const dest = convertDestination;
     const isBusiness = dest === "business";
 
+    // Source-of-truth for payroll splits is the persisted planner stream.
+    // The confirmation dialog is read-only for these fields, so we must
+    // never send literal zeros — that regressed W-2 federal/SS/Medicare
+    // on ordinary "To Personal" conversions. See planner conversion spec.
+    const stream = (streams || []).find((s) => s.id === entry.streamId);
+
     manualConvert.mutate(
       {
         streamId: entry.streamId,
@@ -737,10 +743,10 @@ export default function ProjectedIncome() {
         retirement401k: entry.retirement401k,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
-        federalWithholding: 0,
-        stateWithholding: 0,
-        ssWithholding: 0,
-        medicareWithholding: 0,
+        federalWithholding: Number(stream?.federal_withholding || 0),
+        stateWithholding: Number(stream?.state_withholding || 0),
+        ssWithholding: Number(stream?.ss_withholding || 0),
+        medicareWithholding: Number(stream?.medicare_withholding || 0),
         isBonus: entry.type === "bonus",
       },
       {
