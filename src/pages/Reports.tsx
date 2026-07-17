@@ -384,6 +384,7 @@ export default function Reports() {
       contributions: hsaRowsForYear.map((r) => ({
         amount: Number(r.amount) || 0,
         source_type: r.source_type,
+        contribution_type: (r as any).contribution_type,
       })),
     });
     const healthcareForYear = incomeEntries
@@ -395,6 +396,9 @@ export default function Reports() {
     const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.total : 0;
     return {
       hsa: hsaSummary.total,
+      hsaEmployeePayroll: hsaSummary.payrollEmployee,
+      hsaEmployer: hsaSummary.employer,
+      hsaIndividual: hsaSummary.individual,
       hsaDeductible: hsaSummary.deductibleTotal,
       hsaExcess: hsaSummary.excess,
       hsaLimit: hsaSummary.applicableLimit,
@@ -1150,6 +1154,18 @@ export default function Reports() {
               <KVRow
                 label="HSA Contributions (total)"
                 value={fmt(deductions.hsa)}
+              />
+              <KVRow
+                label="HSA — Employee (payroll)"
+                value={fmt(deductions.hsaEmployeePayroll)}
+              />
+              <KVRow
+                label="HSA — Employer contribution"
+                value={fmt(deductions.hsaEmployer)}
+              />
+              <KVRow
+                label="HSA — Individual"
+                value={fmt(deductions.hsaIndividual)}
               />
               <KVRow
                 label={`HSA Deductible (limit ${fmt(deductions.hsaLimit)})`}

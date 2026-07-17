@@ -119,6 +119,7 @@ export function useAddIncome() {
         retirement_401k: entry.retirement_401k || 0,
         healthcare_deduction: (entry as any).healthcare_deduction || 0,
         hsa_contribution: (entry as any).hsa_contribution || 0,
+        employer_hsa_contribution: (entry as any).employer_hsa_contribution || 0,
         source_id: (entry as any).source_id || null,
         notes: entry.notes || "",
         status: (entry.status as string) || "received",
@@ -136,15 +137,18 @@ export function useAddIncome() {
 
       // 3. Sync payroll HSA into hsa_contributions ledger (canonical path).
       const hsaAmount = Number((entry as any).hsa_contribution || 0);
+      const employerHsaAmount = Number((entry as any).employer_hsa_contribution || 0);
       if (entryData?.id) {
         await syncIncomeEntryHsa({
           incomeEntryId: entryData.id,
           userId: user.id,
           organizationId: orgId,
           amount: hsaAmount,
+          employerAmount: employerHsaAmount,
           contributionDate: incomeDate,
           companyId: (entry as any).source_id || null,
           existingHsaId: null,
+          existingEmployerHsaId: null,
         });
       }
 
@@ -177,21 +181,33 @@ export function useUpdateIncome() {
       // Sync payroll HSA if hsa_contribution was part of the update. We
       // must always look up the current row so income_date/source_id/user
       // are correct — an "update" may not include those fields.
-      if ("hsa_contribution" in updates) {
+      const touchesEmployeeHsa = "hsa_contribution" in updates;
+      const touchesEmployerHsa = "employer_hsa_contribution" in updates;
+      if (touchesEmployeeHsa || touchesEmployerHsa) {
         const { data: existing } = await supabase
           .from("income_entries")
-          .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
+          .select(
+            "user_id, organization_id, income_date, source_id, hsa_contribution, employer_hsa_contribution, linked_hsa_contribution_id, linked_employer_hsa_contribution_id",
+          )
           .eq("id", id)
           .single();
         if (existing) {
+          const nextEmployee = touchesEmployeeHsa
+            ? Number((updates as any).hsa_contribution || 0)
+            : Number((existing as any).hsa_contribution || 0);
+          const nextEmployer = touchesEmployerHsa
+            ? Number((updates as any).employer_hsa_contribution || 0)
+            : undefined; // undefined = don't touch employer row this call
           await syncIncomeEntryHsa({
             incomeEntryId: id,
             userId: (existing as any).user_id,
             organizationId: (existing as any).organization_id,
-            amount: Number((updates as any).hsa_contribution || 0),
+            amount: nextEmployee,
+            employerAmount: nextEmployer,
             contributionDate: (updates as any).income_date || (existing as any).income_date,
             companyId: (updates as any).source_id ?? (existing as any).source_id ?? null,
             existingHsaId: (existing as any).linked_hsa_contribution_id ?? null,
+            existingEmployerHsaId: (existing as any).linked_employer_hsa_contribution_id ?? null,
           });
         }
       }

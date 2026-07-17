@@ -4,26 +4,44 @@
  * Every surface (Tax Overview, Deductions page, Reports, PDF, tax engine
  * cap) reads its totals from this helper so numbers never drift.
  *
- * Deduction rules:
- *   - Payroll HSA already reduces W-2 wages upstream (Section 125). It is
- *     NOT re-deducted; we simply count it toward the annual limit.
- *   - Employer HSA is excluded from wages by the employer. Currently 0
- *     until employer contribution ingestion ships. Reserved parameter.
- *   - Direct/individual HSA is an above-the-line AGI deduction, and IS
- *     capped so the combined federal benefit (payroll + employer +
- *     individual) never exceeds the applicable annual limit.
- *   - If payroll alone already meets or exceeds the limit, individual
- *     contributions are entirely excess — deductibleIndividual = 0. We do
- *     NOT create a negative deduction; the excess is surfaced separately.
+ * Three canonical contribution types:
+ *   • `employee_payroll` — pre-tax through the paycheck (Section 125). Reduces
+ *     W-2 wages upstream; counts toward the annual limit; never re-deducted.
+ *   • `employer` — funded by the employer. Excluded from the employee's wages
+ *     by the employer. Counts toward the annual limit but is NOT an additional
+ *     above-the-line deduction (employee already never paid tax on it).
+ *   • `individual` — direct deposit outside of payroll. Above-the-line AGI
+ *     deduction, capped so combined federal benefit never exceeds the limit.
+ *
+ * Legacy rows using `source_type` ("payroll" | "individual") are mapped to the
+ * new type at read time:
+ *   payroll → employee_payroll
+ *   individual → individual
+ * Nothing is silently misclassified — the map is deterministic 1:1.
  */
 
 import { getApplicableHsaLimit, type HsaCoverageType } from "@/lib/hsaLimits";
 
+export type HsaContributionType = "employee_payroll" | "employer" | "individual";
+export type LegacyHsaSourceType = "payroll" | "individual";
+
 export interface HsaContributionLike {
   amount: number;
-  source_type: "payroll" | "individual";
+  /** Canonical type — preferred. */
+  contribution_type?: HsaContributionType;
+  /** Legacy field. Used only when `contribution_type` is missing. */
+  source_type?: LegacyHsaSourceType;
   /** Contribution date is used only for tax-year filtering upstream. */
   contribution_date?: string;
+}
+
+/** Resolve the canonical type from a row, honouring both new and legacy fields. */
+export function resolveHsaContributionType(
+  row: Pick<HsaContributionLike, "contribution_type" | "source_type">,
+): HsaContributionType {
+  if (row.contribution_type) return row.contribution_type;
+  if (row.source_type === "payroll") return "employee_payroll";
+  return "individual";
 }
 
 export interface HsaComputationInput {
@@ -32,7 +50,11 @@ export interface HsaComputationInput {
   catchUpEligible: boolean;
   /** Contributions already filtered to the target tax year. */
   contributions: HsaContributionLike[];
-  /** Employer HSA total (currently always 0 — reserved for future). */
+  /**
+   * Extra employer HSA total not represented in `contributions` (rare — used
+   * only when the caller has a synthetic total to add on top). Prefer passing
+   * employer rows via `contributions` with `contribution_type='employer'`.
+   */
   employerContribution?: number;
 }
 
@@ -43,8 +65,8 @@ export interface HsaContributionSummary {
   applicableLimit: number;
   // Bucketed contribution totals
   payrollEmployee: number;
-  individual: number;
   employer: number;
+  individual: number;
   total: number;
   // Room + excess
   remaining: number;
@@ -52,13 +74,15 @@ export interface HsaContributionSummary {
   // Deductibility (capped)
   deductibleTotal: number;
   deductiblePayroll: number;
+  /** Employer HSA is never an additional deduction; kept explicit for reports. */
+  deductibleEmployer: number;
   deductibleIndividual: number;
 }
 
-function sumBy(rows: HsaContributionLike[], source: "payroll" | "individual"): number {
+function sumBy(rows: HsaContributionLike[], type: HsaContributionType): number {
   let s = 0;
   for (const r of rows) {
-    if (r.source_type !== source) continue;
+    if (resolveHsaContributionType(r) !== type) continue;
     s += Math.max(0, Number(r.amount) || 0);
   }
   return s;
@@ -70,24 +94,28 @@ export function computeHsaContributionSummary(
   const { taxYear, coverage, catchUpEligible, contributions, employerContribution = 0 } = input;
   const applicableLimit = getApplicableHsaLimit(taxYear, coverage, catchUpEligible);
 
-  const payrollEmployee = sumBy(contributions, "payroll");
+  const payrollEmployee = sumBy(contributions, "employee_payroll");
   const individual = sumBy(contributions, "individual");
-  const employer = Math.max(0, employerContribution);
+  const employer = Math.max(0, sumBy(contributions, "employer") + Math.max(0, employerContribution));
   const total = payrollEmployee + individual + employer;
 
   const excess = Math.max(0, total - applicableLimit);
   const remaining = Math.max(0, applicableLimit - total);
 
-  // Payroll is treated as already-deducted upstream; it counts toward the
-  // limit but we never zero it out (that would re-add it back to W-2 wages).
-  const deductiblePayroll = payrollEmployee;
+  // Payroll and employer are treated as already-excluded from wages upstream;
+  // they count toward the limit but we never re-deduct them.
+  // Cap payroll display at the limit — the excess portion already reduced
+  // wages upstream, but for the "deductible benefit" report we never claim
+  // a benefit beyond the legal HSA limit.
+  const deductiblePayroll = Math.min(payrollEmployee, applicableLimit);
+  const deductibleEmployer = 0;
 
-  // Individual (above-the-line) portion capped so combined deductible ≤ limit.
+  // Individual (above-the-line) portion capped so combined federal benefit ≤ limit.
   // Available room = limit − (payrollEmployee + employer), floored at 0.
   const roomForIndividual = Math.max(0, applicableLimit - payrollEmployee - employer);
   const deductibleIndividual = Math.min(individual, roomForIndividual);
 
-  const deductibleTotal = Math.min(applicableLimit, deductiblePayroll + employer + deductibleIndividual);
+  const deductibleTotal = deductiblePayroll + deductibleEmployer + deductibleIndividual;
 
   return {
     taxYear,
@@ -95,13 +123,14 @@ export function computeHsaContributionSummary(
     catchUpEligible,
     applicableLimit,
     payrollEmployee,
-    individual,
     employer,
+    individual,
     total,
     remaining,
     excess,
     deductibleTotal,
     deductiblePayroll,
+    deductibleEmployer,
     deductibleIndividual,
   };
 }

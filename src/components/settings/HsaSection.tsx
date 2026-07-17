@@ -31,7 +31,7 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getApplicableHsaLimit } from "@/lib/hsaLimits";
-import { computeHsaContributionSummary } from "@/lib/hsaComputation";
+import { computeHsaContributionSummary, resolveHsaContributionType, type HsaContributionType } from "@/lib/hsaComputation";
 import { Progress } from "@/components/ui/progress";
 import { AlertTriangle } from "lucide-react";
 
@@ -207,8 +207,16 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
 /*  HSA Contributions Ledger Section                         */
 /* ─────────────────────────────────────────────────────────── */
 
-function SourceChip({ source_type, company_id, companyName }: { source_type: string; company_id: string | null; companyName: (id: string | null) => string }) {
-  if (source_type === "payroll") {
+function SourceChip({
+  contributionType,
+  company_id,
+  companyName,
+}: {
+  contributionType: HsaContributionType;
+  company_id: string | null;
+  companyName: (id: string | null) => string;
+}) {
+  if (contributionType === "employee_payroll" || contributionType === "employer") {
     const name = companyName(company_id);
     const unassigned = !company_id || name === "—";
     return (
@@ -225,6 +233,12 @@ function SourceChip({ source_type, company_id, companyName }: { source_type: str
     </span>
   );
 }
+
+const TYPE_LABEL: Record<HsaContributionType, string> = {
+  employee_payroll: "Employee (payroll)",
+  employer: "Employer",
+  individual: "Individual",
+};
 
 function LinkedChip() {
   return (
@@ -271,9 +285,16 @@ export function HsaLedgerSection() {
   });
 
   const totals = useMemo(() => {
-    const payroll = rows.filter((r) => r.source_type === "payroll").reduce((s, r) => s + Number(r.amount), 0);
-    const individual = rows.filter((r) => r.source_type === "individual").reduce((s, r) => s + Number(r.amount), 0);
-    return { payroll, individual, total: payroll + individual };
+    const employeePayroll = rows
+      .filter((r) => resolveHsaContributionType(r) === "employee_payroll")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const employer = rows
+      .filter((r) => resolveHsaContributionType(r) === "employer")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const individual = rows
+      .filter((r) => resolveHsaContributionType(r) === "individual")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    return { employeePayroll, employer, individual, total: employeePayroll + employer + individual };
   }, [rows]);
 
   const hsaSummary = useMemo(() => {
@@ -284,6 +305,7 @@ export function HsaLedgerSection() {
       contributions: rows.map((r) => ({
         amount: Number(r.amount) || 0,
         source_type: r.source_type,
+        contribution_type: r.contribution_type,
         contribution_date: r.contribution_date,
       })),
     });
@@ -331,7 +353,10 @@ export function HsaLedgerSection() {
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                  Payroll <span className="font-medium text-foreground">{fmt(hsaSummary.payrollEmployee)}</span>
+                  Employee (payroll) <span className="font-medium text-foreground">{fmt(hsaSummary.payrollEmployee)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                  Employer <span className="font-medium text-foreground">{fmt(hsaSummary.employer)}</span>
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
                   Individual <span className="font-medium text-foreground">{fmt(hsaSummary.individual)}</span>
@@ -415,29 +440,32 @@ export function HsaLedgerSection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r: HsaContribution) => (
+                  {rows.map((r: HsaContribution) => {
+                    const ctype = resolveHsaContributionType(r);
+                    const isLinked = ctype !== "individual";
+                    return (
                     <tr key={r.id} className="border-b border-border/40 hover:bg-muted/20">
                       <td className="py-1.5 px-2 tabular-nums whitespace-nowrap text-muted-foreground">{r.contribution_date}</td>
                       <td className="py-1.5 px-2">
                         <span className={cn(
                           "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          r.source_type === "payroll" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                          isLinked ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
                         )}>
-                          {r.source_type === "payroll" ? (
-                            <><Link2 className="h-2.5 w-2.5" /> Payroll</>
+                          {isLinked ? (
+                            <><Link2 className="h-2.5 w-2.5" /> {TYPE_LABEL[ctype]}</>
                           ) : (
-                            "Individual"
+                            TYPE_LABEL[ctype]
                           )}
                         </span>
                       </td>
                       <td className="py-1.5 px-2">
-                        <SourceChip source_type={r.source_type} company_id={r.company_id} companyName={companyName} />
+                        <SourceChip contributionType={ctype} company_id={r.company_id} companyName={companyName} />
                       </td>
                       <td className="py-1.5 px-2 tabular-nums text-right">
                         <span className="text-sm font-semibold text-foreground">{fmt(Number(r.amount))}</span>
                       </td>
                       <td className="py-1.5 px-2 text-right">
-                        {r.source_type === "individual" ? (
+                        {ctype === "individual" ? (
                           <button
                             type="button"
                             onClick={() => setConfirmDeleteId(r.id)}
@@ -451,7 +479,7 @@ export function HsaLedgerSection() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>
@@ -460,7 +488,10 @@ export function HsaLedgerSection() {
           {/* Mobile cards */}
           {!isLoading && rows.length > 0 && (
             <div className="md:hidden space-y-2 mt-2">
-              {rows.map((r: HsaContribution) => (
+              {rows.map((r: HsaContribution) => {
+                const ctype = resolveHsaContributionType(r);
+                const isLinked = ctype !== "individual";
+                return (
                 <div key={r.id} className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
@@ -468,25 +499,25 @@ export function HsaLedgerSection() {
                         <span className="text-sm font-semibold text-foreground">{fmt(Number(r.amount))}</span>
                         <span className={cn(
                           "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          r.source_type === "payroll" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                          isLinked ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
                         )}>
-                          {r.source_type === "payroll" ? (
-                            <><Link2 className="h-2.5 w-2.5" /> Payroll</>
+                          {isLinked ? (
+                            <><Link2 className="h-2.5 w-2.5" /> {TYPE_LABEL[ctype]}</>
                           ) : (
-                            "Individual"
+                            TYPE_LABEL[ctype]
                           )}
                         </span>
                       </div>
                       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] text-muted-foreground">{r.contribution_date}</span>
-                        <SourceChip source_type={r.source_type} company_id={r.company_id} companyName={companyName} />
+                        <SourceChip contributionType={ctype} company_id={r.company_id} companyName={companyName} />
                       </div>
                       {r.notes && (
                         <p className="text-[11px] text-muted-foreground mt-1.5">{r.notes}</p>
                       )}
                     </div>
                     <div className="shrink-0">
-                      {r.source_type === "individual" ? (
+                      {ctype === "individual" ? (
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteId(r.id)}
@@ -501,7 +532,7 @@ export function HsaLedgerSection() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           )}
 

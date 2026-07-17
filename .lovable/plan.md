@@ -1,116 +1,95 @@
 
-# HSA Annual Limits & Excess-Contribution Protection
+## Goal
 
-## Scope
+Introduce a third canonical HSA contribution type — **employer** — alongside existing **employee payroll** and **individual**. Employer HSA must count toward the annual limit but must not reduce take-home pay and must not create a second above-the-line deduction.
 
-Add tax-year HSA legal-limit tracking. Preserve existing correct behavior for payroll HSA federal deduction, direct individual HSA deduction, payroll HSA FICA exclusion, ledger sync, and payroll-HSA double-deduction avoidance.
+## 1. Database (migration)
 
-## 1. Centralized per-year limit config
+`public.hsa_contributions`:
+- Add `contribution_type TEXT` with CHECK `IN ('employee_payroll','employer','individual')`.
+- Backfill from existing `source_type`:
+  - `payroll` → `employee_payroll`
+  - `individual` → `individual`
+- Keep `source_type` column for backward compatibility (writes mirror both during transition; reads prefer `contribution_type`).
+- Add nullable `linked_income_entry_role TEXT CHECK IN ('employee','employer')` so paycheck-synced employer and employee rows have distinct stable identities (unique partial index on `(income_entry_id, linked_income_entry_role) WHERE income_entry_id IS NOT NULL`).
 
-New file: `src/lib/hsaLimits.ts`
+`public.income_entries`:
+- Add `employer_hsa_contribution NUMERIC NOT NULL DEFAULT 0`.
+- Add `linked_employer_hsa_contribution_id UUID` (separate from existing `linked_hsa_contribution_id`, which stays as the employee-payroll link).
 
-```
-export type HsaCoverageType = "individual" | "family";
-export interface HsaLimits {
-  taxYear: number;
-  individual: number;
-  family: number;
-  catchUp: number;   // age 55+
-}
-export const HSA_LIMITS_BY_YEAR: Record<number, HsaLimits> = {
-  2023: { taxYear: 2023, individual: 3850,  family: 7750,  catchUp: 1000 },
-  2024: { taxYear: 2024, individual: 4150,  family: 8300,  catchUp: 1000 },
-  2025: { taxYear: 2025, individual: 4300,  family: 8550,  catchUp: 1000 },
-  2026: { taxYear: 2026, individual: 4400,  family: 8750,  catchUp: 1000 },
-};
-export function getHsaLimits(year: number): HsaLimits { /* fallback to latest */ }
-export function getApplicableHsaLimit(year, coverage, catchUp): number;
-```
+RLS/GRANTs unchanged (columns added to existing tables).
 
-New file: `src/lib/hsaComputation.ts`
+## 2. Sync (`src/lib/incomeEntryHsaSync.ts`)
 
-```
-computeHsaContributionSummary({
-  taxYear, coverage, catchUpEligible,
-  contributions: HsaContribution[],  // filtered externally or by taxYear
-  employerContribution?: number,     // future — accepted but currently 0
-}): {
-  payrollEmployee, individual, employer, total,
-  applicableLimit, remaining, excess,
-  deductibleTotal,           // = min(total, applicableLimit)
-  deductiblePayroll,         // uncapped payroll (already reduced W-2 upstream)
-  deductibleIndividual,      // = max(0, applicableLimit - payrollEmployee - employer) capped at individual
-}
-```
+Extend the existing single-code-path helper to synchronize **two** rows per paycheck:
+- Employee row (`contribution_type='employee_payroll'`, `linked_income_entry_role='employee'`) tracked via `linked_hsa_contribution_id`.
+- Employer row (`contribution_type='employer'`, `linked_income_entry_role='employer'`) tracked via `linked_employer_hsa_contribution_id`.
 
-Rule for cap:
-- Payroll HSA already reduced W-2 wages upstream. Do NOT retroactively add it back.
-- The above-the-line individual HSA deduction is reduced so that (payroll + employer + allowedIndividual) never exceeds the applicable limit.
-- If payroll alone > limit: allowedIndividual = 0 and `excess = total - limit` surfaced in UI/PDF, but the engine does NOT create a negative deduction.
+Rules for each row independently:
+- Upsert on non-zero amount; update in place on edit.
+- Delete row (and null the link) when amount → 0.
+- Delete both when paycheck is deleted.
+- Repair routine extended to cover employer rows too, keyed by `(income_entry_id, linked_income_entry_role)` to prevent duplicates.
 
-## 2. Settings + schema
+## 3. Hooks / types
 
-Migration `add_hsa_coverage_and_catchup` adds to `tax_settings`:
-- `hsa_coverage_type text default 'individual'` check in `('individual','family')`
-- `hsa_age55_catchup boolean default false`
+- `useHsaContributions.ts`: add `contribution_type` to the row type; treat `source_type` as legacy shim. Default `addContribution` = `individual`. Sum uses `contribution_type`.
+- `useIncome.ts` / paycheck save path: pass through `employer_hsa_contribution` and invoke the extended sync helper.
+- `hsaComputation.ts`: accept the three types; `totalContributions = employeePayroll + employer + individual`. **Deductible-cap allocation**: employer + employee_payroll consume limit room first (already excluded from wages / not deductible again); remaining room caps the individual above-the-line deduction. Employer amount is reported as "counted toward limit, non-deductible".
 
-Update `useTaxSettings.ts` (types, DEFAULT_RATES, mapper, updater payload).
+## 4. Tax engine (`taxEngine.ts` / `useTaxEstimate.ts`)
 
-## 3. Settings UI
+- W-2 wage reduction path stays: employee payroll HSA (Section 125) still reduces federal wages and FICA wages exactly as today. **No change** to `calcW2PayrollTax` inputs.
+- Employer HSA: **not** added to gross wages, **not** added to `hsaAboveTheLine`, but included in `totalHsaContributions` for the annual-limit summary.
+- Above-the-line HSA deduction = min(individual, remainingRoomAfterPayrollAndEmployer).
 
-`src/components/settings/HsaSection.tsx`: when `hsaEnabled`, show
-- Coverage type radio (Individual / Family)
-- Age-55 catch-up toggle
+## 5. UI
 
-## 4. Deductions page HSA card
+`W-2 income entry Advanced` (existing paycheck form):
+- Split the current HSA input into two labelled fields with tooltips:
+  - **Employee HSA contribution** — "Taken from your paycheck and counted toward your annual HSA limit."
+  - **Employer HSA contribution** — "Contributed by your employer. It counts toward your annual HSA limit but does not reduce your paycheck."
 
-Update the HSA display block (Deductions page) to show:
-- Coverage type + annual limit
-- Employee payroll / Individual / Total contributions
-- Progress: "$X of $Y used" with progress bar
-- Remaining
-- Excess warning (destructive alert) when over limit
+HSA ledger (Settings › HSA and the ledger table):
+- Column/badge for contribution type: `Employee payroll` / `Employer` / `Individual`.
+- For linked rows, show employer/company name + paycheck date (already available via `income_entry_id` join).
 
-## 5. Tax engine wiring
+## 6. Reports & Tax Prep PDF
 
-`useTaxBreakdown.ts` / consumers that pass `personalNonW2HsaAboveLine` and `businessNonW2HsaAboveLine`:
-- Pull the ledger for the tax year, compute summary via `computeHsaContributionSummary` using user's coverage/catch-up settings.
-- Cap the non-W2 (individual) HSA above-the-line at `deductibleIndividual` instead of raw ledger sum.
-- Payroll HSA path unchanged (already flows through W-2 wages upstream; engine untouched there).
-
-`taxCalculationService.ts` and `taxEngine.ts` — no signature change needed; caller passes already-capped values. Add a debug field `nonW2HsaAboveLineDeductionCapped` = value passed in (documenting cap application at caller).
-
-## 6. Reports + PDF
-
-- `src/pages/Reports.tsx`: change `hsa` deduction line to show total contributions and deductible amount side-by-side, plus excess line when > 0. CSV: emit `HSA Contributions (Total)`, `HSA Deductible Applied`, `HSA Excess`.
-- `src/lib/taxPrepPdf.ts`: `DeductionsSummary.hsa` split into `{ total, deductible, excess }`; render as three rows; only `deductible` is counted in totals.
-
-Historical: Reports already scope contributions by `taxYear`; use `getHsaLimits(taxYear)` so old reports use the old limit.
+`Reports.tsx` and `taxPrepPdf.ts` HSA section — replace the single line with:
+- Employee payroll HSA
+- Employer HSA
+- Individual HSA
+- **Total contributions**
+- Deductible amount applied
+- Excess contribution (if any)
 
 ## 7. Tests
 
-`src/test/hsaLimits.test.ts` — pure computation:
-1. Individual below limit
-2. Individual at limit
-3. Individual above limit → excess > 0, deductible capped
-4. Family coverage
-5. Age-55 catch-up (limit += 1000)
-6. Payroll + direct combined below limit
-7. Contributions in 2024 vs 2025 use different limits
-8. Payroll alone > limit → allowedIndividual = 0, deductible = limit, excess = payroll − limit, no negative deduction
-9. Direct added after payroll fills limit → direct is fully treated as excess
-10. Parity test asserting Tax Overview total, Deductions page total, Reports total, and PDF total all use `computeHsaContributionSummary` (imports the same helper and equal totals for a fixed fixture)
+New (`src/test/hsaEmployer.test.ts` plus additions to existing files):
+1. Employer-only contribution → counted toward limit, zero deduction.
+2. Employee + employer on one paycheck → two distinct ledger rows, correct totals.
+3. Employee + employer + individual → total sums; individual deduction capped by remaining room.
+4. Employer counts toward annual limit (limit summary).
+5. Employer does not change take-home (paycheck net unchanged vs. employer=0).
+6. Employer does not appear in above-the-line deductions in tax engine output.
+7. Edit employer amount → in-place update, no duplicate.
+8. Employer amount → 0 removes the ledger row.
+9. Delete paycheck removes both employee and employer rows.
+10. Multi-employer paychecks: each pair uses its own linked ids.
+11. Re-running sync twice produces no duplicates (idempotency).
+12. Reports and PDF render all four lines with correct values.
 
-Preserve `src/test/hsaClassification.test.ts` and `src/test/w2PayrollTax.test.ts` fixtures unchanged.
+Preserve every existing HSA / W-2 payroll / FICA / tax-engine / sync test.
 
-## Verification
+## 8. Verification
 
-- `npx tsgo --noEmit`
-- `bunx vitest run src/test/hsaLimits.test.ts src/test/hsaClassification.test.ts src/test/w2PayrollTax.test.ts src/test/taxEngine.test.ts src/test/taxPrepPdfSummary.test.ts src/lib/taxValidation`
+- `tsgo` typecheck.
+- Vitest: `hsaLimits`, `hsaClassification`, `w2PayrollTax`, `taxEngine`, `taxPipeline`, `hsaEmployer` (new), `taxPrepPdfSummary`.
+- Regenerate tax-validation baseline only if scenario values actually change (they should not — no employer HSA in existing scenarios).
 
-## Out of scope (deferred per your note)
+## Technical notes
 
-- Employer HSA contribution ingestion UI/schema — helper accepts `employerContribution` param but no ingestion yet.
-- Excess-withdrawal / 6% excise-tax modeling.
-
-Approve and I'll implement in one pass.
+- Legacy rows are migrated deterministically in SQL; nothing is silently reclassified at read time.
+- `linked_income_entry_role` gives employee and employer rows distinct stable identities so the sync helper can never overwrite one with the other.
+- Employer HSA never enters `TaxDebugBreakdown.hsaAboveTheLine`; it is surfaced only in the HSA limit summary (`hsaTotalContributions`, `hsaEmployerContributions`).

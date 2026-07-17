@@ -1,21 +1,20 @@
 /**
  * Canonical HSA synchronization for income_entries.
  *
- * Whenever an income_entry is created OR updated with an `hsa_contribution`
- * amount, exactly ONE payroll-type row in `hsa_contributions` must exist
- * for it (linked via `income_entries.linked_hsa_contribution_id` and
- * `hsa_contributions.income_entry_id`). This helper is the single code
- * path every insert/update site must go through.
+ * A W-2 paycheck can now carry TWO independent HSA amounts:
+ *   • Employee (Section 125 pre-tax payroll) — reduces the employee's W-2
+ *     wages upstream; linked via `income_entries.linked_hsa_contribution_id`.
+ *   • Employer HSA contribution — funded by the employer, not by the
+ *     employee. Linked via `income_entries.linked_employer_hsa_contribution_id`.
  *
- * Rules:
+ * For each role independently, exactly ONE hsa_contributions row must exist
+ * per income_entry:
  *   amount > 0, no existing linked row → INSERT
  *   amount > 0, existing linked row    → UPDATE (preserve id)
  *   amount <= 0, existing linked row   → DELETE
  *   amount <= 0, no existing row       → no-op
  *
- * Never touches manual/individual HSA rows (`created_from='manual'`) — the
- * link goes through `linked_hsa_contribution_id`, so the helper only ever
- * modifies the row whose id matches that field.
+ * Manual/individual HSA rows (`created_from='manual'`) are never touched.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { syncPayrollHsaForIncome } from "@/hooks/useHsaContributions";
@@ -24,95 +23,133 @@ export interface IncomeEntryHsaSyncInput {
   incomeEntryId: string;
   userId: string;
   organizationId: string | null;
-  /** Raw hsa_contribution value from the income form (0 clears the row). */
+  /** Raw employee hsa_contribution value from the income form (0 clears). */
   amount: number;
+  /** Employer HSA amount from the income form (0 clears). Optional for callers
+   *  that don't touch this field. */
+  employerAmount?: number;
   contributionDate: string;
   /** Company that owns the paycheck; used for company_id on hsa row. */
   companyId: string | null;
   /**
-   * Existing linked_hsa_contribution_id on the income_entry. Pass `null`
-   * (or `undefined`) when the entry is brand new. When supplied, its value
-   * is used as-is; the helper does NOT re-fetch it.
+   * Existing `linked_hsa_contribution_id` on the income_entry (employee side).
+   * When omitted, the helper looks it up.
    */
   existingHsaId?: string | null;
+  /**
+   * Existing `linked_employer_hsa_contribution_id` on the income_entry.
+   * When omitted, the helper looks it up.
+   */
+  existingEmployerHsaId?: string | null;
+}
+
+async function resolveExisting(
+  incomeEntryId: string,
+  suppliedEmployee: string | null | undefined,
+  suppliedEmployer: string | null | undefined,
+): Promise<{ employee: string | null; employer: string | null }> {
+  const needsFetch = suppliedEmployee === undefined || suppliedEmployer === undefined;
+  let employee = suppliedEmployee ?? null;
+  let employer = suppliedEmployer ?? null;
+  if (needsFetch) {
+    const { data: row } = await supabase
+      .from("income_entries")
+      .select("linked_hsa_contribution_id, linked_employer_hsa_contribution_id")
+      .eq("id", incomeEntryId)
+      .maybeSingle();
+    if (suppliedEmployee === undefined) {
+      employee = ((row as any)?.linked_hsa_contribution_id as string | null) ?? null;
+    }
+    if (suppliedEmployer === undefined) {
+      employer = ((row as any)?.linked_employer_hsa_contribution_id as string | null) ?? null;
+    }
+  }
+
+  // Prune dead pointers (e.g. hsa row was deleted manually).
+  const candidates = [employee, employer].filter(Boolean) as string[];
+  if (candidates.length) {
+    const { data: live } = await supabase
+      .from("hsa_contributions" as any)
+      .select("id")
+      .in("id", candidates);
+    const alive = new Set((live || []).map((r: any) => r.id));
+    if (employee && !alive.has(employee)) employee = null;
+    if (employer && !alive.has(employer)) employer = null;
+  }
+  return { employee, employer };
 }
 
 /**
- * Sync the payroll HSA row for an income entry AND persist the resulting
- * `linked_hsa_contribution_id` back onto the income_entries row. Safe to
- * call after every income_entry insert or update. Failures are logged but
- * never thrown — HSA sync failing must not block the income save.
+ * Sync BOTH employee and (optionally) employer payroll HSA rows for an
+ * income entry, and persist the resulting linked ids back onto the entry.
+ * Safe to call after every income_entry insert or update. Failures are
+ * logged but never thrown — HSA sync failing must not block the income save.
  *
- * Returns the linked hsa_contribution id (or null if none/deleted).
+ * Returns the resolved linked ids.
  */
 export async function syncIncomeEntryHsa(
   input: IncomeEntryHsaSyncInput,
-): Promise<string | null> {
+): Promise<{ employeeId: string | null; employerId: string | null }> {
   const {
     incomeEntryId,
     userId,
     organizationId,
     amount,
+    employerAmount,
     contributionDate,
     companyId,
-    existingHsaId = null,
+    existingHsaId,
+    existingEmployerHsaId,
   } = input;
 
   try {
-    // Guard: if `existingHsaId` was not supplied, look it up so we never
-    // create a duplicate payroll row for the same income entry.
-    let resolvedExistingId = existingHsaId ?? null;
-    if (resolvedExistingId === null) {
-      const { data: existingRow } = await supabase
-        .from("income_entries")
-        .select("linked_hsa_contribution_id")
-        .eq("id", incomeEntryId)
-        .maybeSingle();
-      resolvedExistingId =
-        ((existingRow as any)?.linked_hsa_contribution_id as string | null) ?? null;
+    const existing = await resolveExisting(incomeEntryId, existingHsaId, existingEmployerHsaId);
 
-      // If the stored id no longer exists in hsa_contributions (e.g. was
-      // manually deleted), we must treat this as "no existing" so the
-      // sync creates a fresh row instead of updating a dead reference.
-      if (resolvedExistingId) {
-        const { data: hsaExists } = await supabase
-          .from("hsa_contributions" as any)
-          .select("id")
-          .eq("id", resolvedExistingId)
-          .maybeSingle();
-        if (!hsaExists) resolvedExistingId = null;
-      }
-    }
-
-    const linkedHsaId = await syncPayrollHsaForIncome({
+    const employeeId = await syncPayrollHsaForIncome({
       userId,
       organizationId,
       incomeEntryId,
-      existingHsaId: resolvedExistingId,
+      existingHsaId: existing.employee,
       amount: Number(amount || 0),
       contributionDate,
       companyId,
+      role: "employee",
     });
 
-    if (linkedHsaId !== resolvedExistingId) {
-      await supabase
-        .from("income_entries")
-        .update({ linked_hsa_contribution_id: linkedHsaId } as any)
-        .eq("id", incomeEntryId);
+    // Only touch employer row when the caller passed the field (undefined ==
+    // "don't manage employer side this call"). 0 explicitly clears it.
+    let employerId: string | null = existing.employer;
+    if (employerAmount !== undefined) {
+      employerId = await syncPayrollHsaForIncome({
+        userId,
+        organizationId,
+        incomeEntryId,
+        existingHsaId: existing.employer,
+        amount: Number(employerAmount || 0),
+        contributionDate,
+        companyId,
+        role: "employer",
+      });
     }
-    return linkedHsaId;
+
+    const patch: Record<string, unknown> = {};
+    if (employeeId !== existing.employee) patch.linked_hsa_contribution_id = employeeId;
+    if (employerAmount !== undefined && employerId !== existing.employer) {
+      patch.linked_employer_hsa_contribution_id = employerId;
+    }
+    if (Object.keys(patch).length > 0) {
+      await supabase.from("income_entries").update(patch as any).eq("id", incomeEntryId);
+    }
+    return { employeeId, employerId };
   } catch (err) {
     console.error("[syncIncomeEntryHsa] failed", err);
-    return null;
+    return { employeeId: null, employerId: null };
   }
 }
 
 /**
- * Delete the payroll HSA row (if any) linked to an income_entry. Call this
- * from income_entry delete paths so payroll HSA rows never dangle.
- * Manual/individual HSA rows are untouched — only the row referenced by
- * `linked_hsa_contribution_id` (which is always source_type='payroll',
- * created_from='income') is removed.
+ * Delete BOTH linked payroll HSA rows (employee + employer, if any) for an
+ * income_entry. Manual/individual HSA rows untouched.
  */
 export async function deleteLinkedPayrollHsaForIncomeEntry(
   incomeEntryId: string,
@@ -120,12 +157,15 @@ export async function deleteLinkedPayrollHsaForIncomeEntry(
   try {
     const { data: row } = await supabase
       .from("income_entries")
-      .select("linked_hsa_contribution_id")
+      .select("linked_hsa_contribution_id, linked_employer_hsa_contribution_id")
       .eq("id", incomeEntryId)
       .maybeSingle();
-    const linkedId = ((row as any)?.linked_hsa_contribution_id as string | null) ?? null;
-    if (!linkedId) return;
-    await supabase.from("hsa_contributions" as any).delete().eq("id", linkedId);
+    const ids = [
+      ((row as any)?.linked_hsa_contribution_id as string | null) ?? null,
+      ((row as any)?.linked_employer_hsa_contribution_id as string | null) ?? null,
+    ].filter(Boolean) as string[];
+    if (ids.length === 0) return;
+    await supabase.from("hsa_contributions" as any).delete().in("id", ids);
   } catch (err) {
     console.warn("[deleteLinkedPayrollHsaForIncomeEntry] skipped:", err);
   }
@@ -133,12 +173,10 @@ export async function deleteLinkedPayrollHsaForIncomeEntry(
 
 /**
  * Repair routine: find income_entries whose hsa_contribution > 0 but whose
- * linked_hsa_contribution_id is null OR points to a missing hsa_contributions
- * row, and create the payroll HSA row + patch the link. Idempotent —
- * does not create duplicates if a payroll row (matched by income_entry_id)
- * already exists.
- *
- * Runs scoped to the authenticated user via RLS.
+ * linked_hsa_contribution_id is null or points to a missing row, and
+ * create/repoint the employee payroll HSA row. Employer side is only touched
+ * when `employer_hsa_contribution > 0` and its link is dead/missing.
+ * Idempotent — never creates duplicates.
  */
 export async function backfillMissingPayrollHsaLinks(): Promise<{
   scanned: number;
@@ -150,17 +188,21 @@ export async function backfillMissingPayrollHsaLinks(): Promise<{
     const { data: candidates, error } = await supabase
       .from("income_entries")
       .select(
-        "id, user_id, organization_id, income_date, source_id, hsa_contribution, linked_hsa_contribution_id",
+        "id, user_id, organization_id, income_date, source_id, hsa_contribution, employer_hsa_contribution, linked_hsa_contribution_id, linked_employer_hsa_contribution_id",
       )
-      .gt("hsa_contribution", 0);
+      .or("hsa_contribution.gt.0,employer_hsa_contribution.gt.0");
     if (error) throw error;
     const rows = (candidates || []) as any[];
     result.scanned = rows.length;
     if (rows.length === 0) return result;
 
-    // Batch-check which linked_hsa_contribution_ids still exist.
+    // Validate all linked ids in a batch.
     const linkedIds = Array.from(
-      new Set(rows.map((r) => r.linked_hsa_contribution_id).filter(Boolean) as string[]),
+      new Set(
+        rows
+          .flatMap((r) => [r.linked_hsa_contribution_id, r.linked_employer_hsa_contribution_id])
+          .filter(Boolean) as string[],
+      ),
     );
     const liveLinkedIds = new Set<string>();
     if (linkedIds.length > 0) {
@@ -171,45 +213,64 @@ export async function backfillMissingPayrollHsaLinks(): Promise<{
       for (const r of (live || []) as any[]) liveLinkedIds.add(r.id);
     }
 
-    // Batch-check which income_entry_ids already have a payroll HSA row
-    // (avoid duplicates even if linked_hsa_contribution_id got lost).
+    // Existing hsa rows grouped by (income_entry_id, role) to avoid dupes.
     const entryIds = rows.map((r) => r.id as string);
-    const existingByEntry = new Map<string, string>();
+    const existingByKey = new Map<string, string>(); // key = `${entryId}:${role}`
     if (entryIds.length > 0) {
       const { data: existing } = await supabase
         .from("hsa_contributions" as any)
-        .select("id, income_entry_id")
+        .select("id, income_entry_id, linked_income_entry_role")
         .in("income_entry_id", entryIds);
       for (const r of (existing || []) as any[]) {
-        if (r.income_entry_id && !existingByEntry.has(r.income_entry_id)) {
-          existingByEntry.set(r.income_entry_id, r.id);
-        }
+        const role = r.linked_income_entry_role ?? "employee";
+        const key = `${r.income_entry_id}:${role}`;
+        if (!existingByKey.has(key)) existingByKey.set(key, r.id);
       }
     }
 
     for (const r of rows) {
-      const linkedId = r.linked_hsa_contribution_id as string | null;
-      const linkAlive = linkedId ? liveLinkedIds.has(linkedId) : false;
-      // Already good: link is live.
-      if (linkAlive) continue;
-      // A payroll row for this entry already exists, but the entry's link
-      // pointer is stale/null → just repoint the entry, don't insert.
-      const existingHsaForEntry = existingByEntry.get(r.id as string) || null;
+      const empAmount = Number(r.hsa_contribution) || 0;
+      const employerAmount = Number(r.employer_hsa_contribution) || 0;
+
+      const empLink = r.linked_hsa_contribution_id as string | null;
+      const employerLink = r.linked_employer_hsa_contribution_id as string | null;
+      const empAlive = empLink ? liveLinkedIds.has(empLink) : false;
+      const employerAlive = employerLink ? liveLinkedIds.has(employerLink) : false;
+
+      const empExistingRow = existingByKey.get(`${r.id}:employee`) || null;
+      const employerExistingRow = existingByKey.get(`${r.id}:employer`) || null;
+
+      const needEmployeeRepair = empAmount > 0 && !empAlive;
+      const needEmployerRepair = employerAmount > 0 && !employerAlive;
+      if (!needEmployeeRepair && !needEmployerRepair) continue;
+
       try {
-        if (existingHsaForEntry) {
-          await supabase
-            .from("income_entries")
-            .update({ linked_hsa_contribution_id: existingHsaForEntry } as any)
-            .eq("id", r.id);
-        } else {
+        // Prefer repointing over inserting to preserve ids.
+        const patch: Record<string, unknown> = {};
+        let handledEmployee = false;
+        let handledEmployer = false;
+        if (needEmployeeRepair && empExistingRow) {
+          patch.linked_hsa_contribution_id = empExistingRow;
+          handledEmployee = true;
+        }
+        if (needEmployerRepair && employerExistingRow) {
+          patch.linked_employer_hsa_contribution_id = employerExistingRow;
+          handledEmployer = true;
+        }
+        if (Object.keys(patch).length > 0) {
+          await supabase.from("income_entries").update(patch as any).eq("id", r.id);
+        }
+        if ((needEmployeeRepair && !handledEmployee) || (needEmployerRepair && !handledEmployer)) {
           await syncIncomeEntryHsa({
             incomeEntryId: r.id,
             userId: r.user_id,
             organizationId: r.organization_id ?? null,
-            amount: Number(r.hsa_contribution) || 0,
+            amount: empAmount,
+            employerAmount,
             contributionDate: r.income_date,
             companyId: r.source_id ?? null,
-            existingHsaId: null, // known missing/dead
+            existingHsaId: handledEmployee ? empExistingRow : null,
+            existingEmployerHsaId: handledEmployer ? employerExistingRow : null,
           });
         }
         result.repaired++;

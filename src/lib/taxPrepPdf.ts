@@ -54,6 +54,10 @@ export interface BusinessSummaryRows {
 
 export interface DeductionRows {
   hsa: number;
+  /** Per-type HSA breakdown for report/PDF display. */
+  hsaEmployeePayroll?: number;
+  hsaEmployer?: number;
+  hsaIndividual?: number;
   /** Deductible HSA capped at the applicable annual limit. */
   hsaDeductible?: number;
   /** Contributions above the annual limit (non-deductible, may be subject to tax). */
@@ -440,13 +444,22 @@ function renderDeductions(doc: jsPDF, data: TaxPrepPdfInput) {
   const total = hsaDeductible + d.retirement401k + d.mileage + d.homeOffice + d.healthcare;
   const body: any[][] = [
     ["HSA Contributions (total)", fmt(d.hsa)],
-    [
-      d.hsaLimit && d.hsaLimit > 0
-        ? `HSA Deductible (limit ${fmt(d.hsaLimit)})`
-        : "HSA Deductible",
-      fmt(hsaDeductible),
-    ],
   ];
+  if (typeof d.hsaEmployeePayroll === "number") {
+    body.push(["  Employee (payroll)", fmt(d.hsaEmployeePayroll)]);
+  }
+  if (typeof d.hsaEmployer === "number") {
+    body.push(["  Employer contribution", fmt(d.hsaEmployer)]);
+  }
+  if (typeof d.hsaIndividual === "number") {
+    body.push(["  Individual", fmt(d.hsaIndividual)]);
+  }
+  body.push([
+    d.hsaLimit && d.hsaLimit > 0
+      ? `HSA Deductible (limit ${fmt(d.hsaLimit)})`
+      : "HSA Deductible",
+    fmt(hsaDeductible),
+  ]);
   if (hsaExcess > 0) {
     body.push(["HSA Excess (non-deductible)", fmt(hsaExcess)]);
   }

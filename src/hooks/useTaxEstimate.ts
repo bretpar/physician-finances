@@ -277,13 +277,21 @@ export function useTaxEstimate(): {
     let businessPreTax = 0;
     let businessNonW2HsaAboveLine = 0;
     let businessW2Hsa = 0;
+    let businessW2EmployerHsa = 0;
     for (const e of linkedEntries) {
       const filing = normalizeFilingType((e as any).income_type);
       const isW2 = filing === "w2" || filing === "scorp_w2";
       const hsa = Number((e as any).hsa_contribution || 0);
+      const employerHsa = Number((e as any).employer_hsa_contribution || 0);
       businessPreTax += Number(e.pre_tax_deductions || 0) + (isW2 ? hsa : 0);
-      if (isW2) businessW2Hsa += hsa;
-      else businessNonW2HsaAboveLine += hsa;
+      if (isW2) {
+        businessW2Hsa += hsa;
+        // Employer HSA is excluded from wages by the employer; it never
+        // reduces AGI a second time, but it DOES consume the annual limit.
+        businessW2EmployerHsa += employerHsa;
+      } else {
+        businessNonW2HsaAboveLine += hsa;
+      }
     }
     const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
     const ownerHealthcare = linkedEntries
@@ -303,6 +311,7 @@ export function useTaxEstimate(): {
       businessPreTax,
       businessNonW2HsaAboveLine,
       businessW2Hsa,
+      businessW2EmployerHsa,
       businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
@@ -518,11 +527,17 @@ export function useTaxEstimate(): {
       // Individual / manual HSA contributions are always above-the-line.
       let personalHsaW2Pretax = 0;
       let personalHsaAboveLine = 0;
+      let personalW2EmployerHsa = 0;
       for (const e of personal) {
         const cat = classifyPersonalIncome(e as any);
         const hsa = Number((e as any).hsa_contribution || 0);
-        if (cat === "w2") personalHsaW2Pretax += hsa;
-        else personalHsaAboveLine += hsa;
+        const employerHsa = Number((e as any).employer_hsa_contribution || 0);
+        if (cat === "w2") {
+          personalHsaW2Pretax += hsa;
+          personalW2EmployerHsa += employerHsa;
+        } else {
+          personalHsaAboveLine += hsa;
+        }
       }
       const personalPreTax = personal.reduce(
         (s, e) => s + Number(e.pre_tax_deductions || 0),
@@ -770,7 +785,11 @@ export function useTaxEstimate(): {
       // deductible drops to 0 and no negative deduction is introduced.
       // See src/lib/hsaLimits.ts + src/lib/hsaComputation.ts.
       const w2SectionHsa =
-        personalHsaW2Pretax + (canonicalBusiness.businessW2Hsa || 0) + cu.w2.hsa;
+        personalHsaW2Pretax +
+        personalW2EmployerHsa +
+        (canonicalBusiness.businessW2Hsa || 0) +
+        (canonicalBusiness.businessW2EmployerHsa || 0) +
+        cu.w2.hsa;
       const rawPersonalAboveLine = personalNonW2HsaAboveLine + cu.other.hsa;
       const rawBusinessAboveLine = businessNonW2HsaAboveLine + cu.business.hsa;
       const totalAboveLineRaw = rawPersonalAboveLine + rawBusinessAboveLine;
