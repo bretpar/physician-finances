@@ -91,6 +91,10 @@ export interface W2Breakdown {
   preTaxDeductions: number;
   retirement401k: number;
   taxableWages: number;
+  /** Employee payroll HSA (Section 125 — excluded from FICA wages). */
+  payrollHsa: number;
+  /** payrollHsa + preTaxDeductions — the amount subtracted from FICA wages. */
+  section125Deductions: number;
 }
 
 export interface CapGainsBreakdown {
@@ -138,6 +142,10 @@ export interface TaxBreakdownResult {
   totalReturnIncomeBeforeAdjustments: number;
   w2PreTaxDeductions: number;
   w2TaxableIncomeBase: number;
+  /** Total W-2 payroll HSA across all sources (Section 125 — excluded from FICA). */
+  w2PayrollHsa: number;
+  /** Total Section 125 deductions (payrollHsa + qualified premiums) excluded from FICA. */
+  w2Section125Deductions: number;
   totalDeductions: number;
   preTaxDeductions: number;
   retirement401k: number;
@@ -260,6 +268,7 @@ export function useTaxBreakdown(
       preTax: number;
       retirement: number;
       healthcare: number;
+      payrollHsa: number;
       withheld: number;
       stateWithheld: number;
       federalWithheld: number;
@@ -297,7 +306,7 @@ export function useTaxBreakdown(
       const existing = companyAgg.get(key) ?? {
         companyId: resolvedId, name, filingType: ft,
         actualGross: 0, plannedGross: 0,
-        preTax: 0, retirement: 0, healthcare: 0,
+        preTax: 0, retirement: 0, healthcare: 0, payrollHsa: 0,
         withheld: 0, stateWithheld: 0, federalWithheld: 0,
         plannedPreTax: 0, plannedRetirement: 0,
       };
@@ -322,6 +331,10 @@ export function useTaxBreakdown(
         agg.preTax += Number(e.pre_tax_deductions) || 0;
         agg.retirement += Number(e.retirement_401k) || 0;
         agg.healthcare += Number((e as any).healthcare_deduction) || 0;
+        // W-2 personal-income HSA is treated as Section 125 payroll HSA — see
+        // useTaxEstimate line ~512. Track separately so we can subtract it
+        // from FICA wages without double-counting the (Section 125) `preTax` bucket.
+        agg.payrollHsa += Math.max(0, Number((e as any).hsa_contribution) || 0);
         // Canonical federal total via shared helper (handles taxes_withheld,
         // legacy federal_withholding-only rows, and split SS/Medicare).
         agg.withheld += getTotalFederalPaid(e as any);
@@ -569,6 +582,8 @@ export function useTaxBreakdown(
           preTaxDeductions: agg.preTax,
           retirement401k: agg.retirement,
           taxableWages,
+          payrollHsa: agg.payrollHsa,
+          section125Deductions: agg.preTax + agg.payrollHsa,
         });
       } else if (kind === "business") {
         const companyId = agg.companyId ?? companies.find((c) => c.name === agg.name && c.companyType === agg.filingType)?.id ?? null;
@@ -777,7 +792,9 @@ export function useTaxBreakdown(
         totalBusinessRevenue, totalBusinessExpenses, totalBusinessProfit,
         totalW2Income, totalShortTermGains, totalLongTermGains, totalOtherIncome,
         totalGrossIncome: 0, totalReturnIncomeBeforeAdjustments: 0,
-        w2PreTaxDeductions: 0, w2TaxableIncomeBase: 0, totalDeductions: 0,
+        w2PreTaxDeductions: 0, w2TaxableIncomeBase: 0,
+        w2PayrollHsa: 0, w2Section125Deductions: 0,
+        totalDeductions: 0,
         preTaxDeductions: 0, retirement401k: 0, healthInsuranceDeduction: 0,
         actualHealthInsuranceDeduction: 0, projectedHealthInsuranceDeduction: 0,
         deductionSourceBreakdown: "",
@@ -901,12 +918,27 @@ export function useTaxBreakdown(
       targetAnnualWithholding = withholdingOverrideAmount * 12;
     }
 
+    // Aggregate Section 125 totals from per-source W-2 buckets. Consumers
+    // (MathAccordion, engine hookup) use these to compute FICA wages.
+    const w2PayrollHsaTotal = sources.reduce(
+      (sum, s) => (s.kind === "w2" ? sum + (s.payrollHsa || 0) : sum),
+      0,
+    );
+    const w2Section125DeductionsTotal = sources.reduce(
+      (sum, s) => (s.kind === "w2" ? sum + (s.section125Deductions || 0) : sum),
+      0,
+    );
+
+
     return {
       mode, filingStatus, sources,
       totalBusinessRevenue, totalBusinessExpenses, totalBusinessProfit,
       totalW2Income, totalShortTermGains, totalLongTermGains, totalOtherIncome,
       totalGrossIncome, totalReturnIncomeBeforeAdjustments,
-      w2PreTaxDeductions, w2TaxableIncomeBase, totalDeductions,
+      w2PreTaxDeductions, w2TaxableIncomeBase,
+      w2PayrollHsa: w2PayrollHsaTotal,
+      w2Section125Deductions: w2Section125DeductionsTotal,
+      totalDeductions,
       preTaxDeductions: preTaxFromEngine,
       retirement401k: retirementFromEngine,
       healthInsuranceDeduction, actualHealthInsuranceDeduction, projectedHealthInsuranceDeduction,

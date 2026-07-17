@@ -240,7 +240,17 @@ export function BracketBreakdownMath({ data }: { data: TaxBreakdownResult }) {
 
 export function W2PayrollTaxMath({ data }: { data: TaxBreakdownResult }) {
   if (data.totalW2Income <= 0) return null;
-  const fica = calcW2PayrollTax(data.totalW2Income, data.filingStatus);
+  // FICA wages exclude Section 125 (payroll HSA + qualified health premiums).
+  // Pre-tax 401(k) is intentionally NOT excluded — it remains FICA-taxable.
+  const fica = calcW2PayrollTax({
+    grossW2Wages: data.totalW2Income,
+    filingStatus: data.filingStatus,
+    payrollHsa: data.w2PayrollHsa,
+    qualifiedSection125Premiums: Math.max(
+      0,
+      data.w2Section125Deductions - data.w2PayrollHsa,
+    ),
+  });
   return (
     <div className="space-y-0">
       <p className="text-xs text-muted-foreground pb-2">
