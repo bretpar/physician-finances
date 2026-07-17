@@ -264,6 +264,7 @@ export function useTaxBreakdown(
       preTax: number;
       retirement: number;
       healthcare: number;
+      payrollHsa: number;
       withheld: number;
       stateWithheld: number;
       federalWithheld: number;
