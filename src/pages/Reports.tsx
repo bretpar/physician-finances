@@ -1156,6 +1156,18 @@ export default function Reports() {
                 value={fmt(deductions.hsa)}
               />
               <KVRow
+                label="HSA — Employee (payroll)"
+                value={fmt(deductions.hsaEmployeePayroll)}
+              />
+              <KVRow
+                label="HSA — Employer contribution"
+                value={fmt(deductions.hsaEmployer)}
+              />
+              <KVRow
+                label="HSA — Individual"
+                value={fmt(deductions.hsaIndividual)}
+              />
+              <KVRow
                 label={`HSA Deductible (limit ${fmt(deductions.hsaLimit)})`}
                 value={fmt(deductions.hsaDeductible)}
               />
