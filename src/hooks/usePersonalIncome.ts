@@ -388,10 +388,16 @@ export function useDeletePersonalIncome() {
         }
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
-      qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["income-match-groups"] }),
+        qc.invalidateQueries({ queryKey: ["hsa_contributions"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+      ]);
       toast.success("Income entry deleted");
     },
     onError: (e) => toast.error(e.message),
