@@ -146,18 +146,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signOut() {
-    await supabase.auth.signOut();
-    // Defensive: ensure caches and onboarding session state are wiped even
-    // if the auth listener races. applyAuthChange will also fire and clear
-    // again, which is harmless.
-    queryClient.clear();
-    clearUserScopedClientState();
+    // Wipe local state FIRST so protected routes unmount immediately, even
+    // if the remote request is slow or throws (expired session, offline,
+    // etc.). onAuthStateChange will also fire and clear again, which is a
+    // harmless no-op after this point.
     prevUserIdRef.current = null;
     setUser(null);
     setSession(null);
     setOrganizationId(null);
     setOrganizationName(null);
     setUserRole(null);
+    queryClient.clear();
+    clearUserScopedClientState();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("[auth] supabase.signOut threw — local state already cleared", err);
+    }
   }
 
   return (

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -69,8 +69,10 @@ function hasOnlyW2IncomeStreams(streams?: HouseholdIncomeStreams) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
   const householdStreams = taxSettings?.householdIncomeStreams;
@@ -155,10 +157,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={signOut}
+            disabled={signingOut}
+            aria-busy={signingOut}
+            onClick={async () => {
+              if (signingOut) return;
+              setSigningOut(true);
+              try {
+                await signOut();
+              } catch (err) {
+                // Never trap the user on a protected page — even if the
+                // remote sign-out request fails (offline, expired session,
+                // etc.), AuthContext.signOut already wipes local state.
+                console.error("[auth] signOut failed", err);
+              } finally {
+                setMobileOpen(false);
+                // Force a redirect to /login regardless of any race between
+                // onAuthStateChange and the route guard re-render.
+                navigate("/login", { replace: true });
+                setSigningOut(false);
+              }
+            }}
             className="w-full justify-start gap-2 text-sidebar-foreground hover:text-sidebar-primary-foreground"
           >
-            <LogOut className="h-4 w-4" /> Sign Out
+            <LogOut className="h-4 w-4" /> {signingOut ? "Signing out…" : "Sign Out"}
           </Button>
         </div>
       </aside>
