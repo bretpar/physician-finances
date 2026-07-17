@@ -27,6 +27,7 @@ import PhysicianScorpVsSoleProprietorship from "@/pages/blog/PhysicianScorpVsSol
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
+import TaxValidation from "@/pages/admin/TaxValidation";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 import Trust from "@/pages/Trust";
@@ -89,6 +90,7 @@ function ProtectedRoutes() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/debug/transactions" element={<DebugTransactions />} />
           <Route path="/admin/data-isolation" element={<DataIsolationReport />} />
+          <Route path="/admin/tax-validation" element={<TaxValidation />} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />
