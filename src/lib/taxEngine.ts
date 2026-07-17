@@ -12,6 +12,7 @@ import {
   SE_INCOME_FACTOR as ACTIVE_SE_INCOME_FACTOR,
   calcBracketTax,
 } from "@/lib/taxBrackets";
+import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
 
 export interface TaxBracket {
   min: number;
