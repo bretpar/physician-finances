@@ -32,6 +32,7 @@ import {
 } from "@/lib/savedW2CompanyProjection";
 import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
+import { getApplicableHsaLimit } from "@/lib/hsaLimits";
 
 export type TaxMode = "actual" | "forecast";
 
