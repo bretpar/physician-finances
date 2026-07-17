@@ -189,8 +189,12 @@ export function useUpdateTransaction() {
       if (!data) throw new Error("No rows updated — transaction may have been deleted.");
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transaction updated");
     },
     onError: (e) => toast.error(e.message),
