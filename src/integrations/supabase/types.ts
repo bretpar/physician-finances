@@ -165,10 +165,12 @@ export type Database = {
           amount: number
           company_id: string | null
           contribution_date: string
+          contribution_type: string
           created_at: string
           created_from: string
           id: string
           income_entry_id: string | null
+          linked_income_entry_role: string | null
           notes: string | null
           organization_id: string | null
           source_type: string
@@ -180,10 +182,12 @@ export type Database = {
           amount?: number
           company_id?: string | null
           contribution_date?: string
+          contribution_type?: string
           created_at?: string
           created_from?: string
           id?: string
           income_entry_id?: string | null
+          linked_income_entry_role?: string | null
           notes?: string | null
           organization_id?: string | null
           source_type?: string
@@ -195,10 +199,12 @@ export type Database = {
           amount?: number
           company_id?: string | null
           contribution_date?: string
+          contribution_type?: string
           created_at?: string
           created_from?: string
           id?: string
           income_entry_id?: string | null
+          linked_income_entry_role?: string | null
           notes?: string | null
           organization_id?: string | null
           source_type?: string
@@ -232,6 +238,7 @@ export type Database = {
           created_at: string
           deposited_amount: number
           dynamic_tax_recommendation: number
+          employer_hsa_contribution: number
           entry_kind: string
           federal_withholding: number
           gross_amount: number
@@ -243,6 +250,7 @@ export type Database = {
           income_date: string
           income_type: string
           is_actual: boolean
+          linked_employer_hsa_contribution_id: string | null
           linked_hsa_contribution_id: string | null
           linked_transaction_id: string | null
           linked_ytd_catchup_id: string | null
@@ -279,6 +287,7 @@ export type Database = {
           created_at?: string
           deposited_amount?: number
           dynamic_tax_recommendation?: number
+          employer_hsa_contribution?: number
           entry_kind?: string
           federal_withholding?: number
           gross_amount?: number
@@ -290,6 +299,7 @@ export type Database = {
           income_date?: string
           income_type?: string
           is_actual?: boolean
+          linked_employer_hsa_contribution_id?: string | null
           linked_hsa_contribution_id?: string | null
           linked_transaction_id?: string | null
           linked_ytd_catchup_id?: string | null
@@ -326,6 +336,7 @@ export type Database = {
           created_at?: string
           deposited_amount?: number
           dynamic_tax_recommendation?: number
+          employer_hsa_contribution?: number
           entry_kind?: string
           federal_withholding?: number
           gross_amount?: number
@@ -337,6 +348,7 @@ export type Database = {
           income_date?: string
           income_type?: string
           is_actual?: boolean
+          linked_employer_hsa_contribution_id?: string | null
           linked_hsa_contribution_id?: string | null
           linked_transaction_id?: string | null
           linked_ytd_catchup_id?: string | null
