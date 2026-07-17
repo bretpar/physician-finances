@@ -353,7 +353,10 @@ export function HsaLedgerSection() {
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                  Payroll <span className="font-medium text-foreground">{fmt(hsaSummary.payrollEmployee)}</span>
+                  Employee (payroll) <span className="font-medium text-foreground">{fmt(hsaSummary.payrollEmployee)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                  Employer <span className="font-medium text-foreground">{fmt(hsaSummary.employer)}</span>
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
                   Individual <span className="font-medium text-foreground">{fmt(hsaSummary.individual)}</span>
