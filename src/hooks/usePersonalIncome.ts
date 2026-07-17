@@ -205,31 +205,62 @@ export function useUpdatePersonalIncome() {
         }
         safe.income_type = toCanonicalIncomeType(safe.income_type);
       }
+      const touchesEmployeeHsa = "hsa_contribution" in updates;
+      const touchesEmployerHsa = "employer_hsa_contribution" in updates;
+
+      // Snapshot for rollback if HSA sync fails after the income update.
+      let snapshot: Record<string, unknown> | null = null;
+      if (touchesEmployeeHsa || touchesEmployerHsa) {
+        const cols = Array.from(new Set([
+          ...Object.keys(safe),
+          "hsa_contribution",
+          "employer_hsa_contribution",
+          "income_date",
+          "source_id",
+        ])).join(", ");
+        const { data: before } = await supabase
+          .from("income_entries")
+          .select(cols)
+          .eq("id", id)
+          .maybeSingle();
+        if (before) snapshot = before as any;
+      }
+
       const { error } = await supabase
         .from("income_entries")
         .update(safe)
         .eq("id", id);
       if (error) throw error;
 
-      // Canonical payroll HSA sync when the update touched hsa_contribution.
-      if ("hsa_contribution" in updates) {
-        const { data: existing } = await supabase
-          .from("income_entries")
-          .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
-          .eq("id", id)
-          .maybeSingle();
-        if (existing) {
+      if (touchesEmployeeHsa || touchesEmployerHsa) {
+        try {
           await syncIncomeEntryHsa({
             incomeEntryId: id,
-            userId: (existing as any).user_id,
-            organizationId: (existing as any).organization_id,
-            amount: Number((updates as any).hsa_contribution || 0),
-            contributionDate:
-              (updates as any).income_date || (existing as any).income_date,
-            companyId:
-              (updates as any).source_id ?? (existing as any).source_id ?? null,
-            existingHsaId: (existing as any).linked_hsa_contribution_id ?? null,
+            amount: touchesEmployeeHsa
+              ? Number((updates as any).hsa_contribution || 0)
+              : undefined,
+            employerAmount: touchesEmployerHsa
+              ? Number((updates as any).employer_hsa_contribution || 0)
+              : undefined,
+            contributionDate: (updates as any).income_date,
+            companyId: (updates as any).source_id ?? null,
           });
+        } catch (hsaErr) {
+          if (snapshot) {
+            const revert: Record<string, unknown> = {};
+            for (const k of Object.keys(safe)) {
+              revert[k] = (snapshot as any)[k];
+            }
+            try {
+              await supabase
+                .from("income_entries")
+                .update(revert as any)
+                .eq("id", id);
+            } catch (rollbackErr) {
+              console.error("[useUpdatePersonalIncome] revert failed", rollbackErr);
+            }
+          }
+          throw hsaErr;
         }
       }
     },
