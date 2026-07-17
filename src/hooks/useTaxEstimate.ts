@@ -785,7 +785,11 @@ export function useTaxEstimate(): {
       // deductible drops to 0 and no negative deduction is introduced.
       // See src/lib/hsaLimits.ts + src/lib/hsaComputation.ts.
       const w2SectionHsa =
-        personalHsaW2Pretax + (canonicalBusiness.businessW2Hsa || 0) + cu.w2.hsa;
+        personalHsaW2Pretax +
+        personalW2EmployerHsa +
+        (canonicalBusiness.businessW2Hsa || 0) +
+        (canonicalBusiness.businessW2EmployerHsa || 0) +
+        cu.w2.hsa;
       const rawPersonalAboveLine = personalNonW2HsaAboveLine + cu.other.hsa;
       const rawBusinessAboveLine = businessNonW2HsaAboveLine + cu.business.hsa;
       const totalAboveLineRaw = rawPersonalAboveLine + rawBusinessAboveLine;
