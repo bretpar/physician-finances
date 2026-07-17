@@ -452,6 +452,8 @@ export function calculateFullEstimate(params: {
     withholdingOverrideAmount = null,
     longTermCapitalGains: longTermCapitalGainsParam = 0,
     stateTaxInputs = {},
+    qbiEntities,
+    qbiSeRetirementDeduction = 0,
   } = params;
 
   // Default backward-compat: if caller didn't separate, treat seIncome as both
@@ -487,7 +489,30 @@ export function calculateFullEstimate(params: {
   const deductionApplied = deductionType === "itemized"
     ? Math.max(0, itemizedDeductionAmount)
     : standardDeduction;
-  const taxableIncome = Math.max(0, agi - deductionApplied);
+  const taxableIncomeBeforeQbi = Math.max(0, agi - deductionApplied);
+
+  // ── §199A QBI deduction ─────────────────────────────────────────────────
+  // When the caller does not supply per-entity data, synthesize one aggregate
+  // SSTB entity (physician-focused app default). Attributable adjustments:
+  // ½ SE tax, self-employed health insurance, and SE-side retirement (SEP /
+  // Solo-401k) — all of which reduce QBI per §199A regs.
+  const attributableSeReductions =
+    seTax.deductibleHalf + healthInsuranceDeduction + Math.max(0, qbiSeRetirementDeduction);
+  const defaultAggregateQbi = Math.max(0, netSEIncome - attributableSeReductions);
+  const effectiveQbiEntities: readonly QbiEntityInput[] =
+    qbiEntities && qbiEntities.length > 0
+      ? qbiEntities
+      : defaultAggregateQbi > 0
+        ? [{ id: "aggregate", name: "Aggregate SE Business", isSSTB: true, qbi: defaultAggregateQbi }]
+        : [];
+  const qbiComputation = computeQbiDeduction({
+    entities: effectiveQbiEntities,
+    taxableIncomeBeforeQbi,
+    netCapitalGain: Math.max(0, longTermCapitalGainsParam),
+    filingStatus,
+  });
+  const qbiDeduction = qbiComputation.totalDeduction;
+  const taxableIncome = Math.max(0, taxableIncomeBeforeQbi - qbiDeduction);
 
   // Federal income tax (before credits) — separate ordinary slice and LTCG slice.
   // LTCG (long-term gains + qualified dividends) is taxed at LTCG brackets, stacked on top
