@@ -384,6 +384,7 @@ export default function Reports() {
       contributions: hsaRowsForYear.map((r) => ({
         amount: Number(r.amount) || 0,
         source_type: r.source_type,
+        contribution_type: (r as any).contribution_type,
       })),
     });
     const healthcareForYear = incomeEntries
