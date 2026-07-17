@@ -109,7 +109,7 @@ function diffField(
   return { field, expected, actual, difference, percentDifference, tolerance, isRate, pass };
 }
 
-const BASELINE = baseline as Record<string, ScenarioValues | undefined>;
+const BASELINE = baseline as unknown as Record<string, ScenarioValues | undefined>;
 
 /** Diff one scenario against its frozen baseline. */
 export function evaluateScenario(scenario: TaxScenario): ScenarioReport {
