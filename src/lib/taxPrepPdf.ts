@@ -54,6 +54,10 @@ export interface BusinessSummaryRows {
 
 export interface DeductionRows {
   hsa: number;
+  /** Per-type HSA breakdown for report/PDF display. */
+  hsaEmployeePayroll?: number;
+  hsaEmployer?: number;
+  hsaIndividual?: number;
   /** Deductible HSA capped at the applicable annual limit. */
   hsaDeductible?: number;
   /** Contributions above the annual limit (non-deductible, may be subject to tax). */
