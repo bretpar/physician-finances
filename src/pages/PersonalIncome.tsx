@@ -151,6 +151,7 @@ const emptyForm: FormState = {
   deductions_pre_tax: "",
   healthcare_deduction: "",
   hsa_contribution: "",
+  employer_hsa_contribution: "",
   source_name: "",
   source_id: null,
   source_save_as_new: false,
