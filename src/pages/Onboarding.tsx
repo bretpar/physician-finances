@@ -261,7 +261,13 @@ export default function Onboarding() {
   }, [user, taxSettings, existingCatchups, catchupsLoading, companiesLoading]);
 
 
-  if (!authLoading && !user) return <Navigate to="/signup" replace />;
+  // Never navigate away while an onboarding submit is in progress. A transient
+  // auth event (token refresh, brief `null` between `SIGNED_IN` events) during
+  // completeOnboarding used to bounce the user to /signup and leave onboarding
+  // in a partially-persisted state (only the first company saved, but
+  // onboarding_complete=true). Keep the user on the onboarding screen until
+  // the orchestrated submit finishes and explicitly navigates.
+  if (!authLoading && !user && !saving) return <Navigate to="/signup" replace />;
   if (user && !saving && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
 
 
@@ -717,6 +723,27 @@ export default function Onboarding() {
     navigate("/", { replace: true });
   }
 
+  /**
+   * Read the current user's companies and return the set of normalized names
+   * that exist server-side. Used to verify that all named drafts actually
+   * persisted before we allow onboarding_complete=true.
+   */
+  async function readPersistedCompanyNames(): Promise<Set<string>> {
+    if (!user?.id) return new Set();
+    const { data, error } = await supabase
+      .from("companies")
+      .select("name")
+      .eq("user_id", user.id)
+      .is("archived_at", null);
+    if (error) throw error;
+    const set = new Set<string>();
+    for (const row of (data || []) as { name: string }[]) {
+      const n = String(row.name || "").trim().toLowerCase();
+      if (n) set.add(n);
+    }
+    return set;
+  }
+
   async function completeOnboarding() {
     if (saving) return;
     if (!settingsId) {
@@ -729,18 +756,55 @@ export default function Onboarding() {
       const selectedPlan = "premium" as const;
       console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
 
-      // 1. Primary persist via the standard mutation.
+      // 1. Ensure every named company draft is persisted BEFORE we mark
+      //    onboarding complete. createOnboardingCompanies is idempotent
+      //    (dedupe-by-name), so it is safe to re-run after a partial write
+      //    or a retry. If any required insert fails, we abort and keep the
+      //    user on onboarding with their drafts intact.
+      const namedDrafts = companyDrafts.filter((c) => c.name.trim());
+      try {
+        await createOnboardingCompanies();
+      } catch (companyErr: any) {
+        console.error("[onboarding] company persistence failed during completeOnboarding", companyErr);
+        toast.error(companyErr?.message || "Could not save your companies. Please try again.");
+        return; // saving reset in finally — keeps drafts, does NOT mark complete
+      }
+
+      // 2. Verify server-side that every named draft is present. Prevents
+      //    the "onboarding complete but only W-2 persisted" bug: if a
+      //    transient auth/network issue silently swallowed a row we must
+      //    keep the user on onboarding so they can retry — not downgrade
+      //    their income profile.
+      if (namedDrafts.length > 0) {
+        const persistedNames = await readPersistedCompanyNames();
+        const missing = namedDrafts.filter(
+          (d) => !persistedNames.has(d.name.trim().toLowerCase()),
+        );
+        if (missing.length > 0) {
+          console.error("[onboarding] refusing to complete — companies missing server-side", {
+            missing: missing.map((m) => ({ name: m.name, type: m.type })),
+          });
+          toast.error(
+            `We couldn't confirm ${missing.map((m) => m.name).join(", ")} saved. Please tap Continue again.`,
+          );
+          return;
+        }
+      }
+
+      // 3. Persist the Household Income Profile + onboarding flag as the
+      //    FINAL write. Only after this succeeds and verifies do we
+      //    navigate the user out of onboarding.
       try {
         await persist({ onboardingComplete: true, onboardingStep: TOTAL_STEPS, subscriptionTier: selectedPlan }, "completeOnboarding");
       } catch (persistErr: any) {
         console.warn("[onboarding] primary persist threw — will verify server state", persistErr);
       }
 
-      // 2. Verify server-side value.
+      // 4. Verify server-side onboarding_complete value.
       console.info("[onboarding] verification:start", { settingsId });
       let verified = await readServerOnboardingComplete(settingsId);
 
-      // 3. If not true, run a deterministic direct update and verify again.
+      // 5. If not true, run a deterministic direct update and verify again.
       if (verified !== true) {
         console.warn("[onboarding] completion verification false — running direct update retry");
         const { error: retryError } = await supabase
@@ -769,9 +833,17 @@ export default function Onboarding() {
     } catch (error: any) {
       console.error("[onboarding] completion failed", { step, catchupSubStep, settingsId }, error);
       // Last-resort recheck: maybe persist succeeded server-side despite a
-      // transient network error during the mutation roundtrip.
+      // transient network error during the mutation roundtrip. But ONLY
+      // navigate if all named company drafts are also present.
       const verified = await readServerOnboardingComplete(settingsId);
-      if (verified === true) {
+      let companiesOk = true;
+      try {
+        const persistedNames = await readPersistedCompanyNames();
+        companiesOk = companyDrafts
+          .filter((c) => c.name.trim())
+          .every((d) => persistedNames.has(d.name.trim().toLowerCase()));
+      } catch { /* treat as not-ok */ companiesOk = false; }
+      if (verified === true && companiesOk) {
         await finalizeAndNavigate(settingsId, "premium");
       } else {
         const isNetwork = typeof error?.message === "string" && /failed to fetch|network|timeout/i.test(error.message);
