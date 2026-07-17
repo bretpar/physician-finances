@@ -9,6 +9,7 @@ import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
+import { computeHsaContributionSummary } from "@/lib/hsaComputation";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -375,25 +376,34 @@ export default function Reports() {
   // ──── Deductions Summary (Section 3) ────
   const deductions = useMemo(() => {
     const yearMatch = (d: string) => d?.startsWith(taxYear);
-    const hsaForYear = hsaRows
-      .filter((r) => yearMatch(r.contribution_date))
-      .reduce((s, r) => s + Number(r.amount), 0);
+    const hsaRowsForYear = hsaRows.filter((r) => yearMatch(r.contribution_date));
+    const hsaSummary = computeHsaContributionSummary({
+      taxYear: Number(taxYear) || currentYear,
+      coverage: (taxSettings?.hsaCoverageType as "individual" | "family") || "individual",
+      catchUpEligible: !!taxSettings?.hsaAge55Catchup,
+      contributions: hsaRowsForYear.map((r) => ({
+        amount: Number(r.amount) || 0,
+        source_type: r.source_type,
+      })),
+    });
     const healthcareForYear = incomeEntries
       .filter((e) => yearMatch(e.income_date))
       .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
     const homeOfficeTotal = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
-    // For current year use annualized projection; for past years use 0 (not stored historically)
     const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.total : 0;
     return {
-      hsa: hsaForYear,
+      hsa: hsaSummary.total,
+      hsaDeductible: hsaSummary.deductibleTotal,
+      hsaExcess: hsaSummary.excess,
+      hsaLimit: hsaSummary.applicableLimit,
       healthcare: healthcareForYear,
       mileage: taxData.mileageDeduction,
       homeOffice: homeOfficeTotal,
       retirement401k,
     };
-  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.total, taxYear, currentYear]);
+  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.total, taxYear, currentYear, taxSettings?.hsaCoverageType, taxSettings?.hsaAge55Catchup]);
 
   // ──── Tax Summary (Section 4) ────
   const taxSummary = useMemo(() => {
@@ -662,7 +672,7 @@ export default function Reports() {
       csv += `"${c.label}",${c.amount}\n`;
     }
     csv += `Total Expenses,${business.totalExpenses}\nNet Profit/Loss,${business.netProfit}\n\n`;
-    csv += `DEDUCTIONS\nHSA Contributions,${ded.hsa}\n401(k) / Retirement,${ded.retirement401k}\nMileage,${ded.mileage}\nHome Office,${ded.homeOffice}\nHealthcare,${ded.healthcare}\n\n`;
+    csv += `DEDUCTIONS\nHSA Contributions (total),${ded.hsa}\nHSA Deductible,${ded.hsaDeductible}\nHSA Excess,${ded.hsaExcess}\nHSA Annual Limit,${ded.hsaLimit}\n401(k) / Retirement,${ded.retirement401k}\nMileage,${ded.mileage}\nHome Office,${ded.homeOffice}\nHealthcare,${ded.healthcare}\n\n`;
     csv += `TAX SUMMARY\nFederal Tax Estimate,${tax.federal}\nState Tax Estimate,${tax.state}\nSelf-Employment Tax,${tax.selfEmployment}\nEstimated Annual Tax Liability,${tax.totalLiability}\nTaxes Already Withheld,${tax.withheld}\nTax Reserve Saved,${tax.reserveSaved}\nQuarterly Payments Made,${tax.paymentsMade}\nRemaining Estimated Liability,${tax.remaining}\n\n`;
     csv += `QUARTERLY\nQuarter,Recommended,Paid,Remaining\n`;
     for (const q of quarters) {
@@ -1137,7 +1147,20 @@ export default function Reports() {
           {/* Section 3 — Deductions Summary */}
           <SectionCard title="3. Deductions Summary" subtitle="Above-the-line and tax-tracked deductions">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-              <KVRow label="HSA Contributions" value={fmt(deductions.hsa)} />
+              <KVRow
+                label="HSA Contributions (total)"
+                value={fmt(deductions.hsa)}
+              />
+              <KVRow
+                label={`HSA Deductible (limit ${fmt(deductions.hsaLimit)})`}
+                value={fmt(deductions.hsaDeductible)}
+              />
+              {deductions.hsaExcess > 0 && (
+                <KVRow
+                  label="HSA Excess (non-deductible)"
+                  value={fmt(deductions.hsaExcess)}
+                />
+              )}
               <KVRow label="401(k) / Retirement Contributions" value={fmt(deductions.retirement401k)} />
               <KVRow label="Mileage Deduction" value={fmt(deductions.mileage)} />
               <KVRow label="Home Office Deduction" value={fmt(deductions.homeOffice)} />
@@ -1147,7 +1170,7 @@ export default function Reports() {
               <span className="text-sm font-semibold text-foreground">Total Deductions</span>
               <span className="text-base font-bold text-foreground tabular-nums">
                 {fmt(
-                  deductions.hsa +
+                  deductions.hsaDeductible +
                     deductions.retirement401k +
                     deductions.mileage +
                     deductions.homeOffice +

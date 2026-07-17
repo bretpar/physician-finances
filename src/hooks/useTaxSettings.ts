@@ -62,6 +62,10 @@ export interface TaxRates {
   // ─── HSA ───
   hsaEnabled: boolean;
   hsaSourceCompanyId: string | null;
+  /** HSA coverage type — drives the applicable annual contribution limit. */
+  hsaCoverageType: "individual" | "family";
+  /** Whether the user is eligible for the age-55+ catch-up contribution. */
+  hsaAge55Catchup: boolean;
   // ─── Household Income Streams ───
   householdIncomeStreams: HouseholdIncomeStreams;
   // ─── Forecasting Automation ───
@@ -117,6 +121,8 @@ const DEFAULT_RATES: TaxRates = {
   businessStateTaxCompanyIds: [],
   hsaEnabled: false,
   hsaSourceCompanyId: null,
+  hsaCoverageType: "individual",
+  hsaAge55Catchup: false,
   householdIncomeStreams: {
     w2Income: true,
     spouseW2Income: true,
@@ -245,6 +251,8 @@ function mapTaxSettingsRow(data: any): TaxRates {
     businessStateTaxCompanyIds: Array.isArray(d.business_state_tax_company_ids) ? (d.business_state_tax_company_ids as string[]) : [],
     hsaEnabled: !!d.hsa_enabled,
     hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
+    hsaCoverageType: (d.hsa_coverage_type as "individual" | "family") || "individual",
+    hsaAge55Catchup: !!d.hsa_age55_catchup,
     householdIncomeStreams: {
       w2Income: d.household_w2_income_enabled ?? true,
       spouseW2Income: d.household_spouse_w2_income_enabled ?? true,
@@ -319,6 +327,8 @@ export function useUpdateTaxSettings() {
       if (rest.businessStateTaxCompanyIds !== undefined) payload.business_state_tax_company_ids = rest.businessStateTaxCompanyIds;
       if (rest.hsaEnabled !== undefined) payload.hsa_enabled = rest.hsaEnabled;
       if (rest.hsaSourceCompanyId !== undefined) payload.hsa_source_company_id = rest.hsaSourceCompanyId;
+      if ((rest as any).hsaCoverageType !== undefined) payload.hsa_coverage_type = (rest as any).hsaCoverageType;
+      if ((rest as any).hsaAge55Catchup !== undefined) payload.hsa_age55_catchup = (rest as any).hsaAge55Catchup;
       if (rest.householdIncomeStreams !== undefined) {
         payload.household_w2_income_enabled = rest.householdIncomeStreams.w2Income;
         payload.household_spouse_w2_income_enabled = rest.householdIncomeStreams.spouseW2Income;

@@ -54,6 +54,12 @@ export interface BusinessSummaryRows {
 
 export interface DeductionRows {
   hsa: number;
+  /** Deductible HSA capped at the applicable annual limit. */
+  hsaDeductible?: number;
+  /** Contributions above the annual limit (non-deductible, may be subject to tax). */
+  hsaExcess?: number;
+  /** Applicable IRS HSA limit for the tax year and coverage type. */
+  hsaLimit?: number;
   retirement401k: number;
   mileage: number;
   homeOffice: number;
@@ -429,9 +435,22 @@ function renderScheduleC(doc: jsPDF, data: TaxPrepPdfInput) {
 
 function renderDeductions(doc: jsPDF, data: TaxPrepPdfInput) {
   const d = data.deductions;
-  const total = d.hsa + d.retirement401k + d.mileage + d.homeOffice + d.healthcare;
+  const hsaDeductible = d.hsaDeductible ?? d.hsa;
+  const hsaExcess = d.hsaExcess ?? 0;
+  const total = hsaDeductible + d.retirement401k + d.mileage + d.homeOffice + d.healthcare;
   const body: any[][] = [
-    ["HSA Contributions", fmt(d.hsa)],
+    ["HSA Contributions (total)", fmt(d.hsa)],
+    [
+      d.hsaLimit && d.hsaLimit > 0
+        ? `HSA Deductible (limit ${fmt(d.hsaLimit)})`
+        : "HSA Deductible",
+      fmt(hsaDeductible),
+    ],
+  ];
+  if (hsaExcess > 0) {
+    body.push(["HSA Excess (non-deductible)", fmt(hsaExcess)]);
+  }
+  body.push(
     ["401(k) / Retirement Contributions", fmt(d.retirement401k)],
     ["Mileage Deduction", fmt(d.mileage)],
     ["Home Office Deduction", fmt(d.homeOffice)],
@@ -440,7 +459,7 @@ function renderDeductions(doc: jsPDF, data: TaxPrepPdfInput) {
       { content: "Total Deductions", styles: { fontStyle: "bold" } },
       { content: fmt(total), styles: { fontStyle: "bold", halign: "right" } },
     ],
-  ];
+  );
   renderTable(doc, CONTENT_TOP + 8, [["Deduction", "Amount"]], body, {
     moneyCols: [1],
   });
