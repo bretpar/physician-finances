@@ -165,6 +165,14 @@ export interface TaxDebugBreakdown {
   // ── Tax math ──
   federalIncomeTax: number;
   selfEmploymentTax: number;
+  /** Social Security portion of SE tax (12.4% of SE base, capped at SS wage base minus W-2 wages). */
+  seSocialSecurityTax: number;
+  /** Medicare portion of SE tax (2.9% of SE base, uncapped). */
+  seMedicareTax: number;
+  /** Additional Medicare (0.9%) portion of SE tax above the filing-status threshold. */
+  seAdditionalMedicareTax: number;
+  /** SE base after the statutory 92.35% factor — surfaced for parity displays. */
+  seTaxableBase: number;
   stateTax: number;
   totalEstimatedTax: number;
   canonicalEffectiveTaxRate: number;
@@ -429,6 +437,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     totalTaxableIncome: estimate.taxableIncome,
     federalIncomeTax: estimate.federalTax,
     selfEmploymentTax: estimate.seTax.total,
+    seSocialSecurityTax: estimate.seTax.ssTax,
+    seMedicareTax: estimate.seTax.medicareTax,
+    seAdditionalMedicareTax: estimate.seTax.additionalMedicare,
+    seTaxableBase: estimate.seTax.seBase,
     stateTax: estimate.stateTax,
     totalEstimatedTax: estimate.totalTaxLiability,
     canonicalEffectiveTaxRate: estimate.effectiveRate,
