@@ -618,6 +618,7 @@ export function calculateFullEstimate(params: {
     remainingLiability, quarterlyEstimate, effectiveRate, federalEffectiveRate, marginalRate,
     safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside, targetSetAside,
     tracking,
+    qbiDeduction, qbiComputation,
     adjustments: [],
   };
   // Populate the developer-diagnostic pipeline. Purely derived from the
