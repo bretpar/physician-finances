@@ -64,6 +64,12 @@ export async function syncIncomeEntryHsa(
     companyId,
   } = input;
 
+  if (!incomeEntryId) {
+    // Guard: the RPC would reject this with a 22004, but we throw earlier so
+    // callers get a clear, testable error rather than a raw DB message.
+    throw new Error("HSA sync failed: incomeEntryId is required");
+  }
+
   // `undefined` → don't touch that role. `null` normalizes to don't-touch too
   // so callers can safely spread partial updates.
   const employeeArg =
