@@ -121,6 +121,24 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://app.paycheckmd.com/tax-reserve</loc>
+    <lastmod>2026-07-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://app.paycheckmd.com/quarterly-taxes</loc>
+    <lastmod>2026-07-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://app.paycheckmd.com/estimated-tax</loc>
+    <lastmod>2026-07-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://app.paycheckmd.com/blog/1099-tax-deductions</loc>
     <lastmod>2026-07-17</lastmod>
     <changefreq>monthly</changefreq>

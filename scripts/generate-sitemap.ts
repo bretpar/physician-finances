@@ -35,6 +35,10 @@ const entries: SitemapEntry[] = [
   { path: "/reports", changefreq: "weekly", priority: "0.7", lastmod: today },
   { path: "/settings", changefreq: "monthly", priority: "0.4", lastmod: today },
   { path: "/estimate", changefreq: "monthly", priority: "0.7", lastmod: today },
+  { path: "/tax-reserve", changefreq: "weekly", priority: "0.7", lastmod: today },
+  { path: "/quarterly-taxes", changefreq: "weekly", priority: "0.7", lastmod: today },
+  { path: "/estimated-tax", changefreq: "weekly", priority: "0.7", lastmod: today },
+  // Intentionally excluded (internal/admin, non-indexable): /debug/transactions, /admin/data-isolation
   { path: "/blog/1099-tax-deductions", changefreq: "monthly", priority: "0.8", lastmod: today },
   { path: "/blog/physician-scorp-vs-sole-proprietorship", changefreq: "monthly", priority: "0.8", lastmod: today },
 ];
