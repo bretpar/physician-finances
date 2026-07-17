@@ -40,6 +40,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { syncIncomeEntryHsa } from "@/lib/incomeEntryHsaSync";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { computeBusinessSummary } from "@/lib/businessSummary";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { txTone } from "@/lib/transactionTones";
