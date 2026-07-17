@@ -142,6 +142,10 @@ export interface TaxBreakdownResult {
   totalReturnIncomeBeforeAdjustments: number;
   w2PreTaxDeductions: number;
   w2TaxableIncomeBase: number;
+  /** Total W-2 payroll HSA across all sources (Section 125 — excluded from FICA). */
+  w2PayrollHsa: number;
+  /** Total Section 125 deductions (payrollHsa + qualified premiums) excluded from FICA. */
+  w2Section125Deductions: number;
   totalDeductions: number;
   preTaxDeductions: number;
   retirement401k: number;
