@@ -441,9 +441,12 @@ export function calculateFullEstimate(params: {
   const w2PreTaxDeductions = Math.max(0, w2PreTaxDeductionsParam);
   const w2TaxableIncomeBase = Math.max(0, w2Income - w2PreTaxDeductions);
 
-  // SE tax — only on TRUE self-employment net income
+  // SE tax — only on TRUE self-employment net income. The SS cap offset and
+  // Additional Medicare threshold use FICA wages (gross W-2 − Section 125),
+  // not gross W-2, per IRS Pub 15-B.
   const netSEIncome = seIncome - seBusinessDeductions - seMileageDeduction;
-  const seTax = calculateSETax(netSEIncome, filingStatus, ssWageCap, w2Income);
+  const w2FicaWages = Math.max(0, w2Income - w2PreTaxDeductions);
+  const seTax = calculateSETax(netSEIncome, filingStatus, ssWageCap, w2Income, w2FicaWages);
 
   // Net business profit (display) — uses gross business income (all biz) minus
   // expenses & mileage. May differ from netSEIncome when SE-ineligible business
