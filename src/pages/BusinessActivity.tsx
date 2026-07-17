@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { isIncomeEntryTypeAllowed, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
+import { isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
@@ -40,7 +40,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { syncIncomeEntryHsa } from "@/lib/incomeEntryHsaSync";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
-import { computeBusinessSummary } from "@/lib/businessSummary";
+import { computeBusinessSummary, BUSINESS_COMPANY_TYPES } from "@/lib/businessSummary";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { txTone } from "@/lib/transactionTones";
@@ -284,17 +284,20 @@ export default function Transactions() {
   const [linkedEntry, setLinkedEntry] = useState<IncomeEntry | null>(null);
 
   // Business Activity: use companies.id as the canonical business/entity selector.
-  // Filter out non-W2 companies whose filing type isn't enabled in the
-  // Household Income Profile. The currently-selected company (when editing)
-  // is always preserved so the form doesn't break.
-  const householdStreams = taxSettings?.householdIncomeStreams;
+  // The Business Activity ledger is defined by `computeBusinessSummary`, which
+  // treats every company whose `companyType` is in `BUSINESS_COMPANY_TYPES`
+  // (1099_schedule_c + k1_partnership) as a business company. The selector
+  // must match that set exactly — otherwise a K-1 partnership created in
+  // Settings would render as a valid business entity in totals but be
+  // missing from the Add Income / Add Expense dropdowns, blocking data entry.
+  // The currently-selected company (when editing) is always preserved so the
+  // form doesn't break if the type set ever narrows in the future.
   const businessCompanies = useMemo(() =>
     companies.filter((c) => {
-      if (isW2FilingType(c.companyType)) return false;
-      const ft = normalizeFilingType(c.companyType);
-      return isIncomeEntryTypeAllowed(householdStreams, ft) || c.id === incomeForm.company;
+      if (BUSINESS_COMPANY_TYPES.has(normalizeFilingType(c.companyType))) return true;
+      return c.id === incomeForm.company;
     }),
-  [companies, householdStreams, incomeForm.company]);
+  [companies, incomeForm.company]);
 
   const companyById = useMemo(() =>
     new Map(companies.map((c) => [c.id, c] as const)),
@@ -2008,7 +2011,7 @@ export default function Transactions() {
                 {incomeNeedsCompanyReview && (
                   <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
                 )}
-                {isIncomeEntryTypeDisabled(householdStreams, normalizeFilingType(incomeForm.income_type)) && (
+                {isIncomeEntryTypeDisabled(taxSettings?.householdIncomeStreams, normalizeFilingType(incomeForm.income_type)) && (
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     No longer active in your Household Income Profile — kept available for this existing entry only.
                   </p>

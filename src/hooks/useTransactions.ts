@@ -66,8 +66,12 @@ export function useBulkUpdateTransactions() {
         .in("id", ids);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transactions updated");
     },
     onError: (e) => toast.error(e.message),
@@ -158,8 +162,12 @@ export function useAddTransaction() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transaction added");
     },
     onError: (e) => toast.error(e.message),
@@ -181,8 +189,12 @@ export function useUpdateTransaction() {
       if (!data) throw new Error("No rows updated — transaction may have been deleted.");
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transaction updated");
     },
     onError: (e) => toast.error(e.message),
@@ -238,9 +250,13 @@ export function useDeleteTransaction() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transaction deleted");
     },
     onError: (e) => toast.error(e.message),
@@ -277,9 +293,13 @@ export function useBulkDeleteTransactions() {
       if (error) throw error;
       return ids.length;
     },
-    onSuccess: (count) => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
+    onSuccess: async (count) => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success(`Deleted ${count} transaction${count !== 1 ? "s" : ""}`);
     },
     onError: (e) => toast.error(e.message),
