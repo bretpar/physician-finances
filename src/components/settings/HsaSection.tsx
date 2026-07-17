@@ -144,6 +144,42 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
             </p>
           </div>
 
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground block">
+              HSA coverage type
+            </Label>
+            <RadioGroup
+              value={d.hsaCoverageType}
+              onValueChange={(v) => set({ hsaCoverageType: v as "individual" | "family" })}
+              className="flex gap-4"
+            >
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <RadioGroupItem value="individual" id="hsa-cov-ind" />
+                Individual (self-only)
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <RadioGroupItem value="family" id="hsa-cov-fam" />
+                Family
+              </label>
+            </RadioGroup>
+            <p className="text-[11px] text-muted-foreground">
+              Determines your annual IRS contribution limit.
+            </p>
+          </div>
+
+          <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Age 55+ catch-up eligible</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Adds an extra $1,000 to your annual HSA limit.
+              </p>
+            </div>
+            <Switch
+              checked={d.hsaAge55Catchup}
+              onCheckedChange={(v) => set({ hsaAge55Catchup: v })}
+            />
+          </div>
+
           <div className="rounded-md bg-muted/40 p-3 text-[11px] text-muted-foreground leading-relaxed">
             W-2 and payroll-style K-1 HSA contributions are entered on paycheck entries.
             1099 HSA contributions are usually entered as <strong>individual contributions</strong>
