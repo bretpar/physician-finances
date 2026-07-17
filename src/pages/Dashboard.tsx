@@ -30,6 +30,7 @@ import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationI
 import { normalizeFilingType } from "@/lib/filingTypes";
 
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { computeBusinessSummary } from "@/lib/businessSummary";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
 import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
@@ -264,68 +265,22 @@ export default function Dashboard() {
     });
     return aggregateInvestmentTaxBuckets(entries).totalTaxableIncome;
   })();
-  // SCHEDULE-C-ONLY BUSINESS PROFIT
-  // The Dashboard "Business Profit" card represents 1099 / Schedule C
-  // business profit only. Active K-1 partnership income still flows through
-  // total gross income, Tax Overview, and SE-tax calculations, but it must
-  // NOT inflate this card. Computed from the same data Business Activity's
-  // summary uses (transactions tied to Schedule C companies + Schedule C
-  // mileage), plus future projected Schedule C paycheck income when the
-  // user is viewing the forecast/include-planned mode.
-  const scheduleCCompanyIdSet = (() => {
-    const s = new Set<string>();
-    for (const c of companies || []) {
-      if (c.companyType === "1099_schedule_c") s.add(c.id);
-    }
-    return s;
-  })();
-  const scheduleCStreamIdSet = (() => {
-    const s = new Set<string>();
-    for (const st of streams || []) {
-      const t = String(st.company_type || "").toLowerCase();
-      if (t === "1099_schedule_c" || t === "1099") s.add(st.id);
-    }
-    return s;
-  })();
-  const forecastExpenseByStreamId = (() => {
-    const m = new Map<string, number>();
-    for (const st of streams || []) m.set(st.id, Number((st as any).forecast_expense_per_period || 0));
-    return m;
-  })();
-  const scheduleCBusinessProfit = (() => {
-    const actualRev = (transactions || [])
-      .filter((t) => {
-        if (t.transaction_type !== "income") return false;
-        if (isExcludedFromBusiness(t as any)) return false;
-        if ((t as any).source_id && scheduleCCompanyIdSet.has((t as any).source_id)) return true;
-        if ((t as any).origin_type === "ytd_catchup" && String((t as any).company_type || "") === "1099_schedule_c") return true;
-        return false;
-      })
-      .reduce((s, t) => s + Math.abs(t.amount), 0);
-    const actualExp = (transactions || [])
-      .filter((t) => t.transaction_type === "expense" && (t as any).source_id && scheduleCCompanyIdSet.has((t as any).source_id))
-      .reduce((s, t) => s + Math.abs(t.amount), 0);
-    const actualMileage = (ytdMileageDashboard || [])
-      .filter((m) => m.company_id && scheduleCCompanyIdSet.has(m.company_id))
-      .reduce((s, m) => s + Number(m.miles) * getIrsMileageRate(m.year), 0);
-
-    let projRev = 0;
-    let projExp = 0;
-    if (projection) {
-      for (const p of projectedPaychecks || []) {
-        if (p.matchStatus !== "active") continue;
-        const sid = (p as any).streamSourceId as string | null | undefined;
-        const streamId = (p as any).streamId as string | undefined;
-        const isSchedC = (sid && scheduleCCompanyIdSet.has(sid))
-          || (streamId && scheduleCStreamIdSet.has(streamId));
-        if (!isSchedC) continue;
-        projRev += Number(p.grossAmount || 0);
-        if (streamId) projExp += Number(forecastExpenseByStreamId.get(streamId) || 0);
-      }
-    }
-    return (actualRev + projRev) - (actualExp + actualMileage + projExp);
-  })();
-  const businessProfitValue = scheduleCBusinessProfit;
+  // CANONICAL BUSINESS PROFIT
+  // Uses the shared `computeBusinessSummary` so this card cannot drift from
+  // the Business Activity page. Includes 1099/Schedule C AND active K-1
+  // partnership income (matches Business Activity), plus Schedule-C mileage
+  // deduction, plus — when the user is viewing planned/forecast mode —
+  // active projected business paychecks and their per-period forecast
+  // expenses.
+  const businessSummary = computeBusinessSummary({
+    transactions: transactions || [],
+    mileageEntries: ytdMileageDashboard,
+    companies: companies || [],
+    projectedPaychecks,
+    streams: streams || [],
+    includePlanned: projection,
+  });
+  const businessProfitValue = businessSummary.profit;
   const w2TotalValue = activeDebug?.w2Income ?? summary.w2Income;
   const otherValueRaw = activeDebug
     ? activeDebug.otherIncome - investmentsValue

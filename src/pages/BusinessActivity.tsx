@@ -40,6 +40,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { syncIncomeEntryHsa } from "@/lib/incomeEntryHsaSync";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { computeBusinessSummary } from "@/lib/businessSummary";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { txTone } from "@/lib/transactionTones";
@@ -1142,44 +1143,14 @@ export default function Transactions() {
     // (sole proprietorship + partnership distributions). Passive interest,
     // personal items, transfers, and W-2 wages are excluded.
     //
-    // YTD catch-up mirror rows (origin_type='ytd_catchup') count when the
-    // underlying catch-up is either 1099_schedule_c or k1_partnership.
-    const BUSINESS_COMPANY_TYPES = new Set(["1099_schedule_c", "k1_partnership"]);
-    const isBusinessActivityCompany = (sourceId: string | null | undefined): boolean => {
-      if (!sourceId) return false;
-      const c = companyById.get(sourceId);
-      return !!c && BUSINESS_COMPANY_TYPES.has(c.companyType);
-    };
-    const isBusinessActivityMirrorCatchup = (t: any): boolean => {
-      if (t?.origin_type !== "ytd_catchup") return false;
-      return BUSINESS_COMPANY_TYPES.has(String(t?.company_type || ""));
-    };
-    const businessFiltered = filtered.filter((t) =>
-      !isExcludedFromBusiness(t as any) &&
-      !isUnassignedOrAutoAssignedInterest(t) &&
-      (isBusinessActivityCompany(t.source_id) || isBusinessActivityMirrorCatchup(t))
-    );
-    const revenue = businessFiltered
-      .filter((t) => t.transaction_type === "income")
-      .reduce((s, t) => s + Math.abs(t.amount), 0);
-    const txExpenses = businessFiltered
-      .filter((t) => t.transaction_type === "expense")
-      .reduce((s, t) => s + Math.abs(t.amount), 0);
-
-    // Mileage deductions: include only entries linked to Schedule C companies
-    // that pass the current company filter. "all" → every assigned mileage
-    // entry on a Schedule C company.
-    const mileageDed = ytdMileage
-      .filter((m) => {
-        if (!m.company_id) return false; // Unassigned never counts toward a company total
-        const c = companyById.get(m.company_id);
-        if (!c || c.companyType !== "1099_schedule_c") return false;
-        if (filterCompany === "all") return true;
-        return m.company_id === filterCompany;
-      })
-      .reduce((s, m) => s + Number(m.miles) * getIrsMileageRate(m.year), 0);
-
-    const expenses = txExpenses + mileageDed;
+    // Canonical math lives in `computeBusinessSummary` so Dashboard and
+    // Business Activity cannot drift on Revenue / Deductions / Profit.
+    const shared = computeBusinessSummary({
+      transactions: filtered,
+      mileageEntries: ytdMileage,
+      companies,
+      companyFilter: filterCompany,
+    });
     // Owner deductions from K-1 income entries (reduce taxable income, not profit)
     const ownerDeds = (incomeEntries || [])
       .filter((e) =>
@@ -1189,8 +1160,15 @@ export default function Transactions() {
         (filterCompany === "all" || e.source_id === filterCompany)
       )
       .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0) + Number(e.retirement_401k || 0) + Number(e.pre_tax_deductions || 0), 0);
-    return { revenue, expenses, txExpenses, mileageDeduction: mileageDed, profit: revenue - expenses, ownerDeductions: ownerDeds };
-  }, [filtered, incomeEntries, ytdMileage, filterCompany, companyById]);
+    return {
+      revenue: shared.revenue,
+      expenses: shared.deductions,
+      txExpenses: shared.txExpenses,
+      mileageDeduction: shared.mileageDeduction,
+      profit: shared.profit,
+      ownerDeductions: ownerDeds,
+    };
+  }, [filtered, incomeEntries, ytdMileage, filterCompany, companyById, companies]);
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading…</div>;
