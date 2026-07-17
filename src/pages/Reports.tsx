@@ -9,6 +9,7 @@ import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
+import { computeHsaContributionSummary } from "@/lib/hsaComputation";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
