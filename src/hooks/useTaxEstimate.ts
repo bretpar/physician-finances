@@ -760,6 +760,34 @@ export function useTaxEstimate(): {
           : { futureGross: 0, futureFederalWithheld: 0, perCompany: [] };
 
 
+
+      // ─── HSA annual-limit cap ────────────────────────────────────────────
+      // Cap the above-the-line HSA deduction so (payroll W-2 HSA + employer +
+      // allowed above-line) never exceeds the applicable annual limit. Payroll
+      // W-2 HSA already reduced W-2 wages upstream — we do NOT invert that; we
+      // just cap the above-line bucket. If payroll alone ≥ limit, above-line
+      // deductible drops to 0 and no negative deduction is introduced.
+      // See src/lib/hsaLimits.ts + src/lib/hsaComputation.ts.
+      const w2SectionHsa =
+        personalHsaW2Pretax + (canonicalBusiness.businessW2Hsa || 0) + cu.w2.hsa;
+      const rawPersonalAboveLine = personalNonW2HsaAboveLine + cu.other.hsa;
+      const rawBusinessAboveLine = businessNonW2HsaAboveLine + cu.business.hsa;
+      const totalAboveLineRaw = rawPersonalAboveLine + rawBusinessAboveLine;
+      const applicableHsaLimit = getApplicableHsaLimit(
+        currentYear,
+        (rates.hsaCoverageType as "individual" | "family") || "individual",
+        !!rates.hsaAge55Catchup,
+      );
+      const roomForAboveLine = Math.max(0, applicableHsaLimit - w2SectionHsa);
+      const cappedAboveLineTotal = Math.min(totalAboveLineRaw, roomForAboveLine);
+      const aboveLineReduction = totalAboveLineRaw - cappedAboveLineTotal;
+      // Take reduction from personal first, then business — the engine sums
+      // them, so the split is presentation-only.
+      const reducePersonal = Math.min(aboveLineReduction, rawPersonalAboveLine);
+      const reduceBusiness = aboveLineReduction - reducePersonal;
+      const cappedPersonalNonW2Hsa = Math.max(0, rawPersonalAboveLine - reducePersonal);
+      const cappedBusinessNonW2Hsa = Math.max(0, rawBusinessAboveLine - reduceBusiness);
+
       return {
         businessIncome: businessIncome + cuBizGross,
         seEligibleBusinessIncome: seEligibleBusinessIncome + cu.business.seEligibleGross,
@@ -769,7 +797,7 @@ export function useTaxEstimate(): {
         businessFederalWithheld: businessFederalWithheld + cu.business.federalWithheld,
         businessStateWithheld: businessStateWithheld + cu.business.stateWithheld,
         businessPreTax: businessPreTax + cu.business.payrollPreTax,
-        businessNonW2HsaAboveLine: businessNonW2HsaAboveLine + cu.business.hsa,
+        businessNonW2HsaAboveLine: cappedBusinessNonW2Hsa,
         businessRetirement: businessRetirement + cu.business.retirement,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
@@ -786,7 +814,7 @@ export function useTaxEstimate(): {
         // "Other" catch-up HSA + payroll items go to non-W-2 above-line HSA
         // (HSA) and personalPreTax (non-HSA payroll fields) respectively.
         personalPreTax: personalPreTax + cu.w2.payrollPreTax + cu.w2.hsa + cu.other.payrollPreTax,
-        personalNonW2HsaAboveLine: personalNonW2HsaAboveLine + cu.other.hsa,
+        personalNonW2HsaAboveLine: cappedPersonalNonW2Hsa,
         personalRetirement: personalRetirement + cu.w2.retirement + cu.other.retirement,
         netStockGain,
         longTermCapitalGains,
