@@ -13,6 +13,11 @@ import {
   calcBracketTax,
 } from "@/lib/taxBrackets";
 import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
+import {
+  computeQbiDeduction,
+  type QbiComputation,
+  type QbiEntityInput,
+} from "@/lib/qbi";
 
 export interface TaxBracket {
   min: number;
@@ -262,6 +267,10 @@ export interface TaxEstimate {
   targetSetAside: number;
   // Time-based tracking
   tracking: TimeBasedTracking;
+  /** §199A QBI deduction actually applied to taxable income. */
+  qbiDeduction: number;
+  /** Per-entity breakdown + phase-out state for the QBI deduction. */
+  qbiComputation: QbiComputation;
   /**
    * Ordered pipeline of every discrete adjustment/credit/surtax applied to
    * this estimate, grouped by calculation stage. Developer-only diagnostic —
