@@ -393,6 +393,9 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     withholdingOverrideAmount,
     longTermCapitalGains,
     stateTaxInputs,
+    // SE-attributable retirement (SEP / Solo-401(k)) — reduces synthesized
+    // aggregate QBI. Excludes W-2 elective deferrals (personalRetirement).
+    qbiSeRetirementDeduction: businessRetirement + projRetirement,
   });
 
   const totalDeductions =
