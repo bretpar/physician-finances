@@ -285,9 +285,16 @@ export function HsaLedgerSection() {
   });
 
   const totals = useMemo(() => {
-    const payroll = rows.filter((r) => r.source_type === "payroll").reduce((s, r) => s + Number(r.amount), 0);
-    const individual = rows.filter((r) => r.source_type === "individual").reduce((s, r) => s + Number(r.amount), 0);
-    return { payroll, individual, total: payroll + individual };
+    const employeePayroll = rows
+      .filter((r) => resolveHsaContributionType(r) === "employee_payroll")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const employer = rows
+      .filter((r) => resolveHsaContributionType(r) === "employer")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const individual = rows
+      .filter((r) => resolveHsaContributionType(r) === "individual")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    return { employeePayroll, employer, individual, total: employeePayroll + employer + individual };
   }, [rows]);
 
   const hsaSummary = useMemo(() => {
@@ -298,6 +305,7 @@ export function HsaLedgerSection() {
       contributions: rows.map((r) => ({
         amount: Number(r.amount) || 0,
         source_type: r.source_type,
+        contribution_type: r.contribution_type,
         contribution_date: r.contribution_date,
       })),
     });
