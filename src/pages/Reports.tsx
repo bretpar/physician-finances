@@ -396,6 +396,9 @@ export default function Reports() {
     const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.total : 0;
     return {
       hsa: hsaSummary.total,
+      hsaEmployeePayroll: hsaSummary.payrollEmployee,
+      hsaEmployer: hsaSummary.employer,
+      hsaIndividual: hsaSummary.individual,
       hsaDeductible: hsaSummary.deductibleTotal,
       hsaExcess: hsaSummary.excess,
       hsaLimit: hsaSummary.applicableLimit,
