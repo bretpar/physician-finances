@@ -327,6 +327,10 @@ export function useTaxBreakdown(
         agg.preTax += Number(e.pre_tax_deductions) || 0;
         agg.retirement += Number(e.retirement_401k) || 0;
         agg.healthcare += Number((e as any).healthcare_deduction) || 0;
+        // W-2 personal-income HSA is treated as Section 125 payroll HSA — see
+        // useTaxEstimate line ~512. Track separately so we can subtract it
+        // from FICA wages without double-counting the (Section 125) `preTax` bucket.
+        agg.payrollHsa += Math.max(0, Number((e as any).hsa_contribution) || 0);
         // Canonical federal total via shared helper (handles taxes_withheld,
         // legacy federal_withholding-only rows, and split SS/Medicare).
         agg.withheld += getTotalFederalPaid(e as any);
