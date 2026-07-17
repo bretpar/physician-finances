@@ -1379,8 +1379,40 @@ export default function PersonalIncome() {
                       )}
                       {showField("hsa_contribution") && (
                         <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">HSA Contribution</Label>
-                          <Input data-testid="paycheck-hsa-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.hsa_contribution} onChange={(e) => setField("hsa_contribution", e.target.value)} />
+                          <Label
+                            className="text-xs text-muted-foreground mb-1.5 block"
+                            title="Your pre-tax HSA contribution deducted from this paycheck (Section 125). Reduces your W-2 wages."
+                          >
+                            HSA — Employee (pre-tax)
+                          </Label>
+                          <Input
+                            data-testid="paycheck-hsa-input"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={form.hsa_contribution}
+                            onChange={(e) => setField("hsa_contribution", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {showField("hsa_contribution") && (
+                        <div>
+                          <Label
+                            className="text-xs text-muted-foreground mb-1.5 block"
+                            title="Employer HSA contribution funded by your employer. Not part of your take-home pay. Counts toward the annual HSA limit but is not an additional deduction."
+                          >
+                            HSA — Employer contribution
+                          </Label>
+                          <Input
+                            data-testid="paycheck-employer-hsa-input"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={form.employer_hsa_contribution}
+                            onChange={(e) => setField("employer_hsa_contribution", e.target.value)}
+                          />
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (
