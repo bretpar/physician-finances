@@ -54,6 +54,12 @@ export interface BusinessSummaryRows {
 
 export interface DeductionRows {
   hsa: number;
+  /** Deductible HSA capped at the applicable annual limit. */
+  hsaDeductible?: number;
+  /** Contributions above the annual limit (non-deductible, may be subject to tax). */
+  hsaExcess?: number;
+  /** Applicable IRS HSA limit for the tax year and coverage type. */
+  hsaLimit?: number;
   retirement401k: number;
   mileage: number;
   homeOffice: number;
