@@ -250,9 +250,13 @@ export function useDeleteTransaction() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transaction deleted");
     },
     onError: (e) => toast.error(e.message),
