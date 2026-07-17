@@ -30,6 +30,7 @@ import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationI
 import { normalizeFilingType } from "@/lib/filingTypes";
 
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { computeBusinessSummary } from "@/lib/businessSummary";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
 import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
