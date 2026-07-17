@@ -207,8 +207,16 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
 /*  HSA Contributions Ledger Section                         */
 /* ─────────────────────────────────────────────────────────── */
 
-function SourceChip({ source_type, company_id, companyName }: { source_type: string; company_id: string | null; companyName: (id: string | null) => string }) {
-  if (source_type === "payroll") {
+function SourceChip({
+  contributionType,
+  company_id,
+  companyName,
+}: {
+  contributionType: HsaContributionType;
+  company_id: string | null;
+  companyName: (id: string | null) => string;
+}) {
+  if (contributionType === "employee_payroll" || contributionType === "employer") {
     const name = companyName(company_id);
     const unassigned = !company_id || name === "—";
     return (
@@ -225,6 +233,12 @@ function SourceChip({ source_type, company_id, companyName }: { source_type: str
     </span>
   );
 }
+
+const TYPE_LABEL: Record<HsaContributionType, string> = {
+  employee_payroll: "Employee (payroll)",
+  employer: "Employer",
+  individual: "Individual",
+};
 
 function LinkedChip() {
   return (
