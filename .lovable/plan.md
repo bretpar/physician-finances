@@ -1,56 +1,77 @@
-## Goal
+# Canonical Tax Engine Consolidation
 
-Today the matcher only proposes 1-to-1 pairs and dedupes so each Plaid deposit appears in at most one suggestion. Split deposits (one Plaid credit that actually covers multiple paychecks/income entries, or several small Plaid credits that together cover one gross entry) get missed or, worse, force the user to pick a single "wrong" partner. This adds first-class detection and suggestion of split-deposit combinations, reusing the existing many-to-many match group plumbing (`useCreateMatchGroup`) so no backend changes are needed.
+## Audit result (good news)
 
-## Scope (UI + client logic only)
+Every live routed page already consumes the canonical engine (`useTaxEstimate` → `calculateFullEstimate` → `TaxDebugBreakdown`). No page silently re-derives federal, SE, state, or effective-rate math. Real gaps are narrower than the brief suggests:
 
-No database migrations. No changes to tax math, save flow, or Plaid sync. Suggestion generation, conflict detection, and the suggested-match card are the only surfaces that change.
+| Issue | Location | Type |
+|---|---|---|
+| SS / Medicare / Additional Medicare not on `TaxDebugBreakdown`; `useTaxBreakdown` reaches past the contract with `as any` | `taxCalculationService.ts`, `useTaxBreakdown.ts:924` | Missing canonical field |
+| `TaxPlanning.tsx` uses hardcoded 20% federal, 15.3% SE, own quarterly split — unrouted but present | `src/pages/TaxPlanning.tsx` | Dead-code drift risk |
+| Intentional separate calculators (W‑2 FICA, marketing quickEstimate, quarterly, per-business, per-entry reserve) exist but aren't clearly labeled as "not the engine" | `w2PayrollTax.ts`, `quickEstimate.ts`, `quarterRecommendation.ts`, `businessSummary.ts`, `useIncomeRecommendation.ts` | Documentation gap |
+| No dev tooling to prove pages share one estimate instance | — | Diagnostics gap |
 
-## Detection logic (`useSuggestedMatches`)
+## Changes
 
-Extend the current 1-to-1 pass with a second "combination" pass:
+### 1. Extend canonical debug contract (no math changes)
 
-1. Group unmatched manual income entries by `entity`/company and by date bucket (±7 days from each Plaid deposit, same rule already used).
-2. For every unmatched Plaid income deposit `P`, look at the manual candidates in that window.
-   - Compute the target: prefer the sum of each manual entry's `deposited_amount` (net) when known, otherwise fall back to calculated net, otherwise gross — mirroring the existing 1-to-1 amount scoring.
-   - Enumerate subsets of size 2 and 3 (cap 3 to keep it O(n³) in a small window). Skip any subset whose best 1-to-1 pair for `P` is already a Strong match.
-   - Accept a combo when the summed target is within 2% (Strong) / 5% (Possible) of `|P.amount|`.
-3. Emit a new suggestion shape: `{ kind: "split", plaidTx, manualTxs: DbTransaction[], sumTarget, confidence, confidenceLabel, reasons }`. Existing 1-to-1 shape becomes `{ kind: "single", manualTx, plaidTx, ... }`.
-4. Dedup rules updated: a Plaid tx may appear in at most one suggestion (single OR split, whichever scored higher); a manual tx may appear in at most one suggestion. Split combos beat weaker singles on the same Plaid tx.
+- Add `ssTax`, `medicareTax`, `additionalMedicareTax` to `TaxDebugBreakdown` in `src/lib/taxCalculationService.ts`, populated from the values `calcSelfEmploymentTax` already returns inside the engine. No new formula — just surface existing internals.
+- Remove the `seTaxFromEngine as any` escape hatch in `src/hooks/useTaxBreakdown.ts` and read the new typed fields.
 
-## Conflict detection
+### 2. Retire `TaxPlanning.tsx` drift risk
 
-- Reuse `computeLinkConflictsForPair` per manual↔plaid pair inside a split combo; surface any pair-level field conflicts (vendor/date/category/notes) aggregated into one Resolve Differences pass before creating the group.
-- New "sum mismatch" soft warning shown on the card when `|sum − plaid| / plaid` is between 0.5% and 5% (analogous to today's `showDiscrepancy`).
-- Refuse a split combo if any manual tx in it is already `match_status = "linked"` (already enforced by `useCreateMatchGroup`).
+- Confirm no router / dynamic import references it, then delete the file (it's a hardcoded-rate parallel engine and the biggest latent drift risk). If a maintainer wants to keep it, replace its body with a stub that reads `useTaxEstimate` — but default plan is deletion.
 
-## UI (`SuggestedMatches.tsx`)
+### 3. Label intentional separations in code comments
 
-- New card variant for `kind === "split"`:
-  - Left column lists the multiple manual entries stacked (vendor, gross, date, entity) with a small "×N split" badge.
-  - Right column shows the single Plaid deposit.
-  - Footer shows `sum $X vs deposit $Y (Δ $Z)` and reason chips ("Sum matches deposit", "Same company", "Within 3d").
-  - Confirm button calls a new `useConfirmSplitMatch` wrapper that:
-    1. Runs `computeLinkConflictsForPair` for each manual↔plaid pair, opens ResolveDifferencesModal once if any conflicts (aggregated), then
-    2. Calls `useCreateMatchGroup({ transactionIds: [...manualIds, plaidId] })` — existing hook already handles many-to-many, canonical-row selection, and soft-merging the Plaid side.
-  - Dismiss button ignores every pair in the combo via `useIgnoreMatch` in a batch.
+Add short header comments explaining *why* each of these is not the main engine and what invariant keeps them aligned:
+- `src/lib/w2PayrollTax.ts` — W‑2 FICA on wages (engine's SE math covers 1099/K‑1 only).
+- `src/lib/quickEstimate.ts` — unauthenticated marketing preview; not to be imported by app pages.
+- `src/lib/quarterRecommendation.ts` — needs per-period inputs the debug object doesn't carry; consumes engine output.
+- `src/lib/businessSummary.ts` — per-company income aggregation, not tax liability.
+- `src/hooks/useIncomeRecommendation.ts` — per-entry `netTaxable × canonicalEffectiveRate`; rate always sourced from engine.
 
-## Tests
+### 4. Developer-only diagnostics (no user-facing UI)
 
-- Unit tests in `src/test/splitDepositMatching.test.ts`:
-  - Two manuals whose deposited sums equal a single Plaid deposit → one split suggestion, no singles.
-  - Three-manual combo, ±5 day window, same entity → Possible match.
-  - Combo whose sum is >5% off deposit → not suggested.
-  - Split combo takes precedence over a mediocre single suggestion competing for the same Plaid tx.
-  - Ignored-pair set suppresses combos that include any ignored pair.
+New module `src/lib/taxEngineDiagnostics.ts`:
+- `registerTaxEstimateConsumer(pageName, estimate)` — records the `TaxDebugBreakdown` object identity per page in a module-level `WeakMap` keyed by React Query cache entry.
+- `assertSingleEstimateInstance()` — logs a warning if two consumers on the same render pass hold different debug object identities for the same scope (`actual` vs `forecast`).
+- `assertNoDrift(pageName, field, displayedValue)` — compares a UI-displayed number to the canonical field; on mismatch > $1 or 0.01 pp, logs `[taxDrift] page=X field=Y displayed=... canonical=...`.
+- Gated by `localStorage["debug:taxEngine"] = "1"` (mirroring existing `debug:withholding` and `debug:taxBreakdown` toggles). Zero runtime cost when off.
 
-## Files changed
+New dev-only hook `src/hooks/useTaxEstimateDiagnostics.ts` that wraps `useTaxEstimate`, auto-registers the caller, and returns the estimate unchanged. Wire it into the primary consumers (`Dashboard`, `Taxes`, `TaxReserve`, `EstimatedTax`, `QuarterlyTaxPlanner`, `ProjectedIncome`, `PersonalIncome`, `Reports`, `W4PaycheckAdjustmentCard`) so the diagnostic sees them; behavior identical to `useTaxEstimate` when the flag is off.
 
-- `src/hooks/useTransactionMatching.ts` — extend `SuggestedMatch` type (discriminated union), add combo pass, add `useConfirmSplitMatch` helper.
-- `src/components/SuggestedMatches.tsx` — render split variant, wire confirm/dismiss.
-- `src/test/splitDepositMatching.test.ts` — new tests.
+### 5. Tests
 
-## Out of scope
+- Extend `src/test/unifiedTaxEngine.test.ts` (or add `src/test/taxDebugBreakdownFields.test.ts`) asserting the three new FICA fields equal the sum reported by `selfEmploymentTax` for representative scenarios.
+- Add `src/test/taxEngineDiagnostics.test.ts` covering: registration, single-instance assertion, and drift detection with the flag on.
 
-- Many-Plaid-to-one-manual (multiple small deposits for one gross entry). Same combinatorial logic applies but I'll defer unless you want it in this pass — say the word and I'll add the symmetric pass.
-- Backend-side split allocation (per-manual portion of the deposit). The existing group model treats them as linked without splitting the Plaid amount across manuals; deposited_amount stays per-entry as the user already set it.
+## Explicit non-goals (per constraints)
+
+- No changes to tax formulas, rates, brackets, or deductions.
+- No QBI, no NIIT.
+- No schema changes.
+- No onboarding, transaction, or user-visible UI changes.
+- Not folding `quarterRecommendation` or `businessSummary` into `TaxDebugBreakdown` — they need out-of-scope inputs (dates, per-company splits); they stay as separate canonical modules with clarifying comments.
+
+## Files touched
+
+```text
+src/lib/taxCalculationService.ts          (add 3 fields)
+src/lib/taxEngine.ts                      (expose SE breakdown to service; may already return it)
+src/hooks/useTaxBreakdown.ts              (drop `as any` cast)
+src/lib/w2PayrollTax.ts                   (header comment)
+src/lib/quickEstimate.ts                  (header comment)
+src/lib/quarterRecommendation.ts          (header comment)
+src/lib/businessSummary.ts                (header comment)
+src/hooks/useIncomeRecommendation.ts      (header comment)
+src/lib/taxEngineDiagnostics.ts           (new)
+src/hooks/useTaxEstimateDiagnostics.ts    (new, thin wrapper)
+src/pages/{Dashboard,Taxes,TaxReserve,EstimatedTax,QuarterlyTaxPlanner,ProjectedIncome,PersonalIncome,Reports}.tsx  (swap hook import)
+src/components/tax/W4PaycheckAdjustmentCard.tsx  (swap hook import)
+src/pages/TaxPlanning.tsx                 (delete, pending confirmation it's unrouted)
+src/test/taxDebugBreakdownFields.test.ts  (new)
+src/test/taxEngineDiagnostics.test.ts     (new)
+```
+
+Confirm before I start? In particular: OK to delete `src/pages/TaxPlanning.tsx` if grep confirms zero references in the router?
