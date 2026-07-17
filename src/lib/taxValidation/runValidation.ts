@@ -26,7 +26,10 @@ import baseline from "./expected.generated.json";
 const DEFAULT_DOLLAR_TOLERANCE = 1;
 const DEFAULT_RATE_TOLERANCE = 0.01;
 
-export type ScenarioValues = Record<ValidatedField, number>;
+export type ScenarioValues = Record<Exclude<ValidatedField, "qbiDeduction">, number> & {
+  /** §199A QBI deduction. Defaults to 0 when a baseline was generated before this field existed. */
+  qbiDeduction?: number;
+};
 
 /** Extract validated values from an engine result. */
 export function extractScenarioValues(result: UnifiedTaxResult): ScenarioValues {
@@ -50,7 +53,7 @@ export function extractScenarioValues(result: UnifiedTaxResult): ScenarioValues 
     quarterlyRecommendation: quarterly.recommendedQuarterlyPayment,
     // W-4 recommendation = per-paycheck target set-aside. Same source of truth.
     w4Recommendation: estimate.targetSetAside,
-    qbiDeduction: debug.qbiDeduction,
+    qbiDeduction: debug.qbiDeduction ?? 0,
   };
 }
 
