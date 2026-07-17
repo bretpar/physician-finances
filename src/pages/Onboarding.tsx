@@ -526,20 +526,24 @@ export default function Onboarding() {
     }
     const next = { ...merged, filingStatus: filingStatusRef.current, ...partial };
     const sources = incomeProfileToSources(next.incomeProfileType);
-    // Dashboard Personalization defaults should reflect the income types the
-    // user actually configured during onboarding (companyDrafts), not just
-    // the broad income profile. Without this, picking "W-2 + business" but
-    // adding only a W-2 employer (e.g. for a W-2 + investments user) would
-    // turn on 1099 and K-1 sections that have no underlying companies.
+    // Household Income Profile flags must reflect the income pathway the
+    // user explicitly selected in onboarding. Previously we downgraded the
+    // 1099 / K-1 flags to false whenever the local companyDrafts array
+    // happened not to contain a matching entry — but drafts only capture
+    // what was typed during the current onboarding session, not companies
+    // that already existed on the account or that will be added right
+    // after. That caused the mixed "W-2 + business income" pathway to
+    // persist as W-2-only, hiding Business Activity / Mileage and flagging
+    // existing 1099 / K-1 companies as "no longer active in your Household
+    // Income Profile". Trust the selected sources — Settings uses the same
+    // canonical mapping via `incomeSourcesToHouseholdStreams`.
     const hasW2Company = companyDrafts.some((c) => c.type === "w2" && c.name);
-    const has1099Company = companyDrafts.some((c) => c.type === "1099" && c.name);
-    const hasK1Company = companyDrafts.some((c) => c.type === "k1" && c.name);
     const baseStreams = incomeSourcesToHouseholdStreams(sources, next.enabledPersonalIncomeTypes);
     const householdIncomeStreams = {
       ...baseStreams,
       w2Income: sources.w2 && (hasW2Company || baseStreams.w2Income),
-      business1099Income: sources.form1099 && has1099Company,
-      k1PartnershipIncome: sources.k1 && hasK1Company,
+      business1099Income: sources.form1099,
+      k1PartnershipIncome: sources.k1,
     };
     console.info("[onboarding] write", {
       context,
