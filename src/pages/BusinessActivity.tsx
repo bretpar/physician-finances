@@ -284,17 +284,20 @@ export default function Transactions() {
   const [linkedEntry, setLinkedEntry] = useState<IncomeEntry | null>(null);
 
   // Business Activity: use companies.id as the canonical business/entity selector.
-  // Filter out non-W2 companies whose filing type isn't enabled in the
-  // Household Income Profile. The currently-selected company (when editing)
-  // is always preserved so the form doesn't break.
-  const householdStreams = taxSettings?.householdIncomeStreams;
+  // The Business Activity ledger is defined by `computeBusinessSummary`, which
+  // treats every company whose `companyType` is in `BUSINESS_COMPANY_TYPES`
+  // (1099_schedule_c + k1_partnership) as a business company. The selector
+  // must match that set exactly — otherwise a K-1 partnership created in
+  // Settings would render as a valid business entity in totals but be
+  // missing from the Add Income / Add Expense dropdowns, blocking data entry.
+  // The currently-selected company (when editing) is always preserved so the
+  // form doesn't break if the type set ever narrows in the future.
   const businessCompanies = useMemo(() =>
     companies.filter((c) => {
-      if (isW2FilingType(c.companyType)) return false;
-      const ft = normalizeFilingType(c.companyType);
-      return isIncomeEntryTypeAllowed(householdStreams, ft) || c.id === incomeForm.company;
+      if (BUSINESS_COMPANY_TYPES.has(normalizeFilingType(c.companyType))) return true;
+      return c.id === incomeForm.company;
     }),
-  [companies, householdStreams, incomeForm.company]);
+  [companies, incomeForm.company]);
 
   const companyById = useMemo(() =>
     new Map(companies.map((c) => [c.id, c] as const)),
