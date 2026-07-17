@@ -404,9 +404,8 @@ export function useDeletePersonalIncome() {
         console.warn("[DeletePersonalIncome] planner_conversions cleanup skipped:", err);
       }
 
-      // Remove the payroll HSA row (if any) before deleting the parent so
-      // HSA ledger rows tied to payroll income don't dangle.
-      await deleteLinkedPayrollHsaForIncomeEntry(id);
+      // ON DELETE CASCADE on hsa_contributions.income_entry_id removes any
+      // linked payroll/employer HSA rows atomically with the parent delete.
 
       const { error } = await supabase
         .from("income_entries")
