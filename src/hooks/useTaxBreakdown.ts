@@ -918,12 +918,6 @@ export function useTaxBreakdown(
       targetAnnualWithholding = withholdingOverrideAmount * 12;
     }
 
-    return {
-      mode, filingStatus, sources,
-      totalBusinessRevenue, totalBusinessExpenses, totalBusinessProfit,
-      totalW2Income, totalShortTermGains, totalLongTermGains, totalOtherIncome,
-      totalGrossIncome, totalReturnIncomeBeforeAdjustments,
-      w2PreTaxDeductions, w2TaxableIncomeBase, totalDeductions,
     // Aggregate Section 125 totals from per-source W-2 buckets. Consumers
     // (MathAccordion, engine hookup) use these to compute FICA wages.
     const w2PayrollHsaTotal = sources.reduce(
@@ -934,6 +928,7 @@ export function useTaxBreakdown(
       (sum, s) => (s.kind === "w2" ? sum + (s.section125Deductions || 0) : sum),
       0,
     );
+
 
     return {
       mode, filingStatus, sources,
