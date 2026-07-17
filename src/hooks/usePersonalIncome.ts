@@ -263,8 +263,24 @@ export function useDeletePersonalIncome() {
           .or(`canonical_entry_id.eq.${id},merged_entry_id.eq.${id}`)
           .eq("status", "linked");
         const affectedGroups = new Set<string>();
+        // Sibling participants (any entry id in an affected group other
+        // than the one being deleted) — captured BEFORE we start mutating
+        // links so we can restore them even if their link row is dissolved.
+        const siblingIds = new Set<string>();
         for (const l of (linkRows || []) as any[]) {
           if (l.linked_group_id) affectedGroups.add(l.linked_group_id);
+        }
+        if (affectedGroups.size > 0) {
+          const { data: groupLinks } = await supabase
+            .from("income_entry_links")
+            .select("canonical_entry_id, merged_entry_id, linked_group_id, status")
+            .in("linked_group_id", Array.from(affectedGroups))
+            .eq("status", "linked");
+          for (const r of (groupLinks || []) as any[]) {
+            for (const eid of [r.canonical_entry_id, r.merged_entry_id]) {
+              if (eid && eid !== id) siblingIds.add(eid);
+            }
+          }
         }
         if ((linkRows || []).length > 0) {
           await supabase
@@ -285,17 +301,50 @@ export function useDeletePersonalIncome() {
             if (r.merged_entry_id) ids.add(r.merged_entry_id);
           }
           if (ids.size < 2) {
-            // Dissolve residuals and restore any surviving merged rows.
             await supabase
               .from("income_entry_links")
               .update({ status: "unlinked" } as any)
               .eq("linked_group_id", groupId);
-            if (ids.size > 0) {
-              await supabase
-                .from("income_entries")
-                .update({ status: "received" } as any)
-                .in("id", Array.from(ids));
+          }
+        }
+
+        // Restore surviving siblings so they reappear as standalone rows.
+        // Imported cash-confirmation rows had their reportability flags
+        // flipped off during earlier unlinks (shadow rule). With the
+        // canonical row being deleted there is no other representation, so
+        // restore full reportability + status='received' for every sibling.
+        if (siblingIds.size > 0) {
+          const sibArr = Array.from(siblingIds);
+          await supabase
+            .from("income_entries")
+            .update({
+              status: "received",
+              include_in_tax_estimate: true,
+              include_in_cash_flow: true,
+            } as any)
+            .in("id", sibArr);
+
+          // Recompute Plaid transaction reportability for each sibling
+          // that references a deposit — now that the canonical is gone
+          // and the sibling is the sole active representation, its
+          // underlying tx must stay excluded (still represented).
+          try {
+            const { data: sibRows } = await supabase
+              .from("income_entries")
+              .select("id, linked_transaction_id")
+              .in("id", sibArr);
+            const seen = new Set<string>();
+            const { excludeLinkedTransactionForIncomeEntry } = await import(
+              "@/lib/plaidTransactionExclusion"
+            );
+            for (const r of (sibRows || []) as any[]) {
+              const ltx = r.linked_transaction_id as string | null | undefined;
+              if (!ltx || seen.has(ltx)) continue;
+              seen.add(ltx);
+              await excludeLinkedTransactionForIncomeEntry(ltx);
             }
+          } catch (err) {
+            console.warn("[DeletePersonalIncome] sibling tx exclusion skipped:", err);
           }
         }
       } catch (err) {
