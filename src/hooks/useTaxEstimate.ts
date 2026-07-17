@@ -275,12 +275,14 @@ export function useTaxEstimate(): {
     // those separately so the engine can adjust AGI without reducing the SE-tax base.
     let businessPreTax = 0;
     let businessNonW2HsaAboveLine = 0;
+    let businessW2Hsa = 0;
     for (const e of linkedEntries) {
       const filing = normalizeFilingType((e as any).income_type);
       const isW2 = filing === "w2" || filing === "scorp_w2";
       const hsa = Number((e as any).hsa_contribution || 0);
       businessPreTax += Number(e.pre_tax_deductions || 0) + (isW2 ? hsa : 0);
-      if (!isW2) businessNonW2HsaAboveLine += hsa;
+      if (isW2) businessW2Hsa += hsa;
+      else businessNonW2HsaAboveLine += hsa;
     }
     const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
     const ownerHealthcare = linkedEntries
@@ -299,6 +301,7 @@ export function useTaxEstimate(): {
       businessStateWithheld,
       businessPreTax,
       businessNonW2HsaAboveLine,
+      businessW2Hsa,
       businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
