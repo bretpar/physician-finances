@@ -537,6 +537,7 @@ export default function PersonalIncome() {
       deductions_pre_tax: String(entry.pre_tax_deductions),
       healthcare_deduction: String((entry as any).healthcare_deduction || 0),
       hsa_contribution: String((entry as any).hsa_contribution || 0),
+      employer_hsa_contribution: String((entry as any).employer_hsa_contribution || 0),
       source_name: entry.company,
       source_id: (entry as any).source_id ?? null,
       source_save_as_new: false,
