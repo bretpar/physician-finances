@@ -2,9 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import type { HsaContributionType } from "@/lib/hsaComputation";
 
+/** Legacy source_type union — preserved for backward compatibility on reads. */
 export type HsaSourceType = "payroll" | "individual";
 export type HsaCreatedFrom = "income" | "manual";
+/** Employee vs employer role for paycheck-linked rows (nullable for manual/legacy). */
+export type HsaLinkedIncomeEntryRole = "employee" | "employer" | null;
 
 export interface HsaContribution {
   id: string;
@@ -14,7 +18,12 @@ export interface HsaContribution {
   amount: number;
   company_id: string | null;
   income_entry_id: string | null;
+  /** Legacy — kept for backward compat. Prefer `contribution_type`. */
   source_type: HsaSourceType;
+  /** Canonical type. Always present after 2026-08 migration. */
+  contribution_type: HsaContributionType;
+  /** For paycheck-linked rows only. */
+  linked_income_entry_role: HsaLinkedIncomeEntryRole;
   created_from: HsaCreatedFrom;
   notes: string | null;
   tax_year: number;
@@ -60,6 +69,8 @@ export function useAddManualHsaContribution() {
         company_id: input.company_id,
         income_entry_id: null,
         source_type: "individual" as HsaSourceType,
+        contribution_type: "individual" as HsaContributionType,
+        linked_income_entry_role: null,
         created_from: "manual" as HsaCreatedFrom,
         notes: input.notes ?? "",
         tax_year: year,
@@ -106,19 +117,15 @@ export function useDeleteHsaContribution() {
 }
 
 /**
- * Auto-sync helper used by income-entry save flows.
- *
- * Given an income_entry id and an HSA amount, ensures there's exactly one
- * payroll-type HSA row linked to that entry:
+ * Auto-sync helper used by income-entry save flows for a single role
+ * (employee or employer) on a paycheck. Ensures exactly one HSA row of the
+ * given role exists for the income_entry:
  *   - amount > 0 + no existing row → INSERT
  *   - amount > 0 + existing row    → UPDATE (preserve id, update amount/date/company/year)
  *   - amount <= 0 + existing row   → DELETE (the field was cleared)
  *
  * Returns the linked row's id (or null if none/deleted) so the caller can
- * persist `linked_hsa_contribution_id` back onto the income_entry.
- *
- * Historical safety: only touches the row whose id matches `existingHsaId`
- * (the value stored on the income_entry). It never deletes manual rows.
+ * persist the appropriate `linked_*_hsa_contribution_id` back onto the entry.
  */
 export async function syncPayrollHsaForIncome(opts: {
   userId: string;
@@ -128,9 +135,26 @@ export async function syncPayrollHsaForIncome(opts: {
   amount: number;
   contributionDate: string;
   companyId: string | null;
+  /** "employee" (default — Section 125 payroll HSA) or "employer". */
+  role?: "employee" | "employer";
 }): Promise<string | null> {
-  const { userId, organizationId, incomeEntryId, existingHsaId, amount, contributionDate, companyId } = opts;
+  const {
+    userId,
+    organizationId,
+    incomeEntryId,
+    existingHsaId,
+    amount,
+    contributionDate,
+    companyId,
+    role = "employee",
+  } = opts;
   const year = new Date(contributionDate).getFullYear();
+  const contribution_type: HsaContributionType =
+    role === "employer" ? "employer" : "employee_payroll";
+  // Legacy source_type is not applicable to employer contributions — keep the
+  // closest existing value ("payroll") so legacy readers still see it as a
+  // payroll-side row and don't misclassify it as an individual deduction.
+  const source_type: HsaSourceType = "payroll";
 
   // Existing row → update or delete
   if (existingHsaId) {
@@ -141,6 +165,9 @@ export async function syncPayrollHsaForIncome(opts: {
           contribution_date: contributionDate,
           company_id: companyId,
           tax_year: year,
+          contribution_type,
+          linked_income_entry_role: role,
+          source_type,
         })
         .eq("id", existingHsaId);
       if (error) throw error;
@@ -165,7 +192,9 @@ export async function syncPayrollHsaForIncome(opts: {
     amount,
     company_id: companyId,
     income_entry_id: incomeEntryId,
-    source_type: "payroll" as HsaSourceType,
+    source_type,
+    contribution_type,
+    linked_income_entry_role: role,
     created_from: "income" as HsaCreatedFrom,
     notes: "",
     tax_year: year,
