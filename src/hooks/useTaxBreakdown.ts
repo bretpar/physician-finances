@@ -924,6 +924,26 @@ export function useTaxBreakdown(
       totalW2Income, totalShortTermGains, totalLongTermGains, totalOtherIncome,
       totalGrossIncome, totalReturnIncomeBeforeAdjustments,
       w2PreTaxDeductions, w2TaxableIncomeBase, totalDeductions,
+    // Aggregate Section 125 totals from per-source W-2 buckets. Consumers
+    // (MathAccordion, engine hookup) use these to compute FICA wages.
+    const w2PayrollHsaTotal = sources.reduce(
+      (sum, s) => (s.kind === "w2" ? sum + (s.payrollHsa || 0) : sum),
+      0,
+    );
+    const w2Section125DeductionsTotal = sources.reduce(
+      (sum, s) => (s.kind === "w2" ? sum + (s.section125Deductions || 0) : sum),
+      0,
+    );
+
+    return {
+      mode, filingStatus, sources,
+      totalBusinessRevenue, totalBusinessExpenses, totalBusinessProfit,
+      totalW2Income, totalShortTermGains, totalLongTermGains, totalOtherIncome,
+      totalGrossIncome, totalReturnIncomeBeforeAdjustments,
+      w2PreTaxDeductions, w2TaxableIncomeBase,
+      w2PayrollHsa: w2PayrollHsaTotal,
+      w2Section125Deductions: w2Section125DeductionsTotal,
+      totalDeductions,
       preTaxDeductions: preTaxFromEngine,
       retirement401k: retirementFromEngine,
       healthInsuranceDeduction, actualHealthInsuranceDeduction, projectedHealthInsuranceDeduction,
