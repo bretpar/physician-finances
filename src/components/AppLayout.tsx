@@ -69,8 +69,10 @@ function hasOnlyW2IncomeStreams(streams?: HouseholdIncomeStreams) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
   const householdStreams = taxSettings?.householdIncomeStreams;
