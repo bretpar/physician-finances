@@ -527,11 +527,17 @@ export function useTaxEstimate(): {
       // Individual / manual HSA contributions are always above-the-line.
       let personalHsaW2Pretax = 0;
       let personalHsaAboveLine = 0;
+      let personalW2EmployerHsa = 0;
       for (const e of personal) {
         const cat = classifyPersonalIncome(e as any);
         const hsa = Number((e as any).hsa_contribution || 0);
-        if (cat === "w2") personalHsaW2Pretax += hsa;
-        else personalHsaAboveLine += hsa;
+        const employerHsa = Number((e as any).employer_hsa_contribution || 0);
+        if (cat === "w2") {
+          personalHsaW2Pretax += hsa;
+          personalW2EmployerHsa += employerHsa;
+        } else {
+          personalHsaAboveLine += hsa;
+        }
       }
       const personalPreTax = personal.reduce(
         (s, e) => s + Number(e.pre_tax_deductions || 0),
