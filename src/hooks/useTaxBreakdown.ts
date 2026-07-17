@@ -578,6 +578,8 @@ export function useTaxBreakdown(
           preTaxDeductions: agg.preTax,
           retirement401k: agg.retirement,
           taxableWages,
+          payrollHsa: agg.payrollHsa,
+          section125Deductions: agg.preTax + agg.payrollHsa,
         });
       } else if (kind === "business") {
         const companyId = agg.companyId ?? companies.find((c) => c.name === agg.name && c.companyType === agg.filingType)?.id ?? null;
