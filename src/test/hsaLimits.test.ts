@@ -146,7 +146,7 @@ describe("HSA limits + contribution summary", () => {
     });
     expect(s.applicableLimit).toBe(4_300);
     expect(s.payrollEmployee).toBe(5_000);
-    expect(s.deductiblePayroll).toBe(5_000); // wages already reduced upstream
+    expect(s.deductiblePayroll).toBe(4_300); // capped at applicable limit for benefit reporting
     expect(s.deductibleIndividual).toBe(0);
     // Deductible total capped at applicableLimit — engine gives no benefit
     // beyond the legal limit even though wages were already reduced.
