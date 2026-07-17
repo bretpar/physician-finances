@@ -416,6 +416,20 @@ export function calculateFullEstimate(params: {
    */
   longTermCapitalGains?: number;
   stateTaxInputs?: StateTaxInputs;
+  /**
+   * Per-entity QBI inputs. When omitted, the engine synthesizes a single
+   * aggregate SSTB entity from netSEIncome − ½SE − SE health insurance −
+   * `qbiSeRetirementDeduction` (physician-focused fallback). Callers with
+   * true per-entity data should provide this array to get accurate SSTB
+   * classification and multi-entity phase-outs.
+   */
+  qbiEntities?: readonly QbiEntityInput[];
+  /**
+   * Self-employed retirement contributions attributable to SE income
+   * (SEP / Solo-401(k) / etc.). Reduces the synthesized aggregate QBI
+   * when `qbiEntities` is not provided. Excludes W-2 401(k) elective deferrals.
+   */
+  qbiSeRetirementDeduction?: number;
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome,
