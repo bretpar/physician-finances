@@ -162,8 +162,12 @@ export function useAddTransaction() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transaction added");
     },
     onError: (e) => toast.error(e.message),
