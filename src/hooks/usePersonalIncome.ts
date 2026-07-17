@@ -146,17 +146,27 @@ export function useAddPersonalIncome() {
       if (error) throw error;
       const created = data as { id: string } | null;
 
-      // Canonical payroll HSA sync.
-      if (created?.id && Number((row as any).hsa_contribution || 0) > 0) {
-        await syncIncomeEntryHsa({
-          incomeEntryId: created.id,
-          userId: user.id,
-          organizationId: orgId,
-          amount: Number((row as any).hsa_contribution || 0),
-          contributionDate: (row as any).income_date,
-          companyId: (row as any).source_id ?? null,
-          existingHsaId: null,
-        });
+      // Canonical payroll HSA sync — atomic RPC. Roll back the just-created
+      // income_entry if HSA sync fails so the save is all-or-nothing.
+      const empHsa = Number((row as any).hsa_contribution || 0);
+      const employerHsa = Number((row as any).employer_hsa_contribution || 0);
+      if (created?.id && (empHsa > 0 || employerHsa > 0)) {
+        try {
+          await syncIncomeEntryHsa({
+            incomeEntryId: created.id,
+            amount: empHsa,
+            employerAmount: employerHsa,
+            contributionDate: (row as any).income_date,
+            companyId: (row as any).source_id ?? null,
+          });
+        } catch (hsaErr) {
+          try {
+            await supabase.from("income_entries").delete().eq("id", created.id);
+          } catch (rollbackErr) {
+            console.error("[useAddPersonalIncome] rollback failed", rollbackErr);
+          }
+          throw hsaErr;
+        }
       }
       return created;
     },
