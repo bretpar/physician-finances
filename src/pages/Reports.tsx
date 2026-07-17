@@ -375,25 +375,34 @@ export default function Reports() {
   // ──── Deductions Summary (Section 3) ────
   const deductions = useMemo(() => {
     const yearMatch = (d: string) => d?.startsWith(taxYear);
-    const hsaForYear = hsaRows
-      .filter((r) => yearMatch(r.contribution_date))
-      .reduce((s, r) => s + Number(r.amount), 0);
+    const hsaRowsForYear = hsaRows.filter((r) => yearMatch(r.contribution_date));
+    const hsaSummary = computeHsaContributionSummary({
+      taxYear: Number(taxYear) || currentYear,
+      coverage: (taxSettings?.hsaCoverageType as "individual" | "family") || "individual",
+      catchUpEligible: !!taxSettings?.hsaAge55Catchup,
+      contributions: hsaRowsForYear.map((r) => ({
+        amount: Number(r.amount) || 0,
+        source_type: r.source_type,
+      })),
+    });
     const healthcareForYear = incomeEntries
       .filter((e) => yearMatch(e.income_date))
       .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
     const homeOfficeTotal = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
-    // For current year use annualized projection; for past years use 0 (not stored historically)
     const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.total : 0;
     return {
-      hsa: hsaForYear,
+      hsa: hsaSummary.total,
+      hsaDeductible: hsaSummary.deductibleTotal,
+      hsaExcess: hsaSummary.excess,
+      hsaLimit: hsaSummary.applicableLimit,
       healthcare: healthcareForYear,
       mileage: taxData.mileageDeduction,
       homeOffice: homeOfficeTotal,
       retirement401k,
     };
-  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.total, taxYear, currentYear]);
+  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.total, taxYear, currentYear, taxSettings?.hsaCoverageType, taxSettings?.hsaAge55Catchup]);
 
   // ──── Tax Summary (Section 4) ────
   const taxSummary = useMemo(() => {
