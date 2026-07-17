@@ -36,6 +36,8 @@ const fmt = (n: number) =>
 interface HsaDraft {
   hsaEnabled: boolean;
   hsaSourceCompanyId: string | null;
+  hsaCoverageType: "individual" | "family";
+  hsaAge55Catchup: boolean;
 }
 
 /** Companies eligible to host payroll-level HSA inputs. */
@@ -54,6 +56,8 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
     () => ({
       hsaEnabled: !!data?.hsaEnabled,
       hsaSourceCompanyId: data?.hsaSourceCompanyId ?? null,
+      hsaCoverageType: (data?.hsaCoverageType as "individual" | "family") || "individual",
+      hsaAge55Catchup: !!data?.hsaAge55Catchup,
     }),
     [data],
   );
