@@ -672,7 +672,7 @@ export default function Reports() {
       csv += `"${c.label}",${c.amount}\n`;
     }
     csv += `Total Expenses,${business.totalExpenses}\nNet Profit/Loss,${business.netProfit}\n\n`;
-    csv += `DEDUCTIONS\nHSA Contributions,${ded.hsa}\n401(k) / Retirement,${ded.retirement401k}\nMileage,${ded.mileage}\nHome Office,${ded.homeOffice}\nHealthcare,${ded.healthcare}\n\n`;
+    csv += `DEDUCTIONS\nHSA Contributions (total),${ded.hsa}\nHSA Deductible,${ded.hsaDeductible}\nHSA Excess,${ded.hsaExcess}\nHSA Annual Limit,${ded.hsaLimit}\n401(k) / Retirement,${ded.retirement401k}\nMileage,${ded.mileage}\nHome Office,${ded.homeOffice}\nHealthcare,${ded.healthcare}\n\n`;
     csv += `TAX SUMMARY\nFederal Tax Estimate,${tax.federal}\nState Tax Estimate,${tax.state}\nSelf-Employment Tax,${tax.selfEmployment}\nEstimated Annual Tax Liability,${tax.totalLiability}\nTaxes Already Withheld,${tax.withheld}\nTax Reserve Saved,${tax.reserveSaved}\nQuarterly Payments Made,${tax.paymentsMade}\nRemaining Estimated Liability,${tax.remaining}\n\n`;
     csv += `QUARTERLY\nQuarter,Recommended,Paid,Remaining\n`;
     for (const q of quarters) {
