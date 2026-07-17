@@ -146,6 +146,7 @@ export const LTCG_BRACKETS = ACTIVE.ltcgBrackets;
 export const STANDARD_DEDUCTION = ACTIVE.standardDeduction;
 export const SS_WAGE_BASE = ACTIVE.ssWageBase;
 export const ADDITIONAL_MEDICARE_THRESHOLD = ACTIVE.additionalMedicareThreshold;
+export const QBI_THRESHOLDS = ACTIVE.qbiThresholds;
 
 // ── Backward-compat aliases (kept so existing imports keep compiling).
 // These now point at the active year, so 2025 imports get 2026 numbers.
