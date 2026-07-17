@@ -311,6 +311,7 @@ export function useTaxEstimate(): {
       businessPreTax,
       businessNonW2HsaAboveLine,
       businessW2Hsa,
+      businessW2EmployerHsa,
       businessRetirement,
       ownerHealthcare,
       businessStateEligibleGross,
