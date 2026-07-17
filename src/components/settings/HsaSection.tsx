@@ -31,7 +31,7 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getApplicableHsaLimit } from "@/lib/hsaLimits";
-import { computeHsaContributionSummary } from "@/lib/hsaComputation";
+import { computeHsaContributionSummary, resolveHsaContributionType, type HsaContributionType } from "@/lib/hsaComputation";
 import { Progress } from "@/components/ui/progress";
 import { AlertTriangle } from "lucide-react";
 
