@@ -129,7 +129,8 @@ export function evaluateScenario(scenario: TaxScenario): ScenarioReport {
     };
   }
   const fields = VALIDATED_FIELDS.map((f) =>
-    diffField(f, expected[f], actual[f], scenario.tolerance),
+    // Treat a missing baseline value as 0 (handles baselines generated before qbiDeduction existed).
+    diffField(f, expected[f] ?? 0, actual[f], scenario.tolerance),
   );
   const failedFields = fields.filter((f) => !f.pass);
   return {
