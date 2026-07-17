@@ -323,17 +323,45 @@ export function HsaLedgerSection() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-foreground">HSA Contributions</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">{currentYear} contribution year</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {currentYear} contribution year
+                {" · "}
+                <span className="capitalize">{hsaSummary.coverage}</span> coverage
+                {hsaSummary.catchUpEligible ? " · with age 55+ catch-up" : ""}
+              </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                  Payroll <span className="font-medium text-foreground">{fmt(totals.payroll)}</span>
+                  Payroll <span className="font-medium text-foreground">{fmt(hsaSummary.payrollEmployee)}</span>
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                  Individual <span className="font-medium text-foreground">{fmt(totals.individual)}</span>
+                  Individual <span className="font-medium text-foreground">{fmt(hsaSummary.individual)}</span>
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-foreground font-medium">
-                  Total <span>{fmt(totals.total)}</span>
+                  Total <span>{fmt(hsaSummary.total)}</span>
                 </span>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-foreground font-medium">
+                    {fmt(hsaSummary.total)} of {fmt(hsaSummary.applicableLimit)} used
+                  </span>
+                  <span className="text-muted-foreground">
+                    {hsaSummary.excess > 0
+                      ? `${fmt(hsaSummary.excess)} over limit`
+                      : `${fmt(hsaSummary.remaining)} remaining`}
+                  </span>
+                </div>
+                <Progress value={pctUsed} className={cn("h-1.5", hsaSummary.excess > 0 && "[&>div]:bg-destructive")} />
+                {hsaSummary.excess > 0 && (
+                  <div className="mt-2 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px] text-destructive">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      You are {fmt(hsaSummary.excess)} over the annual HSA contribution limit for {currentYear}.
+                      Excess contributions may require correction and may be subject to tax. This is
+                      informational, not tax or legal advice.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             {hsaEnabled && (
