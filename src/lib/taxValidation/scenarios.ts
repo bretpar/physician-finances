@@ -57,6 +57,7 @@ export const VALIDATED_FIELDS = [
   "recommendedSetAside",
   "quarterlyRecommendation",
   "w4Recommendation",
+  "qbiDeduction",
 ] as const;
 
 export type ValidatedField = (typeof VALIDATED_FIELDS)[number];
@@ -76,6 +77,7 @@ export const FIELD_LABELS: Record<ValidatedField, string> = {
   recommendedSetAside: "Recommended Reserve",
   quarterlyRecommendation: "Quarterly Recommendation",
   w4Recommendation: "W-4 Recommendation",
+  qbiDeduction: "QBI Deduction (§199A)",
 };
 
 /** Fields expressed as percentage points (not dollars). */
