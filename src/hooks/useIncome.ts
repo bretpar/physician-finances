@@ -137,15 +137,18 @@ export function useAddIncome() {
 
       // 3. Sync payroll HSA into hsa_contributions ledger (canonical path).
       const hsaAmount = Number((entry as any).hsa_contribution || 0);
+      const employerHsaAmount = Number((entry as any).employer_hsa_contribution || 0);
       if (entryData?.id) {
         await syncIncomeEntryHsa({
           incomeEntryId: entryData.id,
           userId: user.id,
           organizationId: orgId,
           amount: hsaAmount,
+          employerAmount: employerHsaAmount,
           contributionDate: incomeDate,
           companyId: (entry as any).source_id || null,
           existingHsaId: null,
+          existingEmployerHsaId: null,
         });
       }
 
