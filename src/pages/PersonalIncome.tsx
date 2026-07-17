@@ -125,6 +125,7 @@ interface FormState {
   deductions_pre_tax: string;
   healthcare_deduction: string;
   hsa_contribution: string;
+  employer_hsa_contribution: string;
   source_name: string;
   source_id: string | null;
   source_save_as_new: boolean;
