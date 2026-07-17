@@ -282,10 +282,19 @@ export function useCreateIncomeMatchGroup() {
       }
       return groupId;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
-      qc.invalidateQueries({ queryKey: ["income-match-groups"] });
+    onSuccess: async () => {
+      // Await personal + transactions refetch so Dashboard / Tax Overview
+      // reconcile before the mutation Promise resolves. Transactions must
+      // be refetched because excludeLinkedTransactionForIncomeEntry flipped
+      // excluded_from_reports on the underlying Plaid row.
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["income-match-groups"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+      ]);
       toast.success("Income entries linked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not link entries"),
@@ -405,10 +414,15 @@ export function useUnlinkIncomeMatchGroupItem() {
         }
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personal_income_entries"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
-      qc.invalidateQueries({ queryKey: ["income-match-groups"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["personal_income_entries"] }),
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["income-match-groups"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+      ]);
       toast.success("Unlinked.");
     },
     onError: (e: any) => toast.error(e.message || "Could not unlink"),
