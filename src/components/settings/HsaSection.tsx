@@ -279,15 +279,17 @@ export function HsaLedgerSection() {
   const hsaSummary = useMemo(() => {
     return computeHsaContributionSummary({
       taxYear: currentYear,
-      coverageType: (settings?.hsaCoverageType as "individual" | "family") || "individual",
-      age55Catchup: !!settings?.hsaAge55Catchup,
-      payrollEmployee: totals.payroll,
-      individual: totals.individual,
-      employer: 0,
+      coverage: (settings?.hsaCoverageType as "individual" | "family") || "individual",
+      catchUpEligible: !!settings?.hsaAge55Catchup,
+      contributions: rows.map((r) => ({
+        amount: Number(r.amount) || 0,
+        source_type: r.source_type,
+        contribution_date: r.contribution_date,
+      })),
     });
-  }, [currentYear, settings?.hsaCoverageType, settings?.hsaAge55Catchup, totals.payroll, totals.individual]);
+  }, [currentYear, settings?.hsaCoverageType, settings?.hsaAge55Catchup, rows]);
   const pctUsed = hsaSummary.applicableLimit > 0
-    ? Math.min(100, Math.round((hsaSummary.totalContributions / hsaSummary.applicableLimit) * 100))
+    ? Math.min(100, Math.round((hsaSummary.total / hsaSummary.applicableLimit) * 100))
     : 0;
 
   const companyName = (id: string | null) => {
