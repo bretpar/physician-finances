@@ -221,6 +221,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "hsa_contributions_income_entry_id_fkey"
+            columns: ["income_entry_id"]
+            isOneToOne: false
+            referencedRelation: "income_entries"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "hsa_contributions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -2347,6 +2354,17 @@ export type Database = {
       store_plaid_token_in_vault: {
         Args: { _item_id: string; _token: string }
         Returns: undefined
+      }
+      sync_income_hsa_atomic: {
+        Args: {
+          p_company_id?: string
+          p_contribution_date?: string
+          p_employee_amount: number
+          p_employer_amount: number
+          p_income_entry_id: string
+          p_notes?: string
+        }
+        Returns: Json
       }
     }
     Enums: {

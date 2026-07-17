@@ -146,17 +146,27 @@ export function useAddPersonalIncome() {
       if (error) throw error;
       const created = data as { id: string } | null;
 
-      // Canonical payroll HSA sync.
-      if (created?.id && Number((row as any).hsa_contribution || 0) > 0) {
-        await syncIncomeEntryHsa({
-          incomeEntryId: created.id,
-          userId: user.id,
-          organizationId: orgId,
-          amount: Number((row as any).hsa_contribution || 0),
-          contributionDate: (row as any).income_date,
-          companyId: (row as any).source_id ?? null,
-          existingHsaId: null,
-        });
+      // Canonical payroll HSA sync — atomic RPC. Roll back the just-created
+      // income_entry if HSA sync fails so the save is all-or-nothing.
+      const empHsa = Number((row as any).hsa_contribution || 0);
+      const employerHsa = Number((row as any).employer_hsa_contribution || 0);
+      if (created?.id && (empHsa > 0 || employerHsa > 0)) {
+        try {
+          await syncIncomeEntryHsa({
+            incomeEntryId: created.id,
+            amount: empHsa,
+            employerAmount: employerHsa,
+            contributionDate: (row as any).income_date,
+            companyId: (row as any).source_id ?? null,
+          });
+        } catch (hsaErr) {
+          try {
+            await supabase.from("income_entries").delete().eq("id", created.id);
+          } catch (rollbackErr) {
+            console.error("[useAddPersonalIncome] rollback failed", rollbackErr);
+          }
+          throw hsaErr;
+        }
       }
       return created;
     },
@@ -195,31 +205,62 @@ export function useUpdatePersonalIncome() {
         }
         safe.income_type = toCanonicalIncomeType(safe.income_type);
       }
+      const touchesEmployeeHsa = "hsa_contribution" in updates;
+      const touchesEmployerHsa = "employer_hsa_contribution" in updates;
+
+      // Snapshot for rollback if HSA sync fails after the income update.
+      let snapshot: Record<string, unknown> | null = null;
+      if (touchesEmployeeHsa || touchesEmployerHsa) {
+        const cols = Array.from(new Set([
+          ...Object.keys(safe),
+          "hsa_contribution",
+          "employer_hsa_contribution",
+          "income_date",
+          "source_id",
+        ])).join(", ");
+        const { data: before } = await supabase
+          .from("income_entries")
+          .select(cols)
+          .eq("id", id)
+          .maybeSingle();
+        if (before) snapshot = before as any;
+      }
+
       const { error } = await supabase
         .from("income_entries")
         .update(safe)
         .eq("id", id);
       if (error) throw error;
 
-      // Canonical payroll HSA sync when the update touched hsa_contribution.
-      if ("hsa_contribution" in updates) {
-        const { data: existing } = await supabase
-          .from("income_entries")
-          .select("user_id, organization_id, income_date, source_id, linked_hsa_contribution_id")
-          .eq("id", id)
-          .maybeSingle();
-        if (existing) {
+      if (touchesEmployeeHsa || touchesEmployerHsa) {
+        try {
           await syncIncomeEntryHsa({
             incomeEntryId: id,
-            userId: (existing as any).user_id,
-            organizationId: (existing as any).organization_id,
-            amount: Number((updates as any).hsa_contribution || 0),
-            contributionDate:
-              (updates as any).income_date || (existing as any).income_date,
-            companyId:
-              (updates as any).source_id ?? (existing as any).source_id ?? null,
-            existingHsaId: (existing as any).linked_hsa_contribution_id ?? null,
+            amount: touchesEmployeeHsa
+              ? Number((updates as any).hsa_contribution || 0)
+              : undefined,
+            employerAmount: touchesEmployerHsa
+              ? Number((updates as any).employer_hsa_contribution || 0)
+              : undefined,
+            contributionDate: (updates as any).income_date,
+            companyId: (updates as any).source_id ?? null,
           });
+        } catch (hsaErr) {
+          if (snapshot) {
+            const revert: Record<string, unknown> = {};
+            for (const k of Object.keys(safe)) {
+              revert[k] = (snapshot as any)[k];
+            }
+            try {
+              await supabase
+                .from("income_entries")
+                .update(revert as any)
+                .eq("id", id);
+            } catch (rollbackErr) {
+              console.error("[useUpdatePersonalIncome] revert failed", rollbackErr);
+            }
+          }
+          throw hsaErr;
         }
       }
     },
@@ -363,9 +404,8 @@ export function useDeletePersonalIncome() {
         console.warn("[DeletePersonalIncome] planner_conversions cleanup skipped:", err);
       }
 
-      // Remove the payroll HSA row (if any) before deleting the parent so
-      // HSA ledger rows tied to payroll income don't dangle.
-      await deleteLinkedPayrollHsaForIncomeEntry(id);
+      // ON DELETE CASCADE on hsa_contributions.income_entry_id removes any
+      // linked payroll/employer HSA rows atomically with the parent delete.
 
       const { error } = await supabase
         .from("income_entries")

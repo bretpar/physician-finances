@@ -135,21 +135,37 @@ export function useAddIncome() {
       const transactionId = (txData as { id: string } | null)?.id || null;
       const incomeEntryId = (entryData as { id: string } | null)?.id || null;
 
-      // 3. Sync payroll HSA into hsa_contributions ledger (canonical path).
+      // 3. Sync payroll HSA into hsa_contributions ledger atomically.
+      // If the RPC fails we MUST roll back the just-created income + tx rows
+      // so the paycheck save is all-or-nothing from the user's perspective.
       const hsaAmount = Number((entry as any).hsa_contribution || 0);
       const employerHsaAmount = Number((entry as any).employer_hsa_contribution || 0);
-      if (entryData?.id) {
-        await syncIncomeEntryHsa({
-          incomeEntryId: entryData.id,
-          userId: user.id,
-          organizationId: orgId,
-          amount: hsaAmount,
-          employerAmount: employerHsaAmount,
-          contributionDate: incomeDate,
-          companyId: (entry as any).source_id || null,
-          existingHsaId: null,
-          existingEmployerHsaId: null,
-        });
+      if (incomeEntryId && (hsaAmount > 0 || employerHsaAmount > 0)) {
+        try {
+          await syncIncomeEntryHsa({
+            incomeEntryId,
+            amount: hsaAmount,
+            employerAmount: employerHsaAmount,
+            contributionDate: incomeDate,
+            companyId: (entry as any).source_id || null,
+          });
+        } catch (hsaErr) {
+          // CASCADE on the HSA FK will delete any partially-inserted HSA row
+          // when we delete the parent income_entry below.
+          try {
+            await supabase.from("income_entries").delete().eq("id", incomeEntryId);
+          } catch (rollbackErr) {
+            console.error("[useAddIncome] income rollback failed", rollbackErr);
+          }
+          if (transactionId) {
+            try {
+              await supabase.from("transactions").delete().eq("id", transactionId);
+            } catch (rollbackErr) {
+              console.error("[useAddIncome] transaction rollback failed", rollbackErr);
+            }
+          }
+          throw hsaErr;
+        }
       }
 
       return { transactionId, incomeEntryId };
@@ -158,6 +174,7 @@ export function useAddIncome() {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
+      qc.invalidateQueries({ queryKey: ["tax_estimate"] });
       toast.success("Income entry added");
     },
     onError: (e) => toast.error(e.message),
@@ -172,49 +189,78 @@ export function useUpdateIncome() {
       if (typeof safe.income_type === "string") {
         safe.income_type = toCanonicalIncomeType(safe.income_type);
       }
+
+      const touchesEmployeeHsa = "hsa_contribution" in updates;
+      const touchesEmployerHsa = "employer_hsa_contribution" in updates;
+
+      // Snapshot the pre-update row so we can revert atomically if the HSA
+      // sync fails. Only capture the fields we're about to mutate.
+      let snapshot: Record<string, unknown> | null = null;
+      if (touchesEmployeeHsa || touchesEmployerHsa) {
+        const cols = Array.from(new Set([
+          ...Object.keys(safe),
+          "hsa_contribution",
+          "employer_hsa_contribution",
+          "income_date",
+          "source_id",
+          "user_id",
+          "organization_id",
+        ])).join(", ");
+        const { data: before } = await supabase
+          .from("income_entries")
+          .select(cols)
+          .eq("id", id)
+          .maybeSingle();
+        if (before) snapshot = before as any;
+      }
+
       const { error } = await supabase
         .from("income_entries")
         .update(safe)
         .eq("id", id);
       if (error) throw error;
 
-      // Sync payroll HSA if hsa_contribution was part of the update. We
-      // must always look up the current row so income_date/source_id/user
-      // are correct — an "update" may not include those fields.
-      const touchesEmployeeHsa = "hsa_contribution" in updates;
-      const touchesEmployerHsa = "employer_hsa_contribution" in updates;
       if (touchesEmployeeHsa || touchesEmployerHsa) {
-        const { data: existing } = await supabase
-          .from("income_entries")
-          .select(
-            "user_id, organization_id, income_date, source_id, hsa_contribution, employer_hsa_contribution, linked_hsa_contribution_id, linked_employer_hsa_contribution_id",
-          )
-          .eq("id", id)
-          .single();
-        if (existing) {
-          const nextEmployee = touchesEmployeeHsa
-            ? Number((updates as any).hsa_contribution || 0)
-            : Number((existing as any).hsa_contribution || 0);
-          const nextEmployer = touchesEmployerHsa
-            ? Number((updates as any).employer_hsa_contribution || 0)
-            : undefined; // undefined = don't touch employer row this call
+        const nextEmployee = touchesEmployeeHsa
+          ? Number((updates as any).hsa_contribution || 0)
+          : undefined;
+        const nextEmployer = touchesEmployerHsa
+          ? Number((updates as any).employer_hsa_contribution || 0)
+          : undefined;
+        try {
           await syncIncomeEntryHsa({
             incomeEntryId: id,
-            userId: (existing as any).user_id,
-            organizationId: (existing as any).organization_id,
             amount: nextEmployee,
             employerAmount: nextEmployer,
-            contributionDate: (updates as any).income_date || (existing as any).income_date,
-            companyId: (updates as any).source_id ?? (existing as any).source_id ?? null,
-            existingHsaId: (existing as any).linked_hsa_contribution_id ?? null,
-            existingEmployerHsaId: (existing as any).linked_employer_hsa_contribution_id ?? null,
+            contributionDate: (updates as any).income_date,
+            companyId: (updates as any).source_id ?? null,
           });
+        } catch (hsaErr) {
+          // Revert the income_entry to its pre-update state so the caller sees
+          // a clean rollback. If the revert itself fails we surface the
+          // original HSA error and log the revert failure.
+          if (snapshot) {
+            const revert: Record<string, unknown> = {};
+            for (const k of Object.keys(safe)) {
+              revert[k] = (snapshot as any)[k];
+            }
+            try {
+              await supabase
+                .from("income_entries")
+                .update(revert as any)
+                .eq("id", id);
+            } catch (rollbackErr) {
+              console.error("[useUpdateIncome] revert failed", rollbackErr);
+            }
+          }
+          throw hsaErr;
         }
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
+      qc.invalidateQueries({ queryKey: ["tax_estimate"] });
       toast.success("Income entry updated");
     },
     onError: (e) => toast.error(e.message),
@@ -225,9 +271,8 @@ export function useDeleteIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Remove the payroll HSA row before the parent income_entry is
-      // deleted so payroll HSA rows never dangle in the HSA ledger.
-      await deleteLinkedPayrollHsaForIncomeEntry(id);
+      // ON DELETE CASCADE on hsa_contributions.income_entry_id removes any
+      // linked payroll/employer HSA rows atomically with the parent delete.
       const { error } = await supabase
         .from("income_entries")
         .delete()
@@ -237,6 +282,7 @@ export function useDeleteIncome() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
+      qc.invalidateQueries({ queryKey: ["tax_estimate"] });
       toast.success("Income entry deleted");
     },
     onError: (e) => toast.error(e.message),
