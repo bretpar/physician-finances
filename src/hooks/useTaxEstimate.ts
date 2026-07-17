@@ -31,6 +31,7 @@ import {
   ytdCompanyKey,
 } from "@/lib/savedW2CompanyProjection";
 import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
+import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -882,11 +883,22 @@ export function useTaxEstimate(): {
   const forecastEstimate = forecastResult?.estimate ?? null;
   const estimate = taxMode === "forecast" ? forecastEstimate : actualEstimate;
 
+  const actualDebug = actualResult?.debug ?? null;
+  const currentPaceDebug = currentPaceResult?.debug ?? null;
+  const forecastDebug = forecastResult?.debug ?? null;
+
+  // Dev-only: record which debug object identity this consumer sees. When
+  // localStorage["debug:taxEngine"] === "1", assertSingleEstimateInstance
+  // will warn if two callers hold different identities for the same scope.
+  registerTaxEstimateConsumer("useTaxEstimate", "actual", actualDebug);
+  registerTaxEstimateConsumer("useTaxEstimate", "currentPace", currentPaceDebug);
+  registerTaxEstimateConsumer("useTaxEstimate", "forecast", forecastDebug);
+
   return {
     estimate, isLoading, taxMode, setTaxMode,
     actualEstimate, currentPaceEstimate, forecastEstimate,
-    actualDebug: actualResult?.debug ?? null,
-    currentPaceDebug: currentPaceResult?.debug ?? null,
-    forecastDebug: forecastResult?.debug ?? null,
+    actualDebug,
+    currentPaceDebug,
+    forecastDebug,
   };
 }
