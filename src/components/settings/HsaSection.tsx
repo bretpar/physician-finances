@@ -29,6 +29,11 @@ import { backfillMissingPayrollHsaLinks } from "@/lib/incomeEntryHsaSync";
 import { useQueryClient } from "@tanstack/react-query";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { cn } from "@/lib/utils";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { getApplicableHsaLimit } from "@/lib/hsaLimits";
+import { computeHsaContributionSummary } from "@/lib/hsaComputation";
+import { Progress } from "@/components/ui/progress";
+import { AlertTriangle } from "lucide-react";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
