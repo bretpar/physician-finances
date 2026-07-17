@@ -465,6 +465,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     estimatedAnnualTax: estimate.totalTaxLiability,
     federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
     taxCredits: estimate.taxCredits,
+    qbiDeduction: estimate.qbiDeduction,
+    qbiSstbApplicablePercentage: estimate.qbiComputation.sstbApplicablePercentage,
+    qbiTaxableIncomeLimit: estimate.qbiComputation.taxableIncomeLimit,
+    qbiPreliminaryDeduction: estimate.qbiComputation.preliminaryTotalDeduction,
+    qbiCappedByTaxableIncome: estimate.qbiComputation.cappedByTaxableIncome,
     // Explicit credits
     actualFederalWithheld,
     actualStateWithheld,
