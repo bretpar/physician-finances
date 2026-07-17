@@ -66,8 +66,12 @@ export function useBulkUpdateTransactions() {
         .in("id", ids);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success("Transactions updated");
     },
     onError: (e) => toast.error(e.message),
