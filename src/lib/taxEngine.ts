@@ -254,6 +254,12 @@ export interface TaxEstimate {
   targetSetAside: number;
   // Time-based tracking
   tracking: TimeBasedTracking;
+  /**
+   * Ordered pipeline of every discrete adjustment/credit/surtax applied to
+   * this estimate, grouped by calculation stage. Developer-only diagnostic —
+   * do NOT use for user-facing math. See src/lib/taxPipeline.ts.
+   */
+  adjustments: TaxAdjustment[];
 }
 
 /** Compute Child Tax Credit + Other Dependent Credit with high-income phase-out.
