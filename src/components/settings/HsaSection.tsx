@@ -440,29 +440,32 @@ export function HsaLedgerSection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r: HsaContribution) => (
+                  {rows.map((r: HsaContribution) => {
+                    const ctype = resolveHsaContributionType(r);
+                    const isLinked = ctype !== "individual";
+                    return (
                     <tr key={r.id} className="border-b border-border/40 hover:bg-muted/20">
                       <td className="py-1.5 px-2 tabular-nums whitespace-nowrap text-muted-foreground">{r.contribution_date}</td>
                       <td className="py-1.5 px-2">
                         <span className={cn(
                           "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          r.source_type === "payroll" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                          isLinked ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
                         )}>
-                          {r.source_type === "payroll" ? (
-                            <><Link2 className="h-2.5 w-2.5" /> Payroll</>
+                          {isLinked ? (
+                            <><Link2 className="h-2.5 w-2.5" /> {TYPE_LABEL[ctype]}</>
                           ) : (
-                            "Individual"
+                            TYPE_LABEL[ctype]
                           )}
                         </span>
                       </td>
                       <td className="py-1.5 px-2">
-                        <SourceChip source_type={r.source_type} company_id={r.company_id} companyName={companyName} />
+                        <SourceChip contributionType={ctype} company_id={r.company_id} companyName={companyName} />
                       </td>
                       <td className="py-1.5 px-2 tabular-nums text-right">
                         <span className="text-sm font-semibold text-foreground">{fmt(Number(r.amount))}</span>
                       </td>
                       <td className="py-1.5 px-2 text-right">
-                        {r.source_type === "individual" ? (
+                        {ctype === "individual" ? (
                           <button
                             type="button"
                             onClick={() => setConfirmDeleteId(r.id)}
@@ -476,7 +479,7 @@ export function HsaLedgerSection() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>
