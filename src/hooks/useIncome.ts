@@ -135,21 +135,37 @@ export function useAddIncome() {
       const transactionId = (txData as { id: string } | null)?.id || null;
       const incomeEntryId = (entryData as { id: string } | null)?.id || null;
 
-      // 3. Sync payroll HSA into hsa_contributions ledger (canonical path).
+      // 3. Sync payroll HSA into hsa_contributions ledger atomically.
+      // If the RPC fails we MUST roll back the just-created income + tx rows
+      // so the paycheck save is all-or-nothing from the user's perspective.
       const hsaAmount = Number((entry as any).hsa_contribution || 0);
       const employerHsaAmount = Number((entry as any).employer_hsa_contribution || 0);
-      if (entryData?.id) {
-        await syncIncomeEntryHsa({
-          incomeEntryId: entryData.id,
-          userId: user.id,
-          organizationId: orgId,
-          amount: hsaAmount,
-          employerAmount: employerHsaAmount,
-          contributionDate: incomeDate,
-          companyId: (entry as any).source_id || null,
-          existingHsaId: null,
-          existingEmployerHsaId: null,
-        });
+      if (incomeEntryId && (hsaAmount > 0 || employerHsaAmount > 0)) {
+        try {
+          await syncIncomeEntryHsa({
+            incomeEntryId,
+            amount: hsaAmount,
+            employerAmount: employerHsaAmount,
+            contributionDate: incomeDate,
+            companyId: (entry as any).source_id || null,
+          });
+        } catch (hsaErr) {
+          // CASCADE on the HSA FK will delete any partially-inserted HSA row
+          // when we delete the parent income_entry below.
+          try {
+            await supabase.from("income_entries").delete().eq("id", incomeEntryId);
+          } catch (rollbackErr) {
+            console.error("[useAddIncome] income rollback failed", rollbackErr);
+          }
+          if (transactionId) {
+            try {
+              await supabase.from("transactions").delete().eq("id", transactionId);
+            } catch (rollbackErr) {
+              console.error("[useAddIncome] transaction rollback failed", rollbackErr);
+            }
+          }
+          throw hsaErr;
+        }
       }
 
       return { transactionId, incomeEntryId };
@@ -158,6 +174,7 @@ export function useAddIncome() {
       qc.invalidateQueries({ queryKey: ["income_entries"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["hsa_contributions"] });
+      qc.invalidateQueries({ queryKey: ["tax_estimate"] });
       toast.success("Income entry added");
     },
     onError: (e) => toast.error(e.message),
