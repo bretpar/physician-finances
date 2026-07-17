@@ -91,6 +91,10 @@ export interface W2Breakdown {
   preTaxDeductions: number;
   retirement401k: number;
   taxableWages: number;
+  /** Employee payroll HSA (Section 125 — excluded from FICA wages). */
+  payrollHsa: number;
+  /** payrollHsa + preTaxDeductions — the amount subtracted from FICA wages. */
+  section125Deductions: number;
 }
 
 export interface CapGainsBreakdown {
