@@ -184,6 +184,16 @@ export interface TaxDebugBreakdown {
   estimatedAnnualTax: number;     // alias of totalEstimatedTax
   federalTaxBeforeCredits: number;
   taxCredits: number;
+  /** §199A QBI deduction applied to taxable income. */
+  qbiDeduction: number;
+  /** SSTB applicable percentage used for the QBI calc (1 = fully eligible). */
+  qbiSstbApplicablePercentage: number;
+  /** 20% × (taxable income − net capital gain) cap on the QBI deduction. */
+  qbiTaxableIncomeLimit: number;
+  /** Sum of per-entity 20% deductions before the aggregate taxable-income cap. */
+  qbiPreliminaryDeduction: number;
+  /** True if the taxable-income cap reduced the QBI deduction below the entity sum. */
+  qbiCappedByTaxableIncome: boolean;
   // ── Credits against tax (explicit) ──
   /** Federal withholding already paid on actual income to date. */
   actualFederalWithheld: number;
