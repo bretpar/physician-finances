@@ -488,7 +488,10 @@ export function HsaLedgerSection() {
           {/* Mobile cards */}
           {!isLoading && rows.length > 0 && (
             <div className="md:hidden space-y-2 mt-2">
-              {rows.map((r: HsaContribution) => (
+              {rows.map((r: HsaContribution) => {
+                const ctype = resolveHsaContributionType(r);
+                const isLinked = ctype !== "individual";
+                return (
                 <div key={r.id} className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
@@ -496,25 +499,25 @@ export function HsaLedgerSection() {
                         <span className="text-sm font-semibold text-foreground">{fmt(Number(r.amount))}</span>
                         <span className={cn(
                           "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          r.source_type === "payroll" ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                          isLinked ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
                         )}>
-                          {r.source_type === "payroll" ? (
-                            <><Link2 className="h-2.5 w-2.5" /> Payroll</>
+                          {isLinked ? (
+                            <><Link2 className="h-2.5 w-2.5" /> {TYPE_LABEL[ctype]}</>
                           ) : (
-                            "Individual"
+                            TYPE_LABEL[ctype]
                           )}
                         </span>
                       </div>
                       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] text-muted-foreground">{r.contribution_date}</span>
-                        <SourceChip source_type={r.source_type} company_id={r.company_id} companyName={companyName} />
+                        <SourceChip contributionType={ctype} company_id={r.company_id} companyName={companyName} />
                       </div>
                       {r.notes && (
                         <p className="text-[11px] text-muted-foreground mt-1.5">{r.notes}</p>
                       )}
                     </div>
                     <div className="shrink-0">
-                      {r.source_type === "individual" ? (
+                      {ctype === "individual" ? (
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteId(r.id)}
@@ -529,7 +532,7 @@ export function HsaLedgerSection() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           )}
 
