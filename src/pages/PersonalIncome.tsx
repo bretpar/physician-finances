@@ -607,6 +607,7 @@ export default function PersonalIncome() {
         pre_tax_deductions: num(form.deductions_pre_tax),
         healthcare_deduction: num(form.healthcare_deduction),
         hsa_contribution: num(form.hsa_contribution),
+        employer_hsa_contribution: num(form.employer_hsa_contribution),
         is_actual: true,
         include_in_tax_estimate: true,
         include_in_cash_flow: false,
