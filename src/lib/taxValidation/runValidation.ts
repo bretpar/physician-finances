@@ -11,7 +11,7 @@ import {
   computeUnifiedTaxEstimate,
   type UnifiedTaxResult,
 } from "@/lib/taxCalculationService";
-import { getQuarterRecommendation } from "@/lib/quarterRecommendation";
+import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import { makeInput } from "./defaults";
 import {
   RATE_FIELDS,
@@ -31,7 +31,7 @@ export type ScenarioValues = Record<ValidatedField, number>;
 /** Extract validated values from an engine result. */
 export function extractScenarioValues(result: UnifiedTaxResult): ScenarioValues {
   const { estimate, debug } = result;
-  const quarterly = getQuarterRecommendation({
+  const quarterly = buildQuarterRecommendation({
     annualTaxLiability: debug.totalEstimatedTax,
     quarterMethod: "even",
   });
