@@ -12,6 +12,7 @@ import {
   SE_INCOME_FACTOR as ACTIVE_SE_INCOME_FACTOR,
   calcBracketTax,
 } from "@/lib/taxBrackets";
+import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
 
 export interface TaxBracket {
   min: number;
@@ -253,6 +254,12 @@ export interface TaxEstimate {
   targetSetAside: number;
   // Time-based tracking
   tracking: TimeBasedTracking;
+  /**
+   * Ordered pipeline of every discrete adjustment/credit/surtax applied to
+   * this estimate, grouped by calculation stage. Developer-only diagnostic —
+   * do NOT use for user-facing math. See src/lib/taxPipeline.ts.
+   */
+  adjustments: TaxAdjustment[];
 }
 
 /** Compute Child Tax Credit + Other Dependent Credit with high-income phase-out.
@@ -530,7 +537,7 @@ export function calculateFullEstimate(params: {
     agi,
   });
 
-  return {
+  const estimate: TaxEstimate = {
     totalIncome, w2Income, seIncome,
     grossBusinessIncome,
     businessExpenses: businessDeductions,
@@ -552,5 +559,10 @@ export function calculateFullEstimate(params: {
     remainingLiability, quarterlyEstimate, effectiveRate, federalEffectiveRate, marginalRate,
     safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside, targetSetAside,
     tracking,
+    adjustments: [],
   };
+  // Populate the developer-diagnostic pipeline. Purely derived from the
+  // already-computed estimate — never influences tax math.
+  estimate.adjustments = buildTaxAdjustmentPipeline(estimate);
+  return estimate;
 }

@@ -8,6 +8,16 @@ import { verifyPageConsistency } from "./pageConsistency";
 export * from "./scenarios";
 export * from "./runValidation";
 export * from "./pageConsistency";
+export {
+  TaxStage,
+  STAGE_ORDER,
+  STAGE_LABELS,
+  FUTURE_ADJUSTMENT_REGISTRY,
+  buildTaxAdjustmentPipeline,
+  groupPipelineByStage,
+  type TaxAdjustment,
+  type FutureAdjustmentSpec,
+} from "@/lib/taxPipeline";
 
 if (typeof window !== "undefined") {
   try {
