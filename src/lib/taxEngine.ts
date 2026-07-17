@@ -70,23 +70,31 @@ export function calculateSETax(
   netSEIncome: number,
   filingStatus: "single" | "married_filing_jointly",
   ssWageCap: number = SS_WAGE_CAP_DEFAULT,
-  w2Wages: number = 0
+  w2Wages: number = 0,
+  /**
+   * FICA-taxable W-2 wages (gross W-2 MINUS Section 125). Used for the SS
+   * cap-offset and the Additional Medicare Tax threshold — both are defined
+   * against FICA wages, not gross. Defaults to `w2Wages` when the caller
+   * does not know Section 125 (backward-compatible).
+   */
+  w2FicaWages?: number,
 ): SelfEmploymentTax {
   if (netSEIncome <= 0) return { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0 };
 
   const seBase = netSEIncome * SE_INCOME_FACTOR;
+  const effectiveW2 = Math.max(0, w2FicaWages ?? w2Wages);
 
-  // SS: 12.4% up to wage cap, minus W-2 wages already subject to SS
-  const ssRemaining = Math.max(0, ssWageCap - w2Wages);
+  // SS: 12.4% up to wage cap, minus W-2 wages already subject to SS.
+  const ssRemaining = Math.max(0, ssWageCap - effectiveW2);
   const ssTaxable = Math.min(seBase, ssRemaining);
   const ssTax = ssTaxable * 0.124;
 
   // Medicare: 2.9% on all SE income
   const medicareTax = seBase * 0.029;
 
-  // Additional Medicare: 0.9% over threshold
+  // Additional Medicare: 0.9% over threshold (based on FICA-taxable earnings).
   const threshold = MEDICARE_ADDITIONAL_THRESHOLD[filingStatus];
-  const totalEarnings = w2Wages + seBase;
+  const totalEarnings = effectiveW2 + seBase;
   const additionalMedicare = totalEarnings > threshold
     ? Math.min(seBase, totalEarnings - threshold) * MEDICARE_ADDITIONAL_RATE
     : 0;
