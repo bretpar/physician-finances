@@ -57,6 +57,7 @@ export const VALIDATED_FIELDS = [
   "recommendedSetAside",
   "quarterlyRecommendation",
   "w4Recommendation",
+  "qbiDeduction",
 ] as const;
 
 export type ValidatedField = (typeof VALIDATED_FIELDS)[number];
@@ -76,6 +77,7 @@ export const FIELD_LABELS: Record<ValidatedField, string> = {
   recommendedSetAside: "Recommended Reserve",
   quarterlyRecommendation: "Quarterly Recommendation",
   w4Recommendation: "W-4 Recommendation",
+  qbiDeduction: "QBI Deduction (§199A)",
 };
 
 /** Fields expressed as percentage points (not dollars). */
@@ -239,6 +241,53 @@ export const SCENARIOS: TaxScenario[] = [
       seEligibleBusinessExpenses: 50_000,
       businessExpenses: 50_000,
       filingStatus: "single",
+    },
+  },
+  // ── §199A QBI regression scenarios ───────────────────────────────────────
+  {
+    id: "qbi-physician-below-phaseout-single",
+    name: "QBI physician (SSTB) — below phase-out, single",
+    description:
+      "Single 1099 physician (SSTB): $150k gross Sch C, $20k expenses. Taxable income comfortably below the §199A threshold — full 20% deduction (capped by taxable-income limit).",
+    category: "1099_only",
+    input: {
+      businessIncome: 150_000,
+      seEligibleBusinessIncome: 150_000,
+      seEligibleBusinessExpenses: 20_000,
+      businessExpenses: 20_000,
+      filingStatus: "single",
+    },
+  },
+  {
+    id: "qbi-physician-within-phasein-mfj",
+    name: "QBI physician (SSTB) — within phase-in range, MFJ",
+    description:
+      "MFJ physician with taxable income inside the §199A phase-in range ($403,550-$503,550). Deduction scales down proportionally.",
+    category: "mixed",
+    input: {
+      personalW2: 300_000,
+      personalIncome: 300_000,
+      businessIncome: 150_000,
+      seEligibleBusinessIncome: 150_000,
+      seEligibleBusinessExpenses: 20_000,
+      businessExpenses: 20_000,
+      filingStatus: "married_filing_jointly",
+    },
+  },
+  {
+    id: "qbi-physician-above-phaseout-mfj",
+    name: "QBI physician (SSTB) — fully phased out, MFJ",
+    description:
+      "MFJ physician with taxable income above the SSTB phase-in ceiling. QBI deduction = $0.",
+    category: "high_income",
+    input: {
+      personalW2: 500_000,
+      personalIncome: 500_000,
+      businessIncome: 200_000,
+      seEligibleBusinessIncome: 200_000,
+      seEligibleBusinessExpenses: 25_000,
+      businessExpenses: 25_000,
+      filingStatus: "married_filing_jointly",
     },
   },
 ];

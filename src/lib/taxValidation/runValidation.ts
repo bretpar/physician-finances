@@ -50,6 +50,7 @@ export function extractScenarioValues(result: UnifiedTaxResult): ScenarioValues 
     quarterlyRecommendation: quarterly.recommendedQuarterlyPayment,
     // W-4 recommendation = per-paycheck target set-aside. Same source of truth.
     w4Recommendation: estimate.targetSetAside,
+    qbiDeduction: debug.qbiDeduction,
   };
 }
 

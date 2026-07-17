@@ -112,13 +112,8 @@ export interface FutureAdjustmentSpec {
 }
 
 export const FUTURE_ADJUSTMENT_REGISTRY: readonly FutureAdjustmentSpec[] = [
-  {
-    id: "qbi_deduction",
-    displayName: "Qualified Business Income Deduction (§199A)",
-    stage: TaxStage.AGIBasedAdjustments,
-    explanation:
-      "20% deduction on qualified pass-through business income, subject to SSTB and W-2/UBIA limits above the phase-in thresholds.",
-  },
+  // qbi_deduction — implemented; emitted at TaxStage.AGIBasedAdjustments
+  // directly from `estimate.qbiComputation` (see buildTaxAdjustmentPipeline).
   {
     id: "niit",
     displayName: "Net Investment Income Tax (3.8%)",
@@ -314,19 +309,39 @@ export function buildTaxAdjustmentPipeline(estimate: TaxEstimate): TaxAdjustment
     sourceData: { agi: n(estimate.agi) },
   });
 
-  // ── Stage 5: AGI-Based Adjustments (future: QBI) ─────────────────────────
-  for (const spec of FUTURE_ADJUSTMENT_REGISTRY.filter(
-    (s) => s.stage === TaxStage.AGIBasedAdjustments,
-  )) {
+  // ── Stage 5: AGI-Based Adjustments — QBI (§199A) ─────────────────────────
+  {
+    const q = estimate.qbiComputation;
     out.push({
-      id: spec.id,
-      displayName: spec.displayName,
-      stage: spec.stage,
-      enabled: false,
-      amount: 0,
+      id: "qbi_deduction",
+      displayName: "Qualified Business Income Deduction (§199A)",
+      stage: TaxStage.AGIBasedAdjustments,
+      enabled: true,
+      amount: -n(estimate.qbiDeduction),
       sign: "subtract",
-      explanation: `[Not implemented] ${spec.explanation}`,
-      sourceData: {},
+      explanation:
+        q.perEntity.length === 0
+          ? "No eligible pass-through business income."
+          : q.cappedByTaxableIncome
+            ? `Capped by 20% × (taxable income − net capital gain). SSTB applicable %: ${(q.sstbApplicablePercentage * 100).toFixed(1)}%.`
+            : `20% × qualified business income. SSTB applicable %: ${(q.sstbApplicablePercentage * 100).toFixed(1)}%.`,
+      sourceData: {
+        qbiDeduction: n(estimate.qbiDeduction),
+        preliminaryTotalDeduction: n(q.preliminaryTotalDeduction),
+        taxableIncomeLimit: n(q.taxableIncomeLimit),
+        sstbApplicablePercentage: n(q.sstbApplicablePercentage),
+        threshold: n(q.threshold),
+        phaseInRange: n(q.phaseInRange),
+        taxableIncomeBeforeQbi: n(q.taxableIncomeBeforeQbi),
+        netCapitalGain: n(q.netCapitalGain),
+        entityCount: q.perEntity.length,
+        entities: q.perEntity
+          .map(
+            (e) =>
+              `${e.input.name}${e.input.isSSTB ? " (SSTB)" : ""}: qbi=${e.input.qbi.toFixed(0)} → deduction=${e.entityDeduction.toFixed(0)}${e.fullyPhasedOut ? " (phased out)" : ""}`,
+          )
+          .join(" | "),
+      },
     });
   }
 

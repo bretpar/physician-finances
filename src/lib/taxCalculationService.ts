@@ -184,6 +184,16 @@ export interface TaxDebugBreakdown {
   estimatedAnnualTax: number;     // alias of totalEstimatedTax
   federalTaxBeforeCredits: number;
   taxCredits: number;
+  /** §199A QBI deduction applied to taxable income. */
+  qbiDeduction: number;
+  /** SSTB applicable percentage used for the QBI calc (1 = fully eligible). */
+  qbiSstbApplicablePercentage: number;
+  /** 20% × (taxable income − net capital gain) cap on the QBI deduction. */
+  qbiTaxableIncomeLimit: number;
+  /** Sum of per-entity 20% deductions before the aggregate taxable-income cap. */
+  qbiPreliminaryDeduction: number;
+  /** True if the taxable-income cap reduced the QBI deduction below the entity sum. */
+  qbiCappedByTaxableIncome: boolean;
   // ── Credits against tax (explicit) ──
   /** Federal withholding already paid on actual income to date. */
   actualFederalWithheld: number;
@@ -383,6 +393,9 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     withholdingOverrideAmount,
     longTermCapitalGains,
     stateTaxInputs,
+    // SE-attributable retirement (SEP / Solo-401(k)) — reduces synthesized
+    // aggregate QBI. Excludes W-2 elective deferrals (personalRetirement).
+    qbiSeRetirementDeduction: businessRetirement + projRetirement,
   });
 
   const totalDeductions =
@@ -452,6 +465,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     estimatedAnnualTax: estimate.totalTaxLiability,
     federalTaxBeforeCredits: estimate.federalTaxBeforeCredits,
     taxCredits: estimate.taxCredits,
+    qbiDeduction: estimate.qbiDeduction,
+    qbiSstbApplicablePercentage: estimate.qbiComputation.sstbApplicablePercentage,
+    qbiTaxableIncomeLimit: estimate.qbiComputation.taxableIncomeLimit,
+    qbiPreliminaryDeduction: estimate.qbiComputation.preliminaryTotalDeduction,
+    qbiCappedByTaxableIncome: estimate.qbiComputation.cappedByTaxableIncome,
     // Explicit credits
     actualFederalWithheld,
     actualStateWithheld,

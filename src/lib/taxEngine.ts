@@ -13,6 +13,11 @@ import {
   calcBracketTax,
 } from "@/lib/taxBrackets";
 import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
+import {
+  computeQbiDeduction,
+  type QbiComputation,
+  type QbiEntityInput,
+} from "@/lib/qbi";
 
 export interface TaxBracket {
   min: number;
@@ -262,6 +267,10 @@ export interface TaxEstimate {
   targetSetAside: number;
   // Time-based tracking
   tracking: TimeBasedTracking;
+  /** §199A QBI deduction actually applied to taxable income. */
+  qbiDeduction: number;
+  /** Per-entity breakdown + phase-out state for the QBI deduction. */
+  qbiComputation: QbiComputation;
   /**
    * Ordered pipeline of every discrete adjustment/credit/surtax applied to
    * this estimate, grouped by calculation stage. Developer-only diagnostic —
@@ -407,6 +416,20 @@ export function calculateFullEstimate(params: {
    */
   longTermCapitalGains?: number;
   stateTaxInputs?: StateTaxInputs;
+  /**
+   * Per-entity QBI inputs. When omitted, the engine synthesizes a single
+   * aggregate SSTB entity from netSEIncome − ½SE − SE health insurance −
+   * `qbiSeRetirementDeduction` (physician-focused fallback). Callers with
+   * true per-entity data should provide this array to get accurate SSTB
+   * classification and multi-entity phase-outs.
+   */
+  qbiEntities?: readonly QbiEntityInput[];
+  /**
+   * Self-employed retirement contributions attributable to SE income
+   * (SEP / Solo-401(k) / etc.). Reduces the synthesized aggregate QBI
+   * when `qbiEntities` is not provided. Excludes W-2 401(k) elective deferrals.
+   */
+  qbiSeRetirementDeduction?: number;
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome,
@@ -429,6 +452,8 @@ export function calculateFullEstimate(params: {
     withholdingOverrideAmount = null,
     longTermCapitalGains: longTermCapitalGainsParam = 0,
     stateTaxInputs = {},
+    qbiEntities,
+    qbiSeRetirementDeduction = 0,
   } = params;
 
   // Default backward-compat: if caller didn't separate, treat seIncome as both
@@ -464,7 +489,30 @@ export function calculateFullEstimate(params: {
   const deductionApplied = deductionType === "itemized"
     ? Math.max(0, itemizedDeductionAmount)
     : standardDeduction;
-  const taxableIncome = Math.max(0, agi - deductionApplied);
+  const taxableIncomeBeforeQbi = Math.max(0, agi - deductionApplied);
+
+  // ── §199A QBI deduction ─────────────────────────────────────────────────
+  // When the caller does not supply per-entity data, synthesize one aggregate
+  // SSTB entity (physician-focused app default). Attributable adjustments:
+  // ½ SE tax, self-employed health insurance, and SE-side retirement (SEP /
+  // Solo-401k) — all of which reduce QBI per §199A regs.
+  const attributableSeReductions =
+    seTax.deductibleHalf + healthInsuranceDeduction + Math.max(0, qbiSeRetirementDeduction);
+  const defaultAggregateQbi = Math.max(0, netSEIncome - attributableSeReductions);
+  const effectiveQbiEntities: readonly QbiEntityInput[] =
+    qbiEntities && qbiEntities.length > 0
+      ? qbiEntities
+      : defaultAggregateQbi > 0
+        ? [{ id: "aggregate", name: "Aggregate SE Business", isSSTB: true, qbi: defaultAggregateQbi }]
+        : [];
+  const qbiComputation = computeQbiDeduction({
+    entities: effectiveQbiEntities,
+    taxableIncomeBeforeQbi,
+    netCapitalGain: Math.max(0, longTermCapitalGainsParam),
+    filingStatus,
+  });
+  const qbiDeduction = qbiComputation.totalDeduction;
+  const taxableIncome = Math.max(0, taxableIncomeBeforeQbi - qbiDeduction);
 
   // Federal income tax (before credits) — separate ordinary slice and LTCG slice.
   // LTCG (long-term gains + qualified dividends) is taxed at LTCG brackets, stacked on top
@@ -570,6 +618,7 @@ export function calculateFullEstimate(params: {
     remainingLiability, quarterlyEstimate, effectiveRate, federalEffectiveRate, marginalRate,
     safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside, targetSetAside,
     tracking,
+    qbiDeduction, qbiComputation,
     adjustments: [],
   };
   // Populate the developer-diagnostic pipeline. Purely derived from the

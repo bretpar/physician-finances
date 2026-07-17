@@ -28,6 +28,12 @@ export interface TaxYearConfig {
   ssWageBase: number;
   /** Threshold above which the 0.9% Additional Medicare Tax applies. */
   additionalMedicareThreshold: Record<FilingStatus, number>;
+  /**
+   * §199A QBI thresholds — taxable-income-before-QBI at which the SSTB
+   * phase-out begins, plus the width of the phase-in range.
+   * (Rev. Proc. inflation-indexed; $50k single / $100k MFJ range is statutory.)
+   */
+  qbiThresholds: Record<FilingStatus, { threshold: number; phaseIn: number }>;
 }
 
 // ── 2025 (kept for historical/comparison use) ────────────────────────────
@@ -68,6 +74,11 @@ const CONFIG_2025: TaxYearConfig = {
   standardDeduction: { single: 15750, married_filing_jointly: 31500 },
   ssWageBase: 176100,
   additionalMedicareThreshold: { single: 200000, married_filing_jointly: 250000 },
+  // §199A thresholds — Rev. Proc. 2024-40.
+  qbiThresholds: {
+    single: { threshold: 197300, phaseIn: 50000 },
+    married_filing_jointly: { threshold: 394600, phaseIn: 100000 },
+  },
 };
 
 // ── 2026 (IRS Rev. Proc. 2025-32; SSA wage base announcement Oct 2025) ───
@@ -108,6 +119,11 @@ const CONFIG_2026: TaxYearConfig = {
   standardDeduction: { single: 16100, married_filing_jointly: 32200 },
   ssWageBase: 184500,
   additionalMedicareThreshold: { single: 200000, married_filing_jointly: 250000 },
+  // §199A thresholds — Rev. Proc. 2025-32.
+  qbiThresholds: {
+    single: { threshold: 201775, phaseIn: 50000 },
+    married_filing_jointly: { threshold: 403550, phaseIn: 100000 },
+  },
 };
 
 const TAX_YEAR_CONFIGS: Record<number, TaxYearConfig> = {
@@ -130,6 +146,7 @@ export const LTCG_BRACKETS = ACTIVE.ltcgBrackets;
 export const STANDARD_DEDUCTION = ACTIVE.standardDeduction;
 export const SS_WAGE_BASE = ACTIVE.ssWageBase;
 export const ADDITIONAL_MEDICARE_THRESHOLD = ACTIVE.additionalMedicareThreshold;
+export const QBI_THRESHOLDS = ACTIVE.qbiThresholds;
 
 // ── Backward-compat aliases (kept so existing imports keep compiling).
 // These now point at the active year, so 2025 imports get 2026 numbers.
