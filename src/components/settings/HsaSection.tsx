@@ -276,6 +276,20 @@ export function HsaLedgerSection() {
     return { payroll, individual, total: payroll + individual };
   }, [rows]);
 
+  const hsaSummary = useMemo(() => {
+    return computeHsaContributionSummary({
+      taxYear: currentYear,
+      coverageType: (settings?.hsaCoverageType as "individual" | "family") || "individual",
+      age55Catchup: !!settings?.hsaAge55Catchup,
+      payrollEmployee: totals.payroll,
+      individual: totals.individual,
+      employer: 0,
+    });
+  }, [currentYear, settings?.hsaCoverageType, settings?.hsaAge55Catchup, totals.payroll, totals.individual]);
+  const pctUsed = hsaSummary.applicableLimit > 0
+    ? Math.min(100, Math.round((hsaSummary.totalContributions / hsaSummary.applicableLimit) * 100))
+    : 0;
+
   const companyName = (id: string | null) => {
     if (!id) return "—";
     const c = companies.find((c) => c.id === id);
