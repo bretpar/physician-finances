@@ -261,7 +261,13 @@ export default function Onboarding() {
   }, [user, taxSettings, existingCatchups, catchupsLoading, companiesLoading]);
 
 
-  if (!authLoading && !user) return <Navigate to="/signup" replace />;
+  // Never navigate away while an onboarding submit is in progress. A transient
+  // auth event (token refresh, brief `null` between `SIGNED_IN` events) during
+  // completeOnboarding used to bounce the user to /signup and leave onboarding
+  // in a partially-persisted state (only the first company saved, but
+  // onboarding_complete=true). Keep the user on the onboarding screen until
+  // the orchestrated submit finishes and explicitly navigates.
+  if (!authLoading && !user && !saving) return <Navigate to="/signup" replace />;
   if (user && !saving && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
 
 
