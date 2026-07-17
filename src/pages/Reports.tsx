@@ -1147,7 +1147,20 @@ export default function Reports() {
           {/* Section 3 — Deductions Summary */}
           <SectionCard title="3. Deductions Summary" subtitle="Above-the-line and tax-tracked deductions">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-              <KVRow label="HSA Contributions" value={fmt(deductions.hsa)} />
+              <KVRow
+                label="HSA Contributions (total)"
+                value={fmt(deductions.hsa)}
+              />
+              <KVRow
+                label={`HSA Deductible (limit ${fmt(deductions.hsaLimit)})`}
+                value={fmt(deductions.hsaDeductible)}
+              />
+              {deductions.hsaExcess > 0 && (
+                <KVRow
+                  label="HSA Excess (non-deductible)"
+                  value={fmt(deductions.hsaExcess)}
+                />
+              )}
               <KVRow label="401(k) / Retirement Contributions" value={fmt(deductions.retirement401k)} />
               <KVRow label="Mileage Deduction" value={fmt(deductions.mileage)} />
               <KVRow label="Home Office Deduction" value={fmt(deductions.homeOffice)} />
@@ -1157,7 +1170,7 @@ export default function Reports() {
               <span className="text-sm font-semibold text-foreground">Total Deductions</span>
               <span className="text-base font-bold text-foreground tabular-nums">
                 {fmt(
-                  deductions.hsa +
+                  deductions.hsaDeductible +
                     deductions.retirement401k +
                     deductions.mileage +
                     deductions.homeOffice +
