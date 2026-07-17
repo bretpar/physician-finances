@@ -293,9 +293,13 @@ export function useBulkDeleteTransactions() {
       if (error) throw error;
       return ids.length;
     },
-    onSuccess: (count) => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
+    onSuccess: async (count) => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["transactions"] }),
+        qc.invalidateQueries({ queryKey: ["income_entries"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        qc.invalidateQueries({ queryKey: ["tax_estimate"] }),
+      ]);
       toast.success(`Deleted ${count} transaction${count !== 1 ? "s" : ""}`);
     },
     onError: (e) => toast.error(e.message),
