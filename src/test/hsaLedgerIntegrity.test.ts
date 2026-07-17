@@ -246,8 +246,7 @@ describe("HSA ledger integrity — atomic sync + rollback", () => {
     // ever reaching the DB.
     await expect(
       syncIncomeEntryHsa({
-        // @ts-expect-error intentionally omitted
-        incomeEntryId: undefined,
+        incomeEntryId: undefined as unknown as string,
         amount: 100,
       }),
     ).rejects.toBeTruthy();
