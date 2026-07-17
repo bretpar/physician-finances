@@ -302,7 +302,7 @@ export function useTaxBreakdown(
       const existing = companyAgg.get(key) ?? {
         companyId: resolvedId, name, filingType: ft,
         actualGross: 0, plannedGross: 0,
-        preTax: 0, retirement: 0, healthcare: 0,
+        preTax: 0, retirement: 0, healthcare: 0, payrollHsa: 0,
         withheld: 0, stateWithheld: 0, federalWithheld: 0,
         plannedPreTax: 0, plannedRetirement: 0,
       };
