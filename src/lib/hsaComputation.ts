@@ -104,7 +104,10 @@ export function computeHsaContributionSummary(
 
   // Payroll and employer are treated as already-excluded from wages upstream;
   // they count toward the limit but we never re-deduct them.
-  const deductiblePayroll = payrollEmployee;
+  // Cap payroll display at the limit — the excess portion already reduced
+  // wages upstream, but for the "deductible benefit" report we never claim
+  // a benefit beyond the legal HSA limit.
+  const deductiblePayroll = Math.min(payrollEmployee, applicableLimit);
   const deductibleEmployer = 0;
 
   // Individual (above-the-line) portion capped so combined federal benefit ≤ limit.
