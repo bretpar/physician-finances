@@ -332,24 +332,99 @@ export function W2PayrollTaxMath({ data }: { data: TaxBreakdownResult }) {
 }
 
 export function SETaxMath({ data }: { data: TaxBreakdownResult }) {
-  if (data.seTax.total <= 0) return null;
+  if (data.seTax.total <= 0 && data.seTax.netSEIncome <= 0) return null;
   const showPlanned = data.mode === "forecast" && data.plannedTotalIncome > 0;
+  const se = data.seTax;
+  const w2CappedOut =
+    se.ssTax === 0 &&
+    se.ssWageCap > 0 &&
+    se.w2SsWagesUsed >= se.ssWageCap;
   return (
     <div className="space-y-0">
       <p className="text-xs text-muted-foreground pb-2">
         Estimated · based on current inputs{showPlanned && " (includes planned income)"}
       </p>
-      <Step label="Net self-employment income" value={fmt(data.seTax.netSEIncome)} op="equals" />
-      <Step label="× 92.35% (SE base)" value={fmt(data.seTax.seBase)} op="equals" />
+      <Step label="Net self-employment income" value={fmt(se.netSEIncome)} op="equals" />
+      <Step label="× 92.35% (SE base)" value={fmt(se.seBase)} op="equals" />
       <div className="border-t border-border my-1" />
-      <Step label="Social Security (12.4% on SE base, capped)" value={fmt(data.seTax.ssTax)} op="add" />
-      <Step label="Medicare (2.9% on SE base)" value={fmt(data.seTax.medicareTax)} op="add" />
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+        Social Security
+      </p>
+      <Step
+        label="Annual Social Security wage base"
+        value={fmt(se.ssWageCap)}
+        op="equals"
+        hint="Statutory wage base for the active tax year. W-2 wages consume this base first; only the remainder is available for SE Social Security."
+      />
+      {showPlanned ? (
+        <>
+          <Step
+            label="Actual W-2 Social Security wages counted"
+            value={fmt(data.actualW2Income)}
+            op="subtract"
+            hint="Gross W-2 wages minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
+          />
+          {data.plannedW2Income > 0 && (
+            <Step
+              label="Planned W-2 Social Security wages counted"
+              value={fmt(data.plannedW2Income)}
+              op="subtract"
+              planned
+              hint="Planned W-2 wages projected for the rest of the year, applied against the same wage base."
+            />
+          )}
+        </>
+      ) : (
+        <Step
+          label="W-2 Social Security wages counted"
+          value={fmt(se.w2SsWagesUsed)}
+          op="subtract"
+          hint="Gross W-2 wages minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
+        />
+      )}
+      <Step
+        label="Remaining Social Security wage base"
+        value={fmt(se.ssRemainingBase)}
+        op="equals"
+      />
+      <Step
+        label="SE base subject to Social Security"
+        value={fmt(se.ssTaxableBase)}
+        op="equals"
+        hint="Smaller of the SE base and the remaining wage base."
+      />
+      <Step label="Social Security tax (12.4%)" value={fmt(se.ssTax)} op="add" bold />
+      {w2CappedOut && (
+        <p className="text-[11px] text-muted-foreground italic pt-1">
+          W-2 wages have used the full Social Security wage base. Additional
+          business earnings remain subject to Medicare tax.
+        </p>
+      )}
+
+      <div className="border-t border-border my-2" />
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+        Medicare
+      </p>
+      <Step label="Medicare tax (2.9% on SE base)" value={fmt(se.medicareTax)} op="add" bold />
+      <Step
+        label="Additional Medicare Tax (0.9% over threshold)"
+        value={fmt(se.additionalMedicare)}
+        op="add"
+        hint="Employee-only 0.9% surtax on combined FICA + SE earnings above the filing-status threshold ($200k single / $250k MFJ). Excluded from the deductible half of SE tax."
+      />
+
       <div className="border-t border-border my-1" />
-      <Step label="Total self-employment tax" value={fmt(data.seTax.total)} op="equals" bold />
-      <Step label="Half is deductible above the line" value={fmt(data.seTax.deductibleHalf)} op="equals" />
+      <Step label="Total self-employment tax" value={fmt(se.total)} op="equals" bold />
+      <Step
+        label="Deductible employer-equivalent portion (½ of SS + regular Medicare)"
+        value={fmt(se.deductibleHalf)}
+        op="equals"
+        hint="IRC §164(f). Additional Medicare Tax is an employee-only surtax with no employer match and is excluded from this deduction."
+      />
     </div>
   );
 }
+
 
 export function CapitalGainsMath({ data }: { data: TaxBreakdownResult }) {
   if (data.totalShortTermGains <= 0 && data.totalLongTermGains <= 0) return null;
