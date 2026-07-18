@@ -110,6 +110,11 @@ export function buildIncomeEntryRow(
     retirement_401k: money(entry.retirement_401k),
     healthcare_deduction: money(entry.healthcare_deduction),
     hsa_contribution: money(entry.hsa_contribution),
+    // BUGFIX: employer_hsa_contribution was previously omitted here, so initial
+    // W-2 paycheck creation silently dropped the employer amount (only the
+    // edit path — which spreads `updates` directly — persisted it). Include
+    // it in the canonical row so create and edit both round-trip losslessly.
+    employer_hsa_contribution: money((entry as any).employer_hsa_contribution),
     additional_tax_reserve: money(entry.additional_tax_reserve),
     base_tax_estimate: money(entry.base_tax_estimate),
     dynamic_tax_recommendation: money(entry.dynamic_tax_recommendation),
