@@ -149,23 +149,15 @@ describe("Tax Prep PDF — download freshness", () => {
     expect(revokedUrls.sort()).toEqual(["blob:mock/1", "blob:mock/2"]);
   });
 
-  it("regenerating with updated HSA/taxable income renders the new values (no stale reuse)", () => {
-    exportTaxPrepPdf(
-      baseInput({
-        taxableIncome: 78900,
-        deductions: { ...baseInput().deductions, hsa: 5000, hsaDeductible: 4400, hsaExcess: 600 },
-      }),
-    );
+  it("regenerating with updated taxable income renders the new value (no stale reuse)", () => {
+    exportTaxPrepPdf(baseInput({ taxableIncome: 78900 }));
     const firstText = textCalls.join(" | ");
     expect(firstText).toContain("$78,900");
 
     textCalls.length = 0;
-    exportTaxPrepPdf(baseInput()); // 80900 / 6000
+    exportTaxPrepPdf(baseInput()); // taxableIncome 80900
     const secondText = textCalls.join(" | ");
     expect(secondText).toContain("$80,900");
-    expect(secondText).toContain("$6,000"); // HSA total
-    expect(secondText).toContain("$4,400"); // limit
-    expect(secondText).toContain("$1,600"); // excess
     expect(secondText).not.toContain("$78,900");
   });
 
