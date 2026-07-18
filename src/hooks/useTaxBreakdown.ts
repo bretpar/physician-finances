@@ -186,6 +186,12 @@ export interface TaxBreakdownResult {
     deductibleHalf: number;
     ssWageCap: number;
     w2SsWagesUsed: number;
+    /** Actual (YTD) portion of `w2SsWagesUsed`, straight from the engine. */
+    actualW2SsWagesUsed: number;
+    /** Planned (future) portion of `w2SsWagesUsed`, straight from the engine. */
+    plannedW2SsWagesUsed: number;
+    /** Sum of actual + planned FICA offsets = `w2SsWagesUsed`. */
+    totalW2SsWagesUsed: number;
     ssRemainingBase: number;
     ssTaxableBase: number;
   };
