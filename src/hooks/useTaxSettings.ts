@@ -77,6 +77,13 @@ export interface TaxRates {
   lastYearTax: number;
   standardDeductionOverride: number | null;
   ssWageCap: number;
+  /**
+   * Explicit opt-in gate for overriding the statutory Social Security wage
+   * base. Legacy rows without this flag default to `false`, so any saved
+   * `ssWageCap` value is ignored until an admin/developer control sets this
+   * to `true`. No user-visible UI yet.
+   */
+  customSsWageCapEnabled: boolean;
   taxMode: "projected_brackets" | "manual_effective_rate";
   manualEffectiveTaxRate: number | null;
   withholdingMethod: WithholdingMethod;
