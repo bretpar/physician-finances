@@ -133,7 +133,14 @@ export function useTaxEstimate(): {
 
     const result = Array.from(byKey.values());
 
-    if (typeof window !== "undefined") {
+    // Dev-only diagnostic: reconciliation always excludes orphans/dupes as
+    // designed, so this noise was not a real integrity error. Gate it to
+    // non-production builds so production consoles stay clean while
+    // developers still see the counts locally.
+    if (
+      typeof window !== "undefined" &&
+      import.meta.env?.DEV
+    ) {
       const orphanCount = incomeEntries.length - notOrphans.length;
       const dupeCount = notOrphans.length - result.length;
       if (orphanCount > 0 || dupeCount > 0) {
