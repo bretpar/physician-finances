@@ -87,7 +87,7 @@ export default function Reports() {
   const currentYearForMileage = new Date().getFullYear();
   const { data: ytdMileage = [] } = useMileageYTD(currentYearForMileage);
   const { data: hsaRows = [] } = useHsaContributions(currentYearForMileage);
-  const { actualEstimate, forecastEstimate } = useTaxEstimate();
+  const { actualEstimate, forecastEstimate, isLoading: taxEstimateLoading } = useTaxEstimate();
   const { data: taxSettings } = useTaxSettings();
   const quarterInputBase = useQuarterRecommendationInput();
 
