@@ -157,3 +157,87 @@ describe("W-2 Social Security wages input", () => {
     expect(r.ssRemainingBase).toBe(SS_WAGE_BASE - grossW2);
   });
 });
+
+// ── Resolver: explicit custom SS wage-cap opt-in ─────────────────────────
+import { resolveEffectiveSsWageCap } from "@/hooks/useTaxSettings";
+
+describe("resolveEffectiveSsWageCap — explicit opt-in gate", () => {
+  it("missing flag + missing value → statutory cap", () => {
+    expect(resolveEffectiveSsWageCap(undefined, undefined)).toBe(SS_WAGE_BASE);
+  });
+  it("missing flag + positive saved value → statutory cap (numeric value alone is NOT intent)", () => {
+    expect(resolveEffectiveSsWageCap(200_000, undefined)).toBe(SS_WAGE_BASE);
+  });
+  it("flag false + positive saved value → statutory cap", () => {
+    expect(resolveEffectiveSsWageCap(200_000, false)).toBe(SS_WAGE_BASE);
+  });
+  it("flag true + valid positive value → custom value honored", () => {
+    expect(resolveEffectiveSsWageCap(210_000, true)).toBe(210_000);
+  });
+  it("flag true + invalid (NaN) value → statutory cap", () => {
+    expect(resolveEffectiveSsWageCap(NaN, true)).toBe(SS_WAGE_BASE);
+    expect(resolveEffectiveSsWageCap("abc", true)).toBe(SS_WAGE_BASE);
+    expect(resolveEffectiveSsWageCap(null, true)).toBe(SS_WAGE_BASE);
+  });
+  it("flag true + zero or negative → statutory cap", () => {
+    expect(resolveEffectiveSsWageCap(0, true)).toBe(SS_WAGE_BASE);
+    expect(resolveEffectiveSsWageCap(-5, true)).toBe(SS_WAGE_BASE);
+  });
+  it("legacy $168,600 without flag → statutory cap", () => {
+    expect(resolveEffectiveSsWageCap(168_600, undefined)).toBe(SS_WAGE_BASE);
+    expect(resolveEffectiveSsWageCap(168_600, false)).toBe(SS_WAGE_BASE);
+  });
+  it("legacy $168,600 WITH flag → still statutory cap (known-stale sentinel)", () => {
+    expect(resolveEffectiveSsWageCap(168_600, true)).toBe(SS_WAGE_BASE);
+  });
+  it("unexplained $171,145 without flag → statutory cap", () => {
+    expect(resolveEffectiveSsWageCap(171_145, undefined)).toBe(SS_WAGE_BASE);
+  });
+  it("unexplained $200,000 without flag → statutory cap", () => {
+    expect(resolveEffectiveSsWageCap(200_000, undefined)).toBe(SS_WAGE_BASE);
+  });
+});
+
+// ── Engine: FICA wage split (actual vs planned) for the SE tax UI ────────
+describe("calculateSETax — actual/planned FICA wage split", () => {
+  it("echoes actual+planned FICA offsets and sums to totalW2SsWagesUsed", () => {
+    // Gross ≠ FICA due to Section 125 (e.g. payroll HSA + premiums)
+    const actualFica = 90_000;   // actual YTD Box-3 wages
+    const plannedFica = 40_000;  // planned rest-of-year Box-3 wages
+    const grossW2 = 150_000;     // gross W-2 (unused for SS-cap math when FICA split provided)
+
+    const r = calculateSETax(
+      60_000,
+      "single",
+      SS_WAGE_BASE,
+      grossW2,
+      /* w2FicaWages */ undefined,
+      actualFica,
+      plannedFica,
+    );
+
+    expect(r.actualW2SsWagesUsed).toBe(actualFica);
+    expect(r.plannedW2SsWagesUsed).toBe(plannedFica);
+    expect(r.totalW2SsWagesUsed).toBe(actualFica + plannedFica);
+    expect(r.w2SsWagesUsed).toBe(actualFica + plannedFica); // NOT gross W-2
+    expect(r.ssRemainingBase).toBe(SS_WAGE_BASE - (actualFica + plannedFica));
+  });
+
+  it("planned-mode: gross W-2 is NOT used as the SS wage offset when FICA split is provided", () => {
+    const grossW2 = 200_000;
+    const actualFica = 100_000;
+    const plannedFica = 50_000;
+    const r = calculateSETax(
+      30_000, "single", SS_WAGE_BASE, grossW2, undefined, actualFica, plannedFica,
+    );
+    expect(r.w2SsWagesUsed).not.toBe(grossW2);
+    expect(r.w2SsWagesUsed).toBe(150_000);
+  });
+
+  it("backward-compat: no split → actual echoes total, planned is 0", () => {
+    const r = calculateSETax(50_000, "single", SS_WAGE_BASE, 100_000, 95_000);
+    expect(r.actualW2SsWagesUsed).toBe(95_000);
+    expect(r.plannedW2SsWagesUsed).toBe(0);
+    expect(r.totalW2SsWagesUsed).toBe(95_000);
+  });
+});

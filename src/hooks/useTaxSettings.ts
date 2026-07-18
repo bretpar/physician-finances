@@ -7,12 +7,10 @@ import { SS_WAGE_BASE } from "@/lib/taxBrackets";
 
 /**
  * Historical Social Security wage bases that shipped as auto-populated
- * defaults on `tax_settings` in previous app versions. When the persisted
- * value is one of these (and does not match the active-year base), we treat
- * it as a legacy default rather than an intentional user override and fall
- * back to the active-year `SS_WAGE_BASE`. This prevents an old row from
- * silently under-capping SE Social Security tax after the wage base rolls
- * forward. Values a user explicitly typed (e.g. 200000) are still honored.
+ * defaults on `tax_settings` in previous app versions. Preserved as a
+ * secondary guardrail: even if a legacy row somehow reaches the resolver
+ * with `customSsWageCapEnabled = true`, these stale hard-coded values are
+ * still treated as unintentional and fall back to the active-year cap.
  */
 const LEGACY_SS_WAGE_CAP_DEFAULTS = new Set<number>([
   137700, // 2020
@@ -23,10 +21,28 @@ const LEGACY_SS_WAGE_CAP_DEFAULTS = new Set<number>([
   176100, // 2025
 ]);
 
-function resolveEffectiveSsWageCap(raw: unknown): number {
+/**
+ * Resolve the effective Social Security wage cap for a persisted tax
+ * settings row. A saved numeric value is NEVER treated as a user override
+ * unless the caller explicitly passes `customEnabled = true`. This prevents
+ * legacy rows (which auto-populated positive values like 168600, 171145,
+ * 200000, etc.) from silently under-capping SE Social Security tax.
+ *
+ * Decision rules:
+ *   1. `customEnabled` falsy / missing → statutory active-year `SS_WAGE_BASE`.
+ *   2. `customEnabled = true` + invalid saved value (NaN, ≤ 0, missing)
+ *      → statutory active-year `SS_WAGE_BASE`.
+ *   3. `customEnabled = true` + saved value in `LEGACY_SS_WAGE_CAP_DEFAULTS`
+ *      → statutory active-year `SS_WAGE_BASE`.
+ *   4. `customEnabled = true` + valid positive custom value → custom value.
+ */
+export function resolveEffectiveSsWageCap(
+  raw: unknown,
+  customEnabled?: unknown,
+): number {
+  if (customEnabled !== true) return SS_WAGE_BASE;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return SS_WAGE_BASE;
-  if (n === SS_WAGE_BASE) return n;
   if (LEGACY_SS_WAGE_CAP_DEFAULTS.has(n)) return SS_WAGE_BASE;
   return n;
 }
@@ -61,6 +77,13 @@ export interface TaxRates {
   lastYearTax: number;
   standardDeductionOverride: number | null;
   ssWageCap: number;
+  /**
+   * Explicit opt-in gate for overriding the statutory Social Security wage
+   * base. Legacy rows without this flag default to `false`, so any saved
+   * `ssWageCap` value is ignored until an admin/developer control sets this
+   * to `true`. No user-visible UI yet.
+   */
+  customSsWageCapEnabled: boolean;
   taxMode: "projected_brackets" | "manual_effective_rate";
   manualEffectiveTaxRate: number | null;
   withholdingMethod: WithholdingMethod;
@@ -125,6 +148,7 @@ const DEFAULT_RATES: TaxRates = {
   lastYearTax: 0,
   standardDeductionOverride: null,
   ssWageCap: SS_WAGE_BASE,
+  customSsWageCapEnabled: false,
   taxMode: "projected_brackets",
   manualEffectiveTaxRate: null,
   withholdingMethod: "dynamic_planner",
@@ -254,7 +278,8 @@ function mapTaxSettingsRow(data: any): TaxRates {
     filingStatus: (data.filing_status as TaxRates["filingStatus"]) || "single",
     lastYearTax: Number(data.last_year_tax) || 0,
     standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,
-    ssWageCap: resolveEffectiveSsWageCap(data.ss_wage_cap),
+    ssWageCap: resolveEffectiveSsWageCap(data.ss_wage_cap, data.custom_ss_wage_cap_enabled),
+    customSsWageCapEnabled: !!data.custom_ss_wage_cap_enabled,
     taxMode: (d.tax_mode as TaxRates["taxMode"]) || "projected_brackets",
     manualEffectiveTaxRate: d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null,
     withholdingMethod: (d.withholding_method as WithholdingMethod) || "dynamic_planner",
@@ -327,6 +352,7 @@ export function useUpdateTaxSettings() {
       if (rest.lastYearTax !== undefined) payload.last_year_tax = rest.lastYearTax;
       if (rest.standardDeductionOverride !== undefined) payload.standard_deduction_override = rest.standardDeductionOverride;
       if (rest.ssWageCap !== undefined) payload.ss_wage_cap = rest.ssWageCap;
+      if ((rest as any).customSsWageCapEnabled !== undefined) payload.custom_ss_wage_cap_enabled = (rest as any).customSsWageCapEnabled;
       if (rest.withholdingMethod !== undefined) payload.withholding_method = rest.withholdingMethod;
       if (rest.w2PaycheckRecMethod !== undefined) payload.w2_paycheck_rec_method = rest.w2PaycheckRecMethod;
       if (rest.manualEffectiveTaxRate !== undefined) payload.manual_effective_tax_rate = rest.manualEffectiveTaxRate;

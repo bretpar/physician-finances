@@ -186,6 +186,12 @@ export interface TaxBreakdownResult {
     deductibleHalf: number;
     ssWageCap: number;
     w2SsWagesUsed: number;
+    /** Actual (YTD) portion of `w2SsWagesUsed`, straight from the engine. */
+    actualW2SsWagesUsed: number;
+    /** Planned (future) portion of `w2SsWagesUsed`, straight from the engine. */
+    plannedW2SsWagesUsed: number;
+    /** Sum of actual + planned FICA offsets = `w2SsWagesUsed`. */
+    totalW2SsWagesUsed: number;
     ssRemainingBase: number;
     ssTaxableBase: number;
   };
@@ -811,7 +817,7 @@ export function useTaxBreakdown(
         actualBusinessRevenue, actualW2Income, actualOtherIncome,
         taxableOrdinaryIncome: 0, taxableLTCG: 0, totalTaxableIncome: 0,
         ordinaryBracketCalc: empty, ltcgBracketCalc: empty,
-        seTax: { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0, ssWageCap: 0, w2SsWagesUsed: 0, ssRemainingBase: 0, ssTaxableBase: 0 },
+        seTax: { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0, ssWageCap: 0, w2SsWagesUsed: 0, actualW2SsWagesUsed: 0, plannedW2SsWagesUsed: 0, totalW2SsWagesUsed: 0, ssRemainingBase: 0, ssTaxableBase: 0 },
         federalTaxBeforeCredits: 0, dependentCredits: 0, taxCredits: 0, federalTaxAfterCredits: 0,
         qualifyingChildrenCount: 0, otherDependentsCount: 0,
         totalEstimatedTax: 0, personalStateTax: 0, businessStateTax: 0, stateTax: 0,
@@ -967,6 +973,9 @@ export function useTaxBreakdown(
         // Display-only intermediates from the engine (never independently recalculated in UI).
         ssWageCap: seTaxFromEngine?.ssWageCap ?? 0,
         w2SsWagesUsed: seTaxFromEngine?.w2SsWagesUsed ?? 0,
+        actualW2SsWagesUsed: seTaxFromEngine?.actualW2SsWagesUsed ?? 0,
+        plannedW2SsWagesUsed: seTaxFromEngine?.plannedW2SsWagesUsed ?? 0,
+        totalW2SsWagesUsed: seTaxFromEngine?.totalW2SsWagesUsed ?? 0,
         ssRemainingBase: seTaxFromEngine?.ssRemainingBase ?? 0,
         ssTaxableBase: seTaxFromEngine?.ssTaxableBase ?? 0,
       },

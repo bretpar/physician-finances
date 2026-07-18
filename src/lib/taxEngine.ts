@@ -84,6 +84,20 @@ export interface SelfEmploymentTax {
    *  wages (gross W-2 − Section 125, i.e. the Box-3 equivalent) when
    *  supplied by the caller; falls back to gross W-2 wages. */
   w2SsWagesUsed: number;
+  /**
+   * Actual (YTD) portion of `w2SsWagesUsed`, echoed straight from caller.
+   * When the caller does not split actual vs planned, this equals the full
+   * `w2SsWagesUsed` value (backward-compatible).
+   */
+  actualW2SsWagesUsed: number;
+  /**
+   * Planned (future) portion of `w2SsWagesUsed`, echoed straight from
+   * caller. Zero when the caller does not split actual vs planned, or when
+   * planned income is not included in the estimate.
+   */
+  plannedW2SsWagesUsed: number;
+  /** Sum of `actualW2SsWagesUsed + plannedW2SsWagesUsed` — equals `w2SsWagesUsed`. */
+  totalW2SsWagesUsed: number;
   /** SS wage-base room left over for SE income after subtracting W-2 wages. */
   ssRemainingBase: number;
   /** Portion of the SE base actually subject to the 12.4% SS tax. */
@@ -100,27 +114,43 @@ export function calculateSETax(
    * cap-offset and the Additional Medicare Tax threshold — both are defined
    * against FICA wages, not gross. Defaults to `w2Wages` when the caller
    * does not know Section 125 (backward-compatible).
-   *
-   * This value is the Box-3 equivalent (Social Security wages). We do not
-   * yet have a dedicated Box-3 field on income entries, so callers derive
-   * it from `grossW2 − Section 125`, which matches IRS Pub 15-B. The
-   * fallback to `w2Wages` preserves prior behavior when no FICA breakdown
-   * is available.
    */
   w2FicaWages?: number,
+  /**
+   * Optional split of `w2FicaWages` into actual (YTD) and planned (future)
+   * components. When both are supplied, their sum overrides
+   * `w2FicaWages`/`w2Wages` as the effective W-2 wages consumed against the
+   * SS wage base, and both values are echoed back on the result so the UI
+   * can display them without re-deriving them from breakdown aggregates
+   * (which are Section 125-inclusive gross, not FICA wages).
+   */
+  actualW2FicaWages?: number,
+  plannedW2FicaWages?: number,
 ): SelfEmploymentTax {
+  const hasSplit =
+    typeof actualW2FicaWages === "number" || typeof plannedW2FicaWages === "number";
+  const actualPart = Math.max(0, actualW2FicaWages ?? 0);
+  const plannedPart = Math.max(0, plannedW2FicaWages ?? 0);
+  const effectiveW2 = hasSplit
+    ? actualPart + plannedPart
+    : Math.max(0, w2FicaWages ?? w2Wages);
+  const echoActual = hasSplit ? actualPart : effectiveW2;
+  const echoPlanned = hasSplit ? plannedPart : 0;
+
   const zero: SelfEmploymentTax = {
     netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0,
     total: 0, deductibleHalf: 0,
     ssWageCap: Math.max(0, ssWageCap),
-    w2SsWagesUsed: Math.max(0, w2FicaWages ?? w2Wages),
-    ssRemainingBase: Math.max(0, ssWageCap - Math.max(0, w2FicaWages ?? w2Wages)),
+    w2SsWagesUsed: effectiveW2,
+    actualW2SsWagesUsed: echoActual,
+    plannedW2SsWagesUsed: echoPlanned,
+    totalW2SsWagesUsed: effectiveW2,
+    ssRemainingBase: Math.max(0, ssWageCap - effectiveW2),
     ssTaxableBase: 0,
   };
   if (netSEIncome <= 0) return zero;
 
   const seBase = netSEIncome * SE_INCOME_FACTOR;
-  const effectiveW2 = Math.max(0, w2FicaWages ?? w2Wages);
 
   // SS: 12.4% up to wage cap, minus W-2 wages already subject to SS.
   const ssRemaining = Math.max(0, ssWageCap - effectiveW2);
@@ -147,6 +177,9 @@ export function calculateSETax(
     netSEIncome, seBase, ssTax, medicareTax, additionalMedicare, total, deductibleHalf,
     ssWageCap: Math.max(0, ssWageCap),
     w2SsWagesUsed: effectiveW2,
+    actualW2SsWagesUsed: echoActual,
+    plannedW2SsWagesUsed: echoPlanned,
+    totalW2SsWagesUsed: effectiveW2,
     ssRemainingBase: ssRemaining,
     ssTaxableBase: ssTaxable,
   };
@@ -433,6 +466,14 @@ export function calculateFullEstimate(params: {
   otherIncome?: number;
   /** W-2 payroll pre-tax deductions; subtracted once before total return income. */
   w2PreTaxDeductions?: number;
+  /**
+   * Optional split of W-2 FICA wages into actual (YTD) and planned (future)
+   * components. When both are provided, they are passed through to
+   * `calculateSETax` so the UI can display each half without re-deriving
+   * FICA wages from Section 125-inclusive gross-income aggregates.
+   */
+  actualW2FicaWages?: number;
+  plannedW2FicaWages?: number;
   /** Non-W-2 pre-tax above-the-line deductions only. */
   preTaxDeductions: number;
   retirement401k: number;
@@ -481,6 +522,8 @@ export function calculateFullEstimate(params: {
     grossBusinessIncome: grossBusinessIncomeParam,
     otherIncome: otherIncomeParam,
     w2PreTaxDeductions: w2PreTaxDeductionsParam = 0,
+    actualW2FicaWages,
+    plannedW2FicaWages,
     preTaxDeductions, retirement401k,
     healthInsuranceDeduction = 0,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
@@ -514,7 +557,15 @@ export function calculateFullEstimate(params: {
   // not gross W-2, per IRS Pub 15-B.
   const netSEIncome = seIncome - seBusinessDeductions - seMileageDeduction;
   const w2FicaWages = Math.max(0, w2Income - w2PreTaxDeductions);
-  const seTax = calculateSETax(netSEIncome, filingStatus, ssWageCap, w2Income, w2FicaWages);
+  const seTax = calculateSETax(
+    netSEIncome,
+    filingStatus,
+    ssWageCap,
+    w2Income,
+    w2FicaWages,
+    actualW2FicaWages,
+    plannedW2FicaWages,
+  );
 
   // Net business profit (display) — uses gross business income (all biz) minus
   // expenses & mileage. May differ from netSEIncome when SE-ineligible business

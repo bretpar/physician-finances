@@ -1,0 +1,2 @@
+ALTER TABLE public.tax_settings ADD COLUMN IF NOT EXISTS custom_ss_wage_cap_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+COMMENT ON COLUMN public.tax_settings.custom_ss_wage_cap_enabled IS 'Explicit opt-in gate for overriding the statutory Social Security wage base with ss_wage_cap. Legacy rows default to FALSE so any saved numeric value is ignored until this flag is explicitly enabled.';
