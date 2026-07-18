@@ -377,6 +377,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     grossBusinessIncome,
     otherIncome,
     w2PreTaxDeductions,
+    actualW2FicaWages,
+    plannedW2FicaWages,
     preTaxDeductions: nonW2PreTaxDeductions,
     retirement401k: combined401k,
     healthInsuranceDeduction,
