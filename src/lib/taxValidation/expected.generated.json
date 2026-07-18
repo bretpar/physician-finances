@@ -48,20 +48,20 @@
     "qbiDeduction": 20571.4176
   },
   "w2-plus-1099-mfj-300k": {
-    "agi": 273871.652,
-    "totalTaxableIncome": 229897.3216,
-    "federalIncomeTax": 40371.357184,
+    "agi": 274035.866,
+    "totalTaxableIncome": 230028.6928,
+    "federalIncomeTax": 40402.886271999996,
     "stateTax": 0,
     "seSocialSecurityTax": 0,
     "seMedicareTax": 1928.268,
     "seAdditionalMedicareTax": 328.428,
     "selfEmploymentTax": 2256.696,
-    "canonicalEffectiveTaxRate": 14.598648350684934,
+    "canonicalEffectiveTaxRate": 14.609445983561645,
     "taxesAlreadyWithheldOrPaid": 38000,
-    "recommendedSetAside": 178.0020455384617,
-    "quarterlyRecommendation": 10657.013296000001,
-    "w4Recommendation": 178.0020455384617,
-    "qbiDeduction": 11774.3304
+    "recommendedSetAside": 179.21470276923077,
+    "quarterlyRecommendation": 10664.895568,
+    "w4Recommendation": 179.21470276923077,
+    "qbiDeduction": 11807.173200000001
   },
   "multi-business-1099-plus-k1": {
     "agi": 120815.7925,
@@ -96,20 +96,20 @@
     "qbiDeduction": 0
   },
   "high-income-physician": {
-    "agi": 528357.6175,
-    "totalTaxableIncome": 495268.2012623027,
-    "federalIncomeTax": 107147.82440393686,
+    "agi": 528793.97125,
+    "totalTaxableIncome": 495750.9844378166,
+    "federalIncomeTax": 107302.31502010132,
     "stateTax": 2160,
     "seSocialSecurityTax": 0,
     "seMedicareTax": 2812.0575000000003,
     "seAdditionalMedicareTax": 872.7075,
     "selfEmploymentTax": 3684.7650000000003,
-    "canonicalEffectiveTaxRate": 18.93624759576619,
+    "canonicalEffectiveTaxRate": 18.96213843138953,
     "taxesAlreadyWithheldOrPaid": 135000,
     "recommendedSetAside": 0,
-    "quarterlyRecommendation": 28248.147350984214,
+    "quarterlyRecommendation": 28286.77000502533,
     "w4Recommendation": 0,
-    "qbiDeduction": 889.4162376973815
+    "qbiDeduction": 842.9868121833535
   },
   "low-income-taxpayer": {
     "agi": 12000,
@@ -160,35 +160,35 @@
     "qbiDeduction": 20943.1585
   },
   "qbi-physician-within-phasein-mfj": {
-    "agi": 427718.955,
-    "totalTaxableIncome": 369975.164,
-    "federalIncomeTax": 73990.03936,
+    "agi": 428259.2025,
+    "totalTaxableIncome": 370407.362,
+    "federalIncomeTax": 74093.76688000001,
     "stateTax": 0,
     "seSocialSecurityTax": 0,
     "seMedicareTax": 3481.5950000000003,
     "seAdditionalMedicareTax": 1080.495,
     "selfEmploymentTax": 4562.09,
-    "canonicalEffectiveTaxRate": 18.267937060465115,
+    "canonicalEffectiveTaxRate": 18.292059739534885,
     "taxesAlreadyWithheldOrPaid": 0,
-    "recommendedSetAside": 3021.235744615384,
-    "quarterlyRecommendation": 19638.032339999998,
-    "w4Recommendation": 3021.235744615384,
-    "qbiDeduction": 25543.791
+    "recommendedSetAside": 3025.2252646153847,
+    "quarterlyRecommendation": 19663.96422,
+    "w4Recommendation": 3025.2252646153847,
+    "qbiDeduction": 25651.840500000002
   },
   "qbi-physician-above-phaseout-mfj": {
-    "agi": 671929.3625,
-    "totalTaxableIncome": 639729.3625,
-    "federalIncomeTax": 161443.776875,
+    "agi": 672656.61875,
+    "totalTaxableIncome": 640456.61875,
+    "federalIncomeTax": 161698.3165625,
     "stateTax": 0,
     "seSocialSecurityTax": 0,
     "seMedicareTax": 4686.7625,
     "seAdditionalMedicareTax": 1454.5124999999998,
     "selfEmploymentTax": 6141.275,
-    "canonicalEffectiveTaxRate": 24.827415092592595,
+    "canonicalEffectiveTaxRate": 24.865124675925927,
     "taxesAlreadyWithheldOrPaid": 0,
-    "recommendedSetAside": 6445.578918269231,
-    "quarterlyRecommendation": 41896.26296875,
-    "w4Recommendation": 6445.578918269231,
+    "recommendedSetAside": 6455.36890625,
+    "quarterlyRecommendation": 41959.897890625,
+    "w4Recommendation": 6455.36890625,
     "qbiDeduction": 0
   }
 }
