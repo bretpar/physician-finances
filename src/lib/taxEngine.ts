@@ -466,6 +466,14 @@ export function calculateFullEstimate(params: {
   otherIncome?: number;
   /** W-2 payroll pre-tax deductions; subtracted once before total return income. */
   w2PreTaxDeductions?: number;
+  /**
+   * Optional split of W-2 FICA wages into actual (YTD) and planned (future)
+   * components. When both are provided, they are passed through to
+   * `calculateSETax` so the UI can display each half without re-deriving
+   * FICA wages from Section 125-inclusive gross-income aggregates.
+   */
+  actualW2FicaWages?: number;
+  plannedW2FicaWages?: number;
   /** Non-W-2 pre-tax above-the-line deductions only. */
   preTaxDeductions: number;
   retirement401k: number;
