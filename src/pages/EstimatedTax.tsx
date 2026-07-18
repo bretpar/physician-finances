@@ -452,7 +452,7 @@ export default function EstimatedTax() {
                 <Input
                   type="number" step="100" min="0"
                   defaultValue={rates.ssWageCap}
-                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, ssWageCap: parseFloat(ev.target.value) || 168600 })}
+                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, ssWageCap: parseFloat(ev.target.value) || SS_WAGE_BASE })}
                 />
               </div>
               <div className="space-y-1.5">
