@@ -522,6 +522,8 @@ export function calculateFullEstimate(params: {
     grossBusinessIncome: grossBusinessIncomeParam,
     otherIncome: otherIncomeParam,
     w2PreTaxDeductions: w2PreTaxDeductionsParam = 0,
+    actualW2FicaWages,
+    plannedW2FicaWages,
     preTaxDeductions, retirement401k,
     healthInsuranceDeduction = 0,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
