@@ -184,6 +184,10 @@ export interface TaxBreakdownResult {
     additionalMedicare: number;
     total: number;
     deductibleHalf: number;
+    ssWageCap: number;
+    w2SsWagesUsed: number;
+    ssRemainingBase: number;
+    ssTaxableBase: number;
   };
   federalTaxBeforeCredits: number;
   dependentCredits: number;
