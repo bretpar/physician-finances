@@ -135,6 +135,37 @@ export interface TaxPrepPdfInput {
   quarters: QuarterRow[];
   includeAppendix?: boolean;
   transactions?: TransactionRow[];
+  /** Unique per-export identifier (short hex). Stamped in the footer so QA
+   *  can confirm each downloaded PDF is a fresh generation. */
+  exportId?: string;
+  /** Explicit generation timestamp (defaults to now). Stamped in the footer
+   *  and used to build the unique filename. */
+  generatedAt?: Date;
+}
+
+export interface TaxPrepPdfResult {
+  filename: string;
+  exportId: string;
+  generatedAt: Date;
+}
+
+function generateExportId(): string {
+  const cryptoObj: Crypto | undefined =
+    typeof globalThis !== "undefined" ? (globalThis as any).crypto : undefined;
+  if (cryptoObj?.getRandomValues) {
+    const bytes = new Uint8Array(4);
+    cryptoObj.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  return Math.random().toString(16).slice(2, 10).padEnd(8, "0");
+}
+
+function formatFilenameStamp(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  );
 }
 
 // ──────────────────────────────────────────── Layout primitives ────
