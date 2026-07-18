@@ -964,6 +964,11 @@ export function useTaxBreakdown(
         additionalMedicare: seTaxFromEngine?.additionalMedicare ?? debug.seAdditionalMedicareTax,
         total: debug.selfEmploymentTax,
         deductibleHalf: seDeductibleHalf,
+        // Display-only intermediates from the engine (never independently recalculated in UI).
+        ssWageCap: seTaxFromEngine?.ssWageCap ?? 0,
+        w2SsWagesUsed: seTaxFromEngine?.w2SsWagesUsed ?? 0,
+        ssRemainingBase: seTaxFromEngine?.ssRemainingBase ?? 0,
+        ssTaxableBase: seTaxFromEngine?.ssTaxableBase ?? 0,
       },
       federalTaxBeforeCredits,
       dependentCredits,
