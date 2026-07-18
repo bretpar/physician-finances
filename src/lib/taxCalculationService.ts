@@ -330,6 +330,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   const combinedPreTax = businessPreTax + personalPreTax + projPreTax;
   const w2PreTaxDeductions = businessPreTax + personalPreTax + projPreTax;
   const w2TaxableIncomeBase = Math.max(0, w2Income - w2PreTaxDeductions);
+  // Actual vs planned FICA-wage split, echoed into the SE tax result so the
+  // MathAccordion UI can display each half without independently deriving
+  // FICA wages from Section 125-inclusive gross-income aggregates.
+  const actualW2FicaWages = Math.max(0, (businessW2 + personalW2) - (businessPreTax + personalPreTax));
+  const plannedW2FicaWages = Math.max(0, projW2 - projPreTax);
   const nonW2HsaAboveLineDeduction = Math.max(0, businessNonW2HsaAboveLine) + Math.max(0, personalNonW2HsaAboveLine);
   const nonW2PreTaxDeductions = nonW2HsaAboveLineDeduction;
   const actualHealthInsuranceDeduction = ownerHealthcare;
