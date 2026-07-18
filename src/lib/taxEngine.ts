@@ -557,7 +557,15 @@ export function calculateFullEstimate(params: {
   // not gross W-2, per IRS Pub 15-B.
   const netSEIncome = seIncome - seBusinessDeductions - seMileageDeduction;
   const w2FicaWages = Math.max(0, w2Income - w2PreTaxDeductions);
-  const seTax = calculateSETax(netSEIncome, filingStatus, ssWageCap, w2Income, w2FicaWages);
+  const seTax = calculateSETax(
+    netSEIncome,
+    filingStatus,
+    ssWageCap,
+    w2Income,
+    w2FicaWages,
+    actualW2FicaWages,
+    plannedW2FicaWages,
+  );
 
   // Net business profit (display) — uses gross business income (all biz) minus
   // expenses & mileage. May differ from netSEIncome when SE-ineligible business
