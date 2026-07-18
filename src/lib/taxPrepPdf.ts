@@ -227,7 +227,10 @@ function drawPageChrome(
   doc.line(MARGIN_X, FOOTER_Y, pageWidth - MARGIN_X, FOOTER_Y);
 }
 
-function stampFooters(doc: jsPDF) {
+function stampFooters(
+  doc: jsPDF,
+  meta: { generatedAtLabel: string; exportId: string; taxYear: string },
+) {
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
@@ -243,6 +246,15 @@ function stampFooters(doc: jsPDF) {
     doc.text(`Page ${i} of ${total}`, w - MARGIN_X, FOOTER_Y + 14, {
       align: "right",
     });
+    // Export provenance stamp — lets QA / users confirm the PDF is the
+    // freshly generated one and not a stale re-opened download.
+    doc.setFontSize(7);
+    doc.setTextColor(150);
+    doc.text(
+      `Tax Year ${meta.taxYear} · Generated ${meta.generatedAtLabel} · Export ID: ${meta.exportId}`,
+      MARGIN_X,
+      FOOTER_Y + 26,
+    );
   }
 }
 
