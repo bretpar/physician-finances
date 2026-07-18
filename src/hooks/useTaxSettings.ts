@@ -148,6 +148,7 @@ const DEFAULT_RATES: TaxRates = {
   lastYearTax: 0,
   standardDeductionOverride: null,
   ssWageCap: SS_WAGE_BASE,
+  customSsWageCapEnabled: false,
   taxMode: "projected_brackets",
   manualEffectiveTaxRate: null,
   withholdingMethod: "dynamic_planner",
