@@ -7,12 +7,10 @@ import { SS_WAGE_BASE } from "@/lib/taxBrackets";
 
 /**
  * Historical Social Security wage bases that shipped as auto-populated
- * defaults on `tax_settings` in previous app versions. When the persisted
- * value is one of these (and does not match the active-year base), we treat
- * it as a legacy default rather than an intentional user override and fall
- * back to the active-year `SS_WAGE_BASE`. This prevents an old row from
- * silently under-capping SE Social Security tax after the wage base rolls
- * forward. Values a user explicitly typed (e.g. 200000) are still honored.
+ * defaults on `tax_settings` in previous app versions. Preserved as a
+ * secondary guardrail: even if a legacy row somehow reaches the resolver
+ * with `customSsWageCapEnabled = true`, these stale hard-coded values are
+ * still treated as unintentional and fall back to the active-year cap.
  */
 const LEGACY_SS_WAGE_CAP_DEFAULTS = new Set<number>([
   137700, // 2020
@@ -23,10 +21,28 @@ const LEGACY_SS_WAGE_CAP_DEFAULTS = new Set<number>([
   176100, // 2025
 ]);
 
-function resolveEffectiveSsWageCap(raw: unknown): number {
+/**
+ * Resolve the effective Social Security wage cap for a persisted tax
+ * settings row. A saved numeric value is NEVER treated as a user override
+ * unless the caller explicitly passes `customEnabled = true`. This prevents
+ * legacy rows (which auto-populated positive values like 168600, 171145,
+ * 200000, etc.) from silently under-capping SE Social Security tax.
+ *
+ * Decision rules:
+ *   1. `customEnabled` falsy / missing → statutory active-year `SS_WAGE_BASE`.
+ *   2. `customEnabled = true` + invalid saved value (NaN, ≤ 0, missing)
+ *      → statutory active-year `SS_WAGE_BASE`.
+ *   3. `customEnabled = true` + saved value in `LEGACY_SS_WAGE_CAP_DEFAULTS`
+ *      → statutory active-year `SS_WAGE_BASE`.
+ *   4. `customEnabled = true` + valid positive custom value → custom value.
+ */
+export function resolveEffectiveSsWageCap(
+  raw: unknown,
+  customEnabled?: unknown,
+): number {
+  if (customEnabled !== true) return SS_WAGE_BASE;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return SS_WAGE_BASE;
-  if (n === SS_WAGE_BASE) return n;
   if (LEGACY_SS_WAGE_CAP_DEFAULTS.has(n)) return SS_WAGE_BASE;
   return n;
 }
