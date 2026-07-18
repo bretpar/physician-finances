@@ -744,9 +744,11 @@ function renderWorksheetForEntity(doc: jsPDF, w: BusinessWorksheet) {
 
 // ─────────────────────────────────────────────────────────── Main ────
 
-export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
+export function exportTaxPrepPdf(data: TaxPrepPdfInput): TaxPrepPdfResult {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const generatedAt = new Date().toLocaleString();
+  const generatedAt = data.generatedAt ?? new Date();
+  const exportId = data.exportId ?? generateExportId();
+  const generatedAtLabel = generatedAt.toLocaleString();
 
   const pages: Array<{ title: string; render: () => void }> = [
     { title: "Tax Preparation Summary", render: () => renderSummaryCards(doc, data) },
@@ -795,14 +797,38 @@ export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
 
   pages.forEach((p, i) => {
     if (i > 0) doc.addPage();
-    drawPageChrome(doc, data, generatedAt, p.title);
+    drawPageChrome(doc, data, generatedAtLabel, p.title);
     p.render();
   });
 
   if (data.includeAppendix && data.transactions && data.transactions.length > 0) {
-    renderAppendix(doc, data, generatedAt);
+    renderAppendix(doc, data, generatedAtLabel);
   }
 
-  stampFooters(doc);
-  doc.save(`tax-prep-${data.taxYear}.pdf`);
+  stampFooters(doc, { generatedAtLabel, exportId, taxYear: data.taxYear });
+
+  const filename = `PaycheckMD-Tax-Prep-${data.taxYear}-${formatFilenameStamp(
+    generatedAt,
+  )}-${exportId}.pdf`;
+
+  // Generate a fresh Blob + object URL for this export, trigger the
+  // download, then revoke the URL so no prior blob/URL can be reused.
+  try {
+    const blob: Blob = doc.output("blob") as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Revoke on the next tick so the browser has committed the download.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  } catch {
+    // Fallback for non-browser environments (tests / SSR).
+    doc.save(filename);
+  }
+
+  return { filename, exportId, generatedAt };
 }
