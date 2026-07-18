@@ -352,6 +352,7 @@ export function useUpdateTaxSettings() {
       if (rest.lastYearTax !== undefined) payload.last_year_tax = rest.lastYearTax;
       if (rest.standardDeductionOverride !== undefined) payload.standard_deduction_override = rest.standardDeductionOverride;
       if (rest.ssWageCap !== undefined) payload.ss_wage_cap = rest.ssWageCap;
+      if ((rest as any).customSsWageCapEnabled !== undefined) payload.custom_ss_wage_cap_enabled = (rest as any).customSsWageCapEnabled;
       if (rest.withholdingMethod !== undefined) payload.withholding_method = rest.withholdingMethod;
       if (rest.w2PaycheckRecMethod !== undefined) payload.w2_paycheck_rec_method = rest.w2PaycheckRecMethod;
       if (rest.manualEffectiveTaxRate !== undefined) payload.manual_effective_tax_rate = rest.manualEffectiveTaxRate;
