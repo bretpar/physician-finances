@@ -360,26 +360,32 @@ export function SETaxMath({ data }: { data: TaxBreakdownResult }) {
         <>
           <Step
             label="Actual W-2 Social Security wages counted"
-            value={fmt(data.actualW2Income)}
+            value={fmt(se.actualW2SsWagesUsed)}
             op="subtract"
-            hint="Gross W-2 wages minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
+            hint="Actual (YTD) FICA-taxable W-2 wages from the engine: gross W-2 minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
           />
-          {data.plannedW2Income > 0 && (
+          {se.plannedW2SsWagesUsed > 0 && (
             <Step
               label="Planned W-2 Social Security wages counted"
-              value={fmt(data.plannedW2Income)}
+              value={fmt(se.plannedW2SsWagesUsed)}
               op="subtract"
               planned
-              hint="Planned W-2 wages projected for the rest of the year, applied against the same wage base."
+              hint="Planned (future) FICA-taxable W-2 wages projected for the rest of the year, applied against the same wage base."
             />
           )}
+          <Step
+            label="Total W-2 Social Security wage offset"
+            value={fmt(se.totalW2SsWagesUsed)}
+            op="equals"
+            hint="Sum of actual + planned FICA wages consumed against the Social Security wage base. Reconciles exactly to the engine's remaining wage base."
+          />
         </>
       ) : (
         <Step
           label="W-2 Social Security wages counted"
           value={fmt(se.w2SsWagesUsed)}
           op="subtract"
-          hint="Gross W-2 wages minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
+          hint="FICA-taxable W-2 wages from the engine: gross W-2 minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
         />
       )}
       <Step
