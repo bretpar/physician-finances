@@ -1392,9 +1392,9 @@ export default function Reports() {
             <Button variant="outline" onClick={() => setPdfPreviewOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={confirmExportTaxPDF}>
+            <Button onClick={confirmExportTaxPDF} disabled={taxEstimateLoading}>
               <Download className="h-3.5 w-3.5 mr-1.5" />
-              Download PDF
+              {taxEstimateLoading ? "Loading latest data…" : "Download PDF"}
             </Button>
           </DialogFooter>
         </DialogContent>
