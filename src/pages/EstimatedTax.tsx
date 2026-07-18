@@ -16,6 +16,7 @@ import {
   BRACKETS_SINGLE, BRACKETS_MFJ, STANDARD_DEDUCTION,
   type TaxBracket,
 } from "@/lib/taxEngine";
+import { SS_WAGE_BASE } from "@/lib/taxBrackets";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -248,8 +249,12 @@ export default function EstimatedTax() {
             <div className="pl-4 space-y-1 text-xs text-muted-foreground">
               <div className="flex justify-between"><span>Social Security</span><span>{fmt(e.seTax.ssTax)}</span></div>
               <div className="flex justify-between"><span>Medicare</span><span>{fmt(e.seTax.medicareTax)}</span></div>
-              {e.seTax.additionalMedicare > 0 && (
-                <div className="flex justify-between"><span>Additional Medicare</span><span>{fmt(e.seTax.additionalMedicare)}</span></div>
+              <div className="flex justify-between"><span>Additional Medicare</span><span>{fmt(e.seTax.additionalMedicare)}</span></div>
+              {e.seTax.ssTax === 0 && e.seTax.w2SsWagesUsed >= e.seTax.ssWageCap && e.seTax.ssWageCap > 0 && (
+                <p className="italic pt-1">
+                  W-2 wages have used the full Social Security wage base. Additional
+                  business earnings remain subject to Medicare tax.
+                </p>
               )}
               <div className="flex justify-between"><span>Deductible half (reduces AGI)</span><span>−{fmt(e.seTax.deductibleHalf)}</span></div>
             </div>
@@ -447,7 +452,7 @@ export default function EstimatedTax() {
                 <Input
                   type="number" step="100" min="0"
                   defaultValue={rates.ssWageCap}
-                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, ssWageCap: parseFloat(ev.target.value) || 168600 })}
+                  onBlur={(ev) => updateSettings.mutate({ id: rates.id!, ssWageCap: parseFloat(ev.target.value) || SS_WAGE_BASE })}
                 />
               </div>
               <div className="space-y-1.5">

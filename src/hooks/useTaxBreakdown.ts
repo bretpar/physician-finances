@@ -184,6 +184,10 @@ export interface TaxBreakdownResult {
     additionalMedicare: number;
     total: number;
     deductibleHalf: number;
+    ssWageCap: number;
+    w2SsWagesUsed: number;
+    ssRemainingBase: number;
+    ssTaxableBase: number;
   };
   federalTaxBeforeCredits: number;
   dependentCredits: number;
@@ -807,7 +811,7 @@ export function useTaxBreakdown(
         actualBusinessRevenue, actualW2Income, actualOtherIncome,
         taxableOrdinaryIncome: 0, taxableLTCG: 0, totalTaxableIncome: 0,
         ordinaryBracketCalc: empty, ltcgBracketCalc: empty,
-        seTax: { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0 },
+        seTax: { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0, ssWageCap: 0, w2SsWagesUsed: 0, ssRemainingBase: 0, ssTaxableBase: 0 },
         federalTaxBeforeCredits: 0, dependentCredits: 0, taxCredits: 0, federalTaxAfterCredits: 0,
         qualifyingChildrenCount: 0, otherDependentsCount: 0,
         totalEstimatedTax: 0, personalStateTax: 0, businessStateTax: 0, stateTax: 0,
@@ -960,6 +964,11 @@ export function useTaxBreakdown(
         additionalMedicare: seTaxFromEngine?.additionalMedicare ?? debug.seAdditionalMedicareTax,
         total: debug.selfEmploymentTax,
         deductibleHalf: seDeductibleHalf,
+        // Display-only intermediates from the engine (never independently recalculated in UI).
+        ssWageCap: seTaxFromEngine?.ssWageCap ?? 0,
+        w2SsWagesUsed: seTaxFromEngine?.w2SsWagesUsed ?? 0,
+        ssRemainingBase: seTaxFromEngine?.ssRemainingBase ?? 0,
+        ssTaxableBase: seTaxFromEngine?.ssTaxableBase ?? 0,
       },
       federalTaxBeforeCredits,
       dependentCredits,

@@ -216,9 +216,18 @@ describe("SE tax calculation", () => {
     expect(result.additionalMedicare).toBeGreaterThan(0);
   });
 
-  it("deductible half is exactly 50% of total", () => {
+  it("deductible half is (SS + regular Medicare)/2 — excludes Additional Medicare", () => {
     const result = calculateSETax(100000, "single");
-    expect(result.deductibleHalf).toBeCloseTo(result.total / 2, 2);
+    // No Additional Medicare at $100k SE income
+    expect(result.additionalMedicare).toBe(0);
+    expect(result.deductibleHalf).toBeCloseTo((result.ssTax + result.medicareTax) / 2, 2);
+
+    // At a level that triggers Additional Medicare, deductibleHalf must exclude it.
+    const highSe = calculateSETax(300000, "single", SS_WAGE_CAP_DEFAULT, 0);
+    expect(highSe.additionalMedicare).toBeGreaterThan(0);
+    expect(highSe.deductibleHalf).toBeCloseTo((highSe.ssTax + highSe.medicareTax) / 2, 2);
+    // And explicitly less than total/2 (proving addl-medicare is excluded).
+    expect(highSe.deductibleHalf).toBeLessThan(highSe.total / 2);
   });
 });
 

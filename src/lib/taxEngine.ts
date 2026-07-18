@@ -68,7 +68,26 @@ export interface SelfEmploymentTax {
   medicareTax: number;
   additionalMedicare: number;
   total: number;
+  /**
+   * IRC §164(f) above-the-line deduction. Equals (ssTax + regular Medicare)/2
+   * — the employer-equivalent half of self-employment tax.
+   *
+   * NOTE: Additional Medicare Tax (0.9%) is EXCLUDED because it is an
+   * employee-only surtax with no employer match and no deductible half.
+   * See IRC §164(f)(1) and Schedule SE line 13.
+   */
   deductibleHalf: number;
+  // ── Display-only intermediates (surfaced for the SE tax details UI) ─────
+  /** Active-year Social Security wage base applied to this calc. */
+  ssWageCap: number;
+  /** W-2 wages that consumed Social Security wage-base room. Prefers FICA
+   *  wages (gross W-2 − Section 125, i.e. the Box-3 equivalent) when
+   *  supplied by the caller; falls back to gross W-2 wages. */
+  w2SsWagesUsed: number;
+  /** SS wage-base room left over for SE income after subtracting W-2 wages. */
+  ssRemainingBase: number;
+  /** Portion of the SE base actually subject to the 12.4% SS tax. */
+  ssTaxableBase: number;
 }
 
 export function calculateSETax(
@@ -81,10 +100,24 @@ export function calculateSETax(
    * cap-offset and the Additional Medicare Tax threshold — both are defined
    * against FICA wages, not gross. Defaults to `w2Wages` when the caller
    * does not know Section 125 (backward-compatible).
+   *
+   * This value is the Box-3 equivalent (Social Security wages). We do not
+   * yet have a dedicated Box-3 field on income entries, so callers derive
+   * it from `grossW2 − Section 125`, which matches IRS Pub 15-B. The
+   * fallback to `w2Wages` preserves prior behavior when no FICA breakdown
+   * is available.
    */
   w2FicaWages?: number,
 ): SelfEmploymentTax {
-  if (netSEIncome <= 0) return { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0 };
+  const zero: SelfEmploymentTax = {
+    netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0,
+    total: 0, deductibleHalf: 0,
+    ssWageCap: Math.max(0, ssWageCap),
+    w2SsWagesUsed: Math.max(0, w2FicaWages ?? w2Wages),
+    ssRemainingBase: Math.max(0, ssWageCap - Math.max(0, w2FicaWages ?? w2Wages)),
+    ssTaxableBase: 0,
+  };
+  if (netSEIncome <= 0) return zero;
 
   const seBase = netSEIncome * SE_INCOME_FACTOR;
   const effectiveW2 = Math.max(0, w2FicaWages ?? w2Wages);
@@ -105,10 +138,20 @@ export function calculateSETax(
     : 0;
 
   const total = ssTax + medicareTax + additionalMedicare;
-  const deductibleHalf = total / 2;
+  // IRC §164(f): only the employer-equivalent portion (12.4% SS + 2.9%
+  // Medicare) is deductible. The 0.9% Additional Medicare surtax has no
+  // employer match and is excluded from the deductible half.
+  const deductibleHalf = (ssTax + medicareTax) / 2;
 
-  return { netSEIncome, seBase, ssTax, medicareTax, additionalMedicare, total, deductibleHalf };
+  return {
+    netSEIncome, seBase, ssTax, medicareTax, additionalMedicare, total, deductibleHalf,
+    ssWageCap: Math.max(0, ssWageCap),
+    w2SsWagesUsed: effectiveW2,
+    ssRemainingBase: ssRemaining,
+    ssTaxableBase: ssTaxable,
+  };
 }
+
 
 // --- Time-based tracking types ---
 export type TrackingStatus = "on_track" | "ahead" | "slightly_behind" | "behind";
