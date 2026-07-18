@@ -3,6 +3,34 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { DeductionStrategy, EnabledIncomeSources, IncomeProfileType, OnboardingSubscriptionTier, TaxRecommendationMethod } from "@/lib/onboarding";
+import { SS_WAGE_BASE } from "@/lib/taxBrackets";
+
+/**
+ * Historical Social Security wage bases that shipped as auto-populated
+ * defaults on `tax_settings` in previous app versions. When the persisted
+ * value is one of these (and does not match the active-year base), we treat
+ * it as a legacy default rather than an intentional user override and fall
+ * back to the active-year `SS_WAGE_BASE`. This prevents an old row from
+ * silently under-capping SE Social Security tax after the wage base rolls
+ * forward. Values a user explicitly typed (e.g. 200000) are still honored.
+ */
+const LEGACY_SS_WAGE_CAP_DEFAULTS = new Set<number>([
+  137700, // 2020
+  142800, // 2021
+  147000, // 2022
+  160200, // 2023
+  168600, // 2024 — was hard-coded as the app default and is the value the audit flagged
+  176100, // 2025
+]);
+
+function resolveEffectiveSsWageCap(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return SS_WAGE_BASE;
+  if (n === SS_WAGE_BASE) return n;
+  if (LEGACY_SS_WAGE_CAP_DEFAULTS.has(n)) return SS_WAGE_BASE;
+  return n;
+}
+
 
 
 export type WithholdingMethod = "flat_estimate" | "dynamic_actual" | "dynamic_planner";
