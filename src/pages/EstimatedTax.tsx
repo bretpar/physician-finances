@@ -16,6 +16,7 @@ import {
   BRACKETS_SINGLE, BRACKETS_MFJ, STANDARD_DEDUCTION,
   type TaxBracket,
 } from "@/lib/taxEngine";
+import { SS_WAGE_BASE } from "@/lib/taxBrackets";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
