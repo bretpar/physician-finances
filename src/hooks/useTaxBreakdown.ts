@@ -973,6 +973,9 @@ export function useTaxBreakdown(
         // Display-only intermediates from the engine (never independently recalculated in UI).
         ssWageCap: seTaxFromEngine?.ssWageCap ?? 0,
         w2SsWagesUsed: seTaxFromEngine?.w2SsWagesUsed ?? 0,
+        actualW2SsWagesUsed: seTaxFromEngine?.actualW2SsWagesUsed ?? 0,
+        plannedW2SsWagesUsed: seTaxFromEngine?.plannedW2SsWagesUsed ?? 0,
+        totalW2SsWagesUsed: seTaxFromEngine?.totalW2SsWagesUsed ?? 0,
         ssRemainingBase: seTaxFromEngine?.ssRemainingBase ?? 0,
         ssTaxableBase: seTaxFromEngine?.ssTaxableBase ?? 0,
       },
