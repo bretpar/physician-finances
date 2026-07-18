@@ -254,7 +254,7 @@ function mapTaxSettingsRow(data: any): TaxRates {
     filingStatus: (data.filing_status as TaxRates["filingStatus"]) || "single",
     lastYearTax: Number(data.last_year_tax) || 0,
     standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,
-    ssWageCap: Number(data.ss_wage_cap) || 168600,
+    ssWageCap: resolveEffectiveSsWageCap(data.ss_wage_cap),
     taxMode: (d.tax_mode as TaxRates["taxMode"]) || "projected_brackets",
     manualEffectiveTaxRate: d.manual_effective_tax_rate != null ? Number(d.manual_effective_tax_rate) : null,
     withholdingMethod: (d.withholding_method as WithholdingMethod) || "dynamic_planner",
