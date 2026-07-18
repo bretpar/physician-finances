@@ -693,6 +693,7 @@ export default function Reports() {
   }
 
   function confirmExportTaxPDF() {
+    if (taxEstimateLoading) return;
     logExportPayload("pdf");
     let appendixTxs: TransactionRow[] | undefined;
     if (includeAppendix) {
@@ -714,6 +715,8 @@ export default function Reports() {
           entity: t.entity || "Unassigned",
         }));
     }
+    // Always generate against the current exportPayload with a fresh
+    // export id + timestamp so no stale blob / URL / filename is reused.
     exportTaxPrepPdf({
       taxYear: exportPayload.taxYear,
       companyLabel: exportPayload.companyLabel,
@@ -730,6 +733,7 @@ export default function Reports() {
       quarters: exportPayload.quarters,
       includeAppendix,
       transactions: appendixTxs,
+      generatedAt: new Date(),
     });
     setPdfPreviewOpen(false);
   }
