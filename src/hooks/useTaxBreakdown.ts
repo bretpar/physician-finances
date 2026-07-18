@@ -817,7 +817,7 @@ export function useTaxBreakdown(
         actualBusinessRevenue, actualW2Income, actualOtherIncome,
         taxableOrdinaryIncome: 0, taxableLTCG: 0, totalTaxableIncome: 0,
         ordinaryBracketCalc: empty, ltcgBracketCalc: empty,
-        seTax: { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0, ssWageCap: 0, w2SsWagesUsed: 0, ssRemainingBase: 0, ssTaxableBase: 0 },
+        seTax: { netSEIncome: 0, seBase: 0, ssTax: 0, medicareTax: 0, additionalMedicare: 0, total: 0, deductibleHalf: 0, ssWageCap: 0, w2SsWagesUsed: 0, actualW2SsWagesUsed: 0, plannedW2SsWagesUsed: 0, totalW2SsWagesUsed: 0, ssRemainingBase: 0, ssTaxableBase: 0 },
         federalTaxBeforeCredits: 0, dependentCredits: 0, taxCredits: 0, federalTaxAfterCredits: 0,
         qualifyingChildrenCount: 0, otherDependentsCount: 0,
         totalEstimatedTax: 0, personalStateTax: 0, businessStateTax: 0, stateTax: 0,
