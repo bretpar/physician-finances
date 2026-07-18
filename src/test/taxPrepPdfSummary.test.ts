@@ -31,6 +31,10 @@ vi.mock("jspdf", () => {
       else textCalls.push(String(t));
     }
     save = save;
+    output(kind: string) {
+      if (kind === "blob") return new Blob(["pdf"], { type: "application/pdf" });
+      return "";
+    }
   }
   return { default: FakeDoc };
 });

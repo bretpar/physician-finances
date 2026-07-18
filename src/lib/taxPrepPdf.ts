@@ -135,6 +135,37 @@ export interface TaxPrepPdfInput {
   quarters: QuarterRow[];
   includeAppendix?: boolean;
   transactions?: TransactionRow[];
+  /** Unique per-export identifier (short hex). Stamped in the footer so QA
+   *  can confirm each downloaded PDF is a fresh generation. */
+  exportId?: string;
+  /** Explicit generation timestamp (defaults to now). Stamped in the footer
+   *  and used to build the unique filename. */
+  generatedAt?: Date;
+}
+
+export interface TaxPrepPdfResult {
+  filename: string;
+  exportId: string;
+  generatedAt: Date;
+}
+
+function generateExportId(): string {
+  const cryptoObj: Crypto | undefined =
+    typeof globalThis !== "undefined" ? (globalThis as any).crypto : undefined;
+  if (cryptoObj?.getRandomValues) {
+    const bytes = new Uint8Array(4);
+    cryptoObj.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  return Math.random().toString(16).slice(2, 10).padEnd(8, "0");
+}
+
+function formatFilenameStamp(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  );
 }
 
 // ──────────────────────────────────────────── Layout primitives ────
@@ -196,7 +227,10 @@ function drawPageChrome(
   doc.line(MARGIN_X, FOOTER_Y, pageWidth - MARGIN_X, FOOTER_Y);
 }
 
-function stampFooters(doc: jsPDF) {
+function stampFooters(
+  doc: jsPDF,
+  meta: { generatedAtLabel: string; exportId: string; taxYear: string },
+) {
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
@@ -212,6 +246,15 @@ function stampFooters(doc: jsPDF) {
     doc.text(`Page ${i} of ${total}`, w - MARGIN_X, FOOTER_Y + 14, {
       align: "right",
     });
+    // Export provenance stamp — lets QA / users confirm the PDF is the
+    // freshly generated one and not a stale re-opened download.
+    doc.setFontSize(7);
+    doc.setTextColor(150);
+    doc.text(
+      `Tax Year ${meta.taxYear} · Generated ${meta.generatedAtLabel} · Export ID: ${meta.exportId}`,
+      MARGIN_X,
+      FOOTER_Y + 26,
+    );
   }
 }
 
@@ -701,9 +744,11 @@ function renderWorksheetForEntity(doc: jsPDF, w: BusinessWorksheet) {
 
 // ─────────────────────────────────────────────────────────── Main ────
 
-export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
+export function exportTaxPrepPdf(data: TaxPrepPdfInput): TaxPrepPdfResult {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const generatedAt = new Date().toLocaleString();
+  const generatedAt = data.generatedAt ?? new Date();
+  const exportId = data.exportId ?? generateExportId();
+  const generatedAtLabel = generatedAt.toLocaleString();
 
   const pages: Array<{ title: string; render: () => void }> = [
     { title: "Tax Preparation Summary", render: () => renderSummaryCards(doc, data) },
@@ -752,14 +797,38 @@ export function exportTaxPrepPdf(data: TaxPrepPdfInput) {
 
   pages.forEach((p, i) => {
     if (i > 0) doc.addPage();
-    drawPageChrome(doc, data, generatedAt, p.title);
+    drawPageChrome(doc, data, generatedAtLabel, p.title);
     p.render();
   });
 
   if (data.includeAppendix && data.transactions && data.transactions.length > 0) {
-    renderAppendix(doc, data, generatedAt);
+    renderAppendix(doc, data, generatedAtLabel);
   }
 
-  stampFooters(doc);
-  doc.save(`tax-prep-${data.taxYear}.pdf`);
+  stampFooters(doc, { generatedAtLabel, exportId, taxYear: data.taxYear });
+
+  const filename = `PaycheckMD-Tax-Prep-${data.taxYear}-${formatFilenameStamp(
+    generatedAt,
+  )}-${exportId}.pdf`;
+
+  // Generate a fresh Blob + object URL for this export, trigger the
+  // download, then revoke the URL so no prior blob/URL can be reused.
+  try {
+    const blob: Blob = doc.output("blob") as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Revoke on the next tick so the browser has committed the download.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  } catch {
+    // Fallback for non-browser environments (tests / SSR).
+    doc.save(filename);
+  }
+
+  return { filename, exportId, generatedAt };
 }
