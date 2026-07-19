@@ -335,98 +335,203 @@ export function SETaxMath({ data }: { data: TaxBreakdownResult }) {
   if (data.seTax.total <= 0 && data.seTax.netSEIncome <= 0) return null;
   const showPlanned = data.mode === "forecast" && data.plannedTotalIncome > 0;
   const se = data.seTax;
-  const w2CappedOut =
-    se.ssTax === 0 &&
-    se.ssWageCap > 0 &&
-    se.w2SsWagesUsed >= se.ssWageCap;
+  const w2WagesCounted = showPlanned ? se.totalW2SsWagesUsed : se.w2SsWagesUsed;
+  const ssCovered =
+    se.ssWageCap > 0 && w2WagesCounted >= se.ssWageCap && se.ssTax === 0;
+  const hasAdditionalMedicare = se.additionalMedicare > 0;
+  const hasState = (data.stateTax ?? 0) > 0;
+
   return (
-    <div className="space-y-0">
-      <p className="text-xs text-muted-foreground pb-2">
-        Estimated · based on current inputs{showPlanned && " (includes planned income)"}
-      </p>
-      <Step label="Net self-employment income" value={fmt(se.netSEIncome)} op="equals" />
-      <Step label="× 92.35% (SE base)" value={fmt(se.seBase)} op="equals" />
-      <div className="border-t border-border my-1" />
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
-        Social Security
-      </p>
-      <Step
-        label="Annual Social Security wage base"
-        value={fmt(se.ssWageCap)}
-        op="equals"
-        hint="Statutory wage base for the active tax year. W-2 wages consume this base first; only the remainder is available for SE Social Security."
-      />
-      {showPlanned ? (
-        <>
+    <div className="space-y-4">
+      {/* 1. Status card — the headline answer */}
+      <div
+        className={cn(
+          "rounded-lg border p-4",
+          ssCovered
+            ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30"
+            : "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30",
+        )}
+      >
+        <p
+          className={cn(
+            "text-sm font-semibold",
+            ssCovered
+              ? "text-emerald-800 dark:text-emerald-300"
+              : "text-amber-900 dark:text-amber-300",
+          )}
+        >
+          {ssCovered
+            ? "✅ Social Security already covered"
+            : "⚠️ Set aside Social Security on your business income"}
+        </p>
+        <p className="text-sm text-foreground/80 mt-1 leading-relaxed">
+          {ssCovered
+            ? "Your W-2 payroll withholding has already reached the annual Social Security wage limit. You do not need to set aside additional Social Security tax from your self-employment income."
+            : `Your W-2 wages haven't hit the annual Social Security wage limit yet, so a portion of your business income is still subject to the 12.4% Social Security tax.`}
+        </p>
+      </div>
+
+      {/* 2. Plain-language wage-limit facts */}
+      <div className="rounded-lg border border-border p-3 space-y-0">
+        <Step
+          label="Annual Social Security wage limit"
+          value={fmt(se.ssWageCap)}
+          hint="The maximum amount of wages that can be taxed for Social Security in a year. Anything above this is not subject to Social Security tax."
+        />
+        <Step
+          label="W-2 wages counted toward the Social Security limit"
+          value={fmt(w2WagesCounted)}
+          hint="Your FICA-taxable W-2 wages (gross W-2 minus Section 125 items like payroll HSA and health premiums) that have already been applied to the annual limit."
+        />
+        <Step
+          label="Remaining wage base"
+          value={fmt(se.ssRemainingBase)}
+          hint="How much room is left under the Social Security wage limit before business income starts being taxed for Social Security."
+        />
+      </div>
+
+      {/* 3. What this means for additional business income */}
+      {se.netSEIncome > 0 && (
+        <div className="rounded-lg border border-border p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            Additional business income
+          </p>
+          <Step label="Net business income" value={fmt(se.netSEIncome)} />
+          <div className="border-t border-border my-1" />
+          <Step label="Social Security tax" value={fmt(se.ssTax)} bold />
           <Step
-            label="Actual W-2 Social Security wages counted"
-            value={fmt(se.actualW2SsWagesUsed)}
-            op="subtract"
-            hint="Actual (YTD) FICA-taxable W-2 wages from the engine: gross W-2 minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
+            label={ssCovered ? "Medicare tax (still applies)" : "Medicare tax"}
+            value={fmt(se.medicareTax)}
+            bold
           />
-          {se.plannedW2SsWagesUsed > 0 && (
+          {hasAdditionalMedicare && (
             <Step
-              label="Planned W-2 Social Security wages counted"
-              value={fmt(se.plannedW2SsWagesUsed)}
-              op="subtract"
-              planned
-              hint="Planned (future) FICA-taxable W-2 wages projected for the rest of the year, applied against the same wage base."
+              label="Additional Medicare tax (0.9%)"
+              value={fmt(se.additionalMedicare)}
+              hint="An extra 0.9% surtax that applies once combined wages and self-employment earnings exceed $200k (single) or $250k (MFJ)."
             />
           )}
-          <Step
-            label="Total W-2 Social Security wage offset"
-            value={fmt(se.totalW2SsWagesUsed)}
-            op="equals"
-            hint="Sum of actual + planned FICA wages consumed against the Social Security wage base. Reconciles exactly to the engine's remaining wage base."
-          />
-        </>
-      ) : (
-        <Step
-          label="W-2 Social Security wages counted"
-          value={fmt(se.w2SsWagesUsed)}
-          op="subtract"
-          hint="FICA-taxable W-2 wages from the engine: gross W-2 minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
-        />
-      )}
-      <Step
-        label="Remaining Social Security wage base"
-        value={fmt(se.ssRemainingBase)}
-        op="equals"
-      />
-      <Step
-        label="SE base subject to Social Security"
-        value={fmt(se.ssTaxableBase)}
-        op="equals"
-        hint="Smaller of the SE base and the remaining wage base."
-      />
-      <Step label="Social Security tax (12.4%)" value={fmt(se.ssTax)} op="add" bold />
-      {w2CappedOut && (
-        <p className="text-[11px] text-muted-foreground italic pt-1">
-          W-2 wages have used the full Social Security wage base. Additional
-          business earnings remain subject to Medicare tax.
-        </p>
+          <div className="border-t border-border my-1" />
+          <Step label="Total self-employment tax" value={fmt(se.total)} op="equals" bold />
+        </div>
       )}
 
-      <div className="border-t border-border my-2" />
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
-        Medicare
-      </p>
-      <Step label="Medicare tax (2.9% on SE base)" value={fmt(se.medicareTax)} op="add" bold />
-      <Step
-        label="Additional Medicare Tax (0.9% over threshold)"
-        value={fmt(se.additionalMedicare)}
-        op="add"
-        hint="Employee-only 0.9% surtax on combined FICA + SE earnings above the filing-status threshold ($200k single / $250k MFJ). Excluded from the deductible half of SE tax."
-      />
+      {/* 4. What you need to save */}
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <p className="text-sm font-semibold text-foreground">What you need to save</p>
+        <ul className="mt-2 space-y-1.5 text-sm text-foreground/85">
+          {ssCovered ? (
+            <li>✅ No additional Social Security tax</li>
+          ) : (
+            <li>• Social Security tax on business income up to the wage limit</li>
+          )}
+          <li className="text-xs text-muted-foreground pt-1">Continue saving for:</li>
+          <li>• Medicare tax</li>
+          {hasAdditionalMedicare && <li>• Additional Medicare tax (0.9%)</li>}
+          <li>• Federal income tax</li>
+          {hasState && <li>• State income tax</li>}
+        </ul>
+      </div>
 
-      <div className="border-t border-border my-1" />
-      <Step label="Total self-employment tax" value={fmt(se.total)} op="equals" bold />
-      <Step
-        label="Deductible employer-equivalent portion (½ of SS + regular Medicare)"
-        value={fmt(se.deductibleHalf)}
-        op="equals"
-        hint="IRC §164(f). Additional Medicare Tax is an employee-only surtax with no employer match and is excluded from this deduction."
-      />
+      {/* 5. Full math — hidden by default */}
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="show-calc" className="border rounded-lg">
+          <AccordionTrigger className="text-xs px-3 py-2 hover:no-underline">
+            Show calculation
+          </AccordionTrigger>
+          <AccordionContent className="px-3 pb-3">
+            <div className="space-y-0">
+              <p className="text-xs text-muted-foreground pb-2">
+                Estimated · based on current inputs
+                {showPlanned && " (includes planned income)"}
+              </p>
+              <Step label="Net self-employment income" value={fmt(se.netSEIncome)} op="equals" />
+              <Step label="× 92.35% (SE base)" value={fmt(se.seBase)} op="equals" />
+              <div className="border-t border-border my-1" />
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+                Social Security
+              </p>
+              <Step
+                label="Annual Social Security wage base"
+                value={fmt(se.ssWageCap)}
+                op="equals"
+                hint="Statutory wage base for the active tax year. W-2 wages consume this base first; only the remainder is available for SE Social Security."
+              />
+              {showPlanned ? (
+                <>
+                  <Step
+                    label="Actual W-2 wages counted toward the limit"
+                    value={fmt(se.actualW2SsWagesUsed)}
+                    op="subtract"
+                    hint="Actual (YTD) FICA-taxable W-2 wages: gross W-2 minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
+                  />
+                  {se.plannedW2SsWagesUsed > 0 && (
+                    <Step
+                      label="Planned W-2 wages counted toward the limit"
+                      value={fmt(se.plannedW2SsWagesUsed)}
+                      op="subtract"
+                      planned
+                      hint="Planned (future) FICA-taxable W-2 wages projected for the rest of the year, applied against the same wage base."
+                    />
+                  )}
+                  <Step
+                    label="Social Security wage base already used"
+                    value={fmt(se.totalW2SsWagesUsed)}
+                    op="equals"
+                    hint="Sum of actual + planned FICA wages consumed against the Social Security wage base."
+                  />
+                </>
+              ) : (
+                <Step
+                  label="W-2 wages counted toward the Social Security limit"
+                  value={fmt(se.w2SsWagesUsed)}
+                  op="subtract"
+                  hint="FICA-taxable W-2 wages: gross W-2 minus Section 125 (payroll HSA + qualified health premiums), i.e. the Box-3 equivalent."
+                />
+              )}
+              <Step
+                label="Remaining Social Security wage base"
+                value={fmt(se.ssRemainingBase)}
+                op="equals"
+              />
+              <Step
+                label="SE base subject to Social Security"
+                value={fmt(se.ssTaxableBase)}
+                op="equals"
+                hint="Smaller of the SE base and the remaining wage base."
+              />
+              <Step label="Social Security tax (12.4%)" value={fmt(se.ssTax)} op="add" bold />
+              {ssCovered && (
+                <p className="text-[11px] text-muted-foreground italic pt-1">
+                  W-2 wages have used the full Social Security wage base. Additional
+                  business earnings remain subject to Medicare tax.
+                </p>
+              )}
+
+              <div className="border-t border-border my-2" />
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+                Medicare
+              </p>
+              <Step label="Medicare tax (2.9% on SE base)" value={fmt(se.medicareTax)} op="add" bold />
+              <Step
+                label="Additional Medicare Tax (0.9% over threshold)"
+                value={fmt(se.additionalMedicare)}
+                op="add"
+                hint="Employee-only 0.9% surtax on combined FICA + SE earnings above the filing-status threshold ($200k single / $250k MFJ). Excluded from the deductible half of SE tax."
+              />
+
+              <div className="border-t border-border my-1" />
+              <Step label="Total self-employment tax" value={fmt(se.total)} op="equals" bold />
+              <Step
+                label="Deductible employer-equivalent portion (½ of SS + regular Medicare)"
+                value={fmt(se.deductibleHalf)}
+                op="equals"
+                hint="IRC §164(f). Additional Medicare Tax is an employee-only surtax with no employer match and is excluded from this deduction."
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }
