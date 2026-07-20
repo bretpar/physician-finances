@@ -6,11 +6,15 @@
  * (`calculateFullEstimate`) — one MFJ, one MFS-per-spouse — and pairs the
  * results with student loan payment estimates so the UI can display a
  * combined annual cost comparison and a "recommended filing status" card.
+ *
+ * Spouse-income treatment per plan is read from the canonical rules
+ * registry (`rules/plans.ts`) — do NOT hardcode assumptions here.
  */
 
 import { calculateFullEstimate } from "@/lib/taxEngine";
 import { estimateRepayment, type BorrowerInput, type StudentLoanInput } from "./calculator";
 import { splitIncomeForMfs } from "./communityProperty";
+import { getPlan } from "./rules/plans";
 import type { RepaymentPlanId } from "./repaymentPlans";
 
 export interface MfsComparisonInput {
