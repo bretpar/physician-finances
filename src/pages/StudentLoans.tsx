@@ -104,6 +104,12 @@ export default function StudentLoans() {
 
   const projectedTotalIncome = Math.max(0, forecastEstimate?.totalIncome ?? 0);
   const projectedAgi = Math.max(0, forecastEstimate?.agi ?? 0);
+  // Above-the-line AGI adjustments already computed by the PaycheckMD tax
+  // engine (401(k), HSA, pre-tax deductions, ½-SE tax, health insurance).
+  // We surface this so community-property allocation stays consistent with
+  // what the tax forecast used, without asking the user to re-enter anything.
+  const projectedAdjustments = Math.max(0, projectedTotalIncome - projectedAgi);
+  const hasProjectedForecast = !!forecastEstimate && projectedTotalIncome > 0;
 
   const savedFilingStatus = settings?.filingStatus ?? "single";
   const savedProfileState = settings?.stateOfResidence ?? "";
