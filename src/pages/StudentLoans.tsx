@@ -339,21 +339,37 @@ export default function StudentLoans() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Projected annual income {incomeOverride == null ? <span className="text-[10px]">(from Income Planner)</span> : <span className="text-[10px]">(overridden)</span>}
+                Projected annual income{" "}
+                {incomeOverride == null ? (
+                  <span className="text-[10px]">
+                    ({hasPlannerIncome ? "from Income Planner" : "not found in Income Planner"})
+                  </span>
+                ) : (
+                  <span className="text-[10px]">(overridden)</span>
+                )}
               </Label>
               <Input
                 type="number"
-                placeholder={String(Math.round(projectedFromPlanner))}
+                placeholder={hasPlannerIncome ? String(Math.round(projectedFromPlanner)) : "e.g. 250000"}
                 value={incomeOverride ?? ""}
                 onChange={(e) => {
                   const v = e.target.value === "" ? null : Number(e.target.value);
                   handleSaveBorrowerSettings({ studentLoanIncomeOverride: v });
                 }}
+                aria-invalid={overrideInvalid}
+                className={overrideInvalid ? "border-destructive focus-visible:ring-destructive" : undefined}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Overriding here won't change your Income Planner.
-              </p>
+              {overrideInvalid ? (
+                <p className="text-[11px] text-destructive mt-1">Income can't be negative.</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {hasPlannerIncome
+                    ? "Overriding here won't change your Income Planner."
+                    : "Enter an estimate to see income-driven repayment amounts."}
+                </p>
+              )}
             </div>
+
           </div>
         </Card>
 
