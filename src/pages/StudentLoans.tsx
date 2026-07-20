@@ -204,45 +204,56 @@ export default function StudentLoans() {
   const [cpBorrowerSeparate, setCpBorrowerSeparate] = useState<string>("");
   const [cpSpouseSeparate, setCpSpouseSeparate] = useState<string>("");
   const [cpBorrowerAdj, setCpBorrowerAdj] = useState<string>("");
+  const [cpSpouseAdj, setCpSpouseAdj] = useState<string>("");
   const [cpBorrowerSharePct, setCpBorrowerSharePct] = useState<string>("50");
+
+  // Community allocation share (0..1). Applied to community income AND to
+  // community AGI adjustments so borrower/spouse are split by the same ratio.
+  const cpShare = Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100));
+
+  // Auto-allocated adjustments (community adjustments split by the same
+  // ratio as community income). Manual overrides on either side win.
+  const autoBorrowerAdj = projectedAdjustments * cpShare;
+  const autoSpouseAdj = projectedAdjustments * (1 - cpShare);
+  const resolvedBorrowerAdj = cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) || 0 : autoBorrowerAdj;
+  const resolvedSpouseAdj = cpSpouseAdj !== "" ? Number(cpSpouseAdj) || 0 : autoSpouseAdj;
 
   // Resolve the AGI actually used for IDR plans (borrower-facing, driven by
   // saved filing status). MFS + CP state → apply 50/50 community split.
   const cpAllocation = useMemo(() => {
     if (!cpAutoApplies) return null;
     const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
-    const bAdj = cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) : projectedAdjustments;
     return allocateCommunityAgi({
       borrowerCommunityIncome: bComm,
       spouseCommunityIncome: Number(cpSpouseCommunity) || 0,
       borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
       spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
-      borrowerAdjustments: bAdj,
-      spouseAdjustments: 0,
-      borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100)),
+      borrowerAdjustments: resolvedBorrowerAdj,
+      spouseAdjustments: resolvedSpouseAdj,
+      borrowerCommunityShare: cpShare,
     });
-  }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome, projectedAdjustments]);
+  }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, resolvedBorrowerAdj, resolvedSpouseAdj, cpShare, projectedTotalIncome]);
 
   // MFJ vs MFS comparison-only CP allocation. This one always runs when the
   // user is in a community-property state, regardless of saved filing status,
   // so the comparison "what if we filed MFS?" preview shows the correct 50/50
   // split even for households currently filed MFJ. Auto-populates projected
-  // AGI adjustments from the tax forecast; user can override in the CP panel.
+  // AGI adjustments from the tax forecast (split by the same community
+  // ratio); user can override either spouse's amount in the CP panel.
   const comparisonAllocation = useMemo(() => {
     if (!isCP) return null;
     const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
-    const bAdj = cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) : projectedAdjustments;
     return allocateCommunityAgi({
       borrowerCommunityIncome: bComm,
       spouseCommunityIncome: Number(cpSpouseCommunity) || 0,
       borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
       spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
-      borrowerAdjustments: bAdj,
-      spouseAdjustments: 0,
-      borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100)),
+      borrowerAdjustments: resolvedBorrowerAdj,
+      spouseAdjustments: resolvedSpouseAdj,
+      borrowerCommunityShare: cpShare,
     });
-  }, [isCP, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome, projectedAdjustments]);
-  const adjustmentsAutoApplied = isCP && cpBorrowerAdj === "" && projectedAdjustments > 0;
+  }, [isCP, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, resolvedBorrowerAdj, resolvedSpouseAdj, cpShare, projectedTotalIncome]);
+  const adjustmentsAutoApplied = isCP && (cpBorrowerAdj === "" || cpSpouseAdj === "") && projectedAdjustments > 0;
 
   let studentLoanAgi = projectedAgi;
   let agiSourceLabel = "Projected AGI";
@@ -361,10 +372,10 @@ export default function StudentLoans() {
     ? Math.max(0, Number(spouseMfsAgiInput) || 0)
     : defaultSpouseMfsAgi;
 
-  // Adjustments passed to the tax engine for the comparison. Auto-derived
-  // from the PaycheckMD tax forecast unless the user overrode CP inputs.
-  const comparisonBorrowerAdjustments =
-    cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) || 0 : projectedAdjustments;
+  // Adjustments passed to the tax engine for the borrower's MFS scenario.
+  // Uses the community-allocated share so borrower is not charged the
+  // household's full adjustment amount.
+  const comparisonBorrowerAdjustments = resolvedBorrowerAdj;
 
   // Compare MFJ vs MFS — AGI-driven.
   // Always compute so the collapsed preview can show default MFJ/MFS values.
@@ -806,7 +817,8 @@ export default function StudentLoans() {
                   <Field label="Spouse earned income" value={cpSpouseCommunity} onChange={setCpSpouseCommunity} type="number" />
                   <Field label="Borrower separate income" value={cpBorrowerSeparate} onChange={setCpBorrowerSeparate} type="number" />
                   <Field label="Spouse separate income" value={cpSpouseSeparate} onChange={setCpSpouseSeparate} type="number" />
-                  <Field label="Borrower AGI adjustments" value={cpBorrowerAdj} onChange={setCpBorrowerAdj} type="number" />
+                  <Field label={`Borrower AGI adjustments${cpBorrowerAdj === "" && autoBorrowerAdj > 0 ? ` (auto ${fmtCurrency(autoBorrowerAdj)})` : ""}`} value={cpBorrowerAdj} onChange={setCpBorrowerAdj} type="number" />
+                  <Field label={`Spouse AGI adjustments${cpSpouseAdj === "" && autoSpouseAdj > 0 ? ` (auto ${fmtCurrency(autoSpouseAdj)})` : ""}`} value={cpSpouseAdj} onChange={setCpSpouseAdj} type="number" />
                   <Field label="Borrower share %" value={cpBorrowerSharePct} onChange={setCpBorrowerSharePct} type="number" />
                 </div>
                 {cpAllocation && (
