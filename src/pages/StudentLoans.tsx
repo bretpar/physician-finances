@@ -372,10 +372,10 @@ export default function StudentLoans() {
     ? Math.max(0, Number(spouseMfsAgiInput) || 0)
     : defaultSpouseMfsAgi;
 
-  // Adjustments passed to the tax engine for the comparison. Auto-derived
-  // from the PaycheckMD tax forecast unless the user overrode CP inputs.
-  const comparisonBorrowerAdjustments =
-    cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) || 0 : projectedAdjustments;
+  // Adjustments passed to the tax engine for the borrower's MFS scenario.
+  // Uses the community-allocated share so borrower is not charged the
+  // household's full adjustment amount.
+  const comparisonBorrowerAdjustments = resolvedBorrowerAdj;
 
   // Compare MFJ vs MFS — AGI-driven.
   // Always compute so the collapsed preview can show default MFJ/MFS values.
