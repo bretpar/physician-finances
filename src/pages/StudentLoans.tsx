@@ -292,9 +292,10 @@ export default function StudentLoans() {
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSaveLoan} disabled={upsert.isPending}>
+            <Button size="sm" onClick={handleSaveLoan} disabled={upsert.isPending || balanceInvalid || rateInvalid}>
               {loan ? "Update loan" : "Save loan"}
             </Button>
+
             {loan && (
               <Button size="sm" variant="ghost" onClick={() => del.mutate(loan.id)} disabled={del.isPending}>
                 Remove
