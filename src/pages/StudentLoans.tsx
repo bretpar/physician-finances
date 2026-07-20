@@ -1192,8 +1192,20 @@ function CurrentPlanCard({
             </div>
           </div>
           {needsConfirmation && (
-            <div className="text-[11px] text-amber-600 dark:text-amber-400">
-              Eligibility: Needs confirmation
+            <div className="text-[11px] text-amber-600 dark:text-amber-400 space-y-0.5">
+              {(estimate?.detail?.eligibilityReasons ?? []).length > 0 || (missingAgi && isIdrPlan) ? (
+                <>
+                  <div className="font-medium">To confirm eligibility:</div>
+                  <ul className="list-disc pl-4">
+                    {(estimate?.detail?.eligibilityReasons ?? []).map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                    {missingAgi && isIdrPlan && <li>Add annual income (needed for income-driven plans)</li>}
+                  </ul>
+                </>
+              ) : (
+                <div>Eligibility: Needs confirmation</div>
+              )}
             </div>
           )}
         </div>
