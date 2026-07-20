@@ -53,6 +53,9 @@ export interface MfsComparisonResult {
   additionalTaxes: number;
   communityPropertyApplied: boolean;
   communityPropertyNote: string;
+  /** Spouse-income treatment for the selected plan (registry-driven). */
+  spouseIncomeNote: string;
+  planUnavailable?: string;
 }
 
 function estimateStateTax(taxableIncome: number, ratePct: number): number {
