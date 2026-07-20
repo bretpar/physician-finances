@@ -84,10 +84,27 @@ export default function StudentLoans() {
     }
   }, [loan?.id]);
 
-  const [spouseIncomeInput, setSpouseIncomeInput] = useState<string>(
-    settings?.studentLoanSpouseIncomeOverride != null ? String(settings.studentLoanSpouseIncomeOverride) : "",
-  );
+  // Comparison panel uses ephemeral local state — it never writes to saved settings.
+  const savedSpouseIncome = settings?.studentLoanSpouseIncomeOverride;
+  const savedCpOverride = settings?.studentLoanCommunityPropertyOverride;
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [compareSpouseIncome, setCompareSpouseIncome] = useState<string>(
+    savedSpouseIncome != null ? String(savedSpouseIncome) : "",
+  );
+  const [compareCpOverride, setCompareCpOverride] = useState<boolean | null>(savedCpOverride ?? null);
+
+  const openComparison = () => {
+    // Re-seed from saved profile every time the panel opens so it reflects
+    // the current baseline without persisting future edits.
+    setCompareSpouseIncome(savedSpouseIncome != null ? String(savedSpouseIncome) : "");
+    setCompareCpOverride(savedCpOverride ?? null);
+    setComparisonOpen(true);
+  };
+  const resetCompareInputs = () => {
+    setCompareSpouseIncome(savedSpouseIncome != null ? String(savedSpouseIncome) : "");
+    setCompareCpOverride(savedCpOverride ?? null);
+  };
+  const compareApplyCommunityRules = compareCpOverride ?? isCP;
 
   const parsedLoan = {
     balance: Number(draftBalance) || 0,
@@ -122,7 +139,7 @@ export default function StudentLoans() {
   const rateInvalid = draftRate !== "" && Number(draftRate) < 0;
   const overrideInvalid = incomeOverride != null && incomeOverride < 0;
 
-  const spouseIncome = Number(spouseIncomeInput) || 0;
+  const spouseIncome = Number(compareSpouseIncome) || 0;
 
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
@@ -133,10 +150,10 @@ export default function StudentLoans() {
       planId: draftPlan,
       familySize: Math.max(1, familySize ?? 1),
       state,
-      applyCommunityRules,
+      applyCommunityRules: compareApplyCommunityRules,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
     });
-  }, [comparisonOpen, projectedAnnualIncome, spouseIncome, parsedLoan, draftPlan, familySize, state, applyCommunityRules, settings?.personalStateTaxRate]);
+  }, [comparisonOpen, projectedAnnualIncome, spouseIncome, parsedLoan, draftPlan, familySize, state, compareApplyCommunityRules, settings?.personalStateTaxRate]);
 
   const handleSaveLoan = async () => {
     await upsert.mutateAsync({
@@ -416,26 +433,37 @@ export default function StudentLoans() {
             <div className="font-semibold flex items-center gap-2">
               <Scale className="h-4 w-4" /> Compare filing status
             </div>
-            <Button size="sm" variant="outline" onClick={() => setComparisonOpen((o) => !o)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => (comparisonOpen ? setComparisonOpen(false) : openComparison())}
+            >
               {comparisonOpen ? "Hide comparison" : "Compare MFJ vs MFS"}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Read-only. Running this comparison never changes your saved filing status or tax settings.
+            Read-only sandbox. Edits below only affect this comparison — your saved filing status,
+            spouse income, and community-property settings are never changed.
           </p>
 
           {comparisonOpen && (
             <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Comparison inputs (not saved)
+                </span>
+                <Button size="sm" variant="ghost" onClick={resetCompareInputs} className="h-7 text-xs">
+                  Reset to saved
+                </Button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Spouse projected annual income</Label>
                   <Input
                     type="number"
-                    value={spouseIncomeInput}
-                    onChange={(e) => setSpouseIncomeInput(e.target.value)}
-                    onBlur={() => handleSaveBorrowerSettings({
-                      studentLoanSpouseIncomeOverride: spouseIncomeInput === "" ? null : Number(spouseIncomeInput),
-                    })}
+                    value={compareSpouseIncome}
+                    onChange={(e) => setCompareSpouseIncome(e.target.value)}
+                    placeholder="0"
                   />
                 </div>
                 {isCP && (
@@ -445,8 +473,8 @@ export default function StudentLoans() {
                     </Label>
                     <div className="flex items-center gap-2 h-10">
                       <Switch
-                        checked={applyCommunityRules}
-                        onCheckedChange={(v) => handleSaveBorrowerSettings({ studentLoanCommunityPropertyOverride: v })}
+                        checked={compareApplyCommunityRules}
+                        onCheckedChange={(v) => setCompareCpOverride(v)}
                       />
                       <span className="text-xs text-muted-foreground">
                         {state?.toUpperCase()} is a community property state. Default: 50/50 split.
