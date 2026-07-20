@@ -102,6 +102,25 @@ export function estimateRepayment(
 
   try {
     const detail = computePlanPayment(planId, loanCtx, borrowerCtx);
+    // Fixed-term plans: use the registry's own term, not a re-derived
+    // payoff from the rounded monthly payment (which produces 121-month
+    // off-by-one artifacts on Standard 10).
+    // Graduated: the payment shown is the STARTING payment and the full
+    // stepped schedule is not modeled — do not fabricate a payoff month
+    // count from it (which would show absurd 30+ year payoffs).
+    const planFamily = planRule?.family;
+    let estimatedPayoffMonths: number | null;
+    if (planFamily === "graduated") {
+      estimatedPayoffMonths = null;
+    } else if (
+      planFamily === "standard" ||
+      planFamily === "extended" ||
+      planFamily === "tiered_standard"
+    ) {
+      estimatedPayoffMonths = detail.breakdown.termMonths ?? null;
+    } else {
+      estimatedPayoffMonths = monthsToPayoffFromRate(balance, rate, detail.monthlyPayment);
+    }
     return {
       plan: planDef,
       estimatedMonthlyPayment: detail.monthlyPayment,
@@ -109,7 +128,7 @@ export function estimateRepayment(
       monthlyInterest: round2(monthlyInterest),
       annualInterest: round2(monthlyInterest * 12),
       coversMonthlyInterest: detail.coversMonthlyInterest,
-      estimatedPayoffMonths: monthsToPayoffFromRate(balance, rate, detail.monthlyPayment),
+      estimatedPayoffMonths,
       discretionaryIncome: detail.breakdown.discretionaryIncome,
       notes: [...detail.assumptions],
       detail,
