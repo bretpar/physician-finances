@@ -688,13 +688,21 @@ export default function StudentLoans() {
                   </div>
                 </button>
                 {agiMode === "manual" && (
-                  <Input
-                    className="mt-2"
-                    type="number"
-                    placeholder="e.g. 250000"
-                    value={manualAgi}
-                    onChange={(e) => setManualAgi(e.target.value)}
-                  />
+                  <div className="mt-2">
+                    <Label htmlFor="manual-agi-input" className="sr-only">
+                      Manual AGI (US dollars)
+                    </Label>
+                    <Input
+                      id="manual-agi-input"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      placeholder="e.g. 250000"
+                      aria-label="Manual AGI in US dollars"
+                      value={manualAgi}
+                      onChange={(e) => setManualAgi(e.target.value)}
+                    />
+                  </div>
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground">
