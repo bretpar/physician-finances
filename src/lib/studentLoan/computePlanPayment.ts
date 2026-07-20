@@ -378,6 +378,7 @@ export function computePlanPayment(
     breakdown,
     assumptions,
     eligibility: eligibility.status,
+    eligibilityReasons: eligibility.status === "assumed" ? [...eligibility.reasons] : [],
     rulesVersion: plan.rulesVersion,
     sourceUrl: plan.sourceUrl,
     sourceUpdatedAt: plan.sourceUpdatedAt,
