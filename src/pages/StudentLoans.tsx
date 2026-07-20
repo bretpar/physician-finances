@@ -69,10 +69,49 @@ export default function StudentLoans() {
   const projectedAdjustments = Math.max(0, projectedTotalIncome - projectedAdjustedGrossIncome);
 
   const savedFilingStatus = settings?.filingStatus ?? "single";
-  const state = settings?.stateOfResidence ?? "";
-  const familySize = settings?.studentLoanFamilySize ?? 1;
+  const savedProfileState = settings?.stateOfResidence ?? "";
+  const savedFamilySize = settings?.studentLoanFamilySize ?? 1;
+
+  // Ephemeral scenario inputs — persisted to localStorage so a refresh
+  // keeps the user's estimator view, but NEVER written back to the tax
+  // profile, ledgers, or Income Planner.
+  const SCENARIO_STORAGE_KEY = "student_loan_estimator_scenario_v1";
+  type ScenarioPrefs = { state?: string; familySize?: number; cpOverride?: boolean | null };
+  const readScenarioPrefs = (): ScenarioPrefs => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(window.localStorage.getItem(SCENARIO_STORAGE_KEY) || "{}") as ScenarioPrefs; }
+    catch { return {}; }
+  };
+  const [scenarioPrefsInit] = useState<ScenarioPrefs>(readScenarioPrefs);
+  const [scenarioState, setScenarioStateRaw] = useState<string>(
+    scenarioPrefsInit.state ?? savedProfileState ?? "",
+  );
+  const [scenarioFamilySize, setScenarioFamilySizeRaw] = useState<number>(
+    Math.max(1, Math.floor(scenarioPrefsInit.familySize ?? savedFamilySize ?? 1)),
+  );
+  const [scenarioCpOverride, setScenarioCpOverrideRaw] = useState<boolean | null>(
+    scenarioPrefsInit.cpOverride ?? null,
+  );
+  const persistScenario = (patch: Partial<ScenarioPrefs>) => {
+    if (typeof window === "undefined") return;
+    try {
+      const next = { ...readScenarioPrefs(), ...patch };
+      window.localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next));
+    } catch { /* ignore */ }
+  };
+  const setScenarioState = (v: string) => { setScenarioStateRaw(v); persistScenario({ state: v }); };
+  const setScenarioFamilySize = (v: number) => {
+    const n = Math.max(1, Math.floor(Number.isFinite(v) ? v : 1));
+    setScenarioFamilySizeRaw(n); persistScenario({ familySize: n });
+  };
+  const setScenarioCpOverride = (v: boolean | null) => {
+    setScenarioCpOverrideRaw(v); persistScenario({ cpOverride: v });
+  };
+
+  const state = scenarioState;
+  const familySize = scenarioFamilySize;
   const isCP = isCommunityPropertyState(state);
-  const cpOverride = settings?.studentLoanCommunityPropertyOverride;
+  const cpOverride = scenarioCpOverride;
 
   // Single-loan MVP: use the first loan row if present.
   const loan: StudentLoanRow | null = loans[0] ?? null;
