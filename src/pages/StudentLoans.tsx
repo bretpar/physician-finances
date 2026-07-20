@@ -675,7 +675,7 @@ export default function StudentLoans() {
               <div className="flex items-center gap-2">
                 <Switch
                   checked={applyCommunityRules}
-                  onCheckedChange={(v) => handleSaveBorrowerSettings({ studentLoanCommunityPropertyOverride: v })}
+                  onCheckedChange={(v) => setScenarioCpOverride(v)}
                 />
                 <span className="text-xs text-muted-foreground">
                   Apply community-property income allocation for MFS ({state?.toUpperCase()})
