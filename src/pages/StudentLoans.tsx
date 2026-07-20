@@ -188,31 +188,74 @@ export default function StudentLoans() {
             {fmtCurrency(estimate.estimatedAnnualPayment)} per year
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
-            <Stat label="Monthly interest" value={fmtCurrency(estimate.monthlyInterest)} />
-            <Stat label="Annual interest" value={fmtCurrency(estimate.annualInterest)} />
-            <Stat
-              label="Covers interest?"
-              value={estimate.coversMonthlyInterest ? "Yes" : "No"}
-              variant={estimate.coversMonthlyInterest ? "ok" : "warn"}
-            />
-            <Stat label="Est. payoff" value={fmtMonths(estimate.estimatedPayoffMonths)} />
+        {/* Hero result card ─────────────────────────── */}
+        <Card className="p-5">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+            Estimated monthly payment · {estimate.plan.label}
           </div>
-          {currentPayment > 0 && (
-            <div className="mt-4 rounded-md border border-border p-3 text-sm bg-muted/30">
-              <div className="grid grid-cols-3 gap-3">
-                <Stat label="Current payment" value={fmtCurrency(currentPayment)} />
-                <Stat label="Estimated payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} />
+          {idrMissingIncome ? (
+            <>
+              <div className="text-3xl font-bold text-muted-foreground">—</div>
+              <Alert variant="destructive" className="mt-3">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-xs space-y-2">
+                  <p>
+                    <strong>We need your annual income to estimate this plan.</strong>{" "}
+                    Income-driven repayment plans (PAYE, IBR, ICR, SAVE) are calculated from your
+                    projected annual income, but we don't have one yet.
+                  </p>
+                  <p>
+                    Add income in your{" "}
+                    <Link to="/projected-income" className="underline font-medium">
+                      Income Planner
+                    </Link>
+                    , or enter a projected annual income below to see an estimate. You can also
+                    switch to a non-income-based plan (Standard, Extended, or Graduated) to see
+                    results now.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            </>
+          ) : (
+            <>
+              <div className="text-3xl font-bold">{fmtCurrency(estimate.estimatedMonthlyPayment)}</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                {fmtCurrency(estimate.estimatedAnnualPayment)} per year
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
+                <Stat label="Monthly interest" value={fmtCurrency(estimate.monthlyInterest)} />
+                <Stat label="Annual interest" value={fmtCurrency(estimate.annualInterest)} />
                 <Stat
-                  label="Monthly difference"
-                  value={`${monthlyDiff >= 0 ? "+" : ""}${fmtCurrency(monthlyDiff)}`}
-                  variant={monthlyDiff <= 0 ? "ok" : "warn"}
+                  label="Covers interest?"
+                  value={estimate.coversMonthlyInterest ? "Yes" : "No"}
+                  variant={estimate.coversMonthlyInterest ? "ok" : "warn"}
                 />
+                <Stat label="Est. payoff" value={fmtMonths(estimate.estimatedPayoffMonths)} />
               </div>
-              <div className="text-xs text-muted-foreground mt-2">
-                Annual difference: {monthlyDiff >= 0 ? "+" : ""}{fmtCurrency(monthlyDiff * 12)}
-              </div>
-            </div>
-          )}
+              {isIdrPlan && !hasPlannerIncome && hasOverrideIncome && (
+                <div className="mt-3 text-[11px] text-muted-foreground flex gap-1.5">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  Using your manual income override because no projected income was found in the
+                  Income Planner.
+                </div>
+              )}
+              {currentPayment > 0 && (
+                <div className="mt-4 rounded-md border border-border p-3 text-sm bg-muted/30">
+                  <div className="grid grid-cols-3 gap-3">
+                    <Stat label="Current payment" value={fmtCurrency(currentPayment)} />
+                    <Stat label="Estimated payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} />
+                    <Stat
+                      label="Monthly difference"
+                      value={`${monthlyDiff >= 0 ? "+" : ""}${fmtCurrency(monthlyDiff)}`}
+                      variant={monthlyDiff <= 0 ? "ok" : "warn"}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Annual difference: {monthlyDiff >= 0 ? "+" : ""}{fmtCurrency(monthlyDiff * 12)}
+                  </div>
+                </div>
+              )}
+
           {estimate.notes.length > 0 && (
             <ul className="mt-3 text-xs text-muted-foreground space-y-1">
               {estimate.notes.map((n, i) => (
