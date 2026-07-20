@@ -53,6 +53,7 @@ import {
 import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
+import { StudentLoanEstimatorToggleSection } from "@/components/settings/StudentLoanEstimatorToggleSection";
 import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
 import AddCompanyDialog from "@/components/settings/AddCompanyDialog";
 import { DangerZoneSection } from "@/components/settings/DangerZoneSection";
@@ -2694,6 +2695,8 @@ export default function Settings() {
         <HsaSettingsSection bare />
         <Separator className="my-2" />
         <ForecastingAutomationSection bare />
+        <Separator className="my-2" />
+        <StudentLoanEstimatorToggleSection bare />
       </SectionCard>
 
       <SectionCard

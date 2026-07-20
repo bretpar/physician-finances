@@ -1420,6 +1420,54 @@ export type Database = {
           },
         ]
       }
+      student_loans: {
+        Row: {
+          additional_monthly_payment: number | null
+          balance: number
+          created_at: string
+          current_monthly_payment: number | null
+          id: string
+          interest_rate: number
+          loan_type: string
+          months_in_repayment: number | null
+          name: string | null
+          notes: string | null
+          repayment_plan: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          additional_monthly_payment?: number | null
+          balance?: number
+          created_at?: string
+          current_monthly_payment?: number | null
+          id?: string
+          interest_rate?: number
+          loan_type?: string
+          months_in_repayment?: number | null
+          name?: string | null
+          notes?: string | null
+          repayment_plan?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          additional_monthly_payment?: number | null
+          balance?: number
+          created_at?: string
+          current_monthly_payment?: number | null
+          id?: string
+          interest_rate?: number
+          loan_type?: string
+          months_in_repayment?: number | null
+          name?: string | null
+          notes?: string | null
+          repayment_plan?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tax_payments: {
         Row: {
           amount: number
@@ -1566,6 +1614,11 @@ export type Database = {
           state_income_tax_enabled: boolean
           state_of_residence: string
           state_tax_enabled: boolean
+          student_loan_community_property_override: boolean | null
+          student_loan_estimator_enabled: boolean
+          student_loan_family_size: number | null
+          student_loan_income_override: number | null
+          student_loan_spouse_income_override: number | null
           subscription_tier: string
           tax_mode: string
           tax_recommendation_method: string
@@ -1630,6 +1683,11 @@ export type Database = {
           state_income_tax_enabled?: boolean
           state_of_residence?: string
           state_tax_enabled?: boolean
+          student_loan_community_property_override?: boolean | null
+          student_loan_estimator_enabled?: boolean
+          student_loan_family_size?: number | null
+          student_loan_income_override?: number | null
+          student_loan_spouse_income_override?: number | null
           subscription_tier?: string
           tax_mode?: string
           tax_recommendation_method?: string
@@ -1694,6 +1752,11 @@ export type Database = {
           state_income_tax_enabled?: boolean
           state_of_residence?: string
           state_tax_enabled?: boolean
+          student_loan_community_property_override?: boolean | null
+          student_loan_estimator_enabled?: boolean
+          student_loan_family_size?: number | null
+          student_loan_income_override?: number | null
+          student_loan_spouse_income_override?: number | null
           subscription_tier?: string
           tax_mode?: string
           tax_recommendation_method?: string

@@ -141,7 +141,14 @@ export interface TaxRates {
   enabledDeductionTypes: string[];
   subscriptionTier: OnboardingSubscriptionTier;
   ytdCatchupChoice: "yes" | "no" | "skip" | null;
+  // ─── Student Loan Estimator (optional module) ───
+  studentLoanEstimatorEnabled: boolean;
+  studentLoanFamilySize: number | null;
+  studentLoanIncomeOverride: number | null;
+  studentLoanSpouseIncomeOverride: number | null;
+  studentLoanCommunityPropertyOverride: boolean | null;
 }
+
 
 const DEFAULT_RATES: TaxRates = {
   filingStatus: "single",
@@ -203,7 +210,13 @@ const DEFAULT_RATES: TaxRates = {
   enabledDeductionTypes: [],
   subscriptionTier: "premium",
   ytdCatchupChoice: null,
+  studentLoanEstimatorEnabled: false,
+  studentLoanFamilySize: null,
+  studentLoanIncomeOverride: null,
+  studentLoanSpouseIncomeOverride: null,
+  studentLoanCommunityPropertyOverride: null,
 };
+
 
 export function useTaxSettings(enabled = true) {
   const { user } = useAuth();
@@ -338,8 +351,14 @@ function mapTaxSettingsRow(data: any): TaxRates {
     enabledDeductionTypes: Array.isArray(d.enabled_deduction_types) ? d.enabled_deduction_types : [],
     subscriptionTier: (d.subscription_tier as OnboardingSubscriptionTier) || "premium",
     ytdCatchupChoice: (d.ytd_catchup_choice as TaxRates["ytdCatchupChoice"]) ?? null,
+    studentLoanEstimatorEnabled: !!d.student_loan_estimator_enabled,
+    studentLoanFamilySize: d.student_loan_family_size != null ? Number(d.student_loan_family_size) : null,
+    studentLoanIncomeOverride: d.student_loan_income_override != null ? Number(d.student_loan_income_override) : null,
+    studentLoanSpouseIncomeOverride: d.student_loan_spouse_income_override != null ? Number(d.student_loan_spouse_income_override) : null,
+    studentLoanCommunityPropertyOverride: d.student_loan_community_property_override != null ? !!d.student_loan_community_property_override : null,
   } as TaxRates;
 }
+
 
 export function useUpdateTaxSettings() {
   const qc = useQueryClient();
@@ -415,6 +434,11 @@ export function useUpdateTaxSettings() {
       if (rest.enabledDeductionTypes !== undefined) payload.enabled_deduction_types = rest.enabledDeductionTypes;
       if (rest.subscriptionTier !== undefined) payload.subscription_tier = rest.subscriptionTier;
       if (rest.ytdCatchupChoice !== undefined) payload.ytd_catchup_choice = rest.ytdCatchupChoice;
+      if ((rest as any).studentLoanEstimatorEnabled !== undefined) payload.student_loan_estimator_enabled = (rest as any).studentLoanEstimatorEnabled;
+      if ((rest as any).studentLoanFamilySize !== undefined) payload.student_loan_family_size = (rest as any).studentLoanFamilySize;
+      if ((rest as any).studentLoanIncomeOverride !== undefined) payload.student_loan_income_override = (rest as any).studentLoanIncomeOverride;
+      if ((rest as any).studentLoanSpouseIncomeOverride !== undefined) payload.student_loan_spouse_income_override = (rest as any).studentLoanSpouseIncomeOverride;
+      if ((rest as any).studentLoanCommunityPropertyOverride !== undefined) payload.student_loan_community_property_override = (rest as any).studentLoanCommunityPropertyOverride;
 
       // SECURITY: Always scope the update by the current auth user as well
       // as the row id. RLS already enforces this server-side, but adding
