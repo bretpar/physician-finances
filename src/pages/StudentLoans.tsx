@@ -596,3 +596,23 @@ function Row({ label, value, bold, muted }: { label: string; value: string; bold
     </div>
   );
 }
+
+function CostRow({ label, left, right }: { label: string; left: number; right: number }) {
+  const diff = right - left;
+  const better = diff < 0;
+  return (
+    <div className="grid grid-cols-3 gap-2 py-1 items-center">
+      <div className="text-muted-foreground">{label}</div>
+      <div className="text-right tabular-nums">{fmtCurrency(left)}</div>
+      <div className={`text-right tabular-nums ${diff === 0 ? "" : better ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+        {fmtCurrency(right)}
+        {diff !== 0 && (
+          <span className="ml-1 text-[10px]">
+            ({better ? "−" : "+"}{fmtCurrency(Math.abs(diff))})
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
