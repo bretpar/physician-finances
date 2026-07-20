@@ -366,7 +366,7 @@ export function calculateDependentCredits(
 ): number {
   const baseCredit = Math.max(0, qualifyingChildren) * 2000 + Math.max(0, otherDependents) * 500;
   if (baseCredit <= 0) return 0;
-  const threshold = filingStatus ===FilingStatus ? 400000 : 200000;
+  const threshold = filingStatus === "married_filing_jointly" ? 400000 : 200000;
   if (agi <= threshold) return baseCredit;
   const over = agi - threshold;
   const reduction = Math.ceil(over / 1000) * 50;
@@ -612,7 +612,7 @@ export function calculateFullEstimate(params: {
   // LTCG (long-term gains + qualified dividends) is taxed at LTCG brackets, stacked on top
   // of ordinary taxable income. The slice is capped at the total taxable income (post-deductions)
   // so deductions absorb LTCG last.
-  const brackets = filingStatus ===FilingStatus ? BRACKETS_MFJ : BRACKETS_SINGLE;
+  const brackets = filingStatus === "married_filing_jointly" ? BRACKETS_MFJ : BRACKETS_SINGLE;
   const ltcgSlice = Math.min(taxableIncome, Math.max(0, longTermCapitalGainsParam));
   const ordinaryTaxable = Math.max(0, taxableIncome - ltcgSlice);
   const ordinaryFederalTax = calculateProgressiveTax(ordinaryTaxable, brackets);
