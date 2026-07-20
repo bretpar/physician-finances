@@ -111,7 +111,18 @@ export default function StudentLoans() {
   const currentPayment = parsedLoan.currentMonthlyPayment ?? 0;
   const monthlyDiff = estimate.estimatedMonthlyPayment - currentPayment;
 
+  const selectedPlanFamily = REPAYMENT_PLANS[draftPlan]?.family;
+  const isIdrPlan = selectedPlanFamily === "idr";
+  const hasPlannerIncome = projectedFromPlanner > 0;
+  const hasOverrideIncome = incomeOverride != null && incomeOverride > 0;
+  const hasAnyIncome = projectedAnnualIncome > 0;
+  const idrMissingIncome = isIdrPlan && !hasAnyIncome;
+  const balanceInvalid = draftBalance !== "" && Number(draftBalance) < 0;
+  const rateInvalid = draftRate !== "" && Number(draftRate) < 0;
+  const overrideInvalid = incomeOverride != null && incomeOverride < 0;
+
   const spouseIncome = Number(spouseIncomeInput) || 0;
+
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
     return compareFilingStatuses({
