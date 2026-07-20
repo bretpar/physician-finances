@@ -47,6 +47,7 @@ const navItems: NavItem[] = [
   { to: "/deductions", icon: Car, label: "Deductions", subtitle: "", featureKey: "mileageDeduction" },
   { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", featureKey: "advancedTaxOverview", w2OnlyFeatureKey: "basicTaxOverview" },
   { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", featureKey: "detailedReports" },
+  { to: "/student-loans", icon: GraduationCap, label: "Student Loans", subtitle: "Estimate payments and compare filing status", module: "student_loans" },
   { to: "/settings", icon: Settings, label: "Settings", subtitle: "" },
 ];
 
@@ -82,9 +83,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
   const userType = deriveUserTypeFromIncomeStreams(householdStreams);
   const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(taxSettings?.subscriptionTier));
+  const showStudentLoansNav = !!taxSettings?.studentLoanEstimatorEnabled;
   const visibleNavItems = navItems.filter((item) => {
     if (item.module === "business") return showBusinessNav;
     if (item.module === "investment") return showInvestmentNav;
+    if (item.module === "student_loans") return showStudentLoansNav;
     return true;
   });
 
