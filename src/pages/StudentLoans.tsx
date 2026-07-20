@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { GraduationCap, Info, Scale, AlertTriangle, ChevronDown, Check } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -155,10 +155,14 @@ export default function StudentLoans() {
 
   // Comparison sandbox (opened on demand).
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  // Compare other repayment plans (collapsed by default).
+  const [comparePlansOpen, setComparePlansOpen] = useState(false);
+  const compareRef = useRef<HTMLDivElement | null>(null);
   const savedSpouseIncome = settings?.studentLoanSpouseIncomeOverride;
   const [spouseIncome, setSpouseIncome] = useState<string>(
     savedSpouseIncome != null ? String(savedSpouseIncome) : ""
   );
+
 
   // Community-property "review allocation" (advanced, hidden by default).
   const isCP = isCommunityPropertyState(state);
@@ -295,8 +299,9 @@ export default function StudentLoans() {
     : defaultSpouseMfsAgi;
 
   // Compare MFJ vs MFS — AGI-driven.
+  // Always compute so the collapsed preview can show default MFJ/MFS values.
   const comparison = useMemo(() => {
-    if (!comparisonOpen) return null;
+    if (!parsedLoan.balance || parsedLoan.balance <= 0) return null;
     return compareFilingStatuses({
       userIncome: 0, // ignored — AGI overrides win
       spouseIncome: Number(spouseIncome) || 0,
@@ -310,7 +315,8 @@ export default function StudentLoans() {
       overrideBorrowerMfsAgi: effectiveBorrowerMfsAgi,
       overrideSpouseMfsAgi: effectiveSpouseMfsAgi,
     });
-  }, [comparisonOpen, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+  }, [spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+
 
 
   const handleSaveLoan = async () => {
@@ -343,118 +349,265 @@ export default function StudentLoans() {
         <h1 className="text-xl font-semibold">Student Loan Estimator</h1>
       </div>
 
-      {/* 1. Result summary ─────────────────────────── */}
-      <Card className="p-5">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-          Estimated monthly payment · {estimate?.plan.label}
-        </div>
-        {estimate?.unavailable ? (
-          <>
-            <div className="text-3xl font-bold text-muted-foreground">—</div>
-            <div className="text-xs text-muted-foreground mt-2">{estimate.unavailable.reason}</div>
-          </>
-        ) : missingAgi && isIdrPlan ? (
-          <>
-            <div className="text-3xl font-bold text-muted-foreground">—</div>
-            <Alert className="mt-3">
-              <Info className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                Income-driven plans need an annual income. Add income in your{" "}
-                <Link to="/projected-income" className="underline font-medium">Income Planner</Link>,
-                or tap <strong>Change</strong> below to enter one.
-              </AlertDescription>
-            </Alert>
-          </>
-        ) : (
-          <>
-            <div className="text-3xl font-bold">{fmtCurrency(estimate?.estimatedMonthlyPayment ?? 0)}</div>
-            <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
-              <Stat label="Annual payment" value={fmtCurrency(estimate?.estimatedAnnualPayment ?? 0)} />
-              <Stat label="Monthly interest" value={fmtCurrency(estimate?.monthlyInterest ?? 0)} />
-              <Stat
-                label="Covers interest?"
-                value={estimate?.coversMonthlyInterest ? "Yes" : "No"}
-                variant={estimate?.coversMonthlyInterest ? "ok" : "warn"}
-              />
-              <Stat
-                label={activeEstimate?.forgivenessMonths != null &&
-                  (estimate?.estimatedPayoffMonths == null || estimate.estimatedPayoffMonths >= activeEstimate.forgivenessMonths)
-                  ? "Est. forgiveness"
-                  : (REPAYMENT_PLANS[selectedPlan]?.family === "graduated" ? "Full schedule" : "Est. payoff")}
-                value={
-                  REPAYMENT_PLANS[selectedPlan]?.family === "graduated"
-                    ? "Not modeled"
-                    : activeEstimate?.forgivenessMonths != null &&
-                      (estimate?.estimatedPayoffMonths == null || estimate.estimatedPayoffMonths >= activeEstimate.forgivenessMonths)
-                      ? fmtMonths(activeEstimate.forgivenessMonths)
-                      : fmtMonths(estimate?.estimatedPayoffMonths ?? null)
-                }
-              />
-            </div>
-            {!estimate?.coversMonthlyInterest && unpaidMonthlyInterest > 0 && (
-              <div className="mt-3 text-xs text-amber-600 dark:text-amber-400">
-                <strong>Estimated unpaid interest:</strong> {fmtCurrency(unpaidMonthlyInterest)}/mo added to your balance.
-              </div>
-            )}
-            {REPAYMENT_PLANS[selectedPlan]?.family === "graduated" && (
-              <div className="mt-2 text-[11px] text-muted-foreground">
-                Amount shown is the <strong>estimated starting payment</strong>. Graduated schedules
-                step up roughly every 2 years; the full schedule is not modeled here.
-              </div>
-            )}
-            {estimate?.detail?.eligibility === "assumed" && (
-              <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
-                Estimate shown; <strong>eligibility not confirmed</strong> — add loan disbursement
-                date and borrower type under Advanced loan details to confirm.
-              </div>
-            )}
-            {currentMonthly > 0 && (
-              <div className="mt-3 text-xs text-muted-foreground">
-                Current required payment: {fmtCurrency(currentMonthly)} ·{" "}
-                Difference: {fmtCurrency((estimate?.estimatedMonthlyPayment ?? 0) - currentMonthly)}/mo
-              </div>
-            )}
-          </>
-        )}
+      {/* 1. Current Repayment Plan ─────────────── */}
+      <CurrentPlanCard
+        estimate={estimate}
+        planLabel={activeEstimate?.plan.label ?? ""}
+        forgivenessMonths={activeEstimate?.forgivenessMonths ?? null}
+        planId={selectedPlan}
+        missingAgi={missingAgi}
+        isIdrPlan={isIdrPlan}
+        onChangePlan={() => {
+          setComparePlansOpen(true);
+          requestAnimationFrame(() => {
+            compareRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }}
+      />
 
-        {/* How was this calculated? (collapsed) */}
-        {estimate?.detail && (
-          <details className="mt-4 rounded-md border border-border bg-background/60 p-3 text-xs">
-            <summary className="cursor-pointer font-medium">How was this calculated?</summary>
-            <div className="mt-2 space-y-2">
-              <BreakdownRow label="AGI used" value={fmtCurrency(studentLoanAgi)} />
-              <BreakdownRow label="AGI source" value={agiSourceLabel} />
-              <BreakdownRow label="Filing status" value={filingStatusLabel(borrower.filingStatus)} />
-              <BreakdownRow label="Family size" value={String(familySize)} />
-              {estimate.detail.breakdown.povertyGuideline != null && (
-                <>
-                  <BreakdownRow label={`Poverty guideline (${estimate.detail.breakdown.povertyYear})`} value={fmtCurrency(estimate.detail.breakdown.povertyGuideline)} />
-                  <BreakdownRow label="Region" value={friendlyRegionLabel((state as any) === "AK" ? "alaska" : (state as any) === "HI" ? "hawaii" : "contiguous_48_dc")} />
-                </>
-              )}
-              {estimate.detail.breakdown.discretionaryIncome != null && (
-                <BreakdownRow label="Discretionary income" value={fmtCurrency(estimate.detail.breakdown.discretionaryIncome)} />
-              )}
-              {estimate.detail.breakdown.percentApplied != null && (
-                <BreakdownRow label="Payment percentage" value={`${estimate.detail.breakdown.percentApplied}%`} />
-              )}
-              {estimate.detail.breakdown.capMonthly != null && (
-                <BreakdownRow label="Standard payment cap" value={fmtCurrency(estimate.detail.breakdown.capMonthly)} />
-              )}
-              <BreakdownRow label="Final monthly payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} bold />
-              {cpAllocation && (
-                <BreakdownRow label="Community-property treatment" value="Applied (50/50 default)" />
-              )}
-              <div className="pt-2 mt-2 border-t border-border text-[10px] text-muted-foreground">
-                Rules {estimate.detail.rulesVersion} · updated {estimate.detail.sourceUpdatedAt} ·{" "}
-                <a href={estimate.detail.sourceUrl} target="_blank" rel="noreferrer" className="underline">source</a>
+      {/* 2. Can Filing Status Lower Your Payment? ── */}
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="font-semibold flex items-center gap-2">
+            <Scale className="h-4 w-4 text-primary" />
+            Can Filing Status Lower Your Payment?
+          </div>
+          <Button
+            size="sm"
+            variant={comparisonOpen ? "outline" : "default"}
+            onClick={() => setComparisonOpen((v) => !v)}
+          >
+            {comparisonOpen ? "Hide comparison" : "Compare Filing Status"}
+          </Button>
+        </div>
+
+        {!comparisonOpen && (comparison ? (
+          <div className="rounded-md border border-border bg-muted/20 p-3">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">MFJ</div>
+                <div className="text-base font-semibold tabular-nums">
+                  {fmtCurrency(comparison.mfj.studentLoanMonthlyPayment)}
+                  <span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">MFS</div>
+                <div className="text-base font-semibold tabular-nums">
+                  {fmtCurrency(comparison.mfs.studentLoanMonthlyPayment)}
+                  <span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Est. loan savings</div>
+                <div className="text-base font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {fmtCurrency(Math.abs(comparison.monthlyLoanSavings))}
+                  <span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+                </div>
               </div>
             </div>
-          </details>
+            <div className="text-[10px] text-muted-foreground text-center mt-2">
+              Preview using default projected AGI. Open the comparison to adjust inputs.
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground">
+            Complete the comparison to estimate your tax and student-loan impact.
+          </div>
+        ))}
+
+        {comparisonOpen && (
+          <div className="space-y-3">
+            <p className="text-[11px] text-muted-foreground">
+              Defaults to projected AGI from PaycheckMD. Changes here affect this comparison only —
+              your profile, Income Planner, and tax settings are not touched.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label htmlFor="sl-joint-agi" className="text-xs text-muted-foreground mb-1.5 block">
+                  Joint AGI used (MFJ)
+                </Label>
+                <Input
+                  id="sl-joint-agi"
+                  type="number"
+                  value={jointAgiInput}
+                  onChange={(e) => setJointAgiInput(e.target.value)}
+                  placeholder={String(Math.round(defaultJointAgi))}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Default: {fmtCurrency(defaultJointAgi)}
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="sl-borrower-mfs-agi" className="text-xs text-muted-foreground mb-1.5 block">
+                  Borrower AGI used (MFS)
+                </Label>
+                <Input
+                  id="sl-borrower-mfs-agi"
+                  type="number"
+                  value={borrowerMfsAgiInput}
+                  onChange={(e) => setBorrowerMfsAgiInput(e.target.value)}
+                  placeholder={String(Math.round(defaultBorrowerMfsAgi))}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Default: {fmtCurrency(defaultBorrowerMfsAgi)}
+                  {cpAllocation ? " · community-property allocation applied" : ""}
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="sl-spouse-mfs-agi" className="text-xs text-muted-foreground mb-1.5 block">
+                  Spouse AGI used (MFS)
+                </Label>
+                <Input
+                  id="sl-spouse-mfs-agi"
+                  type="number"
+                  value={spouseMfsAgiInput}
+                  onChange={(e) => setSpouseMfsAgiInput(e.target.value)}
+                  placeholder={String(Math.round(defaultSpouseMfsAgi))}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Default: {fmtCurrency(defaultSpouseMfsAgi)}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="sl-spouse-income" className="text-xs text-muted-foreground mb-1.5 block">
+                Spouse projected annual income (for plans that require it)
+              </Label>
+              <Input
+                id="sl-spouse-income"
+                type="number"
+                value={spouseIncome}
+                onChange={(e) => setSpouseIncome(e.target.value)}
+                placeholder="0"
+                className="max-w-xs"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Some IDR plans (e.g. PAYE MFJ) use household income directly. This does not change
+                the AGIs above.
+              </p>
+            </div>
+
+            {comparison && (() => {
+              const winnerLabel =
+                comparison.recommendation === "mfs"
+                  ? "Married Filing Separately"
+                  : "Married Filing Jointly";
+              return (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <ScenarioCard
+                      title="Married Filing Jointly"
+                      data={comparison.mfj}
+                      taxLabel="Estimated joint taxes"
+                      agiLabel="Joint AGI used"
+                      highlight={comparison.recommendation === "mfj"}
+                    />
+                    <ScenarioCard
+                      title="Married Filing Separately"
+                      data={comparison.mfs}
+                      taxLabel="Estimated combined MFS taxes"
+                      agiLabel="Borrower AGI used"
+                      highlight={comparison.recommendation === "mfs"}
+                    />
+                  </div>
+
+                  <Card className="p-4 bg-primary/5 border-primary/40 space-y-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Estimated better option
+                      </div>
+                      <div className="text-lg font-bold">{winnerLabel}</div>
+                    </div>
+
+                    <div className="rounded-md bg-background/60 border border-border p-3 space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Monthly student loan payment
+                      </div>
+                      <RowLine label="MFJ" value={`${fmtCurrency(comparison.mfj.studentLoanMonthlyPayment)}/mo`} />
+                      <RowLine label="MFS" value={`${fmtCurrency(comparison.mfs.studentLoanMonthlyPayment)}/mo`} />
+                      <div className="border-t border-border my-1" />
+                      <RowLine
+                        label="Monthly loan-payment savings"
+                        value={`${fmtCurrency(Math.abs(comparison.monthlyLoanSavings))}/mo`}
+                        bold
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <Stat label="Loan savings/yr" value={fmtCurrency(Math.max(0, comparison.studentLoanSavings))} />
+                      <Stat
+                        label={comparison.additionalTaxes >= 0 ? "Added taxes/yr" : "Tax savings/yr"}
+                        value={fmtCurrency(Math.abs(comparison.additionalTaxes))}
+                      />
+                      <Stat label="Net benefit/yr" value={fmtCurrency(comparison.netAnnualBenefit)} variant="ok" />
+                      <Stat label="Net benefit/mo" value={fmtCurrency(comparison.netMonthlyBenefit)} variant="ok" />
+                    </div>
+
+                    <p className="text-[10px] text-muted-foreground">
+                      Estimates only — based on federal + state tax + student loan payments.
+                      {comparison.communityPropertyApplied ? " Community-property allocation applied." : ""}
+                      {" "}Confirm with a tax professional before changing your filing status.
+                    </p>
+                  </Card>
+
+                  <details className="rounded-md border border-border bg-background/60 p-3 text-xs">
+                    <summary className="cursor-pointer font-medium">See annual comparison</summary>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full text-xs tabular-nums">
+                        <thead>
+                          <tr className="text-muted-foreground text-left">
+                            <th className="font-normal py-1"></th>
+                            <th className="font-normal py-1 text-right">MFJ</th>
+                            <th className="font-normal py-1 text-right">MFS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <BreakdownTr label="AGI used" mfj={fmtCurrency(comparison.mfj.studentLoanAgi)} mfs={fmtCurrency(comparison.mfs.studentLoanAgi)} />
+                          {comparison.mfs.spouseAgi != null && (
+                            <BreakdownTr label="Spouse AGI (MFS only)" mfj="—" mfs={fmtCurrency(comparison.mfs.spouseAgi)} />
+                          )}
+                          <BreakdownTr label="Estimated federal tax" mfj={fmtCurrency(comparison.mfj.federalTax)} mfs={fmtCurrency(comparison.mfs.federalTax)} />
+                          <BreakdownTr label="Estimated state tax" mfj={fmtCurrency(comparison.mfj.stateTax)} mfs={fmtCurrency(comparison.mfs.stateTax)} />
+                          <BreakdownTr
+                            label="Total estimated taxes"
+                            mfj={fmtCurrency(comparison.mfj.federalTax + comparison.mfj.stateTax)}
+                            mfs={fmtCurrency(comparison.mfs.federalTax + comparison.mfs.stateTax)}
+                          />
+                          {comparison.mfs.borrowerFederalTax != null && comparison.mfs.spouseFederalTax != null && (
+                            <>
+                              <BreakdownTr label="  Borrower MFS federal tax" mfj="—" mfs={fmtCurrency(comparison.mfs.borrowerFederalTax)} muted />
+                              <BreakdownTr label="  Spouse MFS federal tax" mfj="—" mfs={fmtCurrency(comparison.mfs.spouseFederalTax)} muted />
+                            </>
+                          )}
+                          <BreakdownTr label="Loan payment / month" mfj={fmtCurrency(comparison.mfj.studentLoanMonthlyPayment)} mfs={fmtCurrency(comparison.mfs.studentLoanMonthlyPayment)} />
+                          <BreakdownTr label="Loan payments / year" mfj={fmtCurrency(comparison.mfj.studentLoanAnnualPayment)} mfs={fmtCurrency(comparison.mfs.studentLoanAnnualPayment)} />
+                          <BreakdownTr
+                            label="Combined annual cost"
+                            mfj={fmtCurrency(comparison.mfj.combinedAnnualCost)}
+                            mfs={fmtCurrency(comparison.mfs.combinedAnnualCost)}
+                            bold
+                          />
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                </>
+              );
+            })()}
+          </div>
         )}
       </Card>
 
-      {/* 2. Confirm your information ─────────────── */}
+      {/* 3. Loan Interest ───────────────────────── */}
+      <LoanInterestCard
+        estimate={estimate}
+        unpaidMonthlyInterest={unpaidMonthlyInterest}
+      />
+
+      {/* 4. Confirm your information ────────────── */}
       <Card className="p-5 space-y-4">
         <div className="font-semibold">Confirm your information</div>
 
@@ -496,7 +649,6 @@ export default function StudentLoans() {
             </Select>
           </div>
         </div>
-
 
         {/* Income used — read-only summary with Change popover */}
         <div className="rounded-md border border-border bg-muted/20 p-3 flex items-center justify-between gap-2">
@@ -601,232 +753,80 @@ export default function StudentLoans() {
         </div>
       </Card>
 
-      {/* 3. Your repayment options ────────────────── */}
-      <RepaymentOptionsSection
-        planEstimates={planEstimates}
-        selectedPlan={selectedPlan}
-        onSelectPlan={setSelectedPlan}
-        savedPlanId={loan?.repayment_plan ?? null}
-        missingAgi={missingAgi}
-      />
+      {/* 5. Compare Other Repayment Plans ───────── */}
+      <div ref={compareRef}>
+        <CompareOtherPlansCard
+          planEstimates={planEstimates}
+          selectedPlan={selectedPlan}
+          onSelectPlan={setSelectedPlan}
+          missingAgi={missingAgi}
+          open={comparePlansOpen}
+          setOpen={setComparePlansOpen}
+        />
+      </div>
 
-
-      {/* 4. Compare MFJ vs MFS ────────────────────── */}
-      <Card className="p-5 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="font-semibold flex items-center gap-2">
-            <Scale className="h-4 w-4" /> Filing status comparison
-          </div>
-          <Button size="sm" variant="outline" onClick={() => setComparisonOpen((v) => !v)}>
-            {comparisonOpen ? "Hide comparison" : "Compare MFJ vs MFS"}
-          </Button>
-        </div>
-        {comparisonOpen && (
-          <div className="space-y-3">
-            <p className="text-[11px] text-muted-foreground">
-              Defaults to projected AGI from PaycheckMD. Changes here affect this comparison only —
-              your profile, Income Planner, and tax settings are not touched.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label htmlFor="sl-joint-agi" className="text-xs text-muted-foreground mb-1.5 block">
-                  Joint AGI used (MFJ)
-                </Label>
-                <Input
-                  id="sl-joint-agi"
-                  type="number"
-                  value={jointAgiInput}
-                  onChange={(e) => setJointAgiInput(e.target.value)}
-                  placeholder={String(Math.round(defaultJointAgi))}
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Default: {fmtCurrency(defaultJointAgi)}
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="sl-borrower-mfs-agi" className="text-xs text-muted-foreground mb-1.5 block">
-                  Borrower AGI used (MFS)
-                </Label>
-                <Input
-                  id="sl-borrower-mfs-agi"
-                  type="number"
-                  value={borrowerMfsAgiInput}
-                  onChange={(e) => setBorrowerMfsAgiInput(e.target.value)}
-                  placeholder={String(Math.round(defaultBorrowerMfsAgi))}
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Default: {fmtCurrency(defaultBorrowerMfsAgi)}
-                  {cpAllocation ? " · community-property allocation applied" : ""}
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="sl-spouse-mfs-agi" className="text-xs text-muted-foreground mb-1.5 block">
-                  Spouse AGI used (MFS)
-                </Label>
-                <Input
-                  id="sl-spouse-mfs-agi"
-                  type="number"
-                  value={spouseMfsAgiInput}
-                  onChange={(e) => setSpouseMfsAgiInput(e.target.value)}
-                  placeholder={String(Math.round(defaultSpouseMfsAgi))}
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Default: {fmtCurrency(defaultSpouseMfsAgi)}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="sl-spouse-income" className="text-xs text-muted-foreground mb-1.5 block">
-                Spouse projected annual income (for plans that require it)
-              </Label>
-              <Input
-                id="sl-spouse-income"
-                type="number"
-                value={spouseIncome}
-                onChange={(e) => setSpouseIncome(e.target.value)}
-                placeholder="0"
-                className="max-w-xs"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Some IDR plans (e.g. PAYE MFJ) use household income directly. This does not change
-                the AGIs above.
-              </p>
-            </div>
-
-            {comparison && (() => {
-              const winnerLabel =
-                comparison.recommendation === "mfs"
-                  ? "Married Filing Separately"
-                  : "Married Filing Jointly";
-              return (
-                <>
-                  {/* Loan-payment-first scenario cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <ScenarioCard
-                      title="Married Filing Jointly"
-                      data={comparison.mfj}
-                      taxLabel="Estimated joint taxes"
-                      agiLabel="Joint AGI used"
-                      highlight={comparison.recommendation === "mfj"}
-                    />
-                    <ScenarioCard
-                      title="Married Filing Separately"
-                      data={comparison.mfs}
-                      taxLabel="Estimated combined MFS taxes"
-                      agiLabel="Borrower AGI used"
-                      highlight={comparison.recommendation === "mfs"}
-                    />
-                  </div>
-
-                  {/* Recommendation card — monthly loan payment first */}
-                  <Card className="p-4 bg-primary/5 border-primary/40 space-y-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Estimated better option
-                      </div>
-                      <div className="text-lg font-bold">{winnerLabel}</div>
-                    </div>
-
-                    <div className="rounded-md bg-background/60 border border-border p-3 space-y-1.5">
-                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                        Monthly student loan payment
-                      </div>
-                      <RowLine label="MFJ" value={`${fmtCurrency(comparison.mfj.studentLoanMonthlyPayment)}/mo`} />
-                      <RowLine label="MFS" value={`${fmtCurrency(comparison.mfs.studentLoanMonthlyPayment)}/mo`} />
-                      <div className="border-t border-border my-1" />
-                      <RowLine
-                        label="Monthly loan-payment savings"
-                        value={`${fmtCurrency(Math.abs(comparison.monthlyLoanSavings))}/mo`}
-                        bold
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <Stat label="Loan savings/yr" value={fmtCurrency(Math.max(0, comparison.studentLoanSavings))} />
-                      <Stat
-                        label={comparison.additionalTaxes >= 0 ? "Added taxes/yr" : "Tax savings/yr"}
-                        value={fmtCurrency(Math.abs(comparison.additionalTaxes))}
-                      />
-                      <Stat label="Net benefit/yr" value={fmtCurrency(comparison.netAnnualBenefit)} variant="ok" />
-                      <Stat label="Net benefit/mo" value={fmtCurrency(comparison.netMonthlyBenefit)} variant="ok" />
-                    </div>
-
-                    <p className="text-[10px] text-muted-foreground">
-                      Estimates only — based on federal + state tax + student loan payments.
-                      {comparison.communityPropertyApplied ? " Community-property allocation applied." : ""}
-                      {" "}Confirm with a tax professional before changing your filing status.
-                    </p>
-                  </Card>
-
-                  {/* Annual breakdown table (collapsible) */}
-                  <details className="rounded-md border border-border bg-background/60 p-3 text-xs">
-                    <summary className="cursor-pointer font-medium">See annual comparison</summary>
-                    <div className="mt-3 overflow-x-auto">
-                      <table className="w-full text-xs tabular-nums">
-                        <thead>
-                          <tr className="text-muted-foreground text-left">
-                            <th className="font-normal py-1"></th>
-                            <th className="font-normal py-1 text-right">MFJ</th>
-                            <th className="font-normal py-1 text-right">MFS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <BreakdownTr label="AGI used" mfj={fmtCurrency(comparison.mfj.studentLoanAgi)} mfs={fmtCurrency(comparison.mfs.studentLoanAgi)} />
-                          {comparison.mfs.spouseAgi != null && (
-                            <BreakdownTr label="Spouse AGI (MFS only)" mfj="—" mfs={fmtCurrency(comparison.mfs.spouseAgi)} />
-                          )}
-                          <BreakdownTr label="Estimated federal tax" mfj={fmtCurrency(comparison.mfj.federalTax)} mfs={fmtCurrency(comparison.mfs.federalTax)} />
-                          <BreakdownTr label="Estimated state tax" mfj={fmtCurrency(comparison.mfj.stateTax)} mfs={fmtCurrency(comparison.mfs.stateTax)} />
-                          <BreakdownTr
-                            label="Total estimated taxes"
-                            mfj={fmtCurrency(comparison.mfj.federalTax + comparison.mfj.stateTax)}
-                            mfs={fmtCurrency(comparison.mfs.federalTax + comparison.mfs.stateTax)}
-                          />
-                          {comparison.mfs.borrowerFederalTax != null && comparison.mfs.spouseFederalTax != null && (
-                            <>
-                              <BreakdownTr label="  Borrower MFS federal tax" mfj="—" mfs={fmtCurrency(comparison.mfs.borrowerFederalTax)} muted />
-                              <BreakdownTr label="  Spouse MFS federal tax" mfj="—" mfs={fmtCurrency(comparison.mfs.spouseFederalTax)} muted />
-                            </>
-                          )}
-                          <BreakdownTr label="Loan payment / month" mfj={fmtCurrency(comparison.mfj.studentLoanMonthlyPayment)} mfs={fmtCurrency(comparison.mfs.studentLoanMonthlyPayment)} />
-                          <BreakdownTr label="Loan payments / year" mfj={fmtCurrency(comparison.mfj.studentLoanAnnualPayment)} mfs={fmtCurrency(comparison.mfs.studentLoanAnnualPayment)} />
-                          <BreakdownTr
-                            label="Combined annual cost"
-                            mfj={fmtCurrency(comparison.mfj.combinedAnnualCost)}
-                            mfs={fmtCurrency(comparison.mfs.combinedAnnualCost)}
-                            bold
-                          />
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                </>
-              );
-            })()}
-          </div>
-        )}
-      </Card>
-
-
-      {/* 5. Advanced loan details ─────────────────── */}
+      {/* 6. Advanced ────────────────────────────── */}
       <details className="rounded-md border border-border bg-background p-4">
         <summary className="cursor-pointer font-medium text-sm flex items-center gap-2">
-          <ChevronDown className="h-4 w-4" /> Advanced loan details
+          <ChevronDown className="h-4 w-4" /> Advanced
         </summary>
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Current required monthly payment ($)" value={currentPayment} onChange={setCurrentPayment} type="number" />
-          <Field label="Additional monthly payment ($)" value={additionalPayment} onChange={setAdditionalPayment} type="number" />
-          <Field label="Months already in repayment" value={monthsInRepayment} onChange={setMonthsInRepayment} type="number" />
+        <div className="mt-3 space-y-5">
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Loan details
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Current required monthly payment ($)" value={currentPayment} onChange={setCurrentPayment} type="number" />
+              <Field label="Additional monthly payment ($)" value={additionalPayment} onChange={setAdditionalPayment} type="number" />
+              <Field label="Months already in repayment" value={monthsInRepayment} onChange={setMonthsInRepayment} type="number" />
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              These only refine your estimate — they don't change your profile or tax settings.
+            </p>
+          </div>
+
+          {estimate?.detail && (
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Calculation details
+              </div>
+              <div className="space-y-1.5 text-xs">
+                <BreakdownRow label="AGI used" value={fmtCurrency(studentLoanAgi)} />
+                <BreakdownRow label="AGI source" value={agiSourceLabel} />
+                <BreakdownRow label="Filing status" value={filingStatusLabel(borrower.filingStatus)} />
+                <BreakdownRow label="Family size" value={String(familySize)} />
+                {estimate.detail.breakdown.povertyGuideline != null && (
+                  <>
+                    <BreakdownRow label={`Poverty guideline (${estimate.detail.breakdown.povertyYear})`} value={fmtCurrency(estimate.detail.breakdown.povertyGuideline)} />
+                    <BreakdownRow label="Region" value={friendlyRegionLabel((state as any) === "AK" ? "alaska" : (state as any) === "HI" ? "hawaii" : "contiguous_48_dc")} />
+                  </>
+                )}
+                {estimate.detail.breakdown.discretionaryIncome != null && (
+                  <BreakdownRow label="Discretionary income" value={fmtCurrency(estimate.detail.breakdown.discretionaryIncome)} />
+                )}
+                {estimate.detail.breakdown.percentApplied != null && (
+                  <BreakdownRow label="Payment percentage" value={`${estimate.detail.breakdown.percentApplied}%`} />
+                )}
+                {estimate.detail.breakdown.capMonthly != null && (
+                  <BreakdownRow label="Standard payment cap" value={fmtCurrency(estimate.detail.breakdown.capMonthly)} />
+                )}
+                <BreakdownRow label="Final monthly payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} bold />
+                {cpAllocation && (
+                  <BreakdownRow label="Community-property treatment" value="Applied (50/50 default)" />
+                )}
+                <div className="pt-2 mt-2 border-t border-border text-[10px] text-muted-foreground">
+                  Rules {estimate.detail.rulesVersion} · updated {estimate.detail.sourceUpdatedAt} ·{" "}
+                  <a href={estimate.detail.sourceUrl} target="_blank" rel="noreferrer" className="underline">source</a>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <p className="text-[11px] text-muted-foreground mt-2">
-          These only refine your estimate — they don't change your profile or tax settings.
-        </p>
       </details>
     </div>
   );
 }
+
 
 // ── UI primitives ────────────────────────────────────
 function Field({ id, label, value, onChange, type = "text", error }: { id?: string; label: string; value: string; onChange: (v: string) => void; type?: string; error?: string }) {
@@ -915,7 +915,7 @@ function BreakdownRow({ label, value, bold }: { label: string; value: string; bo
 }
 
 // ────────────────────────────────────────────────────────────
-// Repayment options — progressive disclosure UI
+// Repayment plans — progressive disclosure UI
 // ────────────────────────────────────────────────────────────
 type PlanEstimateEntry = {
   plan: (typeof REPAYMENT_PLAN_LIST)[number];
@@ -954,267 +954,404 @@ function getPlanEligibility(
   return { label: "Eligible", tone: "ok" };
 }
 
-function RepaymentOptionsSection({
-  planEstimates,
-  selectedPlan,
-  onSelectPlan,
+// ────────────────────────────────────────────────────────────
+// Current Repayment Plan — top card
+// ────────────────────────────────────────────────────────────
+function CurrentPlanCard({
+  estimate,
+  planLabel,
+  forgivenessMonths,
+  planId,
   missingAgi,
+  isIdrPlan,
+  onChangePlan,
 }: {
-  planEstimates: PlanEstimateEntry[];
-  selectedPlan: RepaymentPlanId;
-  onSelectPlan: (id: RepaymentPlanId) => void;
-  savedPlanId: RepaymentPlanId | null;
+  estimate: ReturnType<typeof estimateRepayment> | undefined;
+  planLabel: string;
+  forgivenessMonths: number | null;
+  planId: RepaymentPlanId;
   missingAgi: boolean;
+  isIdrPlan: boolean;
+  onChangePlan: () => void;
 }) {
-  const [changeOpen, setChangeOpen] = useState(false);
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [learnMoreOpen, setLearnMoreOpen] = useState(false);
-
-  const active =
-    planEstimates.find((p) => p.plan.id === selectedPlan) ?? planEstimates[0];
-  if (!active) return null;
-
-  const activeEligibility = getPlanEligibility(active, missingAgi);
-  const activeEndpoint = getPlanEndpointLabel(active);
-  const monthly = active.est.estimatedMonthlyPayment;
+  const isGraduated = REPAYMENT_PLANS[planId]?.family === "graduated";
+  const monthly = estimate?.estimatedMonthlyPayment ?? 0;
   const annual = monthly * 12;
-  const activeIsGraduated =
-    REPAYMENT_PLANS[active.plan.id]?.family === "graduated";
+  const eligibility = estimate?.detail?.eligibility ?? "confirmed";
+  const needsConfirmation = !estimate?.unavailable && (eligibility === "assumed" || (isIdrPlan && missingAgi));
 
-  const handleSelect = (id: RepaymentPlanId) => {
-    onSelectPlan(id);
-    setChangeOpen(false);
-  };
+  const paysBefore =
+    forgivenessMonths != null &&
+    estimate?.estimatedPayoffMonths != null &&
+    estimate.estimatedPayoffMonths < forgivenessMonths;
+  const termLabel = isGraduated
+    ? "10-year term (starting payment)"
+    : forgivenessMonths != null && !paysBefore
+      ? `${Math.round(forgivenessMonths / 12)}-year forgiveness`
+      : estimate?.estimatedPayoffMonths != null
+        ? `${fmtMonths(estimate.estimatedPayoffMonths)} payoff`
+        : "—";
+
+  const showEmpty = estimate?.unavailable || (missingAgi && isIdrPlan);
 
   return (
     <Card className="p-5 space-y-4">
-      <div>
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
-          Current Repayment Plan
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+            Current Repayment Plan
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-lg font-semibold truncate">{planLabel || "—"}</div>
+            <Badge variant="outline" className="text-[10px]">Current plan</Badge>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="text-lg font-semibold">{active.plan.label}</div>
-          <Badge variant="outline" className="text-[10px]">
-            Current plan
-          </Badge>
-        </div>
+        <Button size="sm" variant="outline" onClick={onChangePlan} className="shrink-0">
+          Change Plan
+        </Button>
       </div>
 
-      {active.est.unavailable ? (
-        <div className="text-sm text-muted-foreground">
-          Not available for this loan.
+      {showEmpty ? (
+        <div>
+          <div className="text-3xl font-bold text-muted-foreground tabular-nums">—</div>
+          {estimate?.unavailable ? (
+            <div className="text-xs text-muted-foreground mt-2">{estimate.unavailable.reason}</div>
+          ) : (
+            <Alert className="mt-3">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Income-driven plans need an annual income. Add income in your{" "}
+                <Link to="/projected-income" className="underline font-medium">Income Planner</Link>,
+                or open <strong>Confirm your information</strong> below.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
           <div>
             <div className="text-[11px] text-muted-foreground">
-              {activeIsGraduated ? "Starting Monthly Payment" : "Estimated Monthly Payment"}
+              {isGraduated ? "Starting Monthly Payment" : "Estimated Monthly Payment"}
             </div>
-            <div className="text-3xl font-bold tabular-nums leading-tight">
+            <div className="text-4xl font-bold tabular-nums leading-tight">
               {fmtCurrency(monthly)}
               <span className="text-sm text-muted-foreground font-normal">/month</span>
             </div>
           </div>
-          <div>
-            <div className="text-[11px] text-muted-foreground">
-              Estimated Annual Payment
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[11px] text-muted-foreground">Estimated Annual Payment</div>
+              <div className="text-base font-semibold tabular-nums">
+                {fmtCurrency(annual)}
+                <span className="text-[11px] text-muted-foreground font-normal">/year</span>
+              </div>
             </div>
-            <div className="text-lg font-semibold tabular-nums">
-              {fmtCurrency(annual)}
-              <span className="text-xs text-muted-foreground font-normal">/year</span>
+            <div>
+              <div className="text-[11px] text-muted-foreground">Term</div>
+              <div className="text-base font-semibold">{termLabel}</div>
             </div>
           </div>
-          <div>
-            <div className="text-[11px] text-muted-foreground">
-              Forgiveness / Repayment Term
-            </div>
-            <div className="text-sm font-medium">{activeEndpoint}</div>
-          </div>
-          {activeEligibility.tone === "warn" && (
+          {needsConfirmation && (
             <div className="text-[11px] text-amber-600 dark:text-amber-400">
               Eligibility: Needs confirmation
             </div>
           )}
         </div>
       )}
-
-      {/* Change plan */}
-      <div className="border-t border-border pt-3">
-        <button
-          type="button"
-          onClick={() => setChangeOpen((o) => !o)}
-          className="w-full flex items-center justify-between text-sm font-medium py-1"
-          aria-expanded={changeOpen}
-        >
-          <span>Change Repayment Plan</span>
-          <ChevronDown
-            className={`h-4 w-4 transition-transform ${changeOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-        {changeOpen && (
-          <div className="mt-2 space-y-1.5" role="radiogroup" aria-label="Repayment plan">
-            {planEstimates.map((pe) => {
-              const isActive = pe.plan.id === selectedPlan;
-              const elig = getPlanEligibility(pe, missingAgi);
-              const endpoint = getPlanEndpointLabel(pe);
-              const isGraduated =
-                REPAYMENT_PLANS[pe.plan.id]?.family === "graduated";
-              const secondary: string[] = [];
-              if (!pe.est.unavailable) secondary.push(endpoint);
-              if (elig.tone === "warn") secondary.push("Eligibility not confirmed");
-              if (isGraduated) secondary.push("Estimated only");
-              return (
-                <button
-                  key={pe.plan.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={isActive}
-                  onClick={() => handleSelect(pe.plan.id)}
-                  className={`w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left min-h-[52px] transition-colors ${
-                    isActive
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/40"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span
-                      className={`h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                        isActive ? "border-primary bg-primary" : "border-muted-foreground/40"
-                      }`}
-                      aria-hidden
-                    >
-                      {isActive && (
-                        <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={4} />
-                      )}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{pe.plan.label}</div>
-                      {secondary.length > 0 && (
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {secondary.join(" · ")}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    {pe.est.unavailable ? (
-                      <div className="text-xs text-muted-foreground">N/A</div>
-                    ) : (
-                      <div className="text-sm font-semibold tabular-nums">
-                        {isGraduated && (
-                          <span className="text-[10px] text-muted-foreground font-normal">
-                            from{" "}
-                          </span>
-                        )}
-                        {fmtCurrency(pe.est.estimatedMonthlyPayment)}
-                        <span className="text-[10px] text-muted-foreground font-normal">
-                          /mo
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => setCompareOpen((o) => !o)}
-              className="w-full text-left text-sm text-primary py-2 hover:underline"
-              aria-expanded={compareOpen}
-            >
-              {compareOpen ? "Hide comparison" : "Compare All Plans"}
-            </button>
-
-            {compareOpen && (
-              <div className="overflow-x-auto -mx-1 px-1">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-muted-foreground border-b border-border">
-                      <th className="py-1.5 pr-2 font-medium">Plan</th>
-                      <th className="py-1.5 px-2 font-medium text-right whitespace-nowrap">
-                        Monthly
-                      </th>
-                      <th className="py-1.5 px-2 font-medium whitespace-nowrap">Term</th>
-                      <th className="py-1.5 pl-2 font-medium whitespace-nowrap">
-                        Eligibility
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {planEstimates.map((pe) => {
-                      const elig = getPlanEligibility(pe, missingAgi);
-                      const isGraduated =
-                        REPAYMENT_PLANS[pe.plan.id]?.family === "graduated";
-                      return (
-                        <tr
-                          key={pe.plan.id}
-                          className="border-b border-border/50 last:border-0"
-                        >
-                          <td className="py-1.5 pr-2 font-medium whitespace-nowrap">
-                            {pe.plan.label}
-                          </td>
-                          <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
-                            {pe.est.unavailable
-                              ? "—"
-                              : `${isGraduated ? "from " : ""}${fmtCurrency(pe.est.estimatedMonthlyPayment)}/mo`}
-                          </td>
-                          <td className="py-1.5 px-2 whitespace-nowrap">
-                            {pe.est.unavailable ? "—" : getPlanEndpointLabel(pe)}
-                          </td>
-                          <td
-                            className={`py-1.5 pl-2 whitespace-nowrap ${
-                              elig.tone === "warn"
-                                ? "text-amber-600 dark:text-amber-400"
-                                : elig.tone === "muted"
-                                  ? "text-muted-foreground"
-                                  : ""
-                            }`}
-                          >
-                            {elig.label}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Learn More */}
-      <div className="border-t border-border pt-3">
-        <button
-          type="button"
-          onClick={() => setLearnMoreOpen((o) => !o)}
-          className="w-full flex items-center justify-between text-sm py-1 text-muted-foreground"
-          aria-expanded={learnMoreOpen}
-        >
-          <span className="flex items-center gap-1.5">
-            <Info className="h-3.5 w-3.5" /> Learn More about plans
-          </span>
-          <ChevronDown
-            className={`h-4 w-4 transition-transform ${learnMoreOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-        {learnMoreOpen && (
-          <div className="mt-3 space-y-3">
-            {planEstimates.map((pe) => (
-              <div key={pe.plan.id} className="text-xs">
-                <div className="font-semibold text-sm text-foreground">
-                  {pe.plan.label}
-                </div>
-                <div className="text-muted-foreground mt-0.5 leading-relaxed">
-                  {pe.plan.tooltip}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </Card>
   );
 }
+
+// ────────────────────────────────────────────────────────────
+// Loan Interest — compact card
+// ────────────────────────────────────────────────────────────
+function LoanInterestCard({
+  estimate,
+  unpaidMonthlyInterest,
+}: {
+  estimate: ReturnType<typeof estimateRepayment> | undefined;
+  unpaidMonthlyInterest: number;
+}) {
+  const [learnMore, setLearnMore] = useState(false);
+  const monthlyInterest = estimate?.monthlyInterest ?? 0;
+  const monthlyPayment = estimate?.estimatedMonthlyPayment ?? 0;
+  const covers = !!estimate?.coversMonthlyInterest;
+
+  return (
+    <Card className="p-5 space-y-3">
+      <div className="font-semibold">Loan Interest</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Stat label="Monthly interest" value={fmtCurrency(monthlyInterest)} />
+        <Stat label="Current payment" value={`${fmtCurrency(monthlyPayment)}/mo`} />
+        <Stat
+          label="Covers interest"
+          value={covers ? "Yes" : "No"}
+          variant={covers ? "ok" : "warn"}
+        />
+        {!covers && unpaidMonthlyInterest > 0 && (
+          <Stat
+            label="Est. unpaid interest"
+            value={`${fmtCurrency(unpaidMonthlyInterest)}/mo`}
+            variant="warn"
+          />
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => setLearnMore((o) => !o)}
+        className="text-xs text-primary hover:underline flex items-center gap-1"
+        aria-expanded={learnMore}
+      >
+        <Info className="h-3 w-3" /> {learnMore ? "Hide details" : "Learn more"}
+      </button>
+      {learnMore && (
+        <div className="text-[11px] text-muted-foreground leading-relaxed space-y-1.5">
+          <p>
+            Monthly interest is calculated from your outstanding balance and interest rate.
+            Changing your filing status or repayment plan does not change your interest rate
+            or the monthly interest that accrues on your loan.
+          </p>
+          <p>
+            When your monthly payment is less than the monthly interest, the unpaid portion
+            typically capitalizes onto your balance under most repayment plans (some IDR plans
+            provide interest subsidies — check with your servicer).
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Compare Other Repayment Plans — collapsed by default
+// ────────────────────────────────────────────────────────────
+function CompareOtherPlansCard({
+  planEstimates,
+  selectedPlan,
+  onSelectPlan,
+  missingAgi,
+  open,
+  setOpen,
+}: {
+  planEstimates: PlanEstimateEntry[];
+  selectedPlan: RepaymentPlanId;
+  onSelectPlan: (id: RepaymentPlanId) => void;
+  missingAgi: boolean;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+}) {
+  const [compareAllOpen, setCompareAllOpen] = useState(false);
+  const [learnMoreOpen, setLearnMoreOpen] = useState(false);
+
+  const handleSelect = (id: RepaymentPlanId) => {
+    onSelectPlan(id);
+    setOpen(false);
+  };
+
+  // Group plans by relevance.
+  const current = planEstimates.filter((p) => p.plan.id === selectedPlan);
+  const idrPlans = planEstimates.filter(
+    (p) => REPAYMENT_PLANS[p.plan.id]?.family === "idr" && p.plan.id !== selectedPlan,
+  );
+  const traditionalPlans = planEstimates.filter((p) => {
+    const fam = REPAYMENT_PLANS[p.plan.id]?.family;
+    return fam !== "idr" && p.plan.id !== selectedPlan;
+  });
+
+  const renderRow = (pe: PlanEstimateEntry) => {
+    const isActive = pe.plan.id === selectedPlan;
+    const elig = getPlanEligibility(pe, missingAgi);
+    const endpoint = getPlanEndpointLabel(pe);
+    const isGraduated = REPAYMENT_PLANS[pe.plan.id]?.family === "graduated";
+    const secondary: string[] = [];
+    if (!pe.est.unavailable) secondary.push(endpoint);
+    if (elig.tone === "warn") secondary.push("Eligibility not confirmed");
+    if (isGraduated) secondary.push("Full schedule not modeled");
+    return (
+      <button
+        key={pe.plan.id}
+        type="button"
+        role="radio"
+        aria-checked={isActive}
+        onClick={() => handleSelect(pe.plan.id)}
+        className={`w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left min-h-[52px] transition-colors ${
+          isActive
+            ? "border-primary bg-primary/5"
+            : "border-border hover:bg-muted/40"
+        }`}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span
+            className={`h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+              isActive ? "border-primary bg-primary" : "border-muted-foreground/40"
+            }`}
+            aria-hidden
+          >
+            {isActive && (
+              <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={4} />
+            )}
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate">{pe.plan.label}</div>
+            {secondary.length > 0 && (
+              <div className="text-[11px] text-muted-foreground truncate">
+                {secondary.join(" · ")}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          {pe.est.unavailable ? (
+            <div className="text-xs text-muted-foreground">N/A</div>
+          ) : (
+            <div className="text-sm font-semibold tabular-nums">
+              {isGraduated && (
+                <span className="text-[10px] text-muted-foreground font-normal">from </span>
+              )}
+              {fmtCurrency(pe.est.estimatedMonthlyPayment)}
+              <span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <Card className="p-5 space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-left"
+        aria-expanded={open}
+      >
+        <div className="min-w-0">
+          <div className="font-semibold">Compare Other Repayment Plans</div>
+          {!open && (
+            <div className="text-xs text-muted-foreground mt-0.5">
+              See estimated payments for other federal plans.
+            </div>
+          )}
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="space-y-4" role="radiogroup" aria-label="Repayment plan">
+          {current.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                Current plan
+              </div>
+              {current.map(renderRow)}
+            </div>
+          )}
+
+          {idrPlans.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                Income-Driven Alternatives
+              </div>
+              {idrPlans.map(renderRow)}
+            </div>
+          )}
+
+          {traditionalPlans.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                Traditional Repayment Plans
+              </div>
+              {traditionalPlans.map(renderRow)}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setCompareAllOpen((o) => !o)}
+            className="w-full text-left text-sm text-primary py-1 hover:underline"
+            aria-expanded={compareAllOpen}
+          >
+            {compareAllOpen ? "Hide comparison table" : "Compare All Plans"}
+          </button>
+
+          {compareAllOpen && (
+            <div className="overflow-x-auto -mx-1 px-1">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-muted-foreground border-b border-border">
+                    <th className="py-1.5 pr-2 font-medium">Plan</th>
+                    <th className="py-1.5 px-2 font-medium text-right whitespace-nowrap">Monthly</th>
+                    <th className="py-1.5 px-2 font-medium whitespace-nowrap">Term</th>
+                    <th className="py-1.5 pl-2 font-medium whitespace-nowrap">Eligibility</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {planEstimates.map((pe) => {
+                    const elig = getPlanEligibility(pe, missingAgi);
+                    const isGraduated = REPAYMENT_PLANS[pe.plan.id]?.family === "graduated";
+                    return (
+                      <tr key={pe.plan.id} className="border-b border-border/50 last:border-0">
+                        <td className="py-1.5 pr-2 font-medium whitespace-nowrap">{pe.plan.label}</td>
+                        <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
+                          {pe.est.unavailable
+                            ? "—"
+                            : `${isGraduated ? "from " : ""}${fmtCurrency(pe.est.estimatedMonthlyPayment)}/mo`}
+                        </td>
+                        <td className="py-1.5 px-2 whitespace-nowrap">
+                          {pe.est.unavailable ? "—" : getPlanEndpointLabel(pe)}
+                        </td>
+                        <td
+                          className={`py-1.5 pl-2 whitespace-nowrap ${
+                            elig.tone === "warn"
+                              ? "text-amber-600 dark:text-amber-400"
+                              : elig.tone === "muted"
+                                ? "text-muted-foreground"
+                                : ""
+                          }`}
+                        >
+                          {elig.label}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="border-t border-border pt-3">
+            <button
+              type="button"
+              onClick={() => setLearnMoreOpen((o) => !o)}
+              className="w-full flex items-center justify-between text-sm py-1 text-muted-foreground"
+              aria-expanded={learnMoreOpen}
+            >
+              <span className="flex items-center gap-1.5">
+                <Info className="h-3.5 w-3.5" /> Learn More about plans
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${learnMoreOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {learnMoreOpen && (
+              <div className="mt-3 space-y-3">
+                {planEstimates.map((pe) => (
+                  <div key={pe.plan.id} className="text-xs">
+                    <div className="font-semibold text-sm text-foreground">{pe.plan.label}</div>
+                    <div className="text-muted-foreground mt-0.5 leading-relaxed">
+                      {pe.plan.tooltip}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 
