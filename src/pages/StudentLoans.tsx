@@ -172,8 +172,10 @@ export default function StudentLoans() {
   useEffect(() => {
     writeScenarioPrefs(userId, {
       state, familySize, planId: selectedPlan, balance, rate, agiMode, manualAgi,
+      firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated,
     });
-  }, [userId, state, familySize, selectedPlan, balance, rate, agiMode, manualAgi]);
+  }, [userId, state, familySize, selectedPlan, balance, rate, agiMode, manualAgi,
+      firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated]);
 
   // Comparison sandbox (opened on demand).
   const [comparisonOpen, setComparisonOpen] = useState(false);
