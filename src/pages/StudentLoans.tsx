@@ -1080,14 +1080,18 @@ function getPlanEndpointLabel(pe: PlanEstimateEntry): string {
 function getPlanEligibility(
   pe: PlanEstimateEntry,
   missingAgi: boolean,
-): { label: string; tone: "ok" | "warn" | "muted" } {
-  if (pe.est.unavailable) return { label: "Not available", tone: "muted" };
+): { label: string; tone: "ok" | "warn" | "muted"; reasons: string[] } {
+  if (pe.est.unavailable) return { label: "Not available", tone: "muted", reasons: [] };
   const eligibility = pe.est.detail?.eligibility ?? "confirmed";
   const isIdr = REPAYMENT_PLANS[pe.plan.id]?.family === "idr";
+  const reasons = [...(pe.est.detail?.eligibilityReasons ?? [])];
+  if (isIdr && missingAgi) reasons.push("Add annual income (needed for income-driven plans)");
   if (eligibility === "assumed" || (isIdr && missingAgi)) {
-    return { label: "Needs confirmation", tone: "warn" };
+    // First reason is the most actionable — use as label; keep full list for tooltips.
+    const label = reasons[0] ? `Need: ${reasons[0].toLowerCase()}` : "Needs confirmation";
+    return { label, tone: "warn", reasons };
   }
-  return { label: "Eligible", tone: "ok" };
+  return { label: "Eligible", tone: "ok", reasons: [] };
 }
 
 // ────────────────────────────────────────────────────────────
