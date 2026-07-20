@@ -354,8 +354,38 @@ export default function StudentLoans() {
                 value={estimate?.coversMonthlyInterest ? "Yes" : "No"}
                 variant={estimate?.coversMonthlyInterest ? "ok" : "warn"}
               />
-              <Stat label="Est. payoff" value={fmtMonths(estimate?.estimatedPayoffMonths ?? null)} />
+              <Stat
+                label={activeEstimate?.forgivenessMonths != null &&
+                  (estimate?.estimatedPayoffMonths == null || estimate.estimatedPayoffMonths >= activeEstimate.forgivenessMonths)
+                  ? "Est. forgiveness"
+                  : (REPAYMENT_PLANS[selectedPlan]?.family === "graduated" ? "Full schedule" : "Est. payoff")}
+                value={
+                  REPAYMENT_PLANS[selectedPlan]?.family === "graduated"
+                    ? "Not modeled"
+                    : activeEstimate?.forgivenessMonths != null &&
+                      (estimate?.estimatedPayoffMonths == null || estimate.estimatedPayoffMonths >= activeEstimate.forgivenessMonths)
+                      ? fmtMonths(activeEstimate.forgivenessMonths)
+                      : fmtMonths(estimate?.estimatedPayoffMonths ?? null)
+                }
+              />
             </div>
+            {!estimate?.coversMonthlyInterest && unpaidMonthlyInterest > 0 && (
+              <div className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                <strong>Estimated unpaid interest:</strong> {fmtCurrency(unpaidMonthlyInterest)}/mo added to your balance.
+              </div>
+            )}
+            {REPAYMENT_PLANS[selectedPlan]?.family === "graduated" && (
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Amount shown is the <strong>estimated starting payment</strong>. Graduated schedules
+                step up roughly every 2 years; the full schedule is not modeled here.
+              </div>
+            )}
+            {estimate?.detail?.eligibility === "assumed" && (
+              <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+                Estimate shown; <strong>eligibility not confirmed</strong> — add loan disbursement
+                date and borrower type under Advanced loan details to confirm.
+              </div>
+            )}
             {currentMonthly > 0 && (
               <div className="mt-3 text-xs text-muted-foreground">
                 Current required payment: {fmtCurrency(currentMonthly)} ·{" "}
