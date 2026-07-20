@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { GraduationCap, Info, Scale, AlertTriangle, ChevronDown, Check } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
