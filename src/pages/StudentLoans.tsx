@@ -916,23 +916,52 @@ function Stat({ label, value, variant }: { label: string; value: string; variant
   );
 }
 
-function ScenarioCard({ title, data, highlight }: {
+function ScenarioCard({ title, data, highlight, taxLabel, agiLabel }: {
   title: string;
-  data: { federalTax: number; stateTax: number; studentLoanAnnualPayment: number; combinedAnnualCost: number; combinedMonthlyCost: number };
+  data: {
+    federalTax: number;
+    stateTax: number;
+    studentLoanAnnualPayment: number;
+    studentLoanMonthlyPayment: number;
+    combinedAnnualCost: number;
+    studentLoanAgi: number;
+  };
   highlight?: boolean;
+  taxLabel: string;
+  agiLabel: string;
 }) {
   return (
     <Card className={`p-4 ${highlight ? "border-primary/60 ring-1 ring-primary/30" : ""}`}>
-      <div className="font-semibold text-sm mb-2">{title}</div>
-      <div className="space-y-1 text-sm">
-        <RowLine label="Estimated taxes" value={fmtCurrency(data.federalTax + data.stateTax)} />
-        <RowLine label="Student loan payments" value={fmtCurrency(data.studentLoanAnnualPayment)} />
+      <div className="font-semibold text-sm mb-1">{title}</div>
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        Estimated loan payment
+      </div>
+      <div className="text-3xl font-bold tabular-nums leading-tight">
+        {fmtCurrency(data.studentLoanMonthlyPayment)}
+        <span className="text-xs font-normal text-muted-foreground">/month</span>
+      </div>
+      <div className="mt-3 space-y-1 text-sm">
+        <RowLine label="Loan payments / year" value={fmtCurrency(data.studentLoanAnnualPayment)} />
+        <RowLine label={agiLabel} value={fmtCurrency(data.studentLoanAgi)} />
+        <RowLine label={taxLabel} value={`${fmtCurrency(data.federalTax + data.stateTax)}/yr`} />
         <div className="border-t border-border my-1" />
         <RowLine label="Combined annual cost" value={fmtCurrency(data.combinedAnnualCost)} bold />
       </div>
     </Card>
   );
 }
+
+function BreakdownTr({ label, mfj, mfs, bold, muted }: { label: string; mfj: string; mfs: string; bold?: boolean; muted?: boolean }) {
+  const rowCls = `${bold ? "font-semibold" : ""} ${muted ? "text-muted-foreground" : ""}`.trim();
+  return (
+    <tr className={rowCls}>
+      <td className="py-1 pr-2">{label}</td>
+      <td className="py-1 text-right tabular-nums">{mfj}</td>
+      <td className="py-1 text-right tabular-nums">{mfs}</td>
+    </tr>
+  );
+}
+
 function RowLine({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <div className={`flex items-center justify-between ${bold ? "font-semibold" : ""}`}>
