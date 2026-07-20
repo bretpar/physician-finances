@@ -104,6 +104,12 @@ export default function StudentLoans() {
 
   const projectedTotalIncome = Math.max(0, forecastEstimate?.totalIncome ?? 0);
   const projectedAgi = Math.max(0, forecastEstimate?.agi ?? 0);
+  // Above-the-line AGI adjustments already computed by the PaycheckMD tax
+  // engine (401(k), HSA, pre-tax deductions, ½-SE tax, health insurance).
+  // We surface this so community-property allocation stays consistent with
+  // what the tax forecast used, without asking the user to re-enter anything.
+  const projectedAdjustments = Math.max(0, projectedTotalIncome - projectedAgi);
+  const hasProjectedForecast = !!forecastEstimate && projectedTotalIncome > 0;
 
   const savedFilingStatus = settings?.filingStatus ?? "single";
   const savedProfileState = settings?.stateOfResidence ?? "";
@@ -200,20 +206,43 @@ export default function StudentLoans() {
   const [cpBorrowerAdj, setCpBorrowerAdj] = useState<string>("");
   const [cpBorrowerSharePct, setCpBorrowerSharePct] = useState<string>("50");
 
-  // Resolve the AGI actually used for IDR plans.
+  // Resolve the AGI actually used for IDR plans (borrower-facing, driven by
+  // saved filing status). MFS + CP state → apply 50/50 community split.
   const cpAllocation = useMemo(() => {
     if (!cpAutoApplies) return null;
     const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
+    const bAdj = cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) : projectedAdjustments;
     return allocateCommunityAgi({
       borrowerCommunityIncome: bComm,
       spouseCommunityIncome: Number(cpSpouseCommunity) || 0,
       borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
       spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
-      borrowerAdjustments: Number(cpBorrowerAdj) || 0,
+      borrowerAdjustments: bAdj,
       spouseAdjustments: 0,
       borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100)),
     });
-  }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome]);
+  }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome, projectedAdjustments]);
+
+  // MFJ vs MFS comparison-only CP allocation. This one always runs when the
+  // user is in a community-property state, regardless of saved filing status,
+  // so the comparison "what if we filed MFS?" preview shows the correct 50/50
+  // split even for households currently filed MFJ. Auto-populates projected
+  // AGI adjustments from the tax forecast; user can override in the CP panel.
+  const comparisonAllocation = useMemo(() => {
+    if (!isCP) return null;
+    const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
+    const bAdj = cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) : projectedAdjustments;
+    return allocateCommunityAgi({
+      borrowerCommunityIncome: bComm,
+      spouseCommunityIncome: Number(cpSpouseCommunity) || 0,
+      borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
+      spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
+      borrowerAdjustments: bAdj,
+      spouseAdjustments: 0,
+      borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100)),
+    });
+  }, [isCP, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome, projectedAdjustments]);
+  const adjustmentsAutoApplied = isCP && cpBorrowerAdj === "" && projectedAdjustments > 0;
 
   let studentLoanAgi = projectedAgi;
   let agiSourceLabel = "Projected AGI";
@@ -311,12 +340,15 @@ export default function StudentLoans() {
   const [spouseMfsAgiInput, setSpouseMfsAgiInput] = useState<string>("");
 
   // Default AGI values derived from projected income + community-property allocation.
+  // In a CP state we always split (regardless of saved filing status) so the
+  // MFJ vs MFS comparison shows the correct "what if" numbers for households
+  // currently filed jointly.
   const defaultJointAgi = projectedAgi;
-  const defaultBorrowerMfsAgi = cpAllocation
-    ? cpAllocation.borrowerMfsAgi
+  const defaultBorrowerMfsAgi = comparisonAllocation
+    ? comparisonAllocation.borrowerMfsAgi
     : Math.round(projectedAgi); // no community split → borrower keeps their AGI
-  const defaultSpouseMfsAgi = cpAllocation
-    ? cpAllocation.spouseMfsAgi
+  const defaultSpouseMfsAgi = comparisonAllocation
+    ? comparisonAllocation.spouseMfsAgi
     : Math.max(0, Number(spouseIncome) || 0); // spouse gross ≈ spouse AGI without more data
 
   const effectiveJointAgi = jointAgiInput !== ""
@@ -328,6 +360,11 @@ export default function StudentLoans() {
   const effectiveSpouseMfsAgi = spouseMfsAgiInput !== ""
     ? Math.max(0, Number(spouseMfsAgiInput) || 0)
     : defaultSpouseMfsAgi;
+
+  // Adjustments passed to the tax engine for the comparison. Auto-derived
+  // from the PaycheckMD tax forecast unless the user overrode CP inputs.
+  const comparisonBorrowerAdjustments =
+    cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) || 0 : projectedAdjustments;
 
   // Compare MFJ vs MFS — AGI-driven.
   // Always compute so the collapsed preview can show default MFJ/MFS values.
@@ -341,12 +378,14 @@ export default function StudentLoans() {
       familySize: Math.max(1, familySize ?? 1),
       state,
       applyCommunityRules: isCP,
+      borrowerAdjustments: comparisonBorrowerAdjustments,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
       overrideJointAgi: effectiveJointAgi,
       overrideBorrowerMfsAgi: effectiveBorrowerMfsAgi,
       overrideSpouseMfsAgi: effectiveSpouseMfsAgi,
     });
-  }, [spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+  }, [spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, comparisonBorrowerAdjustments, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+
 
 
 
@@ -483,7 +522,8 @@ export default function StudentLoans() {
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Default: {fmtCurrency(defaultBorrowerMfsAgi)}
-                  {cpAllocation ? " · community-property allocation applied" : ""}
+                  {comparisonAllocation ? ` · community-property 50/50 split from ${fmtCurrency(projectedTotalIncome)} household income` : ""}
+                  {comparisonAllocation && adjustmentsAutoApplied ? ` · ${fmtCurrency(projectedAdjustments)} projected AGI adjustments applied` : ""}
                 </p>
               </div>
               <div>
@@ -1040,14 +1080,18 @@ function getPlanEndpointLabel(pe: PlanEstimateEntry): string {
 function getPlanEligibility(
   pe: PlanEstimateEntry,
   missingAgi: boolean,
-): { label: string; tone: "ok" | "warn" | "muted" } {
-  if (pe.est.unavailable) return { label: "Not available", tone: "muted" };
+): { label: string; tone: "ok" | "warn" | "muted"; reasons: string[] } {
+  if (pe.est.unavailable) return { label: "Not available", tone: "muted", reasons: [] };
   const eligibility = pe.est.detail?.eligibility ?? "confirmed";
   const isIdr = REPAYMENT_PLANS[pe.plan.id]?.family === "idr";
+  const reasons = [...(pe.est.detail?.eligibilityReasons ?? [])];
+  if (isIdr && missingAgi) reasons.push("Add annual income (needed for income-driven plans)");
   if (eligibility === "assumed" || (isIdr && missingAgi)) {
-    return { label: "Needs confirmation", tone: "warn" };
+    // First reason is the most actionable — use as label; keep full list for tooltips.
+    const label = reasons[0] ? `Need: ${reasons[0].toLowerCase()}` : "Needs confirmation";
+    return { label, tone: "warn", reasons };
   }
-  return { label: "Eligible", tone: "ok" };
+  return { label: "Eligible", tone: "ok", reasons: [] };
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1148,8 +1192,20 @@ function CurrentPlanCard({
             </div>
           </div>
           {needsConfirmation && (
-            <div className="text-[11px] text-amber-600 dark:text-amber-400">
-              Eligibility: Needs confirmation
+            <div className="text-[11px] text-amber-600 dark:text-amber-400 space-y-0.5">
+              {(estimate?.detail?.eligibilityReasons ?? []).length > 0 || (missingAgi && isIdrPlan) ? (
+                <>
+                  <div className="font-medium">To confirm eligibility:</div>
+                  <ul className="list-disc pl-4">
+                    {(estimate?.detail?.eligibilityReasons ?? []).map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                    {missingAgi && isIdrPlan && <li>Add annual income (needed for income-driven plans)</li>}
+                  </ul>
+                </>
+              ) : (
+                <div>Eligibility: Needs confirmation</div>
+              )}
             </div>
           )}
         </div>

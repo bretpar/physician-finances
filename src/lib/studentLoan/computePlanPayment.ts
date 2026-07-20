@@ -80,6 +80,8 @@ export interface PlanPaymentResult {
   breakdown: PaymentBreakdown;
   assumptions: string[];
   eligibility: EligibilityStatus;
+  /** When eligibility === "assumed", the specific inputs still needed. Empty when confirmed. */
+  eligibilityReasons: string[];
   rulesVersion: string;
   sourceUrl: string;
   sourceUpdatedAt: string;
@@ -376,6 +378,7 @@ export function computePlanPayment(
     breakdown,
     assumptions,
     eligibility: eligibility.status,
+    eligibilityReasons: eligibility.status === "assumed" ? [...eligibility.reasons] : [],
     rulesVersion: plan.rulesVersion,
     sourceUrl: plan.sourceUrl,
     sourceUpdatedAt: plan.sourceUpdatedAt,
