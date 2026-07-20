@@ -722,11 +722,12 @@ export default function StudentLoans() {
 }
 
 // ── UI primitives ────────────────────────────────────
-function Field({ label, value, onChange, type = "text", error }: { label: string; value: string; onChange: (v: string) => void; type?: string; error?: string }) {
+function Field({ id, label, value, onChange, type = "text", error }: { id?: string; label: string; value: string; onChange: (v: string) => void; type?: string; error?: string }) {
+  const autoId = id ?? label.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   return (
     <div>
-      <Label className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
-      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={!!error} className={error ? "border-destructive focus-visible:ring-destructive" : undefined} />
+      <Label htmlFor={autoId} className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
+      <Input id={autoId} type={type} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={!!error} className={error ? "border-destructive focus-visible:ring-destructive" : undefined} />
       {error && <p className="text-[11px] text-destructive mt-1">{error}</p>}
     </div>
   );
