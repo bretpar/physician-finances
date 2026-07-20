@@ -168,6 +168,13 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
   const winner = recommendation === "mfs" ? mfs : mfj;
   const loser = recommendation === "mfs" ? mfj : mfs;
 
+  const planRule = getPlan(input.planId);
+  const spouseIncomeNote = planRule?.spouseIncome
+    ? `Plan spouse-income rule — MFJ: ${planRule.spouseIncome.mfj}, MFS: ${planRule.spouseIncome.mfs}.`
+    : "Plan does not define a spouse-income rule (fixed schedule uses only the loan balance).";
+  const planUnavailable =
+    mfjLoan.unavailable?.reason ?? mfsLoan.unavailable?.reason ?? undefined;
+
   return {
     mfj,
     mfs,
@@ -180,6 +187,8 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     ),
     communityPropertyApplied: split.applied,
     communityPropertyNote: split.note,
+    spouseIncomeNote,
+    planUnavailable,
   };
 }
 
