@@ -261,11 +261,12 @@ export default function StudentLoans() {
         <Card className="p-5 space-y-3">
           <div className="font-semibold flex items-center gap-2">Loan information</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Total loan balance ($)" value={draftBalance} onChange={setDraftBalance} type="number" />
-            <Field label="Interest rate (%)" value={draftRate} onChange={setDraftRate} type="number" />
+            <Field label="Total loan balance ($)" value={draftBalance} onChange={setDraftBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
+            <Field label="Interest rate (%)" value={draftRate} onChange={setDraftRate} type="number" error={rateInvalid ? "Interest rate can't be negative." : undefined} />
             <Field label="Current required monthly payment ($, optional)" value={draftCurrentPayment} onChange={setDraftCurrentPayment} type="number" />
             <Field label="Additional monthly payment ($, optional)" value={draftAdditional} onChange={setDraftAdditional} type="number" />
             <Field label="Months already in repayment (optional)" value={draftMonths} onChange={setDraftMonths} type="number" />
+
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Repayment plan</Label>
               <Select value={draftPlan} onValueChange={(v) => setDraftPlan(v as RepaymentPlanId)}>
