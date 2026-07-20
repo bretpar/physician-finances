@@ -770,7 +770,28 @@ export default function StudentLoans() {
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
                           How the recommendation is calculated (annual, estimated)
                         </div>
-                        <div className="text-xs">
+
+                        {/* Mobile: swipeable per-scenario cost cards */}
+                        <div className="md:hidden -mx-1">
+                          <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <CostScenarioCard
+                              title={loserLabel}
+                              data={loser}
+                            />
+                            <CostScenarioCard
+                              title={winnerLabel}
+                              data={winner}
+                              compareTo={loser}
+                              isWinner
+                            />
+                          </div>
+                          <div className="text-[10px] text-muted-foreground text-center">
+                            Swipe to compare cost basis →
+                          </div>
+                        </div>
+
+                        {/* Desktop: 3-column comparison table */}
+                        <div className="hidden md:block text-xs">
                           <div className="grid grid-cols-3 gap-2 pb-1 border-b border-border font-medium text-muted-foreground">
                             <div>Cost component</div>
                             <div className="text-right">{loserLabel}</div>
@@ -786,6 +807,7 @@ export default function StudentLoans() {
                           </div>
                         </div>
                       </div>
+
 
                       {/* Net benefit */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
