@@ -612,7 +612,7 @@ export function calculateFullEstimate(params: {
   // LTCG (long-term gains + qualified dividends) is taxed at LTCG brackets, stacked on top
   // of ordinary taxable income. The slice is capped at the total taxable income (post-deductions)
   // so deductions absorb LTCG last.
-  const brackets = filingStatus === "married_filing_jointly" ? BRACKETS_MFJ : BRACKETS_SINGLE;
+  const brackets = ORDINARY_BRACKETS[filingStatus];
   const ltcgSlice = Math.min(taxableIncome, Math.max(0, longTermCapitalGainsParam));
   const ordinaryTaxable = Math.max(0, taxableIncome - ltcgSlice);
   const ordinaryFederalTax = calculateProgressiveTax(ordinaryTaxable, brackets);
