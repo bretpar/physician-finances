@@ -667,18 +667,39 @@ export default function StudentLoans() {
         </div>
         {comparisonOpen && (
           <div className="space-y-3">
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Spouse projected annual income</Label>
-              <Input
-                type="number"
-                value={spouseIncome}
-                onChange={(e) => setSpouseIncome(e.target.value)}
-                placeholder="0"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Editing this here does not change your saved filing status or profile.
-              </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="sl-borrower-income" className="text-xs text-muted-foreground mb-1.5 block">
+                  Your projected annual income (borrower)
+                </Label>
+                <Input
+                  id="sl-borrower-income"
+                  type="number"
+                  value={borrowerIncomeInput}
+                  onChange={(e) => setBorrowerIncomeInput(e.target.value)}
+                  placeholder={String(Math.round(projectedTotalIncome))}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Defaults to your projected income from PaycheckMD ({fmtCurrency(projectedTotalIncome)}).
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="sl-spouse-income" className="text-xs text-muted-foreground mb-1.5 block">
+                  Spouse projected annual income
+                </Label>
+                <Input
+                  id="sl-spouse-income"
+                  type="number"
+                  value={spouseIncome}
+                  onChange={(e) => setSpouseIncome(e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Household MFJ income = borrower + spouse. Editing here does not change your profile.
+                </p>
+              </div>
             </div>
+
 
             {comparison && (() => {
               const winner = comparison.recommendation === "mfs" ? comparison.mfs : comparison.mfj;
