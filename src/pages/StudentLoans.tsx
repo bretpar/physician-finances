@@ -139,7 +139,7 @@ export default function StudentLoans() {
   const rateInvalid = draftRate !== "" && Number(draftRate) < 0;
   const overrideInvalid = incomeOverride != null && incomeOverride < 0;
 
-  const spouseIncome = Number(spouseIncomeInput) || 0;
+  const spouseIncome = Number(compareSpouseIncome) || 0;
 
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
@@ -150,10 +150,10 @@ export default function StudentLoans() {
       planId: draftPlan,
       familySize: Math.max(1, familySize ?? 1),
       state,
-      applyCommunityRules,
+      applyCommunityRules: compareApplyCommunityRules,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
     });
-  }, [comparisonOpen, projectedAnnualIncome, spouseIncome, parsedLoan, draftPlan, familySize, state, applyCommunityRules, settings?.personalStateTaxRate]);
+  }, [comparisonOpen, projectedAnnualIncome, spouseIncome, parsedLoan, draftPlan, familySize, state, compareApplyCommunityRules, settings?.personalStateTaxRate]);
 
   const handleSaveLoan = async () => {
     await upsert.mutateAsync({
