@@ -213,20 +213,34 @@ export default function StudentLoans() {
       : fs === "married_filing_separately"
         ? "married_filing_separately"
         : "single") as "single" | "married_filing_jointly" | "married_filing_separately";
+    // Region drives the poverty guideline. UI shows the state selector but
+    // the engine needs the mapped PovertyRegion (AK/HI/contiguous).
+    const region =
+      state === "AK" ? "alaska" : state === "HI" ? "hawaii" : "contiguous_48_dc";
     return {
       filingStatus: filing,
       familySize: Math.max(1, familySize ?? 1),
       annualIncome: studentLoanAgi,
+      region: region as "alaska" | "hawaii" | "contiguous_48_dc",
     };
-  }, [savedFilingStatus, familySize, studentLoanAgi]);
+  }, [savedFilingStatus, familySize, studentLoanAgi, state]);
 
   // Compute estimates for ALL enrollable plans, sorted by monthly payment.
   const planEstimates = useMemo(() => {
     return REPAYMENT_PLAN_LIST.map((p) => {
       const est = estimateRepayment(aggregated, borrower, p.id);
-      const monthsForTotal = est.estimatedPayoffMonths ?? (p.forgivenessYears ? p.forgivenessYears * 12 : null);
-      const totalPaid = monthsForTotal != null ? est.estimatedMonthlyPayment * monthsForTotal : null;
-      return { plan: p, est, monthsForTotal, totalPaid };
+      const forgivenessMonths = p.forgivenessYears ? p.forgivenessYears * 12 : null;
+      // For IDR, mathematical payoff might exceed the forgiveness horizon
+      // — cap Total Paid so we never show "pays off in 40 yr" for a plan
+      // whose remainder is forgiven at 20/25/30 yr.
+      let endpointMonths = est.estimatedPayoffMonths;
+      if (forgivenessMonths != null) {
+        endpointMonths = endpointMonths != null
+          ? Math.min(endpointMonths, forgivenessMonths)
+          : forgivenessMonths;
+      }
+      const totalPaid = endpointMonths != null ? est.estimatedMonthlyPayment * endpointMonths : null;
+      return { plan: p, est, monthsForTotal: endpointMonths, totalPaid, forgivenessMonths };
     }).sort((a, b) => {
       const av = a.est.unavailable ? Number.POSITIVE_INFINITY : a.est.estimatedMonthlyPayment;
       const bv = b.est.unavailable ? Number.POSITIVE_INFINITY : b.est.estimatedMonthlyPayment;
