@@ -206,15 +206,19 @@ export default function StudentLoans() {
   };
   const aggregated = aggregateLoans([parsedLoan]);
 
-  const borrower = useMemo(() => ({
-    filingStatus: (savedFilingStatus === "married_filing_jointly"
+  const borrower = useMemo(() => {
+    const fs = savedFilingStatus as string;
+    const filing = (fs === "married_filing_jointly"
       ? "married_filing_jointly"
-      : savedFilingStatus === "married_filing_separately"
+      : fs === "married_filing_separately"
         ? "married_filing_separately"
-        : "single") as "single" | "married_filing_jointly" | "married_filing_separately",
-    familySize: Math.max(1, familySize ?? 1),
-    annualIncome: studentLoanAgi,
-  }), [savedFilingStatus, familySize, studentLoanAgi]);
+        : "single") as "single" | "married_filing_jointly" | "married_filing_separately";
+    return {
+      filingStatus: filing,
+      familySize: Math.max(1, familySize ?? 1),
+      annualIncome: studentLoanAgi,
+    };
+  }, [savedFilingStatus, familySize, studentLoanAgi]);
 
   // Compute estimates for ALL enrollable plans, sorted by monthly payment.
   const planEstimates = useMemo(() => {
