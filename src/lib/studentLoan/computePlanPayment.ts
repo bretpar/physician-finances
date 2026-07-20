@@ -333,7 +333,7 @@ export function computePlanPayment(
       }
       if (table.verification === "pending") {
         assumptions.push(
-          `Poverty guideline for ${table.region.replace(/_/g, " ")} ${povertyYear} is provisional (verification pending).`,
+          `Poverty guideline for ${friendlyRegionLabel(table.region)} ${povertyYear} is provisional (verification pending).`,
         );
       }
       break;
