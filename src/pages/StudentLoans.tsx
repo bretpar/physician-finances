@@ -437,11 +437,12 @@ export default function StudentLoans() {
         <div className="font-semibold">Confirm your information</div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Total federal loan balance ($)" value={balance} onChange={setBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
-          <Field label="Average interest rate (%)" value={rate} onChange={setRate} type="number" error={rateInvalid ? "Rate can't be negative." : undefined} />
+          <Field id="sl-balance" label="Total federal loan balance ($)" value={balance} onChange={setBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
+          <Field id="sl-rate" label="Average interest rate (%)" value={rate} onChange={setRate} type="number" error={rateInvalid ? "Rate can't be negative." : undefined} />
           <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
+            <Label htmlFor="sl-family-size" className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
             <Input
+              id="sl-family-size"
               type="number"
               inputMode="numeric"
               min={1}
@@ -451,9 +452,9 @@ export default function StudentLoans() {
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">State</Label>
+            <Label htmlFor="sl-state" className="text-xs text-muted-foreground mb-1.5 block">State</Label>
             <Select value={state || undefined} onValueChange={setState}>
-              <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+              <SelectTrigger id="sl-state" aria-label="State"><SelectValue placeholder="Select state" /></SelectTrigger>
               <SelectContent className="max-h-72">
                 {US_STATES.map(([code, name]) => (
                   <SelectItem key={code} value={code}>{name}</SelectItem>
@@ -462,9 +463,9 @@ export default function StudentLoans() {
             </Select>
           </div>
           <div className="sm:col-span-2">
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Current repayment plan</Label>
+            <Label htmlFor="sl-plan" className="text-xs text-muted-foreground mb-1.5 block">Current repayment plan</Label>
             <Select value={selectedPlan} onValueChange={(v) => setSelectedPlan(v as RepaymentPlanId)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="sl-plan" aria-label="Current repayment plan"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {REPAYMENT_PLAN_LIST.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
@@ -473,6 +474,7 @@ export default function StudentLoans() {
             </Select>
           </div>
         </div>
+
 
         {/* Income used — read-only summary with Change popover */}
         <div className="rounded-md border border-border bg-muted/20 p-3 flex items-center justify-between gap-2">
