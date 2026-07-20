@@ -245,16 +245,18 @@ export default function StudentLoans() {
     // the engine needs the mapped PovertyRegion (AK/HI/contiguous).
     const region =
       state === "AK" ? "alaska" : state === "HI" ? "hawaii" : "contiguous_48_dc";
+    const ibrType: "new_2014" | "old" | null =
+      ibrBorrowerType === "new" ? "new_2014" : ibrBorrowerType === "old" ? "old" : null;
     return {
       filingStatus: filing,
       familySize: Math.max(1, familySize ?? 1),
       annualIncome: studentLoanAgi,
       region: region as "alaska" | "hawaii" | "contiguous_48_dc",
       firstDisbursementDate: firstDisbursementDate || null,
-      ibrBorrowerType: ibrBorrowerType === "new" ? "new_2014" : ibrBorrowerType === "old" ? "old" : null,
+      ibrBorrowerType: ibrType,
       isParentPlus: isParentPlus || null,
       parentPlusConsolidated: parentPlusConsolidated || null,
-    };
+    } satisfies import("@/lib/studentLoan/calculator").BorrowerInput;
   }, [savedFilingStatus, familySize, studentLoanAgi, state,
       firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated]);
 
