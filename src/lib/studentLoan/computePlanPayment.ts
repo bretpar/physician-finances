@@ -115,6 +115,19 @@ function selectPovertyYear(_plan: PlanRule): number {
   return latestPovertyYear();
 }
 
+export function friendlyRegionLabel(region: PovertyRegion): string {
+  switch (region) {
+    case "contiguous_48_dc":
+      return "48 contiguous states and Washington, D.C.";
+    case "alaska":
+      return "Alaska";
+    case "hawaii":
+      return "Hawaii";
+    default:
+      return String(region);
+  }
+}
+
 function agiPerRules(plan: PlanRule, borrower: BorrowerContext): { amount: number; spouseIncluded: boolean } {
   if (!plan.spouseIncome) return { amount: Math.max(0, borrower.agi), spouseIncluded: false };
   const status = borrower.filingStatus;
@@ -311,7 +324,7 @@ export function computePlanPayment(
       breakdown.capApplied = capApplied;
       breakdown.capMonthly = capMonthly;
       breakdown.steps.push(
-        { label: `Poverty guideline (${povertyYear}, family of ${borrower.familySize}, ${table.region})`, value: guideline },
+        { label: `Poverty guideline (${povertyYear}, family of ${borrower.familySize}, ${friendlyRegionLabel(table.region)})`, value: guideline },
         { label: `Protected income (${Math.round(multiplier * 100)}% of guideline)`, value: protectedIncome },
         { label: "AGI used", value: incomeUsed },
         { label: "Spouse income included?", value: spouseIncluded ? "Yes (MFJ combined)" : "No (MFS filer only)" },
@@ -333,7 +346,7 @@ export function computePlanPayment(
       }
       if (table.verification === "pending") {
         assumptions.push(
-          `Poverty guideline for ${table.region.replace(/_/g, " ")} ${povertyYear} is provisional (verification pending).`,
+          `Poverty guideline for ${friendlyRegionLabel(table.region)} ${povertyYear} is provisional (verification pending).`,
         );
       }
       break;
