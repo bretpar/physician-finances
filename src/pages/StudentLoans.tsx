@@ -426,33 +426,115 @@ export default function StudentLoans() {
                 </p>
               )}
 
-              {comparison && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
-                    <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
-                  </div>
-                  <Card className="p-4 bg-primary/5 border-primary/40">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Recommended filing status
+              {comparison && (() => {
+                const winner = comparison.recommendation === "mfs" ? comparison.mfs : comparison.mfj;
+                const loser = comparison.recommendation === "mfs" ? comparison.mfj : comparison.mfs;
+                const winnerLabel = comparison.recommendation === "mfs" ? "Married Filing Separately" : "Married Filing Jointly";
+                const loserLabel = comparison.recommendation === "mfs" ? "Married Filing Jointly" : "Married Filing Separately";
+                const loanDelta = loser.studentLoanAnnualPayment - winner.studentLoanAnnualPayment;
+                const taxDelta = (winner.federalTax + winner.stateTax) - (loser.federalTax + loser.stateTax);
+                const drivers: { label: string; value: string; positive: boolean }[] = [];
+                if (loanDelta > 0) drivers.push({ label: `Lower student loan payments (${winnerLabel})`, value: `−${fmtCurrency(loanDelta)}/yr`, positive: true });
+                else if (loanDelta < 0) drivers.push({ label: `Higher student loan payments under ${winnerLabel}`, value: `+${fmtCurrency(-loanDelta)}/yr`, positive: false });
+                if (taxDelta < 0) drivers.push({ label: `Higher combined taxes under ${winnerLabel}`, value: `+${fmtCurrency(-taxDelta)}/yr`, positive: false });
+                else if (taxDelta > 0) drivers.push({ label: `Lower combined taxes under ${winnerLabel}`, value: `−${fmtCurrency(taxDelta)}/yr`, positive: true });
+                if (comparison.communityPropertyApplied) drivers.push({ label: "Community property 50/50 income split applied", value: "MFS income adjustment", positive: true });
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
+                      <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
                     </div>
-                    <div className="text-xl font-bold mt-1">
-                      {comparison.recommendation === "mfs" ? "Married Filing Separately" : "Married Filing Jointly"}
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-sm">
-                      <Stat label="Est. loan savings/yr" value={fmtCurrency(Math.max(0, comparison.studentLoanSavings))} />
-                      <Stat label="Est. added taxes/yr" value={fmtCurrency(Math.max(0, comparison.additionalTaxes))} />
-                      <Stat label="Net benefit/yr" value={fmtCurrency(comparison.netAnnualBenefit)} variant="ok" />
-                      <Stat label="Net benefit/mo" value={fmtCurrency(comparison.netMonthlyBenefit)} variant="ok" />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-3">
-                      {comparison.communityPropertyNote} Results are estimates — MFS federal tax is
-                      approximated using single-filer brackets and state tax is applied at your saved
-                      personal rate. Confirm with a tax professional before changing your filing status.
-                    </p>
-                  </Card>
-                </>
-              )}
+                    <Card className="p-4 bg-primary/5 border-primary/40 space-y-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Recommended filing status
+                          </span>
+                          <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground rounded px-1.5 py-0.5">
+                            Estimate
+                          </span>
+                        </div>
+                        <div className="text-xl font-bold mt-1">{winnerLabel}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Chosen because it has the lowest <strong>combined annual cost</strong>{" "}
+                          (federal tax + state tax + student loan payments).
+                        </div>
+                      </div>
+
+                      {/* Cost basis breakdown */}
+                      <div className="rounded-md border border-border bg-background/60 p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
+                          How the recommendation is calculated (annual, estimated)
+                        </div>
+                        <div className="text-xs">
+                          <div className="grid grid-cols-3 gap-2 pb-1 border-b border-border font-medium text-muted-foreground">
+                            <div>Cost component</div>
+                            <div className="text-right">{loserLabel}</div>
+                            <div className="text-right">{winnerLabel}</div>
+                          </div>
+                          <CostRow label="Federal tax" left={loser.federalTax} right={winner.federalTax} />
+                          <CostRow label="State tax" left={loser.stateTax} right={winner.stateTax} />
+                          <CostRow label="Student loan payments" left={loser.studentLoanAnnualPayment} right={winner.studentLoanAnnualPayment} />
+                          <div className="grid grid-cols-3 gap-2 pt-1 mt-1 border-t border-border font-semibold">
+                            <div>Combined annual cost</div>
+                            <div className="text-right">{fmtCurrency(loser.combinedAnnualCost)}</div>
+                            <div className="text-right text-primary">{fmtCurrency(winner.combinedAnnualCost)}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Net benefit */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        <Stat label="Est. loan savings/yr" value={fmtCurrency(Math.max(0, comparison.studentLoanSavings))} />
+                        <Stat label="Est. added taxes/yr" value={fmtCurrency(Math.max(0, comparison.additionalTaxes))} />
+                        <Stat label="Net benefit/yr" value={fmtCurrency(comparison.netAnnualBenefit)} variant="ok" />
+                        <Stat label="Net benefit/mo" value={fmtCurrency(comparison.netMonthlyBenefit)} variant="ok" />
+                      </div>
+
+                      {/* Key drivers */}
+                      {drivers.length > 0 && (
+                        <div>
+                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                            Key drivers
+                          </div>
+                          <ul className="space-y-1 text-xs">
+                            {drivers.map((d, i) => (
+                              <li key={i} className="flex items-start justify-between gap-2 rounded-md border border-border bg-background/60 px-2.5 py-1.5">
+                                <span className="flex items-start gap-1.5">
+                                  <span className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${d.positive ? "bg-emerald-500" : "bg-amber-500"}`} />
+                                  {d.label}
+                                </span>
+                                <span className={`font-medium tabular-nums shrink-0 ${d.positive ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                                  {d.value}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Estimate disclaimer */}
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-[11px] space-y-1">
+                          <p><strong>These are estimates, not tax or legal advice.</strong> {comparison.communityPropertyNote}</p>
+                          <p>
+                            Assumptions: MFS federal tax is approximated using single-filer brackets;
+                            state tax uses your saved personal rate ({(settings?.personalStateTaxRate ?? 0)}%);
+                            income-driven loan payments use your projected annual income and family
+                            size of {Math.max(1, familySize ?? 1)}. Retirement, credits, and other
+                            deductions are not modeled in this comparison. Confirm with a tax
+                            professional before changing your filing status.
+                          </p>
+                        </AlertDescription>
+                      </Alert>
+                    </Card>
+                  </>
+                );
+              })()}
+
             </div>
           )}
         </Card>
@@ -514,3 +596,23 @@ function Row({ label, value, bold, muted }: { label: string; value: string; bold
     </div>
   );
 }
+
+function CostRow({ label, left, right }: { label: string; left: number; right: number }) {
+  const diff = right - left;
+  const better = diff < 0;
+  return (
+    <div className="grid grid-cols-3 gap-2 py-1 items-center">
+      <div className="text-muted-foreground">{label}</div>
+      <div className="text-right tabular-nums">{fmtCurrency(left)}</div>
+      <div className={`text-right tabular-nums ${diff === 0 ? "" : better ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+        {fmtCurrency(right)}
+        {diff !== 0 && (
+          <span className="ml-1 text-[10px]">
+            ({better ? "−" : "+"}{fmtCurrency(Math.abs(diff))})
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
