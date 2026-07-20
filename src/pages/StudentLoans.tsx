@@ -940,6 +940,68 @@ function CostRow({ label, left, right }: { label: string; left: number; right: n
   );
 }
 
+type CostScenarioData = { federalTax: number; stateTax: number; studentLoanAnnualPayment: number; combinedAnnualCost: number };
+
+function CostScenarioCard({
+  title, data, compareTo, isWinner,
+}: {
+  title: string;
+  data: CostScenarioData;
+  compareTo?: CostScenarioData;
+  isWinner?: boolean;
+}) {
+  return (
+    <div className={`snap-center shrink-0 w-[85%] rounded-md border p-3 bg-background ${isWinner ? "border-primary/60 ring-1 ring-primary/30" : "border-border"}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-semibold">{title}</div>
+        {isWinner && (
+          <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary rounded px-1.5 py-0.5">
+            Lower cost
+          </span>
+        )}
+      </div>
+      <div className="space-y-1 text-xs">
+        <CostLine label="Federal tax" value={data.federalTax} delta={compareTo ? data.federalTax - compareTo.federalTax : undefined} />
+        <CostLine label="State tax" value={data.stateTax} delta={compareTo ? data.stateTax - compareTo.stateTax : undefined} />
+        <CostLine label="Student loan payments" value={data.studentLoanAnnualPayment} delta={compareTo ? data.studentLoanAnnualPayment - compareTo.studentLoanAnnualPayment : undefined} />
+        <div className="border-t border-border my-1" />
+        <div className="flex items-center justify-between font-semibold">
+          <span>Combined annual cost</span>
+          <span className={`tabular-nums ${isWinner ? "text-primary" : ""}`}>{fmtCurrency(data.combinedAnnualCost)}</span>
+        </div>
+        {compareTo && (
+          <div className="text-[10px] text-muted-foreground text-right">
+            {(() => {
+              const diff = data.combinedAnnualCost - compareTo.combinedAnnualCost;
+              if (diff === 0) return "Same combined cost";
+              const better = diff < 0;
+              return `${better ? "−" : "+"}${fmtCurrency(Math.abs(diff))}/yr vs. other scenario`;
+            })()}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CostLine({ label, value, delta }: { label: string; value: number; delta?: number }) {
+  const showDelta = delta !== undefined && delta !== 0;
+  const better = (delta ?? 0) < 0;
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="tabular-nums">
+        {fmtCurrency(value)}
+        {showDelta && (
+          <span className={`ml-1 text-[10px] ${better ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+            ({better ? "−" : "+"}{fmtCurrency(Math.abs(delta!))})
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function filingStatusLabel(status: string): string {
   switch (status) {
     case "married_filing_jointly": return "Married Filing Jointly";
