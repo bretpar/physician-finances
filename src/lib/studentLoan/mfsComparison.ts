@@ -164,12 +164,20 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
   const applyCP = cpEligible && input.applyCommunityRules;
   const region = povertyRegionForState(input.state);
 
-  // ── MFJ scenario — use joint AGI returned by the tax engine ──────
+  // ── MFJ scenario — use joint AGI returned by the tax engine, OR an
+  // explicit override (in which case we pass it as totalIncome with zero
+  // adjustments so the engine's returned AGI equals the override).
+  const jointAgiOverride =
+    input.overrideJointAgi != null && Number.isFinite(input.overrideJointAgi) && input.overrideJointAgi >= 0
+      ? input.overrideJointAgi
+      : null;
   const mfjEstimate = calculateFullEstimate({
-    totalIncome,
-    w2Income: totalIncome,
+    totalIncome: jointAgiOverride ?? totalIncome,
+    w2Income: jointAgiOverride ?? totalIncome,
     seIncome: 0,
-    preTaxDeductions: (input.borrowerAdjustments ?? 0) + (input.spouseAdjustments ?? 0),
+    preTaxDeductions: jointAgiOverride != null
+      ? 0
+      : (input.borrowerAdjustments ?? 0) + (input.spouseAdjustments ?? 0),
     retirement401k: 0,
     businessDeductions: 0,
     mileageDeduction: 0,
@@ -182,12 +190,13 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
   const mfjBorrower: BorrowerInput = {
     filingStatus: "married_filing_jointly",
     familySize: input.familySize,
-    annualIncome: mfjEstimate.agi, // ← engine-derived joint AGI, not raw total income
+    annualIncome: mfjEstimate.agi, // ← engine-derived joint AGI (equals override when set)
     spouseAnnualIncome: Math.max(0, input.spouseIncome),
     region,
   };
   const mfjLoan = estimateRepayment(input.loan, mfjBorrower, input.planId);
   const mfjStateTax = estimateStateTax(mfjEstimate.taxableIncome, stateRate);
+  const mfjTotalAnnual = mfjEstimate.federalTax + mfjStateTax + mfjLoan.estimatedAnnualPayment;
   const mfj: FilingScenarioResult = {
     label: "Married Filing Jointly",
     federalTax: round0(mfjEstimate.federalTax),
@@ -195,8 +204,9 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     agi: round0(mfjEstimate.agi),
     studentLoanAgi: round0(mfjEstimate.agi),
     studentLoanAnnualPayment: round0(mfjLoan.estimatedAnnualPayment),
-    combinedAnnualCost: round0(mfjEstimate.federalTax + mfjStateTax + mfjLoan.estimatedAnnualPayment),
-    combinedMonthlyCost: round0((mfjEstimate.federalTax + mfjStateTax + mfjLoan.estimatedAnnualPayment) / 12),
+    studentLoanMonthlyPayment: round0(mfjLoan.estimatedMonthlyPayment),
+    combinedAnnualCost: round0(mfjTotalAnnual),
+    combinedMonthlyCost: round0(mfjTotalAnnual / 12),
   };
 
   // ── MFS scenario ────────────────────────────────────────────────
@@ -223,8 +233,17 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
 
   // AGI = allocated income − allocated adjustments (no employer FICA on
   // the comparison path). Apply MFS brackets to each half separately.
-  const borrowerAgi = Math.max(0, borrowerAllocatedIncome - borrowerAdj);
-  const spouseAgi = Math.max(0, spouseAllocatedIncome - spouseAdj);
+  // Explicit AGI overrides take precedence.
+  const borrowerAgiOverride =
+    input.overrideBorrowerMfsAgi != null && Number.isFinite(input.overrideBorrowerMfsAgi) && input.overrideBorrowerMfsAgi >= 0
+      ? input.overrideBorrowerMfsAgi
+      : null;
+  const spouseAgiOverride =
+    input.overrideSpouseMfsAgi != null && Number.isFinite(input.overrideSpouseMfsAgi) && input.overrideSpouseMfsAgi >= 0
+      ? input.overrideSpouseMfsAgi
+      : null;
+  const borrowerAgi = borrowerAgiOverride ?? Math.max(0, borrowerAllocatedIncome - borrowerAdj);
+  const spouseAgi = spouseAgiOverride ?? Math.max(0, spouseAllocatedIncome - spouseAdj);
   const borrowerTax = mfsFederalTax(borrowerAgi, itemized / 2, deductionType);
   const spouseTax = mfsFederalTax(spouseAgi, itemized / 2, deductionType);
 
@@ -236,9 +255,10 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
   };
   const mfsLoan = estimateRepayment(input.loan, mfsBorrower, input.planId);
   const mfsFederal = borrowerTax.federalTax + spouseTax.federalTax;
-  const mfsState =
-    estimateStateTax(borrowerTax.taxableIncome, stateRate) +
-    estimateStateTax(spouseTax.taxableIncome, stateRate);
+  const borrowerStateTax = estimateStateTax(borrowerTax.taxableIncome, stateRate);
+  const spouseStateTax = estimateStateTax(spouseTax.taxableIncome, stateRate);
+  const mfsState = borrowerStateTax + spouseStateTax;
+  const mfsTotalAnnual = mfsFederal + mfsState + mfsLoan.estimatedAnnualPayment;
   const mfs: FilingScenarioResult = {
     label: "Married Filing Separately",
     federalTax: round0(mfsFederal),
@@ -246,8 +266,14 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     agi: round0(borrowerAgi),
     studentLoanAgi: round0(borrowerAgi),
     studentLoanAnnualPayment: round0(mfsLoan.estimatedAnnualPayment),
-    combinedAnnualCost: round0(mfsFederal + mfsState + mfsLoan.estimatedAnnualPayment),
-    combinedMonthlyCost: round0((mfsFederal + mfsState + mfsLoan.estimatedAnnualPayment) / 12),
+    studentLoanMonthlyPayment: round0(mfsLoan.estimatedMonthlyPayment),
+    combinedAnnualCost: round0(mfsTotalAnnual),
+    combinedMonthlyCost: round0(mfsTotalAnnual / 12),
+    borrowerFederalTax: round0(borrowerTax.federalTax),
+    spouseFederalTax: round0(spouseTax.federalTax),
+    borrowerStateTax: round0(borrowerStateTax),
+    spouseStateTax: round0(spouseStateTax),
+    spouseAgi: round0(spouseAgi),
   };
 
   const recommendation: "mfj" | "mfs" = mfs.combinedAnnualCost < mfj.combinedAnnualCost ? "mfs" : "mfj";
@@ -273,6 +299,7 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     netAnnualBenefit: round0(loser.combinedAnnualCost - winner.combinedAnnualCost),
     netMonthlyBenefit: round0((loser.combinedAnnualCost - winner.combinedAnnualCost) / 12),
     studentLoanSavings: round0(mfj.studentLoanAnnualPayment - mfs.studentLoanAnnualPayment),
+    monthlyLoanSavings: round0(mfj.studentLoanMonthlyPayment - mfs.studentLoanMonthlyPayment),
     additionalTaxes: round0(
       mfs.federalTax + mfs.stateTax - (mfj.federalTax + mfj.stateTax),
     ),
