@@ -47,14 +47,14 @@ describe("regression: state → poverty region", () => {
   });
 
   it("Alaska/Hawaii selection changes the discretionary poverty guideline in the estimate", () => {
-    // Use a low balance so the Std-10 cap doesn't equalise the two.
+    // Large-enough balance that the Std-10 cap doesn't equalise the two.
     const contiguous = estimateRepayment(
-      { balance: 30_000, interestRatePct: 6 },
+      { balance: 200_000, interestRatePct: 6 },
       { ...baseBorrower, annualIncome: 80_000, familySize: 2, region: "contiguous_48_dc" },
       "ibr_new",
     );
     const alaska = estimateRepayment(
-      { balance: 30_000, interestRatePct: 6 },
+      { balance: 200_000, interestRatePct: 6 },
       { ...baseBorrower, annualIncome: 80_000, familySize: 2, region: "alaska" },
       "ibr_new",
     );
