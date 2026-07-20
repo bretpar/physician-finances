@@ -22,7 +22,11 @@ import {
 import { REPAYMENT_PLAN_LIST, REPAYMENT_PLANS, type RepaymentPlanId } from "@/lib/studentLoan/repaymentPlans";
 import { estimateRepayment, aggregateLoans } from "@/lib/studentLoan/calculator";
 import { compareFilingStatuses } from "@/lib/studentLoan/mfsComparison";
-import { isCommunityPropertyState, COMMUNITY_PROPERTY_STATES } from "@/lib/studentLoan/communityProperty";
+import {
+  isCommunityPropertyState,
+  COMMUNITY_PROPERTY_STATES,
+  allocateCommunityAgi,
+} from "@/lib/studentLoan/communityProperty";
 import { Badge } from "@/components/ui/badge";
 import { Navigate, Link } from "react-router-dom";
 
@@ -39,6 +43,10 @@ const fmtMonths = (m: number | null) => {
   return `${y} yr ${r} mo`;
 };
 
+// AGI source for the Student Loan Estimator ONLY. Never writes to tax
+// engine, ledgers, or user settings.
+type AgiSource = "projected" | "prior_year" | "manual";
+
 export default function StudentLoans() {
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
   const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
@@ -51,16 +59,19 @@ export default function StudentLoans() {
     return <Navigate to="/settings" replace />;
   }
 
-  const projectedFromPlanner = Math.max(0, forecastEstimate?.totalIncome ?? 0);
-  const incomeOverride = settings?.studentLoanIncomeOverride;
-  const projectedAnnualIncome = incomeOverride != null && incomeOverride > 0 ? incomeOverride : projectedFromPlanner;
+  // ── Canonical projected values from the tax engine ─────────────────
+  // NEVER use totalIncome as AGI. Student Loan payments must be based on
+  // ADJUSTED gross income, matching FSA IDR forms.
+  const projectedTotalIncome = Math.max(0, forecastEstimate?.totalIncome ?? 0);
+  const projectedAdjustedGrossIncome = Math.max(0, forecastEstimate?.agi ?? 0);
+  const projectedTaxableIncome = Math.max(0, forecastEstimate?.taxableIncome ?? 0);
+  const projectedAdjustments = Math.max(0, projectedTotalIncome - projectedAdjustedGrossIncome);
 
-  const filingStatus = settings?.filingStatus ?? "single";
+  const savedFilingStatus = settings?.filingStatus ?? "single";
   const state = settings?.stateOfResidence ?? "";
   const familySize = settings?.studentLoanFamilySize ?? 1;
   const isCP = isCommunityPropertyState(state);
   const cpOverride = settings?.studentLoanCommunityPropertyOverride;
-  const applyCommunityRules = cpOverride ?? isCP;
 
   // Single-loan MVP: use the first loan row if present.
   const loan: StudentLoanRow | null = loans[0] ?? null;
@@ -84,7 +95,71 @@ export default function StudentLoans() {
     }
   }, [loan?.id]);
 
-  // Comparison panel uses ephemeral local state — it never writes to saved settings.
+  // ── AGI source selector (ephemeral; overrides do NOT touch tax data) ──
+  const savedManualOverride = settings?.studentLoanIncomeOverride;
+  const [agiSource, setAgiSource] = useState<AgiSource>(
+    savedManualOverride != null && savedManualOverride > 0 ? "manual" : "projected",
+  );
+  const [priorYearAgi, setPriorYearAgi] = useState<string>("");
+  const manualAgi = savedManualOverride ?? null;
+
+  // ── Filing-status scenario (ephemeral) ────────────────────────────
+  // Lets the user model MFS in the main estimator without changing saved
+  // settings or the tax engine's filing status.
+  const [scenarioFilingStatus, setScenarioFilingStatus] = useState<
+    "as_saved" | "single" | "married_filing_jointly" | "married_filing_separately"
+  >("as_saved");
+  const effectiveFilingStatus =
+    scenarioFilingStatus === "as_saved"
+      ? savedFilingStatus === "married_filing_jointly"
+        ? "married_filing_jointly"
+        : "single"
+      : scenarioFilingStatus;
+  const modelingMfs = effectiveFilingStatus === "married_filing_separately";
+
+  // ── Community-property allocation inputs (ephemeral, MFS only) ────
+  const applyCommunityRules = cpOverride ?? isCP;
+  const [cpBorrowerCommunity, setCpBorrowerCommunity] = useState<string>("");
+  const [cpSpouseCommunity, setCpSpouseCommunity] = useState<string>("");
+  const [cpBorrowerSeparate, setCpBorrowerSeparate] = useState<string>("");
+  const [cpSpouseSeparate, setCpSpouseSeparate] = useState<string>("");
+  const [cpBorrowerAdj, setCpBorrowerAdj] = useState<string>("");
+  const [cpSpouseAdj, setCpSpouseAdj] = useState<string>("");
+  const [cpBorrowerSharePct, setCpBorrowerSharePct] = useState<string>("50");
+
+  const cpAllocation = useMemo(() => {
+    if (!modelingMfs || !isCP || !applyCommunityRules) return null;
+    // Seed borrower community income from projected total income when the
+    // user hasn't entered a value (keeps the calc meaningful by default).
+    const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
+    return allocateCommunityAgi({
+      borrowerCommunityIncome: bComm,
+      spouseCommunityIncome: Number(cpSpouseCommunity) || 0,
+      borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
+      spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
+      borrowerAdjustments: Number(cpBorrowerAdj) || 0,
+      spouseAdjustments: Number(cpSpouseAdj) || 0,
+      borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 0) / 100)),
+    });
+  }, [modelingMfs, isCP, applyCommunityRules, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpSpouseAdj, cpBorrowerSharePct, projectedTotalIncome]);
+
+  // ── Resolve studentLoanAGI ───────────────────────────────────────
+  // Priority: manual override → prior-year AGI → CP-allocated MFS AGI →
+  // engine's projected AGI.
+  let studentLoanAGI = projectedAdjustedGrossIncome;
+  let agiSourceLabel = "Projected AGI from PaycheckMD";
+  if (agiSource === "manual" && manualAgi != null && manualAgi >= 0) {
+    studentLoanAGI = manualAgi;
+    agiSourceLabel = "Manual estimate";
+  } else if (agiSource === "prior_year" && priorYearAgi !== "" && Number(priorYearAgi) >= 0) {
+    studentLoanAGI = Number(priorYearAgi);
+    agiSourceLabel = "Most recent filed-tax-return AGI";
+  } else if (cpAllocation) {
+    studentLoanAGI = cpAllocation.borrowerMfsAgi;
+    agiSourceLabel = "Community-property-adjusted MFS AGI";
+  }
+
+  // ── Comparison sandbox ────────────────────────────────────────────
   const savedSpouseIncome = settings?.studentLoanSpouseIncomeOverride;
   const savedCpOverride = settings?.studentLoanCommunityPropertyOverride;
   const [comparisonOpen, setComparisonOpen] = useState(false);
@@ -94,8 +169,6 @@ export default function StudentLoans() {
   const [compareCpOverride, setCompareCpOverride] = useState<boolean | null>(savedCpOverride ?? null);
 
   const openComparison = () => {
-    // Re-seed from saved profile every time the panel opens so it reflects
-    // the current baseline without persisting future edits.
     setCompareSpouseIncome(savedSpouseIncome != null ? String(savedSpouseIncome) : "");
     setCompareCpOverride(savedCpOverride ?? null);
     setComparisonOpen(true);
@@ -118,12 +191,11 @@ export default function StudentLoans() {
   const estimate = useMemo(
     () =>
       estimateRepayment(aggregated, {
-        filingStatus:
-          filingStatus === "married_filing_jointly" ? "married_filing_jointly" : "single",
+        filingStatus: effectiveFilingStatus,
         familySize: Math.max(1, familySize ?? 1),
-        annualIncome: projectedAnnualIncome,
+        annualIncome: studentLoanAGI, // ← canonical: AGI, not total income
       }, draftPlan),
-    [aggregated, draftPlan, filingStatus, familySize, projectedAnnualIncome],
+    [aggregated, draftPlan, effectiveFilingStatus, familySize, studentLoanAGI],
   );
 
   const currentPayment = parsedLoan.currentMonthlyPayment ?? 0;
@@ -131,20 +203,19 @@ export default function StudentLoans() {
 
   const selectedPlanFamily = REPAYMENT_PLANS[draftPlan]?.family;
   const isIdrPlan = selectedPlanFamily === "idr";
-  const hasPlannerIncome = projectedFromPlanner > 0;
-  const hasOverrideIncome = incomeOverride != null && incomeOverride > 0;
-  const hasAnyIncome = projectedAnnualIncome > 0;
-  const idrMissingIncome = isIdrPlan && !hasAnyIncome;
+  const hasPlannerAgi = projectedAdjustedGrossIncome > 0;
+  const hasAnyAgi = studentLoanAGI > 0;
+  const idrMissingIncome = isIdrPlan && !hasAnyAgi;
   const balanceInvalid = draftBalance !== "" && Number(draftBalance) < 0;
   const rateInvalid = draftRate !== "" && Number(draftRate) < 0;
-  const overrideInvalid = incomeOverride != null && incomeOverride < 0;
+  const manualInvalid = savedManualOverride != null && savedManualOverride < 0;
 
   const spouseIncome = Number(compareSpouseIncome) || 0;
 
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
     return compareFilingStatuses({
-      userIncome: projectedAnnualIncome,
+      userIncome: projectedTotalIncome,
       spouseIncome,
       loan: parsedLoan,
       planId: draftPlan,
@@ -153,7 +224,8 @@ export default function StudentLoans() {
       applyCommunityRules: compareApplyCommunityRules,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
     });
-  }, [comparisonOpen, projectedAnnualIncome, spouseIncome, parsedLoan, draftPlan, familySize, state, compareApplyCommunityRules, settings?.personalStateTaxRate]);
+  }, [comparisonOpen, projectedTotalIncome, spouseIncome, parsedLoan, draftPlan, familySize, state, compareApplyCommunityRules, settings?.personalStateTaxRate]);
+
 
   const handleSaveLoan = async () => {
     await upsert.mutateAsync({
