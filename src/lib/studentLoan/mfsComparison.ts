@@ -2,16 +2,20 @@
  * MFJ vs MFS comparison for student loan strategy.
  *
  * READ-ONLY: this module never persists or mutates user tax settings.
- * It requests two tax estimates from the canonical engine
- * (`calculateFullEstimate`) — one MFJ, one MFS-per-spouse — and pairs the
- * results with student loan payment estimates so the UI can display a
- * combined annual cost comparison and a "recommended filing status" card.
+ * It calls the canonical tax engine (`calculateFullEstimate`) for BOTH
+ * MFJ and MFS scenarios (per-spouse for MFS), so bracket / standard
+ * deduction / phase-out logic stays in one place. This module contains
+ * ZERO standalone federal bracket math.
  *
  * IMPORTANT: The student-loan calculator receives the tax engine's
  * returned `agi` (adjusted gross income), NOT raw total income. This
  * matches how FSA's official IDR forms treat AGI.
  *
- * For MFS in a community property state, borrower/spouse AGI is derived
+ * MFJ: household AGI is passed once to the loan calculator as
+ * `annualIncome` with `spouseAnnualIncome = 0` — spouse income must
+ * NEVER be added again on top of a joint AGI.
+ *
+ * MFS in a community-property state: borrower/spouse AGI is derived
  * from `allocateCommunityAgi` (50% community + 100% separate ± allocated
  * adjustments) rather than raw individual wages.
  *
@@ -25,26 +29,6 @@ import { allocateCommunityAgi, isCommunityPropertyState } from "./communityPrope
 import { getPlan } from "./rules/plans";
 import type { RepaymentPlanId } from "./repaymentPlans";
 import type { PovertyRegion } from "./rules/types";
-import { getTaxYearConfig, ACTIVE_TAX_YEAR, calcBracketTax, type Bracket } from "@/lib/taxBrackets";
-
-/**
- * MFS brackets = MFJ brackets ÷ 2 (per IRC §1(a) & Rev. Proc. inflation
- * adjustments). We derive them from the active-year MFJ table so this
- * stays in lockstep with the canonical bracket registry.
- */
-function mfsBrackets(year = ACTIVE_TAX_YEAR): Bracket[] {
-  const cfg = getTaxYearConfig(year);
-  return cfg.ordinaryBrackets.married_filing_jointly.map((b) => ({
-    min: b.min / 2,
-    max: b.max === Infinity ? Infinity : b.max / 2,
-    rate: b.rate,
-  }));
-}
-
-function mfsStandardDeduction(year = ACTIVE_TAX_YEAR): number {
-  // MFS standard deduction = single amount (statutory).
-  return getTaxYearConfig(year).standardDeduction.single;
-}
 
 export interface MfsComparisonInput {
   /**
@@ -128,31 +112,43 @@ function estimateStateTax(taxableIncome: number, ratePct: number): number {
   return Math.max(0, taxableIncome) * (ratePct / 100);
 }
 
-/**
- * Federal tax at MFS brackets & standard deduction. MFS brackets = MFJ ÷ 2
- * (IRC §1(a)), so we derive them from the canonical bracket table rather
- * than hardcoding. Wrapped for use by the comparison scenario — the
- * app-wide tax engine still only accepts single/MFJ, so this local helper
- * keeps the MFS math correct without widening `FilingStatus` everywhere.
- */
-function mfsFederalTax(agi: number, itemizedHalf: number, deductionType: "standard" | "itemized"): {
-  federalTax: number;
-  taxableIncome: number;
-} {
-  const deduction = deductionType === "itemized"
-    ? Math.max(0, itemizedHalf)
-    : mfsStandardDeduction();
-  const taxableIncome = Math.max(0, agi - deduction);
-  const brackets = mfsBrackets();
-  const { total } = calcBracketTax(taxableIncome, brackets);
-  return { federalTax: total, taxableIncome };
-}
-
 function povertyRegionForState(state: string): PovertyRegion {
   const s = (state || "").toUpperCase();
   if (s === "AK") return "alaska";
   if (s === "HI") return "hawaii";
   return "contiguous_48_dc";
+}
+
+/**
+ * Call the canonical tax engine for one filing-status scenario. When an
+ * AGI override is provided, we pass it as `w2Income`/`totalIncome` with
+ * zero adjustments so the engine's returned AGI equals the override.
+ */
+function runEngine(params: {
+  filingStatus: "single" | "married_filing_jointly" | "married_filing_separately";
+  overrideAgi: number | null;
+  fallbackIncome: number;
+  adjustments: number;
+  deductionType: "standard" | "itemized";
+  itemizedDeductionAmount: number;
+}) {
+  const useOverride = params.overrideAgi != null;
+  const income = useOverride ? (params.overrideAgi as number) : Math.max(0, params.fallbackIncome);
+  const preTaxDeductions = useOverride ? 0 : Math.max(0, params.adjustments);
+  return calculateFullEstimate({
+    totalIncome: income,
+    w2Income: income,
+    seIncome: 0,
+    preTaxDeductions,
+    retirement401k: 0,
+    businessDeductions: 0,
+    mileageDeduction: 0,
+    taxesWithheld: 0,
+    filingStatus: params.filingStatus,
+    lastYearTax: 0,
+    deductionType: params.deductionType,
+    itemizedDeductionAmount: params.itemizedDeductionAmount,
+  });
 }
 
 export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonResult {
@@ -164,34 +160,28 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
   const applyCP = cpEligible && input.applyCommunityRules;
   const region = povertyRegionForState(input.state);
 
-  // ── MFJ scenario — use joint AGI returned by the tax engine, OR an
-  // explicit override (in which case we pass it as totalIncome with zero
-  // adjustments so the engine's returned AGI equals the override).
+  // ── MFJ scenario ────────────────────────────────────────────────
   const jointAgiOverride =
     input.overrideJointAgi != null && Number.isFinite(input.overrideJointAgi) && input.overrideJointAgi >= 0
       ? input.overrideJointAgi
       : null;
-  const mfjEstimate = calculateFullEstimate({
-    totalIncome: jointAgiOverride ?? totalIncome,
-    w2Income: jointAgiOverride ?? totalIncome,
-    seIncome: 0,
-    preTaxDeductions: jointAgiOverride != null
-      ? 0
-      : (input.borrowerAdjustments ?? 0) + (input.spouseAdjustments ?? 0),
-    retirement401k: 0,
-    businessDeductions: 0,
-    mileageDeduction: 0,
-    taxesWithheld: 0,
+  const mfjEstimate = runEngine({
     filingStatus: "married_filing_jointly",
-    lastYearTax: 0,
+    overrideAgi: jointAgiOverride,
+    fallbackIncome: totalIncome,
+    adjustments: (input.borrowerAdjustments ?? 0) + (input.spouseAdjustments ?? 0),
     deductionType,
     itemizedDeductionAmount: itemized,
   });
+  // CRITICAL FIX (spouse double-count): joint AGI already reflects both
+  // spouses, so `spouseAnnualIncome` MUST be 0 here. The registry-driven
+  // MFJ "combined" rule would otherwise add spouse income on top of an
+  // already-joint AGI.
   const mfjBorrower: BorrowerInput = {
     filingStatus: "married_filing_jointly",
     familySize: input.familySize,
-    annualIncome: mfjEstimate.agi, // ← engine-derived joint AGI (equals override when set)
-    spouseAnnualIncome: Math.max(0, input.spouseIncome),
+    annualIncome: mfjEstimate.agi,
+    spouseAnnualIncome: 0,
     region,
   };
   const mfjLoan = estimateRepayment(input.loan, mfjBorrower, input.planId);
@@ -231,9 +221,6 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
   const borrowerAdj = input.borrowerAdjustments ?? 0;
   const spouseAdj = input.spouseAdjustments ?? 0;
 
-  // AGI = allocated income − allocated adjustments (no employer FICA on
-  // the comparison path). Apply MFS brackets to each half separately.
-  // Explicit AGI overrides take precedence.
   const borrowerAgiOverride =
     input.overrideBorrowerMfsAgi != null && Number.isFinite(input.overrideBorrowerMfsAgi) && input.overrideBorrowerMfsAgi >= 0
       ? input.overrideBorrowerMfsAgi
@@ -242,10 +229,27 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     input.overrideSpouseMfsAgi != null && Number.isFinite(input.overrideSpouseMfsAgi) && input.overrideSpouseMfsAgi >= 0
       ? input.overrideSpouseMfsAgi
       : null;
-  const borrowerAgi = borrowerAgiOverride ?? Math.max(0, borrowerAllocatedIncome - borrowerAdj);
-  const spouseAgi = spouseAgiOverride ?? Math.max(0, spouseAllocatedIncome - spouseAdj);
-  const borrowerTax = mfsFederalTax(borrowerAgi, itemized / 2, deductionType);
-  const spouseTax = mfsFederalTax(spouseAgi, itemized / 2, deductionType);
+
+  // MFS taxes now run through the canonical tax engine with
+  // `married_filing_separately` — no standalone bracket math here.
+  const borrowerEstimate = runEngine({
+    filingStatus: "married_filing_separately",
+    overrideAgi: borrowerAgiOverride,
+    fallbackIncome: borrowerAllocatedIncome,
+    adjustments: borrowerAdj,
+    deductionType,
+    itemizedDeductionAmount: itemized / 2,
+  });
+  const spouseEstimate = runEngine({
+    filingStatus: "married_filing_separately",
+    overrideAgi: spouseAgiOverride,
+    fallbackIncome: spouseAllocatedIncome,
+    adjustments: spouseAdj,
+    deductionType,
+    itemizedDeductionAmount: itemized / 2,
+  });
+  const borrowerAgi = borrowerEstimate.agi;
+  const spouseAgi = spouseEstimate.agi;
 
   const mfsBorrower: BorrowerInput = {
     filingStatus: "married_filing_separately",
@@ -254,9 +258,9 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     region,
   };
   const mfsLoan = estimateRepayment(input.loan, mfsBorrower, input.planId);
-  const mfsFederal = borrowerTax.federalTax + spouseTax.federalTax;
-  const borrowerStateTax = estimateStateTax(borrowerTax.taxableIncome, stateRate);
-  const spouseStateTax = estimateStateTax(spouseTax.taxableIncome, stateRate);
+  const mfsFederal = borrowerEstimate.federalTax + spouseEstimate.federalTax;
+  const borrowerStateTax = estimateStateTax(borrowerEstimate.taxableIncome, stateRate);
+  const spouseStateTax = estimateStateTax(spouseEstimate.taxableIncome, stateRate);
   const mfsState = borrowerStateTax + spouseStateTax;
   const mfsTotalAnnual = mfsFederal + mfsState + mfsLoan.estimatedAnnualPayment;
   const mfs: FilingScenarioResult = {
@@ -269,8 +273,8 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     studentLoanMonthlyPayment: round0(mfsLoan.estimatedMonthlyPayment),
     combinedAnnualCost: round0(mfsTotalAnnual),
     combinedMonthlyCost: round0(mfsTotalAnnual / 12),
-    borrowerFederalTax: round0(borrowerTax.federalTax),
-    spouseFederalTax: round0(spouseTax.federalTax),
+    borrowerFederalTax: round0(borrowerEstimate.federalTax),
+    spouseFederalTax: round0(spouseEstimate.federalTax),
     borrowerStateTax: round0(borrowerStateTax),
     spouseStateTax: round0(spouseStateTax),
     spouseAgi: round0(spouseAgi),

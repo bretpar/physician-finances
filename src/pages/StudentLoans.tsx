@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Navigate, Link } from "react-router-dom";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
@@ -54,7 +55,7 @@ function filingStatusLabel(status: string): string {
   }
 }
 
-const SCENARIO_STORAGE_KEY = "student_loan_estimator_scenario_v2";
+const SCENARIO_STORAGE_PREFIX = "student_loan_estimator_scenario_v2";
 type ScenarioPrefs = {
   state?: string;
   familySize?: number;
@@ -63,22 +64,34 @@ type ScenarioPrefs = {
   rate?: string;
   agiMode?: "projected" | "manual";
   manualAgi?: string;
+  firstDisbursementDate?: string;
+  ibrBorrowerType?: "new" | "old" | "";
+  isParentPlus?: boolean;
+  parentPlusConsolidated?: boolean;
 };
 
-function readScenarioPrefs(): ScenarioPrefs {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(window.localStorage.getItem(SCENARIO_STORAGE_KEY) || "{}") as ScenarioPrefs; }
+function scenarioStorageKey(userId: string | null | undefined): string | null {
+  if (!userId) return null;
+  return `${SCENARIO_STORAGE_PREFIX}:${userId}`;
+}
+function readScenarioPrefs(userId: string | null | undefined): ScenarioPrefs {
+  const key = scenarioStorageKey(userId);
+  if (!key || typeof window === "undefined") return {};
+  try { return JSON.parse(window.localStorage.getItem(key) || "{}") as ScenarioPrefs; }
   catch { return {}; }
 }
-function writeScenarioPrefs(patch: Partial<ScenarioPrefs>) {
-  if (typeof window === "undefined") return;
+function writeScenarioPrefs(userId: string | null | undefined, patch: Partial<ScenarioPrefs>) {
+  const key = scenarioStorageKey(userId);
+  if (!key || typeof window === "undefined") return;
   try {
-    const next = { ...readScenarioPrefs(), ...patch };
-    window.localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next));
+    const next = { ...readScenarioPrefs(userId), ...patch };
+    window.localStorage.setItem(key, JSON.stringify(next));
   } catch { /* ignore */ }
 }
 
 export default function StudentLoans() {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
   const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
   const upsert = useUpsertStudentLoan();
@@ -97,7 +110,9 @@ export default function StudentLoans() {
   const savedFamilySize = settings?.studentLoanFamilySize ?? 1;
 
   const loan: StudentLoanRow | null = loans[0] ?? null;
-  const initPrefs = useMemo(readScenarioPrefs, []);
+  // Namespaced per userId to prevent estimator scenarios leaking across users
+  // sharing a browser (e.g., a spouse or a shared workstation).
+  const initPrefs = useMemo(() => readScenarioPrefs(userId), [userId]);
 
   // Core (default) inputs — only 5 the user sees.
   const [balance, setBalance] = useState<string>(
@@ -146,12 +161,21 @@ export default function StudentLoans() {
     setMonthsInRepayment(loan.months_in_repayment != null ? String(loan.months_in_repayment) : "");
   }, [loan?.id]);
 
+  // Eligibility inputs — drive IBR-new vs IBR-old, Parent PLUS restrictions,
+  // and Extended-plan disbursement-date rule. Persisted in scenario prefs.
+  const [firstDisbursementDate, setFirstDisbursementDate] = useState<string>(initPrefs.firstDisbursementDate ?? "");
+  const [ibrBorrowerType, setIbrBorrowerType] = useState<"new" | "old" | "">(initPrefs.ibrBorrowerType ?? "");
+  const [isParentPlus, setIsParentPlus] = useState<boolean>(initPrefs.isParentPlus ?? false);
+  const [parentPlusConsolidated, setParentPlusConsolidated] = useState<boolean>(initPrefs.parentPlusConsolidated ?? false);
+
   // Persist ephemeral scenario prefs.
   useEffect(() => {
-    writeScenarioPrefs({
+    writeScenarioPrefs(userId, {
       state, familySize, planId: selectedPlan, balance, rate, agiMode, manualAgi,
+      firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated,
     });
-  }, [state, familySize, selectedPlan, balance, rate, agiMode, manualAgi]);
+  }, [userId, state, familySize, selectedPlan, balance, rate, agiMode, manualAgi,
+      firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated]);
 
   // Comparison sandbox (opened on demand).
   const [comparisonOpen, setComparisonOpen] = useState(false);
@@ -221,13 +245,20 @@ export default function StudentLoans() {
     // the engine needs the mapped PovertyRegion (AK/HI/contiguous).
     const region =
       state === "AK" ? "alaska" : state === "HI" ? "hawaii" : "contiguous_48_dc";
+    const ibrType: "new_2014" | "old" | null =
+      ibrBorrowerType === "new" ? "new_2014" : ibrBorrowerType === "old" ? "old" : null;
     return {
       filingStatus: filing,
       familySize: Math.max(1, familySize ?? 1),
       annualIncome: studentLoanAgi,
       region: region as "alaska" | "hawaii" | "contiguous_48_dc",
-    };
-  }, [savedFilingStatus, familySize, studentLoanAgi, state]);
+      firstDisbursementDate: firstDisbursementDate || null,
+      ibrBorrowerType: ibrType,
+      isParentPlus: isParentPlus || null,
+      parentPlusConsolidated: parentPlusConsolidated || null,
+    } satisfies import("@/lib/studentLoan/calculator").BorrowerInput;
+  }, [savedFilingStatus, familySize, studentLoanAgi, state,
+      firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated]);
 
   // Compute estimates for ALL enrollable plans, sorted by monthly payment.
   const planEstimates = useMemo(() => {
@@ -687,13 +718,21 @@ export default function StudentLoans() {
                   </div>
                 </button>
                 {agiMode === "manual" && (
-                  <Input
-                    className="mt-2"
-                    type="number"
-                    placeholder="e.g. 250000"
-                    value={manualAgi}
-                    onChange={(e) => setManualAgi(e.target.value)}
-                  />
+                  <div className="mt-2">
+                    <Label htmlFor="manual-agi-input" className="sr-only">
+                      Manual AGI (US dollars)
+                    </Label>
+                    <Input
+                      id="manual-agi-input"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      placeholder="e.g. 250000"
+                      aria-label="Manual AGI in US dollars"
+                      value={manualAgi}
+                      onChange={(e) => setManualAgi(e.target.value)}
+                    />
+                  </div>
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground">
@@ -783,6 +822,63 @@ export default function StudentLoans() {
             <p className="text-[11px] text-muted-foreground mt-2">
               These only refine your estimate — they don't change your profile or tax settings.
             </p>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Eligibility
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="first-disbursement-date" className="text-xs">
+                  First disbursement date
+                </Label>
+                <Input
+                  id="first-disbursement-date"
+                  type="date"
+                  value={firstDisbursementDate}
+                  onChange={(e) => setFirstDisbursementDate(e.target.value)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Determines IBR-new (on/after 7/1/2014) vs IBR-old, and Extended plan eligibility.
+                </p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ibr-borrower-type" className="text-xs">
+                  IBR borrower type
+                </Label>
+                <select
+                  id="ibr-borrower-type"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={ibrBorrowerType}
+                  onChange={(e) => setIbrBorrowerType(e.target.value as "new" | "old" | "")}
+                >
+                  <option value="">Auto (use disbursement date)</option>
+                  <option value="new">New borrower (on/after 7/1/2014)</option>
+                  <option value="old">Old borrower (before 7/1/2014)</option>
+                </select>
+              </div>
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={isParentPlus}
+                  onChange={(e) => setIsParentPlus(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>Parent PLUS loan (restricts IDR eligibility)</span>
+              </label>
+              {isParentPlus && (
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={parentPlusConsolidated}
+                    onChange={(e) => setParentPlusConsolidated(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>Consolidated into a Direct Consolidation loan (enables ICR)</span>
+                </label>
+              )}
+            </div>
           </div>
 
           {estimate?.detail && (
