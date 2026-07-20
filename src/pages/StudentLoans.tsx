@@ -702,7 +702,7 @@ export default function StudentLoans() {
               >
                 <div className="font-medium flex items-center gap-1.5">
                   {agiMode === "projected" && <Check className="h-3.5 w-3.5" />}
-                  Use projected AGI from PaycheckMD
+                  Use Projected AGI
                 </div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">{fmtCurrency(projectedAgi)}</div>
               </button>
