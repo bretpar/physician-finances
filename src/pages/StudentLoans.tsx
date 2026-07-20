@@ -294,8 +294,10 @@ export default function StudentLoans() {
       region: region as "alaska" | "hawaii" | "contiguous_48_dc",
       firstDisbursementDate: firstDisbursementDate || null,
       ibrBorrowerType: ibrType,
-      isParentPlus: isParentPlus || null,
-      parentPlusConsolidated: parentPlusConsolidated || null,
+      // Checkbox is a confirmed Yes/No — pass the boolean directly so
+      // unchecked = "confirmed not Parent PLUS" (not "unknown").
+      isParentPlus: isParentPlus,
+      parentPlusConsolidated: isParentPlus ? parentPlusConsolidated : false,
     } satisfies import("@/lib/studentLoan/calculator").BorrowerInput;
   }, [savedFilingStatus, familySize, studentLoanAgi, state,
       firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated]);
