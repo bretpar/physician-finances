@@ -184,7 +184,26 @@ export default function StudentLoans() {
           <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
             Estimated monthly payment · {estimate.plan.label}
           </div>
-          {idrMissingIncome ? (
+          {estimate.unavailable ? (
+            <>
+              <div className="text-3xl font-bold text-muted-foreground">—</div>
+              <Alert variant="destructive" className="mt-3">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-xs space-y-2">
+                  <p><strong>Estimate unavailable pending current rule verification.</strong></p>
+                  <p>{estimate.unavailable.reason}</p>
+                  {estimate.unavailable.sourceUrl && (
+                    <p>
+                      Source:{" "}
+                      <a href={estimate.unavailable.sourceUrl} target="_blank" rel="noreferrer" className="underline">
+                        {estimate.unavailable.sourceUrl}
+                      </a>
+                    </p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            </>
+          ) : idrMissingIncome ? (
             <>
               <div className="text-3xl font-bold text-muted-foreground">—</div>
               <Alert variant="destructive" className="mt-3">
@@ -192,17 +211,14 @@ export default function StudentLoans() {
                 <AlertDescription className="text-xs space-y-2">
                   <p>
                     <strong>We need your annual income to estimate this plan.</strong>{" "}
-                    Income-driven repayment plans (PAYE, IBR, ICR, SAVE) are calculated from your
-                    projected annual income, but we don't have one yet.
+                    Income-driven repayment plans are calculated from your projected annual income, but we don't have one yet.
                   </p>
                   <p>
                     Add income in your{" "}
                     <Link to="/projected-income" className="underline font-medium">
                       Income Planner
                     </Link>
-                    , or enter a projected annual income below to see an estimate. You can also
-                    switch to a non-income-based plan (Standard, Extended, or Graduated) to see
-                    results now.
+                    , or enter a projected annual income below to see an estimate.
                   </p>
                 </AlertDescription>
               </Alert>
@@ -253,6 +269,27 @@ export default function StudentLoans() {
                   ))}
                 </ul>
               )}
+              {estimate.detail && (
+                <details className="mt-4 rounded-md border border-border bg-background/60 p-3 text-xs">
+                  <summary className="cursor-pointer font-medium">How this was calculated</summary>
+                  <div className="mt-2 space-y-1">
+                    <div className="text-muted-foreground">{estimate.detail.breakdown.formula}</div>
+                    <ul className="space-y-0.5">
+                      {estimate.detail.breakdown.steps.map((s, i) => (
+                        <li key={i} className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">{s.label}</span>
+                          <span className="tabular-nums">{typeof s.value === "number" ? fmtCurrency(s.value) : s.value}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="pt-2 mt-2 border-t border-border text-[10px] text-muted-foreground">
+                      Rules {estimate.detail.rulesVersion} · updated {estimate.detail.sourceUpdatedAt} ·{" "}
+                      <a href={estimate.detail.sourceUrl} target="_blank" rel="noreferrer" className="underline">source</a>
+                      {" · "}Eligibility: {estimate.detail.eligibility}
+                    </div>
+                  </div>
+                </details>
+              )}
             </>
           )}
         </Card>
@@ -275,20 +312,18 @@ export default function StudentLoans() {
                 <SelectContent>
                   {REPAYMENT_PLAN_LIST.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span>{p.label}</span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs text-xs">
-                          {p.tooltip}
-                        </TooltipContent>
-                      </Tooltip>
+                      <span className="flex items-center gap-2">
+                        <span>{p.label}</span>
+                        {p.status === "legacy" && <Badge variant="outline" className="text-[9px] px-1 py-0">Legacy</Badge>}
+                        {p.status === "current" && p.family === "tiered_standard" && <Badge className="text-[9px] px-1 py-0">New 2026</Badge>}
+                        {p.verification === "pending" && <Badge variant="destructive" className="text-[9px] px-1 py-0">Unverified</Badge>}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground mt-1">
-                {REPAYMENT_PLANS[draftPlan].tooltip}
+                {REPAYMENT_PLANS[draftPlan]?.tooltip}
               </p>
             </div>
           </div>
@@ -304,6 +339,7 @@ export default function StudentLoans() {
             )}
           </div>
         </Card>
+
 
         {/* Borrower information ────────────────────── */}
         <Card className="p-5 space-y-3">
