@@ -824,6 +824,63 @@ export default function StudentLoans() {
             </p>
           </div>
 
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Eligibility
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="first-disbursement-date" className="text-xs">
+                  First disbursement date
+                </Label>
+                <Input
+                  id="first-disbursement-date"
+                  type="date"
+                  value={firstDisbursementDate}
+                  onChange={(e) => setFirstDisbursementDate(e.target.value)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Determines IBR-new (on/after 7/1/2014) vs IBR-old, and Extended plan eligibility.
+                </p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ibr-borrower-type" className="text-xs">
+                  IBR borrower type
+                </Label>
+                <select
+                  id="ibr-borrower-type"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={ibrBorrowerType}
+                  onChange={(e) => setIbrBorrowerType(e.target.value as "new" | "old" | "")}
+                >
+                  <option value="">Auto (use disbursement date)</option>
+                  <option value="new">New borrower (on/after 7/1/2014)</option>
+                  <option value="old">Old borrower (before 7/1/2014)</option>
+                </select>
+              </div>
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={isParentPlus}
+                  onChange={(e) => setIsParentPlus(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>Parent PLUS loan (restricts IDR eligibility)</span>
+              </label>
+              {isParentPlus && (
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={parentPlusConsolidated}
+                    onChange={(e) => setParentPlusConsolidated(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>Consolidated into a Direct Consolidation loan (enables ICR)</span>
+                </label>
+              )}
+            </div>
+          </div>
+
           {estimate?.detail && (
             <div>
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
