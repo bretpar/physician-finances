@@ -643,7 +643,7 @@ export default function StudentLoans() {
         <div className="font-semibold">Confirm your information</div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field id="sl-balance" label="Total federal loan balance ($)" value={balance} onChange={setBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
+          <Field id="sl-balance" label="Total Federal Loan Balance ($)" value={balance} onChange={setBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
           <Field id="sl-rate" label="Average interest rate (%)" value={rate} onChange={setRate} type="number" error={rateInvalid ? "Rate can't be negative." : undefined} />
           <div>
             <Label htmlFor="sl-family-size" className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
