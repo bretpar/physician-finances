@@ -55,7 +55,7 @@ function filingStatusLabel(status: string): string {
   }
 }
 
-const SCENARIO_STORAGE_KEY = "student_loan_estimator_scenario_v2";
+const SCENARIO_STORAGE_PREFIX = "student_loan_estimator_scenario_v2";
 type ScenarioPrefs = {
   state?: string;
   familySize?: number;
@@ -64,18 +64,28 @@ type ScenarioPrefs = {
   rate?: string;
   agiMode?: "projected" | "manual";
   manualAgi?: string;
+  firstDisbursementDate?: string;
+  ibrBorrowerType?: "new" | "old" | "";
+  isParentPlus?: boolean;
+  parentPlusConsolidated?: boolean;
 };
 
-function readScenarioPrefs(): ScenarioPrefs {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(window.localStorage.getItem(SCENARIO_STORAGE_KEY) || "{}") as ScenarioPrefs; }
+function scenarioStorageKey(userId: string | null | undefined): string | null {
+  if (!userId) return null;
+  return `${SCENARIO_STORAGE_PREFIX}:${userId}`;
+}
+function readScenarioPrefs(userId: string | null | undefined): ScenarioPrefs {
+  const key = scenarioStorageKey(userId);
+  if (!key || typeof window === "undefined") return {};
+  try { return JSON.parse(window.localStorage.getItem(key) || "{}") as ScenarioPrefs; }
   catch { return {}; }
 }
-function writeScenarioPrefs(patch: Partial<ScenarioPrefs>) {
-  if (typeof window === "undefined") return;
+function writeScenarioPrefs(userId: string | null | undefined, patch: Partial<ScenarioPrefs>) {
+  const key = scenarioStorageKey(userId);
+  if (!key || typeof window === "undefined") return;
   try {
-    const next = { ...readScenarioPrefs(), ...patch };
-    window.localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next));
+    const next = { ...readScenarioPrefs(userId), ...patch };
+    window.localStorage.setItem(key, JSON.stringify(next));
   } catch { /* ignore */ }
 }
 
