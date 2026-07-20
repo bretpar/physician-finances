@@ -25,6 +25,7 @@ import Estimate from "@/pages/Estimate";
 import Tax1099Deductions from "@/pages/blog/Tax1099Deductions";
 import PhysicianScorpVsSoleProprietorship from "@/pages/blog/PhysicianScorpVsSoleProprietorship";
 import ProjectedIncome from "@/pages/ProjectedIncome";
+import StudentLoans from "@/pages/StudentLoans";
 import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
 import TaxValidation from "@/pages/admin/TaxValidation";
@@ -87,6 +88,7 @@ function ProtectedRoutes() {
           <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/student-loans" element={<StudentLoans />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/debug/transactions" element={<DebugTransactions />} />
           <Route path="/admin/data-isolation" element={<DataIsolationReport />} />

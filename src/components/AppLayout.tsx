@@ -13,6 +13,7 @@ import {
   
   Wallet,
   BarChart3,
+  GraduationCap,
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
