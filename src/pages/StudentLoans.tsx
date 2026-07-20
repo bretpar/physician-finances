@@ -602,80 +602,14 @@ export default function StudentLoans() {
       </Card>
 
       {/* 3. Your repayment options ────────────────── */}
-      <Card className="p-5 space-y-3">
-        <div className="font-semibold">Your repayment options</div>
-        <p className="text-xs text-muted-foreground">
-          Estimates for all supported plans, ordered by lowest monthly payment. Tap a plan to make it active.
-        </p>
-        <div className="space-y-2">
-          {planEstimates.map(({ plan, est, monthsForTotal, totalPaid, forgivenessMonths }) => {
-            const isActive = plan.id === selectedPlan;
-            const isCurrentSaved = loan?.repayment_plan === plan.id;
-            const isLowest = plan.id === lowestMonthlyId;
-            const isFastest = plan.id === fastestPayoffId;
-            const unavailable = !!est.unavailable;
-            const idrMissing = REPAYMENT_PLANS[plan.id]?.family === "idr" && missingAgi;
-            const eligibility = est.detail?.eligibility ?? "confirmed";
-            const isGraduated = REPAYMENT_PLANS[plan.id]?.family === "graduated";
-            const paysBeforeForgiveness =
-              forgivenessMonths != null &&
-              est.estimatedPayoffMonths != null &&
-              est.estimatedPayoffMonths < forgivenessMonths;
-            const endpointLabel = isGraduated
-              ? "Starting payment"
-              : forgivenessMonths != null && !paysBeforeForgiveness
-                ? `${Math.round(forgivenessMonths / 12)}-yr forgiveness`
-                : est.estimatedPayoffMonths != null
-                  ? `Paid off in ${fmtMonths(est.estimatedPayoffMonths)}`
-                  : "—";
-            return (
-              <button
-                key={plan.id}
-                type="button"
-                onClick={() => setSelectedPlan(plan.id)}
-                className={`w-full text-left rounded-md border p-3 transition-colors ${
-                  isActive ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:bg-muted/40"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-semibold text-sm">{plan.label}</span>
-                      {isCurrentSaved && <Badge variant="outline" className="text-[9px]">Current plan</Badge>}
-                      {isLowest && !unavailable && <Badge className="text-[9px]">Lowest monthly</Badge>}
-                      {isFastest && !unavailable && <Badge variant="secondary" className="text-[9px]">Pays off fastest</Badge>}
-                      {!unavailable && eligibility === "assumed" && (
-                        <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-700 dark:text-amber-400">Eligibility not confirmed</Badge>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-1">{plan.tooltip}</div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    {unavailable ? (
-                      <div className="text-xs text-muted-foreground">Not available</div>
-                    ) : (
-                      <>
-                        <div className="text-lg font-bold tabular-nums">{fmtCurrency(est.estimatedMonthlyPayment)}<span className="text-[10px] text-muted-foreground font-normal">/mo</span></div>
-                        <div className="text-[10px] text-muted-foreground">{endpointLabel}</div>
-                        {!isGraduated && totalPaid != null && (
-                          <div className="text-[10px] text-muted-foreground">
-                            Total ≈ {fmtCurrency(totalPaid)}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-                {idrMissing && !unavailable && (
-                  <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
-                    Estimate shown; eligibility not confirmed (income needed).
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
+      <RepaymentOptionsSection
+        planEstimates={planEstimates}
+        selectedPlan={selectedPlan}
+        onSelectPlan={setSelectedPlan}
+        savedPlanId={loan?.repayment_plan ?? null}
+        missingAgi={missingAgi}
+      />
+
 
       {/* 4. Compare MFJ vs MFS ────────────────────── */}
       <Card className="p-5 space-y-3">
