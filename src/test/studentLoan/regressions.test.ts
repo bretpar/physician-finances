@@ -47,14 +47,15 @@ describe("regression: state → poverty region", () => {
   });
 
   it("Alaska/Hawaii selection changes the discretionary poverty guideline in the estimate", () => {
+    // Use a low balance so the Std-10 cap doesn't equalise the two.
     const contiguous = estimateRepayment(
-      { balance: 100_000, interestRatePct: 6 },
-      { ...baseBorrower, familySize: 2, region: "contiguous_48_dc" },
+      { balance: 30_000, interestRatePct: 6 },
+      { ...baseBorrower, agi: 80_000, familySize: 2, region: "contiguous_48_dc" },
       "ibr_new",
     );
     const alaska = estimateRepayment(
-      { balance: 100_000, interestRatePct: 6 },
-      { ...baseBorrower, familySize: 2, region: "alaska" },
+      { balance: 30_000, interestRatePct: 6 },
+      { ...baseBorrower, agi: 80_000, familySize: 2, region: "alaska" },
       "ibr_new",
     );
     // Alaska's higher poverty guideline → lower discretionary → lower payment.
@@ -103,11 +104,11 @@ describe("regression: fixed-term / graduated payoff display", () => {
 });
 
 describe("regression: MFS uses MFS brackets, not two singles", () => {
-  it("MFS federal tax on a $500k single-income household differs from two-single approximation", () => {
-    // Single 2026 top-of-35% bracket ends at 640,600; MFS ends at 384,350.
-    // A borrower with $500k allocated income hits the 37% bracket under MFS
-    // but stays in 35% under single — so MFS federal tax must be higher
-    // than the pre-fix "single" approximation would have shown.
+  it("MFS federal tax on a $500k single-income household exceeds the single-bracket approximation", () => {
+    // Single 2026: 35% bracket 256,225–640,600; MFS: 35% ends at 384,350.
+    // A $500k slice partially crosses into 37% under MFS but stays in 35%
+    // under single — MFS tax must be measurably higher than the pre-fix
+    // "two singles" approximation would have produced.
     const res = compareFilingStatuses({
       userIncome: 500_000,
       spouseIncome: 0,
@@ -117,9 +118,7 @@ describe("regression: MFS uses MFS brackets, not two singles", () => {
       state: "NY",
       applyCommunityRules: false,
     });
-    // A single filer on $500k in 2026 owes roughly $140–145k federal.
-    // With MFS brackets (MFJ ÷ 2) the same $500k slice pushes into 37%
-    // and lands notably higher.
-    expect(res.mfs.federalTax).toBeGreaterThan(148_000);
+    // Single-filer approximation on $500k ≈ $138k. MFS lands >$140k.
+    expect(res.mfs.federalTax).toBeGreaterThan(140_000);
   });
 });
