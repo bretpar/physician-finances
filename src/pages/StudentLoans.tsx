@@ -163,10 +163,10 @@ export default function StudentLoans() {
 
   // Persist ephemeral scenario prefs.
   useEffect(() => {
-    writeScenarioPrefs({
+    writeScenarioPrefs(userId, {
       state, familySize, planId: selectedPlan, balance, rate, agiMode, manualAgi,
     });
-  }, [state, familySize, selectedPlan, balance, rate, agiMode, manualAgi]);
+  }, [userId, state, familySize, selectedPlan, balance, rate, agiMode, manualAgi]);
 
   // Comparison sandbox (opened on demand).
   const [comparisonOpen, setComparisonOpen] = useState(false);
