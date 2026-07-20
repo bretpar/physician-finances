@@ -687,7 +687,7 @@ export default function StudentLoans() {
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Income used</div>
             <div className="text-sm font-semibold truncate">
               {fmtCurrency(studentLoanAgi)}{" "}
-              <span className="text-xs font-normal text-muted-foreground">· {agiSourceLabel.toLowerCase()}</span>
+              <span className="text-xs font-normal text-muted-foreground">· {agiSourceLabel}</span>
             </div>
           </div>
           <Popover open={agiPopoverOpen} onOpenChange={setAgiPopoverOpen}>
