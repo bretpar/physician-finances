@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { GraduationCap, Info, Scale } from "lucide-react";
+import { GraduationCap, Info, Scale, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
+
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
