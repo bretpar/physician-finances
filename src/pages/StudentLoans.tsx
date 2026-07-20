@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
-import { GraduationCap, Info, Scale, AlertTriangle } from "lucide-react";
-
+import { useMemo, useState, useEffect } from "react";
+import { GraduationCap, Info, Scale, AlertTriangle, ChevronDown, Check } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -9,10 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { US_STATES } from "@/lib/quickEstimate";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Navigate, Link } from "react-router-dom";
+
+import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
   useStudentLoans,
@@ -25,11 +27,9 @@ import { estimateRepayment, aggregateLoans } from "@/lib/studentLoan/calculator"
 import { compareFilingStatuses } from "@/lib/studentLoan/mfsComparison";
 import {
   isCommunityPropertyState,
-  COMMUNITY_PROPERTY_STATES,
   allocateCommunityAgi,
 } from "@/lib/studentLoan/communityProperty";
-import { Badge } from "@/components/ui/badge";
-import { Navigate, Link } from "react-router-dom";
+import { friendlyRegionLabel } from "@/lib/studentLoan/computePlanPayment";
 
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(
@@ -44,133 +44,137 @@ const fmtMonths = (m: number | null) => {
   return `${y} yr ${r} mo`;
 };
 
-// AGI source for the Student Loan Estimator ONLY. Never writes to tax
-// engine, ledgers, or user settings.
-type AgiSource = "projected" | "prior_year" | "manual";
+function filingStatusLabel(status: string): string {
+  switch (status) {
+    case "married_filing_jointly": return "Married Filing Jointly";
+    case "married_filing_separately": return "Married Filing Separately";
+    case "single": return "Single";
+    case "head_of_household": return "Head of Household";
+    default: return status || "—";
+  }
+}
+
+const SCENARIO_STORAGE_KEY = "student_loan_estimator_scenario_v2";
+type ScenarioPrefs = {
+  state?: string;
+  familySize?: number;
+  planId?: RepaymentPlanId;
+  balance?: string;
+  rate?: string;
+  agiMode?: "projected" | "manual";
+  manualAgi?: string;
+};
+
+function readScenarioPrefs(): ScenarioPrefs {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(window.localStorage.getItem(SCENARIO_STORAGE_KEY) || "{}") as ScenarioPrefs; }
+  catch { return {}; }
+}
+function writeScenarioPrefs(patch: Partial<ScenarioPrefs>) {
+  if (typeof window === "undefined") return;
+  try {
+    const next = { ...readScenarioPrefs(), ...patch };
+    window.localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next));
+  } catch { /* ignore */ }
+}
 
 export default function StudentLoans() {
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
   const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
   const upsert = useUpsertStudentLoan();
   const del = useDeleteStudentLoan();
-  const updateSettings = useUpdateTaxSettings();
   const { forecastEstimate } = useTaxEstimate() ?? { forecastEstimate: null };
 
   if (!settingsLoading && settings && !settings.studentLoanEstimatorEnabled) {
     return <Navigate to="/settings" replace />;
   }
 
-  // ── Canonical projected values from the tax engine ─────────────────
-  // NEVER use totalIncome as AGI. Student Loan payments must be based on
-  // ADJUSTED gross income, matching FSA IDR forms.
   const projectedTotalIncome = Math.max(0, forecastEstimate?.totalIncome ?? 0);
-  const projectedAdjustedGrossIncome = Math.max(0, forecastEstimate?.agi ?? 0);
-  const projectedTaxableIncome = Math.max(0, forecastEstimate?.taxableIncome ?? 0);
-  const projectedAdjustments = Math.max(0, projectedTotalIncome - projectedAdjustedGrossIncome);
+  const projectedAgi = Math.max(0, forecastEstimate?.agi ?? 0);
 
   const savedFilingStatus = settings?.filingStatus ?? "single";
   const savedProfileState = settings?.stateOfResidence ?? "";
   const savedFamilySize = settings?.studentLoanFamilySize ?? 1;
 
-  // Ephemeral scenario inputs — persisted to localStorage so a refresh
-  // keeps the user's estimator view, but NEVER written back to the tax
-  // profile, ledgers, or Income Planner.
-  const SCENARIO_STORAGE_KEY = "student_loan_estimator_scenario_v1";
-  type ScenarioPrefs = { state?: string; familySize?: number; cpOverride?: boolean | null };
-  const readScenarioPrefs = (): ScenarioPrefs => {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(window.localStorage.getItem(SCENARIO_STORAGE_KEY) || "{}") as ScenarioPrefs; }
-    catch { return {}; }
-  };
-  const [scenarioPrefsInit] = useState<ScenarioPrefs>(readScenarioPrefs);
-  const [scenarioState, setScenarioStateRaw] = useState<string>(
-    scenarioPrefsInit.state ?? savedProfileState ?? "",
-  );
-  const [scenarioFamilySize, setScenarioFamilySizeRaw] = useState<number>(
-    Math.max(1, Math.floor(scenarioPrefsInit.familySize ?? savedFamilySize ?? 1)),
-  );
-  const [scenarioCpOverride, setScenarioCpOverrideRaw] = useState<boolean | null>(
-    scenarioPrefsInit.cpOverride ?? null,
-  );
-  const persistScenario = (patch: Partial<ScenarioPrefs>) => {
-    if (typeof window === "undefined") return;
-    try {
-      const next = { ...readScenarioPrefs(), ...patch };
-      window.localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next));
-    } catch { /* ignore */ }
-  };
-  const setScenarioState = (v: string) => { setScenarioStateRaw(v); persistScenario({ state: v }); };
-  const setScenarioFamilySize = (v: number) => {
-    const n = Math.max(1, Math.floor(Number.isFinite(v) ? v : 1));
-    setScenarioFamilySizeRaw(n); persistScenario({ familySize: n });
-  };
-  const setScenarioCpOverride = (v: boolean | null) => {
-    setScenarioCpOverrideRaw(v); persistScenario({ cpOverride: v });
-  };
-
-  const state = scenarioState;
-  const familySize = scenarioFamilySize;
-  const isCP = isCommunityPropertyState(state);
-  const cpOverride = scenarioCpOverride;
-
-  // Single-loan MVP: use the first loan row if present.
   const loan: StudentLoanRow | null = loans[0] ?? null;
+  const initPrefs = useMemo(readScenarioPrefs, []);
 
-  const [draftBalance, setDraftBalance] = useState<string>("");
-  const [draftRate, setDraftRate] = useState<string>("");
-  const [draftPlan, setDraftPlan] = useState<RepaymentPlanId>("standard_10");
-  const [draftCurrentPayment, setDraftCurrentPayment] = useState<string>("");
-  const [draftAdditional, setDraftAdditional] = useState<string>("");
-  const [draftMonths, setDraftMonths] = useState<string>("");
+  // Core (default) inputs — only 5 the user sees.
+  const [balance, setBalance] = useState<string>(
+    initPrefs.balance ?? (loan?.balance != null ? String(loan.balance) : "")
+  );
+  const [rate, setRate] = useState<string>(
+    initPrefs.rate ?? (loan?.interest_rate != null ? String(loan.interest_rate) : "")
+  );
+  const [familySize, setFamilySize] = useState<number>(
+    Math.max(1, Math.floor(initPrefs.familySize ?? savedFamilySize ?? 1))
+  );
+  const [state, setState] = useState<string>(initPrefs.state ?? savedProfileState ?? "");
+  const [selectedPlan, setSelectedPlan] = useState<RepaymentPlanId>(
+    initPrefs.planId ?? (loan?.repayment_plan as RepaymentPlanId) ?? "standard_10"
+  );
 
-  // Sync form fields from loaded row (only once when row changes).
-  useMemo(() => {
-    if (loan) {
-      setDraftBalance(String(loan.balance ?? ""));
-      setDraftRate(String(loan.interest_rate ?? ""));
-      setDraftPlan((loan.repayment_plan as RepaymentPlanId) ?? "standard_10");
-      setDraftCurrentPayment(loan.current_monthly_payment != null ? String(loan.current_monthly_payment) : "");
-      setDraftAdditional(loan.additional_monthly_payment != null ? String(loan.additional_monthly_payment) : "");
-      setDraftMonths(loan.months_in_repayment != null ? String(loan.months_in_repayment) : "");
-    }
+  // Load-from-saved-loan side effect (once when a row appears).
+  useEffect(() => {
+    if (!loan) return;
+    if (initPrefs.balance == null) setBalance(String(loan.balance ?? ""));
+    if (initPrefs.rate == null) setRate(String(loan.interest_rate ?? ""));
+    if (initPrefs.planId == null && loan.repayment_plan) setSelectedPlan(loan.repayment_plan as RepaymentPlanId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loan?.id]);
 
-  // ── AGI source selector (ephemeral; overrides do NOT touch tax data) ──
-  const savedManualOverride = settings?.studentLoanIncomeOverride;
-  const [agiSource, setAgiSource] = useState<AgiSource>(
-    savedManualOverride != null && savedManualOverride > 0 ? "manual" : "projected",
+  // AGI source (ephemeral — never persisted to tax settings).
+  const [agiMode, setAgiMode] = useState<"projected" | "manual">(initPrefs.agiMode ?? "projected");
+  const [manualAgi, setManualAgi] = useState<string>(initPrefs.manualAgi ?? "");
+  const [agiPopoverOpen, setAgiPopoverOpen] = useState(false);
+
+  // Advanced loan fields (collapsed).
+  const [currentPayment, setCurrentPayment] = useState<string>(
+    loan?.current_monthly_payment != null ? String(loan.current_monthly_payment) : ""
   );
-  const [priorYearAgi, setPriorYearAgi] = useState<string>("");
-  const manualAgi = savedManualOverride ?? null;
+  const [additionalPayment, setAdditionalPayment] = useState<string>(
+    loan?.additional_monthly_payment != null ? String(loan.additional_monthly_payment) : ""
+  );
+  const [monthsInRepayment, setMonthsInRepayment] = useState<string>(
+    loan?.months_in_repayment != null ? String(loan.months_in_repayment) : ""
+  );
 
-  // ── Filing-status scenario (ephemeral) ────────────────────────────
-  // Lets the user model MFS in the main estimator without changing saved
-  // settings or the tax engine's filing status.
-  const [scenarioFilingStatus, setScenarioFilingStatus] = useState<
-    "as_saved" | "single" | "married_filing_jointly" | "married_filing_separately"
-  >("as_saved");
-  const effectiveFilingStatus =
-    scenarioFilingStatus === "as_saved"
-      ? savedFilingStatus === "married_filing_jointly"
-        ? "married_filing_jointly"
-        : "single"
-      : scenarioFilingStatus;
-  const modelingMfs = effectiveFilingStatus === "married_filing_separately";
+  useEffect(() => {
+    if (!loan) return;
+    setCurrentPayment(loan.current_monthly_payment != null ? String(loan.current_monthly_payment) : "");
+    setAdditionalPayment(loan.additional_monthly_payment != null ? String(loan.additional_monthly_payment) : "");
+    setMonthsInRepayment(loan.months_in_repayment != null ? String(loan.months_in_repayment) : "");
+  }, [loan?.id]);
 
-  // ── Community-property allocation inputs (ephemeral, MFS only) ────
-  const applyCommunityRules = cpOverride ?? isCP;
+  // Persist ephemeral scenario prefs.
+  useEffect(() => {
+    writeScenarioPrefs({
+      state, familySize, planId: selectedPlan, balance, rate, agiMode, manualAgi,
+    });
+  }, [state, familySize, selectedPlan, balance, rate, agiMode, manualAgi]);
+
+  // Comparison sandbox (opened on demand).
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const savedSpouseIncome = settings?.studentLoanSpouseIncomeOverride;
+  const [spouseIncome, setSpouseIncome] = useState<string>(
+    savedSpouseIncome != null ? String(savedSpouseIncome) : ""
+  );
+
+  // Community-property "review allocation" (advanced, hidden by default).
+  const isCP = isCommunityPropertyState(state);
+  const isMfs = savedFilingStatus === "married_filing_separately";
+  const cpAutoApplies = isMfs && isCP;
+  const [cpReviewOpen, setCpReviewOpen] = useState(false);
   const [cpBorrowerCommunity, setCpBorrowerCommunity] = useState<string>("");
   const [cpSpouseCommunity, setCpSpouseCommunity] = useState<string>("");
   const [cpBorrowerSeparate, setCpBorrowerSeparate] = useState<string>("");
   const [cpSpouseSeparate, setCpSpouseSeparate] = useState<string>("");
   const [cpBorrowerAdj, setCpBorrowerAdj] = useState<string>("");
-  const [cpSpouseAdj, setCpSpouseAdj] = useState<string>("");
   const [cpBorrowerSharePct, setCpBorrowerSharePct] = useState<string>("50");
 
+  // Resolve the AGI actually used for IDR plans.
   const cpAllocation = useMemo(() => {
-    if (!modelingMfs || !isCP || !applyCommunityRules) return null;
-    // Seed borrower community income from projected total income when the
-    // user hasn't entered a value (keeps the calc meaningful by default).
+    if (!cpAutoApplies) return null;
     const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
     return allocateCommunityAgi({
       borrowerCommunityIncome: bComm,
@@ -178,94 +182,84 @@ export default function StudentLoans() {
       borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
       spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
       borrowerAdjustments: Number(cpBorrowerAdj) || 0,
-      spouseAdjustments: Number(cpSpouseAdj) || 0,
-      borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 0) / 100)),
+      spouseAdjustments: 0,
+      borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100)),
     });
-  }, [modelingMfs, isCP, applyCommunityRules, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpSpouseAdj, cpBorrowerSharePct, projectedTotalIncome]);
+  }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome]);
 
-  // ── Resolve studentLoanAGI ───────────────────────────────────────
-  // Priority: manual override → prior-year AGI → CP-allocated MFS AGI →
-  // engine's projected AGI.
-  let studentLoanAGI = projectedAdjustedGrossIncome;
+  let studentLoanAgi = projectedAgi;
   let agiSourceLabel = "Projected AGI from PaycheckMD";
-  if (agiSource === "manual" && manualAgi != null && manualAgi >= 0) {
-    studentLoanAGI = manualAgi;
+  if (agiMode === "manual" && manualAgi !== "" && Number(manualAgi) >= 0) {
+    studentLoanAgi = Number(manualAgi);
     agiSourceLabel = "Manual estimate";
-  } else if (agiSource === "prior_year" && priorYearAgi !== "" && Number(priorYearAgi) >= 0) {
-    studentLoanAGI = Number(priorYearAgi);
-    agiSourceLabel = "Most recent filed-tax-return AGI";
   } else if (cpAllocation) {
-    studentLoanAGI = cpAllocation.borrowerMfsAgi;
+    studentLoanAgi = cpAllocation.borrowerMfsAgi;
     agiSourceLabel = "Community-property-adjusted MFS AGI";
   }
 
-  // ── Comparison sandbox ────────────────────────────────────────────
-  const savedSpouseIncome = settings?.studentLoanSpouseIncomeOverride;
-  const savedCpOverride = settings?.studentLoanCommunityPropertyOverride;
-  const [comparisonOpen, setComparisonOpen] = useState(false);
-  const [compareSpouseIncome, setCompareSpouseIncome] = useState<string>(
-    savedSpouseIncome != null ? String(savedSpouseIncome) : "",
-  );
-  const [compareCpOverride, setCompareCpOverride] = useState<boolean | null>(savedCpOverride ?? null);
-
-  const openComparison = () => {
-    setCompareSpouseIncome(savedSpouseIncome != null ? String(savedSpouseIncome) : "");
-    setCompareCpOverride(savedCpOverride ?? null);
-    setComparisonOpen(true);
-  };
-  const resetCompareInputs = () => {
-    setCompareSpouseIncome(savedSpouseIncome != null ? String(savedSpouseIncome) : "");
-    setCompareCpOverride(savedCpOverride ?? null);
-  };
-  const compareApplyCommunityRules = compareCpOverride ?? isCP;
-
   const parsedLoan = {
-    balance: Number(draftBalance) || 0,
-    interestRatePct: Number(draftRate) || 0,
-    currentMonthlyPayment: draftCurrentPayment ? Number(draftCurrentPayment) : null,
-    additionalMonthlyPayment: draftAdditional ? Number(draftAdditional) : null,
-    monthsInRepayment: draftMonths ? Number(draftMonths) : null,
+    balance: Number(balance) || 0,
+    interestRatePct: Number(rate) || 0,
+    currentMonthlyPayment: currentPayment ? Number(currentPayment) : null,
+    additionalMonthlyPayment: additionalPayment ? Number(additionalPayment) : null,
+    monthsInRepayment: monthsInRepayment ? Number(monthsInRepayment) : null,
   };
-
   const aggregated = aggregateLoans([parsedLoan]);
-  const estimate = useMemo(
-    () =>
-      estimateRepayment(aggregated, {
-        filingStatus: effectiveFilingStatus,
-        familySize: Math.max(1, familySize ?? 1),
-        annualIncome: studentLoanAGI, // ← canonical: AGI, not total income
-      }, draftPlan),
-    [aggregated, draftPlan, effectiveFilingStatus, familySize, studentLoanAGI],
-  );
 
-  const currentPayment = parsedLoan.currentMonthlyPayment ?? 0;
-  const monthlyDiff = estimate.estimatedMonthlyPayment - currentPayment;
+  const borrower = useMemo(() => ({
+    filingStatus: (savedFilingStatus === "married_filing_jointly"
+      ? "married_filing_jointly"
+      : savedFilingStatus === "married_filing_separately"
+        ? "married_filing_separately"
+        : "single") as "single" | "married_filing_jointly" | "married_filing_separately",
+    familySize: Math.max(1, familySize ?? 1),
+    annualIncome: studentLoanAgi,
+  }), [savedFilingStatus, familySize, studentLoanAgi]);
 
-  const selectedPlanFamily = REPAYMENT_PLANS[draftPlan]?.family;
-  const isIdrPlan = selectedPlanFamily === "idr";
-  const hasPlannerAgi = projectedAdjustedGrossIncome > 0;
-  const hasAnyAgi = studentLoanAGI > 0;
-  const idrMissingIncome = isIdrPlan && !hasAnyAgi;
-  const balanceInvalid = draftBalance !== "" && Number(draftBalance) < 0;
-  const rateInvalid = draftRate !== "" && Number(draftRate) < 0;
-  const manualInvalid = savedManualOverride != null && savedManualOverride < 0;
+  // Compute estimates for ALL enrollable plans, sorted by monthly payment.
+  const planEstimates = useMemo(() => {
+    return REPAYMENT_PLAN_LIST.map((p) => {
+      const est = estimateRepayment(aggregated, borrower, p.id);
+      const monthsForTotal = est.estimatedPayoffMonths ?? (p.forgivenessYears ? p.forgivenessYears * 12 : null);
+      const totalPaid = monthsForTotal != null ? est.estimatedMonthlyPayment * monthsForTotal : null;
+      return { plan: p, est, monthsForTotal, totalPaid };
+    }).sort((a, b) => {
+      const av = a.est.unavailable ? Number.POSITIVE_INFINITY : a.est.estimatedMonthlyPayment;
+      const bv = b.est.unavailable ? Number.POSITIVE_INFINITY : b.est.estimatedMonthlyPayment;
+      return av - bv;
+    });
+  }, [aggregated, borrower]);
 
-  const spouseIncome = Number(compareSpouseIncome) || 0;
+  const lowestMonthlyId = planEstimates.find((p) => !p.est.unavailable)?.plan.id;
+  const fastestPayoffId = planEstimates
+    .filter((p) => !p.est.unavailable && p.est.estimatedPayoffMonths != null)
+    .sort((a, b) => (a.est.estimatedPayoffMonths! - b.est.estimatedPayoffMonths!))[0]?.plan.id;
 
+  const activeEstimate = planEstimates.find((p) => p.plan.id === selectedPlan) ?? planEstimates[0];
+  const estimate = activeEstimate?.est;
+
+  // Validation
+  const balanceInvalid = balance !== "" && Number(balance) < 0;
+  const rateInvalid = rate !== "" && Number(rate) < 0;
+  const missingAgi = studentLoanAgi <= 0;
+  const isIdrPlan = REPAYMENT_PLANS[selectedPlan]?.family === "idr";
+
+  const currentMonthly = parsedLoan.currentMonthlyPayment ?? 0;
+
+  // Compare MFJ vs MFS
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
     return compareFilingStatuses({
       userIncome: projectedTotalIncome,
-      spouseIncome,
+      spouseIncome: Number(spouseIncome) || 0,
       loan: parsedLoan,
-      planId: draftPlan,
+      planId: selectedPlan,
       familySize: Math.max(1, familySize ?? 1),
       state,
-      applyCommunityRules: compareApplyCommunityRules,
+      applyCommunityRules: isCP,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
     });
-  }, [comparisonOpen, projectedTotalIncome, spouseIncome, parsedLoan, draftPlan, familySize, state, compareApplyCommunityRules, settings?.personalStateTaxRate]);
-
+  }, [comparisonOpen, projectedTotalIncome, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate]);
 
   const handleSaveLoan = async () => {
     await upsert.mutateAsync({
@@ -277,18 +271,8 @@ export default function StudentLoans() {
       current_monthly_payment: parsedLoan.currentMonthlyPayment,
       additional_monthly_payment: parsedLoan.additionalMonthlyPayment,
       months_in_repayment: parsedLoan.monthsInRepayment,
-      repayment_plan: draftPlan,
+      repayment_plan: selectedPlan,
     });
-  };
-
-  const handleSaveBorrowerSettings = async (patch: {
-    studentLoanFamilySize?: number | null;
-    studentLoanIncomeOverride?: number | null;
-    studentLoanSpouseIncomeOverride?: number | null;
-    studentLoanCommunityPropertyOverride?: boolean | null;
-  }) => {
-    if (!settings?.id) return;
-    await updateSettings.mutateAsync({ id: settings.id, ...(patch as any) });
   };
 
   if (settingsLoading || loansLoading) {
@@ -301,653 +285,387 @@ export default function StudentLoans() {
   }
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <div className="space-y-4 max-w-3xl mx-auto pb-8">
-        <div className="flex items-center gap-2">
-          <GraduationCap className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-semibold">Student Loan Estimator</h1>
+    <div className="space-y-4 max-w-3xl mx-auto pb-8">
+      <div className="flex items-center gap-2">
+        <GraduationCap className="h-6 w-6 text-primary" />
+        <h1 className="text-xl font-semibold">Student Loan Estimator</h1>
+      </div>
+
+      {/* 1. Result summary ─────────────────────────── */}
+      <Card className="p-5">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+          Estimated monthly payment · {estimate?.plan.label}
         </div>
-
-        {/* Hero result card ─────────────────────────── */}
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-            Estimated monthly payment · {estimate.plan.label}
-          </div>
-          {estimate.unavailable ? (
-            <>
-              <div className="text-3xl font-bold text-muted-foreground">—</div>
-              <Alert variant="destructive" className="mt-3">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-xs space-y-2">
-                  <p><strong>Estimate unavailable pending current rule verification.</strong></p>
-                  <p>{estimate.unavailable.reason}</p>
-                  {estimate.unavailable.sourceUrl && (
-                    <p>
-                      Source:{" "}
-                      <a href={estimate.unavailable.sourceUrl} target="_blank" rel="noreferrer" className="underline">
-                        {estimate.unavailable.sourceUrl}
-                      </a>
-                    </p>
-                  )}
-                </AlertDescription>
-              </Alert>
-            </>
-          ) : idrMissingIncome ? (
-            <>
-              <div className="text-3xl font-bold text-muted-foreground">—</div>
-              <Alert variant="destructive" className="mt-3">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-xs space-y-2">
-                  <p>
-                    <strong>We need your annual income to estimate this plan.</strong>{" "}
-                    Income-driven repayment plans are calculated from your projected annual income, but we don't have one yet.
-                  </p>
-                  <p>
-                    Add income in your{" "}
-                    <Link to="/projected-income" className="underline font-medium">
-                      Income Planner
-                    </Link>
-                    , or enter a projected annual income below to see an estimate.
-                  </p>
-                </AlertDescription>
-              </Alert>
-            </>
-          ) : (
-            <>
-              <div className="text-3xl font-bold">{fmtCurrency(estimate.estimatedMonthlyPayment)}</div>
-              <div className="text-sm text-muted-foreground mt-1">
-                {fmtCurrency(estimate.estimatedAnnualPayment)} per year
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
-                <Stat label="Monthly interest" value={fmtCurrency(estimate.monthlyInterest)} />
-                <Stat label="Annual interest" value={fmtCurrency(estimate.annualInterest)} />
-                <Stat
-                  label="Covers interest?"
-                  value={estimate.coversMonthlyInterest ? "Yes" : "No"}
-                  variant={estimate.coversMonthlyInterest ? "ok" : "warn"}
-                />
-                <Stat label="Est. payoff" value={fmtMonths(estimate.estimatedPayoffMonths)} />
-              </div>
-              {agiSource !== "projected" && (
-                <div className="mt-3 text-[11px] text-muted-foreground flex gap-1.5">
-                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  Using {agiSourceLabel.toLowerCase()} for this estimate — your Income Planner and tax
-                  calculations are unchanged.
-                </div>
-              )}
-              {isIdrPlan && estimate.monthlyInterest > estimate.estimatedMonthlyPayment && (
-                <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
-                  <div className="font-medium mb-1">Your payment does not cover monthly interest.</div>
-                  <div className="grid grid-cols-3 gap-2 text-[11px]">
-                    <Stat label="Monthly interest" value={fmtCurrency(estimate.monthlyInterest)} />
-                    <Stat label="Monthly payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} />
-                    <Stat label="Unpaid interest" value={fmtCurrency(Math.max(0, estimate.monthlyInterest - estimate.estimatedMonthlyPayment))} variant="warn" />
-                  </div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
-                    The plan reduces your required payment — not your loan's interest rate. Unpaid
-                    interest may capitalize based on your servicer's rules.
-                  </div>
-                </div>
-              )}
-              {currentPayment > 0 && (
-                <div className="mt-4 rounded-md border border-border p-3 text-sm bg-muted/30">
-                  <div className="grid grid-cols-3 gap-3">
-                    <Stat label="Current payment" value={fmtCurrency(currentPayment)} />
-                    <Stat label="Estimated payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} />
-                    <Stat
-                      label="Monthly difference"
-                      value={`${monthlyDiff >= 0 ? "+" : ""}${fmtCurrency(monthlyDiff)}`}
-                      variant={monthlyDiff <= 0 ? "ok" : "warn"}
-                    />
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Annual difference: {monthlyDiff >= 0 ? "+" : ""}{fmtCurrency(monthlyDiff * 12)}
-                  </div>
-                </div>
-              )}
-              {estimate.notes.length > 0 && (
-                <ul className="mt-3 text-xs text-muted-foreground space-y-1">
-                  {estimate.notes.map((n, i) => (
-                    <li key={i} className="flex gap-1.5"><Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />{n}</li>
-                  ))}
-                </ul>
-              )}
-              {estimate.detail && (
-                <details className="mt-4 rounded-md border border-border bg-background/60 p-3 text-xs">
-                  <summary className="cursor-pointer font-medium">How this was calculated</summary>
-                  <div className="mt-2 space-y-2">
-                    {/* AGI provenance — this is the value the FSA IDR forms actually use */}
-                    <div className="rounded-md bg-muted/40 p-2 space-y-1">
-                      <div className="font-medium text-foreground">AGI used for this estimate</div>
-                      <BreakdownRow label="AGI source" value={agiSourceLabel} />
-                      <BreakdownRow label="Projected total income" value={fmtCurrency(projectedTotalIncome)} />
-                      <BreakdownRow label="AGI adjustments" value={`− ${fmtCurrency(projectedAdjustments)}`} />
-                      <BreakdownRow label="Projected AGI (from tax engine)" value={fmtCurrency(projectedAdjustedGrossIncome)} />
-                      <BreakdownRow label="Filing status" value={filingStatusLabel(effectiveFilingStatus)} />
-                      <BreakdownRow
-                        label="Community-property treatment"
-                        value={cpAllocation ? "Yes" : isCP && modelingMfs ? "Off (toggle in Borrower info)" : "No"}
-                      />
-                      {cpAllocation && (
-                        <>
-                          <BreakdownRow label="Community income assigned to borrower" value={fmtCurrency(cpAllocation.borrowerAllocatedCommunity)} />
-                          <BreakdownRow label="Borrower separate income" value={fmtCurrency(cpAllocation.borrowerSeparateIncome)} />
-                          <BreakdownRow label="Borrower allocated adjustments" value={`− ${fmtCurrency(cpAllocation.borrowerAdjustments)}`} />
-                        </>
-                      )}
-                      <BreakdownRow label="Final studentLoanAGI" value={fmtCurrency(studentLoanAGI)} bold />
-                    </div>
-                    <div className="text-muted-foreground">{estimate.detail.breakdown.formula}</div>
-                    <ul className="space-y-0.5">
-                      {estimate.detail.breakdown.steps.map((s, i) => (
-                        <li key={i} className="flex justify-between gap-2">
-                          <span className="text-muted-foreground">{s.label}</span>
-                          <span className="tabular-nums">{typeof s.value === "number" ? fmtCurrency(s.value) : s.value}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="pt-2 mt-2 border-t border-border text-[10px] text-muted-foreground">
-                      Rules {estimate.detail.rulesVersion} · updated {estimate.detail.sourceUpdatedAt} ·{" "}
-                      <a href={estimate.detail.sourceUrl} target="_blank" rel="noreferrer" className="underline">source</a>
-                      {" · "}Eligibility: {estimate.detail.eligibility}
-                    </div>
-                  </div>
-                </details>
-              )}
-            </>
-          )}
-        </Card>
-
-
-        {/* Loan information ─────────────────────────── */}
-        <Card className="p-5 space-y-3">
-          <div className="font-semibold flex items-center gap-2">Loan information</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Total loan balance ($)" value={draftBalance} onChange={setDraftBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
-            <Field label="Interest rate (%)" value={draftRate} onChange={setDraftRate} type="number" error={rateInvalid ? "Interest rate can't be negative." : undefined} />
-            <Field label="Current required monthly payment ($, optional)" value={draftCurrentPayment} onChange={setDraftCurrentPayment} type="number" />
-            <Field label="Additional monthly payment ($, optional)" value={draftAdditional} onChange={setDraftAdditional} type="number" />
-            <Field label="Months already in repayment (optional)" value={draftMonths} onChange={setDraftMonths} type="number" />
-
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Repayment plan</Label>
-              <Select value={draftPlan} onValueChange={(v) => setDraftPlan(v as RepaymentPlanId)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {REPAYMENT_PLAN_LIST.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2">
-                        <span>{p.label}</span>
-                        {p.status === "legacy" && <Badge variant="outline" className="text-[9px] px-1 py-0">Legacy</Badge>}
-                        {p.status === "current" && p.family === "tiered_standard" && <Badge className="text-[9px] px-1 py-0">New 2026</Badge>}
-                        {p.verification === "pending" && <Badge variant="destructive" className="text-[9px] px-1 py-0">Unverified</Badge>}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {REPAYMENT_PLANS[draftPlan]?.tooltip}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSaveLoan} disabled={upsert.isPending || balanceInvalid || rateInvalid}>
-              {loan ? "Update loan" : "Save loan"}
-            </Button>
-
-            {loan && (
-              <Button size="sm" variant="ghost" onClick={() => del.mutate(loan.id)} disabled={del.isPending}>
-                Remove
-              </Button>
-            )}
-          </div>
-        </Card>
-
-
-        {/* Borrower information ────────────────────── */}
-        <Card className="p-5 space-y-3">
-          <div className="font-semibold">Borrower information</div>
-          {idrMissingIncome ? (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                No projected income found. Enter a projected annual income below, or set one up in
-                your <Link to="/projected-income" className="underline font-medium">Income Planner</Link>.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Alert>
+        {estimate?.unavailable ? (
+          <>
+            <div className="text-3xl font-bold text-muted-foreground">—</div>
+            <div className="text-xs text-muted-foreground mt-2">{estimate.unavailable.reason}</div>
+          </>
+        ) : missingAgi && isIdrPlan ? (
+          <>
+            <div className="text-3xl font-bold text-muted-foreground">—</div>
+            <Alert className="mt-3">
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Income-driven repayment plans are generally based on annual income. This calculator uses
-                your projected annual income by default.
+                Income-driven plans need an annual income. Add income in your{" "}
+                <Link to="/projected-income" className="underline font-medium">Income Planner</Link>,
+                or tap <strong>Change</strong> below to enter one.
               </AlertDescription>
             </Alert>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            <ReadonlyRow label="Saved filing status" value={filingStatusLabel(savedFilingStatus)} />
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                State <span className="text-[10px]">(estimator only)</span>
-              </Label>
-              <Select value={scenarioState || undefined} onValueChange={setScenarioState}>
-                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {US_STATES.map(([code, name]) => (
-                    <SelectItem key={code} value={code}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Sets poverty guideline region and community-property eligibility for this estimator.
-                {savedProfileState && scenarioState !== savedProfileState
-                  ? ` Your saved profile state (${savedProfileState}) is unchanged.`
-                  : ""}
-              </p>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Family size <span className="text-[10px]">(estimator only)</span>
-              </Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                step={1}
-                value={scenarioFamilySize}
-                onChange={(e) => setScenarioFamilySize(Number(e.target.value) || 1)}
+          </>
+        ) : (
+          <>
+            <div className="text-3xl font-bold">{fmtCurrency(estimate?.estimatedMonthlyPayment ?? 0)}</div>
+            <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
+              <Stat label="Annual payment" value={fmtCurrency(estimate?.estimatedAnnualPayment ?? 0)} />
+              <Stat label="Monthly interest" value={fmtCurrency(estimate?.monthlyInterest ?? 0)} />
+              <Stat
+                label="Covers interest?"
+                value={estimate?.coversMonthlyInterest ? "Yes" : "No"}
+                variant={estimate?.coversMonthlyInterest ? "ok" : "warn"}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Whole numbers only. Your saved profile family size is unchanged.
-              </p>
+              <Stat label="Est. payoff" value={fmtMonths(estimate?.estimatedPayoffMonths ?? null)} />
             </div>
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Scenario filing status <span className="text-[10px]">(estimator only)</span>
-              </Label>
-              <Select value={scenarioFilingStatus} onValueChange={(v) => setScenarioFilingStatus(v as typeof scenarioFilingStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="as_saved">Use saved ({filingStatusLabel(savedFilingStatus)})</SelectItem>
-                  <SelectItem value="single">Single</SelectItem>
-                  <SelectItem value="married_filing_jointly">Married Filing Jointly</SelectItem>
-                  <SelectItem value="married_filing_separately">Married Filing Separately</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Changing this only affects this estimator, not your tax profile.
-              </p>
-            </div>
-          </div>
-
-          {/* AGI source selector ─────────────────────── */}
-          <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs font-medium">AGI source</div>
-              <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground rounded px-1.5 py-0.5">
-                Estimator only
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-              <AgiOption id="projected" current={agiSource} setCurrent={setAgiSource} title="Projected AGI from PaycheckMD" subtitle="Default" />
-              <AgiOption id="prior_year" current={agiSource} setCurrent={setAgiSource} title="Most recent filed-tax-return AGI" subtitle="Manual entry" />
-              <AgiOption id="manual" current={agiSource} setCurrent={setAgiSource} title="Manual estimate" subtitle="Overrides for this page only" />
-            </div>
-
-            {agiSource === "projected" && (
-              <div className="text-xs space-y-1">
-                <BreakdownRow label="Projected total income" value={fmtCurrency(projectedTotalIncome)} />
-                <BreakdownRow label="Adjustments used" value={`− ${fmtCurrency(projectedAdjustments)}`} />
-                <BreakdownRow label="Final projected AGI" value={fmtCurrency(projectedAdjustedGrossIncome)} bold />
-                <BreakdownRow label="Tax scenario used" value={filingStatusLabel(effectiveFilingStatus)} />
-                {!hasPlannerAgi && (
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      No projected AGI found. Add income in your{" "}
-                      <Link to="/projected-income" className="underline font-medium">Income Planner</Link>, or
-                      switch AGI source above.
-                    </AlertDescription>
-                  </Alert>
-                )}
+            {currentMonthly > 0 && (
+              <div className="mt-3 text-xs text-muted-foreground">
+                Current required payment: {fmtCurrency(currentMonthly)} ·{" "}
+                Difference: {fmtCurrency((estimate?.estimatedMonthlyPayment ?? 0) - currentMonthly)}/mo
               </div>
             )}
+          </>
+        )}
 
-            {agiSource === "prior_year" && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  Prior-year AGI (from Form 1040, line 11)
-                </Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 250000"
-                  value={priorYearAgi}
-                  onChange={(e) => setPriorYearAgi(e.target.value)}
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Used only for this estimator. Not saved to your profile or tax settings.
-                </p>
-              </div>
-            )}
-
-            {agiSource === "manual" && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Manual AGI estimate</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 250000"
-                  value={savedManualOverride ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value === "" ? null : Number(e.target.value);
-                    handleSaveBorrowerSettings({ studentLoanIncomeOverride: v });
-                  }}
-                  aria-invalid={manualInvalid}
-                  className={manualInvalid ? "border-destructive focus-visible:ring-destructive" : undefined}
-                />
-                {manualInvalid ? (
-                  <p className="text-[11px] text-destructive mt-1">AGI can't be negative.</p>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    A manual override affects only the Student Loan Estimator — your Income Planner,
-                    tax calculations, and ledgers are untouched.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="rounded-md bg-background/60 border border-border p-2 text-xs flex items-center justify-between">
-              <span className="text-muted-foreground">studentLoanAGI (used for this estimate)</span>
-              <span className="font-semibold tabular-nums">{fmtCurrency(studentLoanAGI)}</span>
-            </div>
-          </div>
-
-          {/* Community-property allocation (MFS only) ─── */}
-          {modelingMfs && isCP && (
-            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-medium">Community-property income allocation</div>
-                <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground rounded px-1.5 py-0.5">
-                  Estimate
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={applyCommunityRules}
-                  onCheckedChange={(v) => setScenarioCpOverride(v)}
-                />
-                <span className="text-xs text-muted-foreground">
-                  Apply community-property income allocation for MFS ({state?.toUpperCase()})
-                </span>
-              </div>
-
-              {applyCommunityRules && (
+        {/* How was this calculated? (collapsed) */}
+        {estimate?.detail && (
+          <details className="mt-4 rounded-md border border-border bg-background/60 p-3 text-xs">
+            <summary className="cursor-pointer font-medium">How was this calculated?</summary>
+            <div className="mt-2 space-y-2">
+              <BreakdownRow label="AGI used" value={fmtCurrency(studentLoanAgi)} />
+              <BreakdownRow label="AGI source" value={agiSourceLabel} />
+              <BreakdownRow label="Filing status" value={filingStatusLabel(borrower.filingStatus)} />
+              <BreakdownRow label="Family size" value={String(familySize)} />
+              {estimate.detail.breakdown.povertyGuideline != null && (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field label="Borrower individually earned income" value={cpBorrowerCommunity} onChange={setCpBorrowerCommunity} type="number" />
-                    <Field label="Spouse individually earned income" value={cpSpouseCommunity} onChange={setCpSpouseCommunity} type="number" />
-                    <Field label="Borrower separate income (optional)" value={cpBorrowerSeparate} onChange={setCpBorrowerSeparate} type="number" />
-                    <Field label="Spouse separate income (optional)" value={cpSpouseSeparate} onChange={setCpSpouseSeparate} type="number" />
-                    <Field label="Borrower allocated AGI adjustments" value={cpBorrowerAdj} onChange={setCpBorrowerAdj} type="number" />
-                    <Field label="Spouse allocated AGI adjustments" value={cpSpouseAdj} onChange={setCpSpouseAdj} type="number" />
-                    <Field label="Community % assigned to borrower" value={cpBorrowerSharePct} onChange={setCpBorrowerSharePct} type="number" />
-                  </div>
-                  {cpAllocation && (
-                    <div className="rounded-md bg-background/60 border border-border p-2 text-xs space-y-0.5">
-                      <BreakdownRow label="Total community income" value={fmtCurrency(cpAllocation.totalCommunityIncome)} />
-                      <BreakdownRow label="Borrower share" value={`${(cpAllocation.borrowerShare * 100).toFixed(0)}%`} />
-                      <BreakdownRow label="Borrower allocated community" value={fmtCurrency(cpAllocation.borrowerAllocatedCommunity)} />
-                      <BreakdownRow label="Borrower separate income" value={fmtCurrency(cpAllocation.borrowerSeparateIncome)} />
-                      <BreakdownRow label="Borrower adjustments" value={`− ${fmtCurrency(cpAllocation.borrowerAdjustments)}`} />
-                      <BreakdownRow label="Estimated borrower MFS AGI" value={fmtCurrency(cpAllocation.borrowerMfsAgi)} bold />
-                      <BreakdownRow label="Estimated spouse MFS AGI" value={fmtCurrency(cpAllocation.spouseMfsAgi)} />
-                    </div>
-                  )}
-                  <p className="text-[11px] text-muted-foreground">
-                    Estimate only. Overrides here affect only this calculator — not your ledgers,
-                    profile, or tax calculations. Confirm with a tax professional before filing.
-                  </p>
+                  <BreakdownRow label={`Poverty guideline (${estimate.detail.breakdown.povertyYear})`} value={fmtCurrency(estimate.detail.breakdown.povertyGuideline)} />
+                  <BreakdownRow label="Region" value={friendlyRegionLabel((state as any) === "AK" ? "alaska" : (state as any) === "HI" ? "hawaii" : "contiguous_48_dc")} />
                 </>
               )}
-            </div>
-          )}
-        </Card>
-
-        {/* MFJ vs MFS comparison ───────────────────── */}
-        <Card className="p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold flex items-center gap-2">
-              <Scale className="h-4 w-4" /> Compare filing status
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => (comparisonOpen ? setComparisonOpen(false) : openComparison())}
-            >
-              {comparisonOpen ? "Hide comparison" : "Compare MFJ vs MFS"}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Read-only sandbox. Edits below only affect this comparison — your saved filing status,
-            spouse income, and community-property settings are never changed.
-          </p>
-
-          {comparisonOpen && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Comparison inputs (not saved)
-                </span>
-                <Button size="sm" variant="ghost" onClick={resetCompareInputs} className="h-7 text-xs">
-                  Reset to saved
-                </Button>
+              {estimate.detail.breakdown.discretionaryIncome != null && (
+                <BreakdownRow label="Discretionary income" value={fmtCurrency(estimate.detail.breakdown.discretionaryIncome)} />
+              )}
+              {estimate.detail.breakdown.percentApplied != null && (
+                <BreakdownRow label="Payment percentage" value={`${estimate.detail.breakdown.percentApplied}%`} />
+              )}
+              {estimate.detail.breakdown.capMonthly != null && (
+                <BreakdownRow label="Standard payment cap" value={fmtCurrency(estimate.detail.breakdown.capMonthly)} />
+              )}
+              <BreakdownRow label="Final monthly payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} bold />
+              {cpAllocation && (
+                <BreakdownRow label="Community-property treatment" value="Applied (50/50 default)" />
+              )}
+              <div className="pt-2 mt-2 border-t border-border text-[10px] text-muted-foreground">
+                Rules {estimate.detail.rulesVersion} · updated {estimate.detail.sourceUpdatedAt} ·{" "}
+                <a href={estimate.detail.sourceUrl} target="_blank" rel="noreferrer" className="underline">source</a>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Spouse projected annual income</Label>
-                  <Input
-                    type="number"
-                    value={compareSpouseIncome}
-                    onChange={(e) => setCompareSpouseIncome(e.target.value)}
-                    placeholder="0"
-                  />
+            </div>
+          </details>
+        )}
+      </Card>
+
+      {/* 2. Confirm your information ─────────────── */}
+      <Card className="p-5 space-y-4">
+        <div className="font-semibold">Confirm your information</div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Total federal loan balance ($)" value={balance} onChange={setBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
+          <Field label="Average interest rate (%)" value={rate} onChange={setRate} type="number" error={rateInvalid ? "Rate can't be negative." : undefined} />
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={familySize}
+              onChange={(e) => setFamilySize(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground mb-1.5 block">State</Label>
+            <Select value={state || undefined} onValueChange={setState}>
+              <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                {US_STATES.map(([code, name]) => (
+                  <SelectItem key={code} value={code}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Current repayment plan</Label>
+            <Select value={selectedPlan} onValueChange={(v) => setSelectedPlan(v as RepaymentPlanId)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {REPAYMENT_PLAN_LIST.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Income used — read-only summary with Change popover */}
+        <div className="rounded-md border border-border bg-muted/20 p-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Income used</div>
+            <div className="text-sm font-semibold truncate">
+              {fmtCurrency(studentLoanAgi)}{" "}
+              <span className="text-xs font-normal text-muted-foreground">· {agiSourceLabel.toLowerCase()}</span>
+            </div>
+          </div>
+          <Popover open={agiPopoverOpen} onOpenChange={setAgiPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="ghost" className="shrink-0">Change</Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 space-y-3">
+              <button
+                type="button"
+                onClick={() => { setAgiMode("projected"); setAgiPopoverOpen(false); }}
+                className={`w-full text-left rounded-md border p-2 text-xs ${agiMode === "projected" ? "border-primary bg-primary/5" : "border-border"}`}
+              >
+                <div className="font-medium flex items-center gap-1.5">
+                  {agiMode === "projected" && <Check className="h-3.5 w-3.5" />}
+                  Use projected AGI from PaycheckMD
                 </div>
-                {isCP && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">
-                      Apply community property income split
-                    </Label>
-                    <div className="flex items-center gap-2 h-10">
-                      <Switch
-                        checked={compareApplyCommunityRules}
-                        onCheckedChange={(v) => setCompareCpOverride(v)}
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {state?.toUpperCase()} is a community property state. Default: 50/50 split.
-                      </span>
-                    </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">{fmtCurrency(projectedAgi)}</div>
+              </button>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setAgiMode("manual")}
+                  className={`w-full text-left rounded-md border p-2 text-xs ${agiMode === "manual" ? "border-primary bg-primary/5" : "border-border"}`}
+                >
+                  <div className="font-medium flex items-center gap-1.5">
+                    {agiMode === "manual" && <Check className="h-3.5 w-3.5" />}
+                    Enter a different AGI
+                  </div>
+                </button>
+                {agiMode === "manual" && (
+                  <Input
+                    className="mt-2"
+                    type="number"
+                    placeholder="e.g. 250000"
+                    value={manualAgi}
+                    onChange={(e) => setManualAgi(e.target.value)}
+                  />
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Used only for this estimator. Not saved to your profile.
+              </p>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Community-property notice (compact) */}
+        {cpAutoApplies && (
+          <div className="rounded-md border border-border bg-muted/20 p-3 text-xs">
+            <div className="flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                Community-property income allocation is applied automatically for your MFS filing in{" "}
+                {state}. This affects only this estimator.
+                <button
+                  type="button"
+                  onClick={() => setCpReviewOpen((v) => !v)}
+                  className="ml-1 underline font-medium"
+                >
+                  {cpReviewOpen ? "Hide" : "Review income allocation"}
+                </button>
+              </div>
+            </div>
+            {cpReviewOpen && (
+              <div className="mt-3 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Field label="Borrower earned income" value={cpBorrowerCommunity} onChange={setCpBorrowerCommunity} type="number" />
+                  <Field label="Spouse earned income" value={cpSpouseCommunity} onChange={setCpSpouseCommunity} type="number" />
+                  <Field label="Borrower separate income" value={cpBorrowerSeparate} onChange={setCpBorrowerSeparate} type="number" />
+                  <Field label="Spouse separate income" value={cpSpouseSeparate} onChange={setCpSpouseSeparate} type="number" />
+                  <Field label="Borrower AGI adjustments" value={cpBorrowerAdj} onChange={setCpBorrowerAdj} type="number" />
+                  <Field label="Borrower share %" value={cpBorrowerSharePct} onChange={setCpBorrowerSharePct} type="number" />
+                </div>
+                {cpAllocation && (
+                  <div className="text-[11px] text-muted-foreground">
+                    Borrower MFS AGI: <span className="font-semibold text-foreground">{fmtCurrency(cpAllocation.borrowerMfsAgi)}</span>
+                    {" · "}Spouse MFS AGI: {fmtCurrency(cpAllocation.spouseMfsAgi)}
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        )}
 
-              {!isCP && (
-                <p className="text-[11px] text-muted-foreground">
-                  Community-property states ({COMMUNITY_PROPERTY_STATES.join(", ")}) require special MFS income
-                  allocation rules. Your state is not one of them, so each spouse reports their own income.
-                </p>
-              )}
-
-              {comparison && (() => {
-                const winner = comparison.recommendation === "mfs" ? comparison.mfs : comparison.mfj;
-                const loser = comparison.recommendation === "mfs" ? comparison.mfj : comparison.mfs;
-                const winnerLabel = comparison.recommendation === "mfs" ? "Married Filing Separately" : "Married Filing Jointly";
-                const loserLabel = comparison.recommendation === "mfs" ? "Married Filing Jointly" : "Married Filing Separately";
-                const loanDelta = loser.studentLoanAnnualPayment - winner.studentLoanAnnualPayment;
-                const taxDelta = (winner.federalTax + winner.stateTax) - (loser.federalTax + loser.stateTax);
-                const drivers: { label: string; value: string; positive: boolean }[] = [];
-                if (loanDelta > 0) drivers.push({ label: `Lower student loan payments (${winnerLabel})`, value: `−${fmtCurrency(loanDelta)}/yr`, positive: true });
-                else if (loanDelta < 0) drivers.push({ label: `Higher student loan payments under ${winnerLabel}`, value: `+${fmtCurrency(-loanDelta)}/yr`, positive: false });
-                if (taxDelta < 0) drivers.push({ label: `Higher combined taxes under ${winnerLabel}`, value: `+${fmtCurrency(-taxDelta)}/yr`, positive: false });
-                else if (taxDelta > 0) drivers.push({ label: `Lower combined taxes under ${winnerLabel}`, value: `−${fmtCurrency(taxDelta)}/yr`, positive: true });
-                if (comparison.communityPropertyApplied) drivers.push({ label: "Community property 50/50 income split applied", value: "MFS income adjustment", positive: true });
-
-                return (
-                  <>
-                    {/* Scenario cards — swipeable on mobile, side-by-side on md+ */}
-                    <div className="md:hidden -mx-4 px-4">
-                      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        <div className="snap-center shrink-0 w-[85%] first:pl-0">
-                          <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
-                        </div>
-                        <div className="snap-center shrink-0 w-[85%]">
-                          <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
-                        </div>
-                      </div>
-                      <div className="text-[10px] text-muted-foreground text-center mt-1">
-                        Swipe to compare scenarios →
-                      </div>
-                    </div>
-                    <div className="hidden md:grid md:grid-cols-2 gap-3">
-                      <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
-                      <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
-                    </div>
-
-                    <Card className="p-4 bg-primary/5 border-primary/40 space-y-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                            Recommended filing status
-                          </span>
-                          <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground rounded px-1.5 py-0.5">
-                            Estimate
-                          </span>
-                        </div>
-                        <div className="text-xl font-bold mt-1">{winnerLabel}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Chosen because it has the lowest <strong>combined annual cost</strong>{" "}
-                          (federal tax + state tax + student loan payments).
-                        </div>
-                      </div>
-
-                      {/* Cost basis breakdown */}
-                      <div className="rounded-md border border-border bg-background/60 p-3">
-                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
-                          How the recommendation is calculated (annual, estimated)
-                        </div>
-
-                        {/* Mobile: swipeable per-scenario cost cards */}
-                        <div className="md:hidden -mx-1">
-                          <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            <CostScenarioCard
-                              title={loserLabel}
-                              data={loser}
-                            />
-                            <CostScenarioCard
-                              title={winnerLabel}
-                              data={winner}
-                              compareTo={loser}
-                              isWinner
-                            />
-                          </div>
-                          <div className="text-[10px] text-muted-foreground text-center">
-                            Swipe to compare cost basis →
-                          </div>
-                        </div>
-
-                        {/* Desktop: 3-column comparison table */}
-                        <div className="hidden md:block text-xs">
-                          <div className="grid grid-cols-3 gap-2 pb-1 border-b border-border font-medium text-muted-foreground">
-                            <div>Cost component</div>
-                            <div className="text-right">{loserLabel}</div>
-                            <div className="text-right">{winnerLabel}</div>
-                          </div>
-                          <CostRow label="Federal tax" left={loser.federalTax} right={winner.federalTax} />
-                          <CostRow label="State tax" left={loser.stateTax} right={winner.stateTax} />
-                          <CostRow label="Student loan payments" left={loser.studentLoanAnnualPayment} right={winner.studentLoanAnnualPayment} />
-                          <div className="grid grid-cols-3 gap-2 pt-1 mt-1 border-t border-border font-semibold">
-                            <div>Combined annual cost</div>
-                            <div className="text-right">{fmtCurrency(loser.combinedAnnualCost)}</div>
-                            <div className="text-right text-primary">{fmtCurrency(winner.combinedAnnualCost)}</div>
-                          </div>
-                        </div>
-                      </div>
-
-
-                      {/* Net benefit */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                        <Stat label="Est. loan savings/yr" value={fmtCurrency(Math.max(0, comparison.studentLoanSavings))} />
-                        <Stat label="Est. added taxes/yr" value={fmtCurrency(Math.max(0, comparison.additionalTaxes))} />
-                        <Stat label="Net benefit/yr" value={fmtCurrency(comparison.netAnnualBenefit)} variant="ok" />
-                        <Stat label="Net benefit/mo" value={fmtCurrency(comparison.netMonthlyBenefit)} variant="ok" />
-                      </div>
-
-                      {/* Key drivers */}
-                      {drivers.length > 0 && (
-                        <div>
-                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
-                            Key drivers
-                          </div>
-                          <ul className="space-y-1 text-xs">
-                            {drivers.map((d, i) => (
-                              <li key={i} className="flex items-start justify-between gap-2 rounded-md border border-border bg-background/60 px-2.5 py-1.5">
-                                <span className="flex items-start gap-1.5">
-                                  <span className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${d.positive ? "bg-emerald-500" : "bg-amber-500"}`} />
-                                  {d.label}
-                                </span>
-                                <span className={`font-medium tabular-nums shrink-0 ${d.positive ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                                  {d.value}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Estimate disclaimer */}
-                      <Alert>
-                        <Info className="h-4 w-4" />
-                        <AlertDescription className="text-[11px] space-y-1">
-                          <p><strong>These are estimates, not tax or legal advice.</strong> {comparison.communityPropertyNote}</p>
-                          <p>
-                            Assumptions: MFS federal tax is approximated using single-filer brackets;
-                            state tax uses your saved personal rate ({(settings?.personalStateTaxRate ?? 0)}%);
-                            income-driven loan payments use your projected annual income and family
-                            size of {Math.max(1, familySize ?? 1)}. Retirement, credits, and other
-                            deductions are not modeled in this comparison. Confirm with a tax
-                            professional before changing your filing status.
-                          </p>
-                        </AlertDescription>
-                      </Alert>
-                    </Card>
-                  </>
-                );
-              })()}
-
-            </div>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleSaveLoan} disabled={upsert.isPending || balanceInvalid || rateInvalid}>
+            {loan ? "Update saved loan" : "Save loan"}
+          </Button>
+          {loan && (
+            <Button size="sm" variant="ghost" onClick={() => del.mutate(loan.id)} disabled={del.isPending}>
+              Remove
+            </Button>
           )}
-        </Card>
-      </div>
-    </TooltipProvider>
+        </div>
+      </Card>
+
+      {/* 3. Your repayment options ────────────────── */}
+      <Card className="p-5 space-y-3">
+        <div className="font-semibold">Your repayment options</div>
+        <p className="text-xs text-muted-foreground">
+          Estimates for all supported plans, ordered by lowest monthly payment. Tap a plan to make it active.
+        </p>
+        <div className="space-y-2">
+          {planEstimates.map(({ plan, est, monthsForTotal, totalPaid }) => {
+            const isActive = plan.id === selectedPlan;
+            const isCurrentSaved = loan?.repayment_plan === plan.id;
+            const isLowest = plan.id === lowestMonthlyId;
+            const isFastest = plan.id === fastestPayoffId;
+            const unavailable = !!est.unavailable;
+            const idrMissing = REPAYMENT_PLANS[plan.id]?.family === "idr" && missingAgi;
+            return (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => setSelectedPlan(plan.id)}
+                className={`w-full text-left rounded-md border p-3 transition-colors ${
+                  isActive ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:bg-muted/40"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-semibold text-sm">{plan.label}</span>
+                      {isCurrentSaved && <Badge variant="outline" className="text-[9px]">Current plan</Badge>}
+                      {isLowest && !unavailable && <Badge className="text-[9px]">Lowest monthly</Badge>}
+                      {isFastest && !unavailable && <Badge variant="secondary" className="text-[9px]">Pays off fastest</Badge>}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-1">{plan.tooltip}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {unavailable ? (
+                      <div className="text-xs text-muted-foreground">Not available</div>
+                    ) : (
+                      <>
+                        <div className="text-lg font-bold tabular-nums">{fmtCurrency(est.estimatedMonthlyPayment)}<span className="text-[10px] text-muted-foreground font-normal">/mo</span></div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {plan.forgivenessYears
+                            ? `${plan.forgivenessYears}-yr forgiveness`
+                            : est.estimatedPayoffMonths != null
+                              ? `Paid off in ${fmtMonths(est.estimatedPayoffMonths)}`
+                              : "—"}
+                        </div>
+                        {totalPaid != null && (
+                          <div className="text-[10px] text-muted-foreground">
+                            Total ≈ {fmtCurrency(totalPaid)}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+                {idrMissing && !unavailable && (
+                  <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+                    Estimate shown; eligibility not confirmed (income needed).
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* 4. Compare MFJ vs MFS ────────────────────── */}
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-semibold flex items-center gap-2">
+            <Scale className="h-4 w-4" /> Filing status comparison
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setComparisonOpen((v) => !v)}>
+            {comparisonOpen ? "Hide comparison" : "Compare MFJ vs MFS"}
+          </Button>
+        </div>
+        {comparisonOpen && (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Spouse projected annual income</Label>
+              <Input
+                type="number"
+                value={spouseIncome}
+                onChange={(e) => setSpouseIncome(e.target.value)}
+                placeholder="0"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Editing this here does not change your saved filing status or profile.
+              </p>
+            </div>
+
+            {comparison && (() => {
+              const winner = comparison.recommendation === "mfs" ? comparison.mfs : comparison.mfj;
+              const winnerLabel = comparison.recommendation === "mfs" ? "Married Filing Separately" : "Married Filing Jointly";
+              return (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
+                    <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
+                  </div>
+                  <Card className="p-4 bg-primary/5 border-primary/40 space-y-2">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Estimated better option
+                    </div>
+                    <div className="text-lg font-bold">{winnerLabel}</div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <Stat label="Loan savings/yr" value={fmtCurrency(Math.max(0, comparison.studentLoanSavings))} />
+                      <Stat label="Added taxes/yr" value={fmtCurrency(Math.max(0, comparison.additionalTaxes))} />
+                      <Stat label="Net benefit/yr" value={fmtCurrency(comparison.netAnnualBenefit)} variant="ok" />
+                      <Stat label="Net benefit/mo" value={fmtCurrency(comparison.netMonthlyBenefit)} variant="ok" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Estimates only — based on federal + state tax + student loan payments.
+                      {comparison.communityPropertyApplied ? " Community-property allocation applied." : ""}
+                      {" "}Confirm with a tax professional before changing your filing status.
+                    </p>
+                  </Card>
+                </>
+              );
+            })()}
+          </div>
+        )}
+      </Card>
+
+      {/* 5. Advanced loan details ─────────────────── */}
+      <details className="rounded-md border border-border bg-background p-4">
+        <summary className="cursor-pointer font-medium text-sm flex items-center gap-2">
+          <ChevronDown className="h-4 w-4" /> Advanced loan details
+        </summary>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Current required monthly payment ($)" value={currentPayment} onChange={setCurrentPayment} type="number" />
+          <Field label="Additional monthly payment ($)" value={additionalPayment} onChange={setAdditionalPayment} type="number" />
+          <Field label="Months already in repayment" value={monthsInRepayment} onChange={setMonthsInRepayment} type="number" />
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-2">
+          These only refine your estimate — they don't change your profile or tax settings.
+        </p>
+      </details>
+    </div>
   );
 }
 
+// ── UI primitives ────────────────────────────────────
 function Field({ label, value, onChange, type = "text", error }: { label: string; value: string; onChange: (v: string) => void; type?: string; error?: string }) {
   return (
     <div>
       <Label className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
       <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={!!error} className={error ? "border-destructive focus-visible:ring-destructive" : undefined} />
       {error && <p className="text-[11px] text-destructive mt-1">{error}</p>}
-    </div>
-  );
-}
-
-
-function ReadonlyRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <Label className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
-      <div className="h-10 flex items-center px-3 rounded-md border border-input bg-muted/40 text-sm">{value}</div>
     </div>
   );
 }
@@ -962,119 +680,30 @@ function Stat({ label, value, variant }: { label: string; value: string; variant
   );
 }
 
-function ScenarioCard({ title, data, highlight }: { title: string; data: { federalTax: number; stateTax: number; studentLoanAnnualPayment: number; combinedAnnualCost: number; combinedMonthlyCost: number }; highlight?: boolean }) {
+function ScenarioCard({ title, data, highlight }: {
+  title: string;
+  data: { federalTax: number; stateTax: number; studentLoanAnnualPayment: number; combinedAnnualCost: number; combinedMonthlyCost: number };
+  highlight?: boolean;
+}) {
   return (
     <Card className={`p-4 ${highlight ? "border-primary/60 ring-1 ring-primary/30" : ""}`}>
       <div className="font-semibold text-sm mb-2">{title}</div>
       <div className="space-y-1 text-sm">
-        <Row label="Federal tax" value={fmtCurrency(data.federalTax)} />
-        <Row label="State tax" value={fmtCurrency(data.stateTax)} />
-        <Row label="Student loan (annual)" value={fmtCurrency(data.studentLoanAnnualPayment)} />
+        <RowLine label="Estimated taxes" value={fmtCurrency(data.federalTax + data.stateTax)} />
+        <RowLine label="Student loan payments" value={fmtCurrency(data.studentLoanAnnualPayment)} />
         <div className="border-t border-border my-1" />
-        <Row label="Combined annual cost" value={fmtCurrency(data.combinedAnnualCost)} bold />
-        <Row label="Monthly equivalent" value={fmtCurrency(data.combinedMonthlyCost)} muted />
+        <RowLine label="Combined annual cost" value={fmtCurrency(data.combinedAnnualCost)} bold />
       </div>
     </Card>
   );
 }
-function Row({ label, value, bold, muted }: { label: string; value: string; bold?: boolean; muted?: boolean }) {
+function RowLine({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex items-center justify-between ${bold ? "font-semibold" : ""} ${muted ? "text-muted-foreground text-xs" : ""}`}>
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function CostRow({ label, left, right }: { label: string; left: number; right: number }) {
-  const diff = right - left;
-  const better = diff < 0;
-  return (
-    <div className="grid grid-cols-3 gap-2 py-1 items-center">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="text-right tabular-nums">{fmtCurrency(left)}</div>
-      <div className={`text-right tabular-nums ${diff === 0 ? "" : better ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-        {fmtCurrency(right)}
-        {diff !== 0 && (
-          <span className="ml-1 text-[10px]">
-            ({better ? "−" : "+"}{fmtCurrency(Math.abs(diff))})
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-type CostScenarioData = { federalTax: number; stateTax: number; studentLoanAnnualPayment: number; combinedAnnualCost: number };
-
-function CostScenarioCard({
-  title, data, compareTo, isWinner,
-}: {
-  title: string;
-  data: CostScenarioData;
-  compareTo?: CostScenarioData;
-  isWinner?: boolean;
-}) {
-  return (
-    <div className={`snap-center shrink-0 w-[85%] rounded-md border p-3 bg-background ${isWinner ? "border-primary/60 ring-1 ring-primary/30" : "border-border"}`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-semibold">{title}</div>
-        {isWinner && (
-          <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary rounded px-1.5 py-0.5">
-            Lower cost
-          </span>
-        )}
-      </div>
-      <div className="space-y-1 text-xs">
-        <CostLine label="Federal tax" value={data.federalTax} delta={compareTo ? data.federalTax - compareTo.federalTax : undefined} />
-        <CostLine label="State tax" value={data.stateTax} delta={compareTo ? data.stateTax - compareTo.stateTax : undefined} />
-        <CostLine label="Student loan payments" value={data.studentLoanAnnualPayment} delta={compareTo ? data.studentLoanAnnualPayment - compareTo.studentLoanAnnualPayment : undefined} />
-        <div className="border-t border-border my-1" />
-        <div className="flex items-center justify-between font-semibold">
-          <span>Combined annual cost</span>
-          <span className={`tabular-nums ${isWinner ? "text-primary" : ""}`}>{fmtCurrency(data.combinedAnnualCost)}</span>
-        </div>
-        {compareTo && (
-          <div className="text-[10px] text-muted-foreground text-right">
-            {(() => {
-              const diff = data.combinedAnnualCost - compareTo.combinedAnnualCost;
-              if (diff === 0) return "Same combined cost";
-              const better = diff < 0;
-              return `${better ? "−" : "+"}${fmtCurrency(Math.abs(diff))}/yr vs. other scenario`;
-            })()}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CostLine({ label, value, delta }: { label: string; value: number; delta?: number }) {
-  const showDelta = delta !== undefined && delta !== 0;
-  const better = (delta ?? 0) < 0;
-  return (
-    <div className="flex items-center justify-between">
+    <div className={`flex items-center justify-between ${bold ? "font-semibold" : ""}`}>
       <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums">
-        {fmtCurrency(value)}
-        {showDelta && (
-          <span className={`ml-1 text-[10px] ${better ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-            ({better ? "−" : "+"}{fmtCurrency(Math.abs(delta!))})
-          </span>
-        )}
-      </span>
+      <span className="tabular-nums">{value}</span>
     </div>
   );
-}
-
-function filingStatusLabel(status: string): string {
-  switch (status) {
-    case "married_filing_jointly": return "Married Filing Jointly";
-    case "married_filing_separately": return "Married Filing Separately";
-    case "single": return "Single";
-    case "head_of_household": return "Head of Household";
-    default: return status || "—";
-  }
 }
 
 function BreakdownRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
@@ -1085,26 +714,3 @@ function BreakdownRow({ label, value, bold }: { label: string; value: string; bo
     </div>
   );
 }
-
-function AgiOption({
-  id, current, setCurrent, title, subtitle,
-}: {
-  id: AgiSource;
-  current: AgiSource;
-  setCurrent: (v: AgiSource) => void;
-  title: string;
-  subtitle: string;
-}) {
-  const active = current === id;
-  return (
-    <button
-      type="button"
-      onClick={() => setCurrent(id)}
-      className={`text-left rounded-md border p-2 transition-colors ${active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-background hover:bg-muted/40"}`}
-    >
-      <div className="text-xs font-medium">{title}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{subtitle}</div>
-    </button>
-  );
-}
-
