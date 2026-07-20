@@ -155,10 +155,14 @@ export default function StudentLoans() {
 
   // Comparison sandbox (opened on demand).
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  // Compare other repayment plans (collapsed by default).
+  const [comparePlansOpen, setComparePlansOpen] = useState(false);
+  const compareRef = useRef<HTMLDivElement | null>(null);
   const savedSpouseIncome = settings?.studentLoanSpouseIncomeOverride;
   const [spouseIncome, setSpouseIncome] = useState<string>(
     savedSpouseIncome != null ? String(savedSpouseIncome) : ""
   );
+
 
   // Community-property "review allocation" (advanced, hidden by default).
   const isCP = isCommunityPropertyState(state);
