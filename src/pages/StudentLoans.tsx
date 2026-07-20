@@ -250,8 +250,13 @@ export default function StudentLoans() {
       familySize: Math.max(1, familySize ?? 1),
       annualIncome: studentLoanAgi,
       region: region as "alaska" | "hawaii" | "contiguous_48_dc",
+      firstDisbursementDate: firstDisbursementDate || null,
+      ibrBorrowerType: ibrBorrowerType === "new" ? "new_2014" : ibrBorrowerType === "old" ? "old" : null,
+      isParentPlus: isParentPlus || null,
+      parentPlusConsolidated: parentPlusConsolidated || null,
     };
-  }, [savedFilingStatus, familySize, studentLoanAgi, state]);
+  }, [savedFilingStatus, familySize, studentLoanAgi, state,
+      firstDisbursementDate, ibrBorrowerType, isParentPlus, parentPlusConsolidated]);
 
   // Compute estimates for ALL enrollable plans, sorted by monthly payment.
   const planEstimates = useMemo(() => {
