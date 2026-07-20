@@ -29,6 +29,7 @@ import StudentLoans from "@/pages/StudentLoans";
 import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
 import TaxValidation from "@/pages/admin/TaxValidation";
+import StudentLoanValidation from "@/pages/admin/StudentLoanValidation";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 import Trust from "@/pages/Trust";
@@ -93,6 +94,7 @@ function ProtectedRoutes() {
           <Route path="/debug/transactions" element={<DebugTransactions />} />
           <Route path="/admin/data-isolation" element={<DataIsolationReport />} />
           <Route path="/admin/tax-validation" element={<TaxValidation />} />
+          <Route path="/admin/student-loan-validation" element={<StudentLoanValidation />} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />

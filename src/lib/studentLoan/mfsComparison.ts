@@ -6,11 +6,15 @@
  * (`calculateFullEstimate`) — one MFJ, one MFS-per-spouse — and pairs the
  * results with student loan payment estimates so the UI can display a
  * combined annual cost comparison and a "recommended filing status" card.
+ *
+ * Spouse-income treatment per plan is read from the canonical rules
+ * registry (`rules/plans.ts`) — do NOT hardcode assumptions here.
  */
 
 import { calculateFullEstimate } from "@/lib/taxEngine";
 import { estimateRepayment, type BorrowerInput, type StudentLoanInput } from "./calculator";
 import { splitIncomeForMfs } from "./communityProperty";
+import { getPlan } from "./rules/plans";
 import type { RepaymentPlanId } from "./repaymentPlans";
 
 export interface MfsComparisonInput {
@@ -49,6 +53,9 @@ export interface MfsComparisonResult {
   additionalTaxes: number;
   communityPropertyApplied: boolean;
   communityPropertyNote: string;
+  /** Spouse-income treatment for the selected plan (registry-driven). */
+  spouseIncomeNote: string;
+  planUnavailable?: string;
 }
 
 function estimateStateTax(taxableIncome: number, ratePct: number): number {
@@ -161,6 +168,13 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
   const winner = recommendation === "mfs" ? mfs : mfj;
   const loser = recommendation === "mfs" ? mfj : mfs;
 
+  const planRule = getPlan(input.planId);
+  const spouseIncomeNote = planRule?.spouseIncome
+    ? `Plan spouse-income rule — MFJ: ${planRule.spouseIncome.mfj}, MFS: ${planRule.spouseIncome.mfs}.`
+    : "Plan does not define a spouse-income rule (fixed schedule uses only the loan balance).";
+  const planUnavailable =
+    mfjLoan.unavailable?.reason ?? mfsLoan.unavailable?.reason ?? undefined;
+
   return {
     mfj,
     mfs,
@@ -173,6 +187,8 @@ export function compareFilingStatuses(input: MfsComparisonInput): MfsComparisonR
     ),
     communityPropertyApplied: split.applied,
     communityPropertyNote: split.note,
+    spouseIncomeNote,
+    planUnavailable,
   };
 }
 
