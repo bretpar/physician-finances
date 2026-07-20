@@ -268,19 +268,37 @@ export default function StudentLoans() {
     (estimate?.monthlyInterest ?? 0) - (estimate?.estimatedMonthlyPayment ?? 0),
   );
 
-  // Comparison card: borrower income is separate from spouse income to
-  // prevent double-counting. The MFJ scenario is (borrower + spouse), never
-  // (household + spouse).
-  const [borrowerIncomeInput, setBorrowerIncomeInput] = useState<string>("");
-  const effectiveBorrowerIncome = borrowerIncomeInput !== ""
-    ? Math.max(0, Number(borrowerIncomeInput) || 0)
-    : projectedTotalIncome;
+  // Comparison card: AGI is the primary input for both filing scenarios.
+  // Defaults come from PaycheckMD's projected AGI (not gross income).
+  // Community-property allocation (if applicable) pre-fills the MFS AGIs.
+  const [jointAgiInput, setJointAgiInput] = useState<string>("");
+  const [borrowerMfsAgiInput, setBorrowerMfsAgiInput] = useState<string>("");
+  const [spouseMfsAgiInput, setSpouseMfsAgiInput] = useState<string>("");
 
-  // Compare MFJ vs MFS
+  // Default AGI values derived from projected income + community-property allocation.
+  const defaultJointAgi = projectedAgi;
+  const defaultBorrowerMfsAgi = cpAllocation
+    ? cpAllocation.borrowerMfsAgi
+    : Math.round(projectedAgi); // no community split → borrower keeps their AGI
+  const defaultSpouseMfsAgi = cpAllocation
+    ? cpAllocation.spouseMfsAgi
+    : Math.max(0, Number(spouseIncome) || 0); // spouse gross ≈ spouse AGI without more data
+
+  const effectiveJointAgi = jointAgiInput !== ""
+    ? Math.max(0, Number(jointAgiInput) || 0)
+    : defaultJointAgi;
+  const effectiveBorrowerMfsAgi = borrowerMfsAgiInput !== ""
+    ? Math.max(0, Number(borrowerMfsAgiInput) || 0)
+    : defaultBorrowerMfsAgi;
+  const effectiveSpouseMfsAgi = spouseMfsAgiInput !== ""
+    ? Math.max(0, Number(spouseMfsAgiInput) || 0)
+    : defaultSpouseMfsAgi;
+
+  // Compare MFJ vs MFS — AGI-driven.
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
     return compareFilingStatuses({
-      userIncome: effectiveBorrowerIncome,
+      userIncome: 0, // ignored — AGI overrides win
       spouseIncome: Number(spouseIncome) || 0,
       loan: parsedLoan,
       planId: selectedPlan,
@@ -288,8 +306,12 @@ export default function StudentLoans() {
       state,
       applyCommunityRules: isCP,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
+      overrideJointAgi: effectiveJointAgi,
+      overrideBorrowerMfsAgi: effectiveBorrowerMfsAgi,
+      overrideSpouseMfsAgi: effectiveSpouseMfsAgi,
     });
-  }, [comparisonOpen, effectiveBorrowerIncome, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate]);
+  }, [comparisonOpen, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+
 
   const handleSaveLoan = async () => {
     await upsert.mutateAsync({
