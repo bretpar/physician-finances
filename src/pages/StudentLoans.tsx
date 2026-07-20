@@ -206,20 +206,43 @@ export default function StudentLoans() {
   const [cpBorrowerAdj, setCpBorrowerAdj] = useState<string>("");
   const [cpBorrowerSharePct, setCpBorrowerSharePct] = useState<string>("50");
 
-  // Resolve the AGI actually used for IDR plans.
+  // Resolve the AGI actually used for IDR plans (borrower-facing, driven by
+  // saved filing status). MFS + CP state → apply 50/50 community split.
   const cpAllocation = useMemo(() => {
     if (!cpAutoApplies) return null;
     const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
+    const bAdj = cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) : projectedAdjustments;
     return allocateCommunityAgi({
       borrowerCommunityIncome: bComm,
       spouseCommunityIncome: Number(cpSpouseCommunity) || 0,
       borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
       spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
-      borrowerAdjustments: Number(cpBorrowerAdj) || 0,
+      borrowerAdjustments: bAdj,
       spouseAdjustments: 0,
       borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100)),
     });
-  }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome]);
+  }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome, projectedAdjustments]);
+
+  // MFJ vs MFS comparison-only CP allocation. This one always runs when the
+  // user is in a community-property state, regardless of saved filing status,
+  // so the comparison "what if we filed MFS?" preview shows the correct 50/50
+  // split even for households currently filed MFJ. Auto-populates projected
+  // AGI adjustments from the tax forecast; user can override in the CP panel.
+  const comparisonAllocation = useMemo(() => {
+    if (!isCP) return null;
+    const bComm = cpBorrowerCommunity !== "" ? Number(cpBorrowerCommunity) : projectedTotalIncome;
+    const bAdj = cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) : projectedAdjustments;
+    return allocateCommunityAgi({
+      borrowerCommunityIncome: bComm,
+      spouseCommunityIncome: Number(cpSpouseCommunity) || 0,
+      borrowerSeparateIncome: Number(cpBorrowerSeparate) || 0,
+      spouseSeparateIncome: Number(cpSpouseSeparate) || 0,
+      borrowerAdjustments: bAdj,
+      spouseAdjustments: 0,
+      borrowerCommunityShare: Math.min(1, Math.max(0, (Number(cpBorrowerSharePct) || 50) / 100)),
+    });
+  }, [isCP, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome, projectedAdjustments]);
+  const adjustmentsAutoApplied = isCP && cpBorrowerAdj === "" && projectedAdjustments > 0;
 
   let studentLoanAgi = projectedAgi;
   let agiSourceLabel = "Projected AGI";
