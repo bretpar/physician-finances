@@ -689,72 +689,192 @@ export default function StudentLoans() {
         </div>
         {comparisonOpen && (
           <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <p className="text-[11px] text-muted-foreground">
+              Defaults to projected AGI from PaycheckMD. Changes here affect this comparison only —
+              your profile, Income Planner, and tax settings are not touched.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <Label htmlFor="sl-borrower-income" className="text-xs text-muted-foreground mb-1.5 block">
-                  Your projected annual income (borrower)
+                <Label htmlFor="sl-joint-agi" className="text-xs text-muted-foreground mb-1.5 block">
+                  Joint AGI used (MFJ)
                 </Label>
                 <Input
-                  id="sl-borrower-income"
+                  id="sl-joint-agi"
                   type="number"
-                  value={borrowerIncomeInput}
-                  onChange={(e) => setBorrowerIncomeInput(e.target.value)}
-                  placeholder={String(Math.round(projectedTotalIncome))}
+                  value={jointAgiInput}
+                  onChange={(e) => setJointAgiInput(e.target.value)}
+                  placeholder={String(Math.round(defaultJointAgi))}
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Defaults to your projected income from PaycheckMD ({fmtCurrency(projectedTotalIncome)}).
+                  Default: {fmtCurrency(defaultJointAgi)}
                 </p>
               </div>
               <div>
-                <Label htmlFor="sl-spouse-income" className="text-xs text-muted-foreground mb-1.5 block">
-                  Spouse projected annual income
+                <Label htmlFor="sl-borrower-mfs-agi" className="text-xs text-muted-foreground mb-1.5 block">
+                  Borrower AGI used (MFS)
                 </Label>
                 <Input
-                  id="sl-spouse-income"
+                  id="sl-borrower-mfs-agi"
                   type="number"
-                  value={spouseIncome}
-                  onChange={(e) => setSpouseIncome(e.target.value)}
-                  placeholder="0"
+                  value={borrowerMfsAgiInput}
+                  onChange={(e) => setBorrowerMfsAgiInput(e.target.value)}
+                  placeholder={String(Math.round(defaultBorrowerMfsAgi))}
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Household MFJ income = borrower + spouse. Editing here does not change your profile.
+                  Default: {fmtCurrency(defaultBorrowerMfsAgi)}
+                  {cpAllocation ? " · community-property allocation applied" : ""}
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="sl-spouse-mfs-agi" className="text-xs text-muted-foreground mb-1.5 block">
+                  Spouse AGI used (MFS)
+                </Label>
+                <Input
+                  id="sl-spouse-mfs-agi"
+                  type="number"
+                  value={spouseMfsAgiInput}
+                  onChange={(e) => setSpouseMfsAgiInput(e.target.value)}
+                  placeholder={String(Math.round(defaultSpouseMfsAgi))}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Default: {fmtCurrency(defaultSpouseMfsAgi)}
                 </p>
               </div>
             </div>
 
+            <div>
+              <Label htmlFor="sl-spouse-income" className="text-xs text-muted-foreground mb-1.5 block">
+                Spouse projected annual income (for plans that require it)
+              </Label>
+              <Input
+                id="sl-spouse-income"
+                type="number"
+                value={spouseIncome}
+                onChange={(e) => setSpouseIncome(e.target.value)}
+                placeholder="0"
+                className="max-w-xs"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Some IDR plans (e.g. PAYE MFJ) use household income directly. This does not change
+                the AGIs above.
+              </p>
+            </div>
 
             {comparison && (() => {
-              const winner = comparison.recommendation === "mfs" ? comparison.mfs : comparison.mfj;
-              const winnerLabel = comparison.recommendation === "mfs" ? "Married Filing Separately" : "Married Filing Jointly";
+              const winnerLabel =
+                comparison.recommendation === "mfs"
+                  ? "Married Filing Separately"
+                  : "Married Filing Jointly";
               return (
                 <>
+                  {/* Loan-payment-first scenario cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
-                    <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
+                    <ScenarioCard
+                      title="Married Filing Jointly"
+                      data={comparison.mfj}
+                      taxLabel="Estimated joint taxes"
+                      agiLabel="Joint AGI used"
+                      highlight={comparison.recommendation === "mfj"}
+                    />
+                    <ScenarioCard
+                      title="Married Filing Separately"
+                      data={comparison.mfs}
+                      taxLabel="Estimated combined MFS taxes"
+                      agiLabel="Borrower AGI used"
+                      highlight={comparison.recommendation === "mfs"}
+                    />
                   </div>
-                  <Card className="p-4 bg-primary/5 border-primary/40 space-y-2">
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Estimated better option
+
+                  {/* Recommendation card — monthly loan payment first */}
+                  <Card className="p-4 bg-primary/5 border-primary/40 space-y-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Estimated better option
+                      </div>
+                      <div className="text-lg font-bold">{winnerLabel}</div>
                     </div>
-                    <div className="text-lg font-bold">{winnerLabel}</div>
+
+                    <div className="rounded-md bg-background/60 border border-border p-3 space-y-1.5">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Monthly student loan payment
+                      </div>
+                      <RowLine label="MFJ" value={`${fmtCurrency(comparison.mfj.studentLoanMonthlyPayment)}/mo`} />
+                      <RowLine label="MFS" value={`${fmtCurrency(comparison.mfs.studentLoanMonthlyPayment)}/mo`} />
+                      <div className="border-t border-border my-1" />
+                      <RowLine
+                        label="Monthly loan-payment savings"
+                        value={`${fmtCurrency(Math.abs(comparison.monthlyLoanSavings))}/mo`}
+                        bold
+                      />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <Stat label="Loan savings/yr" value={fmtCurrency(Math.max(0, comparison.studentLoanSavings))} />
-                      <Stat label="Added taxes/yr" value={fmtCurrency(Math.max(0, comparison.additionalTaxes))} />
+                      <Stat
+                        label={comparison.additionalTaxes >= 0 ? "Added taxes/yr" : "Tax savings/yr"}
+                        value={fmtCurrency(Math.abs(comparison.additionalTaxes))}
+                      />
                       <Stat label="Net benefit/yr" value={fmtCurrency(comparison.netAnnualBenefit)} variant="ok" />
                       <Stat label="Net benefit/mo" value={fmtCurrency(comparison.netMonthlyBenefit)} variant="ok" />
                     </div>
+
                     <p className="text-[10px] text-muted-foreground">
                       Estimates only — based on federal + state tax + student loan payments.
                       {comparison.communityPropertyApplied ? " Community-property allocation applied." : ""}
                       {" "}Confirm with a tax professional before changing your filing status.
                     </p>
                   </Card>
+
+                  {/* Annual breakdown table (collapsible) */}
+                  <details className="rounded-md border border-border bg-background/60 p-3 text-xs">
+                    <summary className="cursor-pointer font-medium">See annual comparison</summary>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full text-xs tabular-nums">
+                        <thead>
+                          <tr className="text-muted-foreground text-left">
+                            <th className="font-normal py-1"></th>
+                            <th className="font-normal py-1 text-right">MFJ</th>
+                            <th className="font-normal py-1 text-right">MFS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <BreakdownTr label="AGI used" mfj={fmtCurrency(comparison.mfj.studentLoanAgi)} mfs={fmtCurrency(comparison.mfs.studentLoanAgi)} />
+                          {comparison.mfs.spouseAgi != null && (
+                            <BreakdownTr label="Spouse AGI (MFS only)" mfj="—" mfs={fmtCurrency(comparison.mfs.spouseAgi)} />
+                          )}
+                          <BreakdownTr label="Estimated federal tax" mfj={fmtCurrency(comparison.mfj.federalTax)} mfs={fmtCurrency(comparison.mfs.federalTax)} />
+                          <BreakdownTr label="Estimated state tax" mfj={fmtCurrency(comparison.mfj.stateTax)} mfs={fmtCurrency(comparison.mfs.stateTax)} />
+                          <BreakdownTr
+                            label="Total estimated taxes"
+                            mfj={fmtCurrency(comparison.mfj.federalTax + comparison.mfj.stateTax)}
+                            mfs={fmtCurrency(comparison.mfs.federalTax + comparison.mfs.stateTax)}
+                          />
+                          {comparison.mfs.borrowerFederalTax != null && comparison.mfs.spouseFederalTax != null && (
+                            <>
+                              <BreakdownTr label="  Borrower MFS federal tax" mfj="—" mfs={fmtCurrency(comparison.mfs.borrowerFederalTax)} muted />
+                              <BreakdownTr label="  Spouse MFS federal tax" mfj="—" mfs={fmtCurrency(comparison.mfs.spouseFederalTax)} muted />
+                            </>
+                          )}
+                          <BreakdownTr label="Loan payment / month" mfj={fmtCurrency(comparison.mfj.studentLoanMonthlyPayment)} mfs={fmtCurrency(comparison.mfs.studentLoanMonthlyPayment)} />
+                          <BreakdownTr label="Loan payments / year" mfj={fmtCurrency(comparison.mfj.studentLoanAnnualPayment)} mfs={fmtCurrency(comparison.mfs.studentLoanAnnualPayment)} />
+                          <BreakdownTr
+                            label="Combined annual cost"
+                            mfj={fmtCurrency(comparison.mfj.combinedAnnualCost)}
+                            mfs={fmtCurrency(comparison.mfs.combinedAnnualCost)}
+                            bold
+                          />
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
                 </>
               );
             })()}
           </div>
         )}
       </Card>
+
 
       {/* 5. Advanced loan details ─────────────────── */}
       <details className="rounded-md border border-border bg-background p-4">
