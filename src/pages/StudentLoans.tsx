@@ -23,6 +23,7 @@ import { REPAYMENT_PLAN_LIST, REPAYMENT_PLANS, type RepaymentPlanId } from "@/li
 import { estimateRepayment, aggregateLoans } from "@/lib/studentLoan/calculator";
 import { compareFilingStatuses } from "@/lib/studentLoan/mfsComparison";
 import { isCommunityPropertyState, COMMUNITY_PROPERTY_STATES } from "@/lib/studentLoan/communityProperty";
+import { Badge } from "@/components/ui/badge";
 import { Navigate, Link } from "react-router-dom";
 
 const fmtCurrency = (n: number) =>
