@@ -161,6 +161,13 @@ export default function StudentLoans() {
     setMonthsInRepayment(loan.months_in_repayment != null ? String(loan.months_in_repayment) : "");
   }, [loan?.id]);
 
+  // Eligibility inputs — drive IBR-new vs IBR-old, Parent PLUS restrictions,
+  // and Extended-plan disbursement-date rule. Persisted in scenario prefs.
+  const [firstDisbursementDate, setFirstDisbursementDate] = useState<string>(initPrefs.firstDisbursementDate ?? "");
+  const [ibrBorrowerType, setIbrBorrowerType] = useState<"new" | "old" | "">(initPrefs.ibrBorrowerType ?? "");
+  const [isParentPlus, setIsParentPlus] = useState<boolean>(initPrefs.isParentPlus ?? false);
+  const [parentPlusConsolidated, setParentPlusConsolidated] = useState<boolean>(initPrefs.parentPlusConsolidated ?? false);
+
   // Persist ephemeral scenario prefs.
   useEffect(() => {
     writeScenarioPrefs(userId, {
