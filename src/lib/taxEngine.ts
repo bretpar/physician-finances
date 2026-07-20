@@ -106,7 +106,7 @@ export interface SelfEmploymentTax {
 
 export function calculateSETax(
   netSEIncome: number,
-  filingStatus: FilingStatus|FilingStatus,
+  filingStatus: FilingStatus,
   ssWageCap: number = SS_WAGE_CAP_DEFAULT,
   w2Wages: number = 0,
   /**
@@ -362,7 +362,7 @@ export function calculateDependentCredits(
   qualifyingChildren: number,
   otherDependents: number,
   agi: number,
-  filingStatus: FilingStatus|FilingStatus,
+  filingStatus: FilingStatus,
 ): number {
   const baseCredit = Math.max(0, qualifyingChildren) * 2000 + Math.max(0, otherDependents) * 500;
   if (baseCredit <= 0) return 0;
@@ -481,7 +481,7 @@ export function calculateFullEstimate(params: {
   businessDeductions: number;
   mileageDeduction: number;
   taxesWithheld: number;
-  filingStatus: FilingStatus|FilingStatus;
+  filingStatus: FilingStatus;
   lastYearTax: number;
   standardDeductionOverride?: number | null;
   ssWageCap?: number;
