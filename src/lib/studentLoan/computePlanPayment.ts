@@ -311,7 +311,7 @@ export function computePlanPayment(
       breakdown.capApplied = capApplied;
       breakdown.capMonthly = capMonthly;
       breakdown.steps.push(
-        { label: `Poverty guideline (${povertyYear}, family of ${borrower.familySize}, ${table.region})`, value: guideline },
+        { label: `Poverty guideline (${povertyYear}, family of ${borrower.familySize}, ${friendlyRegionLabel(table.region)})`, value: guideline },
         { label: `Protected income (${Math.round(multiplier * 100)}% of guideline)`, value: protectedIncome },
         { label: "AGI used", value: incomeUsed },
         { label: "Spouse income included?", value: spouseIncluded ? "Yes (MFJ combined)" : "No (MFS filer only)" },
