@@ -162,7 +162,7 @@ export default function StudentLoans() {
 
   // Community-property "review allocation" (advanced, hidden by default).
   const isCP = isCommunityPropertyState(state);
-  const isMfs = savedFilingStatus === "married_filing_separately";
+  const isMfs = (savedFilingStatus as string) === "married_filing_separately";
   const cpAutoApplies = isMfs && isCP;
   const [cpReviewOpen, setCpReviewOpen] = useState(false);
   const [cpBorrowerCommunity, setCpBorrowerCommunity] = useState<string>("");
