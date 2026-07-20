@@ -586,13 +586,26 @@ export default function StudentLoans() {
           Estimates for all supported plans, ordered by lowest monthly payment. Tap a plan to make it active.
         </p>
         <div className="space-y-2">
-          {planEstimates.map(({ plan, est, monthsForTotal, totalPaid }) => {
+          {planEstimates.map(({ plan, est, monthsForTotal, totalPaid, forgivenessMonths }) => {
             const isActive = plan.id === selectedPlan;
             const isCurrentSaved = loan?.repayment_plan === plan.id;
             const isLowest = plan.id === lowestMonthlyId;
             const isFastest = plan.id === fastestPayoffId;
             const unavailable = !!est.unavailable;
             const idrMissing = REPAYMENT_PLANS[plan.id]?.family === "idr" && missingAgi;
+            const eligibility = est.detail?.eligibility ?? "confirmed";
+            const isGraduated = REPAYMENT_PLANS[plan.id]?.family === "graduated";
+            const paysBeforeForgiveness =
+              forgivenessMonths != null &&
+              est.estimatedPayoffMonths != null &&
+              est.estimatedPayoffMonths < forgivenessMonths;
+            const endpointLabel = isGraduated
+              ? "Starting payment"
+              : forgivenessMonths != null && !paysBeforeForgiveness
+                ? `${Math.round(forgivenessMonths / 12)}-yr forgiveness`
+                : est.estimatedPayoffMonths != null
+                  ? `Paid off in ${fmtMonths(est.estimatedPayoffMonths)}`
+                  : "—";
             return (
               <button
                 key={plan.id}
@@ -609,6 +622,9 @@ export default function StudentLoans() {
                       {isCurrentSaved && <Badge variant="outline" className="text-[9px]">Current plan</Badge>}
                       {isLowest && !unavailable && <Badge className="text-[9px]">Lowest monthly</Badge>}
                       {isFastest && !unavailable && <Badge variant="secondary" className="text-[9px]">Pays off fastest</Badge>}
+                      {!unavailable && eligibility === "assumed" && (
+                        <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-700 dark:text-amber-400">Eligibility not confirmed</Badge>
+                      )}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-1">{plan.tooltip}</div>
                   </div>
@@ -618,14 +634,8 @@ export default function StudentLoans() {
                     ) : (
                       <>
                         <div className="text-lg font-bold tabular-nums">{fmtCurrency(est.estimatedMonthlyPayment)}<span className="text-[10px] text-muted-foreground font-normal">/mo</span></div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {plan.forgivenessYears
-                            ? `${plan.forgivenessYears}-yr forgiveness`
-                            : est.estimatedPayoffMonths != null
-                              ? `Paid off in ${fmtMonths(est.estimatedPayoffMonths)}`
-                              : "—"}
-                        </div>
-                        {totalPaid != null && (
+                        <div className="text-[10px] text-muted-foreground">{endpointLabel}</div>
+                        {!isGraduated && totalPaid != null && (
                           <div className="text-[10px] text-muted-foreground">
                             Total ≈ {fmtCurrency(totalPaid)}
                           </div>
