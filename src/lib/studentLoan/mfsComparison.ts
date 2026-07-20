@@ -24,9 +24,34 @@ import { estimateRepayment, type BorrowerInput, type StudentLoanInput } from "./
 import { allocateCommunityAgi, isCommunityPropertyState } from "./communityProperty";
 import { getPlan } from "./rules/plans";
 import type { RepaymentPlanId } from "./repaymentPlans";
+import type { PovertyRegion } from "./rules/types";
+import { getTaxYearConfig, ACTIVE_TAX_YEAR, calcBracketTax, type Bracket } from "@/lib/taxBrackets";
+
+/**
+ * MFS brackets = MFJ brackets ÷ 2 (per IRC §1(a) & Rev. Proc. inflation
+ * adjustments). We derive them from the active-year MFJ table so this
+ * stays in lockstep with the canonical bracket registry.
+ */
+function mfsBrackets(year = ACTIVE_TAX_YEAR): Bracket[] {
+  const cfg = getTaxYearConfig(year);
+  return cfg.ordinaryBrackets.married_filing_jointly.map((b) => ({
+    min: b.min / 2,
+    max: b.max === Infinity ? Infinity : b.max / 2,
+    rate: b.rate,
+  }));
+}
+
+function mfsStandardDeduction(year = ACTIVE_TAX_YEAR): number {
+  // MFS standard deduction = single amount (statutory).
+  return getTaxYearConfig(year).standardDeduction.single;
+}
 
 export interface MfsComparisonInput {
-  /** Borrower's individually earned projected income (wages, SE). */
+  /**
+   * Borrower's individually earned projected income (wages, SE). The MFJ
+   * scenario's household income is `userIncome + spouseIncome` — callers
+   * MUST NOT pre-add spouse income here.
+   */
   userIncome: number;
   /** Spouse's individually earned projected income. */
   spouseIncome: number;
