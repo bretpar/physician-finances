@@ -216,7 +216,7 @@ export default function StudentLoans() {
   }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome]);
 
   let studentLoanAgi = projectedAgi;
-  let agiSourceLabel = "Projected AGI from PaycheckMD";
+  let agiSourceLabel = "Projected AGI";
   if (agiMode === "manual" && manualAgi !== "" && Number(manualAgi) >= 0) {
     studentLoanAgi = Number(manualAgi);
     agiSourceLabel = "Manual estimate";
@@ -687,7 +687,7 @@ export default function StudentLoans() {
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Income used</div>
             <div className="text-sm font-semibold truncate">
               {fmtCurrency(studentLoanAgi)}{" "}
-              <span className="text-xs font-normal text-muted-foreground">· {agiSourceLabel.toLowerCase()}</span>
+              <span className="text-xs font-normal text-muted-foreground">· {agiSourceLabel}</span>
             </div>
           </div>
           <Popover open={agiPopoverOpen} onOpenChange={setAgiPopoverOpen}>
@@ -702,7 +702,7 @@ export default function StudentLoans() {
               >
                 <div className="font-medium flex items-center gap-1.5">
                   {agiMode === "projected" && <Check className="h-3.5 w-3.5" />}
-                  Use projected AGI from PaycheckMD
+                  Use Projected AGI
                 </div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">{fmtCurrency(projectedAgi)}</div>
               </button>
