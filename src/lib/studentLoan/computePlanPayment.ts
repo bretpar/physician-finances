@@ -115,6 +115,19 @@ function selectPovertyYear(_plan: PlanRule): number {
   return latestPovertyYear();
 }
 
+export function friendlyRegionLabel(region: PovertyRegion): string {
+  switch (region) {
+    case "contiguous_48_dc":
+      return "48 contiguous states and Washington, D.C.";
+    case "alaska":
+      return "Alaska";
+    case "hawaii":
+      return "Hawaii";
+    default:
+      return String(region);
+  }
+}
+
 function agiPerRules(plan: PlanRule, borrower: BorrowerContext): { amount: number; spouseIncluded: boolean } {
   if (!plan.spouseIncome) return { amount: Math.max(0, borrower.agi), spouseIncluded: false };
   const status = borrower.filingStatus;
