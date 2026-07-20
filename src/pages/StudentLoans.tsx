@@ -433,26 +433,37 @@ export default function StudentLoans() {
             <div className="font-semibold flex items-center gap-2">
               <Scale className="h-4 w-4" /> Compare filing status
             </div>
-            <Button size="sm" variant="outline" onClick={() => setComparisonOpen((o) => !o)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => (comparisonOpen ? setComparisonOpen(false) : openComparison())}
+            >
               {comparisonOpen ? "Hide comparison" : "Compare MFJ vs MFS"}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Read-only. Running this comparison never changes your saved filing status or tax settings.
+            Read-only sandbox. Edits below only affect this comparison — your saved filing status,
+            spouse income, and community-property settings are never changed.
           </p>
 
           {comparisonOpen && (
             <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Comparison inputs (not saved)
+                </span>
+                <Button size="sm" variant="ghost" onClick={resetCompareInputs} className="h-7 text-xs">
+                  Reset to saved
+                </Button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Spouse projected annual income</Label>
                   <Input
                     type="number"
-                    value={spouseIncomeInput}
-                    onChange={(e) => setSpouseIncomeInput(e.target.value)}
-                    onBlur={() => handleSaveBorrowerSettings({
-                      studentLoanSpouseIncomeOverride: spouseIncomeInput === "" ? null : Number(spouseIncomeInput),
-                    })}
+                    value={compareSpouseIncome}
+                    onChange={(e) => setCompareSpouseIncome(e.target.value)}
+                    placeholder="0"
                   />
                 </div>
                 {isCP && (
@@ -462,8 +473,8 @@ export default function StudentLoans() {
                     </Label>
                     <div className="flex items-center gap-2 h-10">
                       <Switch
-                        checked={applyCommunityRules}
-                        onCheckedChange={(v) => handleSaveBorrowerSettings({ studentLoanCommunityPropertyOverride: v })}
+                        checked={compareApplyCommunityRules}
+                        onCheckedChange={(v) => setCompareCpOverride(v)}
                       />
                       <span className="text-xs text-muted-foreground">
                         {state?.toUpperCase()} is a community property state. Default: 50/50 split.
