@@ -307,13 +307,24 @@ export default function StudentLoans() {
         {/* Borrower information ────────────────────── */}
         <Card className="p-5 space-y-3">
           <div className="font-semibold">Borrower information</div>
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Income-driven repayment plans are generally based on annual income. This calculator uses
-              your projected annual income by default.
-            </AlertDescription>
-          </Alert>
+          {idrMissingIncome ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                No projected income found. Enter a projected annual income below, or set one up in
+                your <Link to="/projected-income" className="underline font-medium">Income Planner</Link>.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Income-driven repayment plans are generally based on annual income. This calculator uses
+                your projected annual income by default.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <ReadonlyRow label="Filing status" value={filingStatus === "married_filing_jointly" ? "Married Filing Jointly" : "Single"} />
             <ReadonlyRow label="State" value={state || "—"} />
