@@ -33,7 +33,7 @@ type NavItem = {
   label: string;
   w2OnlyLabel?: string;
   subtitle: string;
-  module?: "business" | "investment";
+  module?: "business" | "investment" | "student_loans";
   featureKey?: FeatureKey;
   w2OnlyFeatureKey?: FeatureKey;
 };
