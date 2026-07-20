@@ -216,7 +216,7 @@ export default function StudentLoans() {
   }, [cpAutoApplies, cpBorrowerCommunity, cpSpouseCommunity, cpBorrowerSeparate, cpSpouseSeparate, cpBorrowerAdj, cpBorrowerSharePct, projectedTotalIncome]);
 
   let studentLoanAgi = projectedAgi;
-  let agiSourceLabel = "Projected AGI from PaycheckMD";
+  let agiSourceLabel = "Projected AGI";
   if (agiMode === "manual" && manualAgi !== "" && Number(manualAgi) >= 0) {
     studentLoanAgi = Number(manualAgi);
     agiSourceLabel = "Manual estimate";
