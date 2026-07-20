@@ -50,12 +50,12 @@ describe("regression: state → poverty region", () => {
     // Use a low balance so the Std-10 cap doesn't equalise the two.
     const contiguous = estimateRepayment(
       { balance: 30_000, interestRatePct: 6 },
-      { ...baseBorrower, agi: 80_000, familySize: 2, region: "contiguous_48_dc" },
+      { ...baseBorrower, annualIncome: 80_000, familySize: 2, region: "contiguous_48_dc" },
       "ibr_new",
     );
     const alaska = estimateRepayment(
       { balance: 30_000, interestRatePct: 6 },
-      { ...baseBorrower, agi: 80_000, familySize: 2, region: "alaska" },
+      { ...baseBorrower, annualIncome: 80_000, familySize: 2, region: "alaska" },
       "ibr_new",
     );
     // Alaska's higher poverty guideline → lower discretionary → lower payment.
