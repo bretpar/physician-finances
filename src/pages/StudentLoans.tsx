@@ -817,8 +817,8 @@ export default function StudentLoans() {
                   <Field label="Spouse earned income" value={cpSpouseCommunity} onChange={setCpSpouseCommunity} type="number" />
                   <Field label="Borrower separate income" value={cpBorrowerSeparate} onChange={setCpBorrowerSeparate} type="number" />
                   <Field label="Spouse separate income" value={cpSpouseSeparate} onChange={setCpSpouseSeparate} type="number" />
-                  <Field label="Borrower AGI adjustments" value={cpBorrowerAdj} onChange={setCpBorrowerAdj} type="number" placeholder={autoBorrowerAdj > 0 ? String(Math.round(autoBorrowerAdj)) : undefined} />
-                  <Field label="Spouse AGI adjustments" value={cpSpouseAdj} onChange={setCpSpouseAdj} type="number" placeholder={autoSpouseAdj > 0 ? String(Math.round(autoSpouseAdj)) : undefined} />
+                  <Field label={`Borrower AGI adjustments${cpBorrowerAdj === "" && autoBorrowerAdj > 0 ? ` (auto ${fmtCurrency(autoBorrowerAdj)})` : ""}`} value={cpBorrowerAdj} onChange={setCpBorrowerAdj} type="number" />
+                  <Field label={`Spouse AGI adjustments${cpSpouseAdj === "" && autoSpouseAdj > 0 ? ` (auto ${fmtCurrency(autoSpouseAdj)})` : ""}`} value={cpSpouseAdj} onChange={setCpSpouseAdj} type="number" />
                   <Field label="Borrower share %" value={cpBorrowerSharePct} onChange={setCpBorrowerSharePct} type="number" />
                 </div>
                 {cpAllocation && (
