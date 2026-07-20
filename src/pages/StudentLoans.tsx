@@ -528,15 +528,40 @@ export default function StudentLoans() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <ReadonlyRow label="Saved filing status" value={filingStatusLabel(savedFilingStatus)} />
-            <ReadonlyRow label="State" value={state || "—"} />
             <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                State <span className="text-[10px]">(estimator only)</span>
+              </Label>
+              <Select value={scenarioState || undefined} onValueChange={setScenarioState}>
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {US_STATES.map(([code, name]) => (
+                    <SelectItem key={code} value={code}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Sets poverty guideline region and community-property eligibility for this estimator.
+                {savedProfileState && scenarioState !== savedProfileState
+                  ? ` Your saved profile state (${savedProfileState}) is unchanged.`
+                  : ""}
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Family size <span className="text-[10px]">(estimator only)</span>
+              </Label>
               <Input
                 type="number"
+                inputMode="numeric"
                 min={1}
-                value={familySize ?? 1}
-                onChange={(e) => handleSaveBorrowerSettings({ studentLoanFamilySize: Number(e.target.value) || 1 })}
+                step={1}
+                value={scenarioFamilySize}
+                onChange={(e) => setScenarioFamilySize(Number(e.target.value) || 1)}
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Whole numbers only. Your saved profile family size is unchanged.
+              </p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
