@@ -729,10 +729,25 @@ export default function StudentLoans() {
 
                 return (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Scenario cards — swipeable on mobile, side-by-side on md+ */}
+                    <div className="md:hidden -mx-4 px-4">
+                      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <div className="snap-center shrink-0 w-[85%] first:pl-0">
+                          <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
+                        </div>
+                        <div className="snap-center shrink-0 w-[85%]">
+                          <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground text-center mt-1">
+                        Swipe to compare scenarios →
+                      </div>
+                    </div>
+                    <div className="hidden md:grid md:grid-cols-2 gap-3">
                       <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
                       <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
                     </div>
+
                     <Card className="p-4 bg-primary/5 border-primary/40 space-y-4">
                       <div>
                         <div className="flex items-center gap-2">
