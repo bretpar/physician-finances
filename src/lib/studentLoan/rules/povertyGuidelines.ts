@@ -41,11 +41,13 @@ export const POVERTY_GUIDELINES: PovertyGuidelineTable[] = [
   {
     year: 2026,
     region: "hawaii",
-    base: 18360, // provisional; not captured from PDF in July 2026 research
-    perAdditionalPerson: 6540, // provisional
+    // Verified against HHS 2026 poverty guidelines for Hawaii
+    // (Federal Register Vol. 91, No. 10, Jan 15 2026).
+    base: 18360,
+    perAdditionalPerson: 6530,
     sourceUrl: SRC_2026,
     publishedAt: "2026-01-15",
-    verification: "pending",
+    verification: "confirmed",
   },
   // ── 2025 ────────────────────────────────────────────────────────────
   {

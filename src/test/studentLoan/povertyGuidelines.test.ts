@@ -27,9 +27,10 @@ describe("poverty guidelines registry", () => {
     expect(ak.base).toBeGreaterThan(dc.base);
   });
 
-  it("Hawaii 2026 is provisional (verification pending) — do not use in golden tests", () => {
+  it("Hawaii 2026 per-additional-person = $6,530 (HHS-confirmed)", () => {
     const hi = getPovertyTable(2026, "hawaii");
-    expect(hi.verification).toBe("pending");
+    expect(hi.perAdditionalPerson).toBe(6530);
+    expect(hi.verification).toBe("confirmed");
   });
 
   it("computePovertyGuideline scales linearly with family size", () => {

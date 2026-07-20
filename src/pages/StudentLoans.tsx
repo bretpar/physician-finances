@@ -213,20 +213,34 @@ export default function StudentLoans() {
       : fs === "married_filing_separately"
         ? "married_filing_separately"
         : "single") as "single" | "married_filing_jointly" | "married_filing_separately";
+    // Region drives the poverty guideline. UI shows the state selector but
+    // the engine needs the mapped PovertyRegion (AK/HI/contiguous).
+    const region =
+      state === "AK" ? "alaska" : state === "HI" ? "hawaii" : "contiguous_48_dc";
     return {
       filingStatus: filing,
       familySize: Math.max(1, familySize ?? 1),
       annualIncome: studentLoanAgi,
+      region: region as "alaska" | "hawaii" | "contiguous_48_dc",
     };
-  }, [savedFilingStatus, familySize, studentLoanAgi]);
+  }, [savedFilingStatus, familySize, studentLoanAgi, state]);
 
   // Compute estimates for ALL enrollable plans, sorted by monthly payment.
   const planEstimates = useMemo(() => {
     return REPAYMENT_PLAN_LIST.map((p) => {
       const est = estimateRepayment(aggregated, borrower, p.id);
-      const monthsForTotal = est.estimatedPayoffMonths ?? (p.forgivenessYears ? p.forgivenessYears * 12 : null);
-      const totalPaid = monthsForTotal != null ? est.estimatedMonthlyPayment * monthsForTotal : null;
-      return { plan: p, est, monthsForTotal, totalPaid };
+      const forgivenessMonths = p.forgivenessYears ? p.forgivenessYears * 12 : null;
+      // For IDR, mathematical payoff might exceed the forgiveness horizon
+      // — cap Total Paid so we never show "pays off in 40 yr" for a plan
+      // whose remainder is forgiven at 20/25/30 yr.
+      let endpointMonths = est.estimatedPayoffMonths;
+      if (forgivenessMonths != null) {
+        endpointMonths = endpointMonths != null
+          ? Math.min(endpointMonths, forgivenessMonths)
+          : forgivenessMonths;
+      }
+      const totalPaid = endpointMonths != null ? est.estimatedMonthlyPayment * endpointMonths : null;
+      return { plan: p, est, monthsForTotal: endpointMonths, totalPaid, forgivenessMonths };
     }).sort((a, b) => {
       const av = a.est.unavailable ? Number.POSITIVE_INFINITY : a.est.estimatedMonthlyPayment;
       const bv = b.est.unavailable ? Number.POSITIVE_INFINITY : b.est.estimatedMonthlyPayment;
@@ -234,9 +248,9 @@ export default function StudentLoans() {
     });
   }, [aggregated, borrower]);
 
-  const lowestMonthlyId = planEstimates.find((p) => !p.est.unavailable)?.plan.id;
+  const lowestMonthlyId = planEstimates.find((p) => !p.est.unavailable && (p.est.detail?.eligibility ?? "confirmed") === "confirmed")?.plan.id;
   const fastestPayoffId = planEstimates
-    .filter((p) => !p.est.unavailable && p.est.estimatedPayoffMonths != null)
+    .filter((p) => !p.est.unavailable && p.est.estimatedPayoffMonths != null && (p.est.detail?.eligibility ?? "confirmed") === "confirmed")
     .sort((a, b) => (a.est.estimatedPayoffMonths! - b.est.estimatedPayoffMonths!))[0]?.plan.id;
 
   const activeEstimate = planEstimates.find((p) => p.plan.id === selectedPlan) ?? planEstimates[0];
@@ -249,12 +263,24 @@ export default function StudentLoans() {
   const isIdrPlan = REPAYMENT_PLANS[selectedPlan]?.family === "idr";
 
   const currentMonthly = parsedLoan.currentMonthlyPayment ?? 0;
+  const unpaidMonthlyInterest = Math.max(
+    0,
+    (estimate?.monthlyInterest ?? 0) - (estimate?.estimatedMonthlyPayment ?? 0),
+  );
+
+  // Comparison card: borrower income is separate from spouse income to
+  // prevent double-counting. The MFJ scenario is (borrower + spouse), never
+  // (household + spouse).
+  const [borrowerIncomeInput, setBorrowerIncomeInput] = useState<string>("");
+  const effectiveBorrowerIncome = borrowerIncomeInput !== ""
+    ? Math.max(0, Number(borrowerIncomeInput) || 0)
+    : projectedTotalIncome;
 
   // Compare MFJ vs MFS
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
     return compareFilingStatuses({
-      userIncome: projectedTotalIncome,
+      userIncome: effectiveBorrowerIncome,
       spouseIncome: Number(spouseIncome) || 0,
       loan: parsedLoan,
       planId: selectedPlan,
@@ -263,7 +289,7 @@ export default function StudentLoans() {
       applyCommunityRules: isCP,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
     });
-  }, [comparisonOpen, projectedTotalIncome, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate]);
+  }, [comparisonOpen, effectiveBorrowerIncome, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate]);
 
   const handleSaveLoan = async () => {
     await upsert.mutateAsync({
@@ -328,8 +354,38 @@ export default function StudentLoans() {
                 value={estimate?.coversMonthlyInterest ? "Yes" : "No"}
                 variant={estimate?.coversMonthlyInterest ? "ok" : "warn"}
               />
-              <Stat label="Est. payoff" value={fmtMonths(estimate?.estimatedPayoffMonths ?? null)} />
+              <Stat
+                label={activeEstimate?.forgivenessMonths != null &&
+                  (estimate?.estimatedPayoffMonths == null || estimate.estimatedPayoffMonths >= activeEstimate.forgivenessMonths)
+                  ? "Est. forgiveness"
+                  : (REPAYMENT_PLANS[selectedPlan]?.family === "graduated" ? "Full schedule" : "Est. payoff")}
+                value={
+                  REPAYMENT_PLANS[selectedPlan]?.family === "graduated"
+                    ? "Not modeled"
+                    : activeEstimate?.forgivenessMonths != null &&
+                      (estimate?.estimatedPayoffMonths == null || estimate.estimatedPayoffMonths >= activeEstimate.forgivenessMonths)
+                      ? fmtMonths(activeEstimate.forgivenessMonths)
+                      : fmtMonths(estimate?.estimatedPayoffMonths ?? null)
+                }
+              />
             </div>
+            {!estimate?.coversMonthlyInterest && unpaidMonthlyInterest > 0 && (
+              <div className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                <strong>Estimated unpaid interest:</strong> {fmtCurrency(unpaidMonthlyInterest)}/mo added to your balance.
+              </div>
+            )}
+            {REPAYMENT_PLANS[selectedPlan]?.family === "graduated" && (
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Amount shown is the <strong>estimated starting payment</strong>. Graduated schedules
+                step up roughly every 2 years; the full schedule is not modeled here.
+              </div>
+            )}
+            {estimate?.detail?.eligibility === "assumed" && (
+              <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+                Estimate shown; <strong>eligibility not confirmed</strong> — add loan disbursement
+                date and borrower type under Advanced loan details to confirm.
+              </div>
+            )}
             {currentMonthly > 0 && (
               <div className="mt-3 text-xs text-muted-foreground">
                 Current required payment: {fmtCurrency(currentMonthly)} ·{" "}
@@ -381,11 +437,12 @@ export default function StudentLoans() {
         <div className="font-semibold">Confirm your information</div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Total federal loan balance ($)" value={balance} onChange={setBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
-          <Field label="Average interest rate (%)" value={rate} onChange={setRate} type="number" error={rateInvalid ? "Rate can't be negative." : undefined} />
+          <Field id="sl-balance" label="Total federal loan balance ($)" value={balance} onChange={setBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
+          <Field id="sl-rate" label="Average interest rate (%)" value={rate} onChange={setRate} type="number" error={rateInvalid ? "Rate can't be negative." : undefined} />
           <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
+            <Label htmlFor="sl-family-size" className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
             <Input
+              id="sl-family-size"
               type="number"
               inputMode="numeric"
               min={1}
@@ -395,9 +452,9 @@ export default function StudentLoans() {
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground mb-1.5 block">State</Label>
+            <Label htmlFor="sl-state" className="text-xs text-muted-foreground mb-1.5 block">State</Label>
             <Select value={state || undefined} onValueChange={setState}>
-              <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+              <SelectTrigger id="sl-state" aria-label="State"><SelectValue placeholder="Select state" /></SelectTrigger>
               <SelectContent className="max-h-72">
                 {US_STATES.map(([code, name]) => (
                   <SelectItem key={code} value={code}>{name}</SelectItem>
@@ -406,9 +463,9 @@ export default function StudentLoans() {
             </Select>
           </div>
           <div className="sm:col-span-2">
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Current repayment plan</Label>
+            <Label htmlFor="sl-plan" className="text-xs text-muted-foreground mb-1.5 block">Current repayment plan</Label>
             <Select value={selectedPlan} onValueChange={(v) => setSelectedPlan(v as RepaymentPlanId)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="sl-plan" aria-label="Current repayment plan"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {REPAYMENT_PLAN_LIST.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
@@ -417,6 +474,7 @@ export default function StudentLoans() {
             </Select>
           </div>
         </div>
+
 
         {/* Income used — read-only summary with Change popover */}
         <div className="rounded-md border border-border bg-muted/20 p-3 flex items-center justify-between gap-2">
@@ -528,13 +586,26 @@ export default function StudentLoans() {
           Estimates for all supported plans, ordered by lowest monthly payment. Tap a plan to make it active.
         </p>
         <div className="space-y-2">
-          {planEstimates.map(({ plan, est, monthsForTotal, totalPaid }) => {
+          {planEstimates.map(({ plan, est, monthsForTotal, totalPaid, forgivenessMonths }) => {
             const isActive = plan.id === selectedPlan;
             const isCurrentSaved = loan?.repayment_plan === plan.id;
             const isLowest = plan.id === lowestMonthlyId;
             const isFastest = plan.id === fastestPayoffId;
             const unavailable = !!est.unavailable;
             const idrMissing = REPAYMENT_PLANS[plan.id]?.family === "idr" && missingAgi;
+            const eligibility = est.detail?.eligibility ?? "confirmed";
+            const isGraduated = REPAYMENT_PLANS[plan.id]?.family === "graduated";
+            const paysBeforeForgiveness =
+              forgivenessMonths != null &&
+              est.estimatedPayoffMonths != null &&
+              est.estimatedPayoffMonths < forgivenessMonths;
+            const endpointLabel = isGraduated
+              ? "Starting payment"
+              : forgivenessMonths != null && !paysBeforeForgiveness
+                ? `${Math.round(forgivenessMonths / 12)}-yr forgiveness`
+                : est.estimatedPayoffMonths != null
+                  ? `Paid off in ${fmtMonths(est.estimatedPayoffMonths)}`
+                  : "—";
             return (
               <button
                 key={plan.id}
@@ -551,6 +622,9 @@ export default function StudentLoans() {
                       {isCurrentSaved && <Badge variant="outline" className="text-[9px]">Current plan</Badge>}
                       {isLowest && !unavailable && <Badge className="text-[9px]">Lowest monthly</Badge>}
                       {isFastest && !unavailable && <Badge variant="secondary" className="text-[9px]">Pays off fastest</Badge>}
+                      {!unavailable && eligibility === "assumed" && (
+                        <Badge variant="outline" className="text-[9px] border-amber-500 text-amber-700 dark:text-amber-400">Eligibility not confirmed</Badge>
+                      )}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-1">{plan.tooltip}</div>
                   </div>
@@ -560,14 +634,8 @@ export default function StudentLoans() {
                     ) : (
                       <>
                         <div className="text-lg font-bold tabular-nums">{fmtCurrency(est.estimatedMonthlyPayment)}<span className="text-[10px] text-muted-foreground font-normal">/mo</span></div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {plan.forgivenessYears
-                            ? `${plan.forgivenessYears}-yr forgiveness`
-                            : est.estimatedPayoffMonths != null
-                              ? `Paid off in ${fmtMonths(est.estimatedPayoffMonths)}`
-                              : "—"}
-                        </div>
-                        {totalPaid != null && (
+                        <div className="text-[10px] text-muted-foreground">{endpointLabel}</div>
+                        {!isGraduated && totalPaid != null && (
                           <div className="text-[10px] text-muted-foreground">
                             Total ≈ {fmtCurrency(totalPaid)}
                           </div>
@@ -599,18 +667,39 @@ export default function StudentLoans() {
         </div>
         {comparisonOpen && (
           <div className="space-y-3">
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Spouse projected annual income</Label>
-              <Input
-                type="number"
-                value={spouseIncome}
-                onChange={(e) => setSpouseIncome(e.target.value)}
-                placeholder="0"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Editing this here does not change your saved filing status or profile.
-              </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="sl-borrower-income" className="text-xs text-muted-foreground mb-1.5 block">
+                  Your projected annual income (borrower)
+                </Label>
+                <Input
+                  id="sl-borrower-income"
+                  type="number"
+                  value={borrowerIncomeInput}
+                  onChange={(e) => setBorrowerIncomeInput(e.target.value)}
+                  placeholder={String(Math.round(projectedTotalIncome))}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Defaults to your projected income from PaycheckMD ({fmtCurrency(projectedTotalIncome)}).
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="sl-spouse-income" className="text-xs text-muted-foreground mb-1.5 block">
+                  Spouse projected annual income
+                </Label>
+                <Input
+                  id="sl-spouse-income"
+                  type="number"
+                  value={spouseIncome}
+                  onChange={(e) => setSpouseIncome(e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Household MFJ income = borrower + spouse. Editing here does not change your profile.
+                </p>
+              </div>
             </div>
+
 
             {comparison && (() => {
               const winner = comparison.recommendation === "mfs" ? comparison.mfs : comparison.mfj;
@@ -664,11 +753,12 @@ export default function StudentLoans() {
 }
 
 // ── UI primitives ────────────────────────────────────
-function Field({ label, value, onChange, type = "text", error }: { label: string; value: string; onChange: (v: string) => void; type?: string; error?: string }) {
+function Field({ id, label, value, onChange, type = "text", error }: { id?: string; label: string; value: string; onChange: (v: string) => void; type?: string; error?: string }) {
+  const autoId = id ?? label.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   return (
     <div>
-      <Label className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
-      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={!!error} className={error ? "border-destructive focus-visible:ring-destructive" : undefined} />
+      <Label htmlFor={autoId} className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
+      <Input id={autoId} type={type} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={!!error} className={error ? "border-destructive focus-visible:ring-destructive" : undefined} />
       {error && <p className="text-[11px] text-destructive mt-1">{error}</p>}
     </div>
   );
