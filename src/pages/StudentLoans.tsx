@@ -84,10 +84,27 @@ export default function StudentLoans() {
     }
   }, [loan?.id]);
 
-  const [spouseIncomeInput, setSpouseIncomeInput] = useState<string>(
-    settings?.studentLoanSpouseIncomeOverride != null ? String(settings.studentLoanSpouseIncomeOverride) : "",
-  );
+  // Comparison panel uses ephemeral local state — it never writes to saved settings.
+  const savedSpouseIncome = settings?.studentLoanSpouseIncomeOverride;
+  const savedCpOverride = settings?.studentLoanCommunityPropertyOverride;
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [compareSpouseIncome, setCompareSpouseIncome] = useState<string>(
+    savedSpouseIncome != null ? String(savedSpouseIncome) : "",
+  );
+  const [compareCpOverride, setCompareCpOverride] = useState<boolean | null>(savedCpOverride ?? null);
+
+  const openComparison = () => {
+    // Re-seed from saved profile every time the panel opens so it reflects
+    // the current baseline without persisting future edits.
+    setCompareSpouseIncome(savedSpouseIncome != null ? String(savedSpouseIncome) : "");
+    setCompareCpOverride(savedCpOverride ?? null);
+    setComparisonOpen(true);
+  };
+  const resetCompareInputs = () => {
+    setCompareSpouseIncome(savedSpouseIncome != null ? String(savedSpouseIncome) : "");
+    setCompareCpOverride(savedCpOverride ?? null);
+  };
+  const compareApplyCommunityRules = compareCpOverride ?? isCP;
 
   const parsedLoan = {
     balance: Number(draftBalance) || 0,
