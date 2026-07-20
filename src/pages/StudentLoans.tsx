@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { US_STATES } from "@/lib/quickEstimate";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -68,10 +69,49 @@ export default function StudentLoans() {
   const projectedAdjustments = Math.max(0, projectedTotalIncome - projectedAdjustedGrossIncome);
 
   const savedFilingStatus = settings?.filingStatus ?? "single";
-  const state = settings?.stateOfResidence ?? "";
-  const familySize = settings?.studentLoanFamilySize ?? 1;
+  const savedProfileState = settings?.stateOfResidence ?? "";
+  const savedFamilySize = settings?.studentLoanFamilySize ?? 1;
+
+  // Ephemeral scenario inputs — persisted to localStorage so a refresh
+  // keeps the user's estimator view, but NEVER written back to the tax
+  // profile, ledgers, or Income Planner.
+  const SCENARIO_STORAGE_KEY = "student_loan_estimator_scenario_v1";
+  type ScenarioPrefs = { state?: string; familySize?: number; cpOverride?: boolean | null };
+  const readScenarioPrefs = (): ScenarioPrefs => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(window.localStorage.getItem(SCENARIO_STORAGE_KEY) || "{}") as ScenarioPrefs; }
+    catch { return {}; }
+  };
+  const [scenarioPrefsInit] = useState<ScenarioPrefs>(readScenarioPrefs);
+  const [scenarioState, setScenarioStateRaw] = useState<string>(
+    scenarioPrefsInit.state ?? savedProfileState ?? "",
+  );
+  const [scenarioFamilySize, setScenarioFamilySizeRaw] = useState<number>(
+    Math.max(1, Math.floor(scenarioPrefsInit.familySize ?? savedFamilySize ?? 1)),
+  );
+  const [scenarioCpOverride, setScenarioCpOverrideRaw] = useState<boolean | null>(
+    scenarioPrefsInit.cpOverride ?? null,
+  );
+  const persistScenario = (patch: Partial<ScenarioPrefs>) => {
+    if (typeof window === "undefined") return;
+    try {
+      const next = { ...readScenarioPrefs(), ...patch };
+      window.localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next));
+    } catch { /* ignore */ }
+  };
+  const setScenarioState = (v: string) => { setScenarioStateRaw(v); persistScenario({ state: v }); };
+  const setScenarioFamilySize = (v: number) => {
+    const n = Math.max(1, Math.floor(Number.isFinite(v) ? v : 1));
+    setScenarioFamilySizeRaw(n); persistScenario({ familySize: n });
+  };
+  const setScenarioCpOverride = (v: boolean | null) => {
+    setScenarioCpOverrideRaw(v); persistScenario({ cpOverride: v });
+  };
+
+  const state = scenarioState;
+  const familySize = scenarioFamilySize;
   const isCP = isCommunityPropertyState(state);
-  const cpOverride = settings?.studentLoanCommunityPropertyOverride;
+  const cpOverride = scenarioCpOverride;
 
   // Single-loan MVP: use the first loan row if present.
   const loan: StudentLoanRow | null = loans[0] ?? null;
@@ -488,15 +528,40 @@ export default function StudentLoans() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <ReadonlyRow label="Saved filing status" value={filingStatusLabel(savedFilingStatus)} />
-            <ReadonlyRow label="State" value={state || "—"} />
             <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                State <span className="text-[10px]">(estimator only)</span>
+              </Label>
+              <Select value={scenarioState || undefined} onValueChange={setScenarioState}>
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {US_STATES.map(([code, name]) => (
+                    <SelectItem key={code} value={code}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Sets poverty guideline region and community-property eligibility for this estimator.
+                {savedProfileState && scenarioState !== savedProfileState
+                  ? ` Your saved profile state (${savedProfileState}) is unchanged.`
+                  : ""}
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">
+                Family size <span className="text-[10px]">(estimator only)</span>
+              </Label>
               <Input
                 type="number"
+                inputMode="numeric"
                 min={1}
-                value={familySize ?? 1}
-                onChange={(e) => handleSaveBorrowerSettings({ studentLoanFamilySize: Number(e.target.value) || 1 })}
+                step={1}
+                value={scenarioFamilySize}
+                onChange={(e) => setScenarioFamilySize(Number(e.target.value) || 1)}
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Whole numbers only. Your saved profile family size is unchanged.
+              </p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
@@ -610,7 +675,7 @@ export default function StudentLoans() {
               <div className="flex items-center gap-2">
                 <Switch
                   checked={applyCommunityRules}
-                  onCheckedChange={(v) => handleSaveBorrowerSettings({ studentLoanCommunityPropertyOverride: v })}
+                  onCheckedChange={(v) => setScenarioCpOverride(v)}
                 />
                 <span className="text-xs text-muted-foreground">
                   Apply community-property income allocation for MFS ({state?.toUpperCase()})
