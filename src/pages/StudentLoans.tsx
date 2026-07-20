@@ -90,6 +90,8 @@ function writeScenarioPrefs(userId: string | null | undefined, patch: Partial<Sc
 }
 
 export default function StudentLoans() {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
   const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
   const upsert = useUpsertStudentLoan();
@@ -108,7 +110,9 @@ export default function StudentLoans() {
   const savedFamilySize = settings?.studentLoanFamilySize ?? 1;
 
   const loan: StudentLoanRow | null = loans[0] ?? null;
-  const initPrefs = useMemo(readScenarioPrefs, []);
+  // Namespaced per userId to prevent estimator scenarios leaking across users
+  // sharing a browser (e.g., a spouse or a shared workstation).
+  const initPrefs = useMemo(() => readScenarioPrefs(userId), [userId]);
 
   // Core (default) inputs — only 5 the user sees.
   const [balance, setBalance] = useState<string>(
