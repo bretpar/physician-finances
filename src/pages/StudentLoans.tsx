@@ -487,7 +487,7 @@ export default function StudentLoans() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            <ReadonlyRow label="Filing status" value={filingStatus === "married_filing_jointly" ? "Married Filing Jointly" : "Single"} />
+            <ReadonlyRow label="Saved filing status" value={filingStatusLabel(savedFilingStatus)} />
             <ReadonlyRow label="State" value={state || "—"} />
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Family size</Label>
@@ -500,38 +500,153 @@ export default function StudentLoans() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Projected annual income{" "}
-                {incomeOverride == null ? (
-                  <span className="text-[10px]">
-                    ({hasPlannerIncome ? "from Income Planner" : "not found in Income Planner"})
-                  </span>
-                ) : (
-                  <span className="text-[10px]">(overridden)</span>
-                )}
+                Scenario filing status <span className="text-[10px]">(estimator only)</span>
               </Label>
-              <Input
-                type="number"
-                placeholder={hasPlannerIncome ? String(Math.round(projectedFromPlanner)) : "e.g. 250000"}
-                value={incomeOverride ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value === "" ? null : Number(e.target.value);
-                  handleSaveBorrowerSettings({ studentLoanIncomeOverride: v });
-                }}
-                aria-invalid={overrideInvalid}
-                className={overrideInvalid ? "border-destructive focus-visible:ring-destructive" : undefined}
-              />
-              {overrideInvalid ? (
-                <p className="text-[11px] text-destructive mt-1">Income can't be negative.</p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  {hasPlannerIncome
-                    ? "Overriding here won't change your Income Planner."
-                    : "Enter an estimate to see income-driven repayment amounts."}
-                </p>
-              )}
+              <Select value={scenarioFilingStatus} onValueChange={(v) => setScenarioFilingStatus(v as typeof scenarioFilingStatus)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="as_saved">Use saved ({filingStatusLabel(savedFilingStatus)})</SelectItem>
+                  <SelectItem value="single">Single</SelectItem>
+                  <SelectItem value="married_filing_jointly">Married Filing Jointly</SelectItem>
+                  <SelectItem value="married_filing_separately">Married Filing Separately</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Changing this only affects this estimator, not your tax profile.
+              </p>
+            </div>
+          </div>
+
+          {/* AGI source selector ─────────────────────── */}
+          <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-medium">AGI source</div>
+              <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground rounded px-1.5 py-0.5">
+                Estimator only
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <AgiOption id="projected" current={agiSource} setCurrent={setAgiSource} title="Projected AGI from PaycheckMD" subtitle="Default" />
+              <AgiOption id="prior_year" current={agiSource} setCurrent={setAgiSource} title="Most recent filed-tax-return AGI" subtitle="Manual entry" />
+              <AgiOption id="manual" current={agiSource} setCurrent={setAgiSource} title="Manual estimate" subtitle="Overrides for this page only" />
             </div>
 
+            {agiSource === "projected" && (
+              <div className="text-xs space-y-1">
+                <BreakdownRow label="Projected total income" value={fmtCurrency(projectedTotalIncome)} />
+                <BreakdownRow label="Adjustments used" value={`− ${fmtCurrency(projectedAdjustments)}`} />
+                <BreakdownRow label="Final projected AGI" value={fmtCurrency(projectedAdjustedGrossIncome)} bold />
+                <BreakdownRow label="Tax scenario used" value={filingStatusLabel(effectiveFilingStatus)} />
+                {!hasPlannerAgi && (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      No projected AGI found. Add income in your{" "}
+                      <Link to="/projected-income" className="underline font-medium">Income Planner</Link>, or
+                      switch AGI source above.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+
+            {agiSource === "prior_year" && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">
+                  Prior-year AGI (from Form 1040, line 11)
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 250000"
+                  value={priorYearAgi}
+                  onChange={(e) => setPriorYearAgi(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Used only for this estimator. Not saved to your profile or tax settings.
+                </p>
+              </div>
+            )}
+
+            {agiSource === "manual" && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Manual AGI estimate</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 250000"
+                  value={savedManualOverride ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value === "" ? null : Number(e.target.value);
+                    handleSaveBorrowerSettings({ studentLoanIncomeOverride: v });
+                  }}
+                  aria-invalid={manualInvalid}
+                  className={manualInvalid ? "border-destructive focus-visible:ring-destructive" : undefined}
+                />
+                {manualInvalid ? (
+                  <p className="text-[11px] text-destructive mt-1">AGI can't be negative.</p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    A manual override affects only the Student Loan Estimator — your Income Planner,
+                    tax calculations, and ledgers are untouched.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-md bg-background/60 border border-border p-2 text-xs flex items-center justify-between">
+              <span className="text-muted-foreground">studentLoanAGI (used for this estimate)</span>
+              <span className="font-semibold tabular-nums">{fmtCurrency(studentLoanAGI)}</span>
+            </div>
           </div>
+
+          {/* Community-property allocation (MFS only) ─── */}
+          {modelingMfs && isCP && (
+            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-medium">Community-property income allocation</div>
+                <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground rounded px-1.5 py-0.5">
+                  Estimate
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={applyCommunityRules}
+                  onCheckedChange={(v) => handleSaveBorrowerSettings({ studentLoanCommunityPropertyOverride: v })}
+                />
+                <span className="text-xs text-muted-foreground">
+                  Apply community-property income allocation for MFS ({state?.toUpperCase()})
+                </span>
+              </div>
+
+              {applyCommunityRules && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Borrower individually earned income" value={cpBorrowerCommunity} onChange={setCpBorrowerCommunity} type="number" />
+                    <Field label="Spouse individually earned income" value={cpSpouseCommunity} onChange={setCpSpouseCommunity} type="number" />
+                    <Field label="Borrower separate income (optional)" value={cpBorrowerSeparate} onChange={setCpBorrowerSeparate} type="number" />
+                    <Field label="Spouse separate income (optional)" value={cpSpouseSeparate} onChange={setCpSpouseSeparate} type="number" />
+                    <Field label="Borrower allocated AGI adjustments" value={cpBorrowerAdj} onChange={setCpBorrowerAdj} type="number" />
+                    <Field label="Spouse allocated AGI adjustments" value={cpSpouseAdj} onChange={setCpSpouseAdj} type="number" />
+                    <Field label="Community % assigned to borrower" value={cpBorrowerSharePct} onChange={setCpBorrowerSharePct} type="number" />
+                  </div>
+                  {cpAllocation && (
+                    <div className="rounded-md bg-background/60 border border-border p-2 text-xs space-y-0.5">
+                      <BreakdownRow label="Total community income" value={fmtCurrency(cpAllocation.totalCommunityIncome)} />
+                      <BreakdownRow label="Borrower share" value={`${(cpAllocation.borrowerShare * 100).toFixed(0)}%`} />
+                      <BreakdownRow label="Borrower allocated community" value={fmtCurrency(cpAllocation.borrowerAllocatedCommunity)} />
+                      <BreakdownRow label="Borrower separate income" value={fmtCurrency(cpAllocation.borrowerSeparateIncome)} />
+                      <BreakdownRow label="Borrower adjustments" value={`− ${fmtCurrency(cpAllocation.borrowerAdjustments)}`} />
+                      <BreakdownRow label="Estimated borrower MFS AGI" value={fmtCurrency(cpAllocation.borrowerMfsAgi)} bold />
+                      <BreakdownRow label="Estimated spouse MFS AGI" value={fmtCurrency(cpAllocation.spouseMfsAgi)} />
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Estimate only. Overrides here affect only this calculator — not your ledgers,
+                    profile, or tax calculations. Confirm with a tax professional before filing.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* MFJ vs MFS comparison ───────────────────── */}
