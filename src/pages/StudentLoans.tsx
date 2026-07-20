@@ -340,12 +340,15 @@ export default function StudentLoans() {
   const [spouseMfsAgiInput, setSpouseMfsAgiInput] = useState<string>("");
 
   // Default AGI values derived from projected income + community-property allocation.
+  // In a CP state we always split (regardless of saved filing status) so the
+  // MFJ vs MFS comparison shows the correct "what if" numbers for households
+  // currently filed jointly.
   const defaultJointAgi = projectedAgi;
-  const defaultBorrowerMfsAgi = cpAllocation
-    ? cpAllocation.borrowerMfsAgi
+  const defaultBorrowerMfsAgi = comparisonAllocation
+    ? comparisonAllocation.borrowerMfsAgi
     : Math.round(projectedAgi); // no community split → borrower keeps their AGI
-  const defaultSpouseMfsAgi = cpAllocation
-    ? cpAllocation.spouseMfsAgi
+  const defaultSpouseMfsAgi = comparisonAllocation
+    ? comparisonAllocation.spouseMfsAgi
     : Math.max(0, Number(spouseIncome) || 0); // spouse gross ≈ spouse AGI without more data
 
   const effectiveJointAgi = jointAgiInput !== ""
@@ -357,6 +360,11 @@ export default function StudentLoans() {
   const effectiveSpouseMfsAgi = spouseMfsAgiInput !== ""
     ? Math.max(0, Number(spouseMfsAgiInput) || 0)
     : defaultSpouseMfsAgi;
+
+  // Adjustments passed to the tax engine for the comparison. Auto-derived
+  // from the PaycheckMD tax forecast unless the user overrode CP inputs.
+  const comparisonBorrowerAdjustments =
+    cpBorrowerAdj !== "" ? Number(cpBorrowerAdj) || 0 : projectedAdjustments;
 
   // Compare MFJ vs MFS — AGI-driven.
   // Always compute so the collapsed preview can show default MFJ/MFS values.
@@ -370,12 +378,14 @@ export default function StudentLoans() {
       familySize: Math.max(1, familySize ?? 1),
       state,
       applyCommunityRules: isCP,
+      borrowerAdjustments: comparisonBorrowerAdjustments,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
       overrideJointAgi: effectiveJointAgi,
       overrideBorrowerMfsAgi: effectiveBorrowerMfsAgi,
       overrideSpouseMfsAgi: effectiveSpouseMfsAgi,
     });
-  }, [spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+  }, [spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, comparisonBorrowerAdjustments, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+
 
 
 
