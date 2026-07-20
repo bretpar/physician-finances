@@ -10,8 +10,8 @@ interface Draft {
   studentLoanEstimatorEnabled: boolean;
 }
 
-export function StudentLoanEstimatorToggleSection() {
-  const { data } = useTaxSettings();
+export function StudentLoanEstimatorToggleSection({ bare = false }: { bare?: boolean } = {}) {
+  const { data, isLoading } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
   const [savedTick, setSavedTick] = useState(false);
 
@@ -24,17 +24,28 @@ export function StudentLoanEstimatorToggleSection() {
     source,
     onSave: async (next) => {
       if (!data?.id) throw new Error("Tax settings not loaded");
-      await updateMutation.mutateAsync({ id: data.id, ...(next as any) });
+      await updateMutation.mutateAsync({ id: data.id, studentLoanEstimatorEnabled: next.studentLoanEstimatorEnabled } as any);
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
     },
   });
 
+  if (!isLoading && !data) {
+    return (
+      <SectionCard bare={bare} title="Student Loan Estimator" icon={<GraduationCap className="h-5 w-5" />}>
+        <p className="text-xs text-muted-foreground">
+          Save your tax profile first to enable the Student Loan Estimator.
+        </p>
+      </SectionCard>
+    );
+  }
+
   return (
     <SectionCard
-      title="Optional Tools"
+      bare={bare}
+      title="Student Loan Estimator"
       icon={<GraduationCap className="h-5 w-5" />}
-      description="Enable additional planning tools that appear in the main navigation."
+      description="Optional tool for estimating federal student loan payments and comparing filing status."
       isDirty={draft.isDirty}
       isSaving={draft.isSaving}
       justSaved={savedTick}
@@ -43,14 +54,14 @@ export function StudentLoanEstimatorToggleSection() {
     >
       <div>
         <Label className="text-xs text-muted-foreground mb-1.5 block">
-          Student Loan Estimator
+          Enable Student Loan Estimator
         </Label>
         <div className="flex items-start justify-between gap-4">
           <p className="text-xs text-muted-foreground leading-relaxed flex-1">
             Adds a Student Loans tab that estimates monthly payments across
-            federal repayment plans and can compare Married Filing Jointly
-            vs Married Filing Separately for student loan strategy. Off by
-            default.
+            federal repayment plans (Standard, Graduated, PAYE, IBR, ICR, SAVE)
+            and can compare Married Filing Jointly vs Married Filing Separately
+            for student loan strategy. Off by default.
           </p>
           <Switch
             checked={draft.draft.studentLoanEstimatorEnabled}
