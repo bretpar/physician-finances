@@ -220,9 +220,10 @@ describe("estimateRepayment — zero and invalid inputs", () => {
 
 describe("estimateRepayment — income-driven plans", () => {
   it("computes PAYE as 10% of discretionary income (AGI - 1.5x FPL) when uncapped", () => {
-    // Use a small balance so the 10-year cap doesn't kick in.
+    // Use a large balance so the Standard 10-Year cap ($1,110/mo for $100k
+    // @ 6%) does NOT kick in below the uncapped IDR payment ($645/mo).
     const r = estimateRepayment(
-      loan({ balance: 20_000, interestRatePct: 6 }),
+      loan({ balance: 100_000, interestRatePct: 6 }),
       borrower({ annualIncome: 100_000, familySize: 1 }),
       "paye",
     );
@@ -230,7 +231,10 @@ describe("estimateRepayment — income-driven plans", () => {
     const expectedMonthly = (expectedDiscretionary * 0.10) / 12;
     expect(r.discretionaryIncome).toBeCloseTo(expectedDiscretionary, 2);
     expect(r.estimatedMonthlyPayment).toBeCloseTo(expectedMonthly, 1);
+    // Sanity: PAYE cap wasn't applied.
+    expect(r.notes.some((n) => /capped/i.test(n))).toBe(false);
   });
+
 
   it("caps PAYE at the Standard 10-Year amount for high earners", () => {
     const cap = amortizedMonthlyPayment(200_000, 6, 120);
