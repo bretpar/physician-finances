@@ -171,7 +171,10 @@ export function computePlanPayment(
     );
   }
 
-  const eligibility = assertPlanSelectable(plan, borrower);
+  const eligibility = assertPlanSelectable(plan, {
+    ...borrower,
+    outstandingBalance: borrower.outstandingBalance ?? loan.balance,
+  });
   if (!eligibility.ok) {
     throw new PlanUnavailableError(plan.id, eligibility.reasons.join(" "), plan.sourceUrl);
   }
