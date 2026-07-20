@@ -75,6 +75,16 @@ export interface MfsComparisonInput {
   itemizedDeductionAmount?: number;
   /** State income tax rate (%) applied uniformly for both scenarios (rough estimate). */
   stateTaxRatePct?: number;
+  /**
+   * Optional AGI overrides. When provided, these bypass the income→AGI
+   * derivation and are used directly as the AGI for both the tax
+   * calculation (passed as totalIncome with zero adjustments) and the
+   * student loan payment (passed as annualIncome to the calculator).
+   * This lets the UI treat AGI as the primary comparison input.
+   */
+  overrideJointAgi?: number | null;
+  overrideBorrowerMfsAgi?: number | null;
+  overrideSpouseMfsAgi?: number | null;
 }
 
 export interface FilingScenarioResult {
@@ -85,8 +95,16 @@ export interface FilingScenarioResult {
   agi: number;
   studentLoanAgi: number;
   studentLoanAnnualPayment: number;
+  studentLoanMonthlyPayment: number;
   combinedAnnualCost: number;
   combinedMonthlyCost: number;
+  /** MFS only — per-spouse federal tax breakdown (for annual details table). */
+  borrowerFederalTax?: number;
+  spouseFederalTax?: number;
+  borrowerStateTax?: number;
+  spouseStateTax?: number;
+  /** MFS only — spouse's separate-return AGI (borrower AGI = `agi`). */
+  spouseAgi?: number;
 }
 
 export interface MfsComparisonResult {
@@ -96,6 +114,7 @@ export interface MfsComparisonResult {
   netAnnualBenefit: number;
   netMonthlyBenefit: number;
   studentLoanSavings: number;
+  monthlyLoanSavings: number;
   additionalTaxes: number;
   communityPropertyApplied: boolean;
   communityPropertyNote: string;
