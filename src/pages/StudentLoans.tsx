@@ -248,9 +248,9 @@ export default function StudentLoans() {
     });
   }, [aggregated, borrower]);
 
-  const lowestMonthlyId = planEstimates.find((p) => !p.est.unavailable)?.plan.id;
+  const lowestMonthlyId = planEstimates.find((p) => !p.est.unavailable && (p.est.detail?.eligibility ?? "confirmed") === "confirmed")?.plan.id;
   const fastestPayoffId = planEstimates
-    .filter((p) => !p.est.unavailable && p.est.estimatedPayoffMonths != null)
+    .filter((p) => !p.est.unavailable && p.est.estimatedPayoffMonths != null && (p.est.detail?.eligibility ?? "confirmed") === "confirmed")
     .sort((a, b) => (a.est.estimatedPayoffMonths! - b.est.estimatedPayoffMonths!))[0]?.plan.id;
 
   const activeEstimate = planEstimates.find((p) => p.plan.id === selectedPlan) ?? planEstimates[0];
@@ -263,12 +263,24 @@ export default function StudentLoans() {
   const isIdrPlan = REPAYMENT_PLANS[selectedPlan]?.family === "idr";
 
   const currentMonthly = parsedLoan.currentMonthlyPayment ?? 0;
+  const unpaidMonthlyInterest = Math.max(
+    0,
+    (estimate?.monthlyInterest ?? 0) - (estimate?.estimatedMonthlyPayment ?? 0),
+  );
+
+  // Comparison card: borrower income is separate from spouse income to
+  // prevent double-counting. The MFJ scenario is (borrower + spouse), never
+  // (household + spouse).
+  const [borrowerIncomeInput, setBorrowerIncomeInput] = useState<string>("");
+  const effectiveBorrowerIncome = borrowerIncomeInput !== ""
+    ? Math.max(0, Number(borrowerIncomeInput) || 0)
+    : projectedTotalIncome;
 
   // Compare MFJ vs MFS
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
     return compareFilingStatuses({
-      userIncome: projectedTotalIncome,
+      userIncome: effectiveBorrowerIncome,
       spouseIncome: Number(spouseIncome) || 0,
       loan: parsedLoan,
       planId: selectedPlan,
@@ -277,7 +289,7 @@ export default function StudentLoans() {
       applyCommunityRules: isCP,
       stateTaxRatePct: settings?.personalStateTaxRate ?? 0,
     });
-  }, [comparisonOpen, projectedTotalIncome, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate]);
+  }, [comparisonOpen, effectiveBorrowerIncome, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate]);
 
   const handleSaveLoan = async () => {
     await upsert.mutateAsync({
