@@ -183,16 +183,6 @@ export default function StudentLoans() {
           <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
             Estimated monthly payment · {estimate.plan.label}
           </div>
-          <div className="text-3xl font-bold">{fmtCurrency(estimate.estimatedMonthlyPayment)}</div>
-          <div className="text-sm text-muted-foreground mt-1">
-            {fmtCurrency(estimate.estimatedAnnualPayment)} per year
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
-        {/* Hero result card ─────────────────────────── */}
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-            Estimated monthly payment · {estimate.plan.label}
-          </div>
           {idrMissingIncome ? (
             <>
               <div className="text-3xl font-bold text-muted-foreground">—</div>
@@ -255,15 +245,17 @@ export default function StudentLoans() {
                   </div>
                 </div>
               )}
-
-          {estimate.notes.length > 0 && (
-            <ul className="mt-3 text-xs text-muted-foreground space-y-1">
-              {estimate.notes.map((n, i) => (
-                <li key={i} className="flex gap-1.5"><Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />{n}</li>
-              ))}
-            </ul>
+              {estimate.notes.length > 0 && (
+                <ul className="mt-3 text-xs text-muted-foreground space-y-1">
+                  {estimate.notes.map((n, i) => (
+                    <li key={i} className="flex gap-1.5"><Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />{n}</li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </Card>
+
 
         {/* Loan information ─────────────────────────── */}
         <Card className="p-5 space-y-3">
