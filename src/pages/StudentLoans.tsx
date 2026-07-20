@@ -913,3 +913,308 @@ function BreakdownRow({ label, value, bold }: { label: string; value: string; bo
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────────
+// Repayment options — progressive disclosure UI
+// ────────────────────────────────────────────────────────────
+type PlanEstimateEntry = {
+  plan: (typeof REPAYMENT_PLAN_LIST)[number];
+  est: ReturnType<typeof estimateRepayment>;
+  monthsForTotal: number | null;
+  totalPaid: number | null;
+  forgivenessMonths: number | null;
+};
+
+function getPlanEndpointLabel(pe: PlanEstimateEntry): string {
+  const family = REPAYMENT_PLANS[pe.plan.id]?.family;
+  if (family === "graduated") return "10-yr term";
+  const paysBefore =
+    pe.forgivenessMonths != null &&
+    pe.est.estimatedPayoffMonths != null &&
+    pe.est.estimatedPayoffMonths < pe.forgivenessMonths;
+  if (pe.forgivenessMonths != null && !paysBefore) {
+    return `${Math.round(pe.forgivenessMonths / 12)}-yr forgiveness`;
+  }
+  if (pe.est.estimatedPayoffMonths != null) {
+    return `${Math.round(pe.est.estimatedPayoffMonths / 12)}-yr payoff`;
+  }
+  return "—";
+}
+
+function getPlanEligibility(
+  pe: PlanEstimateEntry,
+  missingAgi: boolean,
+): { label: string; tone: "ok" | "warn" | "muted" } {
+  if (pe.est.unavailable) return { label: "Not available", tone: "muted" };
+  const eligibility = pe.est.detail?.eligibility ?? "confirmed";
+  const isIdr = REPAYMENT_PLANS[pe.plan.id]?.family === "idr";
+  if (eligibility === "assumed" || (isIdr && missingAgi)) {
+    return { label: "Needs confirmation", tone: "warn" };
+  }
+  return { label: "Eligible", tone: "ok" };
+}
+
+function RepaymentOptionsSection({
+  planEstimates,
+  selectedPlan,
+  onSelectPlan,
+  missingAgi,
+}: {
+  planEstimates: PlanEstimateEntry[];
+  selectedPlan: RepaymentPlanId;
+  onSelectPlan: (id: RepaymentPlanId) => void;
+  savedPlanId: RepaymentPlanId | null;
+  missingAgi: boolean;
+}) {
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [learnMoreOpen, setLearnMoreOpen] = useState(false);
+
+  const active =
+    planEstimates.find((p) => p.plan.id === selectedPlan) ?? planEstimates[0];
+  if (!active) return null;
+
+  const activeEligibility = getPlanEligibility(active, missingAgi);
+  const activeEndpoint = getPlanEndpointLabel(active);
+  const monthly = active.est.estimatedMonthlyPayment;
+  const annual = monthly * 12;
+  const activeIsGraduated =
+    REPAYMENT_PLANS[active.plan.id]?.family === "graduated";
+
+  const handleSelect = (id: RepaymentPlanId) => {
+    onSelectPlan(id);
+    setChangeOpen(false);
+  };
+
+  return (
+    <Card className="p-5 space-y-4">
+      <div>
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+          Current Repayment Plan
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-lg font-semibold">{active.plan.label}</div>
+          <Badge variant="outline" className="text-[10px]">
+            Current plan
+          </Badge>
+        </div>
+      </div>
+
+      {active.est.unavailable ? (
+        <div className="text-sm text-muted-foreground">
+          Not available for this loan.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <div className="text-[11px] text-muted-foreground">
+              {activeIsGraduated ? "Starting Monthly Payment" : "Estimated Monthly Payment"}
+            </div>
+            <div className="text-3xl font-bold tabular-nums leading-tight">
+              {fmtCurrency(monthly)}
+              <span className="text-sm text-muted-foreground font-normal">/month</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground">
+              Estimated Annual Payment
+            </div>
+            <div className="text-lg font-semibold tabular-nums">
+              {fmtCurrency(annual)}
+              <span className="text-xs text-muted-foreground font-normal">/year</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground">
+              Forgiveness / Repayment Term
+            </div>
+            <div className="text-sm font-medium">{activeEndpoint}</div>
+          </div>
+          {activeEligibility.tone === "warn" && (
+            <div className="text-[11px] text-amber-600 dark:text-amber-400">
+              Eligibility: Needs confirmation
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Change plan */}
+      <div className="border-t border-border pt-3">
+        <button
+          type="button"
+          onClick={() => setChangeOpen((o) => !o)}
+          className="w-full flex items-center justify-between text-sm font-medium py-1"
+          aria-expanded={changeOpen}
+        >
+          <span>Change Repayment Plan</span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${changeOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        {changeOpen && (
+          <div className="mt-2 space-y-1.5" role="radiogroup" aria-label="Repayment plan">
+            {planEstimates.map((pe) => {
+              const isActive = pe.plan.id === selectedPlan;
+              const elig = getPlanEligibility(pe, missingAgi);
+              const endpoint = getPlanEndpointLabel(pe);
+              const isGraduated =
+                REPAYMENT_PLANS[pe.plan.id]?.family === "graduated";
+              const secondary: string[] = [];
+              if (!pe.est.unavailable) secondary.push(endpoint);
+              if (elig.tone === "warn") secondary.push("Eligibility not confirmed");
+              if (isGraduated) secondary.push("Estimated only");
+              return (
+                <button
+                  key={pe.plan.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  onClick={() => handleSelect(pe.plan.id)}
+                  className={`w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left min-h-[52px] transition-colors ${
+                    isActive
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={`h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                        isActive ? "border-primary bg-primary" : "border-muted-foreground/40"
+                      }`}
+                      aria-hidden
+                    >
+                      {isActive && (
+                        <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={4} />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{pe.plan.label}</div>
+                      {secondary.length > 0 && (
+                        <div className="text-[11px] text-muted-foreground truncate">
+                          {secondary.join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {pe.est.unavailable ? (
+                      <div className="text-xs text-muted-foreground">N/A</div>
+                    ) : (
+                      <div className="text-sm font-semibold tabular-nums">
+                        {isGraduated && (
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            from{" "}
+                          </span>
+                        )}
+                        {fmtCurrency(pe.est.estimatedMonthlyPayment)}
+                        <span className="text-[10px] text-muted-foreground font-normal">
+                          /mo
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setCompareOpen((o) => !o)}
+              className="w-full text-left text-sm text-primary py-2 hover:underline"
+              aria-expanded={compareOpen}
+            >
+              {compareOpen ? "Hide comparison" : "Compare All Plans"}
+            </button>
+
+            {compareOpen && (
+              <div className="overflow-x-auto -mx-1 px-1">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-muted-foreground border-b border-border">
+                      <th className="py-1.5 pr-2 font-medium">Plan</th>
+                      <th className="py-1.5 px-2 font-medium text-right whitespace-nowrap">
+                        Monthly
+                      </th>
+                      <th className="py-1.5 px-2 font-medium whitespace-nowrap">Term</th>
+                      <th className="py-1.5 pl-2 font-medium whitespace-nowrap">
+                        Eligibility
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planEstimates.map((pe) => {
+                      const elig = getPlanEligibility(pe, missingAgi);
+                      const isGraduated =
+                        REPAYMENT_PLANS[pe.plan.id]?.family === "graduated";
+                      return (
+                        <tr
+                          key={pe.plan.id}
+                          className="border-b border-border/50 last:border-0"
+                        >
+                          <td className="py-1.5 pr-2 font-medium whitespace-nowrap">
+                            {pe.plan.label}
+                          </td>
+                          <td className="py-1.5 px-2 text-right tabular-nums whitespace-nowrap">
+                            {pe.est.unavailable
+                              ? "—"
+                              : `${isGraduated ? "from " : ""}${fmtCurrency(pe.est.estimatedMonthlyPayment)}/mo`}
+                          </td>
+                          <td className="py-1.5 px-2 whitespace-nowrap">
+                            {pe.est.unavailable ? "—" : getPlanEndpointLabel(pe)}
+                          </td>
+                          <td
+                            className={`py-1.5 pl-2 whitespace-nowrap ${
+                              elig.tone === "warn"
+                                ? "text-amber-600 dark:text-amber-400"
+                                : elig.tone === "muted"
+                                  ? "text-muted-foreground"
+                                  : ""
+                            }`}
+                          >
+                            {elig.label}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Learn More */}
+      <div className="border-t border-border pt-3">
+        <button
+          type="button"
+          onClick={() => setLearnMoreOpen((o) => !o)}
+          className="w-full flex items-center justify-between text-sm py-1 text-muted-foreground"
+          aria-expanded={learnMoreOpen}
+        >
+          <span className="flex items-center gap-1.5">
+            <Info className="h-3.5 w-3.5" /> Learn More about plans
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${learnMoreOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        {learnMoreOpen && (
+          <div className="mt-3 space-y-3">
+            {planEstimates.map((pe) => (
+              <div key={pe.plan.id} className="text-xs">
+                <div className="font-semibold text-sm text-foreground">
+                  {pe.plan.label}
+                </div>
+                <div className="text-muted-foreground mt-0.5 leading-relaxed">
+                  {pe.plan.tooltip}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
