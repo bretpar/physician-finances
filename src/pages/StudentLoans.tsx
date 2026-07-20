@@ -375,7 +375,28 @@ export default function StudentLoans() {
               {estimate.detail && (
                 <details className="mt-4 rounded-md border border-border bg-background/60 p-3 text-xs">
                   <summary className="cursor-pointer font-medium">How this was calculated</summary>
-                  <div className="mt-2 space-y-1">
+                  <div className="mt-2 space-y-2">
+                    {/* AGI provenance — this is the value the FSA IDR forms actually use */}
+                    <div className="rounded-md bg-muted/40 p-2 space-y-1">
+                      <div className="font-medium text-foreground">AGI used for this estimate</div>
+                      <BreakdownRow label="AGI source" value={agiSourceLabel} />
+                      <BreakdownRow label="Projected total income" value={fmtCurrency(projectedTotalIncome)} />
+                      <BreakdownRow label="AGI adjustments" value={`− ${fmtCurrency(projectedAdjustments)}`} />
+                      <BreakdownRow label="Projected AGI (from tax engine)" value={fmtCurrency(projectedAdjustedGrossIncome)} />
+                      <BreakdownRow label="Filing status" value={filingStatusLabel(effectiveFilingStatus)} />
+                      <BreakdownRow
+                        label="Community-property treatment"
+                        value={cpAllocation ? "Yes" : isCP && modelingMfs ? "Off (toggle in Borrower info)" : "No"}
+                      />
+                      {cpAllocation && (
+                        <>
+                          <BreakdownRow label="Community income assigned to borrower" value={fmtCurrency(cpAllocation.borrowerAllocatedCommunity)} />
+                          <BreakdownRow label="Borrower separate income" value={fmtCurrency(cpAllocation.borrowerSeparateIncome)} />
+                          <BreakdownRow label="Borrower allocated adjustments" value={`− ${fmtCurrency(cpAllocation.borrowerAdjustments)}`} />
+                        </>
+                      )}
+                      <BreakdownRow label="Final studentLoanAGI" value={fmtCurrency(studentLoanAGI)} bold />
+                    </div>
                     <div className="text-muted-foreground">{estimate.detail.breakdown.formula}</div>
                     <ul className="space-y-0.5">
                       {estimate.detail.breakdown.steps.map((s, i) => (
