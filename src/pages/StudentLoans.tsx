@@ -328,11 +328,25 @@ export default function StudentLoans() {
                 />
                 <Stat label="Est. payoff" value={fmtMonths(estimate.estimatedPayoffMonths)} />
               </div>
-              {isIdrPlan && !hasPlannerIncome && hasOverrideIncome && (
+              {agiSource !== "projected" && (
                 <div className="mt-3 text-[11px] text-muted-foreground flex gap-1.5">
                   <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  Using your manual income override because no projected income was found in the
-                  Income Planner.
+                  Using {agiSourceLabel.toLowerCase()} for this estimate — your Income Planner and tax
+                  calculations are unchanged.
+                </div>
+              )}
+              {isIdrPlan && estimate.monthlyInterest > estimate.estimatedMonthlyPayment && (
+                <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+                  <div className="font-medium mb-1">Your payment does not cover monthly interest.</div>
+                  <div className="grid grid-cols-3 gap-2 text-[11px]">
+                    <Stat label="Monthly interest" value={fmtCurrency(estimate.monthlyInterest)} />
+                    <Stat label="Monthly payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} />
+                    <Stat label="Unpaid interest" value={fmtCurrency(Math.max(0, estimate.monthlyInterest - estimate.estimatedMonthlyPayment))} variant="warn" />
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    The plan reduces your required payment — not your loan's interest rate. Unpaid
+                    interest may capitalize based on your servicer's rules.
+                  </div>
                 </div>
               )}
               {currentPayment > 0 && (
