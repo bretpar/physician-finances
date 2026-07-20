@@ -295,8 +295,9 @@ export default function StudentLoans() {
     : defaultSpouseMfsAgi;
 
   // Compare MFJ vs MFS — AGI-driven.
+  // Always compute so the collapsed preview can show default MFJ/MFS values.
   const comparison = useMemo(() => {
-    if (!comparisonOpen) return null;
+    if (!parsedLoan.balance || parsedLoan.balance <= 0) return null;
     return compareFilingStatuses({
       userIncome: 0, // ignored — AGI overrides win
       spouseIncome: Number(spouseIncome) || 0,
@@ -310,7 +311,8 @@ export default function StudentLoans() {
       overrideBorrowerMfsAgi: effectiveBorrowerMfsAgi,
       overrideSpouseMfsAgi: effectiveSpouseMfsAgi,
     });
-  }, [comparisonOpen, spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+  }, [spouseIncome, parsedLoan, selectedPlan, familySize, state, isCP, settings?.personalStateTaxRate, effectiveJointAgi, effectiveBorrowerMfsAgi, effectiveSpouseMfsAgi]);
+
 
 
   const handleSaveLoan = async () => {
