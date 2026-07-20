@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { GraduationCap, Info, Scale } from "lucide-react";
+import { GraduationCap, Info, Scale, AlertTriangle } from "lucide-react";
+
+
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -21,7 +23,7 @@ import { REPAYMENT_PLAN_LIST, REPAYMENT_PLANS, type RepaymentPlanId } from "@/li
 import { estimateRepayment, aggregateLoans } from "@/lib/studentLoan/calculator";
 import { compareFilingStatuses } from "@/lib/studentLoan/mfsComparison";
 import { isCommunityPropertyState, COMMUNITY_PROPERTY_STATES } from "@/lib/studentLoan/communityProperty";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(
@@ -109,7 +111,18 @@ export default function StudentLoans() {
   const currentPayment = parsedLoan.currentMonthlyPayment ?? 0;
   const monthlyDiff = estimate.estimatedMonthlyPayment - currentPayment;
 
+  const selectedPlanFamily = REPAYMENT_PLANS[draftPlan]?.family;
+  const isIdrPlan = selectedPlanFamily === "idr";
+  const hasPlannerIncome = projectedFromPlanner > 0;
+  const hasOverrideIncome = incomeOverride != null && incomeOverride > 0;
+  const hasAnyIncome = projectedAnnualIncome > 0;
+  const idrMissingIncome = isIdrPlan && !hasAnyIncome;
+  const balanceInvalid = draftBalance !== "" && Number(draftBalance) < 0;
+  const rateInvalid = draftRate !== "" && Number(draftRate) < 0;
+  const overrideInvalid = incomeOverride != null && incomeOverride < 0;
+
   const spouseIncome = Number(spouseIncomeInput) || 0;
+
   const comparison = useMemo(() => {
     if (!comparisonOpen) return null;
     return compareFilingStatuses({
@@ -170,54 +183,90 @@ export default function StudentLoans() {
           <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
             Estimated monthly payment · {estimate.plan.label}
           </div>
-          <div className="text-3xl font-bold">{fmtCurrency(estimate.estimatedMonthlyPayment)}</div>
-          <div className="text-sm text-muted-foreground mt-1">
-            {fmtCurrency(estimate.estimatedAnnualPayment)} per year
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
-            <Stat label="Monthly interest" value={fmtCurrency(estimate.monthlyInterest)} />
-            <Stat label="Annual interest" value={fmtCurrency(estimate.annualInterest)} />
-            <Stat
-              label="Covers interest?"
-              value={estimate.coversMonthlyInterest ? "Yes" : "No"}
-              variant={estimate.coversMonthlyInterest ? "ok" : "warn"}
-            />
-            <Stat label="Est. payoff" value={fmtMonths(estimate.estimatedPayoffMonths)} />
-          </div>
-          {currentPayment > 0 && (
-            <div className="mt-4 rounded-md border border-border p-3 text-sm bg-muted/30">
-              <div className="grid grid-cols-3 gap-3">
-                <Stat label="Current payment" value={fmtCurrency(currentPayment)} />
-                <Stat label="Estimated payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} />
+          {idrMissingIncome ? (
+            <>
+              <div className="text-3xl font-bold text-muted-foreground">—</div>
+              <Alert variant="destructive" className="mt-3">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-xs space-y-2">
+                  <p>
+                    <strong>We need your annual income to estimate this plan.</strong>{" "}
+                    Income-driven repayment plans (PAYE, IBR, ICR, SAVE) are calculated from your
+                    projected annual income, but we don't have one yet.
+                  </p>
+                  <p>
+                    Add income in your{" "}
+                    <Link to="/projected-income" className="underline font-medium">
+                      Income Planner
+                    </Link>
+                    , or enter a projected annual income below to see an estimate. You can also
+                    switch to a non-income-based plan (Standard, Extended, or Graduated) to see
+                    results now.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            </>
+          ) : (
+            <>
+              <div className="text-3xl font-bold">{fmtCurrency(estimate.estimatedMonthlyPayment)}</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                {fmtCurrency(estimate.estimatedAnnualPayment)} per year
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
+                <Stat label="Monthly interest" value={fmtCurrency(estimate.monthlyInterest)} />
+                <Stat label="Annual interest" value={fmtCurrency(estimate.annualInterest)} />
                 <Stat
-                  label="Monthly difference"
-                  value={`${monthlyDiff >= 0 ? "+" : ""}${fmtCurrency(monthlyDiff)}`}
-                  variant={monthlyDiff <= 0 ? "ok" : "warn"}
+                  label="Covers interest?"
+                  value={estimate.coversMonthlyInterest ? "Yes" : "No"}
+                  variant={estimate.coversMonthlyInterest ? "ok" : "warn"}
                 />
+                <Stat label="Est. payoff" value={fmtMonths(estimate.estimatedPayoffMonths)} />
               </div>
-              <div className="text-xs text-muted-foreground mt-2">
-                Annual difference: {monthlyDiff >= 0 ? "+" : ""}{fmtCurrency(monthlyDiff * 12)}
-              </div>
-            </div>
-          )}
-          {estimate.notes.length > 0 && (
-            <ul className="mt-3 text-xs text-muted-foreground space-y-1">
-              {estimate.notes.map((n, i) => (
-                <li key={i} className="flex gap-1.5"><Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />{n}</li>
-              ))}
-            </ul>
+              {isIdrPlan && !hasPlannerIncome && hasOverrideIncome && (
+                <div className="mt-3 text-[11px] text-muted-foreground flex gap-1.5">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  Using your manual income override because no projected income was found in the
+                  Income Planner.
+                </div>
+              )}
+              {currentPayment > 0 && (
+                <div className="mt-4 rounded-md border border-border p-3 text-sm bg-muted/30">
+                  <div className="grid grid-cols-3 gap-3">
+                    <Stat label="Current payment" value={fmtCurrency(currentPayment)} />
+                    <Stat label="Estimated payment" value={fmtCurrency(estimate.estimatedMonthlyPayment)} />
+                    <Stat
+                      label="Monthly difference"
+                      value={`${monthlyDiff >= 0 ? "+" : ""}${fmtCurrency(monthlyDiff)}`}
+                      variant={monthlyDiff <= 0 ? "ok" : "warn"}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Annual difference: {monthlyDiff >= 0 ? "+" : ""}{fmtCurrency(monthlyDiff * 12)}
+                  </div>
+                </div>
+              )}
+              {estimate.notes.length > 0 && (
+                <ul className="mt-3 text-xs text-muted-foreground space-y-1">
+                  {estimate.notes.map((n, i) => (
+                    <li key={i} className="flex gap-1.5"><Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />{n}</li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </Card>
+
 
         {/* Loan information ─────────────────────────── */}
         <Card className="p-5 space-y-3">
           <div className="font-semibold flex items-center gap-2">Loan information</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Total loan balance ($)" value={draftBalance} onChange={setDraftBalance} type="number" />
-            <Field label="Interest rate (%)" value={draftRate} onChange={setDraftRate} type="number" />
+            <Field label="Total loan balance ($)" value={draftBalance} onChange={setDraftBalance} type="number" error={balanceInvalid ? "Balance can't be negative." : undefined} />
+            <Field label="Interest rate (%)" value={draftRate} onChange={setDraftRate} type="number" error={rateInvalid ? "Interest rate can't be negative." : undefined} />
             <Field label="Current required monthly payment ($, optional)" value={draftCurrentPayment} onChange={setDraftCurrentPayment} type="number" />
             <Field label="Additional monthly payment ($, optional)" value={draftAdditional} onChange={setDraftAdditional} type="number" />
             <Field label="Months already in repayment (optional)" value={draftMonths} onChange={setDraftMonths} type="number" />
+
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Repayment plan</Label>
               <Select value={draftPlan} onValueChange={(v) => setDraftPlan(v as RepaymentPlanId)}>
@@ -243,9 +292,10 @@ export default function StudentLoans() {
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSaveLoan} disabled={upsert.isPending}>
+            <Button size="sm" onClick={handleSaveLoan} disabled={upsert.isPending || balanceInvalid || rateInvalid}>
               {loan ? "Update loan" : "Save loan"}
             </Button>
+
             {loan && (
               <Button size="sm" variant="ghost" onClick={() => del.mutate(loan.id)} disabled={del.isPending}>
                 Remove
@@ -257,13 +307,24 @@ export default function StudentLoans() {
         {/* Borrower information ────────────────────── */}
         <Card className="p-5 space-y-3">
           <div className="font-semibold">Borrower information</div>
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Income-driven repayment plans are generally based on annual income. This calculator uses
-              your projected annual income by default.
-            </AlertDescription>
-          </Alert>
+          {idrMissingIncome ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                No projected income found. Enter a projected annual income below, or set one up in
+                your <Link to="/projected-income" className="underline font-medium">Income Planner</Link>.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Income-driven repayment plans are generally based on annual income. This calculator uses
+                your projected annual income by default.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <ReadonlyRow label="Filing status" value={filingStatus === "married_filing_jointly" ? "Married Filing Jointly" : "Single"} />
             <ReadonlyRow label="State" value={state || "—"} />
@@ -278,21 +339,37 @@ export default function StudentLoans() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Projected annual income {incomeOverride == null ? <span className="text-[10px]">(from Income Planner)</span> : <span className="text-[10px]">(overridden)</span>}
+                Projected annual income{" "}
+                {incomeOverride == null ? (
+                  <span className="text-[10px]">
+                    ({hasPlannerIncome ? "from Income Planner" : "not found in Income Planner"})
+                  </span>
+                ) : (
+                  <span className="text-[10px]">(overridden)</span>
+                )}
               </Label>
               <Input
                 type="number"
-                placeholder={String(Math.round(projectedFromPlanner))}
+                placeholder={hasPlannerIncome ? String(Math.round(projectedFromPlanner)) : "e.g. 250000"}
                 value={incomeOverride ?? ""}
                 onChange={(e) => {
                   const v = e.target.value === "" ? null : Number(e.target.value);
                   handleSaveBorrowerSettings({ studentLoanIncomeOverride: v });
                 }}
+                aria-invalid={overrideInvalid}
+                className={overrideInvalid ? "border-destructive focus-visible:ring-destructive" : undefined}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Overriding here won't change your Income Planner.
-              </p>
+              {overrideInvalid ? (
+                <p className="text-[11px] text-destructive mt-1">Income can't be negative.</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {hasPlannerIncome
+                    ? "Overriding here won't change your Income Planner."
+                    : "Enter an estimate to see income-driven repayment amounts."}
+                </p>
+              )}
             </div>
+
           </div>
         </Card>
 
@@ -384,14 +461,16 @@ export default function StudentLoans() {
   );
 }
 
-function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+function Field({ label, value, onChange, type = "text", error }: { label: string; value: string; onChange: (v: string) => void; type?: string; error?: string }) {
   return (
     <div>
       <Label className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
-      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={!!error} className={error ? "border-destructive focus-visible:ring-destructive" : undefined} />
+      {error && <p className="text-[11px] text-destructive mt-1">{error}</p>}
     </div>
   );
 }
+
 
 function ReadonlyRow({ label, value }: { label: string; value: string }) {
   return (
