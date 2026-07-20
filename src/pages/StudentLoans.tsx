@@ -522,7 +522,8 @@ export default function StudentLoans() {
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Default: {fmtCurrency(defaultBorrowerMfsAgi)}
-                  {cpAllocation ? " · community-property allocation applied" : ""}
+                  {comparisonAllocation ? ` · community-property 50/50 split from ${fmtCurrency(projectedTotalIncome)} household income` : ""}
+                  {comparisonAllocation && adjustmentsAutoApplied ? ` · ${fmtCurrency(projectedAdjustments)} projected AGI adjustments applied` : ""}
                 </p>
               </div>
               <div>
