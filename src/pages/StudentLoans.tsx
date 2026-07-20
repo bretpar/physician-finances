@@ -729,10 +729,25 @@ export default function StudentLoans() {
 
                 return (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Scenario cards — swipeable on mobile, side-by-side on md+ */}
+                    <div className="md:hidden -mx-4 px-4">
+                      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <div className="snap-center shrink-0 w-[85%] first:pl-0">
+                          <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
+                        </div>
+                        <div className="snap-center shrink-0 w-[85%]">
+                          <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground text-center mt-1">
+                        Swipe to compare scenarios →
+                      </div>
+                    </div>
+                    <div className="hidden md:grid md:grid-cols-2 gap-3">
                       <ScenarioCard title={comparison.mfj.label} data={comparison.mfj} highlight={comparison.recommendation === "mfj"} />
                       <ScenarioCard title={comparison.mfs.label} data={comparison.mfs} highlight={comparison.recommendation === "mfs"} />
                     </div>
+
                     <Card className="p-4 bg-primary/5 border-primary/40 space-y-4">
                       <div>
                         <div className="flex items-center gap-2">
@@ -755,7 +770,28 @@ export default function StudentLoans() {
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
                           How the recommendation is calculated (annual, estimated)
                         </div>
-                        <div className="text-xs">
+
+                        {/* Mobile: swipeable per-scenario cost cards */}
+                        <div className="md:hidden -mx-1">
+                          <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <CostScenarioCard
+                              title={loserLabel}
+                              data={loser}
+                            />
+                            <CostScenarioCard
+                              title={winnerLabel}
+                              data={winner}
+                              compareTo={loser}
+                              isWinner
+                            />
+                          </div>
+                          <div className="text-[10px] text-muted-foreground text-center">
+                            Swipe to compare cost basis →
+                          </div>
+                        </div>
+
+                        {/* Desktop: 3-column comparison table */}
+                        <div className="hidden md:block text-xs">
                           <div className="grid grid-cols-3 gap-2 pb-1 border-b border-border font-medium text-muted-foreground">
                             <div>Cost component</div>
                             <div className="text-right">{loserLabel}</div>
@@ -771,6 +807,7 @@ export default function StudentLoans() {
                           </div>
                         </div>
                       </div>
+
 
                       {/* Net benefit */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -899,6 +936,68 @@ function CostRow({ label, left, right }: { label: string; left: number; right: n
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+type CostScenarioData = { federalTax: number; stateTax: number; studentLoanAnnualPayment: number; combinedAnnualCost: number };
+
+function CostScenarioCard({
+  title, data, compareTo, isWinner,
+}: {
+  title: string;
+  data: CostScenarioData;
+  compareTo?: CostScenarioData;
+  isWinner?: boolean;
+}) {
+  return (
+    <div className={`snap-center shrink-0 w-[85%] rounded-md border p-3 bg-background ${isWinner ? "border-primary/60 ring-1 ring-primary/30" : "border-border"}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-semibold">{title}</div>
+        {isWinner && (
+          <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary rounded px-1.5 py-0.5">
+            Lower cost
+          </span>
+        )}
+      </div>
+      <div className="space-y-1 text-xs">
+        <CostLine label="Federal tax" value={data.federalTax} delta={compareTo ? data.federalTax - compareTo.federalTax : undefined} />
+        <CostLine label="State tax" value={data.stateTax} delta={compareTo ? data.stateTax - compareTo.stateTax : undefined} />
+        <CostLine label="Student loan payments" value={data.studentLoanAnnualPayment} delta={compareTo ? data.studentLoanAnnualPayment - compareTo.studentLoanAnnualPayment : undefined} />
+        <div className="border-t border-border my-1" />
+        <div className="flex items-center justify-between font-semibold">
+          <span>Combined annual cost</span>
+          <span className={`tabular-nums ${isWinner ? "text-primary" : ""}`}>{fmtCurrency(data.combinedAnnualCost)}</span>
+        </div>
+        {compareTo && (
+          <div className="text-[10px] text-muted-foreground text-right">
+            {(() => {
+              const diff = data.combinedAnnualCost - compareTo.combinedAnnualCost;
+              if (diff === 0) return "Same combined cost";
+              const better = diff < 0;
+              return `${better ? "−" : "+"}${fmtCurrency(Math.abs(diff))}/yr vs. other scenario`;
+            })()}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CostLine({ label, value, delta }: { label: string; value: number; delta?: number }) {
+  const showDelta = delta !== undefined && delta !== 0;
+  const better = (delta ?? 0) < 0;
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="tabular-nums">
+        {fmtCurrency(value)}
+        {showDelta && (
+          <span className={`ml-1 text-[10px] ${better ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+            ({better ? "−" : "+"}{fmtCurrency(Math.abs(delta!))})
+          </span>
+        )}
+      </span>
     </div>
   );
 }
