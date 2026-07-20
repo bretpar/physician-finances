@@ -903,3 +903,44 @@ function CostRow({ label, left, right }: { label: string; left: number; right: n
   );
 }
 
+function filingStatusLabel(status: string): string {
+  switch (status) {
+    case "married_filing_jointly": return "Married Filing Jointly";
+    case "married_filing_separately": return "Married Filing Separately";
+    case "single": return "Single";
+    case "head_of_household": return "Head of Household";
+    default: return status || "—";
+  }
+}
+
+function BreakdownRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <div className={`flex justify-between gap-2 ${bold ? "font-semibold" : ""}`}>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function AgiOption({
+  id, current, setCurrent, title, subtitle,
+}: {
+  id: AgiSource;
+  current: AgiSource;
+  setCurrent: (v: AgiSource) => void;
+  title: string;
+  subtitle: string;
+}) {
+  const active = current === id;
+  return (
+    <button
+      type="button"
+      onClick={() => setCurrent(id)}
+      className={`text-left rounded-md border p-2 transition-colors ${active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-background hover:bg-muted/40"}`}
+    >
+      <div className="text-xs font-medium">{title}</div>
+      <div className="text-[10px] text-muted-foreground mt-0.5">{subtitle}</div>
+    </button>
+  );
+}
+
