@@ -93,9 +93,11 @@ function personalEntry(overrides: Partial<PersonalIncomeEntry>): PersonalIncomeE
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <PersonalIncome />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <PersonalIncome />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
