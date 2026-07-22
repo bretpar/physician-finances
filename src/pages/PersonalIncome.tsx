@@ -55,9 +55,6 @@ import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
-import { useW4Calculation } from "@/hooks/useW4Calculation";
-import { decideW2PaycheckRecDisplay } from "@/lib/w2PaycheckRecMethod";
-import { normalizeEmployerName } from "@/components/tax/W4PaycheckAdjustmentCard";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
