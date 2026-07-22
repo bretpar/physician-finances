@@ -55,9 +55,6 @@ import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
-import { useW4Calculation } from "@/hooks/useW4Calculation";
-import { decideW2PaycheckRecDisplay } from "@/lib/w2PaycheckRecMethod";
-import { normalizeEmployerName } from "@/components/tax/W4PaycheckAdjustmentCard";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -257,8 +254,6 @@ export default function PersonalIncome() {
     [rawEntries],
   );
   const stateIncomeTaxEnabled = !!taxSettings?.stateIncomeTaxEnabled;
-  const w2RecMethod = taxSettings?.w2PaycheckRecMethod || "annual_w4";
-  const w4Calc = useW4Calculation();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -1450,74 +1445,48 @@ export default function PersonalIncome() {
             {grossAmount > 0 && paycheckSavings && (() => {
               const isW2 = isW2Type(form.income_type);
 
-              // Annual W-4 method (W-2 only): replace per-paycheck target with
-              // W-4 gap messaging that references the W-4 Calculator tab.
-              if (isW2 && w2RecMethod === "annual_w4") {
-                // Match this paycheck's employer to a W-4 allocation row to
-                // surface the per-paycheck extra recommended for that employer.
-                const employerName =
-                  companies.find((c) => c.id === form.source_id)?.name ||
-                  form.source_name ||
-                  "";
-                const employerKey = `emp:${normalizeEmployerName(employerName)}|w2`;
-                const alloc = w4Calc.allocations.find(
-                  (a) => a.streamId === employerKey,
-                );
-                const fallbackPerPaycheck =
-                  w4Calc.allocations.length > 0
-                    ? w4Calc.totalExtraThroughYearEnd /
-                      Math.max(
-                        1,
-                        w4Calc.allocations.reduce((s, a) => s + a.remainingPaychecks, 0),
-                      )
-                    : 0;
-                const extraPerPaycheck = alloc
-                  ? alloc.step4cPerPaycheck
-                  : fallbackPerPaycheck;
-
-                const display = decideW2PaycheckRecDisplay({
-                  method: "annual_w4",
-                  isW2: true,
-                  signedAnnualGap: w4Calc.signedAnnualGap,
-                  extraPerPaycheck,
-                });
-                if (!display) return null;
-                const rightColor =
-                  display.mode === "w4_extra_needed"
-                    ? "text-orange-600 dark:text-orange-400"
-                    : "text-emerald-600 dark:text-emerald-400";
+              // W-2 paychecks: show only transaction-level savings guidance.
+              // Annual W-4 planning lives in the W-4 Calculator tab on Taxes.
+              if (isW2) {
+                const additional = Math.max(0, Math.round(paycheckSavings.remainingSavingsNeeded));
                 return (
                   <div
                     className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-2"
-                    data-testid="w2-rec-w4-mode"
-                    data-w2-rec-mode={display.mode}
+                    data-testid="w2-additional-tax-savings"
                   >
-                    <p className="text-xs font-semibold text-muted-foreground">{display.heading}</p>
+                    <p className="text-xs font-semibold text-muted-foreground">Additional Tax Savings</p>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="min-w-0 flex-1 space-y-1">
                         <p className="text-base sm:text-lg font-semibold text-foreground leading-snug">
-                          {display.primary}
-                        </p>
-                        <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
-                          {display.secondary}
+                          {additional === 0
+                            ? "No additional savings recommended for this paycheck."
+                            : `Consider setting aside ${fmt(additional)} from this paycheck based on your current tax estimate.`}
                         </p>
                       </div>
-                      {display.amount != null && (
+                      {additional > 0 && (
                         <div className="flex sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0.5 shrink-0">
-                          <p className={`text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap ${rightColor}`}>
-                            ${display.amount.toLocaleString()}
+                          <p className="text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap text-orange-600 dark:text-orange-400">
+                            {fmt(additional)}
                           </p>
-                          <p className={`text-[10px] sm:text-xs font-medium uppercase tracking-wide ${rightColor} opacity-80`}>
-                            {display.rightLabel}
+                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-orange-600 dark:text-orange-400 opacity-80">
+                            Recommended
                           </p>
                         </div>
                       )}
                     </div>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-primary"
+                      onClick={() => navigate("/taxes#w4-calculator")}
+                    >
+                      Need to adjust your W-4? Open the W-4 Calculator →
+                    </Button>
                   </div>
                 );
               }
 
-              // Legacy: paycheck_target (W-2) and all non-W-2 income.
+              // Non-W-2 income: keep the existing per-paycheck target card.
               const reserveApplied = paycheckSavings.additionalTaxReserveApplied;
               const payrollWithheld = paycheckSavings.totalPayrollTaxesWithheld;
               const target = paycheckSavings.paycheckTaxTarget;

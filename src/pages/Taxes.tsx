@@ -106,10 +106,19 @@ export default function Taxes() {
 
   const isLoading = ratesLoading || estLoading || txLoading || incLoading || piLoading || investmentLoading;
 
-  // Prefill the Log Payment dialog when navigated from the Dashboard
-  // callout (e.g. /taxes?logPayment=Q2&amount=15000&year=2026#quarterly-estimator).
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Activate a specific tab via URL hash (e.g. /taxes#w4-calculator).
+  useEffect(() => {
+    const hash = location.hash.replace("#", "");
+    if (["overview", "breakdown", "w4-calculator"].includes(hash)) {
+      setActiveTab(hash);
+    }
+  }, [location.hash]);
+
+  // Prefill the Log Payment dialog when navigated from the Dashboard
+  // callout (e.g. /taxes?logPayment=Q2&amount=15000&year=2026#quarterly-estimator).
   useEffect(() => {
     if (!location.search) return;
     const params = new URLSearchParams(location.search);
