@@ -1449,38 +1449,49 @@ export default function PersonalIncome() {
               // Annual W-4 planning lives in the W-4 Calculator tab on Taxes.
               if (isW2) {
                 const additional = Math.max(0, Math.round(paycheckSavings.remainingSavingsNeeded));
+                const hasAdditional = additional > 0;
                 return (
                   <div
-                    className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-2"
+                    className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-3"
                     data-testid="w2-additional-tax-savings"
                   >
-                    <p className="text-xs font-semibold text-muted-foreground">Additional Tax Savings</p>
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      {hasAdditional ? "Additional Savings Recommended" : "No Additional Savings Needed"}
+                    </p>
+
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="min-w-0 flex-1 space-y-1">
-                        <p className="text-base sm:text-lg font-semibold text-foreground leading-snug">
-                          {additional === 0
-                            ? "No additional savings recommended for this paycheck."
-                            : `Consider setting aside ${fmt(additional)} from this paycheck based on your current tax estimate.`}
+                        <p className="text-sm text-foreground leading-snug">
+                          {hasAdditional
+                            ? `Your employer is already withholding payroll taxes from this paycheck. Based on your current annual tax estimate, consider saving an additional ${fmt(additional)} from this paycheck.`
+                            : "Your current payroll withholding appears sufficient based on your tax estimate. No extra savings are recommended for this paycheck."}
                         </p>
                       </div>
-                      {additional > 0 && (
-                        <div className="flex sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0.5 shrink-0">
+                      {hasAdditional && (
+                        <div className="flex flex-col items-baseline sm:items-end gap-0.5 shrink-0">
+                          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Additional savings
+                          </p>
                           <p className="text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap text-orange-600 dark:text-orange-400">
                             {fmt(additional)}
-                          </p>
-                          <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-orange-600 dark:text-orange-400 opacity-80">
-                            Recommended
                           </p>
                         </div>
                       )}
                     </div>
+
+                    {hasAdditional && (
+                      <p className="text-xs text-muted-foreground">
+                        Employer payroll withholding is already included.
+                      </p>
+                    )}
+
                     <Button
                       variant="link"
                       size="sm"
                       className="h-auto p-0 text-xs text-primary"
                       onClick={() => navigate("/taxes#w4-calculator")}
                     >
-                      Need to adjust your W-4? Open the W-4 Calculator →
+                      Want your employer to withhold this automatically? Open the W-4 Calculator →
                     </Button>
                   </div>
                 );
