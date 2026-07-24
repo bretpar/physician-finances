@@ -1190,14 +1190,18 @@ export default function PersonalIncome() {
 
       {/* Modal 1: Add/Edit Income Entry */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); } }}>
-        <DialogContent data-testid="paycheck-form-modal" className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
+        <DialogContent
+          data-testid="paycheck-form-modal"
+          className="p-0 gap-0 flex flex-col overflow-hidden sm:max-w-lg sm:max-h-[85vh] max-sm:!left-0 max-sm:!top-0 max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!w-screen max-sm:!max-w-none max-sm:!h-[100dvh] max-sm:!max-h-[100dvh] max-sm:!rounded-none max-sm:border-0"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="shrink-0 border-b px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 pr-12" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
             <DialogTitle>{isEditing ? "Edit Income Entry" : "Add Personal Income"}</DialogTitle>
             <DialogDescription className="sr-only">
               {isEditing ? "Edit details for this personal income entry." : "Add a personal income entry, including date, type, amount, and any tax withholdings."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 sm:px-6 py-4 space-y-4 min-w-0">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
