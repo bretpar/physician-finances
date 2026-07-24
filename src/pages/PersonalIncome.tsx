@@ -1190,14 +1190,18 @@ export default function PersonalIncome() {
 
       {/* Modal 1: Add/Edit Income Entry */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingId(null); } }}>
-        <DialogContent data-testid="paycheck-form-modal" className="max-w-lg max-h-[85vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
+        <DialogContent
+          data-testid="paycheck-form-modal"
+          className="p-0 gap-0 flex flex-col overflow-hidden sm:max-w-lg sm:max-h-[85vh] max-sm:!left-0 max-sm:!top-0 max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!w-screen max-sm:!max-w-none max-sm:!h-[100dvh] max-sm:!max-h-[100dvh] max-sm:!rounded-none max-sm:border-0"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="shrink-0 border-b px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 pr-12" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
             <DialogTitle>{isEditing ? "Edit Income Entry" : "Add Personal Income"}</DialogTitle>
             <DialogDescription className="sr-only">
               {isEditing ? "Edit details for this personal income entry." : "Add a personal income entry, including date, type, amount, and any tax withholdings."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 sm:px-6 py-4 space-y-4 min-w-0">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Date</Label>
@@ -1604,22 +1608,25 @@ export default function PersonalIncome() {
               onPendingFilesChange={editingId ? undefined : setPendingAttachments}
             />
 
-            <div className="flex justify-between">
-              {isEditing ? (
-                <Button data-testid="paycheck-delete-button" variant="destructive" size="sm" onClick={() => { setDeleteId(editingId!); setShowForm(false); }}>
-                  <Trash2 className="h-4 w-4 mr-1" /> Delete
-                </Button>
-              ) : <div />}
-              <div className="flex gap-2">
-                <Button data-testid="paycheck-cancel-button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button
-                  data-testid="paycheck-save-button"
-                  onClick={saveForm}
-                  disabled={!form.title.trim() || !form.date || num(form.gross_amount) <= 0 || (isW2Type(form.income_type) && !form.source_id && !form.source_name.trim())}
-                >
-                  {isEditing ? "Save" : "Save Income"}
-                </Button>
-              </div>
+          </div>
+          <div
+            className="shrink-0 border-t bg-background px-4 sm:px-6 py-3 flex justify-between items-center gap-2"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
+            {isEditing ? (
+              <Button data-testid="paycheck-delete-button" variant="destructive" size="sm" onClick={() => { setDeleteId(editingId!); setShowForm(false); }}>
+                <Trash2 className="h-4 w-4 mr-1" /> Delete
+              </Button>
+            ) : <div />}
+            <div className="flex gap-2">
+              <Button data-testid="paycheck-cancel-button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button
+                data-testid="paycheck-save-button"
+                onClick={saveForm}
+                disabled={!form.title.trim() || !form.date || num(form.gross_amount) <= 0 || (isW2Type(form.income_type) && !form.source_id && !form.source_name.trim())}
+              >
+                {isEditing ? "Save" : "Save Income"}
+              </Button>
             </div>
           </div>
         </DialogContent>
