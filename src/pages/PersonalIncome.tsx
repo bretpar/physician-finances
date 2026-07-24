@@ -1608,22 +1608,25 @@ export default function PersonalIncome() {
               onPendingFilesChange={editingId ? undefined : setPendingAttachments}
             />
 
-            <div className="flex justify-between">
-              {isEditing ? (
-                <Button data-testid="paycheck-delete-button" variant="destructive" size="sm" onClick={() => { setDeleteId(editingId!); setShowForm(false); }}>
-                  <Trash2 className="h-4 w-4 mr-1" /> Delete
-                </Button>
-              ) : <div />}
-              <div className="flex gap-2">
-                <Button data-testid="paycheck-cancel-button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-                <Button
-                  data-testid="paycheck-save-button"
-                  onClick={saveForm}
-                  disabled={!form.title.trim() || !form.date || num(form.gross_amount) <= 0 || (isW2Type(form.income_type) && !form.source_id && !form.source_name.trim())}
-                >
-                  {isEditing ? "Save" : "Save Income"}
-                </Button>
-              </div>
+          </div>
+          <div
+            className="shrink-0 border-t bg-background px-4 sm:px-6 py-3 flex justify-between items-center gap-2"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
+            {isEditing ? (
+              <Button data-testid="paycheck-delete-button" variant="destructive" size="sm" onClick={() => { setDeleteId(editingId!); setShowForm(false); }}>
+                <Trash2 className="h-4 w-4 mr-1" /> Delete
+              </Button>
+            ) : <div />}
+            <div className="flex gap-2">
+              <Button data-testid="paycheck-cancel-button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button
+                data-testid="paycheck-save-button"
+                onClick={saveForm}
+                disabled={!form.title.trim() || !form.date || num(form.gross_amount) <= 0 || (isW2Type(form.income_type) && !form.source_id && !form.source_name.trim())}
+              >
+                {isEditing ? "Save" : "Save Income"}
+              </Button>
             </div>
           </div>
         </DialogContent>
