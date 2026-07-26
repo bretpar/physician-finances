@@ -621,7 +621,19 @@ export default function Mileage() {
             </Card>
           </div>
 
-
+          {paycheckLinked.entries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Recent activity</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {paycheckLinked.entries.slice(0, 5).map((ie) => (
+                  <div key={ie.id} className="flex items-center justify-between text-sm gap-3">
+                    <span className="text-muted-foreground truncate">{ie.income_date} — {ie.name}</span>
+                    <span className="tabular-nums font-medium shrink-0">{fmt(Number(ie.retirement_401k))}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
 
           {/* Form */}
