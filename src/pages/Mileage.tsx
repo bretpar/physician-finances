@@ -398,37 +398,9 @@ export default function Mileage() {
     </div>
   );
 
-  return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Tax Savings</h1>
-        <p className="text-sm text-muted-foreground">Choose a category to track deductions that lower your taxes.</p>
-      </div>
+  const mileageContent = (
+    <div className="space-y-6">
 
-      <div className="space-y-5">
-        {showBusinessSection && businessCategories.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
-            </h2>
-            <CategoryGrid items={businessCategories} />
-          </section>
-        )}
-        {personalCategories.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
-            </h2>
-            <CategoryGrid items={personalCategories} />
-          </section>
-        )}
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-
-
-        {/* ─── MILEAGE TAB ──────────────────────────── */}
-        <TabsContent value="mileage" className="space-y-6 mt-6">
           <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto"><Plus className="h-4 w-4" /> Add Mileage</Button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
