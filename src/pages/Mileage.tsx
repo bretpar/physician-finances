@@ -533,11 +533,15 @@ export default function Mileage() {
               : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
             {" "}K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
           </p>
-        </TabsContent>
+    </div>
+  );
 
+  const homeOfficeContent = (
+    <div className="space-y-6">
+      <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 w-full sm:w-auto">
+        <Plus className="h-4 w-4" /> Edit Home Office
+      </Button>
 
-        {/* ─── HOME OFFICE TAB ───────────────────── */}
-        <TabsContent value="home-office" className="space-y-6 mt-6">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
