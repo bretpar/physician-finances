@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -360,43 +361,15 @@ export default function Mileage() {
   // Business-only users keep access to Retirement/HSA inside the business section.
   const showPersonalSection = !(hasSelfEmployedIncome && !hasW2Income) && (showRetirement || showHsa);
 
-  const businessCategories = [
-    ...(showMileage ? [{ value: "mileage", label: "Mileage", desc: "Track business miles", icon: Car }] : []),
-    ...(showHomeOffice ? [{ value: "home-office", label: "Home Office", desc: "Simplified or actual", icon: Home }] : []),
-    ...(!showPersonalSection && showRetirement ? [{ value: "retirement", label: "Business Retirement", desc: "Solo 401(k), SEP & more", icon: PiggyBank }] : []),
-    ...(!showPersonalSection && showHsa ? [{ value: "hsa", label: "HSA", desc: "Health savings account", icon: HeartPulse }] : []),
-  ];
+  interface CategoryItem {
+    value: string;
+    label: string;
+    icon: typeof Car;
+    summary: string;
+    content?: ReactNode;
+    comingSoon?: boolean;
+  }
 
-  const personalCategories = showPersonalSection
-    ? [
-        ...(showRetirement ? [{ value: "retirement", label: "Retirement", desc: "401(k), IRA & more", icon: PiggyBank }] : []),
-        ...(showHsa ? [{ value: "hsa", label: "HSA", desc: "Health savings account", icon: HeartPulse }] : []),
-      ]
-    : [];
-
-  const CategoryGrid = ({ items }: { items: typeof businessCategories }) => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      {items.map((item) => {
-        const Icon = item.icon;
-        const active = activeTab === item.value;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setActiveTab(item.value)}
-            aria-pressed={active}
-            className={`rounded-lg border p-3 text-left transition-colors ${
-              active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-card hover:bg-muted/50"
-            }`}
-          >
-            <Icon className={`h-5 w-5 mb-2 ${active ? "text-primary" : "text-muted-foreground"}`} />
-            <p className="text-sm font-medium text-card-foreground leading-tight">{item.label}</p>
-            <p className="text-xs text-muted-foreground leading-tight mt-0.5">{item.desc}</p>
-          </button>
-        );
-      })}
-    </div>
-  );
 
   const mileageContent = (
     <div className="space-y-6">
