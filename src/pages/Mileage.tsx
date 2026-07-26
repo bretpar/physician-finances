@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,6 +18,7 @@ import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info,
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { HsaLedgerSection } from "@/components/settings/HsaSection";
+import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, getIrsMileageRate, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
@@ -86,8 +88,10 @@ export default function Mileage() {
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState(defaultTab);
-  // Keep the selected category valid once the income profile finishes loading.
+  // Keep the expanded category valid once the income profile finishes loading.
+  // An empty value means "all collapsed", which is allowed.
   useEffect(() => {
+    if (!activeTab) return;
     const stillVisible =
       (activeTab === "mileage" && showMileage) ||
       (activeTab === "home-office" && showHomeOffice) ||
@@ -128,6 +132,8 @@ export default function Mileage() {
   const updateContrib = useUpdateRetirementContribution();
   const deleteContrib = useDeleteRetirementContribution();
   const annualized = useAnnualizedContributions(contributions);
+  // Read-only: used for the collapsed HSA summary line.
+  const { data: hsaContributions = [] } = useHsaContributions(now.getFullYear());
 
   // ─── Income-linked retirement data ────────────
   const { data: incomeEntries } = useIncomeEntries();
@@ -360,75 +366,19 @@ export default function Mileage() {
   // Business-only users keep access to Retirement/HSA inside the business section.
   const showPersonalSection = !(hasSelfEmployedIncome && !hasW2Income) && (showRetirement || showHsa);
 
-  const businessCategories = [
-    ...(showMileage ? [{ value: "mileage", label: "Mileage", desc: "Track business miles", icon: Car }] : []),
-    ...(showHomeOffice ? [{ value: "home-office", label: "Home Office", desc: "Simplified or actual", icon: Home }] : []),
-    ...(!showPersonalSection && showRetirement ? [{ value: "retirement", label: "Business Retirement", desc: "Solo 401(k), SEP & more", icon: PiggyBank }] : []),
-    ...(!showPersonalSection && showHsa ? [{ value: "hsa", label: "HSA", desc: "Health savings account", icon: HeartPulse }] : []),
-  ];
-
-  const personalCategories = showPersonalSection
-    ? [
-        ...(showRetirement ? [{ value: "retirement", label: "Retirement", desc: "401(k), IRA & more", icon: PiggyBank }] : []),
-        ...(showHsa ? [{ value: "hsa", label: "HSA", desc: "Health savings account", icon: HeartPulse }] : []),
-      ]
-    : [];
-
-  const CategoryGrid = ({ items }: { items: typeof businessCategories }) => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      {items.map((item) => {
-        const Icon = item.icon;
-        const active = activeTab === item.value;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setActiveTab(item.value)}
-            aria-pressed={active}
-            className={`rounded-lg border p-3 text-left transition-colors ${
-              active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-card hover:bg-muted/50"
-            }`}
-          >
-            <Icon className={`h-5 w-5 mb-2 ${active ? "text-primary" : "text-muted-foreground"}`} />
-            <p className="text-sm font-medium text-card-foreground leading-tight">{item.label}</p>
-            <p className="text-xs text-muted-foreground leading-tight mt-0.5">{item.desc}</p>
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Tax Savings</h1>
-        <p className="text-sm text-muted-foreground">Choose a category to track deductions that lower your taxes.</p>
-      </div>
-
-      <div className="space-y-5">
-        {showBusinessSection && businessCategories.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
-            </h2>
-            <CategoryGrid items={businessCategories} />
-          </section>
-        )}
-        {personalCategories.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
-            </h2>
-            <CategoryGrid items={personalCategories} />
-          </section>
-        )}
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+  interface CategoryItem {
+    value: string;
+    label: string;
+    icon: typeof Car;
+    summary: string;
+    content?: ReactNode;
+    comingSoon?: boolean;
+  }
 
 
-        {/* ─── MILEAGE TAB ──────────────────────────── */}
-        <TabsContent value="mileage" className="space-y-6 mt-6">
+  const mileageContent = (
+    <div className="space-y-6">
+
           <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto"><Plus className="h-4 w-4" /> Add Mileage</Button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -462,6 +412,24 @@ export default function Mileage() {
             </Card>
           </div>
 
+          {ytdEntries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Recent activity</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {[...ytdEntries]
+                  .sort((a, b) => b.year - a.year || b.month - a.month)
+                  .slice(0, 5)
+                  .map((e) => (
+                    <div key={e.id} className="flex items-center justify-between text-sm gap-3">
+                      <span className="text-muted-foreground truncate">{MONTHS[e.month - 1]} {e.year} — {companyNameById(e.company_id, e.company_name)}</span>
+                      <span className="tabular-nums font-medium shrink-0">{Number(e.miles).toLocaleString()} mi</span>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
+
+
           <button
             type="button"
             onClick={() => {
@@ -470,7 +438,7 @@ export default function Mileage() {
             }}
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
-            View Mileage History
+            View All
           </button>
 
           {showHistory && (
@@ -561,11 +529,15 @@ export default function Mileage() {
               : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
             {" "}K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
           </p>
-        </TabsContent>
+    </div>
+  );
 
+  const homeOfficeContent = (
+    <div className="space-y-6">
+      <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 w-full sm:w-auto">
+        <Plus className="h-4 w-4" /> Edit Home Office
+      </Button>
 
-        {/* ─── HOME OFFICE TAB ───────────────────── */}
-        <TabsContent value="home-office" className="space-y-6 mt-6">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
@@ -616,10 +588,15 @@ export default function Mileage() {
               })}
             </CardContent>
           </Card>
-        </TabsContent>
+    </div>
+  );
 
-        {/* ─── RETIREMENT TAB ─────────────────────── */}
-        <TabsContent value="retirement" className="space-y-6 mt-6">
+  const retirementContent = (
+    <div className="space-y-6">
+      <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2 w-full sm:w-auto">
+        <Plus className="h-4 w-4" /> Add Contribution
+      </Button>
+
           {/* Summary cards — include both standalone + paycheck-linked */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
@@ -644,12 +621,20 @@ export default function Mileage() {
             </Card>
           </div>
 
-          {/* Add button */}
-          <div className="flex justify-end">
-            <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2">
-              <Plus className="h-4 w-4" /> Add Contribution
-            </Button>
-          </div>
+          {paycheckLinked.entries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Recent activity</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {paycheckLinked.entries.slice(0, 5).map((ie) => (
+                  <div key={ie.id} className="flex items-center justify-between text-sm gap-3">
+                    <span className="text-muted-foreground truncate">{ie.income_date} — {ie.name}</span>
+                    <span className="tabular-nums font-medium shrink-0">{fmt(Number(ie.retirement_401k))}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
 
           {/* Form */}
           {showContribForm && (
@@ -819,13 +804,118 @@ export default function Mileage() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+    </div>
+  );
 
-        {/* ─── HSA TAB ────────────────────────────── */}
-        <TabsContent value="hsa" className="space-y-6 mt-6">
-          <HsaLedgerSection />
-        </TabsContent>
-      </Tabs>
+  const hsaContent = <HsaLedgerSection />;
+
+  // ─── Collapsed-state summaries (display only — no calculation changes) ───
+  const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
+  const hsaTotal = hsaContributions.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const retirementTotal = annualized.total + paycheckLinked.total;
+
+  const businessItems: CategoryItem[] = [
+    ...(showMileage ? [{
+      value: "mileage", label: "Mileage", icon: Car,
+      summary: `${ytdTotalMiles.toLocaleString()} miles • ${fmt(ytdDeduction)} deduction`,
+      content: mileageContent,
+    }] : []),
+    ...(showHomeOffice ? [{
+      value: "home-office", label: "Home Office", icon: Home,
+      summary: homeOfficeDeductions.length ? `${fmt(homeOfficeAllowedTotal)} estimated deduction` : "Not set up yet",
+      content: homeOfficeContent,
+    }] : []),
+    ...(!showPersonalSection && showRetirement ? [{
+      value: "retirement", label: "Business Retirement", icon: PiggyBank,
+      summary: `${fmt(retirementTotal)} contributed`,
+      content: retirementContent,
+    }] : []),
+    ...(!showPersonalSection && showHsa ? [{
+      value: "hsa", label: "HSA", icon: HeartPulse,
+      summary: `${fmt(hsaTotal)} contributed`,
+      content: hsaContent,
+    }] : []),
+    { value: "se-health", label: "Self-Employed Health Insurance", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
+  ];
+
+  const personalItems: CategoryItem[] = showPersonalSection
+    ? [
+        ...(showRetirement ? [{
+          value: "retirement", label: "Retirement", icon: PiggyBank,
+          summary: `${fmt(retirementTotal)} contributed`,
+          content: retirementContent,
+        }] : []),
+        ...(showHsa ? [{
+          value: "hsa", label: "HSA", icon: HeartPulse,
+          summary: `${fmt(hsaTotal)} contributed`,
+          content: hsaContent,
+        }] : []),
+        { value: "home-property", label: "Home & Property", icon: Home, summary: "Coming soon", comingSoon: true },
+        { value: "student-loan-interest", label: "Student Loan Interest", icon: Wallet, summary: "Coming soon", comingSoon: true },
+        { value: "charitable", label: "Charitable Giving", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
+        { value: "other-adjustments", label: "Other Tax Adjustments", icon: Info, summary: "Coming soon", comingSoon: true },
+      ]
+    : [];
+
+  const renderCategories = (items: CategoryItem[]) => (
+    <Accordion
+      type="single"
+      collapsible
+      value={activeTab}
+      onValueChange={setActiveTab}
+      className="space-y-3"
+    >
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <AccordionItem
+            key={item.value}
+            value={item.value}
+            disabled={item.comingSoon}
+            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30"
+          >
+            <AccordionTrigger className="py-4 hover:no-underline gap-3 min-h-[60px]">
+              <div className="flex items-center gap-3 text-left min-w-0">
+                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-card-foreground truncate">{item.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">{item.summary}</p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5">{item.content}</AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
+  );
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Tax Savings</h1>
+        <p className="text-sm text-muted-foreground">Tap a category to view and manage it — everything lives on this page.</p>
+      </div>
+
+      <div className="space-y-6">
+        {showBusinessSection && businessItems.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
+            </h2>
+            {renderCategories(businessItems)}
+          </section>
+        )}
+        {personalItems.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
+            </h2>
+            {renderCategories(personalItems)}
+          </section>
+        )}
+      </div>
+
 
       {/* ─── MILEAGE DIALOGS ──────────────────────── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
