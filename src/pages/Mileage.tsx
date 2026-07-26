@@ -551,7 +551,17 @@ export default function Mileage() {
               )}
             </div>
           </div>
+          </div>
+          )}
+
+          <p className="text-xs text-muted-foreground border-t border-border pt-4">
+            {selectedYear === 2026
+              ? "2026 IRS business mileage rate: 72.5¢ per mile."
+              : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
+            {" "}K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
+          </p>
         </TabsContent>
+
 
         {/* ─── HOME OFFICE TAB ───────────────────── */}
         <TabsContent value="home-office" className="space-y-6 mt-6">
