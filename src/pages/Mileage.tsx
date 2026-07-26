@@ -592,10 +592,15 @@ export default function Mileage() {
               })}
             </CardContent>
           </Card>
-        </TabsContent>
+    </div>
+  );
 
-        {/* ─── RETIREMENT TAB ─────────────────────── */}
-        <TabsContent value="retirement" className="space-y-6 mt-6">
+  const retirementContent = (
+    <div className="space-y-6">
+      <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2 w-full sm:w-auto">
+        <Plus className="h-4 w-4" /> Add Contribution
+      </Button>
+
           {/* Summary cards — include both standalone + paycheck-linked */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
