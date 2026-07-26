@@ -107,6 +107,7 @@ export default function Mileage() {
   const deleteMileage = useDeleteMileageEntry();
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   // Add form: company_id is canonical link; UNASSIGNED for legacy/no-company entries
   const [addCompanyId, setAddCompanyId] = useState<string>("");
   const [addMiles, setAddMiles] = useState("");
