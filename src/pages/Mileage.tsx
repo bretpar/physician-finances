@@ -18,6 +18,7 @@ import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info,
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { HsaLedgerSection } from "@/components/settings/HsaSection";
+import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, getIrsMileageRate, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
@@ -129,6 +130,8 @@ export default function Mileage() {
   const updateContrib = useUpdateRetirementContribution();
   const deleteContrib = useDeleteRetirementContribution();
   const annualized = useAnnualizedContributions(contributions);
+  // Read-only: used for the collapsed HSA summary line.
+  const { data: hsaContributions = [] } = useHsaContributions(now.getFullYear());
 
   // ─── Income-linked retirement data ────────────
   const { data: incomeEntries } = useIncomeEntries();
