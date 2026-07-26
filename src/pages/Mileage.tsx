@@ -796,13 +796,118 @@ export default function Mileage() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+    </div>
+  );
 
-        {/* ─── HSA TAB ────────────────────────────── */}
-        <TabsContent value="hsa" className="space-y-6 mt-6">
-          <HsaLedgerSection />
-        </TabsContent>
-      </Tabs>
+  const hsaContent = <HsaLedgerSection />;
+
+  // ─── Collapsed-state summaries (display only — no calculation changes) ───
+  const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
+  const hsaTotal = hsaContributions.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const retirementTotal = annualized.total + paycheckLinked.total;
+
+  const businessItems: CategoryItem[] = [
+    ...(showMileage ? [{
+      value: "mileage", label: "Mileage", icon: Car,
+      summary: `${ytdTotalMiles.toLocaleString()} miles • ${fmt(ytdDeduction)} deduction`,
+      content: mileageContent,
+    }] : []),
+    ...(showHomeOffice ? [{
+      value: "home-office", label: "Home Office", icon: Home,
+      summary: homeOfficeDeductions.length ? `${fmt(homeOfficeAllowedTotal)} estimated deduction` : "Not set up yet",
+      content: homeOfficeContent,
+    }] : []),
+    ...(!showPersonalSection && showRetirement ? [{
+      value: "retirement", label: "Business Retirement", icon: PiggyBank,
+      summary: `${fmt(retirementTotal)} contributed`,
+      content: retirementContent,
+    }] : []),
+    ...(!showPersonalSection && showHsa ? [{
+      value: "hsa", label: "HSA", icon: HeartPulse,
+      summary: `${fmt(hsaTotal)} contributed`,
+      content: hsaContent,
+    }] : []),
+    { value: "se-health", label: "Self-Employed Health Insurance", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
+  ];
+
+  const personalItems: CategoryItem[] = showPersonalSection
+    ? [
+        ...(showRetirement ? [{
+          value: "retirement", label: "Retirement", icon: PiggyBank,
+          summary: `${fmt(retirementTotal)} contributed`,
+          content: retirementContent,
+        }] : []),
+        ...(showHsa ? [{
+          value: "hsa", label: "HSA", icon: HeartPulse,
+          summary: `${fmt(hsaTotal)} contributed`,
+          content: hsaContent,
+        }] : []),
+        { value: "home-property", label: "Home & Property", icon: Home, summary: "Coming soon", comingSoon: true },
+        { value: "student-loan-interest", label: "Student Loan Interest", icon: Wallet, summary: "Coming soon", comingSoon: true },
+        { value: "charitable", label: "Charitable Giving", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
+        { value: "other-adjustments", label: "Other Tax Adjustments", icon: Info, summary: "Coming soon", comingSoon: true },
+      ]
+    : [];
+
+  const renderCategories = (items: CategoryItem[]) => (
+    <Accordion
+      type="single"
+      collapsible
+      value={activeTab}
+      onValueChange={setActiveTab}
+      className="space-y-3"
+    >
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <AccordionItem
+            key={item.value}
+            value={item.value}
+            disabled={item.comingSoon}
+            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30"
+          >
+            <AccordionTrigger className="py-4 hover:no-underline gap-3 min-h-[60px]">
+              <div className="flex items-center gap-3 text-left min-w-0">
+                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-card-foreground truncate">{item.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">{item.summary}</p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5">{item.content}</AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
+  );
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Tax Savings</h1>
+        <p className="text-sm text-muted-foreground">Tap a category to view and manage it — everything lives on this page.</p>
+      </div>
+
+      <div className="space-y-6">
+        {showBusinessSection && businessItems.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
+            </h2>
+            {renderCategories(businessItems)}
+          </section>
+        )}
+        {personalItems.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
+            </h2>
+            {renderCategories(personalItems)}
+          </section>
+        )}
+      </div>
+
 
       {/* ─── MILEAGE DIALOGS ──────────────────────── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
