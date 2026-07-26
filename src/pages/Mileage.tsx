@@ -88,8 +88,10 @@ export default function Mileage() {
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState(defaultTab);
-  // Keep the selected category valid once the income profile finishes loading.
+  // Keep the expanded category valid once the income profile finishes loading.
+  // An empty value means "all collapsed", which is allowed.
   useEffect(() => {
+    if (!activeTab) return;
     const stillVisible =
       (activeTab === "mileage" && showMileage) ||
       (activeTab === "home-office" && showHomeOffice) ||
