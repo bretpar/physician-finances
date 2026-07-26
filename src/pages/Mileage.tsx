@@ -412,6 +412,24 @@ export default function Mileage() {
             </Card>
           </div>
 
+          {ytdEntries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Recent activity</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {[...ytdEntries]
+                  .sort((a, b) => b.year - a.year || b.month - a.month)
+                  .slice(0, 5)
+                  .map((e) => (
+                    <div key={e.id} className="flex items-center justify-between text-sm gap-3">
+                      <span className="text-muted-foreground truncate">{MONTHS[e.month - 1]} {e.year} — {companyNameById(e.company_id, e.company_name)}</span>
+                      <span className="tabular-nums font-medium shrink-0">{Number(e.miles).toLocaleString()} mi</span>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
+
+
           <button
             type="button"
             onClick={() => {
