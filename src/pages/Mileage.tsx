@@ -342,15 +342,79 @@ export default function Mileage() {
   const getAccountLabel = (v: string) => ACCOUNT_TYPES.find((a) => a.value === v)?.label || v;
   const getFreqLabel = (v: string) => FREQUENCIES.find((f) => f.value === v)?.label || v;
 
+  const streams = taxSettings?.householdIncomeStreams;
+  const hasW2Income = !!(streams && (streams.w2Income || streams.spouseW2Income || streams.additionalW2Job));
+  const hasSelfEmployedIncome = !!(streams && (streams.business1099Income || streams.k1PartnershipIncome || streams.sCorpIncome));
+  const showBusinessSection = showMileage || showHomeOffice;
+  // Business-only users keep access to Retirement/HSA inside the business section.
+  const showPersonalSection = !(hasSelfEmployedIncome && !hasW2Income) && (showRetirement || showHsa);
+
+  const businessCategories = [
+    ...(showMileage ? [{ value: "mileage", label: "Mileage", desc: "Track business miles", icon: Car }] : []),
+    ...(showHomeOffice ? [{ value: "home-office", label: "Home Office", desc: "Simplified or actual", icon: Home }] : []),
+    ...(!showPersonalSection && showRetirement ? [{ value: "retirement", label: "Business Retirement", desc: "Solo 401(k), SEP & more", icon: PiggyBank }] : []),
+    ...(!showPersonalSection && showHsa ? [{ value: "hsa", label: "HSA", desc: "Health savings account", icon: HeartPulse }] : []),
+  ];
+
+  const personalCategories = showPersonalSection
+    ? [
+        ...(showRetirement ? [{ value: "retirement", label: "Retirement", desc: "401(k), IRA & more", icon: PiggyBank }] : []),
+        ...(showHsa ? [{ value: "hsa", label: "HSA", desc: "Health savings account", icon: HeartPulse }] : []),
+      ]
+    : [];
+
+  const CategoryGrid = ({ items }: { items: typeof businessCategories }) => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const active = activeTab === item.value;
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setActiveTab(item.value)}
+            aria-pressed={active}
+            className={`rounded-lg border p-3 text-left transition-colors ${
+              active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-card hover:bg-muted/50"
+            }`}
+          >
+            <Icon className={`h-5 w-5 mb-2 ${active ? "text-primary" : "text-muted-foreground"}`} />
+            <p className="text-sm font-medium text-card-foreground leading-tight">{item.label}</p>
+            <p className="text-xs text-muted-foreground leading-tight mt-0.5">{item.desc}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4 h-auto gap-1 p-1">
-          {showMileage && <TabsTrigger value="mileage" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><Car className="h-4 w-4 shrink-0" /> Mileage</TabsTrigger>}
-          {showHomeOffice && <TabsTrigger value="home-office" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><Home className="h-4 w-4 shrink-0" /> Home Office</TabsTrigger>}
-          {showRetirement && <TabsTrigger value="retirement" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><PiggyBank className="h-4 w-4 shrink-0" /> Retirement</TabsTrigger>}
-          {showHsa && <TabsTrigger value="hsa" className="gap-1.5 text-xs sm:text-sm py-2 px-2"><HeartPulse className="h-4 w-4 shrink-0" /> HSA</TabsTrigger>}
-        </TabsList>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Tax Savings</h1>
+        <p className="text-sm text-muted-foreground">Choose a category to track deductions that lower your taxes.</p>
+      </div>
+
+      <div className="space-y-5">
+        {showBusinessSection && businessCategories.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
+            </h2>
+            <CategoryGrid items={businessCategories} />
+          </section>
+        )}
+        {personalCategories.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
+            </h2>
+            <CategoryGrid items={personalCategories} />
+          </section>
+        )}
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+
 
         {/* ─── MILEAGE TAB ──────────────────────────── */}
         <TabsContent value="mileage" className="space-y-6 mt-6">
