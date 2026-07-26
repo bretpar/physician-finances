@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +86,15 @@ export default function Mileage() {
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState(defaultTab);
+  // Keep the selected category valid once the income profile finishes loading.
+  useEffect(() => {
+    const stillVisible =
+      (activeTab === "mileage" && showMileage) ||
+      (activeTab === "home-office" && showHomeOffice) ||
+      (activeTab === "retirement" && showRetirement) ||
+      (activeTab === "hsa" && showHsa);
+    if (!stillVisible) setActiveTab(defaultTab);
+  }, [activeTab, defaultTab, showMileage, showHomeOffice, showRetirement, showHsa]);
 
   // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
