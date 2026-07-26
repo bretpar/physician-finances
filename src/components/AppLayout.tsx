@@ -44,7 +44,7 @@ const navItems: NavItem[] = [
   { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes", featureKey: "basicPaycheckTracking" },
   { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income", featureKey: "scenarioPlanner", w2OnlyFeatureKey: "basicWithholdingGuide" },
   { to: "/investments", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment" },
-  { to: "/deductions", icon: Car, label: "Deductions", subtitle: "", featureKey: "mileageDeduction" },
+  { to: "/deductions", icon: Car, label: "Tax Savings", subtitle: "", featureKey: "mileageDeduction" },
   { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", featureKey: "advancedTaxOverview", w2OnlyFeatureKey: "basicTaxOverview" },
   { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", featureKey: "detailedReports" },
   { to: "/student-loans", icon: GraduationCap, label: "Student Loans", subtitle: "Estimate payments and compare filing status", module: "student_loans" },
