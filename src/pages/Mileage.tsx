@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info, Wallet } from "lucide-react";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info, Wallet, Briefcase, User } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { HsaLedgerSection } from "@/components/settings/HsaSection";
@@ -85,6 +85,7 @@ export default function Mileage() {
   // See getDeductionToolVisibility for the rules.
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
