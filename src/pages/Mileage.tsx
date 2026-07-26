@@ -438,7 +438,7 @@ export default function Mileage() {
             }}
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
-            View Mileage History
+            View All
           </button>
 
           {showHistory && (
