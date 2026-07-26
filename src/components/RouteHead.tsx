@@ -82,7 +82,7 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
   {
     pattern: "/deductions",
     meta: {
-      title: "Deductions & Mileage | Paycheck MD",
+      title: "Tax Savings | Paycheck MD",
       description:
         "Capture mileage, home office, and other deductible expenses to lower your taxable physician income.",
     },
