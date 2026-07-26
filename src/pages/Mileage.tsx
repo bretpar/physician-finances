@@ -625,12 +625,8 @@ export default function Mileage() {
             </Card>
           </div>
 
-          {/* Add button */}
-          <div className="flex justify-end">
-            <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2">
-              <Plus className="h-4 w-4" /> Add Contribution
-            </Button>
-          </div>
+
+
 
           {/* Form */}
           {showContribForm && (
