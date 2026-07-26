@@ -428,20 +428,52 @@ export default function Mileage() {
 
         {/* ─── MILEAGE TAB ──────────────────────────── */}
         <TabsContent value="mileage" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Monthly Miles</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-card-foreground">{monthTotalMiles.toLocaleString()}</p><p className="text-xs text-muted-foreground">{MONTHS[selectedMonth - 1]} {selectedYear}</p></CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Monthly Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(monthDeduction)}</p><p className="text-xs text-muted-foreground">@ ${getIrsMileageRate(selectedYear)}/mile</p></CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">YTD Miles</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-card-foreground">{ytdTotalMiles.toLocaleString()}</p><p className="text-xs text-muted-foreground">{selectedYear}</p></CardContent></Card>
-            <Card><CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">YTD Deduction</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-success">{fmt(ytdDeduction)}</p><p className="text-xs text-muted-foreground">Business mileage deduction</p></CardContent></Card>
+          <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto"><Plus className="h-4 w-4" /> Add Mileage</Button>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">This Month</CardTitle></CardHeader>
+              <CardContent className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-muted-foreground">Miles</span>
+                  <span className="text-2xl font-bold text-card-foreground tabular-nums">{monthTotalMiles.toLocaleString()}</span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-muted-foreground">Deduction</span>
+                  <span className="text-2xl font-bold text-success tabular-nums">{fmt(monthDeduction)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground pt-1">{MONTHS[selectedMonth - 1]} {selectedYear}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Year to Date</CardTitle></CardHeader>
+              <CardContent className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-muted-foreground">Miles</span>
+                  <span className="text-2xl font-bold text-card-foreground tabular-nums">{ytdTotalMiles.toLocaleString()}</span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs text-muted-foreground">Deduction</span>
+                  <span className="text-2xl font-bold text-success tabular-nums">{fmt(ytdDeduction)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground pt-1">{selectedYear}</p>
+              </CardContent>
+            </Card>
           </div>
 
-          <p className="text-xs text-muted-foreground -mt-2">
-            {selectedYear === 2026
-              ? "2026 IRS business mileage rate: 72.5¢ per mile."
-              : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
-            {" "}K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
-          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setShowHistory(true);
+              setTimeout(() => document.getElementById("mileage-history")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            }}
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            View Mileage History
+          </button>
 
+          {showHistory && (
+          <div id="mileage-history" className="space-y-6">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
             <div className="flex gap-3">
               <div>
@@ -461,9 +493,9 @@ export default function Mileage() {
             </div>
             <div className="flex gap-2 sm:ml-auto">
               <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" /> Export CSV</Button>
-              <Button onClick={() => setShowAdd(true)} className="gap-2"><Plus className="h-4 w-4" /> Add Entry</Button>
             </div>
           </div>
+
 
           {byCompany.length > 0 && (
             <Card>
