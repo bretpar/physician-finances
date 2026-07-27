@@ -957,21 +957,34 @@ export default function Mileage() {
       <div className="space-y-6">
         {showBusinessSection && businessItems.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
-            </h2>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Tax deductions related to your self-employed or business income.
+                {showRetirement && !showPersonalSection && " Solo 401(k), SEP and similar plan contributions belong here."}
+              </p>
+            </div>
             {renderCategories(businessItems)}
           </section>
         )}
         {personalItems.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
-            </h2>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Tax deductions that reduce your personal taxable income.
+                {showBusinessSection && " Solo 401(k), SEP and other business retirement plans belong under Business Tax Savings."}
+              </p>
+            </div>
             {renderCategories(personalItems)}
           </section>
         )}
       </div>
+
 
 
       {/* ─── MILEAGE DIALOGS ──────────────────────── */}
