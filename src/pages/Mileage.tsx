@@ -393,7 +393,7 @@ export default function Mileage() {
   const mileageContent = (
     <div className="space-y-6">
 
-          <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto"><Plus className="h-4 w-4" /> Add Mileage</Button>
+          <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto min-h-[44px]"><Plus className="h-4 w-4" /> Add Mileage</Button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
@@ -848,7 +848,22 @@ export default function Mileage() {
     </div>
   );
 
-  const hsaContent = <HsaLedgerSection />;
+  const hsaContent = hsaEnabled ? (
+    <HsaLedgerSection />
+  ) : (
+    <div className="space-y-3">
+      <Button
+        className="gap-2 w-full sm:w-auto min-h-[44px]"
+        disabled={updateTaxSettings.isPending}
+        onClick={() => updateTaxSettings.mutate({ hsaEnabled: true })}
+      >
+        <HeartPulse className="h-4 w-4" /> Enable HSA Tracking
+      </Button>
+      <p className="text-sm text-muted-foreground">
+        An HSA lets you set aside pre-tax dollars for medical costs. Turn on tracking to record contributions and see the tax savings here.
+      </p>
+    </div>
+  );
 
   // ─── Collapsed-state summaries (display only — no calculation changes) ───
   const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
