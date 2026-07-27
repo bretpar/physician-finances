@@ -559,7 +559,7 @@ export default function Mileage() {
       <p className="text-sm text-muted-foreground">
         If you regularly work from a dedicated space in your home, you may qualify for a home office deduction.
       </p>
-      {showHomeOfficeForm && homeOfficeFormBlock}
+      
     </div>
   ) : (
     <div className="space-y-6">
