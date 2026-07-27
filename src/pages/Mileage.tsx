@@ -854,8 +854,8 @@ export default function Mileage() {
     <div className="space-y-3">
       <Button
         className="gap-2 w-full sm:w-auto min-h-[44px]"
-        disabled={updateTaxSettings.isPending}
-        onClick={() => updateTaxSettings.mutate({ hsaEnabled: true })}
+        disabled={updateTaxSettings.isPending || !taxSettings?.id}
+        onClick={() => taxSettings?.id && updateTaxSettings.mutate({ id: taxSettings.id, hsaEnabled: true })}
       >
         <HeartPulse className="h-4 w-4" /> Enable HSA Tracking
       </Button>
