@@ -88,6 +88,20 @@ export default function Mileage() {
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const updateTaxSettings = useUpdateTaxSettings();
+  const hsaEnabled = !!taxSettings?.hsaEnabled;
+  // Keeps the expanded category's title + primary action in view after expanding.
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const handleAccordionChange = (value: string) => {
+    setActiveTab(value);
+    if (!value) return;
+    requestAnimationFrame(() => {
+      const el = itemRefs.current[value];
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - 12;
+      window.scrollTo({ top, behavior: "smooth" });
+    });
+  };
   // Keep the expanded category valid once the income profile finishes loading.
   // An empty value means "all collapsed", which is allowed.
   useEffect(() => {
