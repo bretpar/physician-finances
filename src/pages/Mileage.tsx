@@ -546,9 +546,24 @@ export default function Mileage() {
     </div>
   );
 
-  const homeOfficeContent = (
+  const homeOfficeIsEmpty = homeOfficeDeductions.length === 0;
+
+  const homeOfficeContent = homeOfficeIsEmpty ? (
+    <div className="space-y-3">
+      <Button
+        onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }}
+        className="gap-2 w-full sm:w-auto min-h-[44px]"
+      >
+        <Plus className="h-4 w-4" /> Set Up Home Office
+      </Button>
+      <p className="text-sm text-muted-foreground">
+        If you regularly work from a dedicated space in your home, you may qualify for a home office deduction.
+      </p>
+      {showHomeOfficeForm && homeOfficeFormBlock}
+    </div>
+  ) : (
     <div className="space-y-6">
-      <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 w-full sm:w-auto">
+      <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 w-full sm:w-auto min-h-[44px]">
         <Plus className="h-4 w-4" /> Edit Home Office
       </Button>
 
@@ -564,13 +579,11 @@ export default function Mileage() {
                     </Tooltip>
                   </TooltipProvider>
                 </CardTitle>
-                <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2"><Plus className="h-4 w-4" /> Add Deduction</Button>
+                <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 min-h-[44px]"><Plus className="h-4 w-4" /> Add Deduction</Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {homeOfficeDeductions.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">No home office deductions saved.</div>
-              ) : homeOfficeDeductions.map((d) => {
+              {homeOfficeDeductions.map((d) => {
                 const company = companies.find((c) => c.id === d.company_id);
                 const filing = normalizeFilingType(company?.companyType);
                 const trackedForReview = d.include_in_tax_calculation && filing === "k1_partnership";
