@@ -883,12 +883,12 @@ export default function Mileage() {
     }] : []),
     ...(!showPersonalSection && showRetirement ? [{
       value: "retirement", label: "Business Retirement", icon: PiggyBank,
-      summary: `${fmt(retirementTotal)} contributed`,
+      summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
       content: retirementContent,
     }] : []),
     ...(!showPersonalSection && showHsa ? [{
       value: "hsa", label: "HSA", icon: HeartPulse,
-      summary: `${fmt(hsaTotal)} contributed`,
+      summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
       content: hsaContent,
     }] : []),
     { value: "se-health", label: "Self-Employed Health Insurance", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
@@ -898,12 +898,12 @@ export default function Mileage() {
     ? [
         ...(showRetirement ? [{
           value: "retirement", label: "Retirement", icon: PiggyBank,
-          summary: `${fmt(retirementTotal)} contributed`,
+          summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
           content: retirementContent,
         }] : []),
         ...(showHsa ? [{
           value: "hsa", label: "HSA", icon: HeartPulse,
-          summary: `${fmt(hsaTotal)} contributed`,
+          summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
           content: hsaContent,
         }] : []),
         { value: "home-property", label: "Home & Property", icon: Home, summary: "Coming soon", comingSoon: true },
