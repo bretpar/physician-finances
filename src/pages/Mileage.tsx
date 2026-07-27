@@ -918,7 +918,7 @@ export default function Mileage() {
       type="single"
       collapsible
       value={activeTab}
-      onValueChange={setActiveTab}
+      onValueChange={handleAccordionChange}
       className="space-y-3"
     >
       {items.map((item) => {
@@ -928,7 +928,8 @@ export default function Mileage() {
             key={item.value}
             value={item.value}
             disabled={item.comingSoon}
-            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30"
+            ref={(el) => { itemRefs.current[item.value] = el; }}
+            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30 scroll-mt-4"
           >
             <AccordionTrigger className="py-4 hover:no-underline gap-3 min-h-[60px]">
               <div className="flex items-center gap-3 text-left min-w-0">
