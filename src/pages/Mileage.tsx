@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
@@ -88,6 +88,20 @@ export default function Mileage() {
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const updateTaxSettings = useUpdateTaxSettings();
+  const hsaEnabled = !!taxSettings?.hsaEnabled;
+  // Keeps the expanded category's title + primary action in view after expanding.
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const handleAccordionChange = (value: string) => {
+    setActiveTab(value);
+    if (!value) return;
+    requestAnimationFrame(() => {
+      const el = itemRefs.current[value];
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - 12;
+      window.scrollTo({ top, behavior: "smooth" });
+    });
+  };
   // Keep the expanded category valid once the income profile finishes loading.
   // An empty value means "all collapsed", which is allowed.
   useEffect(() => {
@@ -379,7 +393,7 @@ export default function Mileage() {
   const mileageContent = (
     <div className="space-y-6">
 
-          <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto"><Plus className="h-4 w-4" /> Add Mileage</Button>
+          <Button onClick={() => setShowAdd(true)} className="gap-2 w-full sm:w-auto min-h-[44px]"><Plus className="h-4 w-4" /> Add Mileage</Button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
@@ -532,9 +546,24 @@ export default function Mileage() {
     </div>
   );
 
-  const homeOfficeContent = (
+  const homeOfficeIsEmpty = homeOfficeDeductions.length === 0;
+
+  const homeOfficeContent = homeOfficeIsEmpty ? (
+    <div className="space-y-3">
+      <Button
+        onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }}
+        className="gap-2 w-full sm:w-auto min-h-[44px]"
+      >
+        <Plus className="h-4 w-4" /> Set Up Home Office
+      </Button>
+      <p className="text-sm text-muted-foreground">
+        If you regularly work from a dedicated space in your home, you may qualify for a home office deduction.
+      </p>
+      
+    </div>
+  ) : (
     <div className="space-y-6">
-      <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 w-full sm:w-auto">
+      <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 w-full sm:w-auto min-h-[44px]">
         <Plus className="h-4 w-4" /> Edit Home Office
       </Button>
 
@@ -550,13 +579,11 @@ export default function Mileage() {
                     </Tooltip>
                   </TooltipProvider>
                 </CardTitle>
-                <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2"><Plus className="h-4 w-4" /> Add Deduction</Button>
+                <Button onClick={() => { resetHomeOfficeForm(); setShowHomeOfficeForm(true); }} className="gap-2 min-h-[44px]"><Plus className="h-4 w-4" /> Add Deduction</Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {homeOfficeDeductions.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">No home office deductions saved.</div>
-              ) : homeOfficeDeductions.map((d) => {
+              {homeOfficeDeductions.map((d) => {
                 const company = companies.find((c) => c.id === d.company_id);
                 const filing = normalizeFilingType(company?.companyType);
                 const trackedForReview = d.include_in_tax_calculation && filing === "k1_partnership";
@@ -591,13 +618,26 @@ export default function Mileage() {
     </div>
   );
 
+  const retirementIsEmpty = (contributions?.length || 0) === 0 && paycheckLinked.entries.length === 0;
+
   const retirementContent = (
-    <div className="space-y-6">
-      <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2 w-full sm:w-auto">
+    <div className={retirementIsEmpty ? "space-y-3" : "space-y-6"}>
+      <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2 w-full sm:w-auto min-h-[44px]">
         <Plus className="h-4 w-4" /> Add Contribution
       </Button>
 
-          {/* Summary cards — include both standalone + paycheck-linked */}
+          {retirementIsEmpty ? (
+            <>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Contributions</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p></CardContent>
+              </Card>
+              <p className="text-sm text-muted-foreground">
+                Pre-tax retirement contributions lower your taxable income. Add a contribution to see how much you save.
+              </p>
+            </>
+          ) : (
+          /* Summary cards — include both standalone + paycheck-linked */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
@@ -620,6 +660,7 @@ export default function Mileage() {
               <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
             </Card>
           </div>
+          )}
 
           {paycheckLinked.entries.length > 0 && (
             <Card>
@@ -807,7 +848,22 @@ export default function Mileage() {
     </div>
   );
 
-  const hsaContent = <HsaLedgerSection />;
+  const hsaContent = hsaEnabled ? (
+    <HsaLedgerSection />
+  ) : (
+    <div className="space-y-3">
+      <Button
+        className="gap-2 w-full sm:w-auto min-h-[44px]"
+        disabled={updateTaxSettings.isPending || !taxSettings?.id}
+        onClick={() => taxSettings?.id && updateTaxSettings.mutate({ id: taxSettings.id, hsaEnabled: true })}
+      >
+        <HeartPulse className="h-4 w-4" /> Enable HSA Tracking
+      </Button>
+      <p className="text-sm text-muted-foreground">
+        An HSA lets you set aside pre-tax dollars for medical costs. Turn on tracking to record contributions and see the tax savings here.
+      </p>
+    </div>
+  );
 
   // ─── Collapsed-state summaries (display only — no calculation changes) ───
   const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
@@ -827,12 +883,12 @@ export default function Mileage() {
     }] : []),
     ...(!showPersonalSection && showRetirement ? [{
       value: "retirement", label: "Business Retirement", icon: PiggyBank,
-      summary: `${fmt(retirementTotal)} contributed`,
+      summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
       content: retirementContent,
     }] : []),
     ...(!showPersonalSection && showHsa ? [{
       value: "hsa", label: "HSA", icon: HeartPulse,
-      summary: `${fmt(hsaTotal)} contributed`,
+      summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
       content: hsaContent,
     }] : []),
     { value: "se-health", label: "Self-Employed Health Insurance", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
@@ -842,12 +898,12 @@ export default function Mileage() {
     ? [
         ...(showRetirement ? [{
           value: "retirement", label: "Retirement", icon: PiggyBank,
-          summary: `${fmt(retirementTotal)} contributed`,
+          summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
           content: retirementContent,
         }] : []),
         ...(showHsa ? [{
           value: "hsa", label: "HSA", icon: HeartPulse,
-          summary: `${fmt(hsaTotal)} contributed`,
+          summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
           content: hsaContent,
         }] : []),
         { value: "home-property", label: "Home & Property", icon: Home, summary: "Coming soon", comingSoon: true },
@@ -862,7 +918,7 @@ export default function Mileage() {
       type="single"
       collapsible
       value={activeTab}
-      onValueChange={setActiveTab}
+      onValueChange={handleAccordionChange}
       className="space-y-3"
     >
       {items.map((item) => {
@@ -872,7 +928,8 @@ export default function Mileage() {
             key={item.value}
             value={item.value}
             disabled={item.comingSoon}
-            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30"
+            ref={(el) => { itemRefs.current[item.value] = el; }}
+            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30 scroll-mt-4"
           >
             <AccordionTrigger className="py-4 hover:no-underline gap-3 min-h-[60px]">
               <div className="flex items-center gap-3 text-left min-w-0">
@@ -900,21 +957,34 @@ export default function Mileage() {
       <div className="space-y-6">
         {showBusinessSection && businessItems.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
-            </h2>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Tax deductions related to your self-employed or business income.
+                {showRetirement && !showPersonalSection && " Solo 401(k), SEP and similar plan contributions belong here."}
+              </p>
+            </div>
             {renderCategories(businessItems)}
           </section>
         )}
         {personalItems.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
-            </h2>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Tax deductions that reduce your personal taxable income.
+                {showBusinessSection && " Solo 401(k), SEP and other business retirement plans belong under Business Tax Savings."}
+              </p>
+            </div>
             {renderCategories(personalItems)}
           </section>
         )}
       </div>
+
 
 
       {/* ─── MILEAGE DIALOGS ──────────────────────── */}
