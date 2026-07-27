@@ -618,13 +618,26 @@ export default function Mileage() {
     </div>
   );
 
+  const retirementIsEmpty = (contributions?.length || 0) === 0 && paycheckLinked.entries.length === 0;
+
   const retirementContent = (
-    <div className="space-y-6">
-      <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2 w-full sm:w-auto">
+    <div className={retirementIsEmpty ? "space-y-3" : "space-y-6"}>
+      <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2 w-full sm:w-auto min-h-[44px]">
         <Plus className="h-4 w-4" /> Add Contribution
       </Button>
 
-          {/* Summary cards — include both standalone + paycheck-linked */}
+          {retirementIsEmpty ? (
+            <>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Contributions</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p></CardContent>
+              </Card>
+              <p className="text-sm text-muted-foreground">
+                Pre-tax retirement contributions lower your taxable income. Add a contribution to see how much you save.
+              </p>
+            </>
+          ) : (
+          /* Summary cards — include both standalone + paycheck-linked */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
@@ -647,6 +660,7 @@ export default function Mileage() {
               <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
             </Card>
           </div>
+          )}
 
           {paycheckLinked.entries.length > 0 && (
             <Card>
