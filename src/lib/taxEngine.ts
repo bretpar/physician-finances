@@ -723,6 +723,7 @@ export function calculateFullEstimate(params: {
     w2TaxableIncomeBase,
     halfSETaxDeduction: seTax.deductibleHalf,
     preTaxDeductions, retirement401k, healthInsuranceDeduction,
+    studentLoanInterestDeduction,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     deductionApplied, deductionType,
     federalTaxBeforeCredits, taxCredits,
