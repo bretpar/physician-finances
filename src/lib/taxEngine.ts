@@ -585,7 +585,19 @@ export function calculateFullEstimate(params: {
   const totalReturnIncomeBeforeAdjustments = w2TaxableIncomeBase + netBusinessProfit + otherIncome;
 
   // AGI = return income - non-W-2 above-the-line adjustments (no duplicate W-2 pre-tax subtraction).
-  const agi = totalReturnIncomeBeforeAdjustments - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf;
+  const agiBeforeStudentLoanInterest =
+    totalReturnIncomeBeforeAdjustments - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf;
+
+  // §221 student loan interest — isolated module so cap/phase-out rules can evolve.
+  const studentLoanInterestResult = computeStudentLoanInterestDeduction({
+    interestPaid: studentLoanInterestPaid,
+    magi: agiBeforeStudentLoanInterest,
+    filingStatus,
+  });
+  const studentLoanInterestDeduction = studentLoanInterestResult.deduction;
+  const agi = agiBeforeStudentLoanInterest - studentLoanInterestDeduction;
+
+
 
   // Standard deduction (fallback) and resolved deduction applied
   const standardDeduction = standardDeductionOverride ?? STANDARD_DEDUCTION[filingStatus];
