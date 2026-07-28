@@ -39,6 +39,8 @@ import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
+import { computeStudentLoanInterestDeduction, STUDENT_LOAN_INTEREST_MAX } from "@/lib/studentLoanInterestDeduction";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -96,6 +98,8 @@ export default function Mileage() {
   const [activeTab, setActiveTab] = useState(defaultTab);
   const updateTaxSettings = useUpdateTaxSettings();
   const hsaEnabled = !!taxSettings?.hsaEnabled;
+  const { estimate } = useTaxEstimate();
+  const [studentLoanInterestInput, setStudentLoanInterestInput] = useState("");
   // Keeps the expanded category's title + primary action in view after expanding.
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const handleAccordionChange = (value: string) => {
@@ -882,9 +886,7 @@ export default function Mileage() {
   const studentLoanDeductionResult = computeStudentLoanInterestDeduction({
     interestPaid: savedStudentLoanInterest,
     magi: studentLoanMagi,
-    filingStatus: normalizeFilingType(taxSettings?.filingStatus) === "married_filing_jointly"
-      ? "married_filing_jointly"
-      : "single",
+    filingStatus: taxSettings?.filingStatus === "married_filing_jointly" ? "married_filing_jointly" : "single",
   });
   const studentLoanInterestContent = (
     <div className="space-y-4">
