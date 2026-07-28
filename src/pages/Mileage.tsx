@@ -883,6 +883,9 @@ export default function Mileage() {
   // ─── Student Loan Interest (§221) ───────────────────────────
   const savedStudentLoanInterest = Number(taxSettings?.studentLoanInterestAnnual || 0);
   const studentLoanMagi = Math.max(0, Number(estimate?.agi || 0) + Number(estimate?.studentLoanInterestDeduction || 0));
+  useEffect(() => {
+    setStudentLoanInterestInput(savedStudentLoanInterest ? String(savedStudentLoanInterest) : "");
+  }, [savedStudentLoanInterest]);
   const studentLoanDeductionResult = computeStudentLoanInterestDeduction({
     interestPaid: savedStudentLoanInterest,
     magi: studentLoanMagi,
@@ -1006,8 +1009,13 @@ export default function Mileage() {
         }] : []),
         {
           value: "student-loan-interest", label: "Student Loan Interest", icon: Wallet,
-          description: "Deduct up to $2,500 of student loan interest you paid this year.",
-          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+          description: "Enter the student loan interest you expect to pay this year. If eligible, this may reduce your taxable income.",
+          status: (savedStudentLoanInterest > 0 ? "configured" : "not_configured") as OpportunityStatus,
+          actionLabel: (savedStudentLoanInterest > 0 ? "Edit" : "Add") as OpportunityActionLabel,
+          summary: savedStudentLoanInterest > 0
+            ? `${fmt(savedStudentLoanInterest)} interest • ${fmt(studentLoanDeductionResult.deduction)} deductible`
+            : "No interest entered",
+          content: studentLoanInterestContent,
         },
         {
           value: "mortgage-interest", label: "Mortgage Interest", icon: Home,
