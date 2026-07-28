@@ -14,6 +14,7 @@ import {
   type FilingStatus,
 } from "@/lib/taxBrackets";
 import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
+import { computeStudentLoanInterestDeduction } from "@/lib/studentLoanInterestDeduction";
 import {
   computeQbiDeduction,
   type QbiComputation,
