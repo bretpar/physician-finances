@@ -1,5 +1,11 @@
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  ComingSoonOpportunityCard,
+  OpportunityHeader,
+  type OpportunityActionLabel,
+  type OpportunityStatus,
+} from "@/components/tax-savings/OpportunityCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
