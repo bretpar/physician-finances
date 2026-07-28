@@ -876,10 +876,72 @@ export default function Mileage() {
     </div>
   );
 
+  // ─── Student Loan Interest (§221) ───────────────────────────
+  const savedStudentLoanInterest = Number(taxSettings?.studentLoanInterestAnnual || 0);
+  const studentLoanMagi = Math.max(0, Number(estimate?.agi || 0) + Number(estimate?.studentLoanInterestDeduction || 0));
+  const studentLoanDeductionResult = computeStudentLoanInterestDeduction({
+    interestPaid: savedStudentLoanInterest,
+    magi: studentLoanMagi,
+    filingStatus: normalizeFilingType(taxSettings?.filingStatus) === "married_filing_jointly"
+      ? "married_filing_jointly"
+      : "single",
+  });
+  const studentLoanInterestContent = (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Enter the student loan interest you expect to pay this year. If eligible, this may reduce your taxable income.
+      </p>
+      <div className="space-y-2 max-w-xs">
+        <Label htmlFor="student-loan-interest-annual">Annual Student Loan Interest ($)</Label>
+        <Input
+          id="student-loan-interest-annual"
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          className="min-h-[44px]"
+          value={studentLoanInterestInput}
+          onChange={(e) => setStudentLoanInterestInput(e.target.value)}
+        />
+      </div>
+      <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Annual interest entered</span>
+          <span className="font-medium">{fmt(savedStudentLoanInterest)}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Estimated deductible amount</span>
+          <span className="font-semibold">{fmt(studentLoanDeductionResult.deduction)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground pt-1">
+          Capped at {fmt(STUDENT_LOAN_INTEREST_MAX)} per year and reduced as income rises.
+          {studentLoanDeductionResult.phasedOut && savedStudentLoanInterest > 0
+            ? " Your estimated income phases this deduction out."
+            : ""}
+        </p>
+      </div>
+      <Button
+        className="w-full sm:w-auto min-h-[44px]"
+        disabled={updateTaxSettings.isPending || !taxSettings?.id}
+        onClick={() =>
+          taxSettings?.id &&
+          updateTaxSettings.mutate({
+            id: taxSettings.id,
+            studentLoanInterestAnnual: Math.max(0, num(studentLoanInterestInput)),
+          } as any)
+        }
+      >
+        Save
+      </Button>
+    </div>
+  );
+
   // ─── Collapsed-state summaries (display only — no calculation changes) ───
   const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
   const hsaTotal = hsaContributions.reduce((s, c) => s + Number(c.amount || 0), 0);
   const retirementTotal = annualized.total + paycheckLinked.total;
+
 
   const businessItems: CategoryItem[] = [
     ...(showMileage ? [{
