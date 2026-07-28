@@ -937,7 +937,7 @@ export default function Mileage() {
           } as any)
         }
       >
-        Save
+        {savedStudentLoanInterest > 0 ? "Edit Student Loan Interest" : "Add Student Loan Interest"}
       </Button>
     </div>
   );
