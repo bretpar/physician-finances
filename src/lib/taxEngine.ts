@@ -517,6 +517,11 @@ export function calculateFullEstimate(params: {
    * when `qbiEntities` is not provided. Excludes W-2 401(k) elective deferrals.
    */
   qbiSeRetirementDeduction?: number;
+  /**
+   * Annual student loan interest the user expects to pay. The engine applies
+   * the §221 cap + MAGI phase-out via `computeStudentLoanInterestDeduction`.
+   */
+  studentLoanInterestPaid?: number;
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome,
