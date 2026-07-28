@@ -300,6 +300,8 @@ export interface TaxEstimate {
   preTaxDeductions: number;
   retirement401k: number;
   healthInsuranceDeduction: number;
+  /** §221 student loan interest deduction actually allowed after cap + phase-out. */
+  studentLoanInterestDeduction: number;
   /** Half of SE tax — above-the-line adjustment to AGI. */
   halfSETaxDeduction: number;
   businessDeductions: number;
