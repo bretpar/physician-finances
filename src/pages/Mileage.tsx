@@ -385,9 +385,14 @@ export default function Mileage() {
     label: string;
     icon: typeof Car;
     summary: string;
+    /** One-line explanation of the deduction (Opportunity Card pattern). */
+    description: string;
+    status: OpportunityStatus;
+    actionLabel?: OpportunityActionLabel;
     content?: ReactNode;
     comingSoon?: boolean;
   }
+
 
 
   const mileageContent = (
