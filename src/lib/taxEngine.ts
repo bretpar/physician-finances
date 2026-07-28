@@ -534,6 +534,7 @@ export function calculateFullEstimate(params: {
     plannedW2FicaWages,
     preTaxDeductions, retirement401k,
     healthInsuranceDeduction = 0,
+    studentLoanInterestPaid = 0,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
     lastYearTax, standardDeductionOverride, ssWageCap = SS_WAGE_CAP_DEFAULT,
     remainingPayPeriods = 12, additionalTaxPaid = 0,
