@@ -97,6 +97,8 @@ export interface UnifiedTaxInput {
   ssWageCap: number;
   deductionType?: "standard" | "itemized";
   itemizedDeductionAmount?: number;
+  /** Annual student loan interest the user expects to pay (§221). */
+  studentLoanInterestPaid?: number;
   qualifyingChildrenCount?: number;
   otherDependentsCount?: number;
   withholdingOverrideType?: "none" | "percent" | "amount";
@@ -393,6 +395,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     additionalTaxPaid,
     deductionType,
     itemizedDeductionAmount,
+    studentLoanInterestPaid,
     qualifyingChildrenCount,
     otherDependentsCount,
     withholdingOverrideType,
