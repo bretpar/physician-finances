@@ -1,0 +1,1 @@
+ALTER TABLE public.tax_settings ADD COLUMN IF NOT EXISTS student_loan_interest_annual numeric NOT NULL DEFAULT 0;
