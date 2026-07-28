@@ -264,6 +264,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
+    studentLoanInterestPaid = 0,
     qualifyingChildrenCount = 0,
     otherDependentsCount = 0,
     withholdingOverrideType = "none",

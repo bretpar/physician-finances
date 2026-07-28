@@ -866,6 +866,7 @@ export function useTaxEstimate(): {
         ssWageCap: rates.ssWageCap,
         deductionType: rates.deductionType,
         itemizedDeductionAmount: rates.itemizedDeductionAmount,
+        studentLoanInterestPaid: (rates as any).studentLoanInterestAnnual ?? 0,
         qualifyingChildrenCount: rates.qualifyingChildrenCount,
         otherDependentsCount: rates.otherDependentsCount,
         withholdingOverrideType: rates.withholdingOverrideType,
