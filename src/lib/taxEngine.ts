@@ -14,6 +14,7 @@ import {
   type FilingStatus,
 } from "@/lib/taxBrackets";
 import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
+import { computeStudentLoanInterestDeduction } from "@/lib/studentLoanInterestDeduction";
 import {
   computeQbiDeduction,
   type QbiComputation,
@@ -300,6 +301,8 @@ export interface TaxEstimate {
   preTaxDeductions: number;
   retirement401k: number;
   healthInsuranceDeduction: number;
+  /** §221 student loan interest deduction actually allowed after cap + phase-out. */
+  studentLoanInterestDeduction: number;
   /** Half of SE tax — above-the-line adjustment to AGI. */
   halfSETaxDeduction: number;
   businessDeductions: number;
@@ -515,6 +518,11 @@ export function calculateFullEstimate(params: {
    * when `qbiEntities` is not provided. Excludes W-2 401(k) elective deferrals.
    */
   qbiSeRetirementDeduction?: number;
+  /**
+   * Annual student loan interest the user expects to pay. The engine applies
+   * the §221 cap + MAGI phase-out via `computeStudentLoanInterestDeduction`.
+   */
+  studentLoanInterestPaid?: number;
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome,
@@ -527,6 +535,7 @@ export function calculateFullEstimate(params: {
     plannedW2FicaWages,
     preTaxDeductions, retirement401k,
     healthInsuranceDeduction = 0,
+    studentLoanInterestPaid = 0,
     businessDeductions, mileageDeduction, taxesWithheld, filingStatus,
     lastYearTax, standardDeductionOverride, ssWageCap = SS_WAGE_CAP_DEFAULT,
     remainingPayPeriods = 12, additionalTaxPaid = 0,
@@ -577,7 +586,19 @@ export function calculateFullEstimate(params: {
   const totalReturnIncomeBeforeAdjustments = w2TaxableIncomeBase + netBusinessProfit + otherIncome;
 
   // AGI = return income - non-W-2 above-the-line adjustments (no duplicate W-2 pre-tax subtraction).
-  const agi = totalReturnIncomeBeforeAdjustments - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf;
+  const agiBeforeStudentLoanInterest =
+    totalReturnIncomeBeforeAdjustments - preTaxDeductions - retirement401k - healthInsuranceDeduction - seTax.deductibleHalf;
+
+  // §221 student loan interest — isolated module so cap/phase-out rules can evolve.
+  const studentLoanInterestResult = computeStudentLoanInterestDeduction({
+    interestPaid: studentLoanInterestPaid,
+    magi: agiBeforeStudentLoanInterest,
+    filingStatus,
+  });
+  const studentLoanInterestDeduction = studentLoanInterestResult.deduction;
+  const agi = agiBeforeStudentLoanInterest - studentLoanInterestDeduction;
+
+
 
   // Standard deduction (fallback) and resolved deduction applied
   const standardDeduction = standardDeductionOverride ?? STANDARD_DEDUCTION[filingStatus];
@@ -702,6 +723,7 @@ export function calculateFullEstimate(params: {
     w2TaxableIncomeBase,
     halfSETaxDeduction: seTax.deductibleHalf,
     preTaxDeductions, retirement401k, healthInsuranceDeduction,
+    studentLoanInterestDeduction,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     deductionApplied, deductionType,
     federalTaxBeforeCredits, taxCredits,

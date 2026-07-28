@@ -39,6 +39,8 @@ import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
+import { computeStudentLoanInterestDeduction, STUDENT_LOAN_INTEREST_MAX } from "@/lib/studentLoanInterestDeduction";
+import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -96,6 +98,8 @@ export default function Mileage() {
   const [activeTab, setActiveTab] = useState(defaultTab);
   const updateTaxSettings = useUpdateTaxSettings();
   const hsaEnabled = !!taxSettings?.hsaEnabled;
+  const { estimate } = useTaxEstimate();
+  const [studentLoanInterestInput, setStudentLoanInterestInput] = useState("");
   // Keeps the expanded category's title + primary action in view after expanding.
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const handleAccordionChange = (value: string) => {
@@ -876,10 +880,73 @@ export default function Mileage() {
     </div>
   );
 
+  // ─── Student Loan Interest (§221) ───────────────────────────
+  const savedStudentLoanInterest = Number(taxSettings?.studentLoanInterestAnnual || 0);
+  const studentLoanMagi = Math.max(0, Number(estimate?.agi || 0) + Number(estimate?.studentLoanInterestDeduction || 0));
+  useEffect(() => {
+    setStudentLoanInterestInput(savedStudentLoanInterest ? String(savedStudentLoanInterest) : "");
+  }, [savedStudentLoanInterest]);
+  const studentLoanDeductionResult = computeStudentLoanInterestDeduction({
+    interestPaid: savedStudentLoanInterest,
+    magi: studentLoanMagi,
+    filingStatus: taxSettings?.filingStatus === "married_filing_jointly" ? "married_filing_jointly" : "single",
+  });
+  const studentLoanInterestContent = (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Enter the student loan interest you expect to pay this year. If eligible, this may reduce your taxable income.
+      </p>
+      <div className="space-y-2 max-w-xs">
+        <Label htmlFor="student-loan-interest-annual">Annual Student Loan Interest ($)</Label>
+        <Input
+          id="student-loan-interest-annual"
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          className="min-h-[44px]"
+          value={studentLoanInterestInput}
+          onChange={(e) => setStudentLoanInterestInput(e.target.value)}
+        />
+      </div>
+      <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Annual interest entered</span>
+          <span className="font-medium">{fmt(savedStudentLoanInterest)}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Estimated deductible amount</span>
+          <span className="font-semibold">{fmt(studentLoanDeductionResult.deduction)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground pt-1">
+          Capped at {fmt(STUDENT_LOAN_INTEREST_MAX)} per year and reduced as income rises.
+          {studentLoanDeductionResult.phasedOut && savedStudentLoanInterest > 0
+            ? " Your estimated income phases this deduction out."
+            : ""}
+        </p>
+      </div>
+      <Button
+        className="w-full sm:w-auto min-h-[44px]"
+        disabled={updateTaxSettings.isPending || !taxSettings?.id}
+        onClick={() =>
+          taxSettings?.id &&
+          updateTaxSettings.mutate({
+            id: taxSettings.id,
+            studentLoanInterestAnnual: Math.max(0, num(studentLoanInterestInput)),
+          } as any)
+        }
+      >
+        {savedStudentLoanInterest > 0 ? "Edit Student Loan Interest" : "Add Student Loan Interest"}
+      </Button>
+    </div>
+  );
+
   // ─── Collapsed-state summaries (display only — no calculation changes) ───
   const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
   const hsaTotal = hsaContributions.reduce((s, c) => s + Number(c.amount || 0), 0);
   const retirementTotal = annualized.total + paycheckLinked.total;
+
 
   const businessItems: CategoryItem[] = [
     ...(showMileage ? [{
@@ -942,8 +1009,13 @@ export default function Mileage() {
         }] : []),
         {
           value: "student-loan-interest", label: "Student Loan Interest", icon: Wallet,
-          description: "Deduct up to $2,500 of student loan interest you paid this year.",
-          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+          description: "Enter the student loan interest you expect to pay this year. If eligible, this may reduce your taxable income.",
+          status: (savedStudentLoanInterest > 0 ? "configured" : "not_configured") as OpportunityStatus,
+          actionLabel: (savedStudentLoanInterest > 0 ? "Edit" : "Add") as OpportunityActionLabel,
+          summary: savedStudentLoanInterest > 0
+            ? `${fmt(savedStudentLoanInterest)} interest • ${fmt(studentLoanDeductionResult.deduction)} deductible`
+            : "No interest entered",
+          content: studentLoanInterestContent,
         },
         {
           value: "mortgage-interest", label: "Mortgage Interest", icon: Home,

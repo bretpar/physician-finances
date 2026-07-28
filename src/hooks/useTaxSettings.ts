@@ -92,6 +92,8 @@ export interface TaxRates {
   // New tax profile fields
   deductionType: DeductionType;
   itemizedDeductionAmount: number;
+  /** Annual student loan interest expected to be paid this year (§221). */
+  studentLoanInterestAnnual: number;
   qualifyingChildrenCount: number;
   otherDependentsCount: number;
   withholdingOverrideType: WithholdingOverrideType;
@@ -162,6 +164,7 @@ const DEFAULT_RATES: TaxRates = {
   w2PaycheckRecMethod: "annual_w4",
   deductionType: "standard",
   itemizedDeductionAmount: 0,
+  studentLoanInterestAnnual: 0,
   qualifyingChildrenCount: 0,
   otherDependentsCount: 0,
   withholdingOverrideType: "none",
@@ -299,6 +302,7 @@ function mapTaxSettingsRow(data: any): TaxRates {
     w2PaycheckRecMethod: (d.w2_paycheck_rec_method as W2PaycheckRecMethod) || "annual_w4",
     deductionType: (d.deduction_type as DeductionType) || "standard",
     itemizedDeductionAmount: Number(d.itemized_deduction_amount) || 0,
+    studentLoanInterestAnnual: Number((d as any).student_loan_interest_annual) || 0,
     qualifyingChildrenCount: Number(d.qualifying_children_count) || 0,
     otherDependentsCount: Number(d.other_dependents_count) || 0,
     withholdingOverrideType: (d.withholding_override_type as WithholdingOverrideType) || "none",
@@ -377,6 +381,7 @@ export function useUpdateTaxSettings() {
       if (rest.manualEffectiveTaxRate !== undefined) payload.manual_effective_tax_rate = rest.manualEffectiveTaxRate;
       if (rest.deductionType !== undefined) payload.deduction_type = rest.deductionType;
       if (rest.itemizedDeductionAmount !== undefined) payload.itemized_deduction_amount = rest.itemizedDeductionAmount;
+      if ((rest as any).studentLoanInterestAnnual !== undefined) payload.student_loan_interest_annual = (rest as any).studentLoanInterestAnnual;
       if (rest.qualifyingChildrenCount !== undefined) payload.qualifying_children_count = rest.qualifyingChildrenCount;
       if (rest.otherDependentsCount !== undefined) payload.other_dependents_count = rest.otherDependentsCount;
       if (rest.withholdingOverrideType !== undefined) payload.withholding_override_type = rest.withholdingOverrideType;

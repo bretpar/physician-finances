@@ -1618,6 +1618,7 @@ export type Database = {
           student_loan_estimator_enabled: boolean
           student_loan_family_size: number | null
           student_loan_income_override: number | null
+          student_loan_interest_annual: number
           student_loan_spouse_income_override: number | null
           subscription_tier: string
           tax_mode: string
@@ -1687,6 +1688,7 @@ export type Database = {
           student_loan_estimator_enabled?: boolean
           student_loan_family_size?: number | null
           student_loan_income_override?: number | null
+          student_loan_interest_annual?: number
           student_loan_spouse_income_override?: number | null
           subscription_tier?: string
           tax_mode?: string
@@ -1756,6 +1758,7 @@ export type Database = {
           student_loan_estimator_enabled?: boolean
           student_loan_family_size?: number | null
           student_loan_income_override?: number | null
+          student_loan_interest_annual?: number
           student_loan_spouse_income_override?: number | null
           subscription_tier?: string
           tax_mode?: string
