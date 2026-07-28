@@ -1,5 +1,11 @@
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  ComingSoonOpportunityCard,
+  OpportunityHeader,
+  type OpportunityActionLabel,
+  type OpportunityStatus,
+} from "@/components/tax-savings/OpportunityCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -385,9 +391,14 @@ export default function Mileage() {
     label: string;
     icon: typeof Car;
     summary: string;
+    /** One-line explanation of the deduction (Opportunity Card pattern). */
+    description: string;
+    status: OpportunityStatus;
+    actionLabel?: OpportunityActionLabel;
     content?: ReactNode;
     comingSoon?: boolean;
   }
+
 
 
   const mileageContent = (
@@ -873,79 +884,146 @@ export default function Mileage() {
   const businessItems: CategoryItem[] = [
     ...(showMileage ? [{
       value: "mileage", label: "Mileage", icon: Car,
+      description: "Deduct business driving at the IRS standard mileage rate.",
+      status: (ytdTotalMiles > 0 ? "configured" : "not_configured") as OpportunityStatus,
+      actionLabel: "Add" as OpportunityActionLabel,
       summary: `${ytdTotalMiles.toLocaleString()} miles • ${fmt(ytdDeduction)} deduction`,
       content: mileageContent,
     }] : []),
     ...(showHomeOffice ? [{
       value: "home-office", label: "Home Office", icon: Home,
+      description: "Deduct a portion of your home costs for a dedicated workspace.",
+      status: (homeOfficeIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
+      actionLabel: (homeOfficeIsEmpty ? "Set Up" : "Edit") as OpportunityActionLabel,
       summary: homeOfficeDeductions.length ? `${fmt(homeOfficeAllowedTotal)} estimated deduction` : "Not set up yet",
       content: homeOfficeContent,
     }] : []),
     ...(!showPersonalSection && showRetirement ? [{
       value: "retirement", label: "Business Retirement", icon: PiggyBank,
+      description: "Solo 401(k), SEP and similar contributions lower your taxable income.",
+      status: (retirementIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
+      actionLabel: "Add" as OpportunityActionLabel,
       summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
       content: retirementContent,
     }] : []),
     ...(!showPersonalSection && showHsa ? [{
       value: "hsa", label: "HSA", icon: HeartPulse,
+      description: "Pre-tax dollars set aside for qualified medical expenses.",
+      status: (hsaEnabled ? "configured" : "not_configured") as OpportunityStatus,
+      actionLabel: (hsaEnabled ? "Add" : "Enable") as OpportunityActionLabel,
       summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
       content: hsaContent,
     }] : []),
-    { value: "se-health", label: "Self-Employed Health Insurance", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
+    {
+      value: "se-health", label: "Self-Employed Health Insurance", icon: HeartPulse,
+      description: "Deduct health premiums you pay for yourself and your family.",
+      status: "not_available" as OpportunityStatus,
+      summary: "Coming soon", comingSoon: true,
+    },
   ];
 
   const personalItems: CategoryItem[] = showPersonalSection
     ? [
         ...(showRetirement ? [{
           value: "retirement", label: "Retirement", icon: PiggyBank,
+          description: "Pre-tax retirement contributions reduce your taxable income.",
+          status: (retirementIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
+          actionLabel: "Add" as OpportunityActionLabel,
           summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
           content: retirementContent,
         }] : []),
         ...(showHsa ? [{
           value: "hsa", label: "HSA", icon: HeartPulse,
+          description: "Pre-tax dollars set aside for qualified medical expenses.",
+          status: (hsaEnabled ? "configured" : "not_configured") as OpportunityStatus,
+          actionLabel: (hsaEnabled ? "Add" : "Enable") as OpportunityActionLabel,
           summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
           content: hsaContent,
         }] : []),
-        { value: "home-property", label: "Home & Property", icon: Home, summary: "Coming soon", comingSoon: true },
-        { value: "student-loan-interest", label: "Student Loan Interest", icon: Wallet, summary: "Coming soon", comingSoon: true },
-        { value: "charitable", label: "Charitable Giving", icon: HeartPulse, summary: "Coming soon", comingSoon: true },
-        { value: "other-adjustments", label: "Other Tax Adjustments", icon: Info, summary: "Coming soon", comingSoon: true },
+        {
+          value: "student-loan-interest", label: "Student Loan Interest", icon: Wallet,
+          description: "Deduct up to $2,500 of student loan interest you paid this year.",
+          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+        },
+        {
+          value: "mortgage-interest", label: "Mortgage Interest", icon: Home,
+          description: "Itemized deduction for interest paid on your home loan.",
+          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+        },
+        {
+          value: "salt", label: "State & Local Taxes (SALT)", icon: Info,
+          description: "Itemized deduction for state, local and property taxes paid.",
+          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+        },
+        {
+          value: "charitable", label: "Charitable Giving", icon: HeartPulse,
+          description: "Itemized deduction for donations to qualified charities.",
+          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+        },
+        {
+          value: "other-adjustments", label: "Other Tax Adjustments", icon: Info,
+          description: "Additional above-the-line adjustments that reduce taxable income.",
+          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+        },
       ]
     : [];
 
-  const renderCategories = (items: CategoryItem[]) => (
-    <Accordion
-      type="single"
-      collapsible
-      value={activeTab}
-      onValueChange={handleAccordionChange}
-      className="space-y-3"
-    >
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <AccordionItem
-            key={item.value}
-            value={item.value}
-            disabled={item.comingSoon}
-            ref={(el) => { itemRefs.current[item.value] = el; }}
-            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30 scroll-mt-4"
-          >
-            <AccordionTrigger className="py-4 hover:no-underline gap-3 min-h-[60px]">
-              <div className="flex items-center gap-3 text-left min-w-0">
-                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-card-foreground truncate">{item.label}</p>
-                  <p className="text-xs text-muted-foreground truncate">{item.summary}</p>
-                </div>
+  const renderCategories = (items: CategoryItem[]) => {
+    const active = items.filter((i) => !i.comingSoon);
+    const upcoming = items.filter((i) => i.comingSoon);
+    return (
+      <div className="space-y-3">
+        <Accordion
+          type="single"
+          collapsible
+          value={activeTab}
+          onValueChange={handleAccordionChange}
+          className="space-y-3"
+        >
+          {active.map((item) => (
+            <AccordionItem
+              key={item.value}
+              value={item.value}
+              ref={(el) => { itemRefs.current[item.value] = el; }}
+              className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30 scroll-mt-4"
+            >
+              <div className="flex items-center gap-3">
+                <AccordionTrigger className="flex-1 py-4 hover:no-underline gap-3 min-h-[60px]">
+                  <OpportunityHeader
+                    icon={item.icon}
+                    label={item.label}
+                    status={item.status}
+                    description={item.description}
+                    summary={item.summary}
+                  />
+                </AccordionTrigger>
+                {item.actionLabel && (
+                  <Button
+                    size="sm"
+                    variant={item.status === "configured" ? "outline" : "default"}
+                    className="shrink-0 min-h-[36px]"
+                    onClick={() => handleAccordionChange(activeTab === item.value ? "" : item.value)}
+                  >
+                    {item.actionLabel}
+                  </Button>
+                )}
               </div>
-            </AccordionTrigger>
-            <AccordionContent className="pb-5">{item.content}</AccordionContent>
-          </AccordionItem>
-        );
-      })}
-    </Accordion>
-  );
+              <AccordionContent className="pb-5">{item.content}</AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+        {upcoming.map((item) => (
+          <ComingSoonOpportunityCard
+            key={item.value}
+            icon={item.icon}
+            label={item.label}
+            description={item.description}
+          />
+        ))}
+      </div>
+    );
+  };
+
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
