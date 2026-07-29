@@ -116,11 +116,15 @@ export default function Mileage() {
   // An empty value means "all collapsed", which is allowed.
   useEffect(() => {
     if (!activeTab) return;
-    const stillVisible =
-      (activeTab === "mileage" && showMileage) ||
-      (activeTab === "home-office" && showHomeOffice) ||
-      (activeTab === "retirement" && showRetirement) ||
-      (activeTab === "hsa" && showHsa);
+    // Only the income-profile-gated categories can become invalid. Every other
+    // category (student loan interest, etc.) is always available.
+    const gated: Record<string, boolean> = {
+      mileage: showMileage,
+      "home-office": showHomeOffice,
+      retirement: showRetirement,
+      hsa: showHsa,
+    };
+    const stillVisible = !(activeTab in gated) || gated[activeTab];
     if (!stillVisible) setActiveTab(defaultTab);
   }, [activeTab, defaultTab, showMileage, showHomeOffice, showRetirement, showHsa]);
 
@@ -886,11 +890,17 @@ export default function Mileage() {
   useEffect(() => {
     setStudentLoanInterestInput(savedStudentLoanInterest ? String(savedStudentLoanInterest) : "");
   }, [savedStudentLoanInterest]);
+  // Same shared §221 logic and same filing status the tax engine uses — never
+  // re-implement the cap or phase-out here.
   const studentLoanDeductionResult = computeStudentLoanInterestDeduction({
     interestPaid: savedStudentLoanInterest,
     magi: studentLoanMagi,
-    filingStatus: taxSettings?.filingStatus === "married_filing_jointly" ? "married_filing_jointly" : "single",
+    filingStatus: taxSettings?.filingStatus ?? "single",
   });
+  // Prefer the engine's own value so card and tax estimate can never disagree.
+  const studentLoanDeductionAmount = estimate
+    ? Number(estimate.studentLoanInterestDeduction || 0)
+    : studentLoanDeductionResult.deduction;
   const studentLoanInterestContent = (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -917,7 +927,7 @@ export default function Mileage() {
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Estimated deductible amount</span>
-          <span className="font-semibold">{fmt(studentLoanDeductionResult.deduction)}</span>
+          <span className="font-semibold">{fmt(studentLoanDeductionAmount)}</span>
         </div>
         <p className="text-xs text-muted-foreground pt-1">
           Capped at {fmt(STUDENT_LOAN_INTEREST_MAX)} per year and reduced as income rises.
@@ -1013,7 +1023,7 @@ export default function Mileage() {
           status: (savedStudentLoanInterest > 0 ? "configured" : "not_configured") as OpportunityStatus,
           actionLabel: (savedStudentLoanInterest > 0 ? "Edit" : "Add") as OpportunityActionLabel,
           summary: savedStudentLoanInterest > 0
-            ? `${fmt(savedStudentLoanInterest)} interest • ${fmt(studentLoanDeductionResult.deduction)} deductible`
+            ? `${fmt(savedStudentLoanInterest)} interest • ${fmt(studentLoanDeductionAmount)} deductible`
             : "No interest entered",
           content: studentLoanInterestContent,
         },
