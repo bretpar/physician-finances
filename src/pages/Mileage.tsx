@@ -40,6 +40,7 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
 import { computeStudentLoanInterestDeduction, STUDENT_LOAN_INTEREST_MAX } from "@/lib/studentLoanInterestDeduction";
+import { isCategoryStillVisible } from "@/lib/taxSavingsCategories";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -118,13 +119,9 @@ export default function Mileage() {
     if (!activeTab) return;
     // Only the income-profile-gated categories can become invalid. Every other
     // category (student loan interest, etc.) is always available.
-    const gated: Record<string, boolean> = {
-      mileage: showMileage,
-      "home-office": showHomeOffice,
-      retirement: showRetirement,
-      hsa: showHsa,
-    };
-    const stillVisible = !(activeTab in gated) || gated[activeTab];
+    const stillVisible = isCategoryStillVisible(activeTab, {
+      showMileage, showHomeOffice, showRetirement, showHsa,
+    });
     if (!stillVisible) setActiveTab(defaultTab);
   }, [activeTab, defaultTab, showMileage, showHomeOffice, showRetirement, showHsa]);
 
