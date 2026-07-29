@@ -159,6 +159,8 @@ export interface TaxBreakdownResult {
   deductionApplied: number;
   deductionType: "standard" | "itemized";
   seDeductibleHalf: number;
+  /** §221 student loan interest deduction allowed after cap + MAGI phase-out. */
+  studentLoanInterestDeduction: number;
   // Planned-only totals (zero in actual mode)
   plannedBusinessRevenue: number;
   plannedW2Income: number;
@@ -810,7 +812,7 @@ export function useTaxBreakdown(
         deductionSourceBreakdown: "",
         agi: 0, standardDeduction, itemizedDeduction,
         deductionApplied: 0, deductionType: "standard",
-        seDeductibleHalf: 0,
+        seDeductibleHalf: 0, studentLoanInterestDeduction: 0,
         plannedBusinessRevenue, plannedW2Income, plannedOtherIncome,
         plannedPreTax: plannedPreTaxTotal, plannedRetirement: plannedRetirementTotal,
         plannedTotalIncome: plannedBusinessRevenue + plannedW2Income + plannedOtherIncome,
@@ -956,6 +958,7 @@ export function useTaxBreakdown(
       agi, standardDeduction, itemizedDeduction,
       deductionApplied, deductionType,
       seDeductibleHalf,
+      studentLoanInterestDeduction: Number((debug as any).studentLoanInterestDeduction || 0),
       plannedBusinessRevenue, plannedW2Income, plannedOtherIncome,
       plannedPreTax: plannedPreTaxTotal, plannedRetirement: plannedRetirementTotal,
       plannedTotalIncome: plannedBusinessRevenue + plannedW2Income + plannedOtherIncome,

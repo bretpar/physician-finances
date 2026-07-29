@@ -78,7 +78,8 @@ export default function TaxBreakdown({ filterCompanyName }: Props) {
   }
 
   const adjustments =
-    data.preTaxDeductions + data.retirement401k + data.healthInsuranceDeduction + data.seDeductibleHalf;
+    data.preTaxDeductions + data.retirement401k + data.healthInsuranceDeduction + data.seDeductibleHalf +
+    data.studentLoanInterestDeduction;
   const showPlanned = mode === "forecast" && data.plannedTotalIncome > 0;
   const hasSE = data.seTax.total > 0;
   const hasState = (data.personalStateTax + data.businessStateTax) > 0;

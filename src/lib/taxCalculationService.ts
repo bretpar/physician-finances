@@ -158,6 +158,8 @@ export interface TaxDebugBreakdown {
   /** Projected future portion (only when includeProjectedIncome=true). */
   projectedHealthInsuranceDeduction: number;
   halfSETaxDeduction: number;
+  /** §221 student loan interest deduction allowed after cap + MAGI phase-out. */
+  studentLoanInterestDeduction: number;
   ownerDeductions: number;
   /** Adjusted Gross Income = return income after W-2 payroll deductions − non-W2 preTax − retirement − health insurance − ½ SE tax. */
   agi: number;
@@ -454,6 +456,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     actualHealthInsuranceDeduction,
     projectedHealthInsuranceDeduction: projHealthInsurance,
     halfSETaxDeduction: estimate.halfSETaxDeduction,
+    studentLoanInterestDeduction: estimate.studentLoanInterestDeduction,
     ownerDeductions: ownerHealthcare + businessRetirement + businessPreTax,
     agi: estimate.agi,
     deductionApplied: estimate.deductionApplied,
