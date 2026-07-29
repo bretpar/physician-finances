@@ -159,6 +159,8 @@ export interface TaxBreakdownResult {
   deductionApplied: number;
   deductionType: "standard" | "itemized";
   seDeductibleHalf: number;
+  /** §221 student loan interest deduction allowed after cap + MAGI phase-out. */
+  studentLoanInterestDeduction: number;
   // Planned-only totals (zero in actual mode)
   plannedBusinessRevenue: number;
   plannedW2Income: number;
