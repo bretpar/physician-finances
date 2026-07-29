@@ -101,6 +101,18 @@ export default function AgiReconciliationPanel({ data }: { data: TaxBreakdownRes
         { label: "Projected health insurance deduction", value: data.projectedHealthInsuranceDeduction },
       ],
     },
+    ...(data.studentLoanInterestDeduction > 0
+      ? [{
+          id: "student-loan-interest",
+          label: "Student Loan Interest",
+          amount: data.studentLoanInterestDeduction,
+          op: "subtract" as const,
+          details: [
+            { label: "Deductible after cap and phase-out", value: data.studentLoanInterestDeduction },
+            { label: "Statutory maximum", value: 2500 },
+          ],
+        }]
+      : []),
     {
       id: "half-se",
       label: "½ self-employment tax deduction",
