@@ -931,9 +931,11 @@ export default function Mileage() {
         </div>
         <p className="text-xs text-muted-foreground pt-1">
           Capped at {fmt(STUDENT_LOAN_INTEREST_MAX)} per year and reduced as income rises.
-          {studentLoanDeductionResult.phasedOut && savedStudentLoanInterest > 0
-            ? " Your estimated income phases this deduction out."
-            : ""}
+          {studentLoanDeductionResult.ineligibleFilingStatus && savedStudentLoanInterest > 0
+            ? " Married filing separately is not eligible for this deduction."
+            : studentLoanDeductionAmount === 0 && savedStudentLoanInterest > 0
+              ? " Your estimated income phases this deduction out."
+              : ""}
         </p>
       </div>
       <Button
