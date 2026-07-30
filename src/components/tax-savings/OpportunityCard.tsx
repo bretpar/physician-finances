@@ -57,6 +57,8 @@ export function OpportunityHeader({
   description,
   summary,
   comingSoon,
+  amount,
+  amountLabel = "Estimated deduction",
 }: {
   icon: LucideIcon;
   label: string;
@@ -64,6 +66,9 @@ export function OpportunityHeader({
   description: string;
   summary?: string;
   comingSoon?: boolean;
+  /** Pre-formatted currency string shown prominently for configured categories. */
+  amount?: string;
+  amountLabel?: string;
 }) {
   return (
     <div className="flex items-start gap-3 text-left min-w-0 w-full">
@@ -80,11 +85,20 @@ export function OpportunityHeader({
           )}
         </div>
         <p className="text-xs text-muted-foreground">{description}</p>
-        {summary && <p className="text-xs font-medium text-foreground/80">{summary}</p>}
+        {amount ? (
+          <div className="pt-0.5">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{amountLabel}</p>
+            <p className="text-lg font-bold text-card-foreground tabular-nums leading-tight">{amount}</p>
+            {summary && <p className="text-xs text-muted-foreground">{summary}</p>}
+          </div>
+        ) : (
+          summary && <p className="text-xs font-medium text-foreground/80">{summary}</p>
+        )}
       </div>
     </div>
   );
 }
+
 
 /** Static card used for categories that are not implemented yet. */
 export function ComingSoonOpportunityCard({
