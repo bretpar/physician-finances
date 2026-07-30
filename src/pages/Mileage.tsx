@@ -98,6 +98,7 @@ export default function Mileage() {
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState("");
+  const [comingSoonOpen, setComingSoonOpen] = useState(false);
   const updateTaxSettings = useUpdateTaxSettings();
   const hsaEnabled = !!taxSettings?.hsaEnabled;
   const { estimate } = useTaxEstimate();
