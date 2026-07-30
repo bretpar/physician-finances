@@ -962,8 +962,10 @@ export default function Mileage() {
       value: "mileage", label: "Mileage", icon: Car,
       description: "Deduct business driving at the IRS standard mileage rate.",
       status: (ytdTotalMiles > 0 ? "configured" : "not_configured") as OpportunityStatus,
-      actionLabel: "Add" as OpportunityActionLabel,
-      summary: `${ytdTotalMiles.toLocaleString()} miles • ${fmt(ytdDeduction)} deduction`,
+      actionLabel: (ytdTotalMiles > 0 ? "Edit" : "Add") as OpportunityActionLabel,
+      amount: ytdTotalMiles > 0 ? fmt(ytdDeduction) : undefined,
+      deductionValue: ytdTotalMiles > 0 ? ytdDeduction : 0,
+      summary: `${ytdTotalMiles.toLocaleString()} miles year to date`,
       content: mileageContent,
     }] : []),
     ...(showHomeOffice ? [{
@@ -971,23 +973,29 @@ export default function Mileage() {
       description: "Deduct a portion of your home costs for a dedicated workspace.",
       status: (homeOfficeIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
       actionLabel: (homeOfficeIsEmpty ? "Set Up" : "Edit") as OpportunityActionLabel,
-      summary: homeOfficeDeductions.length ? `${fmt(homeOfficeAllowedTotal)} estimated deduction` : "Not set up yet",
+      amount: homeOfficeIsEmpty ? undefined : fmt(homeOfficeAllowedTotal),
+      deductionValue: homeOfficeIsEmpty ? 0 : homeOfficeAllowedTotal,
+      summary: homeOfficeIsEmpty ? "Not set up yet" : undefined,
       content: homeOfficeContent,
     }] : []),
     ...(!showPersonalSection && showRetirement ? [{
       value: "retirement", label: "Business Retirement", icon: PiggyBank,
       description: "Solo 401(k), SEP and similar contributions lower your taxable income.",
       status: (retirementIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
-      actionLabel: "Add" as OpportunityActionLabel,
-      summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
+      actionLabel: (retirementIsEmpty ? "Add" : "Edit") as OpportunityActionLabel,
+      amount: retirementIsEmpty ? undefined : fmt(retirementTotal),
+      deductionValue: retirementIsEmpty ? 0 : retirementTotal,
+      summary: retirementIsEmpty ? "No contributions yet" : "From contributions tracked this year",
       content: retirementContent,
     }] : []),
     ...(!showPersonalSection && showHsa ? [{
       value: "hsa", label: "HSA", icon: HeartPulse,
       description: "Pre-tax dollars set aside for qualified medical expenses.",
       status: (hsaEnabled ? "configured" : "not_configured") as OpportunityStatus,
-      actionLabel: (hsaEnabled ? "Add" : "Enable") as OpportunityActionLabel,
-      summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
+      actionLabel: (hsaEnabled ? "Edit" : "Enable") as OpportunityActionLabel,
+      amount: hsaEnabled ? fmt(hsaTotal) : undefined,
+      deductionValue: hsaEnabled ? hsaTotal : 0,
+      summary: hsaEnabled ? "From contributions tracked this year" : "Tracking not enabled",
       content: hsaContent,
     }] : []),
     {
@@ -1004,16 +1012,20 @@ export default function Mileage() {
           value: "retirement", label: "Retirement", icon: PiggyBank,
           description: "Pre-tax retirement contributions reduce your taxable income.",
           status: (retirementIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
-          actionLabel: "Add" as OpportunityActionLabel,
-          summary: retirementIsEmpty ? "No contributions yet" : `${fmt(retirementTotal)} contributed`,
+          actionLabel: (retirementIsEmpty ? "Add" : "Edit") as OpportunityActionLabel,
+          amount: retirementIsEmpty ? undefined : fmt(retirementTotal),
+          deductionValue: retirementIsEmpty ? 0 : retirementTotal,
+          summary: retirementIsEmpty ? "No contributions yet" : "From contributions tracked this year",
           content: retirementContent,
         }] : []),
         ...(showHsa ? [{
           value: "hsa", label: "HSA", icon: HeartPulse,
           description: "Pre-tax dollars set aside for qualified medical expenses.",
           status: (hsaEnabled ? "configured" : "not_configured") as OpportunityStatus,
-          actionLabel: (hsaEnabled ? "Add" : "Enable") as OpportunityActionLabel,
-          summary: hsaEnabled ? `${fmt(hsaTotal)} contributed` : "Tracking not enabled",
+          actionLabel: (hsaEnabled ? "Edit" : "Enable") as OpportunityActionLabel,
+          amount: hsaEnabled ? fmt(hsaTotal) : undefined,
+          deductionValue: hsaEnabled ? hsaTotal : 0,
+          summary: hsaEnabled ? "From contributions tracked this year" : "Tracking not enabled",
           content: hsaContent,
         }] : []),
         {
@@ -1021,8 +1033,10 @@ export default function Mileage() {
           description: "Enter the student loan interest you expect to pay this year. If eligible, this may reduce your taxable income.",
           status: (savedStudentLoanInterest > 0 ? "configured" : "not_configured") as OpportunityStatus,
           actionLabel: (savedStudentLoanInterest > 0 ? "Edit" : "Add") as OpportunityActionLabel,
+          amount: savedStudentLoanInterest > 0 ? fmt(studentLoanDeductionAmount) : undefined,
+          deductionValue: savedStudentLoanInterest > 0 ? studentLoanDeductionAmount : 0,
           summary: savedStudentLoanInterest > 0
-            ? `${fmt(savedStudentLoanInterest)} interest • ${fmt(studentLoanDeductionAmount)} deductible`
+            ? `${fmt(savedStudentLoanInterest)} interest entered`
             : "No interest entered",
           content: studentLoanInterestContent,
         },
@@ -1049,59 +1063,62 @@ export default function Mileage() {
       ]
     : [];
 
+  // Coming Soon cards live in one collapsed section at the bottom of the page.
+  const comingSoonItems = [...businessItems, ...personalItems].filter((i) => i.comingSoon);
+
+  // ─── Summary card (display only — reuses amounts already shown on cards) ───
+  const configuredItems = [...businessItems, ...personalItems].filter(
+    (i) => !i.comingSoon && i.status === "configured",
+  );
+  const totalEstimatedDeductions = configuredItems.reduce((s, i) => s + Number(i.deductionValue || 0), 0);
+  const marginalRatePct = Number(estimate?.marginalRate || 0);
+  const estimatedTaxSavings = totalEstimatedDeductions * (marginalRatePct / 100);
+  const activeStrategyCount = configuredItems.length;
+
   const renderCategories = (items: CategoryItem[]) => {
     const active = items.filter((i) => !i.comingSoon);
-    const upcoming = items.filter((i) => i.comingSoon);
+    if (active.length === 0) return null;
     return (
-      <div className="space-y-3">
-        <Accordion
-          type="single"
-          collapsible
-          value={activeTab}
-          onValueChange={handleAccordionChange}
-          className="space-y-3"
-        >
-          {active.map((item) => (
-            <AccordionItem
-              key={item.value}
-              value={item.value}
-              ref={(el) => { itemRefs.current[item.value] = el; }}
-              className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30 scroll-mt-4"
-            >
-              <div className="flex items-center gap-3">
-                <AccordionTrigger className="flex-1 py-4 hover:no-underline gap-3 min-h-[60px]">
-                  <OpportunityHeader
-                    icon={item.icon}
-                    label={item.label}
-                    status={item.status}
-                    description={item.description}
-                    summary={item.summary}
-                  />
-                </AccordionTrigger>
-                {item.actionLabel && (
-                  <Button
-                    size="sm"
-                    variant={item.status === "configured" ? "outline" : "default"}
-                    className="shrink-0 min-h-[36px]"
-                    onClick={() => handleAccordionChange(activeTab === item.value ? "" : item.value)}
-                  >
-                    {item.actionLabel}
-                  </Button>
-                )}
-              </div>
-              <AccordionContent className="pb-5">{item.content}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-        {upcoming.map((item) => (
-          <ComingSoonOpportunityCard
+      <Accordion
+        type="single"
+        collapsible
+        value={activeTab}
+        onValueChange={handleAccordionChange}
+        className="space-y-3"
+      >
+        {active.map((item) => (
+          <AccordionItem
             key={item.value}
-            icon={item.icon}
-            label={item.label}
-            description={item.description}
-          />
+            value={item.value}
+            ref={(el) => { itemRefs.current[item.value] = el; }}
+            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30 scroll-mt-4"
+          >
+            <div className="flex items-center gap-3">
+              <AccordionTrigger className="flex-1 py-4 hover:no-underline gap-3 min-h-[60px]">
+                <OpportunityHeader
+                  icon={item.icon}
+                  label={item.label}
+                  status={item.status}
+                  description={item.description}
+                  summary={item.summary}
+                  amount={item.amount}
+                />
+              </AccordionTrigger>
+              {item.actionLabel && (
+                <Button
+                  size="sm"
+                  variant={item.status === "configured" ? "outline" : "default"}
+                  className="shrink-0 min-h-[36px]"
+                  onClick={() => handleAccordionChange(activeTab === item.value ? "" : item.value)}
+                >
+                  {item.actionLabel}
+                </Button>
+              )}
+            </div>
+            <AccordionContent className="pb-5">{item.content}</AccordionContent>
+          </AccordionItem>
         ))}
-      </div>
+      </Accordion>
     );
   };
 
@@ -1113,8 +1130,29 @@ export default function Mileage() {
         <p className="text-sm text-muted-foreground">Tap a category to view and manage it — everything lives on this page.</p>
       </div>
 
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Tax Savings Summary</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estimated deductions</p>
+            <p className="text-2xl font-bold text-card-foreground tabular-nums">{fmt(totalEstimatedDeductions)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estimated tax savings</p>
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">≈ {fmt(estimatedTaxSavings)}</p>
+            <p className="text-[11px] text-muted-foreground">At your {marginalRatePct.toFixed(0)}% marginal rate</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active strategies</p>
+            <p className="text-2xl font-bold text-card-foreground tabular-nums">{activeStrategyCount}</p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="space-y-6">
-        {showBusinessSection && businessItems.length > 0 && (
+        {showBusinessSection && businessItems.some((i) => !i.comingSoon) && (
           <section className="space-y-3">
             <div>
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -1128,7 +1166,7 @@ export default function Mileage() {
             {renderCategories(businessItems)}
           </section>
         )}
-        {personalItems.length > 0 && (
+        {personalItems.some((i) => !i.comingSoon) && (
           <section className="space-y-3">
             <div>
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -1142,7 +1180,32 @@ export default function Mileage() {
             {renderCategories(personalItems)}
           </section>
         )}
+
+        {comingSoonItems.length > 0 && (
+          <Collapsible open={comingSoonOpen} onOpenChange={setComingSoonOpen}>
+            <CollapsibleTrigger className="w-full rounded-xl border border-border bg-card px-4 py-4 min-h-[60px] flex items-center justify-between gap-3 text-left">
+              <span className="flex items-center gap-2 text-sm font-semibold text-card-foreground">
+                More Tax Savings (Coming Soon)
+                <Badge variant="outline" className="text-[11px] font-medium px-2 py-0.5 border-transparent bg-muted text-muted-foreground">
+                  {comingSoonItems.length} Coming Soon
+                </Badge>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${comingSoonOpen ? "rotate-180" : ""}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 pt-3">
+              {comingSoonItems.map((item) => (
+                <ComingSoonOpportunityCard
+                  key={`${item.value}-coming-soon`}
+                  icon={item.icon}
+                  label={item.label}
+                  description={item.description}
+                />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </div>
+
 
 
 
