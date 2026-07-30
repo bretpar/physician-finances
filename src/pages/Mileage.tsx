@@ -395,14 +395,19 @@ export default function Mileage() {
     value: string;
     label: string;
     icon: typeof Car;
-    summary: string;
+    summary?: string;
     /** One-line explanation of the deduction (Opportunity Card pattern). */
     description: string;
     status: OpportunityStatus;
     actionLabel?: OpportunityActionLabel;
     content?: ReactNode;
     comingSoon?: boolean;
+    /** Pre-formatted deduction amount shown prominently when configured. */
+    amount?: string;
+    /** Raw amount used only for the display-only summary card totals. */
+    deductionValue?: number;
   }
+
 
 
 
