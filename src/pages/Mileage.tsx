@@ -1128,8 +1128,24 @@ export default function Mileage() {
                 </Button>
               )}
             </div>
+            {DEDUCTION_INSIGHTS[item.value] && (
+              <>
+                <WhyThisMattersButton
+                  open={openInsight === item.value}
+                  onToggle={() => toggleInsight(item.value)}
+                  controlsId={`insight-${item.value}`}
+                />
+                {openInsight === item.value && (
+                  <DeductionInsightPanel
+                    id={`insight-${item.value}`}
+                    content={DEDUCTION_INSIGHTS[item.value]}
+                  />
+                )}
+              </>
+            )}
             <AccordionContent className="pb-5">{item.content}</AccordionContent>
           </AccordionItem>
+
         ))}
       </Accordion>
     );
