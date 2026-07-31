@@ -253,11 +253,11 @@ export default function ProjectedIncome() {
   const [convertTarget, setConvertTarget] = useState<ProjectedPaycheck | null>(null);
   const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [usingCompanyDefaults, setUsingCompanyDefaults] = useState(false);
   const [showSourceError, setShowSourceError] = useState(false);
-  const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => {
-    const current = new Date().getMonth();
-    return new Set([current]);
-  });
+  // Months start collapsed — the summary numbers answer most questions.
+  const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => new Set<number>());
+
   const [showPreviousMonths, setShowPreviousMonths] = useState(false);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
