@@ -211,6 +211,8 @@ export default function FinancialAssistantCard({
               {showDeadline && <p>Your next quarterly payment is due {deadlineLabel}.</p>}
             </>
           )}
+        </div>
+
 
         <Button size="sm" className="w-full min-h-11 sm:w-auto" onClick={() => navigate(recommendation.to)}>
           {recommendation.cta}
