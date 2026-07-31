@@ -87,11 +87,14 @@ export function RecommendedNextStep({
         <CardContent className="space-y-1">
           <p className="flex items-start gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-            You&apos;re currently using all available tax-saving strategies.
+            {hasConfigured
+              ? "You're currently using all available tax-saving strategies."
+              : "No additional tax-saving strategies apply to your profile right now."}
           </p>
           <p className="text-xs text-muted-foreground pl-6">
             Review your deductions if your income or situation changes.
           </p>
+
         </CardContent>
       </Card>
     );
