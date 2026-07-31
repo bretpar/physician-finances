@@ -93,6 +93,25 @@ export function useInsights(): { insights: Insight[]; isReady: boolean } {
     [sharedQrInput, now],
   );
 
+  const isW2OnlyUser = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams) === "W2_ONLY";
+  // Shared pace status — identical calculation to the dashboard banner and
+  // the Tax Progress card, so statuses can never contradict each other.
+  const pace = useMemo(
+    () =>
+      computeQuarterPace({
+        quarterTarget: quarter.quarterTarget,
+        progressAmount: quarter.progressAmount,
+        start: quarter.start,
+        end: quarter.end,
+        daysUntilDue: quarter.daysUntilDue,
+        quarterLabel: quarter.quarterLabel,
+        deadlineLabel: quarter.deadlineLabel,
+        showQuarterly: !isW2OnlyUser,
+        now,
+      }),
+    [quarter, isW2OnlyUser, now],
+  );
+
   const method = taxSettings?.withholdingMethod ?? "dynamic_planner";
   const baseEstimate =
     method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate);
@@ -113,8 +132,8 @@ export function useInsights(): { insights: Insight[]; isReady: boolean } {
         isReady,
         projectedAnnualIncome,
         annualTaxLiability,
-        savingsCoverageRatio: quarter.coverageRatio,
-        stillNeedToSave: quarter.stillNeedToSave,
+        savingsCoverageRatio: pace.paceRatio,
+        stillNeedToSave: pace.shortfallToDate,
         quarterLabel: quarter.quarterLabel,
         deadlineLabel: quarter.deadlineLabel,
         daysUntilDue: quarter.daysUntilDue,
@@ -131,6 +150,7 @@ export function useInsights(): { insights: Insight[]; isReady: boolean } {
       projectedAnnualIncome,
       annualTaxLiability,
       quarter,
+      pace,
       isW2Only,
       retirement,
       taxSettings?.hsaEnabled,
