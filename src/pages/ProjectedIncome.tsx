@@ -1635,6 +1635,7 @@ export default function ProjectedIncome() {
                         .filter((s) => s.source_id === next.sourceId)
                         .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))[0]
                     : undefined;
+                  const applieddefaults: Record<string, string> = {};
                   setForm((prev) => {
                     let nextSubtype = prev.ui_income_subtype;
                     if (!editingId && next.linkedSource) {
@@ -1651,27 +1652,38 @@ export default function ProjectedIncome() {
                     };
                     if (editingId) return base;
                     const applied: StreamForm = { ...base };
-                    if (company?.payFrequency) applied.pay_frequency = company.payFrequency;
+                    /** Prefill one field and remember where the value came from. */
+                    const put = (key: keyof StreamForm, value: number | string | null | undefined, from: string) => {
+                      if (value === null || value === undefined || value === "") return;
+                      const str = String(value);
+                      if (str === "0" || str === "0.00") return; // don't badge empty defaults
+                      (applied as any)[key] = str;
+                      applieddefaults[key as string] = from;
+                    };
+                    const COMPANY = "company settings";
+                    const PRIOR = "last saved paycheck";
+                    put("pay_frequency", company?.payFrequency, COMPANY);
                     if (company?.expectedFederalWithholdingPerPaycheck != null) {
-                      applied.total_federal_payroll_taxes = String(company.expectedFederalWithholdingPerPaycheck);
-                      applied.taxes_withheld = String(company.expectedFederalWithholdingPerPaycheck);
+                      put("total_federal_payroll_taxes", company.expectedFederalWithholdingPerPaycheck, COMPANY);
+                      put("taxes_withheld", company.expectedFederalWithholdingPerPaycheck, COMPANY);
                     }
                     if (priorStream) {
-                      applied.pay_frequency = priorStream.pay_frequency || applied.pay_frequency;
-                      applied.retirement_401k = String(priorStream.retirement_401k || 0);
-                      applied.healthcare_deduction = String(priorStream.healthcare_deduction || 0);
-                      applied.hsa_contribution = String(priorStream.hsa_contribution || 0);
-                      applied.pre_tax_deductions = String(priorStream.pre_tax_deductions || 0);
-                      applied.state_withholding = String(priorStream.state_withholding || 0);
-                      applied.federal_withholding = String(priorStream.federal_withholding || 0);
-                      applied.ss_withholding = String(priorStream.ss_withholding || 0);
-                      applied.medicare_withholding = String(priorStream.medicare_withholding || 0);
-                      applied.total_federal_payroll_taxes = String(getCanonicalTotalFederalPayrollTaxes(priorStream as any));
-                      applied.taxes_withheld = String(priorStream.taxes_withheld || 0);
+                      put("pay_frequency", priorStream.pay_frequency, PRIOR);
+                      put("retirement_401k", priorStream.retirement_401k, PRIOR);
+                      put("healthcare_deduction", priorStream.healthcare_deduction, PRIOR);
+                      put("hsa_contribution", priorStream.hsa_contribution, PRIOR);
+                      put("pre_tax_deductions", priorStream.pre_tax_deductions, PRIOR);
+                      put("state_withholding", priorStream.state_withholding, PRIOR);
+                      put("federal_withholding", priorStream.federal_withholding, PRIOR);
+                      put("ss_withholding", priorStream.ss_withholding, PRIOR);
+                      put("medicare_withholding", priorStream.medicare_withholding, PRIOR);
+                      put("total_federal_payroll_taxes", getCanonicalTotalFederalPayrollTaxes(priorStream as any), PRIOR);
+                      put("taxes_withheld", priorStream.taxes_withheld, PRIOR);
                     }
                     return applied;
                   });
-                  setUsingCompanyDefaults(!editingId && (!!priorStream || !!company?.payFrequency));
+                  setDefaultedFields(editingId ? {} : applieddefaults);
+                  setUsingCompanyDefaults(!editingId && Object.keys(applieddefaults).length > 0);
                   setTouched((t) => ({ ...t, company: true }));
                   if (showSourceError) setShowSourceError(false);
                 }}
@@ -1681,8 +1693,11 @@ export default function ProjectedIncome() {
               )}
 
               {usingCompanyDefaults && (
-                <p className="text-[11px] text-primary">Using your saved company defaults.</p>
+                <p className="text-[11px] text-primary">
+                  Prefilled {defaultedCount} field{defaultedCount === 1 ? "" : "s"} from your saved defaults — edit any of them under Advanced Options.
+                </p>
               )}
+
             </div>
 
             {/* 4 & 5 — Gross Income + Frequency */}
