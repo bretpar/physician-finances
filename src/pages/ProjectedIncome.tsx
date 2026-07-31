@@ -1990,10 +1990,7 @@ export default function ProjectedIncome() {
 
 
                   {(() => {
-                    const meta = subtypeMeta(form.ui_income_subtype);
-                    const f = meta?.filingType ?? normalizeFilingType(form.ui_income_subtype);
-                    const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
-                    if (!isBiz) return null;
+                    if (!isBusinessSubtype) return null;
                     const periodsPerYear = (() => {
                       switch (form.pay_frequency) {
                         case "weekly": return 52;
@@ -2016,7 +2013,9 @@ export default function ProjectedIncome() {
                       <div className="space-y-3 rounded-md border border-dashed border-border bg-muted/30 p-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">
-                            Forecast business expenses (per pay period)
+                            {isOneTime
+                              ? "Forecast business expenses (for this payment)"
+                              : "Forecast business expenses (per pay period)"}
                           </Label>
                           <Input
                             type="number" min="0" step="0.01" placeholder="0.00"
@@ -2025,11 +2024,12 @@ export default function ProjectedIncome() {
                           />
                           <p className="text-[11px] text-muted-foreground leading-snug">
                             Estimated overhead reduces projected business profit before SE tax. Leave at 0 to forecast gross receipts only. Actual expense transactions are always counted separately.
-                            {annualized > 0 && (
+                            {!isOneTime && annualized > 0 && (
                               <> <span className="font-medium text-foreground">≈ {fmtFull(annualized)} / yr</span> at {periodsPerYear}× per year.</>
                             )}
                           </p>
                         </div>
+
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Assumption notes</Label>
                           <Input
