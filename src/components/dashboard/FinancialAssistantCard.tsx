@@ -45,8 +45,6 @@ const usd = (n: number) =>
     maximumFractionDigits: 0,
   }).format(Math.max(0, Math.round(n)));
 
-type Recommendation = { text: string; cta: string; to: string };
-
 export default function FinancialAssistantCard({
   projectedAnnualIncome,
   annualTaxLiability,
@@ -58,80 +56,54 @@ export default function FinancialAssistantCard({
 }: FinancialAssistantCardProps) {
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
-  const { data: taxSettings } = useTaxSettings();
-  const { data: retirement } = useRetirementContributions();
-  const { data: homeOffice } = useHomeOfficeDeductions(currentYear);
-  const { data: ytdMileage = [] } = useMileageYTD(currentYear);
+  const { data: taxSettings, isLoading: taxSettingsLoading } = useTaxSettings();
+  const { data: retirement, isLoading: retirementLoading } = useRetirementContributions();
+  const { data: homeOffice, isLoading: homeOfficeLoading } = useHomeOfficeDeductions(currentYear);
+  const { data: ytdMileage = [], isLoading: mileageLoading } = useMileageYTD(currentYear);
 
   const coveragePct = Math.round(Math.max(0, savingsCoverageRatio) * 100);
 
-  const recommendation = useMemo<Recommendation>(() => {
-    const hasRetirement = (retirement?.length || 0) > 0;
-    const hasHsa = !!taxSettings?.hsaEnabled;
-    const hasHomeOffice = (homeOffice?.length || 0) > 0;
-    const hasMileage = (ytdMileage?.length || 0) > 0;
+  const isReady = !taxSettingsLoading && !retirementLoading && !homeOfficeLoading && !mileageLoading;
 
-    // One recommendation only, highest impact first.
-    if (showQuarterly && coveragePct < 90 && annualTaxLiability > 0) {
-      return {
-        text: `Your biggest priority is catching up on your ${quarterLabel} tax savings.`,
-        cta: "Review Quarterly Taxes",
-        to: "/taxes",
-      };
-    }
-    if (!hasRetirement) {
-      return {
-        text: "Your biggest opportunity is increasing your retirement contributions.",
-        cta: "Review Tax Savings",
-        to: "/deductions",
-      };
-    }
-    if (!hasHsa) {
-      return {
-        text: "Your biggest opportunity is funding an HSA with pre-tax dollars.",
-        cta: "Review Tax Savings",
-        to: "/deductions",
-      };
-    }
-    if (!hasHomeOffice) {
-      return {
-        text: "Your biggest opportunity is claiming a home office deduction.",
-        cta: "Review Tax Savings",
-        to: "/deductions",
-      };
-    }
-    if (!hasMileage) {
-      return {
-        text: "Your biggest opportunity is logging your business mileage this year.",
-        cta: "Review Tax Savings",
-        to: "/deductions",
-      };
-    }
-    if (projectedAnnualIncome <= 0) {
-      return {
-        text: "Add your expected paychecks so we can project your year.",
-        cta: "Review Income Planner",
-        to: "/projected-income",
-      };
-    }
-    return {
-      text: "Your savings strategies look set — keep your income plan up to date.",
-      cta: "Review Income Planner",
-      to: "/projected-income",
-    };
-  }, [
-    retirement,
-    taxSettings?.hsaEnabled,
-    homeOffice,
-    ytdMileage,
-    showQuarterly,
-    coveragePct,
-    annualTaxLiability,
-    quarterLabel,
-    projectedAnnualIncome,
-  ]);
+  const recommendation = useMemo(
+    () =>
+      selectFinancialAssistantRecommendation({
+        isReady,
+        projectedAnnualIncome,
+        annualTaxLiability,
+        savingsCoverageRatio,
+        quarterLabel,
+        deadlineLabel,
+        daysUntilDue,
+        showQuarterly,
+        hasRetirement: (retirement?.length || 0) > 0,
+        hasHsa: !!taxSettings?.hsaEnabled,
+        hasHomeOffice: (homeOffice?.length || 0) > 0,
+        hasMileage: (ytdMileage?.length || 0) > 0,
+      }),
+    [
+      isReady,
+      projectedAnnualIncome,
+      annualTaxLiability,
+      savingsCoverageRatio,
+      quarterLabel,
+      deadlineLabel,
+      daysUntilDue,
+      showQuarterly,
+      retirement,
+      taxSettings?.hsaEnabled,
+      homeOffice,
+      ytdMileage,
+    ]
+  );
 
-  const showDeadline = showQuarterly && daysUntilDue >= 0 && daysUntilDue <= 60;
+  // Never repeat the deadline when the recommendation already states it.
+  const showDeadline =
+    showQuarterly &&
+    daysUntilDue >= 0 &&
+    daysUntilDue <= 60 &&
+    recommendation.id !== "quarterly-due-soon" &&
+    recommendation.id !== "quarterly-overdue";
 
   return (
     <Card data-testid="financial-assistant-card">
