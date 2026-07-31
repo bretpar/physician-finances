@@ -483,6 +483,7 @@ export default function ProjectedIncome() {
     setEditingId(null);
     setShowForm(false);
     setAdvancedOpen(false);
+    setUsingCompanyDefaults(false);
     setShowSourceError(false);
   };
 
@@ -490,6 +491,7 @@ export default function ProjectedIncome() {
     setForm(emptyForm(monthIdx));
     setEditingId(null);
     setAdvancedOpen(false);
+    setUsingCompanyDefaults(false);
     setShowSourceError(false);
     setShowForm(true);
   };
@@ -528,6 +530,7 @@ export default function ProjectedIncome() {
     });
     setEditingId(s.id);
     setAdvancedOpen(false);
+    setUsingCompanyDefaults(false);
     setShowSourceError(false);
     setShowForm(true);
   };
@@ -904,7 +907,7 @@ export default function ProjectedIncome() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-foreground">Monthly Plan</h2>
           <Button size="sm" className="shrink-0" onClick={() => { resetForm(); setShowForm(true); }}>
-            <Plus className="h-4 w-4 mr-1 shrink-0" /> Add Income Stream
+            <Plus className="h-4 w-4 mr-1 shrink-0" /> Add Planned Income
           </Button>
         </div>
 
