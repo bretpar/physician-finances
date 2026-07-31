@@ -385,8 +385,6 @@ export default function Dashboard() {
         showQuarterly={!isW2Only}
       />
 
-      <InsightsPanel />
-
       <div data-testid="dashboard-summary">
 
         <AnnualIncomeHero
@@ -396,6 +394,8 @@ export default function Dashboard() {
           toggle={<IncomeModeToggle alwaysShow={isW2Only} />}
         />
       </div>
+
+      <InsightsPanel />
 
       {isW2Only && forecastDebug && (
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">

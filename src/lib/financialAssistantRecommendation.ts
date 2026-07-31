@@ -167,8 +167,8 @@ export function selectFinancialAssistantRecommendation(
   return {
     id: "all-set",
     priority: 9,
-    text: "Your savings strategies look set — keep your income plan up to date.",
-    cta: "Review Income Planner",
-    to: "/projected-income",
+    text: "Everything looks good. You're on track with your projected income and tax savings.",
+    cta: "View Dashboard",
+    to: "/",
   };
 }
