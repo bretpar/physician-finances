@@ -1833,7 +1833,13 @@ export default function ProjectedIncome() {
               <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full min-h-[44px]">
                 {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 Advanced Options
+                {defaultedCount > 0 && (
+                  <span className="ml-auto inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                    {defaultedCount} using defaults
+                  </span>
+                )}
               </CollapsibleTrigger>
+
               <CollapsibleContent className="space-y-3 pt-2">
                 <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
                   {!isOneTime && (
