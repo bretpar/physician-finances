@@ -6,6 +6,8 @@ import {
   type OpportunityActionLabel,
   type OpportunityStatus,
 } from "@/components/tax-savings/OpportunityCard";
+import { RecommendedNextStep } from "@/components/tax-savings/RecommendedNextStep";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1157,6 +1159,12 @@ export default function Mileage() {
           </div>
         </CardContent>
       </Card>
+
+      <RecommendedNextStep
+        items={[...businessItems, ...personalItems]}
+        onSelect={handleAccordionChange}
+      />
+
 
       <div className="space-y-6">
         {showBusinessSection && businessItems.some((i) => !i.comingSoon) && (
