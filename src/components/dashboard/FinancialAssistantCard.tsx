@@ -1,8 +1,14 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Info, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useRetirementContributions } from "@/hooks/useRetirementContributions";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
@@ -141,18 +147,69 @@ export default function FinancialAssistantCard({
               You're on track for approximately{" "}
               <span className="font-medium text-foreground tabular-nums">{usd(projectedAnnualIncome)}</span> of income
               this year.
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="How projected annual income is calculated"
+                      className="ml-1 inline-flex align-middle"
+                    >
+                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                    Actual income received so far this year plus planned future paychecks from your Income Planner,
+                    including W-2, 1099, K-1, personal income, and investment income.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </p>
           )}
           {annualTaxLiability > 0 && (
             <p>
               You're projected to owe approximately{" "}
               <span className="font-medium text-foreground tabular-nums">{usd(annualTaxLiability)}</span> in taxes.
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="How estimated annual taxes are calculated"
+                      className="ml-1 inline-flex align-middle"
+                    >
+                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                    Estimated total federal, state, and self-employment taxes based on your projected income, filing
+                    status, and current tax settings.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </p>
           )}
           {showQuarterly && annualTaxLiability > 0 && (
             <p>
               You've reserved <span className="font-medium text-foreground tabular-nums">{coveragePct}%</span> of your
               recommended {quarterLabel} tax savings.
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="How tax savings progress is calculated"
+                      className="ml-1 inline-flex align-middle"
+                    >
+                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                    Percentage of your recommended quarterly tax savings already set aside, based on your current tax
+                    reserve balance and estimated annual taxes.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </p>
           )}
           <p className="text-foreground">{recommendation.text}</p>
