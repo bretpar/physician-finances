@@ -8,38 +8,55 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useInsights } from "@/hooks/useInsights";
-import { InsightsList } from "@/components/insights/InsightsPanel";
+import { useInsightNotifications } from "@/hooks/useInsightNotifications";
+import { NotificationsList } from "@/components/insights/InsightsPanel";
 
-/** Notification bell for the top navigation. Opens the Insights list. */
+/**
+ * Notification center trigger. The red badge means "something new" only:
+ * opening the sheet marks everything currently listed as viewed, which clears
+ * the badge while keeping the items available in the list.
+ */
 export default function InsightsBell() {
   const [open, setOpen] = useState(false);
-  const { insights, isReady } = useInsights();
-  const actionable = insights.filter((i) => i.severity === "critical" || i.severity === "action").length;
+  const { notifications, unreadCount, isReady, markRead } = useInsightNotifications();
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) markRead();
+      }}
+    >
       <SheetTrigger asChild>
         <button
           type="button"
-          aria-label={actionable > 0 ? `Insights, ${actionable} need attention` : "Insights"}
+          data-testid="insights-bell"
+          data-unread={isReady ? unreadCount : 0}
+          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} new` : "Notifications"}
           className="relative -mr-1 flex h-11 w-11 items-center justify-center rounded-md text-foreground"
         >
           <Bell className="h-5 w-5" />
-          {isReady && actionable > 0 && (
+          {isReady && unreadCount > 0 && (
             <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
-              {actionable}
+              {unreadCount}
             </span>
           )}
         </button>
       </SheetTrigger>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader className="text-left">
-          <SheetTitle>Insights</SheetTitle>
-          <SheetDescription>Timely items based on your current information.</SheetDescription>
+          <SheetTitle>Notifications</SheetTitle>
+          <SheetDescription>
+            Recommendations, deadlines and insights based on your current information.
+          </SheetDescription>
         </SheetHeader>
         <div className="mt-4">
-          <InsightsList onNavigate={() => setOpen(false)} />
+          <NotificationsList
+            notifications={notifications}
+            isReady={isReady}
+            onNavigate={() => setOpen(false)}
+          />
         </div>
       </SheetContent>
     </Sheet>
