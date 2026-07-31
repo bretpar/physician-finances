@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/accordion";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { toast } from "sonner";
 import { formatDate } from "@/lib/localDate";
 import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
 import { useIncomeEntries } from "@/hooks/useIncome";
