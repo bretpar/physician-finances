@@ -342,6 +342,9 @@ export default function ProjectedIncome() {
   const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [usingCompanyDefaults, setUsingCompanyDefaults] = useState(false);
+  /** field key -> where its prefilled value came from (drives "using default" badges). */
+  const [defaultedFields, setDefaultedFields] = useState<Record<string, string>>({});
+
   const [showSourceError, setShowSourceError] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -552,8 +555,16 @@ export default function ProjectedIncome() {
 
   const setField = (key: keyof StreamForm, value: string | boolean) => {
     setTouched((t) => (t[key as string] ? t : { ...t, [key as string]: true }));
+    // Any manual edit clears the "using default" badge for that field.
+    setDefaultedFields((d) => {
+      if (!d[key as string]) return d;
+      const next = { ...d };
+      delete next[key as string];
+      return next;
+    });
     setForm((p) => ({ ...p, [key]: value }));
   };
+
 
   const formErrors = useMemo(
     () => validatePlannedIncomeForm(form, { validFrequencies: PAY_FREQUENCIES.map((f) => f.value) }),
@@ -577,7 +588,43 @@ export default function ProjectedIncome() {
       : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
     return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
   }, [companies, form.source_id, form.ui_income_subtype]);
-  const showField = (key: ToggleKey) => !!visibleFields[key];
+  const isBusinessSubtype = useMemo(() => {
+    const meta = subtypeMeta(form.ui_income_subtype);
+    const f = meta?.filingType ?? normalizeFilingType(form.ui_income_subtype);
+    return f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
+  }, [form.ui_income_subtype]);
+
+  /**
+   * Relevance layer on top of the company toggles: hides advanced fields that
+   * cannot apply to the selected frequency / income source. Purely presentational —
+   * saving still uses `showField` so no stored values change meaning.
+   */
+  const isRelevant = (key: ToggleKey): boolean => {
+    if (!visibleFields[key]) return false;
+    // Catch-all withheld duplicates the detailed W-2 payroll breakdown.
+    if (key === "taxes_withheld" && visibleFields.federal_withholding) return false;
+    // State withholding only when the user tracks a state income tax.
+    if (key === "state_withholding" && !taxSettings?.stateIncomeTaxEnabled) return false;
+    // Payroll-style pre-tax deductions don't apply to non-payroll business draws.
+    if ((key === "healthcare_deduction" || key === "hsa_contribution") && isBusinessSubtype) return false;
+    // Nothing to reserve separately when payroll already withholds for you.
+    if (key === "additional_tax_reserve" && visibleFields.federal_withholding && !isBusinessSubtype) return false;
+    return true;
+  };
+  const showField = (key: ToggleKey) => isRelevant(key);
+
+  const defaultedCount = Object.keys(defaultedFields).length;
+  /** Small inline "using default" badge shown next to prefilled advanced fields. */
+  const DefaultBadge = ({ field }: { field: keyof StreamForm }) => {
+    const from = defaultedFields[field as string];
+    if (!from) return null;
+    return (
+      <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary align-middle">
+        using default · {from}
+      </span>
+    );
+  };
+
 
   const resetForm = () => {
     setForm(emptyForm());
@@ -585,6 +632,7 @@ export default function ProjectedIncome() {
     setShowForm(false);
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
+    setDefaultedFields({});
     setShowSourceError(false);
     setSubmitAttempted(false);
     setTouched({});
@@ -595,6 +643,7 @@ export default function ProjectedIncome() {
     setEditingId(null);
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
+    setDefaultedFields({});
     setShowSourceError(false);
     setSubmitAttempted(false);
     setTouched({});
@@ -636,6 +685,7 @@ export default function ProjectedIncome() {
     setEditingId(s.id);
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
+    setDefaultedFields({});
     setShowSourceError(false);
     setSubmitAttempted(false);
     setTouched({});
@@ -708,6 +758,12 @@ export default function ProjectedIncome() {
       : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
     const canonical = toCanonicalIncomeType(filingType);
 
+    // Persistence uses the raw company toggles (NOT the presentation-only
+    // relevance filter) so saved values and calculations stay unchanged.
+    const persistField = (key: ToggleKey) => !!visibleFields[key];
+
+
+
     const payload: Partial<ProjectedIncomeStream> = {
       company: companyName,
       company_type: canonical, // "w2" | "1099" | "k1" | "other" — used by tax engine routing
@@ -723,33 +779,33 @@ export default function ProjectedIncome() {
       // via getTotalFederalPaid(). For W-2 streams we mirror the form's
       // total_federal_payroll_taxes here. For non-W-2 we keep the form's
       // taxes_withheld field.
-      taxes_withheld: showField("federal_withholding")
+      taxes_withheld: persistField("federal_withholding")
         ? num(form.total_federal_payroll_taxes)
-        : (showField("taxes_withheld")
+        : (persistField("taxes_withheld")
             ? num(form.taxes_withheld)
             : num(form.federal_withholding)),
       // federal_withholding = federal income tax COMPONENT only
       // (NOT the combined total). Combined total lives in taxes_withheld.
-      federal_withholding: showField("federal_withholding") ? num(form.federal_withholding) : 0,
-      state_withholding: showField("state_withholding") ? num(form.state_withholding) : 0,
+      federal_withholding: persistField("federal_withholding") ? num(form.federal_withholding) : 0,
+      state_withholding: persistField("state_withholding") ? num(form.state_withholding) : 0,
       // SS/Medicare are collected via the TotalFederalTaxField breakdown
       // whenever the federal withholding widget is shown (W-2 / S-Corp W-2),
       // so persist them if either the individual toggle OR the parent
       // federal_withholding widget is visible. Prevents silent zeroing when
       // the per-company advanced toggles hide SS/Medicare individually.
       ss_withholding:
-        showField("ss_withholding") || showField("federal_withholding")
+        persistField("ss_withholding") || persistField("federal_withholding")
           ? num(form.ss_withholding)
           : 0,
       medicare_withholding:
-        showField("medicare_withholding") || showField("federal_withholding")
+        persistField("medicare_withholding") || persistField("federal_withholding")
           ? num(form.medicare_withholding)
           : 0,
-      retirement_401k: showField("retirement_401k") ? num(form.retirement_401k) : 0,
-      healthcare_deduction: showField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
-      hsa_contribution: showField("hsa_contribution") ? num(form.hsa_contribution) : 0,
-      pre_tax_deductions: showField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
-      additional_tax_reserve: showField("additional_tax_reserve")
+      retirement_401k: persistField("retirement_401k") ? num(form.retirement_401k) : 0,
+      healthcare_deduction: persistField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
+      hsa_contribution: persistField("hsa_contribution") ? num(form.hsa_contribution) : 0,
+      pre_tax_deductions: persistField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
+      additional_tax_reserve: persistField("additional_tax_reserve")
         ? num(form.additional_tax_reserve)
         : 0,
       notes: visibleFields.notes ? form.notes : "",
@@ -1621,6 +1677,7 @@ export default function ProjectedIncome() {
                         .filter((s) => s.source_id === next.sourceId)
                         .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))[0]
                     : undefined;
+                  const applieddefaults: Record<string, string> = {};
                   setForm((prev) => {
                     let nextSubtype = prev.ui_income_subtype;
                     if (!editingId && next.linkedSource) {
@@ -1637,27 +1694,38 @@ export default function ProjectedIncome() {
                     };
                     if (editingId) return base;
                     const applied: StreamForm = { ...base };
-                    if (company?.payFrequency) applied.pay_frequency = company.payFrequency;
+                    /** Prefill one field and remember where the value came from. */
+                    const put = (key: keyof StreamForm, value: number | string | null | undefined, from: string) => {
+                      if (value === null || value === undefined || value === "") return;
+                      const str = String(value);
+                      if (str === "0" || str === "0.00") return; // don't badge empty defaults
+                      (applied as any)[key] = str;
+                      applieddefaults[key as string] = from;
+                    };
+                    const COMPANY = "company settings";
+                    const PRIOR = "last saved paycheck";
+                    put("pay_frequency", company?.payFrequency, COMPANY);
                     if (company?.expectedFederalWithholdingPerPaycheck != null) {
-                      applied.total_federal_payroll_taxes = String(company.expectedFederalWithholdingPerPaycheck);
-                      applied.taxes_withheld = String(company.expectedFederalWithholdingPerPaycheck);
+                      put("total_federal_payroll_taxes", company.expectedFederalWithholdingPerPaycheck, COMPANY);
+                      put("taxes_withheld", company.expectedFederalWithholdingPerPaycheck, COMPANY);
                     }
                     if (priorStream) {
-                      applied.pay_frequency = priorStream.pay_frequency || applied.pay_frequency;
-                      applied.retirement_401k = String(priorStream.retirement_401k || 0);
-                      applied.healthcare_deduction = String(priorStream.healthcare_deduction || 0);
-                      applied.hsa_contribution = String(priorStream.hsa_contribution || 0);
-                      applied.pre_tax_deductions = String(priorStream.pre_tax_deductions || 0);
-                      applied.state_withholding = String(priorStream.state_withholding || 0);
-                      applied.federal_withholding = String(priorStream.federal_withholding || 0);
-                      applied.ss_withholding = String(priorStream.ss_withholding || 0);
-                      applied.medicare_withholding = String(priorStream.medicare_withholding || 0);
-                      applied.total_federal_payroll_taxes = String(getCanonicalTotalFederalPayrollTaxes(priorStream as any));
-                      applied.taxes_withheld = String(priorStream.taxes_withheld || 0);
+                      put("pay_frequency", priorStream.pay_frequency, PRIOR);
+                      put("retirement_401k", priorStream.retirement_401k, PRIOR);
+                      put("healthcare_deduction", priorStream.healthcare_deduction, PRIOR);
+                      put("hsa_contribution", priorStream.hsa_contribution, PRIOR);
+                      put("pre_tax_deductions", priorStream.pre_tax_deductions, PRIOR);
+                      put("state_withholding", priorStream.state_withholding, PRIOR);
+                      put("federal_withholding", priorStream.federal_withholding, PRIOR);
+                      put("ss_withholding", priorStream.ss_withholding, PRIOR);
+                      put("medicare_withholding", priorStream.medicare_withholding, PRIOR);
+                      put("total_federal_payroll_taxes", getCanonicalTotalFederalPayrollTaxes(priorStream as any), PRIOR);
+                      put("taxes_withheld", priorStream.taxes_withheld, PRIOR);
                     }
                     return applied;
                   });
-                  setUsingCompanyDefaults(!editingId && (!!priorStream || !!company?.payFrequency));
+                  setDefaultedFields(editingId ? {} : applieddefaults);
+                  setUsingCompanyDefaults(!editingId && Object.keys(applieddefaults).length > 0);
                   setTouched((t) => ({ ...t, company: true }));
                   if (showSourceError) setShowSourceError(false);
                 }}
@@ -1667,8 +1735,11 @@ export default function ProjectedIncome() {
               )}
 
               {usingCompanyDefaults && (
-                <p className="text-[11px] text-primary">Using your saved company defaults.</p>
+                <p className="text-[11px] text-primary">
+                  Prefilled {defaultedCount} field{defaultedCount === 1 ? "" : "s"} from your saved defaults — edit any of them under Advanced Options.
+                </p>
               )}
+
             </div>
 
             {/* 4 & 5 — Gross Income + Frequency */}
@@ -1692,7 +1763,11 @@ export default function ProjectedIncome() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label>Frequency</Label>
+                <Label>
+                  Frequency
+                  <DefaultBadge field="pay_frequency" />
+                </Label>
+
                 <Select value={form.pay_frequency} onValueChange={(v) => {
                   setField("pay_frequency", v);
                   if (v === "single") setField("end_date", "");
@@ -1762,7 +1837,13 @@ export default function ProjectedIncome() {
               <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full min-h-[44px]">
                 {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 Advanced Options
+                {defaultedCount > 0 && (
+                  <span className="ml-auto inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                    {defaultedCount} using defaults
+                  </span>
+                )}
               </CollapsibleTrigger>
+
               <CollapsibleContent className="space-y-3 pt-2">
                 <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
                   {!isOneTime && (
@@ -1810,7 +1891,10 @@ export default function ProjectedIncome() {
                   {/* Catch-all withholding (1099, k1, scorp_distribution, other) */}
                   {showField("taxes_withheld") && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Taxes actually withheld</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Taxes actually withheld
+                        <DefaultBadge field="taxes_withheld" />
+                      </Label>
                       <Input
                         type="number" min="0" step="0.01" placeholder="0.00"
                         value={form.taxes_withheld}
@@ -1821,21 +1905,31 @@ export default function ProjectedIncome() {
 
                   {/* Simplified federal payroll tax (W-2 / S-Corp W-2) */}
                   {showField("federal_withholding") && (
-                    <TotalFederalTaxField
-                      total={form.total_federal_payroll_taxes}
-                      onTotalChange={(v) => setField("total_federal_payroll_taxes", v)}
-                      federal={form.federal_withholding}
-                      onFederalChange={(v) => setField("federal_withholding", v)}
-                      ss={form.ss_withholding}
-                      onSsChange={(v) => setField("ss_withholding", v)}
-                      medicare={form.medicare_withholding}
-                      onMedicareChange={(v) => setField("medicare_withholding", v)}
-                      collapseKey={editingId || showForm}
-                    />
+                    <div className="space-y-1">
+                      {!!defaultedFields.total_federal_payroll_taxes && (
+                        <p className="text-[10px] text-primary">
+                          Federal payroll taxes prefilled from your {defaultedFields.total_federal_payroll_taxes}.
+                        </p>
+                      )}
+                      <TotalFederalTaxField
+                        total={form.total_federal_payroll_taxes}
+                        onTotalChange={(v) => setField("total_federal_payroll_taxes", v)}
+                        federal={form.federal_withholding}
+                        onFederalChange={(v) => setField("federal_withholding", v)}
+                        ss={form.ss_withholding}
+                        onSsChange={(v) => setField("ss_withholding", v)}
+                        medicare={form.medicare_withholding}
+                        onMedicareChange={(v) => setField("medicare_withholding", v)}
+                        collapseKey={editingId || showForm}
+                      />
+                    </div>
                   )}
-                  {!!taxSettings?.stateIncomeTaxEnabled && showField("state_withholding") && (
+                  {showField("state_withholding") && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">State tax withheld</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        State tax withheld
+                        <DefaultBadge field="state_withholding" />
+                      </Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00"
                         value={form.state_withholding}
                         onChange={(e) => setField("state_withholding", e.target.value)} />
@@ -1847,7 +1941,10 @@ export default function ProjectedIncome() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">401(k) / 403(b) / Solo 401(k)</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            401(k) / 403(b) / Solo 401(k)
+                            <DefaultBadge field="retirement_401k" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.retirement_401k}
                             onChange={(e) => setField("retirement_401k", e.target.value)} />
@@ -1855,7 +1952,10 @@ export default function ProjectedIncome() {
                       )}
                       {showField("healthcare_deduction") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Health insurance</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            Health insurance
+                            <DefaultBadge field="healthcare_deduction" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.healthcare_deduction}
                             onChange={(e) => setField("healthcare_deduction", e.target.value)} />
@@ -1863,7 +1963,10 @@ export default function ProjectedIncome() {
                       )}
                       {showField("hsa_contribution") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">HSA contribution</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            HSA contribution
+                            <DefaultBadge field="hsa_contribution" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.hsa_contribution}
                             onChange={(e) => setField("hsa_contribution", e.target.value)} />
@@ -1871,7 +1974,10 @@ export default function ProjectedIncome() {
                       )}
                       {showField("pre_tax_deductions") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Other pre-tax deductions</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            Other pre-tax deductions
+                            <DefaultBadge field="pre_tax_deductions" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.pre_tax_deductions}
                             onChange={(e) => setField("pre_tax_deductions", e.target.value)} />
@@ -1882,18 +1988,19 @@ export default function ProjectedIncome() {
 
                   {showField("additional_tax_reserve") && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Amount you're saving for taxes</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Amount you're saving for taxes
+                        <DefaultBadge field="additional_tax_reserve" />
+                      </Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00"
                         value={form.additional_tax_reserve}
                         onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
                     </div>
                   )}
 
+
                   {(() => {
-                    const meta = subtypeMeta(form.ui_income_subtype);
-                    const f = meta?.filingType ?? normalizeFilingType(form.ui_income_subtype);
-                    const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
-                    if (!isBiz) return null;
+                    if (!isBusinessSubtype) return null;
                     const periodsPerYear = (() => {
                       switch (form.pay_frequency) {
                         case "weekly": return 52;
@@ -1916,7 +2023,9 @@ export default function ProjectedIncome() {
                       <div className="space-y-3 rounded-md border border-dashed border-border bg-muted/30 p-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">
-                            Forecast business expenses (per pay period)
+                            {isOneTime
+                              ? "Forecast business expenses (for this payment)"
+                              : "Forecast business expenses (per pay period)"}
                           </Label>
                           <Input
                             type="number" min="0" step="0.01" placeholder="0.00"
@@ -1925,11 +2034,12 @@ export default function ProjectedIncome() {
                           />
                           <p className="text-[11px] text-muted-foreground leading-snug">
                             Estimated overhead reduces projected business profit before SE tax. Leave at 0 to forecast gross receipts only. Actual expense transactions are always counted separately.
-                            {annualized > 0 && (
+                            {!isOneTime && annualized > 0 && (
                               <> <span className="font-medium text-foreground">≈ {fmtFull(annualized)} / yr</span> at {periodsPerYear}× per year.</>
                             )}
                           </p>
                         </div>
+
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Assumption notes</Label>
                           <Input
