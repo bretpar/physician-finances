@@ -656,14 +656,18 @@ export default function ProjectedIncome() {
   }
 
   const handleSubmit = async () => {
-    if (num(form.paycheck_amount) <= 0) return;
-    // Need either a linked source or a company name (or a valid W-2 source for W-2 subtypes)
-    const hasIdentity = !!form.source_id || !!form.source_name.trim() || !!form.company.trim();
-    if (!hasIdentity) return;
+    setSubmitAttempted(true);
+    if (hasFormErrors) {
+      if (formErrors.company) setShowSourceError(true);
+      if (formErrors.custom_interval_days || formErrors.end_date) setAdvancedOpen(true);
+      toast.error("Please fix the highlighted fields before saving.");
+      return;
+    }
     if (!validateSource()) {
       setShowSourceError(true);
       return;
     }
+
 
     // Persist new source ONLY when the user opted-in via the
     // "Save this employer/source for future use" checkbox.
