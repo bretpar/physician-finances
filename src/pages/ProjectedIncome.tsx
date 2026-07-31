@@ -773,33 +773,33 @@ export default function ProjectedIncome() {
       // via getTotalFederalPaid(). For W-2 streams we mirror the form's
       // total_federal_payroll_taxes here. For non-W-2 we keep the form's
       // taxes_withheld field.
-      taxes_withheld: showField("federal_withholding")
+      taxes_withheld: persistField("federal_withholding")
         ? num(form.total_federal_payroll_taxes)
-        : (showField("taxes_withheld")
+        : (persistField("taxes_withheld")
             ? num(form.taxes_withheld)
             : num(form.federal_withholding)),
       // federal_withholding = federal income tax COMPONENT only
       // (NOT the combined total). Combined total lives in taxes_withheld.
-      federal_withholding: showField("federal_withholding") ? num(form.federal_withholding) : 0,
-      state_withholding: showField("state_withholding") ? num(form.state_withholding) : 0,
+      federal_withholding: persistField("federal_withholding") ? num(form.federal_withholding) : 0,
+      state_withholding: persistField("state_withholding") ? num(form.state_withholding) : 0,
       // SS/Medicare are collected via the TotalFederalTaxField breakdown
       // whenever the federal withholding widget is shown (W-2 / S-Corp W-2),
       // so persist them if either the individual toggle OR the parent
       // federal_withholding widget is visible. Prevents silent zeroing when
       // the per-company advanced toggles hide SS/Medicare individually.
       ss_withholding:
-        showField("ss_withholding") || showField("federal_withholding")
+        persistField("ss_withholding") || persistField("federal_withholding")
           ? num(form.ss_withholding)
           : 0,
       medicare_withholding:
-        showField("medicare_withholding") || showField("federal_withholding")
+        persistField("medicare_withholding") || persistField("federal_withholding")
           ? num(form.medicare_withholding)
           : 0,
-      retirement_401k: showField("retirement_401k") ? num(form.retirement_401k) : 0,
-      healthcare_deduction: showField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
-      hsa_contribution: showField("hsa_contribution") ? num(form.hsa_contribution) : 0,
-      pre_tax_deductions: showField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
-      additional_tax_reserve: showField("additional_tax_reserve")
+      retirement_401k: persistField("retirement_401k") ? num(form.retirement_401k) : 0,
+      healthcare_deduction: persistField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
+      hsa_contribution: persistField("hsa_contribution") ? num(form.hsa_contribution) : 0,
+      pre_tax_deductions: persistField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
+      additional_tax_reserve: persistField("additional_tax_reserve")
         ? num(form.additional_tax_reserve)
         : 0,
       notes: visibleFields.notes ? form.notes : "",
