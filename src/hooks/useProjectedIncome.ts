@@ -1164,10 +1164,13 @@ function getNextDate(current: Date, frequency: string, customDays?: number | nul
     case "weekly": return addWeeks(current, 1);
     case "biweekly": return addWeeks(current, 2);
     case "monthly": return addMonths(current, 1);
+    case "quarterly": return addMonths(current, 3);
+    case "annual": return addMonths(current, 12);
     case "custom": return addDays(current, customDays || 14);
     default: return addWeeks(current, 2);
   }
 }
+
 
 /**
  * Generate projected paychecks with smart matching against actual income.
