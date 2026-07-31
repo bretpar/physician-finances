@@ -23,6 +23,7 @@ import AnnualIncomeHero from "@/components/dashboard/AnnualIncomeHero";
 import IncomeBreakdownCards from "@/components/dashboard/IncomeBreakdownCards";
 import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/MonthlyIncomeCard";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
+import FinancialAssistantCard from "@/components/dashboard/FinancialAssistantCard";
 
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import { getCurrentQuarter } from "@/lib/quarters";
@@ -373,7 +374,18 @@ export default function Dashboard() {
         </section>
       )}
 
+      <FinancialAssistantCard
+        projectedAnnualIncome={annualIncomeValue}
+        annualTaxLiability={annualTaxLiability}
+        savingsCoverageRatio={quarterRecommendation.coverageRatio}
+        quarterLabel={quarterRecommendation.quarterLabel}
+        deadlineLabel={quarterRecommendation.deadlineLabel}
+        daysUntilDue={quarterRecommendation.daysUntilDue}
+        showQuarterly={!isW2Only}
+      />
+
       <div data-testid="dashboard-summary">
+
         <AnnualIncomeHero
           amount={annualIncomeValue}
           modeLabel={projection ? "Includes planned/future income" : "Income received so far this year"}
