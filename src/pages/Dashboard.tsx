@@ -375,10 +375,11 @@ export default function Dashboard() {
         </section>
       )}
 
-      <FinancialAssistantCard
+      <TodaysFocusBanner
         projectedAnnualIncome={annualIncomeValue}
         annualTaxLiability={annualTaxLiability}
         savingsCoverageRatio={quarterRecommendation.coverageRatio}
+        stillNeedToSave={quarterRecommendation.stillNeedToSave}
         quarterLabel={quarterRecommendation.quarterLabel}
         deadlineLabel={quarterRecommendation.deadlineLabel}
         daysUntilDue={quarterRecommendation.daysUntilDue}
@@ -395,7 +396,7 @@ export default function Dashboard() {
         />
       </div>
 
-      <InsightsPanel />
+
 
       {isW2Only && forecastDebug && (
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
