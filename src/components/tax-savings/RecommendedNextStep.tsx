@@ -72,8 +72,14 @@ export function RecommendedNextStep({
   const pick = PRIORITY.map((v) => candidates.find((i) => i.value === v)).find(Boolean);
 
 
+  // Nothing recognizable to recommend on (still loading, or no eligible
+  // categories for this income profile) — stay silent rather than claim success.
+  if (known.length === 0) return null;
+
   if (!pick) {
+    const hasConfigured = configuredValues.size > 0;
     return (
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold">Recommended Next Step</CardTitle>
