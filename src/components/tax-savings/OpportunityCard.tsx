@@ -105,10 +105,16 @@ export function ComingSoonOpportunityCard({
   icon,
   label,
   description,
+  insightTrigger,
+  insightPanel,
 }: {
   icon: LucideIcon;
   label: string;
   description: string;
+  /** Optional "Why this matters" control rendered under the header. */
+  insightTrigger?: React.ReactNode;
+  /** Optional inline educational panel, shown when expanded. */
+  insightPanel?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-card/60 px-4 py-4">
@@ -118,6 +124,9 @@ export function ComingSoonOpportunityCard({
           Coming Soon
         </Button>
       </div>
+      {insightTrigger && <div className="pt-1">{insightTrigger}</div>}
+      {insightPanel}
     </div>
   );
 }
+

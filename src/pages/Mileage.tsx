@@ -7,6 +7,12 @@ import {
   type OpportunityStatus,
 } from "@/components/tax-savings/OpportunityCard";
 import { RecommendedNextStep } from "@/components/tax-savings/RecommendedNextStep";
+import {
+  DEDUCTION_INSIGHTS,
+  DeductionInsightPanel,
+  WhyThisMattersButton,
+} from "@/components/tax-savings/DeductionInsight";
+
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -101,6 +107,10 @@ export default function Mileage() {
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState("");
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
+  // Only one educational "Why this matters" panel may be open at a time.
+  const [openInsight, setOpenInsight] = useState("");
+  const toggleInsight = (key: string) => setOpenInsight((prev) => (prev === key ? "" : key));
+
   const updateTaxSettings = useUpdateTaxSettings();
   const hsaEnabled = !!taxSettings?.hsaEnabled;
   const { estimate } = useTaxEstimate();
@@ -1124,8 +1134,24 @@ export default function Mileage() {
                 </Button>
               )}
             </div>
+            {DEDUCTION_INSIGHTS[item.value] && (
+              <>
+                <WhyThisMattersButton
+                  open={openInsight === item.value}
+                  onToggle={() => toggleInsight(item.value)}
+                  controlsId={`insight-${item.value}`}
+                />
+                {openInsight === item.value && (
+                  <DeductionInsightPanel
+                    id={`insight-${item.value}`}
+                    content={DEDUCTION_INSIGHTS[item.value]}
+                  />
+                )}
+              </>
+            )}
             <AccordionContent className="pb-5">{item.content}</AccordionContent>
           </AccordionItem>
+
         ))}
       </Accordion>
     );
@@ -1214,7 +1240,25 @@ export default function Mileage() {
                   icon={item.icon}
                   label={item.label}
                   description={item.description}
+                  insightTrigger={
+                    DEDUCTION_INSIGHTS[item.value] ? (
+                      <WhyThisMattersButton
+                        open={openInsight === `soon-${item.value}`}
+                        onToggle={() => toggleInsight(`soon-${item.value}`)}
+                        controlsId={`insight-soon-${item.value}`}
+                      />
+                    ) : undefined
+                  }
+                  insightPanel={
+                    openInsight === `soon-${item.value}` && DEDUCTION_INSIGHTS[item.value] ? (
+                      <DeductionInsightPanel
+                        id={`insight-soon-${item.value}`}
+                        content={DEDUCTION_INSIGHTS[item.value]}
+                      />
+                    ) : undefined
+                  }
                 />
+
               ))}
             </CollapsibleContent>
           </Collapsible>
