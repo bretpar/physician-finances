@@ -55,13 +55,31 @@ export function RecommendedNextStep({
   items: RecommendableItem[];
   onSelect: (value: string) => void;
 }) {
-  const candidates = items.filter(
-    (i) => !i.comingSoon && i.status === "not_configured" && COPY[i.value],
+  // Defensive: the page may pass partially-built lists while data loads.
+  const known = (items ?? []).filter(
+    (i): i is RecommendableItem => Boolean(i && i.value && COPY[i.value] && !i.comingSoon),
+  );
+
+  // The same category (e.g. retirement) can appear in both the business and
+  // personal sections. If it is configured anywhere, it is not a next step.
+  const configuredValues = new Set(
+    known.filter((i) => i.status === "configured").map((i) => i.value),
+  );
+
+  const candidates = known.filter(
+    (i) => i.status === "not_configured" && !configuredValues.has(i.value),
   );
   const pick = PRIORITY.map((v) => candidates.find((i) => i.value === v)).find(Boolean);
 
+
+  // Nothing recognizable to recommend on (still loading, or no eligible
+  // categories for this income profile) — stay silent rather than claim success.
+  if (known.length === 0) return null;
+
   if (!pick) {
+    const hasConfigured = configuredValues.size > 0;
     return (
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold">Recommended Next Step</CardTitle>
@@ -69,11 +87,14 @@ export function RecommendedNextStep({
         <CardContent className="space-y-1">
           <p className="flex items-start gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-            You&apos;re currently using all available tax-saving strategies.
+            {hasConfigured
+              ? "You're currently using all available tax-saving strategies."
+              : "No additional tax-saving strategies apply to your profile right now."}
           </p>
           <p className="text-xs text-muted-foreground pl-6">
             Review your deductions if your income or situation changes.
           </p>
+
         </CardContent>
       </Card>
     );
