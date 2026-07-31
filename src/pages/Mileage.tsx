@@ -1158,6 +1158,12 @@ export default function Mileage() {
         </CardContent>
       </Card>
 
+      <RecommendedNextStep
+        items={[...businessItems, ...personalItems]}
+        onSelect={handleAccordionChange}
+      />
+
+
       <div className="space-y-6">
         {showBusinessSection && businessItems.some((i) => !i.comingSoon) && (
           <section className="space-y-3">
