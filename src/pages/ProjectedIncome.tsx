@@ -1771,7 +1771,11 @@ export default function ProjectedIncome() {
                       <DateField
                         value={form.end_date}
                         onChange={(v) => setField("end_date", v)}
+                        className={cn(fieldError("end_date") && "border-destructive")}
                       />
+                      {fieldError("end_date") && (
+                        <p role="alert" className="text-[11px] text-destructive">{fieldError("end_date")}</p>
+                      )}
                     </div>
                   )}
 
@@ -1782,10 +1786,16 @@ export default function ProjectedIncome() {
                         type="number"
                         min="1"
                         value={form.custom_interval_days}
+                        aria-invalid={!!fieldError("custom_interval_days")}
+                        className={cn(fieldError("custom_interval_days") && "border-destructive focus-visible:ring-destructive")}
                         onChange={(e) => setField("custom_interval_days", e.target.value)}
                       />
+                      {fieldError("custom_interval_days") && (
+                        <p role="alert" className="text-[11px] text-destructive">{fieldError("custom_interval_days")}</p>
+                      )}
                     </div>
                   )}
+
 
                   <p className="text-[10px] text-muted-foreground">
                     This entry transfers to{" "}
