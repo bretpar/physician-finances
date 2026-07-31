@@ -1564,8 +1564,13 @@ export default function ProjectedIncome() {
               <DateField
                 value={form.start_date}
                 onChange={(v) => setField("start_date", v)}
+                className={cn(fieldError("start_date") && "border-destructive")}
               />
+              {fieldError("start_date") && (
+                <p role="alert" className="text-[11px] text-destructive">{fieldError("start_date")}</p>
+              )}
             </div>
+
 
             {/* 2 — Income Source */}
             <div className="space-y-1.5">
