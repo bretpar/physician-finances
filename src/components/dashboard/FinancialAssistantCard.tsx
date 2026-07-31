@@ -197,9 +197,20 @@ export default function FinancialAssistantCard({
               </TooltipProvider>
             </p>
           )}
-          <p className="text-foreground">{recommendation.text}</p>
-          {showDeadline && <p>Your next quarterly payment is due {deadlineLabel}.</p>}
-        </div>
+          {isAllSet ? (
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">Everything looks good.</p>
+              <p>You're on track with your projected income and tax savings.</p>
+              {showQuarterly && deadlineLabel && (
+                <p>Your next important deadline is {longDeadlineLabel}.</p>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-foreground">{recommendation.text}</p>
+              {showDeadline && <p>Your next quarterly payment is due {deadlineLabel}.</p>}
+            </>
+          )}
 
         <Button size="sm" className="w-full min-h-11 sm:w-auto" onClick={() => navigate(recommendation.to)}>
           {recommendation.cta}
