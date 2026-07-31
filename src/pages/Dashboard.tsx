@@ -23,11 +23,9 @@ import AnnualIncomeHero from "@/components/dashboard/AnnualIncomeHero";
 import IncomeBreakdownCards from "@/components/dashboard/IncomeBreakdownCards";
 import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/MonthlyIncomeCard";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
-import TodaysFocusBanner from "@/components/dashboard/TodaysFocusBanner";
 
 
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
-import { computeQuarterPace } from "@/lib/quarterPaceStatus";
 import { getCurrentQuarter } from "@/lib/quarters";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { normalizeFilingType } from "@/lib/filingTypes";
@@ -334,18 +332,6 @@ export default function Dashboard() {
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
-  // Shared pace status — same calculation the tracker card and insights use.
-  const quarterPace = computeQuarterPace({
-    quarterTarget: quarterRecommendation.quarterTarget,
-    progressAmount: quarterRecommendation.progressAmount,
-    start: quarterRecommendation.start,
-    end: quarterRecommendation.end,
-    daysUntilDue: quarterRecommendation.daysUntilDue,
-    quarterLabel: quarterRecommendation.quarterLabel,
-    deadlineLabel: quarterRecommendation.deadlineLabel,
-    showQuarterly: !isW2Only,
-    now,
-  });
   const taxProgressPct = quarterRecommendation.coverageRatio * 100;
   const remainingTaxThisQuarter = Math.max(
     0,
@@ -388,15 +374,6 @@ export default function Dashboard() {
         </section>
       )}
 
-      <TodaysFocusBanner
-        projectedAnnualIncome={annualIncomeValue}
-        annualTaxLiability={annualTaxLiability}
-        pace={quarterPace}
-        quarterLabel={quarterRecommendation.quarterLabel}
-        deadlineLabel={quarterRecommendation.deadlineLabel}
-        daysUntilDue={quarterRecommendation.daysUntilDue}
-        showQuarterly={!isW2Only}
-      />
 
       <div data-testid="dashboard-summary">
 
