@@ -55,10 +55,22 @@ export function RecommendedNextStep({
   items: RecommendableItem[];
   onSelect: (value: string) => void;
 }) {
-  const candidates = items.filter(
-    (i) => !i.comingSoon && i.status === "not_configured" && COPY[i.value],
+  // Defensive: the page may pass partially-built lists while data loads.
+  const known = (items ?? []).filter(
+    (i): i is RecommendableItem => Boolean(i && i.value && COPY[i.value] && !i.comingSoon),
+  );
+
+  // The same category (e.g. retirement) can appear in both the business and
+  // personal sections. If it is configured anywhere, it is not a next step.
+  const configuredValues = new Set(
+    known.filter((i) => i.status === "configured").map((i) => i.value),
+  );
+
+  const candidates = known.filter(
+    (i) => i.status === "not_configured" && !configuredValues.has(i.value),
   );
   const pick = PRIORITY.map((v) => candidates.find((i) => i.value === v)).find(Boolean);
+
 
   if (!pick) {
     return (
