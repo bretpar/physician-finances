@@ -1581,11 +1581,15 @@ export default function ProjectedIncome() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldError("ui_income_subtype") && (
+                <p role="alert" className="text-[11px] text-destructive">{fieldError("ui_income_subtype")}</p>
+              )}
               {subtypeIsDisabled && (
                 <p className="text-[10px] text-muted-foreground">
                   No longer active in your Household Income Profile — kept available for this existing entry only.
                 </p>
               )}
+
             </div>
 
             {/* 3 — Company */}
