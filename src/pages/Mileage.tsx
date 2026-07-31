@@ -101,6 +101,10 @@ export default function Mileage() {
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState("");
   const [comingSoonOpen, setComingSoonOpen] = useState(false);
+  // Only one educational "Why this matters" panel may be open at a time.
+  const [openInsight, setOpenInsight] = useState("");
+  const toggleInsight = (key: string) => setOpenInsight((prev) => (prev === key ? "" : key));
+
   const updateTaxSettings = useUpdateTaxSettings();
   const hsaEnabled = !!taxSettings?.hsaEnabled;
   const { estimate } = useTaxEstimate();
