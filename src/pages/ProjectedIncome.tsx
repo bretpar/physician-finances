@@ -758,6 +758,12 @@ export default function ProjectedIncome() {
       : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
     const canonical = toCanonicalIncomeType(filingType);
 
+    // Persistence uses the raw company toggles (NOT the presentation-only
+    // relevance filter) so saved values and calculations stay unchanged.
+    const persistField = (key: ToggleKey) => !!visibleFields[key];
+
+
+
     const payload: Partial<ProjectedIncomeStream> = {
       company: companyName,
       company_type: canonical, // "w2" | "1099" | "k1" | "other" — used by tax engine routing
