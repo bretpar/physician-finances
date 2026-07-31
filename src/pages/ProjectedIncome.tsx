@@ -548,8 +548,19 @@ export default function ProjectedIncome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get("highlight")]);
 
-  const setField = (key: keyof StreamForm, value: string | boolean) =>
+  const setField = (key: keyof StreamForm, value: string | boolean) => {
+    setTouched((t) => (t[key as string] ? t : { ...t, [key as string]: true }));
     setForm((p) => ({ ...p, [key]: value }));
+  };
+
+  const formErrors = useMemo(
+    () => validatePlannedIncomeForm(form, { validFrequencies: PAY_FREQUENCIES.map((f) => f.value) }),
+    [form],
+  );
+  const hasFormErrors = Object.keys(formErrors).length > 0;
+  /** Show an error only once the user has interacted with the field or tried to save. */
+  const fieldError = (key: keyof PlannedIncomeFormErrors) =>
+    submitAttempted || touched[key] ? formErrors[key] : undefined;
 
   /** Resolve which advanced fields to render — driven by selected company's
    *  Settings → Advanced tax settings. Falls back to filing-type defaults
