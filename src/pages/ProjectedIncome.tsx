@@ -802,28 +802,49 @@ export default function ProjectedIncome() {
         </p>
       </div>
 
-      {/* Hero summary: one large card + two side-by-side cards */}
-      <div className="space-y-4">
+      {/* Year at a glance */}
+      <div className="space-y-3">
         <SummaryCard
           icon={<DollarSign className="h-5 w-5" />}
-          label="Expected Annual Income"
+          label="Projected Annual Income"
           value={fmt(expectedAnnual)}
           highlight
           hero
         />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <SummaryCard
             icon={<TrendingUp className="h-4 w-4" />}
-            label="Projected Remaining"
-            value={fmt(projectedTotals.grossIncome)}
+            label="Projected Take Home"
+            value={fmt(projectedTakeHome)}
           />
           <SummaryCard
             icon={<Shield className="h-4 w-4" />}
-            label="Estimated Annual Tax"
-            value={fmt(forecastEstimate?.totalTaxLiability || 0)}
+            label="Projected Taxes"
+            value={fmt(projectedTaxes)}
+          />
+          <SummaryCard
+            icon={<PiggyBank className="h-4 w-4" />}
+            label="Retirement Contributions"
+            value={fmt(projected401k)}
+          />
+          <SummaryCard
+            icon={<PiggyBank className="h-4 w-4" />}
+            label="HSA Contributions"
+            value={fmt(projectedHsa)}
+          />
+          <SummaryCard
+            icon={<Calendar className="h-4 w-4" />}
+            label="Months Remaining"
+            value={String(monthsRemaining)}
+          />
+          <SummaryCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="Still Expected"
+            value={fmt(projectedTotals.grossIncome)}
           />
         </div>
       </div>
+
 
       <DuplicateConversionsReview />
 
