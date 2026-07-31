@@ -1433,66 +1433,34 @@ export default function ProjectedIncome() {
 
       {/* Add/Edit Stream Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingId
-                ? (isOneTime ? "Edit One-Time Income" : "Edit Income Stream")
-                : (isOneTime ? "Add One-Time Income" : "Add Income Stream")}
+              {editingId ? "Edit Planned Income" : "Add Planned Income"}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              Configure a projected income stream — pick a source, income type, amount, frequency, and dates. Withholding and pre-tax fields appear for W-2 sources.
+              Enter a date, income source, company, gross income, and how often it repeats. Everything else lives under Advanced Options.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            {/* Source / Employer — drives advanced field visibility */}
+          <div className="space-y-4 py-1">
+            {/* 1 — Date */}
             <div className="space-y-1.5">
-              <Label>
-                Source / Employer
-                {isW2Subtype && <span className="text-destructive"> *</span>}
-              </Label>
-              <SourceEmployerCombobox
-                sourceId={form.source_id}
-                otherName={form.source_name}
-                saveAsNew={form.source_save_as_new}
-                newSourceKind={form.source_new_kind}
-                required={isW2Subtype}
-                invalid={showSourceError}
-                onChange={(next) => {
-                  setForm((prev) => {
-                    let nextSubtype = prev.ui_income_subtype;
-                    // When linking a source on add, default the subtype from the source's kind
-                    // so advanced field visibility flips immediately.
-                    if (!editingId && next.linkedSource) {
-                      const suggested = defaultSubtypeForSourceKind(next.linkedSource.source_kind);
-                      if (suggested) nextSubtype = suggested;
-                    }
-                    return {
-                      ...prev,
-                      source_id: next.sourceId,
-                      source_name: next.otherName,
-                      source_save_as_new: next.saveAsNew,
-                      source_new_kind: next.newSourceKind,
-                      ui_income_subtype: nextSubtype,
-                    };
-                  });
-                  if (showSourceError) setShowSourceError(false);
-                }}
+              <Label>{isOneTime ? "Date" : "Start Date"}</Label>
+              <DateField
+                value={form.start_date}
+                onChange={(v) => setField("start_date", v)}
               />
-              {showSourceError && isW2Subtype && !form.source_id && !form.source_name.trim() && (
-                <p className="text-[10px] text-destructive mt-1">Pick a source or enter one under "Other".</p>
-              )}
             </div>
 
-            {/* Income subtype — preserves transfer fidelity */}
+            {/* 2 — Income Source */}
             <div className="space-y-1.5">
-              <Label>Income Type</Label>
+              <Label>Income Source</Label>
               <Select
                 value={form.ui_income_subtype}
                 onValueChange={(v) => setField("ui_income_subtype", v)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {visibleIncomeSubtypes.map((t) => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -1504,36 +1472,102 @@ export default function ProjectedIncome() {
                   No longer active in your Household Income Profile — kept available for this existing entry only.
                 </p>
               )}
-              <p className="text-[10px] text-muted-foreground">
-                Determines whether this stream transfers to{" "}
-                <strong>
-                  {ledgerForIncomeType(form.ui_income_subtype) === "business"
-                    ? "Business Activity"
-                    : "Personal Income"}
-                </strong>{" "}
-                when you convert it.
-              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* 3 — Company */}
+            <div className="space-y-1.5">
+              <Label>
+                Company
+                {isW2Subtype && <span className="text-destructive"> *</span>}
+              </Label>
+              <SourceEmployerCombobox
+                sourceId={form.source_id}
+                otherName={form.source_name}
+                saveAsNew={form.source_save_as_new}
+                newSourceKind={form.source_new_kind}
+                required={isW2Subtype}
+                invalid={showSourceError}
+                onChange={(next) => {
+                  // Prefill from the company's saved settings + its most recent
+                  // saved stream (existing data only — no new calculations).
+                  const company = next.sourceId
+                    ? companies.find((c) => c.id === next.sourceId)
+                    : undefined;
+                  const priorStream = next.sourceId
+                    ? (streams || [])
+                        .filter((s) => s.source_id === next.sourceId)
+                        .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))[0]
+                    : undefined;
+                  setForm((prev) => {
+                    let nextSubtype = prev.ui_income_subtype;
+                    if (!editingId && next.linkedSource) {
+                      const suggested = defaultSubtypeForSourceKind(next.linkedSource.source_kind);
+                      if (suggested) nextSubtype = suggested;
+                    }
+                    const base = {
+                      ...prev,
+                      source_id: next.sourceId,
+                      source_name: next.otherName,
+                      source_save_as_new: next.saveAsNew,
+                      source_new_kind: next.newSourceKind,
+                      ui_income_subtype: nextSubtype,
+                    };
+                    if (editingId) return base;
+                    const applied: StreamForm = { ...base };
+                    if (company?.payFrequency) applied.pay_frequency = company.payFrequency;
+                    if (company?.expectedFederalWithholdingPerPaycheck != null) {
+                      applied.total_federal_payroll_taxes = String(company.expectedFederalWithholdingPerPaycheck);
+                      applied.taxes_withheld = String(company.expectedFederalWithholdingPerPaycheck);
+                    }
+                    if (priorStream) {
+                      applied.pay_frequency = priorStream.pay_frequency || applied.pay_frequency;
+                      applied.retirement_401k = String(priorStream.retirement_401k || 0);
+                      applied.healthcare_deduction = String(priorStream.healthcare_deduction || 0);
+                      applied.hsa_contribution = String(priorStream.hsa_contribution || 0);
+                      applied.pre_tax_deductions = String(priorStream.pre_tax_deductions || 0);
+                      applied.state_withholding = String(priorStream.state_withholding || 0);
+                      applied.federal_withholding = String(priorStream.federal_withholding || 0);
+                      applied.ss_withholding = String(priorStream.ss_withholding || 0);
+                      applied.medicare_withholding = String(priorStream.medicare_withholding || 0);
+                      applied.total_federal_payroll_taxes = String(getCanonicalTotalFederalPayrollTaxes(priorStream as any));
+                      applied.taxes_withheld = String(priorStream.taxes_withheld || 0);
+                    }
+                    return applied;
+                  });
+                  setUsingCompanyDefaults(!editingId && (!!priorStream || !!company?.payFrequency));
+                  if (showSourceError) setShowSourceError(false);
+                }}
+              />
+              {showSourceError && isW2Subtype && !form.source_id && !form.source_name.trim() && (
+                <p className="text-[10px] text-destructive mt-1">Pick a company or enter one under "Other".</p>
+              )}
+              {usingCompanyDefaults && (
+                <p className="text-[11px] text-primary">Using your saved company defaults.</p>
+              )}
+            </div>
+
+            {/* 4 & 5 — Gross Income + Frequency */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Expected Income *</Label>
+                <Label>Gross Income *</Label>
                 <Input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.01"
                   placeholder="0.00"
+                  className="h-11 text-base"
                   value={form.paycheck_amount}
                   onChange={(e) => setField("paycheck_amount", e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Pay Frequency</Label>
+                <Label>Frequency</Label>
                 <Select value={form.pay_frequency} onValueChange={(v) => {
                   setField("pay_frequency", v);
                   if (v === "single") setField("end_date", "");
                 }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PAY_FREQUENCIES.map((f) => (
                       <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
@@ -1543,45 +1577,89 @@ export default function ProjectedIncome() {
               </div>
             </div>
 
-            {form.pay_frequency === "custom" && (
-              <div className="space-y-1.5">
-                <Label>Custom Interval (days)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.custom_interval_days}
-                  onChange={(e) => setField("custom_interval_days", e.target.value)}
-                />
-              </div>
-            )}
-
-            <div className={`grid ${isOneTime ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
-              <div className="space-y-1.5">
-                <Label>{isOneTime ? "Date" : "Start Date"}</Label>
-                <DateField
-                  value={form.start_date}
-                  onChange={(v) => setField("start_date", v)}
-                />
-              </div>
-              {!isOneTime && (
-                <div className="space-y-1.5">
-                  <Label>End Date <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                  <DateField
-                    value={form.end_date}
-                    onChange={(v) => setField("end_date", v)}
-                  />
+            {/* Live preview — existing values only, no new tax math */}
+            {num(form.paycheck_amount) > 0 && (() => {
+              const gross = num(form.paycheck_amount);
+              const totalFederal = num(form.taxes_withheld) > 0
+                ? num(form.taxes_withheld)
+                : num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding);
+              const retirement = num(form.retirement_401k);
+              const hsa = num(form.hsa_contribution);
+              const takeHome = Math.max(0,
+                gross
+                - totalFederal
+                - num(form.state_withholding)
+                - retirement
+                - num(form.healthcare_deduction)
+                - hsa
+                - num(form.pre_tax_deductions)
+              );
+              const taxesToSave = num(form.additional_tax_reserve) > 0
+                ? num(form.additional_tax_reserve)
+                : Math.max(0, gross * (effectiveRatePct / 100) - totalFederal - num(form.state_withholding));
+              const rows: Array<[string, string]> = [
+                ["Gross income", fmtFull(gross)],
+                ["Estimated take home", fmtFull(takeHome)],
+                ["Estimated taxes to save", fmtFull(taxesToSave)],
+                ["Retirement contribution", fmtFull(retirement)],
+                ["HSA contribution", fmtFull(hsa)],
+                ["Estimated effective tax rate", `${effectiveRatePct.toFixed(1)}%`],
+              ];
+              return (
+                <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Per {isOneTime ? "payment" : "paycheck"}
+                  </p>
+                  {rows.map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-muted-foreground">{label}</span>
+                      <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
-            {/* Advanced details — driven by company / filing-type toggles */}
+            {/* Advanced Options — everything optional lives here */}
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-              <CollapsibleTrigger className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors w-full py-2">
-                {advancedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                Advanced details
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full min-h-[44px]">
+                {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                Advanced Options
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 pt-2">
                 <div className="rounded-lg border border-border p-3 bg-muted/20 space-y-3">
+                  {!isOneTime && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">End date (optional)</Label>
+                      <DateField
+                        value={form.end_date}
+                        onChange={(v) => setField("end_date", v)}
+                      />
+                    </div>
+                  )}
+
+                  {form.pay_frequency === "custom" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Custom interval (days)</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={form.custom_interval_days}
+                        onChange={(e) => setField("custom_interval_days", e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-muted-foreground">
+                    This entry transfers to{" "}
+                    <strong>
+                      {ledgerForIncomeType(form.ui_income_subtype) === "business"
+                        ? "Business Activity"
+                        : "Personal Income"}
+                    </strong>{" "}
+                    when you convert it.
+                  </p>
+
                   {/* Catch-all withholding (1099, k1, scorp_distribution, other) */}
                   {showField("taxes_withheld") && (
                     <div className="space-y-1.5">
@@ -1622,7 +1700,7 @@ export default function ProjectedIncome() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">401(k) contribution</Label>
+                          <Label className="text-xs text-muted-foreground">401(k) / 403(b) / Solo 401(k)</Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.retirement_401k}
                             onChange={(e) => setField("retirement_401k", e.target.value)} />
@@ -1730,46 +1808,29 @@ export default function ProjectedIncome() {
                 </div>
               </CollapsibleContent>
             </Collapsible>
-
-            {num(form.paycheck_amount) > 0 && (() => {
-              // Federal payroll taxes are a single bucket. Prefer the canonical
-              // total (taxes_withheld) when populated; otherwise sum the
-              // federal/SS/Medicare breakdown. Never subtract both.
-              const totalFederal = num(form.taxes_withheld) > 0
-                ? num(form.taxes_withheld)
-                : num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding);
-              const takeHome = Math.max(0,
-                num(form.paycheck_amount)
-                - totalFederal
-                - num(form.state_withholding)
-                - num(form.retirement_401k)
-                - num(form.healthcare_deduction)
-                - num(form.pre_tax_deductions)
-              );
-              return (
-                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                  <span className="text-muted-foreground">Est. take-home: </span>
-                  <span className="font-semibold text-foreground">{fmtFull(takeHome)}</span>
-                </div>
-              );
-            })()}
-
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={resetForm}>Cancel</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="ghost" className="min-h-[44px]" onClick={resetForm}>Cancel</Button>
+            {!advancedOpen && (
+              <Button variant="outline" className="min-h-[44px]" onClick={() => setAdvancedOpen(true)}>
+                Edit Advanced Options
+              </Button>
+            )}
             <Button
+              className="min-h-[44px]"
               onClick={handleSubmit}
               disabled={
                 num(form.paycheck_amount) <= 0 ||
                 (!form.source_id && !form.source_name.trim() && !form.company.trim())
               }
             >
-              {editingId ? "Save Changes" : (isOneTime ? "Add One-Time Income" : "Add Stream")}
+              {editingId ? "Save Changes" : "Save Planned Income"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Delete Stream Confirm Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
