@@ -341,6 +341,8 @@ export default function ProjectedIncome() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [usingCompanyDefaults, setUsingCompanyDefaults] = useState(false);
   const [showSourceError, setShowSourceError] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   // Months start collapsed — the summary numbers answer most questions.
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => new Set<number>());
 
