@@ -13,6 +13,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useRetirementContributions } from "@/hooks/useRetirementContributions";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useMileageYTD } from "@/hooks/useMileage";
+import { selectFinancialAssistantRecommendation } from "@/lib/financialAssistantRecommendation";
 
 /**
  * Plain-English summary of the user's financial situation.
