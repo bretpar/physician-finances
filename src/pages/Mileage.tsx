@@ -1240,7 +1240,25 @@ export default function Mileage() {
                   icon={item.icon}
                   label={item.label}
                   description={item.description}
+                  insightTrigger={
+                    DEDUCTION_INSIGHTS[item.value] ? (
+                      <WhyThisMattersButton
+                        open={openInsight === `soon-${item.value}`}
+                        onToggle={() => toggleInsight(`soon-${item.value}`)}
+                        controlsId={`insight-soon-${item.value}`}
+                      />
+                    ) : undefined
+                  }
+                  insightPanel={
+                    openInsight === `soon-${item.value}` && DEDUCTION_INSIGHTS[item.value] ? (
+                      <DeductionInsightPanel
+                        id={`insight-soon-${item.value}`}
+                        content={DEDUCTION_INSIGHTS[item.value]}
+                      />
+                    ) : undefined
+                  }
                 />
+
               ))}
             </CollapsibleContent>
           </Collapsible>
