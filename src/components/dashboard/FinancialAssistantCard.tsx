@@ -1,8 +1,14 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Info, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useRetirementContributions } from "@/hooks/useRetirementContributions";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
