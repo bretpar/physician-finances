@@ -7,6 +7,12 @@ import {
   type OpportunityStatus,
 } from "@/components/tax-savings/OpportunityCard";
 import { RecommendedNextStep } from "@/components/tax-savings/RecommendedNextStep";
+import {
+  DEDUCTION_INSIGHTS,
+  DeductionInsightPanel,
+  WhyThisMattersButton,
+} from "@/components/tax-savings/DeductionInsight";
+
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
