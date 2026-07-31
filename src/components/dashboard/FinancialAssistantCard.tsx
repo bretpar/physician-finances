@@ -98,6 +98,8 @@ export default function FinancialAssistantCard({
     ]
   );
 
+  const isAllSet = recommendation.id === "all-set";
+
   // Never repeat the deadline when the recommendation already states it.
   const showDeadline =
     showQuarterly &&
@@ -105,6 +107,16 @@ export default function FinancialAssistantCard({
     daysUntilDue <= 60 &&
     recommendation.id !== "quarterly-due-soon" &&
     recommendation.id !== "quarterly-overdue";
+
+  // "Sep 15" -> "September 15" for the friendlier all-clear sentence.
+  const longDeadlineLabel = (() => {
+    const months: Record<string, string> = {
+      Jan: "January", Feb: "February", Mar: "March", Apr: "April", May: "May", Jun: "June",
+      Jul: "July", Aug: "August", Sep: "September", Oct: "October", Nov: "November", Dec: "December",
+    };
+    const [mon, ...rest] = (deadlineLabel || "").split(" ");
+    return months[mon] ? [months[mon], ...rest].join(" ") : deadlineLabel;
+  })();
 
   return (
     <Card data-testid="financial-assistant-card">
