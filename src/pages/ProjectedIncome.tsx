@@ -1649,12 +1649,14 @@ export default function ProjectedIncome() {
                     return applied;
                   });
                   setUsingCompanyDefaults(!editingId && (!!priorStream || !!company?.payFrequency));
+                  setTouched((t) => ({ ...t, company: true }));
                   if (showSourceError) setShowSourceError(false);
                 }}
               />
-              {showSourceError && isW2Subtype && !form.source_id && !form.source_name.trim() && (
-                <p className="text-[10px] text-destructive mt-1">Pick a company or enter one under "Other".</p>
+              {fieldError("company") && (
+                <p role="alert" className="text-[11px] text-destructive mt-1">{fieldError("company")}</p>
               )}
+
               {usingCompanyDefaults && (
                 <p className="text-[11px] text-primary">Using your saved company defaults.</p>
               )}
