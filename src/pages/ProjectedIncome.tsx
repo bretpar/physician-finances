@@ -552,8 +552,16 @@ export default function ProjectedIncome() {
 
   const setField = (key: keyof StreamForm, value: string | boolean) => {
     setTouched((t) => (t[key as string] ? t : { ...t, [key as string]: true }));
+    // Any manual edit clears the "using default" badge for that field.
+    setDefaultedFields((d) => {
+      if (!d[key as string]) return d;
+      const next = { ...d };
+      delete next[key as string];
+      return next;
+    });
     setForm((p) => ({ ...p, [key]: value }));
   };
+
 
   const formErrors = useMemo(
     () => validatePlannedIncomeForm(form, { validFrequencies: PAY_FREQUENCIES.map((f) => f.value) }),
