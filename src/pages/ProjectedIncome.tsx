@@ -342,6 +342,9 @@ export default function ProjectedIncome() {
   const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [usingCompanyDefaults, setUsingCompanyDefaults] = useState(false);
+  /** field key -> where its prefilled value came from (drives "using default" badges). */
+  const [defaultedFields, setDefaultedFields] = useState<Record<string, string>>({});
+
   const [showSourceError, setShowSourceError] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
