@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/accordion";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { formatDate } from "@/lib/localDate";
 import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
 import { useIncomeEntries } from "@/hooks/useIncome";
@@ -190,6 +192,92 @@ const emptyForm = (monthIdx?: number): StreamForm => {
   };
 };
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_GROSS = 10_000_000;
+
+export type PlannedIncomeFormErrors = Partial<
+  Record<
+    "start_date" | "ui_income_subtype" | "company" | "paycheck_amount" | "pay_frequency" | "custom_interval_days" | "end_date",
+    string
+  >
+>;
+
+/**
+ * Inline validation for the Add/Edit Planned Income form. Presentation-only:
+ * returns friendly messages and never alters any stored value or calculation.
+ */
+export function validatePlannedIncomeForm(form: StreamForm, opts?: { validFrequencies?: string[] }): PlannedIncomeFormErrors {
+  const errors: PlannedIncomeFormErrors = {};
+  const frequencies = opts?.validFrequencies;
+  const isOneTime = form.pay_frequency === "single";
+  const isW2 = form.ui_income_subtype === "w2_user" || form.ui_income_subtype === "w2_partner";
+
+  // Date
+  if (!form.start_date?.trim()) {
+    errors.start_date = isOneTime ? "Pick the date of this payment." : "Pick a start date.";
+  } else if (!ISO_DATE_RE.test(form.start_date) || isNaN(new Date(`${form.start_date}T00:00:00`).getTime())) {
+    errors.start_date = "That date doesn't look right — pick one from the calendar.";
+  }
+
+  // Income source (subtype)
+  if (!form.ui_income_subtype?.trim()) {
+    errors.ui_income_subtype = "Choose an income source.";
+  } else if (!VALID_SUBTYPES.has(form.ui_income_subtype)) {
+    errors.ui_income_subtype = "Choose an income source from the list.";
+  }
+
+  // Company
+  const hasCompany = !!form.source_id || !!form.source_name.trim() || !!form.company.trim();
+  if (isW2 && !form.source_id && !form.source_name.trim()) {
+    errors.company = 'Pick a company or enter one under "Other".';
+  } else if (!hasCompany) {
+    errors.company = "Add a company or source name so you can tell entries apart.";
+  } else if (!form.source_id && form.source_save_as_new && !form.source_new_kind) {
+    errors.company = "Choose what kind of source this is before saving it for reuse.";
+  }
+
+  // Gross income
+  const grossRaw = (form.paycheck_amount ?? "").trim();
+  const gross = Number(grossRaw);
+  if (!grossRaw) {
+    errors.paycheck_amount = "Enter the gross amount of this paycheck.";
+  } else if (!Number.isFinite(gross)) {
+    errors.paycheck_amount = "Enter a number, like 5000.";
+  } else if (gross <= 0) {
+    errors.paycheck_amount = "Gross income must be greater than $0.";
+  } else if (gross > MAX_GROSS) {
+    errors.paycheck_amount = "That amount looks too large — double-check it.";
+  }
+
+  // Frequency
+  if (!form.pay_frequency?.trim()) {
+    errors.pay_frequency = "Choose how often this repeats.";
+  } else if (frequencies && !frequencies.includes(form.pay_frequency)) {
+    errors.pay_frequency = "Choose a frequency from the list.";
+  }
+
+  // Custom interval (only relevant for the custom frequency)
+  if (form.pay_frequency === "custom") {
+    const days = Number((form.custom_interval_days ?? "").trim());
+    if (!Number.isFinite(days) || !Number.isInteger(days) || days < 1) {
+      errors.custom_interval_days = "Enter a whole number of days (1 or more).";
+    } else if (days > 365) {
+      errors.custom_interval_days = "Use 365 days or fewer.";
+    }
+  }
+
+  // End date must not precede the start date
+  if (!isOneTime && form.end_date?.trim()) {
+    if (!ISO_DATE_RE.test(form.end_date)) {
+      errors.end_date = "That date doesn't look right — pick one from the calendar.";
+    } else if (form.start_date && form.end_date < form.start_date) {
+      errors.end_date = "End date must be on or after the start date.";
+    }
+  }
+
+  return errors;
+}
+
 /** Map a saved stream's stored subtype back to a valid UI Select value. */
 function hydrateSubtype(s: ProjectedIncomeStream): string {
   const ui = s.ui_income_subtype;
@@ -255,6 +343,8 @@ export default function ProjectedIncome() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [usingCompanyDefaults, setUsingCompanyDefaults] = useState(false);
   const [showSourceError, setShowSourceError] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   // Months start collapsed — the summary numbers answer most questions.
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => new Set<number>());
 
@@ -460,8 +550,19 @@ export default function ProjectedIncome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get("highlight")]);
 
-  const setField = (key: keyof StreamForm, value: string | boolean) =>
+  const setField = (key: keyof StreamForm, value: string | boolean) => {
+    setTouched((t) => (t[key as string] ? t : { ...t, [key as string]: true }));
     setForm((p) => ({ ...p, [key]: value }));
+  };
+
+  const formErrors = useMemo(
+    () => validatePlannedIncomeForm(form, { validFrequencies: PAY_FREQUENCIES.map((f) => f.value) }),
+    [form],
+  );
+  const hasFormErrors = Object.keys(formErrors).length > 0;
+  /** Show an error only once the user has interacted with the field or tried to save. */
+  const fieldError = (key: keyof PlannedIncomeFormErrors) =>
+    submitAttempted || touched[key] ? formErrors[key] : undefined;
 
   /** Resolve which advanced fields to render — driven by selected company's
    *  Settings → Advanced tax settings. Falls back to filing-type defaults
@@ -485,6 +586,8 @@ export default function ProjectedIncome() {
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
     setShowSourceError(false);
+    setSubmitAttempted(false);
+    setTouched({});
   };
 
   const openAddForMonth = (monthIdx: number) => {
@@ -493,6 +596,8 @@ export default function ProjectedIncome() {
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
     setShowSourceError(false);
+    setSubmitAttempted(false);
+    setTouched({});
     setShowForm(true);
   };
 
@@ -532,6 +637,8 @@ export default function ProjectedIncome() {
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
     setShowSourceError(false);
+    setSubmitAttempted(false);
+    setTouched({});
     setShowForm(true);
   };
 
@@ -551,14 +658,18 @@ export default function ProjectedIncome() {
   }
 
   const handleSubmit = async () => {
-    if (num(form.paycheck_amount) <= 0) return;
-    // Need either a linked source or a company name (or a valid W-2 source for W-2 subtypes)
-    const hasIdentity = !!form.source_id || !!form.source_name.trim() || !!form.company.trim();
-    if (!hasIdentity) return;
+    setSubmitAttempted(true);
+    if (hasFormErrors) {
+      if (formErrors.company) setShowSourceError(true);
+      if (formErrors.custom_interval_days || formErrors.end_date) setAdvancedOpen(true);
+      toast.error("Please fix the highlighted fields before saving.");
+      return;
+    }
     if (!validateSource()) {
       setShowSourceError(true);
       return;
     }
+
 
     // Persist new source ONLY when the user opted-in via the
     // "Save this employer/source for future use" checkbox.
@@ -1453,8 +1564,13 @@ export default function ProjectedIncome() {
               <DateField
                 value={form.start_date}
                 onChange={(v) => setField("start_date", v)}
+                className={cn(fieldError("start_date") && "border-destructive")}
               />
+              {fieldError("start_date") && (
+                <p role="alert" className="text-[11px] text-destructive">{fieldError("start_date")}</p>
+              )}
             </div>
+
 
             {/* 2 — Income Source */}
             <div className="space-y-1.5">
@@ -1470,11 +1586,15 @@ export default function ProjectedIncome() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldError("ui_income_subtype") && (
+                <p role="alert" className="text-[11px] text-destructive">{fieldError("ui_income_subtype")}</p>
+              )}
               {subtypeIsDisabled && (
                 <p className="text-[10px] text-muted-foreground">
                   No longer active in your Household Income Profile — kept available for this existing entry only.
                 </p>
               )}
+
             </div>
 
             {/* 3 — Company */}
@@ -1538,12 +1658,14 @@ export default function ProjectedIncome() {
                     return applied;
                   });
                   setUsingCompanyDefaults(!editingId && (!!priorStream || !!company?.payFrequency));
+                  setTouched((t) => ({ ...t, company: true }));
                   if (showSourceError) setShowSourceError(false);
                 }}
               />
-              {showSourceError && isW2Subtype && !form.source_id && !form.source_name.trim() && (
-                <p className="text-[10px] text-destructive mt-1">Pick a company or enter one under "Other".</p>
+              {fieldError("company") && (
+                <p role="alert" className="text-[11px] text-destructive mt-1">{fieldError("company")}</p>
               )}
+
               {usingCompanyDefaults && (
                 <p className="text-[11px] text-primary">Using your saved company defaults.</p>
               )}
@@ -1559,10 +1681,15 @@ export default function ProjectedIncome() {
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  className="h-11 text-base"
+                  className={cn("h-11 text-base", fieldError("paycheck_amount") && "border-destructive focus-visible:ring-destructive")}
+                  aria-invalid={!!fieldError("paycheck_amount")}
                   value={form.paycheck_amount}
                   onChange={(e) => setField("paycheck_amount", e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, paycheck_amount: true }))}
                 />
+                {fieldError("paycheck_amount") && (
+                  <p role="alert" className="text-[11px] text-destructive">{fieldError("paycheck_amount")}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Frequency</Label>
@@ -1570,14 +1697,21 @@ export default function ProjectedIncome() {
                   setField("pay_frequency", v);
                   if (v === "single") setField("end_date", "");
                 }}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                  <SelectTrigger
+                    className={cn("h-11", fieldError("pay_frequency") && "border-destructive")}
+                    aria-invalid={!!fieldError("pay_frequency")}
+                  ><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PAY_FREQUENCIES.map((f) => (
                       <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {fieldError("pay_frequency") && (
+                  <p role="alert" className="text-[11px] text-destructive">{fieldError("pay_frequency")}</p>
+                )}
               </div>
+
             </div>
 
             {/* Live preview — existing values only, no new tax math */}
@@ -1637,7 +1771,11 @@ export default function ProjectedIncome() {
                       <DateField
                         value={form.end_date}
                         onChange={(v) => setField("end_date", v)}
+                        className={cn(fieldError("end_date") && "border-destructive")}
                       />
+                      {fieldError("end_date") && (
+                        <p role="alert" className="text-[11px] text-destructive">{fieldError("end_date")}</p>
+                      )}
                     </div>
                   )}
 
@@ -1648,10 +1786,16 @@ export default function ProjectedIncome() {
                         type="number"
                         min="1"
                         value={form.custom_interval_days}
+                        aria-invalid={!!fieldError("custom_interval_days")}
+                        className={cn(fieldError("custom_interval_days") && "border-destructive focus-visible:ring-destructive")}
                         onChange={(e) => setField("custom_interval_days", e.target.value)}
                       />
+                      {fieldError("custom_interval_days") && (
+                        <p role="alert" className="text-[11px] text-destructive">{fieldError("custom_interval_days")}</p>
+                      )}
                     </div>
                   )}
+
 
                   <p className="text-[10px] text-muted-foreground">
                     This entry transfers to{" "}
@@ -1823,11 +1967,9 @@ export default function ProjectedIncome() {
             <Button
               className="min-h-[44px]"
               onClick={handleSubmit}
-              disabled={
-                num(form.paycheck_amount) <= 0 ||
-                (!form.source_id && !form.source_name.trim() && !form.company.trim())
-              }
+              aria-disabled={submitAttempted && hasFormErrors}
             >
+
               {editingId ? "Save Changes" : "Save Planned Income"}
             </Button>
           </DialogFooter>
