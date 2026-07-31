@@ -588,7 +588,43 @@ export default function ProjectedIncome() {
       : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
     return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
   }, [companies, form.source_id, form.ui_income_subtype]);
-  const showField = (key: ToggleKey) => !!visibleFields[key];
+  const isBusinessSubtype = useMemo(() => {
+    const meta = subtypeMeta(form.ui_income_subtype);
+    const f = meta?.filingType ?? normalizeFilingType(form.ui_income_subtype);
+    return f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
+  }, [form.ui_income_subtype]);
+
+  /**
+   * Relevance layer on top of the company toggles: hides advanced fields that
+   * cannot apply to the selected frequency / income source. Purely presentational —
+   * saving still uses `showField` so no stored values change meaning.
+   */
+  const isRelevant = (key: ToggleKey): boolean => {
+    if (!visibleFields[key]) return false;
+    // Catch-all withheld duplicates the detailed W-2 payroll breakdown.
+    if (key === "taxes_withheld" && visibleFields.federal_withholding) return false;
+    // State withholding only when the user tracks a state income tax.
+    if (key === "state_withholding" && !taxSettings?.stateIncomeTaxEnabled) return false;
+    // Payroll-style pre-tax deductions don't apply to non-payroll business draws.
+    if ((key === "healthcare_deduction" || key === "hsa_contribution") && isBusinessSubtype) return false;
+    // Nothing to reserve separately when payroll already withholds for you.
+    if (key === "additional_tax_reserve" && visibleFields.federal_withholding && !isBusinessSubtype) return false;
+    return true;
+  };
+  const showField = (key: ToggleKey) => isRelevant(key);
+
+  const defaultedCount = Object.keys(defaultedFields).length;
+  /** Small inline "using default" badge shown next to prefilled advanced fields. */
+  const DefaultBadge = ({ field }: { field: keyof StreamForm }) => {
+    const from = defaultedFields[field as string];
+    if (!from) return null;
+    return (
+      <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary align-middle">
+        using default · {from}
+      </span>
+    );
+  };
+
 
   const resetForm = () => {
     setForm(emptyForm());
