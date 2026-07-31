@@ -15,6 +15,7 @@ import { useMileageYTD } from "@/hooks/useMileage";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
+import { computeQuarterPace } from "@/lib/quarterPaceStatus";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { buildInsights, INCOME_CHANGE_THRESHOLD, type Insight } from "@/lib/insights";
 
