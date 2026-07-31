@@ -596,6 +596,7 @@ export default function ProjectedIncome() {
     setShowForm(false);
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
+    setDefaultedFields({});
     setShowSourceError(false);
     setSubmitAttempted(false);
     setTouched({});
@@ -606,6 +607,7 @@ export default function ProjectedIncome() {
     setEditingId(null);
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
+    setDefaultedFields({});
     setShowSourceError(false);
     setSubmitAttempted(false);
     setTouched({});
@@ -647,6 +649,7 @@ export default function ProjectedIncome() {
     setEditingId(s.id);
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
+    setDefaultedFields({});
     setShowSourceError(false);
     setSubmitAttempted(false);
     setTouched({});
