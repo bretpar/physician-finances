@@ -209,6 +209,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               return item ? (useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label) : "Page";
             })()}
           </h2>
+          <InsightsBell />
         </header>
         <main
           ref={scrollRef}
