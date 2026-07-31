@@ -16,6 +16,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import InsightsBell from "@/components/insights/InsightsBell";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
@@ -208,6 +209,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               return item ? (useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label) : "Page";
             })()}
           </h2>
+          <InsightsBell />
         </header>
         <main
           ref={scrollRef}

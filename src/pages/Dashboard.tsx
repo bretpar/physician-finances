@@ -24,6 +24,7 @@ import IncomeBreakdownCards from "@/components/dashboard/IncomeBreakdownCards";
 import MonthlyIncomeCard, { type MonthBreakdown } from "@/components/dashboard/MonthlyIncomeCard";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import FinancialAssistantCard from "@/components/dashboard/FinancialAssistantCard";
+import InsightsPanel from "@/components/insights/InsightsPanel";
 
 import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import { getCurrentQuarter } from "@/lib/quarters";
@@ -383,6 +384,8 @@ export default function Dashboard() {
         daysUntilDue={quarterRecommendation.daysUntilDue}
         showQuarterly={!isW2Only}
       />
+
+      <InsightsPanel />
 
       <div data-testid="dashboard-summary">
 
