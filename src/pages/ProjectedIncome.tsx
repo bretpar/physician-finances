@@ -1967,11 +1967,9 @@ export default function ProjectedIncome() {
             <Button
               className="min-h-[44px]"
               onClick={handleSubmit}
-              disabled={
-                num(form.paycheck_amount) <= 0 ||
-                (!form.source_id && !form.source_name.trim() && !form.company.trim())
-              }
+              aria-disabled={submitAttempted && hasFormErrors}
             >
+
               {editingId ? "Save Changes" : "Save Planned Income"}
             </Button>
           </DialogFooter>
