@@ -374,7 +374,18 @@ export default function Dashboard() {
         </section>
       )}
 
+      <FinancialAssistantCard
+        projectedAnnualIncome={annualIncomeValue}
+        annualTaxLiability={annualTaxLiability}
+        savingsCoverageRatio={quarterRecommendation.coverageRatio}
+        quarterLabel={quarterRecommendation.quarterLabel}
+        deadlineLabel={quarterRecommendation.deadlineLabel}
+        daysUntilDue={quarterRecommendation.daysUntilDue}
+        showQuarterly={!isW2Only}
+      />
+
       <div data-testid="dashboard-summary">
+
         <AnnualIncomeHero
           amount={annualIncomeValue}
           modeLabel={projection ? "Includes planned/future income" : "Income received so far this year"}
