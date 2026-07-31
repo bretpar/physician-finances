@@ -81,8 +81,11 @@ const PAY_FREQUENCIES = [
   { value: "weekly", label: "Weekly" },
   { value: "biweekly", label: "Biweekly" },
   { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "annual", label: "Annual" },
   { value: "custom", label: "Custom" },
 ];
+
 
 /** All UI subtypes supported across both ledgers — preserved for transfer fidelity. */
 const INCOME_SUBTYPES = [
