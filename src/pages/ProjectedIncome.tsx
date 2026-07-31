@@ -190,6 +190,92 @@ const emptyForm = (monthIdx?: number): StreamForm => {
   };
 };
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_GROSS = 10_000_000;
+
+export type PlannedIncomeFormErrors = Partial<
+  Record<
+    "start_date" | "ui_income_subtype" | "company" | "paycheck_amount" | "pay_frequency" | "custom_interval_days" | "end_date",
+    string
+  >
+>;
+
+/**
+ * Inline validation for the Add/Edit Planned Income form. Presentation-only:
+ * returns friendly messages and never alters any stored value or calculation.
+ */
+export function validatePlannedIncomeForm(form: StreamForm, opts?: { validFrequencies?: string[] }): PlannedIncomeFormErrors {
+  const errors: PlannedIncomeFormErrors = {};
+  const frequencies = opts?.validFrequencies;
+  const isOneTime = form.pay_frequency === "single";
+  const isW2 = form.ui_income_subtype === "w2_user" || form.ui_income_subtype === "w2_partner";
+
+  // Date
+  if (!form.start_date?.trim()) {
+    errors.start_date = isOneTime ? "Pick the date of this payment." : "Pick a start date.";
+  } else if (!ISO_DATE_RE.test(form.start_date) || isNaN(new Date(`${form.start_date}T00:00:00`).getTime())) {
+    errors.start_date = "That date doesn't look right — pick one from the calendar.";
+  }
+
+  // Income source (subtype)
+  if (!form.ui_income_subtype?.trim()) {
+    errors.ui_income_subtype = "Choose an income source.";
+  } else if (!VALID_SUBTYPES.has(form.ui_income_subtype)) {
+    errors.ui_income_subtype = "Choose an income source from the list.";
+  }
+
+  // Company
+  const hasCompany = !!form.source_id || !!form.source_name.trim() || !!form.company.trim();
+  if (isW2 && !form.source_id && !form.source_name.trim()) {
+    errors.company = 'Pick a company or enter one under "Other".';
+  } else if (!hasCompany) {
+    errors.company = "Add a company or source name so you can tell entries apart.";
+  } else if (!form.source_id && form.source_save_as_new && !form.source_new_kind) {
+    errors.company = "Choose what kind of source this is before saving it for reuse.";
+  }
+
+  // Gross income
+  const grossRaw = (form.paycheck_amount ?? "").trim();
+  const gross = Number(grossRaw);
+  if (!grossRaw) {
+    errors.paycheck_amount = "Enter the gross amount of this paycheck.";
+  } else if (!Number.isFinite(gross)) {
+    errors.paycheck_amount = "Enter a number, like 5000.";
+  } else if (gross <= 0) {
+    errors.paycheck_amount = "Gross income must be greater than $0.";
+  } else if (gross > MAX_GROSS) {
+    errors.paycheck_amount = "That amount looks too large — double-check it.";
+  }
+
+  // Frequency
+  if (!form.pay_frequency?.trim()) {
+    errors.pay_frequency = "Choose how often this repeats.";
+  } else if (frequencies && !frequencies.includes(form.pay_frequency)) {
+    errors.pay_frequency = "Choose a frequency from the list.";
+  }
+
+  // Custom interval (only relevant for the custom frequency)
+  if (form.pay_frequency === "custom") {
+    const days = Number((form.custom_interval_days ?? "").trim());
+    if (!Number.isFinite(days) || !Number.isInteger(days) || days < 1) {
+      errors.custom_interval_days = "Enter a whole number of days (1 or more).";
+    } else if (days > 365) {
+      errors.custom_interval_days = "Use 365 days or fewer.";
+    }
+  }
+
+  // End date must not precede the start date
+  if (!isOneTime && form.end_date?.trim()) {
+    if (!ISO_DATE_RE.test(form.end_date)) {
+      errors.end_date = "That date doesn't look right — pick one from the calendar.";
+    } else if (form.start_date && form.end_date < form.start_date) {
+      errors.end_date = "End date must be on or after the start date.";
+    }
+  }
+
+  return errors;
+}
+
 /** Map a saved stream's stored subtype back to a valid UI Select value. */
 function hydrateSubtype(s: ProjectedIncomeStream): string {
   const ui = s.ui_income_subtype;
