@@ -1763,7 +1763,11 @@ export default function ProjectedIncome() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label>Frequency</Label>
+                <Label>
+                  Frequency
+                  <DefaultBadge field="pay_frequency" />
+                </Label>
+
                 <Select value={form.pay_frequency} onValueChange={(v) => {
                   setField("pay_frequency", v);
                   if (v === "single") setField("end_date", "");
