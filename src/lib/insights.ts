@@ -17,6 +17,7 @@ export type InsightId =
   | "quarterly-overdue"
   | "quarterly-due-soon"
   | "tax-savings-behind"
+  | "tax-savings-slightly-behind"
   | "add-income"
   | "retirement"
   | "hsa"
@@ -44,9 +45,12 @@ export interface InsightsInput {
   isReady: boolean;
   projectedAnnualIncome: number;
   annualTaxLiability: number;
-  /** Quarter coverage ratio (0-1+) from buildQuarterRecommendation. */
+  /**
+   * Pace ratio (0-1+) from `computeQuarterPace` — saved-to-date over the
+   * amount recommended AS OF TODAY. Never the full-quarter coverage ratio.
+   */
   savingsCoverageRatio: number;
-  /** max(0, recommendedPaymentToMake - savedThisQuarter) from buildQuarterRecommendation. */
+  /** max(0, recommendedToDate - savedToDate) from `computeQuarterPace`. */
   stillNeedToSave: number;
   quarterLabel: string;
   deadlineLabel: string;
@@ -61,8 +65,10 @@ export interface InsightsInput {
   incomeChange: number;
 }
 
-/** Coverage below this share of the recommended quarterly set-aside is "behind". */
-export const COVERAGE_TARGET = 0.9;
+/** At/above this share of TODAY's recommended set-aside the user is on track. */
+export const COVERAGE_TARGET = 0.95;
+/** Between this and COVERAGE_TARGET the user is only "slightly behind". */
+export const SLIGHTLY_BEHIND_TARGET = 0.8;
 /** Within this many days a deadline is surfaced. */
 export const DEADLINE_WINDOW_DAYS = 30;
 /** Minimum absolute projected-income swing worth surfacing. */
@@ -89,26 +95,28 @@ export function buildInsights(input: InsightsInput): Insight[] {
   const incomeChange = num(input.incomeChange);
   const quarterLabel = input.quarterLabel || "this quarter";
   const quarterlyRelevant = input.showQuarterly && tax > 0;
-  const behind = quarterlyRelevant && coverage < COVERAGE_TARGET;
+  const onTrack = coverage >= COVERAGE_TARGET;
+  const behind = quarterlyRelevant && coverage < SLIGHTLY_BEHIND_TARGET;
+  const slightlyBehind = quarterlyRelevant && !onTrack && !behind;
 
   const out: Insight[] = [];
 
   // 1. Deadlines.
-  if (quarterlyRelevant && behind && daysUntilDue < 0) {
+  if (quarterlyRelevant && !onTrack && daysUntilDue < 0) {
     out.push({
       id: "quarterly-overdue",
       severity: "critical",
       priority: 1,
       icon: "alert",
       title: `${quarterLabel} Payment Overdue`,
-      description: `Your ${quarterLabel} estimated payment deadline has passed and your set-aside is short.`,
+      description: `Your ${quarterLabel} estimated payment deadline has passed. Review your tax savings plan.`,
       cta: "Review Taxes",
       to: "/taxes",
     });
   } else if (quarterlyRelevant && daysUntilDue >= 0 && daysUntilDue <= DEADLINE_WINDOW_DAYS) {
     out.push({
       id: "quarterly-due-soon",
-      severity: behind ? "critical" : "action",
+      severity: behind ? "critical" : slightlyBehind ? "info" : "action",
       priority: 2,
       icon: "calendar",
       title: "Quarterly Payment",
@@ -120,15 +128,29 @@ export function buildInsights(input: InsightsInput): Insight[] {
     });
   }
 
-  // 2. Tax savings behind schedule.
-  if (behind && stillNeedToSave > 0) {
+  // 2. Tax savings behind TODAY's recommended pace (never the full-quarter
+  //    target — mid-quarter accumulation is normal, not an emergency).
+  if (behind) {
     out.push({
       id: "tax-savings-behind",
       severity: "critical",
       priority: 3,
       icon: "alert",
       title: "Tax Savings Behind",
-      description: `You're currently ${usd(stillNeedToSave)} behind your recommended tax reserve.`,
+      description: "You're significantly behind your recommended quarterly tax savings. Review your tax savings plan.",
+      cta: "Review Taxes",
+      to: "/taxes",
+    });
+  } else if (slightlyBehind) {
+    out.push({
+      id: "tax-savings-slightly-behind",
+      severity: "info",
+      priority: 3,
+      icon: "piggy",
+      title: "Slightly Behind",
+      description: stillNeedToSave > 0
+        ? `Saving another ${usd(stillNeedToSave)} would bring you back on track.`
+        : "You're slightly behind today's recommended savings.",
       cta: "Review Taxes",
       to: "/taxes",
     });
@@ -240,14 +262,14 @@ export function buildInsights(input: InsightsInput): Insight[] {
   }
 
   // 6. Success confirmation when the quarter is fully covered.
-  if (quarterlyRelevant && !behind) {
+  if (quarterlyRelevant && onTrack) {
     out.push({
       id: "quarterly-on-track",
       severity: "success",
       priority: 11,
       icon: "check",
       title: "Tax Savings On Track",
-      description: `You've reserved your full recommended ${quarterLabel} tax savings.`,
+      description: `You're on track with your ${quarterLabel} tax savings.`,
       cta: "View",
       to: "/taxes",
     });
