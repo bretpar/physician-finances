@@ -584,6 +584,8 @@ export default function ProjectedIncome() {
     setAdvancedOpen(false);
     setUsingCompanyDefaults(false);
     setShowSourceError(false);
+    setSubmitAttempted(false);
+    setTouched({});
   };
 
   const openAddForMonth = (monthIdx: number) => {
