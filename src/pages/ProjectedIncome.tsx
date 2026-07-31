@@ -1669,10 +1669,15 @@ export default function ProjectedIncome() {
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  className="h-11 text-base"
+                  className={cn("h-11 text-base", fieldError("paycheck_amount") && "border-destructive focus-visible:ring-destructive")}
+                  aria-invalid={!!fieldError("paycheck_amount")}
                   value={form.paycheck_amount}
                   onChange={(e) => setField("paycheck_amount", e.target.value)}
+                  onBlur={() => setTouched((t) => ({ ...t, paycheck_amount: true }))}
                 />
+                {fieldError("paycheck_amount") && (
+                  <p role="alert" className="text-[11px] text-destructive">{fieldError("paycheck_amount")}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Frequency</Label>
@@ -1680,14 +1685,21 @@ export default function ProjectedIncome() {
                   setField("pay_frequency", v);
                   if (v === "single") setField("end_date", "");
                 }}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                  <SelectTrigger
+                    className={cn("h-11", fieldError("pay_frequency") && "border-destructive")}
+                    aria-invalid={!!fieldError("pay_frequency")}
+                  ><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PAY_FREQUENCIES.map((f) => (
                       <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {fieldError("pay_frequency") && (
+                  <p role="alert" className="text-[11px] text-destructive">{fieldError("pay_frequency")}</p>
+                )}
               </div>
+
             </div>
 
             {/* Live preview — existing values only, no new tax math */}
