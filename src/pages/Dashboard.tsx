@@ -334,18 +334,6 @@ export default function Dashboard() {
     user?.user_metadata?.first_name ||
     (user?.email ? user.email.split("@")[0] : "back");
 
-  // Shared pace status — same calculation the tracker card and insights use.
-  const quarterPace = computeQuarterPace({
-    quarterTarget: quarterRecommendation.quarterTarget,
-    progressAmount: quarterRecommendation.progressAmount,
-    start: quarterRecommendation.start,
-    end: quarterRecommendation.end,
-    daysUntilDue: quarterRecommendation.daysUntilDue,
-    quarterLabel: quarterRecommendation.quarterLabel,
-    deadlineLabel: quarterRecommendation.deadlineLabel,
-    showQuarterly: !isW2Only,
-    now,
-  });
   const taxProgressPct = quarterRecommendation.coverageRatio * 100;
   const remainingTaxThisQuarter = Math.max(
     0,
@@ -388,15 +376,6 @@ export default function Dashboard() {
         </section>
       )}
 
-      <TodaysFocusBanner
-        projectedAnnualIncome={annualIncomeValue}
-        annualTaxLiability={annualTaxLiability}
-        pace={quarterPace}
-        quarterLabel={quarterRecommendation.quarterLabel}
-        deadlineLabel={quarterRecommendation.deadlineLabel}
-        daysUntilDue={quarterRecommendation.daysUntilDue}
-        showQuarterly={!isW2Only}
-      />
 
       <div data-testid="dashboard-summary">
 
