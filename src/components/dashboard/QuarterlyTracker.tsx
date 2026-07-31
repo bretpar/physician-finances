@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CheckCircle2, Sparkles, Compass, ChevronDown, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { computeQuarterPace } from "@/lib/quarterPaceStatus";
 import { useCountUp } from "@/hooks/useCountUp";
 import { type QuarterLabel, getCurrentQuarter } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
@@ -212,7 +213,20 @@ export default function QuarterlyTracker({
     };
   }, [q.start, q.end]);
   const now = new Date();
-  const expectedByNow = quarterTarget * quarterProgress;
+  // Shared pace status — same helper the dashboard banner and insights use so
+  // messaging can never contradict. Compares against TODAY's recommended
+  // set-aside, not the full quarterly target.
+  const pace = computeQuarterPace({
+    quarterTarget,
+    progressAmount,
+    start: q.start,
+    end: q.end,
+    daysUntilDue: recommendation.daysUntilDue,
+    quarterLabel: q.label,
+    deadlineLabel: recommendation.deadlineLabel,
+    now,
+  });
+  const expectedByNow = pace.recommendedToDate;
   const paceDiff = progressAmount - expectedByNow;
   const tolerance = Math.max(expectedByNow * 0.1, 250);
 
@@ -230,23 +244,21 @@ export default function QuarterlyTracker({
     message = progressAmount + tolerance >= quarterTarget
       ? `${q.label} complete.`
       : `${q.label} ended ${fmt(Math.max(0, quarterTarget - progressAmount))} short.`;
-  } else if (quarterProgress < 0.1) {
-    tone = "soft";
-    message = expectedByNow > 0 && progressAmount < expectedByNow - tolerance
-      ? `Early in the quarter — aim for ${fmt(expectedByNow)} by today.`
-      : "Early in the quarter — pacing toward the next deadline.";
-  } else if (paceDiff >= tolerance) {
+  } else if (pace.status === "ahead") {
     tone = "ahead";
-    message = `Ahead of pace by ${fmt(paceDiff)}`;
-  } else if (Math.abs(paceDiff) < tolerance) {
+    message = pace.detail || pace.headline;
+  } else if (pace.status === "on_track") {
     tone = "ok";
-    message = "On pace for this point in the quarter";
-  } else if (paceDiff > -tolerance * 2) {
+    message = pace.detail || pace.headline;
+  } else if (pace.status === "slightly_behind") {
     tone = "soft";
-    message = `A little behind — set aside ${fmt(-paceDiff)} more`;
+    message = pace.detail || pace.headline;
+  } else if (pace.status === "not_applicable" || pace.status === "future") {
+    tone = "soft";
+    message = pace.headline;
   } else {
     tone = "behind";
-    message = `To stay on pace, save ${fmt(-paceDiff)} more`;
+    message = `${pace.headline} ${pace.detail}`.trim();
   }
 
   const toneStyles = {

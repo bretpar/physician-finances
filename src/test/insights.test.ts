@@ -41,14 +41,28 @@ describe("buildInsights", () => {
     expect(ids({ ...base, daysUntilDue: 45 })).not.toContain("quarterly-due-soon");
   });
 
-  it("reports the dollar shortfall when behind", () => {
+  it("flags a significant lag against today's pace as critical", () => {
     const out = buildInsights({ ...base, savingsCoverageRatio: 0.5, stillNeedToSave: 3200 });
     const behind = out.find((i) => i.id === "tax-savings-behind");
-    expect(behind?.description).toContain("$3,200");
+    expect(behind?.severity).toBe("critical");
+    expect(behind?.description).toContain("significantly behind");
+  });
+
+  it("downgrades an 80-95% pace to an informational nudge", () => {
+    const out = buildInsights({ ...base, savingsCoverageRatio: 0.88, stillNeedToSave: 570 });
+    const soft = out.find((i) => i.id === "tax-savings-slightly-behind");
+    expect(soft?.severity).toBe("info");
+    expect(soft?.description).toContain("$570");
+    expect(out.map((i) => i.id)).not.toContain("tax-savings-behind");
+  });
+
+  it("treats 95%+ of today's pace as on track", () => {
+    expect(ids({ ...base, savingsCoverageRatio: 0.96, stillNeedToSave: 120 })).toContain("quarterly-on-track");
   });
 
   it("auto-dismisses the shortfall once caught up", () => {
     expect(ids({ ...base, savingsCoverageRatio: 1.02, stillNeedToSave: 0 })).not.toContain("tax-savings-behind");
+    expect(ids({ ...base, savingsCoverageRatio: 1.02, stillNeedToSave: 0 })).not.toContain("tax-savings-slightly-behind");
   });
 
   it("auto-dismisses a deduction insight once configured", () => {

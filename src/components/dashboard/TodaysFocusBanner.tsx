@@ -1,40 +1,37 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, PiggyBank, ArrowRight } from "lucide-react";
+import { AlertTriangle, CheckCircle2, PiggyBank, ArrowRight, Info } from "lucide-react";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useRetirementContributions } from "@/hooks/useRetirementContributions";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useMileageYTD } from "@/hooks/useMileage";
 import { selectFinancialAssistantRecommendation } from "@/lib/financialAssistantRecommendation";
+import type { QuarterPaceResult } from "@/lib/quarterPaceStatus";
 
 /**
- * Compact one-sentence focus banner. DISPLAY ONLY — reuses the existing
- * recommendation ladder, performs no tax math and makes no writes.
+ * Compact focus banner. DISPLAY ONLY — reuses the existing recommendation
+ * ladder and the shared `computeQuarterPace` status, performs no tax math and
+ * makes no writes.
+ *
+ * Quarterly messaging always compares against the amount recommended AS OF
+ * TODAY (`pace`), never the full quarterly target, so a user mid-quarter who
+ * is accumulating normally sees a green/yellow status instead of a red alarm.
  */
 export interface TodaysFocusBannerProps {
   projectedAnnualIncome: number;
   annualTaxLiability: number;
-  savingsCoverageRatio: number;
-  /** Dollars still to set aside for the active quarter (already calculated). */
-  stillNeedToSave?: number;
+  /** Shared pace status from `computeQuarterPace`. */
+  pace: QuarterPaceResult;
   quarterLabel: string;
   deadlineLabel: string;
   daysUntilDue: number;
   showQuarterly?: boolean;
 }
 
-const usd = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Math.max(0, Math.round(n)));
-
 export default function TodaysFocusBanner({
   projectedAnnualIncome,
   annualTaxLiability,
-  savingsCoverageRatio,
-  stillNeedToSave = 0,
+  pace,
   quarterLabel,
   deadlineLabel,
   daysUntilDue,
@@ -54,7 +51,8 @@ export default function TodaysFocusBanner({
         isReady,
         projectedAnnualIncome,
         annualTaxLiability,
-        savingsCoverageRatio,
+        // Pace ratio — measured against today's recommendation.
+        savingsCoverageRatio: pace.paceRatio,
         quarterLabel,
         deadlineLabel,
         daysUntilDue,
@@ -68,7 +66,7 @@ export default function TodaysFocusBanner({
       isReady,
       projectedAnnualIncome,
       annualTaxLiability,
-      savingsCoverageRatio,
+      pace.paceRatio,
       quarterLabel,
       deadlineLabel,
       daysUntilDue,
@@ -80,33 +78,22 @@ export default function TodaysFocusBanner({
     ]
   );
 
-  const behind = stillNeedToSave > 0 ? ` ${usd(stillNeedToSave)}` : "";
+  const quarterlyIds = new Set([
+    "quarterly-overdue",
+    "quarterly-due-soon",
+    "quarterly-shortfall",
+    "quarterly-slightly-behind",
+  ]);
 
-  const COPY: Record<string, { text: string; cta?: string; to?: string; tone: "ok" | "warn" | "idea" }> = {
+  type Copy = { text: string; detail?: string; cta?: string; to?: string; tone: "ok" | "warn" | "info" | "idea" };
+
+  const COPY: Record<string, Copy> = {
     loading: { text: "Pulling together your latest numbers…", tone: "ok" },
     "add-income": {
       text: "Add your expected paychecks so we can project your year.",
       cta: "Review Income",
       to: "/projected-income",
       tone: "idea",
-    },
-    "quarterly-overdue": {
-      text: `Your ${quarterLabel} estimated payment deadline has passed.`,
-      cta: "Review Taxes",
-      to: "/taxes",
-      tone: "warn",
-    },
-    "quarterly-due-soon": {
-      text: `You're about${behind || " short"} behind today's recommended tax savings, due ${deadlineLabel}.`,
-      cta: "Review Taxes",
-      to: "/taxes",
-      tone: "warn",
-    },
-    "quarterly-shortfall": {
-      text: `You're about${behind || " short"} behind today's recommended tax savings.`,
-      cta: "Review Taxes",
-      to: "/taxes",
-      tone: "warn",
     },
     retirement: {
       text: "Increasing your retirement contributions could lower your taxes.",
@@ -135,22 +122,62 @@ export default function TodaysFocusBanner({
     "all-set": { text: "You're on track with your tax savings.", tone: "ok" },
   };
 
-  const copy = COPY[rec.id] ?? COPY["all-set"];
-  const Icon = copy.tone === "warn" ? AlertTriangle : copy.tone === "idea" ? PiggyBank : CheckCircle2;
+  // Quarterly statuses are rendered straight from the shared pace result so
+  // the banner, Tax Progress card and insights can never disagree.
+  const copy: Copy = quarterlyIds.has(rec.id)
+    ? {
+        text: pace.headline,
+        detail: pace.detail,
+        cta: "Review Taxes",
+        to: "/taxes",
+        tone: pace.tone === "warning" ? "warn" : pace.tone === "info" ? "info" : "ok",
+      }
+    : rec.id === "all-set" && showQuarterly && (pace.status === "on_track" || pace.status === "ahead")
+      ? { text: pace.headline, detail: pace.detail, tone: "ok" }
+      : COPY[rec.id] ?? COPY["all-set"];
+
+  const Icon =
+    copy.tone === "warn"
+      ? AlertTriangle
+      : copy.tone === "info"
+        ? Info
+        : copy.tone === "idea"
+          ? PiggyBank
+          : CheckCircle2;
   const iconClass =
-    copy.tone === "warn" ? "text-destructive" : copy.tone === "idea" ? "text-primary" : "text-success";
+    copy.tone === "warn"
+      ? "text-destructive"
+      : copy.tone === "info"
+        ? "text-warning"
+        : copy.tone === "idea"
+          ? "text-primary"
+          : "text-success";
+  const ringClass =
+    copy.tone === "warn"
+      ? "border-destructive/40 bg-destructive/[0.04]"
+      : copy.tone === "info"
+        ? "border-warning/40 bg-warning/[0.04]"
+        : copy.tone === "ok"
+          ? "border-success/40 bg-success/[0.04]"
+          : "border-border bg-card";
 
   return (
     <section
       data-testid="todays-focus"
-      className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+      data-status={copy.tone}
+      className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-sm ${ringClass}`}
     >
-      <Icon className={`h-4 w-4 shrink-0 ${iconClass}`} />
-      <p className="min-w-0 flex-1 text-sm leading-snug text-card-foreground">{copy.text}</p>
+      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClass}`} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm leading-snug text-card-foreground">{copy.text}</p>
+        {copy.detail && (
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{copy.detail}</p>
+        )}
+      </div>
       {copy.cta && copy.to && (
         <Link
           to={copy.to}
-          className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
+          className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
           {copy.cta}
           <ArrowRight className="h-3.5 w-3.5" />

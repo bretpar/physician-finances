@@ -20,6 +20,8 @@ export type FinancialAssistantRecommendationId =
   | "quarterly-overdue"
   | "quarterly-due-soon"
   | "quarterly-shortfall"
+  | "quarterly-slightly-behind"
+  | "quarterly-on-track"
   | "retirement"
   | "hsa"
   | "home-office"
@@ -40,7 +42,10 @@ export interface FinancialAssistantRecommendationInput {
   isReady: boolean;
   projectedAnnualIncome: number;
   annualTaxLiability: number;
-  /** Quarter coverage ratio (0-1+) from buildQuarterRecommendation. */
+  /**
+   * Pace ratio (0-1+) from `computeQuarterPace`: saved-to-date divided by the
+   * amount recommended AS OF TODAY. Never the full-quarter coverage ratio.
+   */
   savingsCoverageRatio: number;
   quarterLabel: string;
   deadlineLabel: string;
@@ -52,8 +57,10 @@ export interface FinancialAssistantRecommendationInput {
   hasMileage: boolean;
 }
 
-/** Coverage below this share of the recommended quarterly set-aside is "short". */
-export const QUARTERLY_COVERAGE_TARGET = 0.9;
+/** At/above this share of TODAY's recommended set-aside the user is on track. */
+export const QUARTERLY_COVERAGE_TARGET = 0.95;
+/** Between this and the on-track threshold the user is only slightly behind. */
+export const QUARTERLY_SLIGHTLY_BEHIND_TARGET = 0.8;
 /** Within this many days a shortfall is treated as urgent. */
 export const QUARTERLY_URGENT_DAYS = 14;
 
@@ -94,25 +101,30 @@ export function selectFinancialAssistantRecommendation(
     };
   }
 
-  const quarterlyShort = input.showQuarterly && tax > 0 && coverage < QUARTERLY_COVERAGE_TARGET;
+  const quarterlyRelevant = input.showQuarterly && tax > 0;
+  const onTrack = coverage >= QUARTERLY_COVERAGE_TARGET;
+  const significantlyBehind = quarterlyRelevant && coverage < QUARTERLY_SLIGHTLY_BEHIND_TARGET;
+  const slightlyBehind = quarterlyRelevant && !onTrack && !significantlyBehind;
 
-  // 2-4. A cash-flow obligation always outranks a long-term savings idea.
-  if (quarterlyShort) {
-    if (daysUntilDue < 0) {
-      return {
-        id: "quarterly-overdue",
-        priority: 2,
-        text: `Your ${quarterLabel} estimated payment deadline has passed and your set-aside is short — review it first.`,
-        cta: "Review Quarterly Taxes",
-        to: "/taxes",
-      };
-    }
+  // 2-4. A missed deadline or a real shortfall against TODAY's recommended
+  // savings always outranks a long-term savings idea. Users who are simply
+  // mid-quarter and pacing normally never see a warning here.
+  if (quarterlyRelevant && !onTrack && daysUntilDue < 0) {
+    return {
+      id: "quarterly-overdue",
+      priority: 2,
+      text: `Your ${quarterLabel} estimated payment deadline has passed. Review your tax savings plan.`,
+      cta: "Review Quarterly Taxes",
+      to: "/taxes",
+    };
+  }
+  if (significantlyBehind) {
     if (daysUntilDue <= QUARTERLY_URGENT_DAYS) {
-      const when = input.deadlineLabel ? ` due ${input.deadlineLabel}` : "";
+      const when = input.deadlineLabel ? ` It's due ${input.deadlineLabel}.` : "";
       return {
         id: "quarterly-due-soon",
         priority: 3,
-        text: `Your biggest priority is topping up your ${quarterLabel} tax savings${when}.`,
+        text: `You're significantly behind your recommended ${quarterLabel} tax savings.${when}`,
         cta: "Review Quarterly Taxes",
         to: "/taxes",
       };
@@ -120,17 +132,26 @@ export function selectFinancialAssistantRecommendation(
     return {
       id: "quarterly-shortfall",
       priority: 4,
-      text: `Your biggest priority is catching up on your ${quarterLabel} tax savings.`,
+      text: `You're significantly behind your recommended ${quarterLabel} tax savings.`,
+      cta: "Review Quarterly Taxes",
+      to: "/taxes",
+    };
+  }
+  if (slightlyBehind) {
+    return {
+      id: "quarterly-slightly-behind",
+      priority: 5,
+      text: "You're slightly behind today's recommended savings.",
       cta: "Review Quarterly Taxes",
       to: "/taxes",
     };
   }
 
-  // 5-8. Tax-savings gaps, in the same order as the Tax Savings page.
+  // 6-9. Tax-savings gaps, in the same order as the Tax Savings page.
   if (!input.hasRetirement) {
     return {
       id: "retirement",
-      priority: 5,
+      priority: 6,
       text: "Your biggest opportunity is increasing your retirement contributions.",
       cta: "Review Tax Savings",
       to: "/deductions",
@@ -139,7 +160,7 @@ export function selectFinancialAssistantRecommendation(
   if (!input.hasHsa) {
     return {
       id: "hsa",
-      priority: 6,
+      priority: 7,
       text: "Your biggest opportunity is funding an HSA with pre-tax dollars.",
       cta: "Review Tax Savings",
       to: "/deductions",
@@ -148,7 +169,7 @@ export function selectFinancialAssistantRecommendation(
   if (!input.hasHomeOffice) {
     return {
       id: "home-office",
-      priority: 7,
+      priority: 8,
       text: "Your biggest opportunity is claiming a home office deduction.",
       cta: "Review Tax Savings",
       to: "/deductions",
@@ -157,7 +178,7 @@ export function selectFinancialAssistantRecommendation(
   if (!input.hasMileage) {
     return {
       id: "mileage",
-      priority: 8,
+      priority: 9,
       text: "Your biggest opportunity is logging your business mileage this year.",
       cta: "Review Tax Savings",
       to: "/deductions",
@@ -166,7 +187,7 @@ export function selectFinancialAssistantRecommendation(
 
   return {
     id: "all-set",
-    priority: 9,
+    priority: 10,
     text: "Everything looks good. You're on track with your projected income and tax savings.",
     cta: "View Dashboard",
     to: "/",
