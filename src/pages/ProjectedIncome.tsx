@@ -388,6 +388,27 @@ export default function ProjectedIncome() {
   const projected401k = actualYTD.retirement + projectedTotals.retirement401k;
   const projectedRefund = forecastDebug ? Math.max(0, forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax) : 0;
   const projectedGap = forecastDebug?.remainingTaxDue ?? 0;
+
+  /* ---- Presentation-only roll-ups (no new tax math) ---------------- */
+  const ytdHsa = useMemo(() => {
+    if (!incomeEntries) return 0;
+    const year = String(new Date().getFullYear());
+    return incomeEntries
+      .filter((e) => e.income_date.startsWith(year))
+      .reduce((s, e) => s + Number((e as any).hsa_contribution || 0), 0);
+  }, [incomeEntries]);
+  const projectedHsa = ytdHsa + (projectedTotals.hsaContribution || 0);
+  const projectedTaxes = forecastEstimate?.totalTaxLiability || 0;
+  const projectedTakeHome = Math.max(
+    0,
+    expectedAnnual - projectedTaxes - projected401k - projectedHsa,
+  );
+  const effectiveRatePct = (() => {
+    const r = Number(forecastEstimate?.effectiveRate ?? 0);
+    return r <= 1 ? r * 100 : r;
+  })();
+  const monthsRemaining = 12 - new Date().getMonth();
+
   const visibleIncomeSubtypes = useMemo(() =>
     filterIncomeTypeOptions(INCOME_SUBTYPES, taxSettings?.householdIncomeStreams, form.ui_income_subtype),
     [taxSettings?.householdIncomeStreams, form.ui_income_subtype],
