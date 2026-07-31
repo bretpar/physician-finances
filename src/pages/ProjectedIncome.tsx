@@ -1881,7 +1881,10 @@ export default function ProjectedIncome() {
                   {/* Catch-all withholding (1099, k1, scorp_distribution, other) */}
                   {showField("taxes_withheld") && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Taxes actually withheld</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Taxes actually withheld
+                        <DefaultBadge field="taxes_withheld" />
+                      </Label>
                       <Input
                         type="number" min="0" step="0.01" placeholder="0.00"
                         value={form.taxes_withheld}
@@ -1892,21 +1895,31 @@ export default function ProjectedIncome() {
 
                   {/* Simplified federal payroll tax (W-2 / S-Corp W-2) */}
                   {showField("federal_withholding") && (
-                    <TotalFederalTaxField
-                      total={form.total_federal_payroll_taxes}
-                      onTotalChange={(v) => setField("total_federal_payroll_taxes", v)}
-                      federal={form.federal_withholding}
-                      onFederalChange={(v) => setField("federal_withholding", v)}
-                      ss={form.ss_withholding}
-                      onSsChange={(v) => setField("ss_withholding", v)}
-                      medicare={form.medicare_withholding}
-                      onMedicareChange={(v) => setField("medicare_withholding", v)}
-                      collapseKey={editingId || showForm}
-                    />
+                    <div className="space-y-1">
+                      {!!defaultedFields.total_federal_payroll_taxes && (
+                        <p className="text-[10px] text-primary">
+                          Federal payroll taxes prefilled from your {defaultedFields.total_federal_payroll_taxes}.
+                        </p>
+                      )}
+                      <TotalFederalTaxField
+                        total={form.total_federal_payroll_taxes}
+                        onTotalChange={(v) => setField("total_federal_payroll_taxes", v)}
+                        federal={form.federal_withholding}
+                        onFederalChange={(v) => setField("federal_withholding", v)}
+                        ss={form.ss_withholding}
+                        onSsChange={(v) => setField("ss_withholding", v)}
+                        medicare={form.medicare_withholding}
+                        onMedicareChange={(v) => setField("medicare_withholding", v)}
+                        collapseKey={editingId || showForm}
+                      />
+                    </div>
                   )}
-                  {!!taxSettings?.stateIncomeTaxEnabled && showField("state_withholding") && (
+                  {showField("state_withholding") && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">State tax withheld</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        State tax withheld
+                        <DefaultBadge field="state_withholding" />
+                      </Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00"
                         value={form.state_withholding}
                         onChange={(e) => setField("state_withholding", e.target.value)} />
@@ -1918,7 +1931,10 @@ export default function ProjectedIncome() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">401(k) / 403(b) / Solo 401(k)</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            401(k) / 403(b) / Solo 401(k)
+                            <DefaultBadge field="retirement_401k" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.retirement_401k}
                             onChange={(e) => setField("retirement_401k", e.target.value)} />
@@ -1926,7 +1942,10 @@ export default function ProjectedIncome() {
                       )}
                       {showField("healthcare_deduction") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Health insurance</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            Health insurance
+                            <DefaultBadge field="healthcare_deduction" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.healthcare_deduction}
                             onChange={(e) => setField("healthcare_deduction", e.target.value)} />
@@ -1934,7 +1953,10 @@ export default function ProjectedIncome() {
                       )}
                       {showField("hsa_contribution") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">HSA contribution</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            HSA contribution
+                            <DefaultBadge field="hsa_contribution" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.hsa_contribution}
                             onChange={(e) => setField("hsa_contribution", e.target.value)} />
@@ -1942,7 +1964,10 @@ export default function ProjectedIncome() {
                       )}
                       {showField("pre_tax_deductions") && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Other pre-tax deductions</Label>
+                          <Label className="text-xs text-muted-foreground">
+                            Other pre-tax deductions
+                            <DefaultBadge field="pre_tax_deductions" />
+                          </Label>
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.pre_tax_deductions}
                             onChange={(e) => setField("pre_tax_deductions", e.target.value)} />
@@ -1953,12 +1978,16 @@ export default function ProjectedIncome() {
 
                   {showField("additional_tax_reserve") && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Amount you're saving for taxes</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Amount you're saving for taxes
+                        <DefaultBadge field="additional_tax_reserve" />
+                      </Label>
                       <Input type="number" min="0" step="0.01" placeholder="0.00"
                         value={form.additional_tax_reserve}
                         onChange={(e) => setField("additional_tax_reserve", e.target.value)} />
                     </div>
                   )}
+
 
                   {(() => {
                     const meta = subtypeMeta(form.ui_income_subtype);
