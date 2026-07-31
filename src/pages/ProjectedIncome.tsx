@@ -951,11 +951,22 @@ export default function ProjectedIncome() {
                 ? countLabel
                 : "";
 
+            const countableList = entries.filter((e) => e.matchStatus !== "skipped");
+            const rowTakeHome = countableList.reduce(
+              (s, e) => s + (e.netAmount || 0),
+              0,
+            );
+            const rowWithheld = countableList.reduce((s, e) => s + (e.taxesWithheld || 0), 0);
+            const rowTaxesToSave = Math.max(
+              0,
+              rowTotal * (effectiveRatePct / 100) - rowWithheld,
+            );
+
             return (
               <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
                 <CollapsibleTrigger asChild>
                   <button
-                    className={`w-full grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 sm:px-4 py-3 rounded-lg border transition-colors text-left ${
+                    className={`w-full px-4 py-4 rounded-xl border transition-colors text-left min-h-[44px] ${
                       isCurrent
                         ? "border-primary/30 bg-primary/5"
                         : isPast
@@ -963,22 +974,40 @@ export default function ProjectedIncome() {
                         : "border-border bg-card hover:bg-accent/5"
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground truncate">
+                          {monthName} {new Date().getFullYear()}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {summaryLabel || "No planned income"}
+                        </p>
+                      </div>
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                       ) : (
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       )}
-                      <span className="font-medium text-foreground truncate">{monthName}</span>
                     </div>
-                    <span className="text-xs sm:text-sm text-muted-foreground text-center truncate">
-                      {summaryLabel}
-                    </span>
-                    <span className="text-sm font-semibold text-foreground text-right whitespace-nowrap">
-                      {rowTotal > 0 ? fmt(rowTotal) : ""}
-                    </span>
+                    {rowTotal > 0 && (
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-muted-foreground">Gross</p>
+                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-muted-foreground">Take home</p>
+                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTakeHome)}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-muted-foreground">Taxes to save</p>
+                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTaxesToSave)}</p>
+                        </div>
+                      </div>
+                    )}
                   </button>
                 </CollapsibleTrigger>
+
 
 
                 <CollapsibleContent>
