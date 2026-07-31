@@ -36,11 +36,11 @@ describe("selectFinancialAssistantRecommendation", () => {
   });
 
   it("flags an urgent quarterly shortfall", () => {
-    expect(pick({ savingsCoverageRatio: 0.5, daysUntilDue: 10 }).id).toBe("quarterly-due-soon");
+    expect(pick({ savingsCoverageRatio: 0.3, daysUntilDue: 10 }).id).toBe("quarterly-due-soon");
   });
 
   it("flags a non-urgent quarterly shortfall", () => {
-    expect(pick({ savingsCoverageRatio: 0.5, daysUntilDue: 45 }).id).toBe("quarterly-shortfall");
+    expect(pick({ savingsCoverageRatio: 0.3, daysUntilDue: 45 }).id).toBe("quarterly-shortfall");
   });
 
   it("ignores quarterly when it does not apply", () => {
@@ -51,9 +51,15 @@ describe("selectFinancialAssistantRecommendation", () => {
     expect(pick({ annualTaxLiability: 0, savingsCoverageRatio: 0, hasHsa: false }).id).toBe("hsa");
   });
 
-  it("treats 90% coverage as funded", () => {
-    expect(pick({ savingsCoverageRatio: 0.9 }).id).toBe("all-set");
-    expect(pick({ savingsCoverageRatio: 0.899 }).id).toBe("quarterly-shortfall");
+  it("treats 95%+ of today's pace as on track and 80-95% as slightly behind", () => {
+    expect(pick({ savingsCoverageRatio: 0.95 }).id).toBe("all-set");
+    expect(pick({ savingsCoverageRatio: 0.9 }).id).toBe("quarterly-slightly-behind");
+    expect(pick({ savingsCoverageRatio: 0.8 }).id).toBe("quarterly-slightly-behind");
+    expect(pick({ savingsCoverageRatio: 0.799 }).id).toBe("quarterly-shortfall");
+  });
+
+  it("does not escalate a slight lag to overdue-red wording", () => {
+    expect(pick({ savingsCoverageRatio: 0.9, daysUntilDue: 5 }).id).toBe("quarterly-slightly-behind");
   });
 
   it("orders savings gaps retirement > hsa > home office > mileage", () => {
