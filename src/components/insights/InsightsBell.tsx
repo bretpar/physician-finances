@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { useInsightNotifications } from "@/hooks/useInsightNotifications";
 import { NotificationsList } from "@/components/insights/InsightsPanel";
+import FinancialAssistantSummary from "@/components/insights/FinancialAssistantSummary";
 
 /**
  * Notification center trigger. The red badge means "something new" only:
@@ -18,7 +19,7 @@ import { NotificationsList } from "@/components/insights/InsightsPanel";
  */
 export default function InsightsBell() {
   const [open, setOpen] = useState(false);
-  const { notifications, unreadCount, isReady, markRead } = useInsightNotifications();
+  const { notifications, unreadCount, isReady, assistant, markRead } = useInsightNotifications();
 
   return (
     <Sheet
@@ -51,7 +52,12 @@ export default function InsightsBell() {
             Recommendations, deadlines and insights based on your current information.
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
+          <FinancialAssistantSummary
+            assistant={assistant}
+            isReady={isReady}
+            onNavigate={() => setOpen(false)}
+          />
           <NotificationsList
             notifications={notifications}
             isReady={isReady}
