@@ -18,6 +18,10 @@ import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarte
 import { computeQuarterPace } from "@/lib/quarterPaceStatus";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { buildInsights, INCOME_CHANGE_THRESHOLD, type Insight } from "@/lib/insights";
+import {
+  selectFinancialAssistantRecommendation,
+  type FinancialAssistantRecommendation,
+} from "@/lib/financialAssistantRecommendation";
 
 const baselineKey = (userId?: string) => `paycheckmd:insights:incomeBaseline:${userId ?? "anon"}`;
 /** Refresh a stale baseline so an old comparison can't linger forever. */
@@ -73,7 +77,21 @@ function useIncomeChange(projectedAnnualIncome: number, isReady: boolean) {
   return change;
 }
 
-export function useInsights(): { insights: Insight[]; isReady: boolean } {
+/** Executive-summary inputs for the Financial Assistant (display only). */
+export interface AssistantSummary {
+  projectedAnnualIncome: number;
+  annualTaxLiability: number;
+  paceHeadline: string;
+  paceDetail: string;
+  paceTone: "success" | "info" | "warning" | "neutral";
+  quarterLabel: string;
+  deadlineLabel: string;
+  daysUntilDue: number;
+  showQuarterly: boolean;
+  recommendation: FinancialAssistantRecommendation;
+}
+
+export function useInsights(): { insights: Insight[]; isReady: boolean; assistant: AssistantSummary } {
   const currentYear = new Date().getFullYear();
   const { data: taxSettings, isLoading: taxSettingsLoading } = useTaxSettings();
   const { data: retirement, isLoading: retirementLoading } = useRetirementContributions();
@@ -162,5 +180,45 @@ export function useInsights(): { insights: Insight[]; isReady: boolean } {
     ],
   );
 
-  return { insights, isReady };
+  const assistant = useMemo<AssistantSummary>(
+    () => ({
+      projectedAnnualIncome,
+      annualTaxLiability,
+      paceHeadline: pace.headline,
+      paceDetail: pace.detail,
+      paceTone: pace.tone,
+      quarterLabel: quarter.quarterLabel,
+      deadlineLabel: quarter.deadlineLabel,
+      daysUntilDue: quarter.daysUntilDue,
+      showQuarterly: !isW2Only,
+      recommendation: selectFinancialAssistantRecommendation({
+        isReady,
+        projectedAnnualIncome,
+        annualTaxLiability,
+        savingsCoverageRatio: pace.paceRatio,
+        quarterLabel: quarter.quarterLabel,
+        deadlineLabel: quarter.deadlineLabel,
+        daysUntilDue: quarter.daysUntilDue,
+        showQuarterly: !isW2Only,
+        hasRetirement: (retirement?.length || 0) > 0,
+        hasHsa: !!taxSettings?.hsaEnabled,
+        hasHomeOffice: (homeOffice?.length || 0) > 0,
+        hasMileage: (ytdMileage?.length || 0) > 0,
+      }),
+    }),
+    [
+      isReady,
+      projectedAnnualIncome,
+      annualTaxLiability,
+      pace,
+      quarter,
+      isW2Only,
+      retirement,
+      taxSettings?.hsaEnabled,
+      homeOffice,
+      ytdMileage,
+    ],
+  );
+
+  return { insights, isReady, assistant };
 }
