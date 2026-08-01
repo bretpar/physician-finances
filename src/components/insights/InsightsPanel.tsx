@@ -27,13 +27,21 @@ const BADGE: Record<InsightSeverity, { label: string; className: string }> = {
   success: { label: "Success", className: "border-success/30 bg-success/10 text-success" },
 };
 
+/**
+ * Compact inbox-style notification row. Collapsed it shows icon, title, badge
+ * and a single-line summary; the CTA appears only once expanded by tap.
+ */
 export function InsightRow({
   insight,
   unread = true,
+  expanded = false,
+  onToggle,
   onNavigate,
 }: {
   insight: Insight;
   unread?: boolean;
+  expanded?: boolean;
+  onToggle?: () => void;
   onNavigate?: () => void;
 }) {
   const navigate = useNavigate();
@@ -44,45 +52,59 @@ export function InsightRow({
     <div
       data-testid={`insight-${insight.id}`}
       data-unread={unread ? "true" : "false"}
-      className={`flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:gap-3 ${
-        unread ? "border-primary/30 bg-card" : "border-border bg-muted/30"
-      }`}
+      data-expanded={expanded ? "true" : "false"}
+      className={`rounded-lg border ${unread ? "border-primary/30 bg-card" : "border-border bg-muted/30"}`}
     >
-      <div className="flex min-w-0 flex-1 items-start gap-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2.5 text-left"
+      >
         {unread ? (
-          <span aria-hidden className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
+          <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-primary" />
         ) : (
-          <span aria-hidden className="mt-2 h-2 w-2 shrink-0" />
+          <span aria-hidden className="h-2 w-2 shrink-0" />
         )}
-        <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className={`text-sm ${unread ? "font-semibold" : "font-medium"} text-card-foreground`}>
+        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className={`text-sm ${unread ? "font-semibold" : "font-medium"} text-card-foreground`}>
               {insight.title}
-            </p>
-            <span className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal ${badge.className}`}>
+            </span>
+            <span
+              className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal ${badge.className}`}
+            >
               {badge.label}
             </span>
-            {!unread && (
-              <span className="text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
-                Viewed
-              </span>
-            )}
-          </div>
+          </span>
+          {!expanded && (
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              {insight.description}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          aria-hidden
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
+      </button>
+      {expanded && (
+        <div className="space-y-3 px-3 pb-3">
           <p className="text-sm text-muted-foreground">{insight.description}</p>
+          <Button
+            size="sm"
+            variant={insight.severity === "critical" ? "default" : "outline"}
+            className="min-h-11 w-full sm:w-auto"
+            onClick={() => {
+              onNavigate?.();
+              navigate(insight.to);
+            }}
+          >
+            {insight.cta}
+          </Button>
         </div>
-      </div>
-      <Button
-        size="sm"
-        variant={insight.severity === "critical" && unread ? "default" : "outline"}
-        className="min-h-11 w-full shrink-0 sm:w-auto"
-        onClick={() => {
-          onNavigate?.();
-          navigate(insight.to);
-        }}
-      >
-        {insight.cta}
-      </Button>
+      )}
     </div>
   );
 }
