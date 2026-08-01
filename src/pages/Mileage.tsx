@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   ComingSoonOpportunityCard,
@@ -127,6 +128,23 @@ export default function Mileage() {
       window.scrollTo({ top, behavior: "smooth" });
     });
   };
+  // Deep link: /deductions#retirement etc. opens that category directly
+  // (used by the notification center CTAs). Display-only routing.
+  const location = useLocation();
+  useEffect(() => {
+    const hash = location.hash.replace("#", "");
+    if (!hash) return;
+    setActiveTab(hash);
+    // The category renders on the next tick, so scroll after it mounts.
+    const t = setTimeout(() => {
+      const el = itemRefs.current[hash];
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash]);
+
   // Keep the expanded category valid once the income profile finishes loading.
   // An empty value means "all collapsed", which is allowed.
   useEffect(() => {

@@ -114,6 +114,15 @@ export default function Taxes() {
     const hash = location.hash.replace("#", "");
     if (["overview", "breakdown", "w4-calculator"].includes(hash)) {
       setActiveTab(hash);
+      return;
+    }
+    // Deep link to a section inside the overview tab (e.g. notification CTAs
+    // pointing at /taxes#quarterly-estimator).
+    if (hash) {
+      setActiveTab("overview");
+      requestAnimationFrame(() => {
+        document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     }
   }, [location.hash]);
 

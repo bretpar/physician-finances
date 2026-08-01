@@ -110,8 +110,10 @@ export function buildInsights(input: InsightsInput): Insight[] {
       icon: "alert",
       title: `${quarterLabel} Payment Overdue`,
       description: `Your ${quarterLabel} estimated payment deadline has passed. Review your tax savings plan.`,
-      cta: "Review Taxes",
-      to: "/taxes",
+      cta: "Log a Payment",
+      to: /^Q[1-4]$/.test(quarterLabel)
+        ? `/taxes?logPayment=${quarterLabel}#quarterly-estimator`
+        : "/taxes#quarterly-estimator",
     });
   } else if (quarterlyRelevant && daysUntilDue >= 0 && daysUntilDue <= DEADLINE_WINDOW_DAYS) {
     out.push({
@@ -123,8 +125,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
       description: input.deadlineLabel
         ? `Estimated tax payment due ${input.deadlineLabel}.`
         : `Your ${quarterLabel} estimated tax payment is coming up.`,
-      cta: "View",
-      to: "/taxes",
+      cta: "View Quarterly Estimator",
+      to: "/taxes#quarterly-estimator",
     });
   }
 
@@ -138,8 +140,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
       icon: "alert",
       title: "Tax Savings Behind",
       description: "You're significantly behind your recommended quarterly tax savings. Review your tax savings plan.",
-      cta: "Review Taxes",
-      to: "/taxes",
+      cta: "Review Tax Savings Plan",
+      to: "/taxes#quarterly-estimator",
     });
   } else if (slightlyBehind) {
     out.push({
@@ -151,8 +153,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
       description: stillNeedToSave > 0
         ? `Saving another ${usd(stillNeedToSave)} would bring you back on track.`
         : "You're slightly behind today's recommended savings.",
-      cta: "Review Taxes",
-      to: "/taxes",
+      cta: "Review Tax Savings Plan",
+      to: "/taxes#quarterly-estimator",
     });
   }
 
@@ -165,8 +167,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
       icon: "trending-up",
       title: "Add Your Income",
       description: "Add your expected paychecks so we can project your year.",
-      cta: "View Planner",
-      to: "/projected-income",
+      cta: "Add Planned Income",
+      to: "/projected-income?add=1",
     });
   }
 
@@ -181,7 +183,7 @@ export function buildInsights(input: InsightsInput): Insight[] {
             icon: "trending-up",
             title: "Income Increased",
             description: `Your projected annual income increased by ${usd(incomeChange)}.`,
-            cta: "View Planner",
+            cta: "Review Income Planner",
             to: "/projected-income",
           }
         : {
@@ -191,7 +193,7 @@ export function buildInsights(input: InsightsInput): Insight[] {
             icon: "trending-down",
             title: "Income Decreased",
             description: `Your projected annual income decreased by ${usd(incomeChange)}.`,
-            cta: "View Planner",
+            cta: "Review Income Planner",
             to: "/projected-income",
           },
     );
@@ -207,8 +209,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
         icon: "piggy",
         title: "Retirement Contributions",
         description: "You may lower your taxes by increasing retirement contributions.",
-        cta: "Review",
-        to: "/deductions",
+        cta: "Update Retirement",
+        to: "/deductions#retirement",
       });
     }
     if (!input.hasHsa) {
@@ -219,8 +221,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
         icon: "piggy",
         title: "HSA Available",
         description: "You may qualify to fund an HSA with pre-tax dollars.",
-        cta: "Review",
-        to: "/deductions",
+        cta: "Set Up HSA",
+        to: "/deductions#hsa",
       });
     }
     if (!input.hasHomeOffice) {
@@ -231,8 +233,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
         icon: "piggy",
         title: "New Deduction Available",
         description: "You may qualify for a Home Office deduction.",
-        cta: "Review",
-        to: "/deductions",
+        cta: "Add Home Office",
+        to: "/deductions#home-office",
       });
     }
     if (!input.hasMileage) {
@@ -243,8 +245,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
         icon: "piggy",
         title: "Mileage Not Logged",
         description: "Logging business mileage this year could reduce your taxable income.",
-        cta: "Review",
-        to: "/deductions",
+        cta: "Add Mileage",
+        to: "/deductions#mileage",
       });
     }
     if (!input.hasStudentLoanInterest) {
@@ -255,8 +257,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
         icon: "piggy",
         title: "Student Loan Interest",
         description: "You may deduct up to $2,500 of student loan interest you paid this year.",
-        cta: "Review",
-        to: "/deductions",
+        cta: "Enter Interest Paid",
+        to: "/deductions#student-loan-interest",
       });
     }
   }
@@ -270,8 +272,8 @@ export function buildInsights(input: InsightsInput): Insight[] {
       icon: "check",
       title: "Tax Savings On Track",
       description: `You're on track with your ${quarterLabel} tax savings.`,
-      cta: "View",
-      to: "/taxes",
+      cta: "View Quarterly Estimator",
+      to: "/taxes#quarterly-estimator",
     });
   }
 

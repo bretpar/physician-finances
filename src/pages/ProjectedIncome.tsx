@@ -553,6 +553,18 @@ export default function ProjectedIncome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.get("highlight")]);
 
+  // Deep-link from the notification center: /projected-income?add=1 opens the
+  // Add Planned Income form directly. Display-only routing.
+  useEffect(() => {
+    if (searchParams.get("add") !== "1") return;
+    resetForm();
+    setShowForm(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("add");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get("add")]);
+
   const setField = (key: keyof StreamForm, value: string | boolean) => {
     setTouched((t) => (t[key as string] ? t : { ...t, [key as string]: true }));
     // Any manual edit clears the "using default" badge for that field.
