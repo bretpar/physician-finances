@@ -127,6 +127,16 @@ export default function Mileage() {
       window.scrollTo({ top, behavior: "smooth" });
     });
   };
+  // Deep link: /deductions#retirement etc. opens that category directly
+  // (used by the notification center CTAs). Display-only routing.
+  const location = useLocation();
+  useEffect(() => {
+    const hash = location.hash.replace("#", "");
+    if (!hash) return;
+    handleAccordionChange(hash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash]);
+
   // Keep the expanded category valid once the income profile finishes loading.
   // An empty value means "all collapsed", which is allowed.
   useEffect(() => {
