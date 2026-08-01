@@ -73,7 +73,21 @@ function useIncomeChange(projectedAnnualIncome: number, isReady: boolean) {
   return change;
 }
 
-export function useInsights(): { insights: Insight[]; isReady: boolean } {
+/** Executive-summary inputs for the Financial Assistant (display only). */
+export interface AssistantSummary {
+  projectedAnnualIncome: number;
+  annualTaxLiability: number;
+  paceHeadline: string;
+  paceDetail: string;
+  paceTone: "success" | "info" | "warning" | "neutral";
+  quarterLabel: string;
+  deadlineLabel: string;
+  daysUntilDue: number;
+  showQuarterly: boolean;
+  recommendation: FinancialAssistantRecommendation;
+}
+
+export function useInsights(): { insights: Insight[]; isReady: boolean; assistant: AssistantSummary } {
   const currentYear = new Date().getFullYear();
   const { data: taxSettings, isLoading: taxSettingsLoading } = useTaxSettings();
   const { data: retirement, isLoading: retirementLoading } = useRetirementContributions();
