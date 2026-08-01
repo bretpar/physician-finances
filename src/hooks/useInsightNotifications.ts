@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useInsights } from "@/hooks/useInsights";
+import { useInsights, type AssistantSummary } from "@/hooks/useInsights";
 import {
   buildNotifications,
   markAllRead,
@@ -29,10 +29,11 @@ export function useInsightNotifications(): {
   notifications: DecoratedInsight[];
   unreadCount: number;
   isReady: boolean;
+  assistant: AssistantSummary;
   markRead: () => void;
 } {
   const { user } = useAuth();
-  const { insights, isReady } = useInsights();
+  const { insights, isReady, assistant } = useInsights();
   const key = storageKey(user?.id);
   const [read, setRead] = useState<InsightReadMap>(() => load(key));
 
@@ -55,5 +56,5 @@ export function useInsightNotifications(): {
     });
   }, [insights, key]);
 
-  return { notifications, unreadCount, isReady, markRead };
+  return { notifications, unreadCount, isReady, assistant, markRead };
 }
