@@ -176,5 +176,45 @@ export function useInsights(): { insights: Insight[]; isReady: boolean; assistan
     ],
   );
 
-  return { insights, isReady };
+  const assistant = useMemo<AssistantSummary>(
+    () => ({
+      projectedAnnualIncome,
+      annualTaxLiability,
+      paceHeadline: pace.headline,
+      paceDetail: pace.detail,
+      paceTone: pace.tone,
+      quarterLabel: quarter.quarterLabel,
+      deadlineLabel: quarter.deadlineLabel,
+      daysUntilDue: quarter.daysUntilDue,
+      showQuarterly: !isW2Only,
+      recommendation: selectFinancialAssistantRecommendation({
+        isReady,
+        projectedAnnualIncome,
+        annualTaxLiability,
+        savingsCoverageRatio: pace.paceRatio,
+        quarterLabel: quarter.quarterLabel,
+        deadlineLabel: quarter.deadlineLabel,
+        daysUntilDue: quarter.daysUntilDue,
+        showQuarterly: !isW2Only,
+        hasRetirement: (retirement?.length || 0) > 0,
+        hasHsa: !!taxSettings?.hsaEnabled,
+        hasHomeOffice: (homeOffice?.length || 0) > 0,
+        hasMileage: (ytdMileage?.length || 0) > 0,
+      }),
+    }),
+    [
+      isReady,
+      projectedAnnualIncome,
+      annualTaxLiability,
+      pace,
+      quarter,
+      isW2Only,
+      retirement,
+      taxSettings?.hsaEnabled,
+      homeOffice,
+      ytdMileage,
+    ],
+  );
+
+  return { insights, isReady, assistant };
 }
