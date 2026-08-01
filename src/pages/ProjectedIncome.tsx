@@ -559,9 +559,6 @@ export default function ProjectedIncome() {
     if (searchParams.get("add") !== "1") return;
     resetForm();
     setShowForm(true);
-    requestAnimationFrame(() => {
-      document.getElementById("planned-income-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
     const next = new URLSearchParams(searchParams);
     next.delete("add");
     setSearchParams(next, { replace: true });
