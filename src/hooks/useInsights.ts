@@ -18,6 +18,10 @@ import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarte
 import { computeQuarterPace } from "@/lib/quarterPaceStatus";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { buildInsights, INCOME_CHANGE_THRESHOLD, type Insight } from "@/lib/insights";
+import {
+  selectFinancialAssistantRecommendation,
+  type FinancialAssistantRecommendation,
+} from "@/lib/financialAssistantRecommendation";
 
 const baselineKey = (userId?: string) => `paycheckmd:insights:incomeBaseline:${userId ?? "anon"}`;
 /** Refresh a stale baseline so an old comparison can't linger forever. */
