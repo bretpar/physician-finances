@@ -134,7 +134,14 @@ export default function Mileage() {
   useEffect(() => {
     const hash = location.hash.replace("#", "");
     if (!hash) return;
-    handleAccordionChange(hash);
+    setActiveTab(hash);
+    // The category renders on the next tick, so scroll after it mounts.
+    const t = setTimeout(() => {
+      const el = itemRefs.current[hash];
+      if (!el) return;
+      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 12, behavior: "smooth" });
+    }, 350);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.hash]);
 
