@@ -139,7 +139,7 @@ export default function Mileage() {
     const t = setTimeout(() => {
       const el = itemRefs.current[hash];
       if (!el) return;
-      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 12, behavior: "smooth" });
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
