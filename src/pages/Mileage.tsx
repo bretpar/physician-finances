@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   ComingSoonOpportunityCard,
