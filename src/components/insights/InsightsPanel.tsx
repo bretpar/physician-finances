@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   PiggyBank,
   TrendingDown,
   TrendingUp,
@@ -119,7 +121,7 @@ export function InsightsEmptyState() {
   );
 }
 
-/** Notification center list — sorted and read-state aware. */
+/** Notification center list — inbox style, one row expanded at a time. */
 export function NotificationsList({
   notifications,
   isReady,
@@ -129,18 +131,22 @@ export function NotificationsList({
   isReady: boolean;
   onNavigate?: () => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (!isReady) {
     return <p className="text-sm text-muted-foreground">Pulling together your latest numbers…</p>;
   }
   if (notifications.length === 0) return <InsightsEmptyState />;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {notifications.map((insight) => (
         <InsightRow
           key={insight.id}
           insight={insight}
           unread={insight.unread}
+          expanded={expandedId === insight.id}
+          onToggle={() => setExpandedId((prev) => (prev === insight.id ? null : insight.id))}
           onNavigate={onNavigate}
         />
       ))}
