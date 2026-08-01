@@ -111,7 +111,9 @@ export function buildInsights(input: InsightsInput): Insight[] {
       title: `${quarterLabel} Payment Overdue`,
       description: `Your ${quarterLabel} estimated payment deadline has passed. Review your tax savings plan.`,
       cta: "Log a Payment",
-      to: "/taxes?logPayment=" + encodeURIComponent(quarterLabel) + "#quarterly-estimator",
+      to: /^Q[1-4]$/.test(quarterLabel)
+        ? `/taxes?logPayment=${quarterLabel}#quarterly-estimator`
+        : "/taxes#quarterly-estimator",
     });
   } else if (quarterlyRelevant && daysUntilDue >= 0 && daysUntilDue <= DEADLINE_WINDOW_DAYS) {
     out.push({
