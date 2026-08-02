@@ -159,6 +159,26 @@ export default function InvestmentIncome() {
 
   const summary = useMemo(() => aggregateInvestmentTaxBuckets(entries), [entries]);
 
+  // Client-side filtering over already-loaded entries — no new queries or fields.
+  const visibleEntries = useMemo(() => {
+    return entries.filter((e) => {
+      const amount = Number(e.taxable_amount || 0);
+      switch (filter) {
+        case "sales":
+          return e.investment_income_type !== "dividend";
+        case "dividends":
+          return e.investment_income_type === "dividend";
+        case "gains":
+          return amount > 0;
+        case "losses":
+          return amount < 0;
+        default:
+          return true;
+      }
+    });
+  }, [entries, filter]);
+
+
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
