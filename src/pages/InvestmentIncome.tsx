@@ -36,6 +36,50 @@ const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 const num = (v: string) => Number.parseFloat(v) || 0;
 
+/** Neutral styling for zero/positive-neutral values; color is a secondary cue only. */
+const amountTone = (n: number) => (n < 0 ? "text-destructive" : n > 0 ? "text-success" : "text-muted-foreground");
+
+/** Explicit gain/loss wording so color isn't the only signal. */
+function gainLossLabel(amount: number, dividend: boolean) {
+  if (dividend) return fmt(amount);
+  if (amount > 0) return `+${fmt(amount)} gain`;
+  if (amount < 0) return `−${fmt(Math.abs(amount))} loss`;
+  return fmt(0);
+}
+
+function holdingPeriodLabel(type: InvestmentIncomeType) {
+  if (type === "long_term_sale") return "Long-term (over 1 year)";
+  if (type === "short_term_sale") return "Short-term (1 year or less)";
+  return "—";
+}
+
+/** Uses the account/source as the primary label and the asset detail as secondary text,
+ *  so "Multiple - Fidelity" reads as "Fidelity" / "Multiple investments". */
+function splitEntryLabel(entry: InvestmentIncomeEntry): { primary: string; secondary: string } {
+  const raw = (entry.asset_name_or_ticker || "").trim();
+  const typeLabel = investmentIncomeTypeLabels[entry.investment_income_type];
+  const parts = raw.split(/\s+[-–—]\s+/);
+  if (parts.length >= 2) {
+    const [first, ...rest] = parts;
+    const source = rest.join(" - ").trim();
+    if (/^multiple$/i.test(first.trim()) && source) {
+      return { primary: source, secondary: "Multiple investments" };
+    }
+    if (source) return { primary: source, secondary: first.trim() };
+  }
+  return { primary: raw || typeLabel, secondary: typeLabel };
+}
+
+type ActivityFilter = "all" | "sales" | "dividends" | "gains" | "losses";
+const FILTERS: { key: ActivityFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "sales", label: "Sales" },
+  { key: "dividends", label: "Dividends" },
+  { key: "gains", label: "Gains" },
+  { key: "losses", label: "Losses" },
+];
+
+
 type FormState = {
   entry_date: string;
   investment_income_type: InvestmentIncomeType;
