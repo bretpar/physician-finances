@@ -1295,14 +1295,14 @@ export default function ProjectedIncome() {
                             </div>
                           </div>
                           {/* Mobile: amount + single pencil that opens action sheet */}
-                          <div className="flex sm:hidden items-center gap-2 shrink-0 pt-0.5">
-                            <span className={`text-sm font-semibold whitespace-nowrap ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                          <div className="flex sm:hidden items-center gap-1 shrink-0">
+                            <span className={`text-sm font-semibold whitespace-nowrap ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8"
+                              className="h-9 w-9"
                               title="Actions"
                               onClick={(e) => { e.stopPropagation(); setMobileActionsEntry(entry); }}
                             >
@@ -1310,21 +1310,16 @@ export default function ProjectedIncome() {
                             </Button>
                           </div>
                           <div className="hidden sm:flex items-center gap-2 shrink-0">
-                            {isMatched && entry.matchedAmount != null && (
-                              <>
-                                <span className="text-xs text-muted-foreground">
-                                  Actual: {fmtFull(entry.matchedAmount)}
-                                </span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 text-xs px-1.5 text-primary gap-0.5"
-                                  title={`View in ${viewLabel}`}
-                                  onClick={(e) => { e.stopPropagation(); navigate(viewDestination); }}
-                                >
-                                  <ExternalLink className="h-3 w-3" /> View
-                                </Button>
-                              </>
+                            {isMatched && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-xs px-1.5 text-primary gap-0.5"
+                                title={`View in ${viewLabel}`}
+                                onClick={(e) => { e.stopPropagation(); navigate(viewDestination); }}
+                              >
+                                <ExternalLink className="h-3 w-3" /> View
+                              </Button>
                             )}
                             {isConverted && (
                               <Button
@@ -1337,7 +1332,7 @@ export default function ProjectedIncome() {
                                 <ExternalLink className="h-3 w-3" /> View in {viewLabel}
                               </Button>
                             )}
-                            <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
                             {isSuggested && (entry.suggestedIncomeId || entry.suggestedTransactionId) && (
