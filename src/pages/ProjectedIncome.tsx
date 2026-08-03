@@ -1233,6 +1233,30 @@ export default function ProjectedIncome() {
 
                       const rowKey = `${entry.streamId}:${entry.date}`;
                       const isHighlighted = highlightKey === rowKey;
+                      // Status is communicated primarily through card background color.
+                      // A single subtle secondary line adds clarification when needed.
+                      const statusNote = (() => {
+                        if (isConverted) {
+                          const ledgerDate = conversionLedgerDate.get(`${entry.streamId}:${entry.date}`);
+                          const target = isBizType ? "Business" : "Personal";
+                          return `Converted to ${target}${ledgerDate ? ` · ${ledgerDate.slice(5)}` : ""}`;
+                        }
+                        if (isSkipped) return "Deleted";
+                        if (isMatched) return entry.matchedAmount != null ? `Matched deposit · ${fmtFull(entry.matchedAmount)}` : "Matched deposit";
+                        if (isSuggested) return "Suggested match";
+                        if (isPastDue) return "Past due";
+                        if (entry.isModified && isActive) return "Customized for this date";
+                        return null;
+                      })();
+                      const statusNoteTone = isConverted
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : isSkipped
+                        ? "text-destructive"
+                        : isMatched
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : isSuggested || isPastDue
+                        ? "text-amber-700 dark:text-amber-400"
+                        : "text-primary";
                       return (
                         <div
                           key={i}
@@ -1240,74 +1264,45 @@ export default function ProjectedIncome() {
                           role="button"
                           tabIndex={0}
                           onClick={() => setDetailEntry(entry)}
-                          className={`flex items-start sm:items-center justify-between gap-2 px-3 py-2.5 rounded-md border bg-card cursor-pointer hover:bg-muted/30 transition-colors ${
+                          className={`flex items-center justify-between gap-2 px-3 py-2 rounded-md border cursor-pointer transition-colors ${
                             isHighlighted ? "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse " : ""
                           }${
-                            isConverted
-                              ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20 opacity-70"
+                            isConverted || isMatched
+                              ? "border-emerald-200/70 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/25"
                               : isSkipped
-                              ? "border-destructive/20 bg-destructive/5 opacity-50"
-                              : isMatched
-                              ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-                              : isPastDue
-                              ? "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
+                              ? "border-destructive/20 bg-destructive/5"
+                              : isPastDue || isSuggested
+                              ? "border-amber-200/70 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/25"
                               : entry.isModified
-                              ? "border-primary/30 bg-primary/5"
-                              : "border-border/50"
+                              ? "border-primary/20 bg-primary/5"
+                              : "border-border/50 bg-card hover:bg-muted/30"
                           }`}
                         >
-                          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                            <span className="text-xs text-muted-foreground w-12 shrink-0 sm:pt-0 pt-0.5">{entry.date.slice(5)}</span>
-                            <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className={`text-sm font-medium break-words line-clamp-2 sm:line-clamp-none sm:truncate ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                              {entry.label}
-                            </span>
-                            {entry.type === "bonus" && (
-                              <Badge variant="secondary" className="text-xs shrink-0">Bonus</Badge>
-                            )}
-                            {isMatched && (
-                              <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
-                                <CheckCircle2 className="h-2.5 w-2.5" /> Matched deposit
-                              </Badge>
-                            )}
-                            {isSuggested && (
-                              <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400 gap-0.5">
-                                <AlertCircle className="h-2.5 w-2.5" /> Suggested match
-                              </Badge>
-                            )}
-                            {isPastDue && (
-                              <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-600 dark:text-amber-400 gap-0.5">
-                                <AlertCircle className="h-2.5 w-2.5" /> Past due
-                              </Badge>
-                            )}
-                            {isConverted && (() => {
-                              const ledgerDate = conversionLedgerDate.get(`${entry.streamId}:${entry.date}`);
-                              const _t = (entry.streamCompanyType || "").toLowerCase();
-                              const targetLabel = (_t === "1099" || _t === "k1" || _t === "1099_schedule_c" || _t === "k1_partnership" || _t === "scorp_distribution") ? "Business" : "Personal Income";
-                              return (
-                                <Badge variant="outline" className="text-xs shrink-0 border-emerald-400 text-emerald-600 dark:text-emerald-400 gap-0.5">
-                                  <CheckCircle2 className="h-2.5 w-2.5" />
-                                  Converted to {targetLabel}{ledgerDate ? ` · ${ledgerDate.slice(5)}` : ""}
-                                </Badge>
-                              );
-                            })()}
-                            {isSkipped && !isConverted && (
-                              <Badge variant="outline" className="text-xs shrink-0 border-destructive/40 text-destructive">Skipped</Badge>
-                            )}
-                            {entry.isModified && isActive && (
-                              <Badge variant="outline" className="text-xs shrink-0 border-primary/40 text-primary">Modified</Badge>
-                            )}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <span className="text-xs text-muted-foreground w-12 shrink-0">{entry.date.slice(5)}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-sm font-medium truncate ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : "text-foreground"}`}>
+                                  {entry.label}
+                                </span>
+                                {entry.type === "bonus" && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-normal">Bonus</Badge>
+                                )}
+                              </div>
+                              {statusNote && (
+                                <p className={`text-[11px] leading-tight mt-0.5 truncate ${statusNoteTone}`}>{statusNote}</p>
+                              )}
                             </div>
                           </div>
                           {/* Mobile: amount + single pencil that opens action sheet */}
-                          <div className="flex sm:hidden items-center gap-2 shrink-0 pt-0.5">
-                            <span className={`text-sm font-semibold whitespace-nowrap ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                          <div className="flex sm:hidden items-center gap-1 shrink-0">
+                            <span className={`text-sm font-semibold whitespace-nowrap ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8"
+                              className="h-9 w-9"
                               title="Actions"
                               onClick={(e) => { e.stopPropagation(); setMobileActionsEntry(entry); }}
                             >
@@ -1315,21 +1310,16 @@ export default function ProjectedIncome() {
                             </Button>
                           </div>
                           <div className="hidden sm:flex items-center gap-2 shrink-0">
-                            {isMatched && entry.matchedAmount != null && (
-                              <>
-                                <span className="text-xs text-muted-foreground">
-                                  Actual: {fmtFull(entry.matchedAmount)}
-                                </span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 text-xs px-1.5 text-primary gap-0.5"
-                                  title={`View in ${viewLabel}`}
-                                  onClick={(e) => { e.stopPropagation(); navigate(viewDestination); }}
-                                >
-                                  <ExternalLink className="h-3 w-3" /> View
-                                </Button>
-                              </>
+                            {isMatched && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-xs px-1.5 text-primary gap-0.5"
+                                title={`View in ${viewLabel}`}
+                                onClick={(e) => { e.stopPropagation(); navigate(viewDestination); }}
+                              >
+                                <ExternalLink className="h-3 w-3" /> View
+                              </Button>
                             )}
                             {isConverted && (
                               <Button
@@ -1342,7 +1332,7 @@ export default function ProjectedIncome() {
                                 <ExternalLink className="h-3 w-3" /> View in {viewLabel}
                               </Button>
                             )}
-                            <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "line-through text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
                             {isSuggested && (entry.suggestedIncomeId || entry.suggestedTransactionId) && (
