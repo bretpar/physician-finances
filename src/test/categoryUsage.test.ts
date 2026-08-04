@@ -109,7 +109,7 @@ describe("categoryUsage regression: ordering integrity", () => {
     expect(sorted).toEqual([
       "Meals", // 2 uses, most recent
       "Travel", // 2 uses, older
-      "Supplies", // 2 uses same count... verified below
+      "Supplies", // 2 uses, oldest
       "Advertising",
       "Utilities",
       "Insurance",
