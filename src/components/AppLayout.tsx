@@ -14,12 +14,14 @@ import {
   Wallet,
   BarChart3,
   GraduationCap,
+  ShieldCheck,
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import InsightsBell from "@/components/insights/InsightsBell";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
+import { useAccountRole } from "@/hooks/useAccountRole";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import {
   deriveUserTypeFromIncomeStreams,
