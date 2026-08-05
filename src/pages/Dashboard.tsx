@@ -33,7 +33,7 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { computeBusinessSummary } from "@/lib/businessSummary";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
-import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
 

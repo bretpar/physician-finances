@@ -26,7 +26,6 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import {
   deriveUserTypeFromIncomeStreams,
-  getFeatureAccess,
   type FeatureKey,
 } from "@/lib/entitlements";
 

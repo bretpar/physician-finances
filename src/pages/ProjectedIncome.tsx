@@ -64,7 +64,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
-import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
+import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const fmt = (n: number) =>
