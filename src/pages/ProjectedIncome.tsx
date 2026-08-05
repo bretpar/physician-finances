@@ -65,7 +65,7 @@ import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/househ
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
-import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -375,7 +375,7 @@ export default function ProjectedIncome() {
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
   const userType = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(taxSettings?.subscriptionTier));
+  const { featureAccess } = useFeatureAccess(userType);
   const spouseW2Locked = featureAccess.spouseW2Support?.status === "locked";
   const multipleW2Locked = featureAccess.multipleW2Jobs?.status === "locked";
 
