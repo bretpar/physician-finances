@@ -1,3 +1,4 @@
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1077,7 +1078,7 @@ export default function W4PaycheckAdjustmentCard() {
 
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
 
-  const isPremium = (settings?.subscriptionTier || "premium") === "premium";
+  const { isPremium } = useFeatureAccess();
 
   // Data-completeness signals used to warn users when the W-4 recommendation
   // may be inaccurate because YTD or future projection data is missing.

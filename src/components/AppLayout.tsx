@@ -22,13 +22,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
 import { useAccountRole } from "@/hooks/useAccountRole";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import {
   deriveUserTypeFromIncomeStreams,
-  getFeatureAccess,
   type FeatureKey,
 } from "@/lib/entitlements";
-import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
 
 type NavItem = {
   to: string;
@@ -81,12 +80,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
   const { isDeveloper } = useAccountRole();
+  const { featureAccess } = useFeatureAccess();
   const householdStreams = taxSettings?.householdIncomeStreams;
   const showBusinessNav = hasBusinessIncomeStream(householdStreams);
   const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
   const userType = deriveUserTypeFromIncomeStreams(householdStreams);
-  const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(taxSettings?.subscriptionTier));
   const showStudentLoansNav = !!taxSettings?.studentLoanEstimatorEnabled;
   const visibleNavItems = navItems.filter((item) => {
     if (item.module === "business") return showBusinessNav;

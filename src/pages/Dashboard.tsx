@@ -33,8 +33,8 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { computeBusinessSummary } from "@/lib/businessSummary";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
-import { deriveUserTypeFromIncomeStreams, getFeatureAccess } from "@/lib/entitlements";
-import { subscriptionTierToEntitlementTier } from "@/lib/onboarding";
+import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
 
 import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
@@ -57,7 +57,7 @@ export default function Dashboard() {
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries, investmentEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const featureAccess = getFeatureAccess(userType, subscriptionTierToEntitlementTier(rates?.subscriptionTier));
+  const { featureAccess } = useFeatureAccess(userType);
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
   const [profileFirstName, setProfileFirstName] = useState<string>("");
