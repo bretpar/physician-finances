@@ -14,12 +14,14 @@ import {
   Wallet,
   BarChart3,
   GraduationCap,
+  ShieldCheck,
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import InsightsBell from "@/components/insights/InsightsBell";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
+import { useAccountRole } from "@/hooks/useAccountRole";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import {
   deriveUserTypeFromIncomeStreams,
@@ -78,6 +80,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
+  const { isDeveloper } = useAccountRole();
   const householdStreams = taxSettings?.householdIncomeStreams;
   const showBusinessNav = hasBusinessIncomeStream(householdStreams);
   const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
@@ -159,6 +162,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
           <p className="text-xs text-sidebar-foreground truncate">{user?.email}</p>
+          {isDeveloper && (
+            <NavLink
+              to="/admin"
+              onClick={() => setMobileOpen(false)}
+              className="sidebar-link sidebar-link-inactive"
+            >
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">Admin</span>
+            </NavLink>
+          )}
           <Button
             variant="ghost"
             size="sm"
