@@ -69,11 +69,11 @@ import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import {
   ALL_ENTITLEMENT_FEATURES,
   deriveUserTypeFromIncomeStreams,
-  getFeatureAccess,
   getUserTypeDisplayInfo,
   type FeatureKey,
 } from "@/lib/entitlements";
-import { getAllowedCompanyTypes, onboardingCompanyTypeToFilingType, subscriptionTierToEntitlementTier, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier } from "@/lib/onboarding";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { getAllowedCompanyTypes, onboardingCompanyTypeToFilingType, type DeductionStrategy, type IncomeProfileType, type OnboardingSubscriptionTier } from "@/lib/onboarding";
 
 /* ─── Types ─── */
 interface Profile { firstName: string; lastName: string; email: string; }
@@ -662,7 +662,7 @@ function HouseholdIncomeStreamsSection() {
   const currentUserType = deriveUserTypeFromIncomeStreams(source);
   const pathwayWillChange = draft.isDirty && currentUserType !== derivedUserType;
   const pathway = getUserTypeDisplayInfo(derivedUserType);
-  const featureAccess = getFeatureAccess(derivedUserType, subscriptionTierToEntitlementTier(data?.subscriptionTier));
+  const { featureAccess } = useFeatureAccess(derivedUserType);
   const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
   const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
   const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]);

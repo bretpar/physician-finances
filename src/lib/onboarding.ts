@@ -112,6 +112,11 @@ export function taxRecommendationToWithholdingMethod(method: TaxRecommendationMe
   return method === "flat_rate" ? "flat_estimate" : method;
 }
 
+/**
+ * @deprecated Do NOT use for feature gating — entitlement tier comes from the
+ * server-resolved account role via `useFeatureAccess()` / `accountRoleToSubscriptionTier`.
+ * Kept only for legacy onboarding plan-selection display.
+ */
 export function subscriptionTierToEntitlementTier(tier?: OnboardingSubscriptionTier | string | null): SubscriptionTier {
   return tier === "premium" || tier === "PREMIUM" ? "PREMIUM" : "FREE";
 }
