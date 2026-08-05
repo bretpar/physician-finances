@@ -79,3 +79,12 @@ export function getRoleAccess(role: AccountRole | null | undefined): RoleAccess 
     isDeveloper: isDeveloper(normalized),
   };
 }
+
+/**
+ * Single mapping from account role → entitlement tier.
+ * The account role (server-resolved) is the ONLY authority for premium access;
+ * `tax_settings.subscription_tier` must never be consulted for gating.
+ */
+export function accountRoleToSubscriptionTier(role: AccountRole | null | undefined): "FREE" | "PREMIUM" {
+  return canAccessPremium(role) ? "PREMIUM" : "FREE";
+}
