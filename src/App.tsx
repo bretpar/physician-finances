@@ -93,7 +93,9 @@ function ProtectedRoutes() {
           <Route path="/student-loans" element={<StudentLoans />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/debug/transactions" element={<DebugTransactions />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/admin/data-isolation" element={<DataIsolationReport />} />
+
           <Route path="/admin/tax-validation" element={<TaxValidation />} />
           <Route path="/admin/student-loan-validation" element={<StudentLoanValidation />} />
           {/* Legacy redirects */}
