@@ -2391,7 +2391,7 @@ export type Database = {
       }
     }
     Functions: {
-      get_account_role: { Args: { _user_id: string }; Returns: string }
+      get_my_account_role: { Args: never; Returns: string }
       get_plaid_access_token: { Args: { _item_id: string }; Returns: string }
       get_user_org_ids: { Args: { _user_id: string }; Returns: string[] }
       has_org_role: {
