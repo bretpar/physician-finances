@@ -28,6 +28,7 @@ import ProjectedIncome from "@/pages/ProjectedIncome";
 import StudentLoans from "@/pages/StudentLoans";
 import DebugTransactions from "@/pages/DebugTransactions";
 import DataIsolationReport from "@/pages/admin/DataIsolationReport";
+import Admin from "@/pages/admin/Admin";
 import TaxValidation from "@/pages/admin/TaxValidation";
 import StudentLoanValidation from "@/pages/admin/StudentLoanValidation";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
