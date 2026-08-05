@@ -2391,6 +2391,7 @@ export type Database = {
       }
     }
     Functions: {
+      get_account_role: { Args: { _user_id: string }; Returns: string }
       get_plaid_access_token: { Args: { _item_id: string }; Returns: string }
       get_user_org_ids: { Args: { _user_id: string }; Returns: string[] }
       has_org_role: {
@@ -2437,7 +2438,16 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "owner" | "admin" | "member" | "user" | "super_admin"
+      app_role:
+        | "owner"
+        | "admin"
+        | "member"
+        | "user"
+        | "super_admin"
+        | "free"
+        | "premium"
+        | "premium_beta"
+        | "developer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2565,7 +2575,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["owner", "admin", "member", "user", "super_admin"],
+      app_role: [
+        "owner",
+        "admin",
+        "member",
+        "user",
+        "super_admin",
+        "free",
+        "premium",
+        "premium_beta",
+        "developer",
+      ],
     },
   },
 } as const
