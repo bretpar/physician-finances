@@ -2391,6 +2391,21 @@ export type Database = {
       }
     }
     Functions: {
+      admin_list_users: {
+        Args: never
+        Returns: {
+          account_role: string
+          created_at: string
+          display_name: string
+          email: string
+          last_sign_in_at: string
+          user_id: string
+        }[]
+      }
+      admin_set_account_role: {
+        Args: { _role: string; _user_id: string }
+        Returns: string
+      }
       get_my_account_role: { Args: never; Returns: string }
       get_plaid_access_token: { Args: { _item_id: string }; Returns: string }
       get_user_org_ids: { Args: { _user_id: string }; Returns: string[] }
@@ -2416,6 +2431,10 @@ export type Database = {
       install_planner_cron_job: {
         Args: { _secret: string }
         Returns: undefined
+      }
+      is_account_level_role: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
       }
       is_org_admin_or_owner: {
         Args: { _org_id: string; _user_id: string }
