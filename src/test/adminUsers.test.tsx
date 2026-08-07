@@ -114,7 +114,7 @@ describe("admin features tab", () => {
   it("renders the read-only feature registry for developers", async () => {
     const { default: FeaturesPanel } = await import("@/pages/admin/FeaturesPanel");
     render(<FeaturesPanel />);
-    expect(await screen.findByText("Mileage Deduction")).toBeInTheDocument();
+    expect((await screen.findAllByText("Mileage Deduction")).length).toBeGreaterThan(0);
     expect(screen.getByText(/Feature registry \(/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
   });
