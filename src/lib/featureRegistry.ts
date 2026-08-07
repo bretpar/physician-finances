@@ -8,7 +8,7 @@
  * Access levels reuse the account-role hierarchy from `@/lib/roles`.
  */
 
-import { hasAtLeastRole, type AccountRole } from "@/lib/roles";
+import { hasAtLeastRole, isAccountRole, type AccountRole } from "@/lib/roles";
 import type { FeatureKey } from "@/lib/entitlements";
 
 /** `disabled` means no role gets the feature. */
@@ -219,6 +219,7 @@ export function isFeatureRegistered(key: string): boolean {
 export function entryAllowsRole(entry: FeatureRegistryEntry | undefined, role: AccountRole | null | undefined): boolean {
   if (!entry) return false;
   if (entry.status === "disabled" || entry.minimumRole === "disabled") return false;
+  if (!isAccountRole(role)) return false; // fail closed on missing/unknown role
   return hasAtLeastRole(role, entry.minimumRole);
 }
 
