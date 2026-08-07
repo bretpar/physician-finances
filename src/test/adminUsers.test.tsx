@@ -104,3 +104,30 @@ describe("filterAdminUsers", () => {
     expect(filterAdminUsers(rows, "zzz").length).toBe(0);
   });
 });
+
+describe("admin features tab", () => {
+  beforeEach(() => {
+    mockRole = "developer";
+    rpc.mockResolvedValue({ data: users, error: null });
+  });
+
+  it("renders the read-only feature registry for developers", async () => {
+    const { default: FeaturesPanel } = await import("@/pages/admin/FeaturesPanel");
+    render(<FeaturesPanel />);
+    expect((await screen.findAllByText("Mileage Deduction")).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Feature registry \(/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
+  });
+
+  it("keeps the Features tab behind developer protection", async () => {
+    mockRole = "premium_beta";
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <Admin />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.queryByText("Features")).toBeNull());
+  });
+});

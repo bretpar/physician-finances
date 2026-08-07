@@ -1,5 +1,7 @@
 import type { HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import { hasFeatureAccess as hasCanonicalFeatureAccess } from "@/lib/onboarding";
+import { isFeatureRegistered } from "@/lib/featureRegistry";
+
 
 export type UserType =
   | "W2_ONLY"
@@ -210,9 +212,13 @@ export function getUserTypeDisplayInfo(userType: UserType): UserTypeDisplayInfo 
 }
 
 export function canAccessFeature(featureKey: FeatureKey, context: FeatureAccessContext): boolean {
+  // Registry is the single source of truth for whether a gate exists at all.
+  // Fails closed: unknown or disabled keys are denied for every role.
+  if (!isFeatureRegistered(featureKey)) return false;
   if (!hasCanonicalFeatureAccess({ subscriptionTier: context.subscriptionTier }, featureKey)) return false;
   return getFeatureAccess(context.userType, context.subscriptionTier)[featureKey]?.status === "available";
 }
+
 
 export function isFeatureLocked(featureKey: FeatureKey, context: FeatureAccessContext): boolean {
   return getFeatureAccess(context.userType, context.subscriptionTier)[featureKey]?.status === "locked";
