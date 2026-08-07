@@ -20,6 +20,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ACCOUNT_ROLE_LABEL, type AccountRole } from "@/lib/roles";
 import { filterAdminUsers, useAdminUsers, useUpdateAccountRole, type AdminUserRow } from "@/hooks/useAdminUsers";
 import { toast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import FeaturesPanel from "@/pages/admin/FeaturesPanel";
+
 
 const ROLE_OPTIONS: AccountRole[] = ["free", "premium", "premium_beta", "developer"];
 
@@ -98,7 +101,19 @@ export default function Admin() {
         </p>
       </div>
 
+      <Tabs defaultValue="users">
+        <TabsList>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="features" className="mt-4">
+          <FeaturesPanel />
+        </TabsContent>
+
+        <TabsContent value="users" className="mt-4">
       <Card>
+
         <CardHeader className="space-y-3">
           <CardTitle className="text-base">Registered users {users ? `(${users.length})` : ""}</CardTitle>
           <Input
@@ -174,6 +189,10 @@ export default function Admin() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
+
+
 
       <AlertDialog open={!!pending} onOpenChange={(open) => !open && setPending(null)}>
         <AlertDialogContent>
