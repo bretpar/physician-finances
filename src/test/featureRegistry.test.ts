@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FEATURE_REGISTRY,
+  entryAllowsRole,
   filterFeatures,
   getFeatureDefinition,
   isFeatureRegistered,
@@ -32,14 +33,11 @@ describe("feature registry hierarchy", () => {
       minimumRole: "disabled",
       status: "disabled",
     };
-    // simulate via helper contract on a locally-shaped entry
-    const localLookup = (role: AccountRole) =>
-      disabled.status === "disabled" || disabled.minimumRole === "disabled" ? false : true;
-    for (const role of ROLES) expect(localLookup(role)).toBe(false);
+    for (const role of ROLES) expect(entryAllowsRole(disabled, role)).toBe(false);
   });
 
   it("fails closed on unknown keys", () => {
-    for (const role of ROLES) expect(roleMeetsFeatureMinimum("developer", "not_a_feature")).toBe(false);
+    for (const role of ROLES) expect(roleMeetsFeatureMinimum(role, "not_a_feature")).toBe(false);
     expect(isFeatureRegistered("not_a_feature")).toBe(false);
     expect(getFeatureDefinition("not_a_feature")).toBeUndefined();
     expect(roleMeetsFeatureMinimum(null, "basicTaxOverview")).toBe(false);

@@ -216,11 +216,14 @@ export function isFeatureRegistered(key: string): boolean {
  * Registry-level role gate. Fails closed: unknown keys and disabled features
  * are denied for every role, including developer.
  */
-export function roleMeetsFeatureMinimum(role: AccountRole | null | undefined, key: string): boolean {
-  const entry = REGISTRY_BY_KEY[key];
+export function entryAllowsRole(entry: FeatureRegistryEntry | undefined, role: AccountRole | null | undefined): boolean {
   if (!entry) return false;
   if (entry.status === "disabled" || entry.minimumRole === "disabled") return false;
   return hasAtLeastRole(role, entry.minimumRole);
+}
+
+export function roleMeetsFeatureMinimum(role: AccountRole | null | undefined, key: string): boolean {
+  return entryAllowsRole(REGISTRY_BY_KEY[key], role);
 }
 
 /** Filters by feature name or stable key (case-insensitive). */
