@@ -16,6 +16,7 @@ import { Navigate, Link } from "react-router-dom";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
   useStudentLoans,
@@ -93,10 +94,17 @@ export default function StudentLoans() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
+  const { can, isLoading: featureLoading } = useFeatureAccess();
+  const canPlanner = can("studentLoanPlanner");
   const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
   const upsert = useUpsertStudentLoan();
   const del = useDeleteStudentLoan();
   const { forecastEstimate } = useTaxEstimate() ?? { forecastEstimate: null };
+
+  // Staged release gate — all access flows through the centralized helper.
+  if (!featureLoading && !canPlanner) {
+    return <Navigate to="/" replace />;
+  }
 
   if (!settingsLoading && settings && !settings.studentLoanEstimatorEnabled) {
     return <Navigate to="/settings" replace />;
