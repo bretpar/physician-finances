@@ -59,8 +59,11 @@ export function useFeatureAccess(userTypeOverride?: UserType): FeatureAccessResu
     isPremium: subscriptionTier === "PREMIUM",
     userType,
     featureAccess,
-    can: (key) => canAccessFeature(key, { userType, subscriptionTier }),
-    isLocked: (key) => isFeatureLocked(key, { userType, subscriptionTier }),
+    can: (key) =>
+      isStagedReleaseFeature(key)
+        ? roleMeetsFeatureMinimum(role, key)
+        : canAccessFeature(key, { userType, subscriptionTier }),
+    isLocked: (key) => (isStagedReleaseFeature(key) ? false : isFeatureLocked(key, { userType, subscriptionTier })),
     isLoading: roleLoading || settingsLoading,
   };
 }
