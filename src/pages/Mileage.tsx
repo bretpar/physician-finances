@@ -695,7 +695,7 @@ export default function Mileage() {
             </>
           ) : (
           /* Summary cards — include both standalone + paycheck-linked */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
               <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + employee + employer</p></CardContent>
