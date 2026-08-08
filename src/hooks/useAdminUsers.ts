@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeAccountRole, type AccountRole } from "@/lib/roles";
+import { isLikelyTestAccount } from "@/lib/testAccounts";
 
 export interface AdminUserRow {
   userId: string;
