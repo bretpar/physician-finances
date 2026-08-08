@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Navigate, Link } from "react-router-dom";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
@@ -90,21 +90,16 @@ function writeScenarioPrefs(userId: string | null | undefined, patch: Partial<Sc
   } catch { /* ignore */ }
 }
 
+/**
+ * Route-level gate ONLY. It owns exactly one hook so the entitlement decision
+ * (pending → allowed/denied) can never change the hook order of the planner
+ * body — the previous version returned early *above* dozens of hooks, which
+ * threw React error #310 as soon as the role resolved.
+ */
 export default function StudentLoans() {
-  const { user } = useAuth();
-  const userId = user?.id ?? null;
-  const { data: settings, isLoading: settingsLoading } = useTaxSettings();
   const { accessStatus } = useFeatureAccess();
   const plannerAccess = accessStatus("studentLoanPlanner");
-  const canPlanner = plannerAccess === "allowed";
-  const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
-  const upsert = useUpsertStudentLoan();
-  const del = useDeleteStudentLoan();
-  const { forecastEstimate } = useTaxEstimate() ?? { forecastEstimate: null };
 
-  // Staged release gate — all access flows through the centralized helper.
-  // While the account role is unresolved the decision stays pending: never
-  // redirect (to "/" or "/settings") based on a not-yet-resolved role.
   if (plannerAccess === "pending") {
     return (
       <div className="space-y-4 max-w-3xl mx-auto" data-testid="student-loans-loading">
@@ -114,9 +109,30 @@ export default function StudentLoans() {
     );
   }
 
-  if (!canPlanner) {
+  if (plannerAccess !== "allowed") {
     return <Navigate to="/" replace />;
   }
+
+  return <StudentLoansPlanner />;
+}
+
+/**
+ * Planner body. Mounted only when the release entitlement allows it, so every
+ * hook below runs unconditionally on every render of this component.
+ * `studentLoanEstimatorEnabled` is a user preference — never an access gate.
+ */
+function StudentLoansPlanner() {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const { data: settings, isLoading: settingsLoading } = useTaxSettings();
+  const updateSettings = useUpdateTaxSettings();
+  const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
+  const upsert = useUpsertStudentLoan();
+  const del = useDeleteStudentLoan();
+  const { forecastEstimate } = useTaxEstimate() ?? { forecastEstimate: null };
+  const estimatorEnabled = settings?.studentLoanEstimatorEnabled !== false;
+
+
 
   const projectedTotalIncome = Math.max(0, forecastEstimate?.totalIncome ?? 0);
   const projectedAgi = Math.max(0, forecastEstimate?.agi ?? 0);
@@ -447,6 +463,30 @@ export default function StudentLoans() {
         <GraduationCap className="h-6 w-6 text-primary" />
         <h1 className="text-xl font-semibold">Student Loan Estimator</h1>
       </div>
+
+      {/* Setup state: entitled but the user preference is still off. This is a
+          prompt, never a gate — the planner below stays usable. */}
+      {!estimatorEnabled && (
+        <Card className="p-4 space-y-2" data-testid="student-loans-setup">
+          <div className="text-sm font-semibold">Turn on the Student Loan Estimator</div>
+          <p className="text-xs text-muted-foreground">
+            Enable it to keep the Student Loans tab and your saved loan details
+            handy. You can explore the estimates below either way.
+          </p>
+          <Button
+            size="sm"
+            disabled={!settings?.id || updateSettings.isPending}
+            onClick={() =>
+              settings?.id &&
+              updateSettings.mutate({ id: settings.id, studentLoanEstimatorEnabled: true } as any)
+            }
+          >
+            Enable estimator
+          </Button>
+        </Card>
+      )}
+
+
 
       {/* 1. Current Repayment Plan ─────────────── */}
       <CurrentPlanCard
