@@ -57,3 +57,43 @@ export function filterAdminUsers(users: AdminUserRow[], search: string): AdminUs
     (u) => u.email.toLowerCase().includes(q) || (u.displayName ?? "").toLowerCase().includes(q),
   );
 }
+
+export type AdminUserFilter = "all" | AccountRole | "likely_test";
+
+/** Role / test-account filter applied on top of the search filter. */
+export function applyAdminUserFilter(users: AdminUserRow[], filter: AdminUserFilter): AdminUserRow[] {
+  if (filter === "all") return users;
+  if (filter === "likely_test") return users.filter((u) => isLikelyTestAccount(u.email));
+  return users.filter((u) => u.role === filter);
+}
+
+export interface BulkDeleteResult {
+  ok: boolean;
+  deleted: string[];
+  skipped: Array<{ user_id: string; reason: string }>;
+  failed: Array<{ user_id: string; error: string }>;
+  orphaned_tables: string[];
+}
+
+/**
+ * Bulk account deletion. Privileged work happens entirely in the
+ * `admin-delete-users` edge function, which re-verifies developer status.
+ */
+export function useBulkDeleteUsers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userIds: string[]): Promise<BulkDeleteResult> => {
+      const { data, error } = await supabase.functions.invoke("admin-delete-users", {
+        body: { user_ids: userIds },
+      });
+      if (error) throw error;
+      const result = data as BulkDeleteResult;
+      if (!result?.deleted) throw new Error("Unexpected response from delete service");
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+  });
+}
