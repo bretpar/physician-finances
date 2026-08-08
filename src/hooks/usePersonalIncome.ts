@@ -30,7 +30,7 @@ export interface PersonalIncomeEntry {
   taxes_withheld: number;
   pre_tax_deductions: number;
   retirement_401k: number;
-  employer_retirement_contribution: number;
+  employer_retirement_contribution?: number;
   healthcare_deduction: number;
   hsa_contribution: number;
   source_bucket: string;
