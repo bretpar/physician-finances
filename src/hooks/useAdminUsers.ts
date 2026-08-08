@@ -74,6 +74,10 @@ export interface BulkDeleteResult {
   skipped: Array<{ user_id: string; reason: string }>;
   failed: Array<{ user_id: string; error: string }>;
   orphaned_tables: string[];
+  /** True when processing stopped early because an account could not be deleted. */
+  stopped?: boolean;
+  /** Human-readable summary of why processing stopped. */
+  stoppedReason?: string;
 }
 
 export interface BulkDeleteProgress {
@@ -81,12 +85,11 @@ export interface BulkDeleteProgress {
   total: number;
 }
 
-const DELETE_CHUNK_SIZE = 10;
-
 /**
  * Bulk account deletion. Privileged work happens entirely in the
  * `admin-delete-users` edge function, which re-verifies developer status.
- * Requests are chunked so progress can be reported to the UI.
+ * One user per invocation, processed sequentially, stopping at the first
+ * failure so the UI can show what actually remains.
  */
 export function useBulkDeleteUsers() {
   const queryClient = useQueryClient();
@@ -110,10 +113,10 @@ export function useBulkDeleteUsers() {
 
       onProgress?.({ processed: 0, total });
 
-      for (let i = 0; i < total; i += DELETE_CHUNK_SIZE) {
-        const chunk = userIds.slice(i, i + DELETE_CHUNK_SIZE);
+      for (let i = 0; i < total; i += 1) {
+        const userId = userIds[i];
         const { data, error } = await supabase.functions.invoke("admin-delete-users", {
-          body: { user_ids: chunk },
+          body: { user_ids: [userId] },
         });
         if (error) throw error;
         const result = data as BulkDeleteResult;
@@ -127,13 +130,23 @@ export function useBulkDeleteUsers() {
           if (!aggregate.orphaned_tables.includes(table)) aggregate.orphaned_tables.push(table);
         }
 
-        onProgress?.({ processed: Math.min(i + chunk.length, total), total });
+        onProgress?.({ processed: i + 1, total });
+
+        if (aggregate.failed.length) {
+          aggregate.stopped = true;
+          const detail = aggregate.failed[0]?.error;
+          aggregate.stoppedReason =
+            `Deleted ${aggregate.deleted.length} of ${total} accounts. Deletion stopped because one account could not be deleted.` +
+            (detail ? ` ${detail}` : "");
+          break;
+        }
       }
 
       return aggregate;
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
   });
 }
+
