@@ -372,7 +372,7 @@ export function HsaLedgerSection() {
                 Employer contributions count toward your annual limit but are not a personal deduction —
                 they were never included in your taxable income.
               </p>
-              <div className="hidden">
+              
               <div className="mt-3 space-y-1.5">
                 <div className="flex items-baseline justify-between text-xs">
                   <span className="text-foreground font-medium">
