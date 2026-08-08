@@ -663,6 +663,64 @@ export default function Admin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={!!resetTarget}
+        onOpenChange={(open) => {
+          if (!open && !resetUserData.isPending) {
+            setResetTarget(null);
+            setResetConfirm("");
+          }
+        }}
+      >
+        <AlertDialogContent data-testid="reset-qa-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset QA data?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  All user-created financial and test data for{" "}
+                  <span className="font-medium text-foreground">{resetTarget?.email}</span> will be
+                  permanently deleted — companies, income, transactions, planner data, contributions,
+                  deductions and tax tracking.
+                </p>
+                <p>
+                  The login account, email, password and{" "}
+                  {resetTarget ? ACCOUNT_ROLE_LABEL[resetTarget.role] : ""} role are preserved. This
+                  does not delete the account.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Type <span className="font-mono font-semibold">RESET</span> to confirm.
+            </p>
+            <Input
+              value={resetConfirm}
+              onChange={(e) => setResetConfirm(e.target.value)}
+              placeholder="RESET"
+              aria-label="Type RESET to confirm"
+              data-testid="reset-qa-confirm-input"
+              disabled={resetUserData.isPending}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetUserData.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="reset-qa-confirm-button"
+              onClick={(e) => {
+                e.preventDefault();
+                void runReset();
+              }}
+              disabled={resetConfirm !== "RESET" || resetUserData.isPending}
+            >
+              {resetUserData.isPending ? "Resetting…" : "Reset user data"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+
   );
 }
