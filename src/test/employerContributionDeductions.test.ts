@@ -19,8 +19,8 @@ describe("employer contributions vs personal deduction", () => {
       coverage: "individual",
       catchUpEligible: false,
       contributions: [
-        { amount: 2000, source_type: "paycheck", contribution_type: "employee_payroll", contribution_date: "2026-03-01" },
-        { amount: 1500, source_type: "paycheck", contribution_type: "employer", contribution_date: "2026-03-01" },
+        { amount: 2000, source_type: "payroll", contribution_type: "employee_payroll", contribution_date: "2026-03-01" },
+        { amount: 1500, source_type: "payroll", contribution_type: "employer", contribution_date: "2026-03-01" },
       ],
     });
     expect(s.total).toBe(3500);
