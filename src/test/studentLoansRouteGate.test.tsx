@@ -14,6 +14,7 @@ vi.mock("@/hooks/useTaxSettings", () => ({
     data: { id: "s1", studentLoanEstimatorEnabled: state.estimatorEnabled, filingStatus: "single" },
     isLoading: false,
   }),
+  useUpdateTaxSettings: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock("@/hooks/useStudentLoans", () => ({
   useStudentLoans: () => ({ data: [], isLoading: false }),
@@ -77,5 +78,41 @@ describe("/student-loans staged-release route guard", () => {
     renderPage();
     expect(screen.queryByText("settings-page")).toBeNull();
     expect(screen.queryByText("dashboard-page")).toBeNull();
+    // Renders a usable setup/enable state, not a blank page.
+    expect(screen.getByTestId("student-loans-setup")).toBeTruthy();
+    expect(screen.getByText("Student Loan Estimator")).toBeTruthy();
+  });
+
+  it("renders the planner without the setup prompt when the preference is on", () => {
+    state.status = "allowed";
+    state.estimatorEnabled = true;
+    renderPage();
+    expect(screen.queryByTestId("student-loans-setup")).toBeNull();
+    expect(screen.getByText("Student Loan Estimator")).toBeTruthy();
+  });
+
+  it("keeps hook order stable across pending → allowed and OFF ↔ ON re-renders", () => {
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...a) => errors.push(a));
+    state.status = "pending";
+    const { rerender } = renderPage();
+    const view = (
+      <MemoryRouter initialEntries={["/student-loans"]}>
+        <Routes>
+          <Route path="/student-loans" element={<StudentLoans />} />
+          <Route path="/" element={<div>dashboard-page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    state.status = "allowed";
+    state.estimatorEnabled = false;
+    rerender(view);
+    state.estimatorEnabled = true;
+    rerender(view);
+    state.estimatorEnabled = false;
+    rerender(view);
+    spy.mockRestore();
+    const joined = JSON.stringify(errors);
+    expect(joined).not.toMatch(/Rendered more hooks|Rendered fewer hooks|order of Hooks|#310/);
   });
 });
