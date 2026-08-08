@@ -52,9 +52,9 @@ describe("RetirementRoomSummary UI", () => {
 
   it("toggling basis only changes capacity values, not the employee total", () => {
     setup(true);
-    expect(screen.getByText("Current available capacity")).toBeInTheDocument();
+    expect(screen.getAllByText("Current available capacity")).toHaveLength(2);
     fireEvent.click(screen.getByText("Projected year end"));
-    expect(screen.getByText("Projected year-end capacity")).toBeInTheDocument();
+    expect(screen.getAllByText("Projected year-end capacity")).toHaveLength(2);
     expect(screen.getByText(/\$12,500/)).toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe("RetirementRoomSummary UI", () => {
     setup(false);
     expect(screen.queryByText("Projected year end")).toBeNull();
     expect(screen.queryByTestId("projected-opportunity")).toBeNull();
-    expect(screen.getByText("Current available capacity")).toBeInTheDocument();
+    expect(screen.getAllByText("Current available capacity")).toHaveLength(2);
     expect(screen.getByText(/Income Planner\./)).toBeInTheDocument();
   });
 
@@ -83,7 +83,7 @@ describe("RetirementRoomSummary UI", () => {
       employeeContributions: [30_000],
     });
     setup(true, over);
-    expect(screen.getByText(/\$0/)).toBeInTheDocument();
+    expect(screen.getByTestId("employee-room").textContent).toContain("$0 remaining");
     expect(screen.getByTestId("employee-over-limit").textContent).toContain("$5,500");
   });
 });
