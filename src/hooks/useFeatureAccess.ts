@@ -25,6 +25,8 @@ export function isStagedReleaseFeature(key: FeatureKey): boolean {
   return !TIER_MATRIX_KEYS.has(key);
 }
 
+export type StagedAccessStatus = "allowed" | "denied" | "pending";
+
 export interface FeatureAccessResult {
   role: AccountRole;
   /** Derived from the account role only — never from tax_settings.subscription_tier. */
@@ -34,6 +36,14 @@ export interface FeatureAccessResult {
   featureAccess: Record<FeatureKey, FeatureAccess>;
   can: (key: FeatureKey) => boolean;
   isLocked: (key: FeatureKey) => boolean;
+  /**
+   * Tri-state access for staged-release features so callers can render a
+   * loading state instead of redirecting on an unresolved role.
+   * Non-staged features never return "pending".
+   */
+  accessStatus: (key: FeatureKey) => StagedAccessStatus;
+  /** True once the server-resolved account role is known. */
+  isRoleResolved: boolean;
   isLoading: boolean;
 }
 
@@ -46,12 +56,19 @@ export interface FeatureAccessResult {
  */
 export function useFeatureAccess(userTypeOverride?: UserType): FeatureAccessResult {
   const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings();
-  const { role, isLoading: roleLoading } = useAccountRole();
+  const { role, resolvedRole, isResolved, isLoading: roleLoading } = useAccountRole();
 
   const subscriptionTier = accountRoleToSubscriptionTier(role) as SubscriptionTier;
   const userType = userTypeOverride ?? deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams);
 
   const featureAccess = useMemo(() => getFeatureAccess(userType, subscriptionTier), [userType, subscriptionTier]);
+
+  // Staged-release features are resolved from the ACCOUNT ROLE only; they are
+  // never reduced to a FREE/PREMIUM subscription tier first.
+  const stagedStatus = (key: FeatureKey): StagedAccessStatus => {
+    if (!isResolved || !resolvedRole) return "pending";
+    return roleMeetsFeatureMinimum(resolvedRole, key) ? "allowed" : "denied";
+  };
 
   return {
     role,
@@ -61,9 +78,17 @@ export function useFeatureAccess(userTypeOverride?: UserType): FeatureAccessResu
     featureAccess,
     can: (key) =>
       isStagedReleaseFeature(key)
-        ? roleMeetsFeatureMinimum(role, key)
+        ? stagedStatus(key) === "allowed"
         : canAccessFeature(key, { userType, subscriptionTier }),
     isLocked: (key) => (isStagedReleaseFeature(key) ? false : isFeatureLocked(key, { userType, subscriptionTier })),
+    accessStatus: (key) =>
+      isStagedReleaseFeature(key)
+        ? stagedStatus(key)
+        : canAccessFeature(key, { userType, subscriptionTier })
+          ? "allowed"
+          : "denied",
+    isRoleResolved: isResolved,
     isLoading: roleLoading || settingsLoading,
   };
 }
+

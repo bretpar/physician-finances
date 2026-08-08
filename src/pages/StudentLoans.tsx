@@ -94,21 +94,34 @@ export default function StudentLoans() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
-  const { can, isLoading: featureLoading } = useFeatureAccess();
-  const canPlanner = can("studentLoanPlanner");
+  const { accessStatus } = useFeatureAccess();
+  const plannerAccess = accessStatus("studentLoanPlanner");
+  const canPlanner = plannerAccess === "allowed";
   const { data: loans = [], isLoading: loansLoading } = useStudentLoans();
   const upsert = useUpsertStudentLoan();
   const del = useDeleteStudentLoan();
   const { forecastEstimate } = useTaxEstimate() ?? { forecastEstimate: null };
 
   // Staged release gate — all access flows through the centralized helper.
-  if (!featureLoading && !canPlanner) {
+  // While the account role is unresolved the decision stays pending: never
+  // redirect (to "/" or "/settings") based on a not-yet-resolved role.
+  if (plannerAccess === "pending") {
+    return (
+      <div className="space-y-4 max-w-3xl mx-auto" data-testid="student-loans-loading">
+        <Skeleton className="h-8 w-52" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+
+  if (!canPlanner) {
     return <Navigate to="/" replace />;
   }
 
   if (!settingsLoading && settings && !settings.studentLoanEstimatorEnabled) {
     return <Navigate to="/settings" replace />;
   }
+
 
   const projectedTotalIncome = Math.max(0, forecastEstimate?.totalIncome ?? 0);
   const projectedAgi = Math.max(0, forecastEstimate?.agi ?? 0);
