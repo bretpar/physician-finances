@@ -5,9 +5,13 @@ import { MemoryRouter } from "react-router-dom";
 import { filterAdminUsers, type AdminUserRow } from "@/hooks/useAdminUsers";
 
 const rpc = vi.fn();
+const invokeFn = vi.fn();
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: (...args: unknown[]) => rpc(...args) },
+  supabase: {
+    rpc: (...args: unknown[]) => rpc(...args),
+    functions: { invoke: (...args: unknown[]) => invokeFn(...args) },
+  },
 }));
 
 let mockRole = "developer";
@@ -129,5 +133,43 @@ describe("admin features tab", () => {
       </QueryClientProvider>,
     );
     await waitFor(() => expect(screen.queryByText("Features")).toBeNull());
+  });
+});
+
+describe("admin bulk selection and delete", () => {
+  beforeEach(() => {
+    mockRole = "developer";
+    rpc.mockResolvedValue({ data: users, error: null });
+    invokeFn.mockReset();
+  });
+
+  it("selects a user, shows the count, and requires typing DELETE", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    renderAdmin();
+    await waitFor(() => expect(screen.getAllByText("premium@example.com").length).toBeGreaterThan(0));
+
+    await user.click(screen.getAllByLabelText("Select premium@example.com")[0]);
+    expect(screen.getByTestId("selection-count")).toHaveTextContent("1 user selected");
+
+    await user.click(screen.getByRole("button", { name: /delete selected users/i }));
+    const confirmBtn = screen.getByRole("button", { name: /delete permanently/i });
+    expect(confirmBtn).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/type delete to confirm/i), "DELETE");
+    expect(confirmBtn).toBeEnabled();
+
+    invokeFn.mockResolvedValue({ data: { ok: true, deleted: ["u-2"], skipped: [], failed: [], orphaned_tables: [] }, error: null });
+    await user.click(confirmBtn);
+    await waitFor(() =>
+      expect(invokeFn).toHaveBeenCalledWith("admin-delete-users", { body: { user_ids: ["u-2"] } }),
+    );
+  });
+
+  it("hides bulk delete controls from non-developers", async () => {
+    mockRole = "premium";
+    renderAdmin();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /delete selected users/i })).toBeNull());
+    expect(invokeFn).not.toHaveBeenCalled();
   });
 });
