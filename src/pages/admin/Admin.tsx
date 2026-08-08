@@ -86,6 +86,10 @@ export default function Admin() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [progress, setProgress] = useState<BulkDeleteProgress | null>(null);
+  const [deleteIssues, setDeleteIssues] = useState<{
+    failed: Array<{ userId: string; message: string }>;
+    skipped: Array<{ userId: string; message: string }>;
+  } | null>(null);
 
   const { data: users, isLoading: usersLoading, error } = useAdminUsers(isDeveloper);
   const updateRole = useUpdateAccountRole();
