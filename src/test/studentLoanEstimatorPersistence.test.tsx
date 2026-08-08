@@ -18,9 +18,18 @@ vi.mock("@/hooks/useTaxSettings", () => ({
 
 import { StudentLoanEstimatorToggleSection } from "@/components/settings/StudentLoanEstimatorToggleSection";
 
+async function expandAndGetSwitch() {
+  // The section renders collapsed; expand it first.
+  if (screen.queryAllByTestId("student-loan-estimator-switch").length === 0) {
+    await userEvent.click(screen.getAllByText("Student Loan Estimator")[0]);
+  }
+  const all = screen.getAllByTestId("student-loan-estimator-switch");
+  return all[all.length - 1];
+}
+
 async function toggle() {
   render(<StudentLoanEstimatorToggleSection bare />);
-  const sw = screen.getByTestId("student-loan-estimator-switch");
+  const sw = await expandAndGetSwitch();
   await userEvent.click(sw);
   return sw;
 }
@@ -56,8 +65,8 @@ describe("Student Loan Estimator preference persistence", () => {
     await toggle();
     await waitFor(() => expect(server.studentLoanEstimatorEnabled).toBe(true));
     const { unmount } = render(<StudentLoanEstimatorToggleSection bare />);
-    const switches = screen.getAllByTestId("student-loan-estimator-switch");
-    expect(switches[switches.length - 1].getAttribute("data-state")).toBe("checked");
+    const sw = await expandAndGetSwitch();
+    expect(sw.getAttribute("data-state")).toBe("checked");
     unmount();
   });
 
