@@ -270,6 +270,96 @@ export default function Mileage() {
     return map;
   }, [businessCompanies, transactions, ytdEntries]);
 
+  // ─── Retirement contribution room (calculations only) ─────────
+  // Employee elective deferrals share ONE aggregate limit; employer/plan
+  // capacity is calculated per company because eligible compensation differs.
+  const { can: canFeature } = useFeatureAccess();
+  const hasPlannerAccess = canFeature("scenarioPlanner");
+  const { data: plannerStreams } = useProjectedStreams();
+  const { data: plannerBonuses } = useProjectedBonuses();
+  const { data: plannerOverrides } = useStreamOverrides();
+  const { data: plannerConversions } = usePlannerConversionsFull();
+
+  const plannerOccurrences = useMemo(() => {
+    if (!hasPlannerAccess || !plannerStreams) return [];
+    try {
+      return generateProjectedPaychecks(
+        plannerStreams,
+        plannerBonuses || [],
+        incomeEntries || [],
+        plannerOverrides || [],
+        (plannerConversions || []) as any,
+        [],
+      );
+    } catch {
+      return [];
+    }
+  }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions]);
+
+  const retirementRoom = useMemo(() => {
+    const yearEntries = (incomeEntries || []).filter(
+      (e) => String(e.income_date || "").slice(0, 4) === String(currentYear),
+    );
+    const perCompany = new Map<string, { employee: number; employer: number; wages: number }>();
+    for (const e of yearEntries) {
+      const key = (e as any).source_id || "";
+      const rec = perCompany.get(key) || { employee: 0, employer: 0, wages: 0 };
+      rec.employee += Number((e as any).retirement_401k || 0);
+      rec.employer += Number((e as any).employer_retirement_contribution || 0);
+      rec.wages += Number((e as any).paycheck_amount || 0);
+      perCompany.set(key, rec);
+    }
+
+    const employeeRoom = computeEmployeeContributionRoom({
+      taxYear: currentYear,
+      employeeContributions: [
+        annualized.total,
+        ...Array.from(perCompany.values()).map((r) => r.employee),
+      ],
+    });
+
+    const remainingPlanned = sumRemainingPlannedIncomeByCompany(
+      plannerOccurrences.map((p) => ({
+        date: p.date,
+        grossAmount: p.grossAmount,
+        matchStatus: p.matchStatus,
+        streamSourceId: p.streamSourceId ?? null,
+      })),
+      currentYear,
+      new Date().toISOString().split("T")[0],
+    );
+
+    const planInputs: PlanInput[] = Array.from(perCompany.entries())
+      .filter(([, r]) => r.employee > 0 || r.employer > 0)
+      .map(([companyId, r]) => {
+        const company = companies.find((c) => c.id === companyId);
+        const isBusiness = !!companyId && availableProfitByCompany.has(companyId);
+        // Self-employed plans use existing business profit, not gross revenue.
+        const ytdComp = isBusiness
+          ? Math.max(0, availableProfitByCompany.get(companyId) || 0) || null
+          : r.wages > 0
+            ? r.wages
+            : null;
+        const planned = companyId ? remainingPlanned.get(companyId) || 0 : 0;
+        return {
+          companyId: companyId || null,
+          companyName: company?.name || "Unassigned",
+          planType: company ? normalizeFilingType(company.companyType) : null,
+          eligibleCompensationYtd: ytdComp,
+          projectedEligibleCompensation:
+            hasPlannerAccess && ytdComp != null ? ytdComp + planned : null,
+          employeeContribution: r.employee,
+          employerContribution: r.employer,
+        };
+      });
+
+    const plans = computePlanCapacities(currentYear, planInputs);
+    const employerContributionTotal = plans.reduce((s, p) => s + p.employerContribution, 0);
+    return { employeeRoom, plans, employerContributionTotal };
+  }, [incomeEntries, currentYear, annualized.total, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess]);
+
+
+
   const homeOfficePreview = useMemo(() => calculateHomeOfficeAmounts({
     method: homeOfficeForm.method,
     squareFeet: num(homeOfficeForm.squareFeet),
