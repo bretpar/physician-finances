@@ -176,8 +176,12 @@ export default function Admin() {
 
   const runBulkDelete = async () => {
     if (bulkDelete.isPending || confirmText !== "DELETE" || selected.length === 0) return;
+    setProgress({ processed: 0, total: selected.length });
     try {
-      const result = await bulkDelete.mutateAsync(selected);
+      const result = await bulkDelete.mutateAsync({
+        userIds: selected,
+        onProgress: (p) => setProgress(p),
+      });
       const skippedNote = result.skipped.length
         ? ` ${result.skipped.length} skipped: ${result.skipped[0].reason}`
         : "";
@@ -196,6 +200,8 @@ export default function Admin() {
         description: e instanceof Error ? e.message : "Unexpected error",
         variant: "destructive",
       });
+    } finally {
+      setProgress(null);
     }
   };
 
