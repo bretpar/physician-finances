@@ -2,7 +2,9 @@ import { useMemo } from "react";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useAccountRole } from "@/hooks/useAccountRole";
 import { accountRoleToSubscriptionTier, type AccountRole } from "@/lib/roles";
+import { roleMeetsFeatureMinimum } from "@/lib/featureRegistry";
 import {
+  ALL_ENTITLEMENT_FEATURES,
   canAccessFeature,
   deriveUserTypeFromIncomeStreams,
   getFeatureAccess,
@@ -12,6 +14,16 @@ import {
   type SubscriptionTier,
   type UserType,
 } from "@/lib/entitlements";
+
+/**
+ * Staged-release features are not part of the FREE/PREMIUM tier matrix; their
+ * access comes solely from the registry's `minimumRole`
+ * (developer → premium_beta → premium).
+ */
+const TIER_MATRIX_KEYS = new Set<string>(ALL_ENTITLEMENT_FEATURES);
+export function isStagedReleaseFeature(key: FeatureKey): boolean {
+  return !TIER_MATRIX_KEYS.has(key);
+}
 
 export interface FeatureAccessResult {
   role: AccountRole;
@@ -47,8 +59,11 @@ export function useFeatureAccess(userTypeOverride?: UserType): FeatureAccessResu
     isPremium: subscriptionTier === "PREMIUM",
     userType,
     featureAccess,
-    can: (key) => canAccessFeature(key, { userType, subscriptionTier }),
-    isLocked: (key) => isFeatureLocked(key, { userType, subscriptionTier }),
+    can: (key) =>
+      isStagedReleaseFeature(key)
+        ? roleMeetsFeatureMinimum(role, key)
+        : canAccessFeature(key, { userType, subscriptionTier }),
+    isLocked: (key) => (isStagedReleaseFeature(key) ? false : isFeatureLocked(key, { userType, subscriptionTier })),
     isLoading: roleLoading || settingsLoading,
   };
 }

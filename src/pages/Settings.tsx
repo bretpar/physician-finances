@@ -522,6 +522,7 @@ const FEATURE_LABELS: Record<FeatureKey, string> = {
   basicTaxGapEstimate: "Basic tax gap estimate",
   basicExpenseTracking: "Basic expense tracking",
   basicTaxSavingsEstimate: "Basic tax savings estimate",
+  studentLoanPlanner: "Student loan planner",
 };
 
 const TAX_EXCLUSION_CHOICES_KEY = "paycheckmd-household-income-exclusion-choices";
@@ -662,7 +663,8 @@ function HouseholdIncomeStreamsSection() {
   const currentUserType = deriveUserTypeFromIncomeStreams(source);
   const pathwayWillChange = draft.isDirty && currentUserType !== derivedUserType;
   const pathway = getUserTypeDisplayInfo(derivedUserType);
-  const { featureAccess } = useFeatureAccess(derivedUserType);
+  const { featureAccess, can: canFeature } = useFeatureAccess(derivedUserType);
+  const canStudentLoanPlanner = canFeature("studentLoanPlanner");
   const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
   const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
   const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]);
@@ -2668,6 +2670,7 @@ export default function Settings() {
   // wiring a top-level dirty signal through context-less mechanism:
   // each section sets a window-level flag.
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
+  const canStudentLoanPlanner = useFeatureAccess().can("studentLoanPlanner");
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { key: string; dirty: boolean };
@@ -2695,8 +2698,12 @@ export default function Settings() {
         <HsaSettingsSection bare />
         <Separator className="my-2" />
         <ForecastingAutomationSection bare />
-        <Separator className="my-2" />
-        <StudentLoanEstimatorToggleSection bare />
+        {canStudentLoanPlanner && (
+          <>
+            <Separator className="my-2" />
+            <StudentLoanEstimatorToggleSection bare />
+          </>
+        )}
       </SectionCard>
 
       <SectionCard

@@ -36,7 +36,10 @@ export type FeatureKey =
   | "basic1099Tracking"
   | "basicTaxGapEstimate"
   | "basicExpenseTracking"
-  | "basicTaxSavingsEstimate";
+  | "basicTaxSavingsEstimate"
+  // Staged release: not part of the FREE/PREMIUM tier matrix. Access is
+  // resolved purely from the registry's minimumRole via useFeatureAccess.
+  | "studentLoanPlanner";
 
 export type FeatureAccessStatus = "available" | "locked" | "hidden";
 
