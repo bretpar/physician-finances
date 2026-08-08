@@ -663,7 +663,8 @@ function HouseholdIncomeStreamsSection() {
   const currentUserType = deriveUserTypeFromIncomeStreams(source);
   const pathwayWillChange = draft.isDirty && currentUserType !== derivedUserType;
   const pathway = getUserTypeDisplayInfo(derivedUserType);
-  const { featureAccess } = useFeatureAccess(derivedUserType);
+  const { featureAccess, can: canFeature } = useFeatureAccess(derivedUserType);
+  const canStudentLoanPlanner = canFeature("studentLoanPlanner");
   const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
   const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
   const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]);
