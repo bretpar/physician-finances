@@ -322,6 +322,41 @@ export default function Admin() {
 
             </CardHeader>
             <CardContent>
+              {deleteIssues && (
+                <div
+                  className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+                  data-testid="bulk-delete-issues"
+                  role="alert"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-destructive">
+                        {deleteIssues.failed.length} of the selected accounts could not be deleted
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Successful deletions were applied. The accounts below are still selected so you can retry.
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteIssues(null)}>
+                      Dismiss
+                    </Button>
+                  </div>
+                  <ul className="mt-2 space-y-1">
+                    {deleteIssues.failed.map((f) => (
+                      <li key={`failed-${f.userId}`} className="text-xs" data-testid="bulk-delete-failed-row">
+                        <span className="font-medium">{labelForUser(f.userId)}</span>
+                        <span className="text-destructive"> — {f.message}</span>
+                      </li>
+                    ))}
+                    {deleteIssues.skipped.map((s) => (
+                      <li key={`skipped-${s.userId}`} className="text-xs" data-testid="bulk-delete-skipped-row">
+                        <span className="font-medium">{labelForUser(s.userId)}</span>
+                        <span className="text-muted-foreground"> — skipped: {s.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {usersLoading && <p className="text-sm text-muted-foreground">Loading users…</p>}
               {error && <p className="text-sm text-destructive">{(error as Error).message}</p>}
               {!usersLoading && !error && rows.length === 0 && (
