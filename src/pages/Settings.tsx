@@ -54,6 +54,7 @@ import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
 import { StudentLoanEstimatorToggleSection } from "@/components/settings/StudentLoanEstimatorToggleSection";
+import { StudentLoanSettingsGate } from "@/components/settings/StudentLoanSettingsGate";
 import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
 import AddCompanyDialog from "@/components/settings/AddCompanyDialog";
 import { DangerZoneSection } from "@/components/settings/DangerZoneSection";
@@ -2670,7 +2671,6 @@ export default function Settings() {
   // wiring a top-level dirty signal through context-less mechanism:
   // each section sets a window-level flag.
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
-  const canStudentLoanPlanner = useFeatureAccess().can("studentLoanPlanner");
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { key: string; dirty: boolean };
@@ -2698,12 +2698,7 @@ export default function Settings() {
         <HsaSettingsSection bare />
         <Separator className="my-2" />
         <ForecastingAutomationSection bare />
-        {canStudentLoanPlanner && (
-          <>
-            <Separator className="my-2" />
-            <StudentLoanEstimatorToggleSection bare />
-          </>
-        )}
+        <StudentLoanSettingsGate />
       </SectionCard>
 
       <SectionCard
