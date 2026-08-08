@@ -699,8 +699,12 @@ export default function Mileage() {
           /* Summary cards — include both standalone + paycheck-linked */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Contributions (YTD)</CardTitle></CardHeader>
               <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + employee + employer</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Estimated Personal Deduction</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.total + paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">Employer contributions excluded</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
