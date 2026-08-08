@@ -29,6 +29,7 @@ import {
   useUpdateAccountRole,
   type AdminUserFilter,
   type AdminUserRow,
+  type BulkDeleteProgress,
 } from "@/hooks/useAdminUsers";
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -84,6 +85,7 @@ export default function Admin() {
   const [selected, setSelected] = useState<string[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [progress, setProgress] = useState<BulkDeleteProgress | null>(null);
 
   const { data: users, isLoading: usersLoading, error } = useAdminUsers(isDeveloper);
   const updateRole = useUpdateAccountRole();
