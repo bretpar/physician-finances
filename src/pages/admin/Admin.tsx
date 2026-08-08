@@ -331,7 +331,8 @@ export default function Admin() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium text-destructive">
-                        {deleteIssues.failed.length} of the selected accounts could not be deleted
+                        {deleteIssues.failed.length + deleteIssues.skipped.length} of the selected accounts could not
+                        be deleted
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Successful deletions were applied. The accounts below are still selected so you can retry.
