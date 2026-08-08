@@ -258,26 +258,42 @@ export default function Admin() {
                 </Select>
               </div>
 
-              {selected.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2">
-                  <span className="text-sm font-medium" data-testid="selection-count">
-                    {selected.length} user{selected.length === 1 ? "" : "s"} selected
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleAllVisible(!allVisibleSelected)}
+                  disabled={visibleIds.length === 0}
+                >
+                  {allVisibleSelected ? "Deselect visible" : "Select all visible"}
+                </Button>
+                <span className="text-sm font-medium" data-testid="selection-count">
+                  {selected.length} user{selected.length === 1 ? "" : "s"} selected
+                </span>
+                {selectedOffPage > 0 && (
+                  <span className="text-xs text-muted-foreground" data-testid="selection-offpage">
+                    ({selectedOffPage} on other pages/filters)
                   </span>
-                  <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
-                    Clear selection
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      setConfirmText("");
-                      setDeleteOpen(true);
-                    }}
-                  >
-                    Delete selected users
-                  </Button>
-                </div>
-              )}
+                )}
+                {selected.length > 0 && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
+                      Clear selection
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setConfirmText("");
+                        setDeleteOpen(true);
+                      }}
+                    >
+                      Delete selected users
+                    </Button>
+                  </>
+                )}
+              </div>
+
             </CardHeader>
             <CardContent>
               {usersLoading && <p className="text-sm text-muted-foreground">Loading users…</p>}
