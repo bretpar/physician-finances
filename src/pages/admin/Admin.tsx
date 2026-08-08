@@ -179,6 +179,7 @@ export default function Admin() {
   const runBulkDelete = async () => {
     if (bulkDelete.isPending || confirmText !== "DELETE" || selected.length === 0) return;
     setProgress({ processed: 0, total: selected.length });
+    setDeleteIssues(null);
     try {
       const result = await bulkDelete.mutateAsync({
         userIds: selected,
@@ -193,7 +194,16 @@ export default function Admin() {
         description: `${skippedNote}${failedNote}`.trim() || "All selected accounts were removed.",
         variant: result.failed.length ? "destructive" : undefined,
       });
+      // Successful deletions stay applied; only unresolved rows remain selected.
       setSelected((prev) => prev.filter((id) => !result.deleted.includes(id)));
+      setDeleteIssues(
+        result.failed.length || result.skipped.length
+          ? {
+              failed: result.failed.map((f) => ({ userId: f.user_id, message: f.error })),
+              skipped: result.skipped.map((s) => ({ userId: s.user_id, message: s.reason })),
+            }
+          : null,
+      );
       setDeleteOpen(false);
       setConfirmText("");
     } catch (e) {
@@ -206,6 +216,10 @@ export default function Admin() {
       setProgress(null);
     }
   };
+
+  const labelForUser = (userId: string) =>
+    (users ?? []).find((u) => u.userId === userId)?.email ?? userId;
+
 
   const RoleSelect = ({ row }: { row: AdminUserRow }) => (
     <Select value={row.role} onValueChange={(next) => setPending({ user: row, next: next as AccountRole })}>
