@@ -470,13 +470,16 @@ export default function Admin() {
       <AlertDialog
         open={deleteOpen}
         onOpenChange={(open) => {
-          if (!open) {
+          // Never dismiss while the edge function is running.
+          if (!open && !bulkDelete.isPending) {
             setDeleteOpen(false);
             setConfirmText("");
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onEscapeKeyDown={(e) => bulkDelete.isPending && e.preventDefault()}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selected.length} account{selected.length === 1 ? "" : "s"}?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -500,21 +503,41 @@ export default function Admin() {
             Your own account and the last remaining developer account are always excluded.
           </p>
 
-          <div className="space-y-2">
-            <label htmlFor="bulk-delete-confirm" className="text-sm font-medium">
-              Type DELETE to confirm
-            </label>
-            <Input
-              id="bulk-delete-confirm"
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              placeholder="DELETE"
-              autoComplete="off"
-            />
-          </div>
+          {bulkDelete.isPending && progress ? (
+            <div className="space-y-2" aria-live="polite">
+              <p className="text-sm font-medium" data-testid="bulk-delete-progress">
+                Deleting {progress.processed}/{progress.total} users…
+              </p>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{
+                    width: `${progress.total ? (progress.processed / progress.total) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Keep this dialog open until the cleanup finishes.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label htmlFor="bulk-delete-confirm" className="text-sm font-medium">
+                Type DELETE to confirm
+              </label>
+              <Input
+                id="bulk-delete-confirm"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+                disabled={bulkDelete.isPending}
+              />
+            </div>
+          )}
 
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={bulkDelete.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -522,9 +545,13 @@ export default function Admin() {
               }}
               disabled={confirmText !== "DELETE" || bulkDelete.isPending}
             >
-              {bulkDelete.isPending ? "Deleting…" : "Delete permanently"}
+              {bulkDelete.isPending
+                ? `Deleting ${progress?.processed ?? 0}/${progress?.total ?? selected.length}…`
+                : "Delete permanently"}
             </AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
         </AlertDialogContent>
       </AlertDialog>
     </div>
