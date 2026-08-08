@@ -71,10 +71,11 @@ describe("/student-loans staged-release route guard", () => {
     expect(screen.getByText("dashboard-page")).toBeTruthy();
   });
 
-  it("redirects to settings only after access is allowed but the toggle is off", () => {
+  it("keeps an entitled developer on the planner when the preference is off", () => {
     state.status = "allowed";
     state.estimatorEnabled = false;
     renderPage();
-    expect(screen.getByText("settings-page")).toBeTruthy();
+    expect(screen.queryByText("settings-page")).toBeNull();
+    expect(screen.queryByText("dashboard-page")).toBeNull();
   });
 });

@@ -86,8 +86,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
   const userType = deriveUserTypeFromIncomeStreams(householdStreams);
-  // Staged release: registry gate first, then the user's Settings toggle.
-  const showStudentLoansNav = can("studentLoanPlanner") && !!taxSettings?.studentLoanEstimatorEnabled;
+  // Entitlement controls visibility. The user preference only configures the
+  // planner after an eligible user opens it; it must not hide the entry point.
+  const showStudentLoansNav = can("studentLoanPlanner");
   const visibleNavItems = navItems.filter((item) => {
     if (item.module === "business") return showBusinessNav;
     if (item.module === "investment") return showInvestmentNav;
