@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Navigate, Link } from "react-router-dom";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import {
