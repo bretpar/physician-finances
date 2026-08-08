@@ -1000,10 +1000,37 @@ export default function Mileage() {
     </div>
   );
 
-  // ─── Collapsed-state summaries (display only — no calculation changes) ───
+  // ─── Collapsed-state summaries ───
+  // Contribution totals (limit tracking) are deliberately kept separate from
+  // personally deductible amounts. Employer-funded HSA / retirement dollars
+  // count toward totals and limits but are never deducted again personally.
   const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
-  const hsaTotal = hsaContributions.reduce((s, c) => s + Number(c.amount || 0), 0);
-  const retirementTotal = annualized.total + paycheckLinked.total;
+  const hsaSummary = computeHsaContributionSummary({
+    taxYear: currentYear,
+    coverage: (taxSettings?.hsaCoverageType as "individual" | "family") || "individual",
+    catchUpEligible: !!taxSettings?.hsaAge55Catchup,
+    contributions: hsaContributions.map((c) => ({
+      amount: Number(c.amount) || 0,
+      source_type: c.source_type,
+      contribution_type: c.contribution_type,
+      contribution_date: c.contribution_date,
+    })),
+  });
+  const hsaContributionTotal = hsaSummary.total;
+  const hsaPersonalDeduction = hsaSummary.deductibleTotal;
+  const retirementSummary = computeRetirementSavingsSummary({
+    standaloneAnnualizedTotal: annualized.total,
+    paycheckEmployeeTotal: paycheckLinked.employeeTotal,
+    paycheckEmployerTotal: paycheckLinked.employerTotal,
+  });
+  const retirementContributionTotal = retirementSummary.contributionTotal;
+  const retirementPersonalDeduction = retirementSummary.personalDeduction;
+  const retirementSummaryText = retirementSummary.employerTotal > 0
+    ? `${fmt(retirementContributionTotal)} contributed · ${fmt(retirementSummary.employerTotal)} employer-funded`
+    : "From contributions tracked this year";
+  const hsaSummaryText = hsaSummary.employer > 0
+    ? `${fmt(hsaContributionTotal)} contributed · ${fmt(hsaSummary.employer)} employer-funded`
+    : "From contributions tracked this year";
 
 
   const businessItems: CategoryItem[] = [
