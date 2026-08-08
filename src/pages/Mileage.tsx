@@ -785,6 +785,16 @@ export default function Mileage() {
         <Plus className="h-4 w-4" /> Add Contribution
       </Button>
 
+      <RetirementRoomSummary
+        taxYear={currentYear}
+        employeeRoom={retirementRoom.employeeRoom}
+        employerContributionTotal={retirementRoom.employerContributionTotal}
+        plans={retirementRoom.plans}
+        hasPlannerAccess={hasPlannerAccess}
+      />
+
+
+
           {retirementIsEmpty ? (
             <>
               <Card>
