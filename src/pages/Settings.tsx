@@ -522,6 +522,7 @@ const FEATURE_LABELS: Record<FeatureKey, string> = {
   basicTaxGapEstimate: "Basic tax gap estimate",
   basicExpenseTracking: "Basic expense tracking",
   basicTaxSavingsEstimate: "Basic tax savings estimate",
+  studentLoanPlanner: "Student loan planner",
 };
 
 const TAX_EXCLUSION_CHOICES_KEY = "paycheckmd-household-income-exclusion-choices";
