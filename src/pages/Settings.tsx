@@ -2696,8 +2696,12 @@ export default function Settings() {
         <HsaSettingsSection bare />
         <Separator className="my-2" />
         <ForecastingAutomationSection bare />
-        <Separator className="my-2" />
-        <StudentLoanEstimatorToggleSection bare />
+        {canStudentLoanPlanner && (
+          <>
+            <Separator className="my-2" />
+            <StudentLoanEstimatorToggleSection bare />
+          </>
+        )}
       </SectionCard>
 
       <SectionCard

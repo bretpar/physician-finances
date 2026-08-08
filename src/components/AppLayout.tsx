@@ -80,13 +80,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
   const { isDeveloper } = useAccountRole();
-  const { featureAccess } = useFeatureAccess();
+  const { featureAccess, can } = useFeatureAccess();
   const householdStreams = taxSettings?.householdIncomeStreams;
   const showBusinessNav = hasBusinessIncomeStream(householdStreams);
   const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
   const userType = deriveUserTypeFromIncomeStreams(householdStreams);
-  const showStudentLoansNav = !!taxSettings?.studentLoanEstimatorEnabled;
+  // Staged release: registry gate first, then the user's Settings toggle.
+  const showStudentLoansNav = can("studentLoanPlanner") && !!taxSettings?.studentLoanEstimatorEnabled;
   const visibleNavItems = navItems.filter((item) => {
     if (item.module === "business") return showBusinessNav;
     if (item.module === "investment") return showInvestmentNav;
