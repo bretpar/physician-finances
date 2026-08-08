@@ -333,6 +333,15 @@ export default function PersonalIncome() {
 
   const showField = (key: ToggleKey) => !!visibleFields[key];
 
+  // Employer contribution fields are opt-in per company. Backward compatibility:
+  // if an existing entry already carries an employer amount, keep the field
+  // visible so historical data is never hidden or orphaned.
+  const showEmployerRetirement =
+    showField("employer_retirement_contribution") ||
+    num(form.employer_retirement_contribution) > 0;
+  const showEmployerHsa =
+    showField("employer_hsa_contribution") || num(form.employer_hsa_contribution) > 0;
+
   // CANONICAL withholding total — sourced from the unified tax engine so this
   // matches Tax Overview and the Withholding Guide exactly. Do NOT re-aggregate
   // federal_withholding / taxes_withheld here. See src/lib/canonicalWithholding.ts.
