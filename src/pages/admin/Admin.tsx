@@ -86,6 +86,8 @@ export default function Admin() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [progress, setProgress] = useState<BulkDeleteProgress | null>(null);
+  const [resetTarget, setResetTarget] = useState<AdminUserRow | null>(null);
+  const [resetConfirm, setResetConfirm] = useState("");
   const [deleteIssues, setDeleteIssues] = useState<{
     failed: Array<{ userId: string; message: string }>;
     skipped: Array<{ userId: string; message: string }>;
@@ -94,6 +96,8 @@ export default function Admin() {
   const { data: users, isLoading: usersLoading, error } = useAdminUsers(isDeveloper);
   const updateRole = useUpdateAccountRole();
   const bulkDelete = useBulkDeleteUsers();
+  const resetUserData = useResetUserData();
+
 
   const [page, setPage] = useState(1);
 
