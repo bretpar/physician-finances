@@ -464,6 +464,30 @@ function StudentLoansPlanner() {
         <h1 className="text-xl font-semibold">Student Loan Estimator</h1>
       </div>
 
+      {/* Setup state: entitled but the user preference is still off. This is a
+          prompt, never a gate — the planner below stays usable. */}
+      {!estimatorEnabled && (
+        <Card className="p-4 space-y-2" data-testid="student-loans-setup">
+          <div className="text-sm font-semibold">Turn on the Student Loan Estimator</div>
+          <p className="text-xs text-muted-foreground">
+            Enable it to keep the Student Loans tab and your saved loan details
+            handy. You can explore the estimates below either way.
+          </p>
+          <Button
+            size="sm"
+            disabled={!settings?.id || updateSettings.isPending}
+            onClick={() =>
+              settings?.id &&
+              updateSettings.mutate({ id: settings.id, studentLoanEstimatorEnabled: true } as any)
+            }
+          >
+            Enable estimator
+          </Button>
+        </Card>
+      )}
+
+
+
       {/* 1. Current Repayment Plan ─────────────── */}
       <CurrentPlanCard
         estimate={estimate}
