@@ -30,6 +30,7 @@ export interface PersonalIncomeEntry {
   taxes_withheld: number;
   pre_tax_deductions: number;
   retirement_401k: number;
+  employer_retirement_contribution?: number;
   healthcare_deduction: number;
   hsa_contribution: number;
   source_bucket: string;
@@ -108,6 +109,9 @@ export function buildIncomeEntryRow(
     taxes_withheld: money(taxesWithheld),
     pre_tax_deductions: money(entry.pre_tax_deductions),
     retirement_401k: money(entry.retirement_401k),
+    // Employer retirement contribution is stored independently from the
+    // employee amount so contribution-room math can distinguish the two.
+    employer_retirement_contribution: money((entry as any).employer_retirement_contribution),
     healthcare_deduction: money(entry.healthcare_deduction),
     hsa_contribution: money(entry.hsa_contribution),
     // BUGFIX: employer_hsa_contribution was previously omitted here, so initial

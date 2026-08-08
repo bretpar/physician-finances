@@ -123,6 +123,7 @@ interface FormState {
   healthcare_deduction: string;
   hsa_contribution: string;
   employer_hsa_contribution: string;
+  employer_retirement_contribution: string;
   source_name: string;
   source_id: string | null;
   source_save_as_new: boolean;
@@ -149,6 +150,7 @@ const emptyForm: FormState = {
   healthcare_deduction: "",
   hsa_contribution: "",
   employer_hsa_contribution: "",
+  employer_retirement_contribution: "",
   source_name: "",
   source_id: null,
   source_save_as_new: false,
@@ -330,6 +332,15 @@ export default function PersonalIncome() {
   }, [companies, form.source_id, form.income_type]);
 
   const showField = (key: ToggleKey) => !!visibleFields[key];
+
+  // Employer contribution fields are opt-in per company. Backward compatibility:
+  // if an existing entry already carries an employer amount, keep the field
+  // visible so historical data is never hidden or orphaned.
+  const showEmployerRetirement =
+    showField("employer_retirement_contribution") ||
+    num(form.employer_retirement_contribution) > 0;
+  const showEmployerHsa =
+    showField("employer_hsa_contribution") || num(form.employer_hsa_contribution) > 0;
 
   // CANONICAL withholding total — sourced from the unified tax engine so this
   // matches Tax Overview and the Withholding Guide exactly. Do NOT re-aggregate
@@ -533,6 +544,7 @@ export default function PersonalIncome() {
       healthcare_deduction: String((entry as any).healthcare_deduction || 0),
       hsa_contribution: String((entry as any).hsa_contribution || 0),
       employer_hsa_contribution: String((entry as any).employer_hsa_contribution || 0),
+      employer_retirement_contribution: String((entry as any).employer_retirement_contribution || 0),
       source_name: entry.company,
       source_id: (entry as any).source_id ?? null,
       source_save_as_new: false,
@@ -603,6 +615,7 @@ export default function PersonalIncome() {
         healthcare_deduction: num(form.healthcare_deduction),
         hsa_contribution: num(form.hsa_contribution),
         employer_hsa_contribution: num(form.employer_hsa_contribution),
+        employer_retirement_contribution: num(form.employer_retirement_contribution),
         is_actual: true,
         include_in_tax_estimate: true,
         include_in_cash_flow: false,
@@ -1362,12 +1375,28 @@ export default function PersonalIncome() {
                   {/* Federal/state/SS/Medicare moved out into the
                       simplified TotalFederalTaxField above. */}
 
-                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showEmployerRetirement || showField("healthcare_deduction") || showField("hsa_contribution") || showEmployerHsa || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (
                         <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Retirement / 401(k)</Label>
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Employee retirement contribution</Label>
                           <Input data-testid="paycheck-401k-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.retirement_pretax} onChange={(e) => setField("retirement_pretax", e.target.value)} />
+                        </div>
+                      )}
+                      {showEmployerRetirement && (
+                        <div>
+                          <Label
+                            className="text-xs text-muted-foreground mb-1.5 block"
+                            title="Employer retirement contribution (match or profit sharing) funded by the employer. Tracked separately from your own contribution."
+                          >
+                            Employer retirement contribution
+                          </Label>
+                          <Input
+                            data-testid="paycheck-employer-401k-input"
+                            type="number" min="0" step="0.01" placeholder="0.00"
+                            value={form.employer_retirement_contribution}
+                            onChange={(e) => setField("employer_retirement_contribution", e.target.value)}
+                          />
                         </div>
                       )}
                       {showField("healthcare_deduction") && (
@@ -1382,7 +1411,7 @@ export default function PersonalIncome() {
                             className="text-xs text-muted-foreground mb-1.5 block"
                             title="Your pre-tax HSA contribution deducted from this paycheck (Section 125). Reduces your W-2 wages."
                           >
-                            HSA — Employee (pre-tax)
+                            Employee HSA contribution
                           </Label>
                           <Input
                             data-testid="paycheck-hsa-input"
@@ -1395,13 +1424,13 @@ export default function PersonalIncome() {
                           />
                         </div>
                       )}
-                      {showField("hsa_contribution") && (
+                      {showEmployerHsa && (
                         <div>
                           <Label
                             className="text-xs text-muted-foreground mb-1.5 block"
                             title="Employer HSA contribution funded by your employer. Not part of your take-home pay. Counts toward the annual HSA limit but is not an additional deduction."
                           >
-                            HSA — Employer contribution
+                            Employer HSA contribution
                           </Label>
                           <Input
                             data-testid="paycheck-employer-hsa-input"

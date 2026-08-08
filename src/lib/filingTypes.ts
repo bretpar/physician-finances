@@ -153,8 +153,10 @@ export type IncomeFieldKey =
   | "medicare_withholding"
   | "pre_tax_deductions"
   | "retirement_401k"
+  | "employer_retirement_contribution"
   | "healthcare_deduction"
   | "hsa_contribution"
+  | "employer_hsa_contribution"
   | "actual_withholding"
   | "additional_tax_reserve"
   | "guaranteed_payment"
@@ -167,15 +169,19 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "actual_withholding",
     "additional_tax_reserve",
     "retirement_401k",
+    "employer_retirement_contribution",
     "healthcare_deduction",
     "hsa_contribution",
+    "employer_hsa_contribution",
   ],
   "k1_partnership": [
     "net_received",
     "taxes_withheld",
     "healthcare_deduction",
     "hsa_contribution",
+    "employer_hsa_contribution",
     "retirement_401k",
+    "employer_retirement_contribution",
     "pre_tax_deductions",
     "guaranteed_payment",
     "is_distribution",
@@ -189,8 +195,10 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "ss_withholding",
     "medicare_withholding",
     "retirement_401k",
+    "employer_retirement_contribution",
     "healthcare_deduction",
     "hsa_contribution",
+    "employer_hsa_contribution",
     "pre_tax_deductions",
   ],
   "scorp_distribution": [
@@ -199,6 +207,7 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "additional_tax_reserve",
     "healthcare_deduction",
     "hsa_contribution",
+    "employer_hsa_contribution",
   ],
   "w2": [
     "net_received",
@@ -207,8 +216,10 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "ss_withholding",
     "medicare_withholding",
     "retirement_401k",
+    "employer_retirement_contribution",
     "healthcare_deduction",
     "hsa_contribution",
+    "employer_hsa_contribution",
     "pre_tax_deductions",
   ],
   "other": [
@@ -218,6 +229,7 @@ export const ADVANCED_FIELDS_BY_TYPE: Record<FilingType, IncomeFieldKey[]> = {
     "additional_tax_reserve",
     "healthcare_deduction",
     "hsa_contribution",
+    "employer_hsa_contribution",
   ],
 };
 
@@ -240,17 +252,21 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "net_received", label: "Net received" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "actual_withholding", label: "Amount you're saving for taxes" },
-    { key: "retirement_401k", label: "Solo 401(k) / retirement contribution" },
+    { key: "retirement_401k", label: "Employee retirement contribution" },
+    { key: "employer_retirement_contribution", label: "Employer retirement contribution" },
     { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
-    { key: "hsa_contribution", label: "HSA contribution" },
+    { key: "hsa_contribution", label: "Employee HSA contribution" },
+    { key: "employer_hsa_contribution", label: "Employer HSA contribution" },
     { key: "notes", label: "Notes" },
   ],
   "k1_partnership": [
     { key: "net_received", label: "Net received" },
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "healthcare_deduction", label: "Partner health insurance deduction" },
-    { key: "hsa_contribution", label: "HSA contribution" },
-    { key: "retirement_401k", label: "Partner retirement / 401(k) contribution" },
+    { key: "hsa_contribution", label: "Employee HSA contribution" },
+    { key: "employer_hsa_contribution", label: "Employer HSA contribution" },
+    { key: "retirement_401k", label: "Employee retirement contribution" },
+    { key: "employer_retirement_contribution", label: "Employer retirement contribution" },
     { key: "pre_tax_deductions", label: "Other partner deductions" },
     { key: "guaranteed_payment", label: "Guaranteed payment" },
     { key: "is_distribution", label: "Distribution amount" },
@@ -263,9 +279,11 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "state_withholding", label: "State tax withheld" },
     { key: "ss_withholding", label: "Social Security tax withheld" },
     { key: "medicare_withholding", label: "Medicare tax withheld" },
-    { key: "retirement_401k", label: "Employee 401(k) contribution" },
+    { key: "retirement_401k", label: "Employee retirement contribution" },
+    { key: "employer_retirement_contribution", label: "Employer retirement contribution" },
     { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
-    { key: "hsa_contribution", label: "HSA contribution" },
+    { key: "hsa_contribution", label: "Employee HSA contribution" },
+    { key: "employer_hsa_contribution", label: "Employer HSA contribution" },
     { key: "pre_tax_deductions", label: "Other pre-tax deductions" },
     { key: "notes", label: "Notes" },
   ],
@@ -274,7 +292,8 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "actual_withholding", label: "Amount you're saving for taxes" },
     { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
-    { key: "hsa_contribution", label: "HSA contribution" },
+    { key: "hsa_contribution", label: "Employee HSA contribution" },
+    { key: "employer_hsa_contribution", label: "Employer HSA contribution" },
     { key: "notes", label: "Notes" },
   ],
   "w2": [
@@ -283,9 +302,11 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "state_withholding", label: "State tax withheld" },
     { key: "ss_withholding", label: "Social Security tax withheld" },
     { key: "medicare_withholding", label: "Medicare tax withheld" },
-    { key: "retirement_401k", label: "401(k) contribution" },
+    { key: "retirement_401k", label: "Employee retirement contribution" },
+    { key: "employer_retirement_contribution", label: "Employer retirement contribution" },
     { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
-    { key: "hsa_contribution", label: "HSA contribution" },
+    { key: "hsa_contribution", label: "Employee HSA contribution" },
+    { key: "employer_hsa_contribution", label: "Employer HSA contribution" },
     { key: "pre_tax_deductions", label: "Other pre-tax deductions" },
     { key: "notes", label: "Notes" },
   ],
@@ -294,7 +315,8 @@ export const TOGGLE_OPTIONS_BY_TYPE: Record<FilingType, ToggleOption[]> = {
     { key: "taxes_withheld", label: "Taxes actually withheld" },
     { key: "actual_withholding", label: "Amount you're saving for taxes" },
     { key: "healthcare_deduction", label: "Health insurance / Healthcare deduction" },
-    { key: "hsa_contribution", label: "HSA contribution" },
+    { key: "hsa_contribution", label: "Employee HSA contribution" },
+    { key: "employer_hsa_contribution", label: "Employer HSA contribution" },
     { key: "notes", label: "Notes" },
   ],
 };

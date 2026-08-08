@@ -246,6 +246,7 @@ export type Database = {
           deposited_amount: number
           dynamic_tax_recommendation: number
           employer_hsa_contribution: number
+          employer_retirement_contribution: number
           entry_kind: string
           federal_withholding: number
           gross_amount: number
@@ -295,6 +296,7 @@ export type Database = {
           deposited_amount?: number
           dynamic_tax_recommendation?: number
           employer_hsa_contribution?: number
+          employer_retirement_contribution?: number
           entry_kind?: string
           federal_withholding?: number
           gross_amount?: number
@@ -344,6 +346,7 @@ export type Database = {
           deposited_amount?: number
           dynamic_tax_recommendation?: number
           employer_hsa_contribution?: number
+          employer_retirement_contribution?: number
           entry_kind?: string
           federal_withholding?: number
           gross_amount?: number

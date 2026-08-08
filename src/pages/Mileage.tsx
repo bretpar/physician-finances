@@ -200,10 +200,14 @@ export default function Mileage() {
   const saveHomeOffice = useSaveHomeOfficeDeduction();
   const deleteHomeOffice = useDeleteHomeOfficeDeduction();
   const paycheckLinked = useMemo(() => {
-    if (!incomeEntries) return { entries: [], total: 0 };
-    const entries = incomeEntries.filter((e) => Number(e.retirement_401k) > 0);
-    const total = entries.reduce((s, e) => s + Number(e.retirement_401k), 0);
-    return { entries, total };
+    if (!incomeEntries) return { entries: [], total: 0, employeeTotal: 0, employerTotal: 0 };
+    const emp = (e: any) => Number(e.employer_retirement_contribution) || 0;
+    const entries = incomeEntries.filter(
+      (e) => Number(e.retirement_401k) > 0 || emp(e) > 0,
+    );
+    const employeeTotal = entries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
+    const employerTotal = entries.reduce((s, e) => s + emp(e), 0);
+    return { entries, total: employeeTotal + employerTotal, employeeTotal, employerTotal };
   }, [incomeEntries]);
 
   const [contribForm, setContribForm] = useState<ContribForm>(emptyContribForm);
@@ -691,18 +695,22 @@ export default function Mileage() {
             </>
           ) : (
           /* Summary cards — include both standalone + paycheck-linked */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + paycheck-linked</p></CardContent>
+              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + employee + employer</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
               <CardContent><p className="text-2xl font-bold">{fmt(annualized.total)}</p><p className="text-xs text-muted-foreground">{contributions?.length || 0} configured</p></CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">From Paychecks (YTD)</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">{paycheckLinked.entries.length} income entries</p></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Employee (YTD)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">{paycheckLinked.entries.length} income entries</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Employer (YTD)</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold">{fmt(paycheckLinked.employerTotal)}</p><p className="text-xs text-muted-foreground">Employer match / profit sharing</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Affects Withholding</CardTitle></CardHeader>
@@ -722,7 +730,7 @@ export default function Mileage() {
                 {paycheckLinked.entries.slice(0, 5).map((ie) => (
                   <div key={ie.id} className="flex items-center justify-between text-sm gap-3">
                     <span className="text-muted-foreground truncate">{ie.income_date} — {ie.name}</span>
-                    <span className="tabular-nums font-medium shrink-0">{fmt(Number(ie.retirement_401k))}</span>
+                    <span className="tabular-nums font-medium shrink-0">{fmt(Number(ie.retirement_401k || 0) + Number((ie as any).employer_retirement_contribution || 0))}</span>
                   </div>
                 ))}
               </CardContent>
@@ -877,7 +885,8 @@ export default function Mileage() {
                         <TableHead>Income Entry</TableHead>
                         <TableHead>Company</TableHead>
                         <TableHead>Type</TableHead>
-                        <TableHead className="text-right">401k Amount</TableHead>
+                        <TableHead className="text-right">Employee</TableHead>
+                        <TableHead className="text-right">Employer</TableHead>
                         <TableHead className="text-right">Paycheck</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -888,7 +897,8 @@ export default function Mileage() {
                           <TableCell className="font-medium">{ie.name}</TableCell>
                           <TableCell>{ie.company}</TableCell>
                           <TableCell><Badge variant="outline">{ie.income_type}</Badge></TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">{fmt(Number(ie.retirement_401k))}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{fmt(Number(ie.retirement_401k || 0))}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{fmt(Number((ie as any).employer_retirement_contribution || 0))}</TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(Number(ie.paycheck_amount))}</TableCell>
                         </TableRow>
                       ))}
