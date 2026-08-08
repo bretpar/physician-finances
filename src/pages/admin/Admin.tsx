@@ -552,8 +552,6 @@ export default function Admin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
