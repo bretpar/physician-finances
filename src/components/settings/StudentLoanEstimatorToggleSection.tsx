@@ -1,34 +1,44 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
-import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { GraduationCap } from "lucide-react";
 
-interface Draft {
-  studentLoanEstimatorEnabled: boolean;
-}
-
+/**
+ * Enable/disable the Student Loan Estimator (a USER PREFERENCE — never an
+ * access gate; the release entitlement is `studentLoanPlanner`).
+ *
+ * The switch is write-through: flipping it persists immediately to the
+ * canonical `tax_settings.student_loan_estimator_enabled` column. The previous
+ * draft-based version only mutated local state until an explicit Save press,
+ * so the toggle looked ON but never reached the server and reverted to OFF on
+ * the next sign-in.
+ */
 export function StudentLoanEstimatorToggleSection({ bare = false }: { bare?: boolean } = {}) {
   const { data, isLoading } = useTaxSettings();
   const updateMutation = useUpdateTaxSettings();
   const [savedTick, setSavedTick] = useState(false);
+  // Optimistic value shown only while the write is in flight; cleared on
+  // settle so the UI always falls back to the server-loaded truth.
+  const [pending, setPending] = useState<boolean | null>(null);
 
-  const source: Draft = useMemo(
-    () => ({ studentLoanEstimatorEnabled: !!data?.studentLoanEstimatorEnabled }),
-    [data?.studentLoanEstimatorEnabled],
-  );
+  const serverValue = !!data?.studentLoanEstimatorEnabled;
+  const checked = pending ?? serverValue;
 
-  const draft = useSectionDraft<Draft>({
-    source,
-    onSave: async (next) => {
-      if (!data?.id) throw new Error("Tax settings not loaded");
-      await updateMutation.mutateAsync({ id: data.id, studentLoanEstimatorEnabled: next.studentLoanEstimatorEnabled } as any);
+  const handleChange = async (next: boolean) => {
+    if (!data?.id) return;
+    setPending(next);
+    try {
+      await updateMutation.mutateAsync({ id: data.id, studentLoanEstimatorEnabled: next } as any);
       setSavedTick(true);
       setTimeout(() => setSavedTick(false), 2000);
-    },
-  });
+    } catch {
+      // useUpdateTaxSettings surfaces the error toast; never claim success.
+    } finally {
+      setPending(null);
+    }
+  };
 
   if (!isLoading && !data) {
     return (
@@ -46,11 +56,8 @@ export function StudentLoanEstimatorToggleSection({ bare = false }: { bare?: boo
       title="Student Loan Estimator"
       icon={<GraduationCap className="h-5 w-5" />}
       description="Optional tool for estimating federal student loan payments and comparing filing status."
-      isDirty={draft.isDirty}
-      isSaving={draft.isSaving}
+      isSaving={updateMutation.isPending}
       justSaved={savedTick}
-      onSave={draft.save}
-      onCancel={draft.cancel}
     >
       <div>
         <Label className="text-xs text-muted-foreground mb-1.5 block">
@@ -64,9 +71,11 @@ export function StudentLoanEstimatorToggleSection({ bare = false }: { bare?: boo
             for student loan strategy. Off by default.
           </p>
           <Switch
-            checked={draft.draft.studentLoanEstimatorEnabled}
-            onCheckedChange={(v) => draft.patch({ studentLoanEstimatorEnabled: v })}
+            checked={checked}
+            disabled={updateMutation.isPending || !data?.id}
+            onCheckedChange={handleChange}
             aria-label="Toggle Student Loan Estimator"
+            data-testid="student-loan-estimator-switch"
           />
         </div>
       </div>
