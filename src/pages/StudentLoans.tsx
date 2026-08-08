@@ -118,11 +118,6 @@ export default function StudentLoans() {
     return <Navigate to="/" replace />;
   }
 
-  if (!settingsLoading && settings && !settings.studentLoanEstimatorEnabled) {
-    return <Navigate to="/settings" replace />;
-  }
-
-
   const projectedTotalIncome = Math.max(0, forecastEstimate?.totalIncome ?? 0);
   const projectedAgi = Math.max(0, forecastEstimate?.agi ?? 0);
   // Above-the-line AGI adjustments already computed by the PaycheckMD tax
