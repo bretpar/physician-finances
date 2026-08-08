@@ -54,6 +54,16 @@ import { isCategoryStillVisible } from "@/lib/taxSavingsCategories";
 import { computeHsaContributionSummary } from "@/lib/hsaComputation";
 import { computeRetirementSavingsSummary } from "@/lib/taxSavingsDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import {
+  useProjectedStreams, useProjectedBonuses, useStreamOverrides, usePlannerConversionsFull,
+  generateProjectedPaychecks,
+} from "@/hooks/useProjectedIncome";
+import {
+  computeEmployeeContributionRoom, computePlanCapacities, sumRemainingPlannedIncomeByCompany,
+  type PlanInput,
+} from "@/lib/retirementContributionRoom";
+import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
