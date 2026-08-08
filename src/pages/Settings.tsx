@@ -2670,6 +2670,7 @@ export default function Settings() {
   // wiring a top-level dirty signal through context-less mechanism:
   // each section sets a window-level flag.
   const [dirtyMap, setDirtyMap] = useState<Record<string, boolean>>({});
+  const canStudentLoanPlanner = useFeatureAccess().can("studentLoanPlanner");
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { key: string; dirty: boolean };
