@@ -76,22 +76,61 @@ export interface BulkDeleteResult {
   orphaned_tables: string[];
 }
 
+export interface BulkDeleteProgress {
+  processed: number;
+  total: number;
+}
+
+const DELETE_CHUNK_SIZE = 10;
+
 /**
  * Bulk account deletion. Privileged work happens entirely in the
  * `admin-delete-users` edge function, which re-verifies developer status.
+ * Requests are chunked so progress can be reported to the UI.
  */
 export function useBulkDeleteUsers() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userIds: string[]): Promise<BulkDeleteResult> => {
-      const { data, error } = await supabase.functions.invoke("admin-delete-users", {
-        body: { user_ids: userIds },
-      });
-      if (error) throw error;
-      const result = data as BulkDeleteResult;
-      if (!result?.deleted) throw new Error("Unexpected response from delete service");
-      return result;
+    mutationFn: async ({
+      userIds,
+      onProgress,
+    }: {
+      userIds: string[];
+      onProgress?: (progress: BulkDeleteProgress) => void;
+    }): Promise<BulkDeleteResult> => {
+      const total = userIds.length;
+      const aggregate: BulkDeleteResult = {
+        ok: true,
+        deleted: [],
+        skipped: [],
+        failed: [],
+        orphaned_tables: [],
+      };
+
+      onProgress?.({ processed: 0, total });
+
+      for (let i = 0; i < total; i += DELETE_CHUNK_SIZE) {
+        const chunk = userIds.slice(i, i + DELETE_CHUNK_SIZE);
+        const { data, error } = await supabase.functions.invoke("admin-delete-users", {
+          body: { user_ids: chunk },
+        });
+        if (error) throw error;
+        const result = data as BulkDeleteResult;
+        if (!result?.deleted) throw new Error("Unexpected response from delete service");
+
+        aggregate.ok = aggregate.ok && result.ok !== false;
+        aggregate.deleted.push(...result.deleted);
+        aggregate.skipped.push(...(result.skipped ?? []));
+        aggregate.failed.push(...(result.failed ?? []));
+        for (const table of result.orphaned_tables ?? []) {
+          if (!aggregate.orphaned_tables.includes(table)) aggregate.orphaned_tables.push(table);
+        }
+
+        onProgress?.({ processed: Math.min(i + chunk.length, total), total });
+      }
+
+      return aggregate;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
