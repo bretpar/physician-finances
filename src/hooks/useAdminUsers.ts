@@ -150,3 +150,42 @@ export function useBulkDeleteUsers() {
   });
 }
 
+
+export interface ResetUserDataResult {
+  ok: boolean;
+  user_id: string;
+  email: string | null;
+  auth_account_preserved: boolean;
+  roles_preserved: string[];
+  deleted_by_table: Record<string, number>;
+  total_rows_deleted: number;
+  attachments_removed: number;
+  settings_reset: boolean;
+  onboarding_reset: boolean;
+  failed_tables: Array<{ table: string; error: string }>;
+  preserved: string[];
+}
+
+/**
+ * Developer-only QA data reset. Deliberately a separate endpoint from account
+ * deletion — the auth account, role and admin access are preserved. The edge
+ * function re-verifies developer status server-side.
+ */
+export function useResetUserData() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId }: { userId: string }): Promise<ResetUserDataResult> => {
+      const { data, error } = await supabase.functions.invoke("admin-reset-user-data", {
+        body: { user_id: userId, confirm: "RESET" },
+      });
+      if (error) throw error;
+      const result = data as ResetUserDataResult & { error?: string };
+      if (result?.error) throw new Error(result.error);
+      return result;
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+  });
+}

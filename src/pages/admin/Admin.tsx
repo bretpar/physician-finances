@@ -26,6 +26,7 @@ import {
   filterAdminUsers,
   useAdminUsers,
   useBulkDeleteUsers,
+  useResetUserData,
   useUpdateAccountRole,
   type AdminUserFilter,
   type AdminUserRow,
@@ -86,6 +87,8 @@ export default function Admin() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [progress, setProgress] = useState<BulkDeleteProgress | null>(null);
+  const [resetTarget, setResetTarget] = useState<AdminUserRow | null>(null);
+  const [resetConfirm, setResetConfirm] = useState("");
   const [deleteIssues, setDeleteIssues] = useState<{
     failed: Array<{ userId: string; message: string }>;
     skipped: Array<{ userId: string; message: string }>;
@@ -94,6 +97,8 @@ export default function Admin() {
   const { data: users, isLoading: usersLoading, error } = useAdminUsers(isDeveloper);
   const updateRole = useUpdateAccountRole();
   const bulkDelete = useBulkDeleteUsers();
+  const resetUserData = useResetUserData();
+
 
   const [page, setPage] = useState(1);
 
@@ -230,6 +235,31 @@ export default function Admin() {
   const labelForUser = (userId: string) =>
     (users ?? []).find((u) => u.userId === userId)?.email ?? userId;
 
+  const runReset = async () => {
+    if (!resetTarget || resetConfirm !== "RESET" || resetUserData.isPending) return;
+    try {
+      const result = await resetUserData.mutateAsync({ userId: resetTarget.userId });
+      const failedNote = result.failed_tables?.length
+        ? ` ${result.failed_tables.length} table(s) could not be cleared.`
+        : "";
+      toast({
+        title: "QA data reset complete",
+        description:
+          `QA data reset complete. Login and ${ACCOUNT_ROLE_LABEL[resetTarget.role]} access preserved. ` +
+          `${result.total_rows_deleted} record(s) removed · settings ${result.settings_reset ? "reset" : "unchanged"} · ` +
+          `onboarding ${result.onboarding_reset ? "reset" : "unchanged"}.${failedNote}`,
+        variant: result.ok === false ? "destructive" : undefined,
+      });
+      setResetTarget(null);
+      setResetConfirm("");
+    } catch (e) {
+      toast({
+        title: "Reset failed",
+        description: e instanceof Error ? e.message : "Unexpected error",
+        variant: "destructive",
+      });
+    }
+  };
 
   const RoleSelect = ({ row }: { row: AdminUserRow }) => (
     <Select value={row.role} onValueChange={(next) => setPending({ user: row, next: next as AccountRole })}>
@@ -245,6 +275,23 @@ export default function Admin() {
       </SelectContent>
     </Select>
   );
+
+  const ResetButton = ({ row }: { row: AdminUserRow }) => (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-9"
+      data-testid="reset-qa-data-button"
+      aria-label={`Reset QA data for ${row.email}`}
+      onClick={() => {
+        setResetConfirm("");
+        setResetTarget(row);
+      }}
+    >
+      Reset QA Data
+    </Button>
+  );
+
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
@@ -395,7 +442,10 @@ export default function Admin() {
                           <span>Joined {formatDate(row.createdAt)}</span>
                         </div>
                         <p className="text-xs text-muted-foreground">Last sign-in {formatDate(row.lastSignInAt)}</p>
-                        <RoleSelect row={row} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <RoleSelect row={row} />
+                          <ResetButton row={row} />
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -445,6 +495,7 @@ export default function Admin() {
                             <TableCell className="text-right">
                               <div className="flex justify-end">
                                 <RoleSelect row={row} />
+                                <ResetButton row={row} />
                               </div>
                             </TableCell>
                           </TableRow>
@@ -612,6 +663,64 @@ export default function Admin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={!!resetTarget}
+        onOpenChange={(open) => {
+          if (!open && !resetUserData.isPending) {
+            setResetTarget(null);
+            setResetConfirm("");
+          }
+        }}
+      >
+        <AlertDialogContent data-testid="reset-qa-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset QA data?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  All user-created financial and test data for{" "}
+                  <span className="font-medium text-foreground">{resetTarget?.email}</span> will be
+                  permanently deleted — companies, income, transactions, planner data, contributions,
+                  deductions and tax tracking.
+                </p>
+                <p>
+                  The login account, email, password and{" "}
+                  {resetTarget ? ACCOUNT_ROLE_LABEL[resetTarget.role] : ""} role are preserved. This
+                  does not delete the account.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Type <span className="font-mono font-semibold">RESET</span> to confirm.
+            </p>
+            <Input
+              value={resetConfirm}
+              onChange={(e) => setResetConfirm(e.target.value)}
+              placeholder="RESET"
+              aria-label="Type RESET to confirm"
+              data-testid="reset-qa-confirm-input"
+              disabled={resetUserData.isPending}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetUserData.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="reset-qa-confirm-button"
+              onClick={(e) => {
+                e.preventDefault();
+                void runReset();
+              }}
+              disabled={resetConfirm !== "RESET" || resetUserData.isPending}
+            >
+              {resetUserData.isPending ? "Resetting…" : "Reset user data"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+
   );
 }
