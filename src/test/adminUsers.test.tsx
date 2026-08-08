@@ -166,6 +166,42 @@ describe("admin bulk selection and delete", () => {
     );
   });
 
+  it("lists failures inline and keeps successful deletions applied", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    renderAdmin();
+    await waitFor(() => expect(screen.getAllByText("premium@example.com").length).toBeGreaterThan(0));
+
+    await user.click(screen.getAllByLabelText("Select premium@example.com")[0]);
+    await user.click(screen.getAllByLabelText("Select dev@paycheckmd.com")[0]);
+    await user.click(screen.getByRole("button", { name: /delete selected users/i }));
+    await user.type(screen.getByLabelText(/type delete to confirm/i), "DELETE");
+
+    invokeFn.mockResolvedValue({
+      data: {
+        ok: true,
+        deleted: ["u-2"],
+        skipped: [{ user_id: "dev-1", reason: "cannot delete yourself" }],
+        failed: [{ user_id: "u-2", error: "auth delete failed" }],
+        orphaned_tables: [],
+      },
+      error: null,
+    });
+    await user.click(screen.getByRole("button", { name: /delete permanently/i }));
+
+    const panel = await screen.findByTestId("bulk-delete-issues");
+    expect(panel).toHaveTextContent("2 of the selected accounts could not be deleted");
+    expect(screen.getByTestId("bulk-delete-failed-row")).toHaveTextContent("auth delete failed");
+    expect(screen.getByTestId("bulk-delete-skipped-row")).toHaveTextContent("cannot delete yourself");
+    // Successful deletion is applied: u-2 is no longer selected, dev-1 remains.
+    expect(screen.getByTestId("selection-count")).toHaveTextContent("1 user selected");
+
+    await user.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(screen.queryByTestId("bulk-delete-issues")).toBeNull();
+  });
+
+
+
   it("hides bulk delete controls from non-developers", async () => {
     mockRole = "premium";
     renderAdmin();
