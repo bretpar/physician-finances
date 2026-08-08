@@ -306,7 +306,7 @@ export default function Admin() {
                 <>
                   {/* Mobile cards */}
                   <ul className="space-y-3 md:hidden" data-testid="admin-user-cards">
-                    {rows.map((row) => (
+                    {pageRows.map((row) => (
                       <li key={row.userId} className="rounded-lg border p-3 space-y-2">
                         <div className="flex items-start gap-2">
                           <Checkbox
@@ -353,7 +353,7 @@ export default function Admin() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rows.map((row) => (
+                        {pageRows.map((row) => (
                           <TableRow key={row.userId}>
                             <TableCell>
                               <Checkbox
@@ -383,6 +383,34 @@ export default function Admin() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground" data-testid="pagination-summary">
+                      Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                      {Math.min(currentPage * PAGE_SIZE, rows.length)} of {rows.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage <= 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Page {currentPage} of {pageCount}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                        disabled={currentPage >= pageCount}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 </>
               )}
