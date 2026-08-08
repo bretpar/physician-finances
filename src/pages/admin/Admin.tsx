@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FeaturesPanel from "@/pages/admin/FeaturesPanel";
 
 const ROLE_OPTIONS: AccountRole[] = ["free", "premium", "premium_beta", "developer"];
+
+const PAGE_SIZE = 25;
 
 const FILTER_OPTIONS: Array<{ value: AdminUserFilter; label: string }> = [
   { value: "all", label: "All roles" },
