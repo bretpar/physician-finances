@@ -89,18 +89,44 @@ export default function Admin() {
   const updateRole = useUpdateAccountRole();
   const bulkDelete = useBulkDeleteUsers();
 
+  const [page, setPage] = useState(1);
+
   const rows = useMemo(
     () => applyAdminUserFilter(filterAdminUsers(users ?? [], search), filter),
     [users, search, filter],
   );
   const developerCount = useMemo(() => (users ?? []).filter((u) => u.role === "developer").length, [users]);
 
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = useMemo(
+    () => rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [rows, currentPage],
+  );
+
+  // Reset to the first page whenever the result set changes.
+  useEffect(() => {
+    setPage(1);
+  }, [search, filter]);
+
+  // Drop selections for users that no longer exist server-side.
+  useEffect(() => {
+    if (!users) return;
+    const known = new Set(users.map((u) => u.userId));
+    setSelected((prev) => {
+      const next = prev.filter((id) => known.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [users]);
+
   const selectedRows = useMemo(
     () => (users ?? []).filter((u) => selected.includes(u.userId)),
     [users, selected],
   );
-  const visibleIds = rows.map((r) => r.userId);
+  // "Visible" always means the rows rendered on the current page.
+  const visibleIds = pageRows.map((r) => r.userId);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
+  const selectedOffPage = selected.filter((id) => !visibleIds.includes(id)).length;
 
   if (isLoading) {
     return (
