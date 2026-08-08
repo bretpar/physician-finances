@@ -362,9 +362,17 @@ export function HsaLedgerSection() {
                   Individual <span className="font-medium text-foreground">{fmt(hsaSummary.individual)}</span>
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-foreground font-medium">
-                  Total <span>{fmt(hsaSummary.total)}</span>
+                  Total contributed <span>{fmt(hsaSummary.total)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+                  Est. personal deduction <span>{fmt(hsaSummary.deductibleTotal)}</span>
                 </span>
               </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Employer contributions count toward your annual limit but are not a personal deduction —
+                they were never included in your taxable income.
+              </p>
+              
               <div className="mt-3 space-y-1.5">
                 <div className="flex items-baseline justify-between text-xs">
                   <span className="text-foreground font-medium">

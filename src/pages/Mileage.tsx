@@ -51,6 +51,8 @@ import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
 import { computeStudentLoanInterestDeduction, STUDENT_LOAN_INTEREST_MAX } from "@/lib/studentLoanInterestDeduction";
 import { isCategoryStillVisible } from "@/lib/taxSavingsCategories";
+import { computeHsaContributionSummary } from "@/lib/hsaComputation";
+import { computeRetirementSavingsSummary } from "@/lib/taxSavingsDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -697,8 +699,12 @@ export default function Mileage() {
           /* Summary cards — include both standalone + paycheck-linked */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Pre-Tax Retirement (YTD)</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Contributions (YTD)</CardTitle></CardHeader>
               <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + employee + employer</p></CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Estimated Personal Deduction</CardTitle></CardHeader>
+              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.total + paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">Employer contributions excluded</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
@@ -998,10 +1004,37 @@ export default function Mileage() {
     </div>
   );
 
-  // ─── Collapsed-state summaries (display only — no calculation changes) ───
+  // ─── Collapsed-state summaries ───
+  // Contribution totals (limit tracking) are deliberately kept separate from
+  // personally deductible amounts. Employer-funded HSA / retirement dollars
+  // count toward totals and limits but are never deducted again personally.
   const homeOfficeAllowedTotal = homeOfficeDeductions.reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
-  const hsaTotal = hsaContributions.reduce((s, c) => s + Number(c.amount || 0), 0);
-  const retirementTotal = annualized.total + paycheckLinked.total;
+  const hsaSummary = computeHsaContributionSummary({
+    taxYear: currentYear,
+    coverage: (taxSettings?.hsaCoverageType as "individual" | "family") || "individual",
+    catchUpEligible: !!taxSettings?.hsaAge55Catchup,
+    contributions: hsaContributions.map((c) => ({
+      amount: Number(c.amount) || 0,
+      source_type: c.source_type,
+      contribution_type: c.contribution_type,
+      contribution_date: c.contribution_date,
+    })),
+  });
+  const hsaContributionTotal = hsaSummary.total;
+  const hsaPersonalDeduction = hsaSummary.deductibleTotal;
+  const retirementSummary = computeRetirementSavingsSummary({
+    standaloneAnnualizedTotal: annualized.total,
+    paycheckEmployeeTotal: paycheckLinked.employeeTotal,
+    paycheckEmployerTotal: paycheckLinked.employerTotal,
+  });
+  const retirementContributionTotal = retirementSummary.contributionTotal;
+  const retirementPersonalDeduction = retirementSummary.personalDeduction;
+  const retirementSummaryText = retirementSummary.employerTotal > 0
+    ? `${fmt(retirementContributionTotal)} contributed · ${fmt(retirementSummary.employerTotal)} employer-funded`
+    : "From contributions tracked this year";
+  const hsaSummaryText = hsaSummary.employer > 0
+    ? `${fmt(hsaContributionTotal)} contributed · ${fmt(hsaSummary.employer)} employer-funded`
+    : "From contributions tracked this year";
 
 
   const businessItems: CategoryItem[] = [
@@ -1030,9 +1063,9 @@ export default function Mileage() {
       description: "Solo 401(k), SEP and similar contributions lower your taxable income.",
       status: (retirementIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
       actionLabel: (retirementIsEmpty ? "Add" : "Edit") as OpportunityActionLabel,
-      amount: retirementIsEmpty ? undefined : fmt(retirementTotal),
-      deductionValue: retirementIsEmpty ? 0 : retirementTotal,
-      summary: retirementIsEmpty ? "No contributions yet" : "From contributions tracked this year",
+      amount: retirementIsEmpty ? undefined : fmt(retirementPersonalDeduction),
+      deductionValue: retirementIsEmpty ? 0 : retirementPersonalDeduction,
+      summary: retirementIsEmpty ? "No contributions yet" : retirementSummaryText,
       content: retirementContent,
     }] : []),
     ...(!showPersonalSection && showHsa ? [{
@@ -1040,9 +1073,9 @@ export default function Mileage() {
       description: "Pre-tax dollars set aside for qualified medical expenses.",
       status: (hsaEnabled ? "configured" : "not_configured") as OpportunityStatus,
       actionLabel: (hsaEnabled ? "Edit" : "Enable") as OpportunityActionLabel,
-      amount: hsaEnabled ? fmt(hsaTotal) : undefined,
-      deductionValue: hsaEnabled ? hsaTotal : 0,
-      summary: hsaEnabled ? "From contributions tracked this year" : "Tracking not enabled",
+      amount: hsaEnabled ? fmt(hsaPersonalDeduction) : undefined,
+      deductionValue: hsaEnabled ? hsaPersonalDeduction : 0,
+      summary: hsaEnabled ? hsaSummaryText : "Tracking not enabled",
       content: hsaContent,
     }] : []),
     {
@@ -1060,9 +1093,9 @@ export default function Mileage() {
           description: "Pre-tax retirement contributions reduce your taxable income.",
           status: (retirementIsEmpty ? "not_configured" : "configured") as OpportunityStatus,
           actionLabel: (retirementIsEmpty ? "Add" : "Edit") as OpportunityActionLabel,
-          amount: retirementIsEmpty ? undefined : fmt(retirementTotal),
-          deductionValue: retirementIsEmpty ? 0 : retirementTotal,
-          summary: retirementIsEmpty ? "No contributions yet" : "From contributions tracked this year",
+          amount: retirementIsEmpty ? undefined : fmt(retirementPersonalDeduction),
+          deductionValue: retirementIsEmpty ? 0 : retirementPersonalDeduction,
+          summary: retirementIsEmpty ? "No contributions yet" : retirementSummaryText,
           content: retirementContent,
         }] : []),
         ...(showHsa ? [{
@@ -1070,9 +1103,9 @@ export default function Mileage() {
           description: "Pre-tax dollars set aside for qualified medical expenses.",
           status: (hsaEnabled ? "configured" : "not_configured") as OpportunityStatus,
           actionLabel: (hsaEnabled ? "Edit" : "Enable") as OpportunityActionLabel,
-          amount: hsaEnabled ? fmt(hsaTotal) : undefined,
-          deductionValue: hsaEnabled ? hsaTotal : 0,
-          summary: hsaEnabled ? "From contributions tracked this year" : "Tracking not enabled",
+          amount: hsaEnabled ? fmt(hsaPersonalDeduction) : undefined,
+          deductionValue: hsaEnabled ? hsaPersonalDeduction : 0,
+          summary: hsaEnabled ? hsaSummaryText : "Tracking not enabled",
           content: hsaContent,
         }] : []),
         {
