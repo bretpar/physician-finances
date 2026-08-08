@@ -192,6 +192,14 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     minimumRole: "premium",
     status: "active",
   },
+  // ---- Staged release (developer → premium_beta → premium) ----
+  {
+    key: "studentLoanPlanner",
+    name: "Student Loan Planner",
+    description: "Repayment plan estimates and MFJ vs MFS filing comparison for student loans",
+    minimumRole: "developer",
+    status: "active",
+  },
 ];
 
 const REGISTRY_BY_KEY: Record<string, FeatureRegistryEntry> = FEATURE_REGISTRY.reduce(
