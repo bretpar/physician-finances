@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FeaturesPanel from "@/pages/admin/FeaturesPanel";
 
 const ROLE_OPTIONS: AccountRole[] = ["free", "premium", "premium_beta", "developer"];
+
+const PAGE_SIZE = 25;
 
 const FILTER_OPTIONS: Array<{ value: AdminUserFilter; label: string }> = [
   { value: "all", label: "All roles" },
@@ -87,18 +89,44 @@ export default function Admin() {
   const updateRole = useUpdateAccountRole();
   const bulkDelete = useBulkDeleteUsers();
 
+  const [page, setPage] = useState(1);
+
   const rows = useMemo(
     () => applyAdminUserFilter(filterAdminUsers(users ?? [], search), filter),
     [users, search, filter],
   );
   const developerCount = useMemo(() => (users ?? []).filter((u) => u.role === "developer").length, [users]);
 
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = useMemo(
+    () => rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [rows, currentPage],
+  );
+
+  // Reset to the first page whenever the result set changes.
+  useEffect(() => {
+    setPage(1);
+  }, [search, filter]);
+
+  // Drop selections for users that no longer exist server-side.
+  useEffect(() => {
+    if (!users) return;
+    const known = new Set(users.map((u) => u.userId));
+    setSelected((prev) => {
+      const next = prev.filter((id) => known.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [users]);
+
   const selectedRows = useMemo(
     () => (users ?? []).filter((u) => selected.includes(u.userId)),
     [users, selected],
   );
-  const visibleIds = rows.map((r) => r.userId);
+  // "Visible" always means the rows rendered on the current page.
+  const visibleIds = pageRows.map((r) => r.userId);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
+  const selectedOffPage = selected.filter((id) => !visibleIds.includes(id)).length;
 
   if (isLoading) {
     return (
@@ -230,26 +258,42 @@ export default function Admin() {
                 </Select>
               </div>
 
-              {selected.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2">
-                  <span className="text-sm font-medium" data-testid="selection-count">
-                    {selected.length} user{selected.length === 1 ? "" : "s"} selected
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleAllVisible(!allVisibleSelected)}
+                  disabled={visibleIds.length === 0}
+                >
+                  {allVisibleSelected ? "Deselect visible" : "Select all visible"}
+                </Button>
+                <span className="text-sm font-medium" data-testid="selection-count">
+                  {selected.length} user{selected.length === 1 ? "" : "s"} selected
+                </span>
+                {selectedOffPage > 0 && (
+                  <span className="text-xs text-muted-foreground" data-testid="selection-offpage">
+                    ({selectedOffPage} on other pages/filters)
                   </span>
-                  <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
-                    Clear selection
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      setConfirmText("");
-                      setDeleteOpen(true);
-                    }}
-                  >
-                    Delete selected users
-                  </Button>
-                </div>
-              )}
+                )}
+                {selected.length > 0 && (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
+                      Clear selection
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setConfirmText("");
+                        setDeleteOpen(true);
+                      }}
+                    >
+                      Delete selected users
+                    </Button>
+                  </>
+                )}
+              </div>
+
             </CardHeader>
             <CardContent>
               {usersLoading && <p className="text-sm text-muted-foreground">Loading users…</p>}
@@ -262,7 +306,7 @@ export default function Admin() {
                 <>
                   {/* Mobile cards */}
                   <ul className="space-y-3 md:hidden" data-testid="admin-user-cards">
-                    {rows.map((row) => (
+                    {pageRows.map((row) => (
                       <li key={row.userId} className="rounded-lg border p-3 space-y-2">
                         <div className="flex items-start gap-2">
                           <Checkbox
@@ -309,7 +353,7 @@ export default function Admin() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rows.map((row) => (
+                        {pageRows.map((row) => (
                           <TableRow key={row.userId}>
                             <TableCell>
                               <Checkbox
@@ -339,6 +383,34 @@ export default function Admin() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground" data-testid="pagination-summary">
+                      Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                      {Math.min(currentPage * PAGE_SIZE, rows.length)} of {rows.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage <= 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Page {currentPage} of {pageCount}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                        disabled={currentPage >= pageCount}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
                 </>
               )}
