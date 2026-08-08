@@ -51,6 +51,8 @@ import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
 import { computeStudentLoanInterestDeduction, STUDENT_LOAN_INTEREST_MAX } from "@/lib/studentLoanInterestDeduction";
 import { isCategoryStillVisible } from "@/lib/taxSavingsCategories";
+import { computeHsaContributionSummary } from "@/lib/hsaComputation";
+import { computeRetirementSavingsSummary } from "@/lib/taxSavingsDeductions";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
