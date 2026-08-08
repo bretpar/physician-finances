@@ -230,6 +230,31 @@ export default function Admin() {
   const labelForUser = (userId: string) =>
     (users ?? []).find((u) => u.userId === userId)?.email ?? userId;
 
+  const runReset = async () => {
+    if (!resetTarget || resetConfirm !== "RESET" || resetUserData.isPending) return;
+    try {
+      const result = await resetUserData.mutateAsync({ userId: resetTarget.userId });
+      const failedNote = result.failed_tables?.length
+        ? ` ${result.failed_tables.length} table(s) could not be cleared.`
+        : "";
+      toast({
+        title: "QA data reset complete",
+        description:
+          `QA data reset complete. Login and ${ACCOUNT_ROLE_LABEL[resetTarget.role]} access preserved. ` +
+          `${result.total_rows_deleted} record(s) removed · settings ${result.settings_reset ? "reset" : "unchanged"} · ` +
+          `onboarding ${result.onboarding_reset ? "reset" : "unchanged"}.${failedNote}`,
+        variant: result.ok === false ? "destructive" : undefined,
+      });
+      setResetTarget(null);
+      setResetConfirm("");
+    } catch (e) {
+      toast({
+        title: "Reset failed",
+        description: e instanceof Error ? e.message : "Unexpected error",
+        variant: "destructive",
+      });
+    }
+  };
 
   const RoleSelect = ({ row }: { row: AdminUserRow }) => (
     <Select value={row.role} onValueChange={(next) => setPending({ user: row, next: next as AccountRole })}>
@@ -245,6 +270,23 @@ export default function Admin() {
       </SelectContent>
     </Select>
   );
+
+  const ResetButton = ({ row }: { row: AdminUserRow }) => (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-9"
+      data-testid="reset-qa-data-button"
+      aria-label={`Reset QA data for ${row.email}`}
+      onClick={() => {
+        setResetConfirm("");
+        setResetTarget(row);
+      }}
+    >
+      Reset QA Data
+    </Button>
+  );
+
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
