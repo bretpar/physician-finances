@@ -149,7 +149,7 @@ export function computePlanCapacities(taxYear: number, plans: PlanInput[], extra
       employeeContribution,
       employerContribution,
       planContributionTotal,
-      planContributionTotal_: undefined,
+      
       planCurrentCapacity: current.capacity,
       planProjectedCapacity: projected.capacity,
       currentBasis: current.basis,
