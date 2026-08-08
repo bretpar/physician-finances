@@ -194,10 +194,16 @@ export default function Admin() {
         : "";
       const failedNote = result.failed.length ? ` ${result.failed.length} failed.` : "";
       toast({
-        title: `${result.deleted.length} account${result.deleted.length === 1 ? "" : "s"} deleted`,
-        description: `${skippedNote}${failedNote}`.trim() || "All selected accounts were removed.",
+        title: result.stopped
+          ? "Bulk delete stopped"
+          : `${result.deleted.length} account${result.deleted.length === 1 ? "" : "s"} deleted`,
+        description:
+          result.stoppedReason ||
+          `${skippedNote}${failedNote}`.trim() ||
+          "All selected accounts were removed.",
         variant: result.failed.length ? "destructive" : undefined,
       });
+
       // Successful deletions stay applied; only unresolved rows remain selected.
       setSelected((prev) => prev.filter((id) => !result.deleted.includes(id)));
       setDeleteIssues(
