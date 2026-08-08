@@ -86,6 +86,10 @@ export default function Admin() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [progress, setProgress] = useState<BulkDeleteProgress | null>(null);
+  const [deleteIssues, setDeleteIssues] = useState<{
+    failed: Array<{ userId: string; message: string }>;
+    skipped: Array<{ userId: string; message: string }>;
+  } | null>(null);
 
   const { data: users, isLoading: usersLoading, error } = useAdminUsers(isDeveloper);
   const updateRole = useUpdateAccountRole();
@@ -179,6 +183,7 @@ export default function Admin() {
   const runBulkDelete = async () => {
     if (bulkDelete.isPending || confirmText !== "DELETE" || selected.length === 0) return;
     setProgress({ processed: 0, total: selected.length });
+    setDeleteIssues(null);
     try {
       const result = await bulkDelete.mutateAsync({
         userIds: selected,
@@ -193,7 +198,16 @@ export default function Admin() {
         description: `${skippedNote}${failedNote}`.trim() || "All selected accounts were removed.",
         variant: result.failed.length ? "destructive" : undefined,
       });
+      // Successful deletions stay applied; only unresolved rows remain selected.
       setSelected((prev) => prev.filter((id) => !result.deleted.includes(id)));
+      setDeleteIssues(
+        result.failed.length || result.skipped.length
+          ? {
+              failed: result.failed.map((f) => ({ userId: f.user_id, message: f.error })),
+              skipped: result.skipped.map((s) => ({ userId: s.user_id, message: s.reason })),
+            }
+          : null,
+      );
       setDeleteOpen(false);
       setConfirmText("");
     } catch (e) {
@@ -206,6 +220,10 @@ export default function Admin() {
       setProgress(null);
     }
   };
+
+  const labelForUser = (userId: string) =>
+    (users ?? []).find((u) => u.userId === userId)?.email ?? userId;
+
 
   const RoleSelect = ({ row }: { row: AdminUserRow }) => (
     <Select value={row.role} onValueChange={(next) => setPending({ user: row, next: next as AccountRole })}>
@@ -304,6 +322,42 @@ export default function Admin() {
 
             </CardHeader>
             <CardContent>
+              {deleteIssues && (
+                <div
+                  className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+                  data-testid="bulk-delete-issues"
+                  role="alert"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-destructive">
+                        {deleteIssues.failed.length + deleteIssues.skipped.length} of the selected accounts could not
+                        be deleted
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Successful deletions were applied. The accounts below are still selected so you can retry.
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteIssues(null)}>
+                      Dismiss
+                    </Button>
+                  </div>
+                  <ul className="mt-2 space-y-1">
+                    {deleteIssues.failed.map((f) => (
+                      <li key={`failed-${f.userId}`} className="text-xs" data-testid="bulk-delete-failed-row">
+                        <span className="font-medium">{labelForUser(f.userId)}</span>
+                        <span className="text-destructive"> — {f.message}</span>
+                      </li>
+                    ))}
+                    {deleteIssues.skipped.map((s) => (
+                      <li key={`skipped-${s.userId}`} className="text-xs" data-testid="bulk-delete-skipped-row">
+                        <span className="font-medium">{labelForUser(s.userId)}</span>
+                        <span className="text-muted-foreground"> — skipped: {s.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {usersLoading && <p className="text-sm text-muted-foreground">Loading users…</p>}
               {error && <p className="text-sm text-destructive">{(error as Error).message}</p>}
               {!usersLoading && !error && rows.length === 0 && (
