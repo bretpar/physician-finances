@@ -26,6 +26,7 @@ import {
   filterAdminUsers,
   useAdminUsers,
   useBulkDeleteUsers,
+  useResetUserData,
   useUpdateAccountRole,
   type AdminUserFilter,
   type AdminUserRow,
@@ -441,7 +442,10 @@ export default function Admin() {
                           <span>Joined {formatDate(row.createdAt)}</span>
                         </div>
                         <p className="text-xs text-muted-foreground">Last sign-in {formatDate(row.lastSignInAt)}</p>
-                        <RoleSelect row={row} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <RoleSelect row={row} />
+                          <ResetButton row={row} />
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -491,6 +495,7 @@ export default function Admin() {
                             <TableCell className="text-right">
                               <div className="flex justify-end">
                                 <RoleSelect row={row} />
+                                <ResetButton row={row} />
                               </div>
                             </TableCell>
                           </TableRow>
