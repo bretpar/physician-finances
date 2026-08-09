@@ -116,11 +116,16 @@ export default function Taxes() {
   const canAdvancedOverview = canFeature("advancedTaxOverview");
   const canQuarterlyPlanner = canFeature("quarterlyTaxPlanner");
   const canForecastMode = canFeature("incomePlannerForecastMode");
-  const canReserveGuidance = canFeature("advancedWithholdingGuide");
   const accessibleTabs = useMemo(
     () => ["overview", ...(canAdvancedOverview ? ["breakdown"] : []), ...(canW4 ? ["w4-calculator"] : [])],
     [canAdvancedOverview, canW4],
   );
+
+  // Planned-income (forecast) mode is Premium; a locked account must not keep a
+  // forecast view that was selected earlier.
+  useEffect(() => {
+    if (!canForecastMode && taxMode === "forecast") setTaxMode("actual");
+  }, [canForecastMode, taxMode, setTaxMode]);
 
   // Keep the active tab accessible — a Premium tab must never leave the page
   // rendering an unselected tab list with no content.
