@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { useAccountRole } from "@/hooks/useAccountRole";
+
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import BusinessActivity from "@/pages/BusinessActivity";
