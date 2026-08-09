@@ -294,7 +294,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     key: "pageInvestments",
     name: "Investments (page)",
     description: "Access to the Investments page",
-    minimumRole: "free",
+    minimumRole: "premium",
     status: "active",
     type: "page",
   },
