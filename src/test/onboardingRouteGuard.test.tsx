@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Navigate } from "react-router-dom";
 import type { AccountRole } from "@/lib/roles";
 
 /**
