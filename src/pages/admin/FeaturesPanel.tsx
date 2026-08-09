@@ -175,12 +175,12 @@ export default function FeaturesPanel() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{child.name}</p>
                         <p className="text-xs text-muted-foreground">{child.description}</p>
-                        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                           <Badge variant="outline" className="text-[10px]">
                             {FEATURE_TYPE_LABEL[getFeatureType(child)]}
                           </Badge>
                           <span className="font-mono">{child.key}</span>
-                        </p>
+                        </div>
                       </div>
                       <AccessSelect entry={child} className="ml-auto" />
                     </li>
