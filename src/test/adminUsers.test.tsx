@@ -115,12 +115,17 @@ describe("admin features tab", () => {
     rpc.mockResolvedValue({ data: users, error: null });
   });
 
-  it("renders the read-only feature registry for developers", async () => {
+  it("renders the editable feature registry for developers", async () => {
     const { default: FeaturesPanel } = await import("@/pages/admin/FeaturesPanel");
-    render(<FeaturesPanel />);
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <FeaturesPanel />
+      </QueryClientProvider>,
+    );
     expect((await screen.findAllByText("Mileage Deduction")).length).toBeGreaterThan(0);
     expect(screen.getByText(/Feature registry \(/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /edit/i })).toBeNull();
+    // Each feature exposes a required-access selector.
+    expect(screen.getAllByLabelText(/Required access for Mileage Deduction/i).length).toBeGreaterThan(0);
   });
 
   it("keeps the Features tab behind developer protection", async () => {
