@@ -406,6 +406,7 @@ export default function Taxes() {
 
       {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
+          showPaceStatus={canFeature("quarterlySavingsPace")}
           annualTaxLiability={sharedQrInput.annualTaxLiability}
           payments={sharedQrInput.payments ?? []}
           methodLabel={overviewProfile.label}

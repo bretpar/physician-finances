@@ -57,7 +57,7 @@ export default function Dashboard() {
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries, investmentEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const { featureAccess } = useFeatureAccess(userType);
+  const { featureAccess, can: canFeature } = useFeatureAccess(userType);
   const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
   const [profileFirstName, setProfileFirstName] = useState<string>("");
@@ -439,6 +439,7 @@ export default function Dashboard() {
           manualSavings={sharedQrInput.manualSavings}
           fallback={() => (
             <QuarterlyTracker
+              showPaceStatus={canFeature("quarterlySavingsPace")}
               annualTaxLiability={sharedQrInput.annualTaxLiability}
               payments={sharedQrInput.payments ?? []}
               methodLabel={methodLabel}
