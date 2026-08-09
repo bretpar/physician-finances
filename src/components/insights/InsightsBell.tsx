@@ -11,6 +11,7 @@ import {
 import { useInsightNotifications } from "@/hooks/useInsightNotifications";
 import { NotificationsList } from "@/components/insights/InsightsPanel";
 import FinancialAssistantSummary from "@/components/insights/FinancialAssistantSummary";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 /**
  * Notification center trigger. The red badge means "something new" only:
@@ -20,6 +21,8 @@ import FinancialAssistantSummary from "@/components/insights/FinancialAssistantS
 export default function InsightsBell() {
   const [open, setOpen] = useState(false);
   const { notifications, unreadCount, isReady, assistant, markRead } = useInsightNotifications();
+  const { can } = useFeatureAccess();
+  const canAssistant = can("financialAssistantRecommendations");
 
   return (
     <Sheet
@@ -53,11 +56,13 @@ export default function InsightsBell() {
           </SheetDescription>
         </SheetHeader>
         <div className="mt-4 space-y-4">
-          <FinancialAssistantSummary
-            assistant={assistant}
-            isReady={isReady}
-            onNavigate={() => setOpen(false)}
-          />
+          {canAssistant && (
+            <FinancialAssistantSummary
+              assistant={assistant}
+              isReady={isReady}
+              onNavigate={() => setOpen(false)}
+            />
+          )}
           <NotificationsList
             notifications={notifications}
             isReady={isReady}

@@ -253,13 +253,14 @@ export default function Taxes() {
         <TabsList>
           <TabsTrigger value="overview">Tax Overview</TabsTrigger>
           <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>
-          <TabsTrigger value="w4-calculator">W-4 Calculator</TabsTrigger>
+          {canW4 && <TabsTrigger value="w4-calculator">W-4 Calculator</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="breakdown" className="mt-0">
           <TaxBreakdown />
         </TabsContent>
 
+        {canW4 && (
         <TabsContent value="w4-calculator" className="space-y-6 mt-0">
           <div>
             <h1 className="text-xl font-semibold text-foreground">W-4 Calculator</h1>
@@ -269,6 +270,7 @@ export default function Taxes() {
           </div>
           <W4PaycheckAdjustmentCard />
         </TabsContent>
+        )}
 
         <TabsContent value="overview" className="space-y-6 mt-0">
       <div className="flex items-center justify-between flex-wrap gap-3">

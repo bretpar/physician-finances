@@ -397,7 +397,8 @@ export default function QuarterlyTracker({
           </div>
         </div>
 
-        {/* Compact status callout */}
+        {/* Compact status callout — pacing guidance is a gated planning feature */}
+        {canPace && (
         <div className={cn("flex items-center gap-2 text-sm", toneStyles.text)}>
           <Icon className={cn("h-4 w-4 shrink-0", toneStyles.accent)} />
           <span className="truncate">
@@ -406,6 +407,7 @@ export default function QuarterlyTracker({
               : message}
           </span>
         </div>
+        )}
 
         {/* Quarterly payment details (collapsible) */}
         {showRecommendedPayment && (

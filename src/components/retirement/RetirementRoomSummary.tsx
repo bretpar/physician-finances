@@ -23,8 +23,10 @@ export interface RetirementRoomSummaryProps {
   employeeRoom: EmployeeRoomSummary;
   employerContributionTotal: number;
   plans: PlanCapacity[];
-  /** Centralized Income Planner access (scenarioPlanner). */
+  /** Access to the projected contribution capacity view. */
   hasPlannerAccess: boolean;
+  /** Access to employer contribution opportunity insights. Defaults to on. */
+  hasEmployerOpportunityAccess?: boolean;
 }
 
 export function RetirementRoomSummary({
@@ -33,6 +35,7 @@ export function RetirementRoomSummary({
   employerContributionTotal,
   plans,
   hasPlannerAccess,
+  hasEmployerOpportunityAccess = true,
 }: RetirementRoomSummaryProps) {
   const [basis, setBasis] = useState<"ytd" | "projected">("ytd");
   const projected = hasPlannerAccess && basis === "projected";
@@ -141,7 +144,7 @@ export function RetirementRoomSummary({
         )}
 
         {/* Projected opportunity insight */}
-        {hasPlannerAccess && projectedUpside > 0 && (
+        {hasPlannerAccess && hasEmployerOpportunityAccess && projectedUpside > 0 && (
           <div
             data-testid="projected-opportunity"
             className="rounded-lg border bg-muted/40 p-3 text-sm"
