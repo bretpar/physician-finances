@@ -55,6 +55,7 @@ beforeEach(() => {
   invoke.mockReset();
   rpc.mockReset();
   toastSpy.mockReset();
+  mockRole = "developer";
   rpc.mockResolvedValue({
     data: [
       {
@@ -65,10 +66,55 @@ beforeEach(() => {
         created_at: "2026-01-01T00:00:00Z",
         last_sign_in_at: "2026-02-01T00:00:00Z",
       },
+      {
+        user_id: "dev-id",
+        email: "dev@example.com",
+        display_name: "Signed-in Dev",
+        account_role: "developer",
+        created_at: "2026-01-02T00:00:00Z",
+        last_sign_in_at: "2026-02-02T00:00:00Z",
+      },
     ],
     error: null,
   });
 });
+
+describe("Reset QA Data visibility", () => {
+  it("shows the action for another user and for the signed-in developer's own row", async () => {
+    renderAdmin();
+    const buttons = await screen.findAllByTestId("reset-qa-data-button");
+    // 2 rows × (mobile card + desktop table) = 4 controls
+    expect(buttons.length).toBe(4);
+    expect(screen.getAllByLabelText("Reset QA data for qa+dev@example.com").length).toBe(2);
+    expect(screen.getAllByLabelText("Reset QA data for dev@example.com").length).toBe(2);
+  });
+
+  it("renders the action in both the desktop table and the mobile card", async () => {
+    renderAdmin();
+    await screen.findAllByTestId("reset-qa-data-button");
+    const cards = screen.getByTestId("admin-user-cards");
+    expect(cards.querySelectorAll('[data-testid="reset-qa-data-button"]').length).toBe(2);
+    const table = document.querySelector("table")!;
+    expect(table.querySelectorAll('[data-testid="reset-qa-data-button"]').length).toBe(2);
+  });
+
+  it("opens the RESET dialog for the developer's own row", async () => {
+    renderAdmin();
+    await screen.findAllByTestId("reset-qa-data-button");
+    fireEvent.click(screen.getAllByLabelText("Reset QA data for dev@example.com")[0]);
+    const dialog = await screen.findByTestId("reset-qa-dialog");
+    expect(dialog.textContent).toContain("dev@example.com");
+    expect(screen.getByTestId("reset-qa-confirm-button")).toBeDisabled();
+  });
+
+  it("hides reset controls from non-developers", async () => {
+    mockRole = "premium";
+    renderAdmin();
+    await waitFor(() => expect(rpc).not.toHaveBeenCalled());
+    expect(screen.queryAllByTestId("reset-qa-data-button").length).toBe(0);
+  });
+});
+
 
 describe("Admin → Reset QA Data", () => {
   it("requires typing RESET before the reset button is enabled", async () => {
