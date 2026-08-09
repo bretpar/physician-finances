@@ -106,9 +106,23 @@ function ProtectedRoutes() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/business-activity" element={<BusinessActivity />} />
           <Route path="/personal-income" element={<PersonalIncome />} />
-          <Route path="/investments" element={<InvestmentIncome />} />
+          <Route
+            path="/investments"
+            element={
+              <PageAccessGate featureKey="pageInvestments" title="Investments" description="Investment income tracking and tax treatment are Premium features.">
+                <InvestmentIncome />
+              </PageAccessGate>
+            }
+          />
           <Route path="/accounts" element={<Navigate to="/settings" replace />} />
-          <Route path="/projected-income" element={<ProjectedIncome />} />
+          <Route
+            path="/projected-income"
+            element={
+              <PageAccessGate featureKey="pageIncomePlanner" title="Income Planner" description="Planned income and forward-looking tax projections are Premium features.">
+                <ProjectedIncome />
+              </PageAccessGate>
+            }
+          />
           <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />
           <Route path="/reports" element={<Reports />} />
