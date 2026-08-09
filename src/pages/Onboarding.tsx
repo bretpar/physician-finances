@@ -37,6 +37,7 @@ import {
 // Step 3 is the required Free vs Premium plan-selection step.
 const TOTAL_STEPS = 3;
 const PLAN_CHOICE_KEY = "paycheckmd-onboarding-plan";
+const PENDING_DESTINATION_KEY = "paycheckmd-onboarding-destination";
 
 const companyTypeLabels: Record<OnboardingCompanyType, string> = {
   w2: "W-2 Employer",
@@ -761,7 +762,13 @@ export default function Onboarding() {
     sessionStorage.removeItem(PLAN_CHOICE_KEY);
     console.info("[onboarding] completion:success", { settingsId: id, selectedPlan });
     toast.success("Onboarding complete!");
-    navigate("/", { replace: true });
+    let destination = "/";
+    try {
+      destination = sessionStorage.getItem(PENDING_DESTINATION_KEY) || "/";
+      sessionStorage.removeItem(PENDING_DESTINATION_KEY);
+      sessionStorage.removeItem("paycheckmd-onboarding-start");
+    } catch { /* non-fatal */ }
+    navigate(destination, { replace: true });
   }
 
   /**
@@ -917,6 +924,20 @@ export default function Onboarding() {
 
   async function chooseIncomeMethod(method: "manual" | "bank" | "ytd" | "planner") {
     if (saving) return;
+    const destination =
+      method === "manual" ? "/personal-income" :
+      method === "bank" ? "/settings" :
+      method === "ytd" ? "/personal-income?addYtd=1" :
+      "/projected-income";
+    // The plan step is required for brand-new users, including the quick
+    // "how do you want to add income?" path.
+    if (!planChoice) {
+      try { sessionStorage.setItem(PENDING_DESTINATION_KEY, destination); } catch { /* non-fatal */ }
+      sessionStorage.removeItem("paycheckmd-onboarding-start");
+      setShowIncomeMethodPicker(false);
+      await goToPlanStep();
+      return;
+    }
     setSaving(true);
     try {
       // Mark onboarding complete so the user lands in the app and is not bounced
@@ -951,11 +972,6 @@ export default function Onboarding() {
       sessionStorage.removeItem("paycheckmd-onboarding-start");
       sessionStorage.removeItem("paycheckmd-onboarding-step");
       sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
-      const destination =
-        method === "manual" ? "/personal-income" :
-        method === "bank" ? "/settings" :
-        method === "ytd" ? "/personal-income?addYtd=1" :
-        "/projected-income";
       navigate(destination, { replace: true });
     } catch (error: any) {
       toast.error(error.message || "Could not save your choice.");
