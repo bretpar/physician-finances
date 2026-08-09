@@ -493,11 +493,12 @@ export default function Admin() {
                             <TableCell>{formatDate(row.createdAt)}</TableCell>
                             <TableCell>{formatDate(row.lastSignInAt)}</TableCell>
                             <TableCell className="text-right">
-                              <div className="flex justify-end">
+                              <div className="flex justify-end gap-2">
                                 <RoleSelect row={row} />
                                 <ResetButton row={row} />
                               </div>
                             </TableCell>
+
                           </TableRow>
                         ))}
                       </TableBody>
