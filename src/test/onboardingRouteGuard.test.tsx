@@ -60,18 +60,14 @@ vi.mock("@/hooks/useTaxSettings", () => ({
 }));
 
 vi.mock("@/pages/Onboarding", () => ({
-  default: () => {
-    const { user } = require("../contexts/AuthContext").useAuth();
-    if (!user) return <Navigate to="/login" replace />;
-    return (
-      <div data-testid="onboarding-root">
-        Onboarding
-        <button data-testid="onboarding-sign-out" onClick={() => void authState.signOut()}>
-          Sign out
-        </button>
-      </div>
-    );
-  },
+  default: () => (
+    <div data-testid="onboarding-root">
+      Onboarding
+      <button data-testid="onboarding-sign-out" onClick={() => void authState.signOut()}>
+        Sign out
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/pages/admin/Admin", () => ({
