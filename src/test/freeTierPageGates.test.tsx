@@ -8,7 +8,7 @@ import {
 import { PageAccessGate } from "@/components/PageAccessGate";
 import type { StagedAccessStatus } from "@/hooks/useFeatureAccess";
 
-const accessStatus = vi.fn<[string], StagedAccessStatus>(() => "allowed");
+const accessStatus = vi.fn((_key: string): StagedAccessStatus => "allowed");
 
 vi.mock("@/hooks/useFeatureAccess", () => ({
   useFeatureAccess: () => ({ accessStatus }),
