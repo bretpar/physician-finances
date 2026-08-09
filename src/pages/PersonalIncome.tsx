@@ -54,6 +54,7 @@ import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -249,6 +250,10 @@ export default function PersonalIncome() {
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
+  // Advanced dynamic reserve/withholding recommendations are Premium; basic
+  // recorded withholding and tax amounts stay Free.
+  const { can: canFeatureAccess } = useFeatureAccess();
+  const canAdvancedSavings = canFeatureAccess("advancedWithholdingGuide");
   const { actualEstimate, currentPaceEstimate, forecastEstimate } = useTaxEstimate();
   const needsReviewCount = useMemo(
     () => rawEntries.filter((e: any) => e.needs_review).length,
