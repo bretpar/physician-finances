@@ -24,10 +24,7 @@ import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
 import { useAccountRole } from "@/hooks/useAccountRole";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
-import {
-  deriveUserTypeFromIncomeStreams,
-  type FeatureKey,
-} from "@/lib/entitlements";
+import { type FeatureKey } from "@/lib/entitlements";
 
 type NavItem = {
   to: string;
@@ -85,7 +82,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const showBusinessNav = hasBusinessIncomeStream(householdStreams);
   const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
-  const userType = deriveUserTypeFromIncomeStreams(householdStreams);
   // Entitlement controls visibility. The user preference only configures the
   // planner after an eligible user opens it; it must not hide the entry point.
   const showStudentLoansNav = can("studentLoanPlanner");
