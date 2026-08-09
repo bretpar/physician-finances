@@ -500,7 +500,7 @@ const HOUSEHOLD_INCOME_STREAM_OPTIONS: Array<{ key: keyof HouseholdIncomeStreams
   { key: "otherIncome", label: "Other income", moduleLabel: "other" },
 ];
 
-const FEATURE_LABELS: Record<FeatureKey, string> = {
+const FEATURE_LABELS: Partial<Record<FeatureKey, string>> = {
   basicWithholdingGuide: "Basic withholding guide",
   advancedWithholdingGuide: "Advanced withholding guide",
   spouseW2Support: "Spouse/partner W2 support",
