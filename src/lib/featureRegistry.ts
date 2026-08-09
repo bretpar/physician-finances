@@ -82,6 +82,9 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     description: "Simple paycheck withholding guidance from anticipated income",
     minimumRole: "free",
     status: "active",
+    adminGroup: "Withholding & W-4",
+    parentFeatureKey: "pageTaxes",
+    type: "section",
   },
   {
     key: "basicTaxOverview",
@@ -91,6 +94,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxes",
+    adminGroup: "Tax Overview",
   },
   {
     key: "basicPaycheckTracking",
@@ -100,6 +104,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pagePersonalIncome",
+    adminGroup: "W-2 Paychecks",
   },
   {
     key: "basic1099Tracking",
@@ -109,6 +114,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pagePersonalIncome",
+    adminGroup: "1099 Income",
   },
   {
     key: "basicTaxGapEstimate",
@@ -116,6 +122,9 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     description: "Estimate the gap between taxes owed and taxes withheld",
     minimumRole: "free",
     status: "active",
+    adminGroup: "Tax Overview",
+    parentFeatureKey: "pageTaxes",
+    type: "section",
   },
   {
     key: "basicExpenseTracking",
@@ -125,6 +134,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageBusinessActivity",
+    adminGroup: "Expenses",
   },
   {
     key: "basicTaxSavingsEstimate",
@@ -134,6 +144,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxSavings",
+    adminGroup: "General Tax Savings",
   },
 
   // ---- Premium tier ----
@@ -143,6 +154,9 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     description: "Dynamic per-paycheck withholding and W-4 adjustment guidance",
     minimumRole: "premium",
     status: "active",
+    adminGroup: "Withholding & W-4",
+    parentFeatureKey: "pageTaxes",
+    type: "section",
   },
   {
     key: "spouseW2Support",
@@ -150,6 +164,9 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     description: "Track a spouse's W-2 income and withholding",
     minimumRole: "premium",
     status: "active",
+    adminGroup: "W-2 Paychecks",
+    parentFeatureKey: "pagePersonalIncome",
+    type: "section",
   },
   {
     key: "multipleW2Jobs",
@@ -157,6 +174,9 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     description: "Track more than one W-2 employer",
     minimumRole: "premium",
     status: "active",
+    adminGroup: "W-2 Paychecks",
+    parentFeatureKey: "pagePersonalIncome",
+    type: "section",
   },
   {
     key: "businessIncomeTracking",
@@ -166,6 +186,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageBusinessActivity",
+    adminGroup: "Business Income",
   },
   {
     key: "businessExpenseTracking",
@@ -175,6 +196,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageBusinessActivity",
+    adminGroup: "Expenses",
   },
   {
     key: "mileageDeduction",
@@ -184,6 +206,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxSavings",
+    adminGroup: "Mileage",
   },
   {
     key: "homeOfficeDeduction",
@@ -193,6 +216,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxSavings",
+    adminGroup: "Home Office",
   },
   {
     key: "quarterlyTaxPlanner",
@@ -202,6 +226,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxes",
+    adminGroup: "Quarterly Taxes",
   },
   {
     key: "customW2BusinessSplit",
@@ -211,6 +236,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "setting",
     parentFeatureKey: "pageSettings",
+    adminGroup: "Withholding & Allocation",
   },
   {
     key: "scenarioPlanner",
@@ -220,6 +246,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageIncomePlanner",
+    adminGroup: "Planner",
   },
   {
     key: "detailedReports",
@@ -229,6 +256,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageReports",
+    adminGroup: "Reports & Export",
   },
   {
     key: "reportsExport",
@@ -238,6 +266,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "action",
     parentFeatureKey: "pageReports",
+    adminGroup: "Reports & Export",
   },
   {
     key: "premiumEducation",
@@ -254,6 +283,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxes",
+    adminGroup: "Tax Overview",
   },
   // ---- Page-level access keys ----
   // Page access is deliberately separate from the advanced features inside a
@@ -352,6 +382,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageDashboard",
+    adminGroup: "Financial Assistant",
   },
   {
     key: "incomePlannerForecastMode",
@@ -361,6 +392,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageIncomePlanner",
+    adminGroup: "Planner",
   },
   {
     key: "projectedContributionCapacity",
@@ -370,6 +402,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxSavings",
+    adminGroup: "Retirement",
   },
   {
     key: "employerContributionOpportunity",
@@ -379,6 +412,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxSavings",
+    adminGroup: "Retirement",
   },
   {
     key: "w4Calculator",
@@ -388,6 +422,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxes",
+    adminGroup: "Withholding & W-4",
   },
   {
     key: "quarterlySavingsPace",
@@ -397,6 +432,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxes",
+    adminGroup: "Quarterly Taxes",
   },
   {
     key: "forecastingAutomation",
@@ -406,6 +442,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "setting",
     parentFeatureKey: "pageSettings",
+    adminGroup: "Forecasting",
   },
   {
     key: "taxSavingsOpportunities",
@@ -415,6 +452,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "section",
     parentFeatureKey: "pageTaxSavings",
+    adminGroup: "General Tax Savings",
   },
 ];
 
