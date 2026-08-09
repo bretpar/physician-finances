@@ -70,9 +70,9 @@ describe("Retirement premium intelligence gating", () => {
   });
 
   it("keeps the retirement premium keys Premium in the registry", () => {
-    expect(resolveRequiredAccess("projectedContributionCapacity", [])).toBe("premium");
-    expect(resolveRequiredAccess("employerContributionOpportunity", [])).toBe("premium");
-    expect(resolveRequiredAccess("advancedWithholdingGuide", [])).toBe("premium");
+    expect(resolveRequiredAccess("projectedContributionCapacity", {})).toBe("premium");
+    expect(resolveRequiredAccess("employerContributionOpportunity", {})).toBe("premium");
+    expect(resolveRequiredAccess("advancedWithholdingGuide", {})).toBe("premium");
   });
 });
 
@@ -131,8 +131,8 @@ describe("insight entitlement mapping", () => {
     expect(INSIGHT_FEATURE_KEYS["tax-savings-behind"]).toBe("quarterlySavingsPace");
     expect(INSIGHT_FEATURE_KEYS.retirement).toBe("taxSavingsOpportunities");
     expect(INSIGHT_FEATURE_KEYS["quarterly-due-soon"]).toBeUndefined();
-    expect(resolveRequiredAccess("quarterlySavingsPace", [])).toBe("premium");
-    expect(resolveRequiredAccess("taxSavingsOpportunities", [])).toBe("premium");
+    expect(resolveRequiredAccess("quarterlySavingsPace", {})).toBe("premium");
+    expect(resolveRequiredAccess("taxSavingsOpportunities", {})).toBe("premium");
   });
 
   it("removes premium recommendation insights for a Free user but keeps notifications", () => {
