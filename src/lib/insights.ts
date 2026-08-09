@@ -279,3 +279,33 @@ export function buildInsights(input: InsightsInput): Insight[] {
 
   return out.sort((a, b) => a.priority - b.priority).slice(0, MAX_INSIGHTS);
 }
+
+/**
+ * Entitlement mapping for insight types — DISPLAY GATING ONLY.
+ *
+ * Deadline and income-setup notifications stay Free (they are calendar /
+ * data-entry notifications, not recommendation intelligence). Pace guidance and
+ * deduction/contribution opportunity recommendations reuse the existing
+ * registry gates.
+ */
+export const INSIGHT_FEATURE_KEYS: Partial<Record<InsightId, "quarterlySavingsPace" | "taxSavingsOpportunities">> = {
+  "tax-savings-behind": "quarterlySavingsPace",
+  "tax-savings-slightly-behind": "quarterlySavingsPace",
+  "quarterly-on-track": "quarterlySavingsPace",
+  retirement: "taxSavingsOpportunities",
+  hsa: "taxSavingsOpportunities",
+  "home-office": "taxSavingsOpportunities",
+  mileage: "taxSavingsOpportunities",
+  "student-loan-interest": "taxSavingsOpportunities",
+};
+
+/** Drops insight types the current account is not entitled to. */
+export function filterInsightsByAccess(
+  insights: Insight[],
+  can: (key: "quarterlySavingsPace" | "taxSavingsOpportunities") => boolean,
+): Insight[] {
+  return insights.filter((i) => {
+    const key = INSIGHT_FEATURE_KEYS[i.id];
+    return !key || can(key);
+  });
+}
