@@ -103,6 +103,27 @@ export type Database = {
           },
         ]
       }
+      feature_access_overrides: {
+        Row: {
+          access_level: string
+          feature_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          access_level: string
+          feature_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          access_level?: string
+          feature_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       home_office_deductions: {
         Row: {
           allowed_amount: number

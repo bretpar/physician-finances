@@ -37,6 +37,18 @@ export type FeatureKey =
   | "basicTaxGapEstimate"
   | "basicExpenseTracking"
   | "basicTaxSavingsEstimate"
+  // Page-level access keys. Not part of the FREE/PREMIUM tier matrix — access
+  // is resolved from the registry's minimumRole (plus Admin overrides) so a
+  // Free page can contain Premium sections.
+  | "pageDashboard"
+  | "pageBusinessActivity"
+  | "pagePersonalIncome"
+  | "pageIncomePlanner"
+  | "pageInvestments"
+  | "pageTaxSavings"
+  | "pageTaxes"
+  | "pageReports"
+  | "pageSettings"
   // Staged release: not part of the FREE/PREMIUM tier matrix. Access is
   // resolved purely from the registry's minimumRole via useFeatureAccess.
   | "studentLoanPlanner";

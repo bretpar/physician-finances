@@ -12,7 +12,6 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import {
   useCreateMatchGroup,
   useUnlinkMatchGroup,
@@ -909,7 +908,7 @@ export default function Transactions() {
         actual_withholding: num(incomeForm.actual_withholding),
       } as any;
 
-      const showModal2 = isFeatureEnabled("recommendation_modal");
+      const showModal2 = true;
 
       addIncomeMutation.mutate(payload, {
         onSuccess: (result) => {

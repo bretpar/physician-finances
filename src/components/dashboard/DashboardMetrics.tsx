@@ -7,7 +7,6 @@ import {
 import { Info } from "lucide-react";
 import { useCountUp } from "@/hooks/useCountUp";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 
 interface DashboardMetricsProps {
@@ -44,7 +43,7 @@ export default function DashboardMetrics({
   businessProfitYTD,
   w2Only = false,
 }: DashboardMetricsProps) {
-  const isPremium = isFeatureEnabled("premium_visibility");
+  const isPremium = true;
   const { forecastDebug, actualDebug, taxMode, setTaxMode } = useTaxEstimate();
   // Shared mode across Dashboard + Taxes tab. "forecast" = Planned Income, "actual" = Actual Only.
   const projection = taxMode === "forecast";

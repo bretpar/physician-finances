@@ -27,7 +27,6 @@ import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod, type QuarterlyTrackerMethod, type HouseholdIncomeStreams, type W2PaycheckRecMethod } from "@/hooks/useTaxSettings";
-import { isPremiumFeature } from "@/lib/featureFlags";
 import {
   FILING_TYPES,
   TOGGLE_OPTIONS_BY_TYPE,
@@ -405,11 +404,13 @@ type QuarterlyTrackerDraft = { quarterlyTrackerMethod: QuarterlyTrackerMethod };
 
 function QuarterlyTrackerMethodSection() {
   const { data } = useTaxSettings();
+  const { isLocked: isLockedFeature } = useFeatureAccess();
   const updateMutation = useUpdateTaxSettings();
   const [savedTick, setSavedTick] = useState(false);
   // Future-gated: dynamic mode is built premium-ready. Today it's unlocked.
-  const dynamicLocked = false; // flip to !isFeatureEnabled("quarterly_dynamic_tracker") later
-  const showPremiumBadge = isPremiumFeature("dynamic_tax_recalc");
+  const dynamicLocked = false;
+  // Registry-driven: Premium badge shows only when the gate is actually locked.
+  const showPremiumBadge = isLockedFeature("quarterlyTaxPlanner");
 
   const source: QuarterlyTrackerDraft = useMemo(
     () => ({ quarterlyTrackerMethod: data?.quarterlyTrackerMethod || "even" }),
@@ -500,7 +501,7 @@ const HOUSEHOLD_INCOME_STREAM_OPTIONS: Array<{ key: keyof HouseholdIncomeStreams
   { key: "otherIncome", label: "Other income", moduleLabel: "other" },
 ];
 
-const FEATURE_LABELS: Record<FeatureKey, string> = {
+const FEATURE_LABELS: Partial<Record<FeatureKey, string>> = {
   basicWithholdingGuide: "Basic withholding guide",
   advancedWithholdingGuide: "Advanced withholding guide",
   spouseW2Support: "Spouse/partner W2 support",
@@ -665,9 +666,9 @@ function HouseholdIncomeStreamsSection() {
   const pathway = getUserTypeDisplayInfo(derivedUserType);
   const { featureAccess, can: canFeature } = useFeatureAccess(derivedUserType);
   const canStudentLoanPlanner = canFeature("studentLoanPlanner");
-  const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]);
-  const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]);
-  const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]);
+  const visibleSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "available").map((key) => FEATURE_LABELS[key]).filter((l): l is string => !!l);
+  const hiddenSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "hidden").map((key) => FEATURE_LABELS[key]).filter((l): l is string => !!l);
+  const lockedSections = ALL_ENTITLEMENT_FEATURES.filter((key) => featureAccess[key]?.status === "locked").map((key) => FEATURE_LABELS[key]).filter((l): l is string => !!l);
   const disabledStreamsWithData = HOUSEHOLD_INCOME_STREAM_OPTIONS.filter(
     (option) => source[option.key] && !draft.draft[option.key] && hasStreamData(option.key, personalIncomeRows, businessIncomeRows),
   );

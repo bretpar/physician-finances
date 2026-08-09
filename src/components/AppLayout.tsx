@@ -24,10 +24,7 @@ import { usePlannerConversionFallback } from "@/hooks/usePlannerConversion";
 import { useAccountRole } from "@/hooks/useAccountRole";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
-import {
-  deriveUserTypeFromIncomeStreams,
-  type FeatureKey,
-} from "@/lib/entitlements";
+import { type FeatureKey } from "@/lib/entitlements";
 
 type NavItem = {
   to: string;
@@ -36,21 +33,21 @@ type NavItem = {
   w2OnlyLabel?: string;
   subtitle: string;
   module?: "business" | "investment" | "student_loans";
-  featureKey?: FeatureKey;
-  w2OnlyFeatureKey?: FeatureKey;
+  /** Page-level access key — independent from advanced features inside the page. */
+  pageFeatureKey?: FeatureKey;
 };
 
 const navItems: NavItem[] = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "" },
-  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses", module: "business", featureKey: "businessIncomeTracking" },
-  { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes", featureKey: "basicPaycheckTracking" },
-  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income", featureKey: "scenarioPlanner", w2OnlyFeatureKey: "basicWithholdingGuide" },
-  { to: "/investments", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment" },
-  { to: "/deductions", icon: Car, label: "Tax Savings", subtitle: "", featureKey: "mileageDeduction" },
-  { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", featureKey: "advancedTaxOverview", w2OnlyFeatureKey: "basicTaxOverview" },
-  { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", featureKey: "detailedReports" },
+  { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "", pageFeatureKey: "pageDashboard" },
+  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses", module: "business", pageFeatureKey: "pageBusinessActivity" },
+  { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes", pageFeatureKey: "pagePersonalIncome" },
+  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income", pageFeatureKey: "pageIncomePlanner" },
+  { to: "/investments", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment", pageFeatureKey: "pageInvestments" },
+  { to: "/deductions", icon: Car, label: "Tax Savings", subtitle: "", pageFeatureKey: "pageTaxSavings" },
+  { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", pageFeatureKey: "pageTaxes" },
+  { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", pageFeatureKey: "pageReports" },
   { to: "/student-loans", icon: GraduationCap, label: "Student Loans", subtitle: "Estimate payments and compare filing status", module: "student_loans" },
-  { to: "/settings", icon: Settings, label: "Settings", subtitle: "" },
+  { to: "/settings", icon: Settings, label: "Settings", subtitle: "", pageFeatureKey: "pageSettings" },
 ];
 
 function hasBusinessIncomeStream(streams?: HouseholdIncomeStreams) {
@@ -80,12 +77,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { organizationName, signOut, user } = useAuth();
   const { data: taxSettings } = useTaxSettings();
   const { isDeveloper } = useAccountRole();
-  const { featureAccess, can } = useFeatureAccess();
+  const { can, isLocked } = useFeatureAccess();
   const householdStreams = taxSettings?.householdIncomeStreams;
   const showBusinessNav = hasBusinessIncomeStream(householdStreams);
   const showInvestmentNav = hasInvestmentIncomeStream(householdStreams);
   const useW2OnlyLabels = hasOnlyW2IncomeStreams(householdStreams);
-  const userType = deriveUserTypeFromIncomeStreams(householdStreams);
   // Entitlement controls visibility. The user preference only configures the
   // planner after an eligible user opens it; it must not hide the entry point.
   const showStudentLoansNav = can("studentLoanPlanner");
@@ -149,10 +145,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <item.icon className="h-5 w-5 shrink-0" />
               <span className="min-w-0 flex-1 truncate">{useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label}</span>
-              {(() => {
-                const key = useW2OnlyLabels && item.w2OnlyFeatureKey ? item.w2OnlyFeatureKey : item.featureKey;
-                return key && featureAccess[key]?.status === "locked";
-              })() && (
+              {!!item.pageFeatureKey && isLocked(item.pageFeatureKey) && (
                 <span className="rounded-sm border border-sidebar-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-sidebar-foreground">
                   Premium
                 </span>
