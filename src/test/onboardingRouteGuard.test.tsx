@@ -62,7 +62,8 @@ vi.mock("@/hooks/useTaxSettings", () => ({
 
 vi.mock("@/pages/Onboarding", () => ({
   default: () => {
-    if (!authState.user) return <Navigate to="/login" replace />;
+    const { user } = require("@/contexts/AuthContext").useAuth();
+    if (!user) return <Navigate to="/login" replace />;
     return (
       <div data-testid="onboarding-root">
         Onboarding
