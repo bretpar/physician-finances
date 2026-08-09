@@ -467,7 +467,7 @@ export default function Admin() {
                           <TableHead>Role</TableHead>
                           <TableHead>Joined</TableHead>
                           <TableHead>Last sign-in</TableHead>
-                          <TableHead className="text-right">Change role</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -493,11 +493,12 @@ export default function Admin() {
                             <TableCell>{formatDate(row.createdAt)}</TableCell>
                             <TableCell>{formatDate(row.lastSignInAt)}</TableCell>
                             <TableCell className="text-right">
-                              <div className="flex justify-end">
+                              <div className="flex justify-end gap-2">
                                 <RoleSelect row={row} />
                                 <ResetButton row={row} />
                               </div>
                             </TableCell>
+
                           </TableRow>
                         ))}
                       </TableBody>
