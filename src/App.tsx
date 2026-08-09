@@ -42,6 +42,10 @@ function ProtectedRoutes() {
   const { user, loading } = useAuth();
   const location = useLocation();
   const { data: taxSettings, isLoading: settingsLoading, isError: settingsError, error: settingsErrorObj } = useTaxSettings(!!user);
+  // Narrow exemption: a server-resolved developer may use /admin even while
+  // onboarding is incomplete (e.g. right after a QA data reset).
+  const { isDeveloper, isResolved: roleResolved } = useAccountRole();
+  const isAdminPath = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
 
   if (loading) {
     return (
@@ -73,8 +77,24 @@ function ProtectedRoutes() {
   if (settingsError) {
     console.error("[ProtectedRoutes] tax_settings failed to load; not redirecting to onboarding", settingsErrorObj);
   } else if (taxSettings?.onboardingComplete !== true) {
-    return <Navigate to="/onboarding" replace />;
+    if (isAdminPath) {
+      // Wait for role resolution instead of redirecting a developer away.
+      if (!roleResolved) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-background">
+            <p className="text-muted-foreground">Loading…</p>
+          </div>
+        );
+      }
+      if (!isDeveloper) {
+        return <Navigate to="/onboarding" replace />;
+      }
+      // Developer: fall through. /admin keeps its own authorization check.
+    } else {
+      return <Navigate to="/onboarding" replace />;
+    }
   }
+
 
 
   return (
