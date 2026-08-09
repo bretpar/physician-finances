@@ -21,6 +21,8 @@ export interface CompanyQuarterRow {
   saved: number;
 }
 
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+
 interface QuarterlyTrackerProps {
   annualTaxLiability: number;
   /** All tax payments — filtered internally by the displayed quarter + year. */
@@ -155,6 +157,8 @@ export default function QuarterlyTracker({
   initialView,
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
+  const { can } = useFeatureAccess();
+  const canPace = can("quarterlySavingsPace");
   const initial = useMemo(
     () => initialView ?? currentOwningYear(),
     [initialView?.year, initialView?.quarter],

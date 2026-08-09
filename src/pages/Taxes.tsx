@@ -45,6 +45,7 @@ import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -206,6 +207,8 @@ export default function Taxes() {
   // Shared input builder — keeps Tax Overview QuarterlyTracker aligned with
   // the Dashboard Q-payment callout. See useQuarterRecommendationInput.
   const sharedQrInput = useQuarterRecommendationInput();
+  const { can: canFeature } = useFeatureAccess();
+  const canW4 = canFeature("w4Calculator");
 
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };

@@ -51,7 +51,7 @@ import {
 } from "@/hooks/usePlaid";
 import { SectionCard } from "@/components/settings/SectionCard";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
-import { ForecastingAutomationSection } from "@/components/settings/ForecastingAutomationSection";
+import { ForecastingAutomationGate } from "@/components/settings/ForecastingAutomationGate";
 import { StudentLoanSettingsGate } from "@/components/settings/StudentLoanSettingsGate";
 import MergeCompaniesDialog from "@/components/settings/MergeCompaniesDialog";
 import AddCompanyDialog from "@/components/settings/AddCompanyDialog";
@@ -2697,7 +2697,7 @@ export default function Settings() {
         <Separator className="my-2" />
         <HsaSettingsSection bare />
         <Separator className="my-2" />
-        <ForecastingAutomationSection bare />
+        <ForecastingAutomationGate />
         <StudentLoanSettingsGate />
       </SectionCard>
 
