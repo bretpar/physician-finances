@@ -122,10 +122,17 @@ describe("admin features tab", () => {
         <FeaturesPanel />
       </QueryClientProvider>,
     );
+    expect(await screen.findByText(/Feature registry \(/)).toBeInTheDocument();
+    // Collapsed by default: page groups render, children stay hidden.
+    expect(screen.getAllByTestId("feature-group").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Mileage Deduction")).toBeNull();
+    // Expanding the parent page group reveals its child features + selectors.
+    const toggle = screen.getByLabelText(/Expand Tax Savings/i);
+    fireEvent.click(toggle);
     expect((await screen.findAllByText("Mileage Deduction")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Feature registry \(/)).toBeInTheDocument();
-    // Each feature exposes a required-access selector.
     expect(screen.getAllByLabelText(/Required access for Mileage Deduction/i).length).toBeGreaterThan(0);
+    // Page-level selector is separate from its children.
+    expect(screen.getAllByLabelText(/Required access for Tax Savings/i).length).toBeGreaterThan(0);
   });
 
   it("keeps the Features tab behind developer protection", async () => {
