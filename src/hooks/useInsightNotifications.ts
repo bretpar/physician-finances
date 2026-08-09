@@ -5,12 +5,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useInsights, type AssistantSummary } from "@/hooks/useInsights";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { filterInsightsByAccess } from "@/lib/insights";
 import {
   buildNotifications,
   markAllRead,
   type DecoratedInsight,
   type InsightReadMap,
 } from "@/lib/insightReadState";
+
 
 const storageKey = (userId?: string) => `paycheckmd:insights:read:${userId ?? "anon"}`;
 
@@ -33,13 +36,18 @@ export function useInsightNotifications(): {
   markRead: () => void;
 } {
   const { user } = useAuth();
-  const { insights, isReady, assistant } = useInsights();
+  const { insights: allInsights, isReady, assistant } = useInsights();
+  const { can } = useFeatureAccess();
   const key = storageKey(user?.id);
   const [read, setRead] = useState<InsightReadMap>(() => load(key));
 
   useEffect(() => {
     setRead(load(key));
   }, [key]);
+
+  // Premium recommendation insight types are removed before read-state /
+  // badging so a Free account never receives the actionable recommendation.
+  const insights = useMemo(() => filterInsightsByAccess(allInsights, can), [allInsights, can]);
 
   const notifications = useMemo(() => buildNotifications(insights, read), [insights, read]);
   const unreadCount = notifications.filter((n) => n.unread).length;
@@ -55,6 +63,7 @@ export function useInsightNotifications(): {
       return next;
     });
   }, [insights, key]);
+
 
   return { notifications, unreadCount, isReady, assistant, markRead };
 }

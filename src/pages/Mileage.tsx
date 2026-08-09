@@ -792,6 +792,7 @@ export default function Mileage() {
         plans={retirementRoom.plans}
         hasPlannerAccess={hasPlannerAccess && canFeature("projectedContributionCapacity")}
         hasEmployerOpportunityAccess={canFeature("employerContributionOpportunity")}
+        hasCapacityAccess={canFeature("projectedContributionCapacity")}
       />
 
 
