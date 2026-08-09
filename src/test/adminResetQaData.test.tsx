@@ -13,14 +13,21 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+let mockRole = "developer";
 vi.mock("@/hooks/useAccountRole", () => ({
   useAccountRole: () => ({
-    role: "developer",
-    isDeveloper: true,
+    role: mockRole,
+    isDeveloper: mockRole === "developer",
+    canAccessPremium: mockRole !== "free",
+    canAccessBeta: mockRole === "developer" || mockRole === "premium_beta",
+    canAccessFree: true,
     isLoading: false,
+    isResolved: true,
+    resolvedRole: mockRole,
     userEmail: "dev@example.com",
   }),
 }));
+
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "dev-id" } }),
