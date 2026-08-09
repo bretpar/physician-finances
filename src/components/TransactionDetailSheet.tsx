@@ -227,11 +227,17 @@ export function TransactionDetailSheet({
 
         <Separator />
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-4 bg-background">
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1.5">
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:pb-4 bg-background">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            className="gap-1.5 min-h-[48px] sm:min-h-0"
+          >
             <X className="h-4 w-4" />
             Close
           </Button>
+
           <div className="flex flex-wrap items-center gap-2">
             {onMarkReviewed && needsReview && (
               <Button
