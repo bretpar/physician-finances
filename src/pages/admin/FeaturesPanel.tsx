@@ -14,20 +14,23 @@ import {
   FEATURE_TYPE_LABEL,
   featureMatchesQuery,
   getFeatureType,
+  groupChildrenByAdminGroup,
   groupFeaturesByPage,
   hasFeatureOverride,
   resolveMinimumRole,
+  summarizeChildAccess,
   type FeatureAccessLevel,
   type FeatureRegistryEntry,
 } from "@/lib/featureRegistry";
 import { useFeatureOverrides, useSetFeatureOverride } from "@/hooks/useFeatureOverrides";
 
 /**
- * Feature registry admin, grouped by page-level feature.
+ * Feature registry admin, organized around the real app pages.
  *
- * Names, descriptions, types and DEFAULT access levels are code-defined; only
- * the required access level can be overridden here. Page and child overrides
- * are independent — changing a page tier never cascades to its children.
+ * Collapsed view = one row per page (name, effective child tier summary, page
+ * access select). Expanded view = display-only `adminGroup` subgroups with
+ * compact child rows. Grouping is presentation only: page and child overrides
+ * stay independent and entitlement resolution is untouched.
  */
 export default function FeaturesPanel() {
   const [search, setSearch] = useState("");
@@ -40,7 +43,7 @@ export default function FeaturesPanel() {
   const searching = search.trim().length > 0;
 
   const visibleGroups = useMemo(() => {
-    if (!searching) return groups.map((g) => ({ ...g, forceOpen: false }));
+    if (!searching) return groups.map((g) => ({ ...g, forceOpen: false, pageHit: false }));
     return groups
       .map((g) => {
         const pageHit = g.page ? featureMatchesQuery(g.page, search) : false;
@@ -82,7 +85,7 @@ export default function FeaturesPanel() {
           disabled={pendingKey === entry.key}
           onValueChange={(v) => handleChange(entry, v)}
         >
-          <SelectTrigger className="h-8 w-[140px] text-xs" aria-label={`Required access for ${entry.name}`}>
+          <SelectTrigger className="h-9 w-[136px] text-xs" aria-label={`Required access for ${entry.name}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -103,28 +106,32 @@ export default function FeaturesPanel() {
     );
   };
 
-  const childSummary = (children: FeatureRegistryEntry[]) => {
-    if (children.length === 0) return "No subfeatures";
-    const counts = new Map<string, number>();
-    for (const c of children) {
-      const level = resolveMinimumRole(c, overrides) ?? c.minimumRole;
-      counts.set(level, (counts.get(level) ?? 0) + 1);
-    }
-    return FEATURE_ACCESS_LEVELS.filter((l) => counts.has(l))
-      .map((l) => `${counts.get(l)} ${FEATURE_ACCESS_LEVEL_LABEL[l]}`)
-      .join(" · ");
-  };
+  const FeatureRow = ({ entry }: { entry: FeatureRegistryEntry }) => (
+    <li
+      className="flex flex-wrap items-start gap-2 px-3 py-2.5 sm:flex-nowrap sm:items-center"
+      data-testid={`feature-row-${entry.key}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{entry.name}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          <span className="font-mono">{entry.key}</span> · {FEATURE_TYPE_LABEL[getFeatureType(entry)]}
+        </p>
+        <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground/80">{entry.description}</p>
+      </div>
+      <AccessSelect entry={entry} className="ml-auto" />
+    </li>
+  );
 
   return (
     <Card>
       <CardHeader className="space-y-3">
         <CardTitle className="text-base">Feature registry ({FEATURE_REGISTRY.length})</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Features are grouped under their page. Page and subfeature access are independent — changing a page tier does
-          not change its subfeatures. "Default" removes the override and falls back to the code default.
+          Features are grouped under their app page, then into display-only sections. Page and subfeature access are
+          independent — changing a page tier does not change its subfeatures. "Default" removes the override.
         </p>
         <Input
-          placeholder="Search by name, key or description"
+          placeholder="Search page, section, name, key or description"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
@@ -135,9 +142,11 @@ export default function FeaturesPanel() {
 
         {visibleGroups.map((group) => {
           const open = group.forceOpen || !!manualOpen[group.id];
+          const subgroups = groupChildrenByAdminGroup(group.children);
+          const flatten = group.children.length <= 3;
           return (
             <div key={group.id} className="overflow-hidden rounded-lg border" data-testid="feature-group">
-              {/* Page group header */}
+              {/* Page row */}
               <div className="flex flex-wrap items-center gap-2 bg-muted/40 p-3 sm:flex-nowrap">
                 <button
                   type="button"
@@ -152,40 +161,41 @@ export default function FeaturesPanel() {
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{group.title}</span>
                     <span className="block truncate text-[11px] text-muted-foreground">
-                      {group.page && <span className="font-mono">{group.page.key} · </span>}
-                      {group.children.length} {group.children.length === 1 ? "subfeature" : "subfeatures"}
-                      {group.children.length > 0 && ` · ${childSummary(group.children)}`}
+                      {summarizeChildAccess(group.children, overrides)}
                     </span>
                   </span>
                 </button>
                 {group.page && <AccessSelect entry={group.page} className="ml-auto" />}
               </div>
 
-              {/* Child features */}
+              {/* Children */}
               {open && (
-                <ul className="divide-y" data-testid={`feature-group-children-${group.id}`}>
+                <div data-testid={`feature-group-children-${group.id}`}>
                   {group.children.length === 0 && (
-                    <li className="p-3 text-xs text-muted-foreground">No subfeatures in this group.</li>
+                    <p className="p-3 text-xs text-muted-foreground">No subfeatures in this group.</p>
                   )}
-                  {group.children.map((child) => (
-                    <li
-                      key={child.key}
-                      className="flex flex-wrap items-start gap-2 p-3 pl-4 sm:flex-nowrap sm:items-center"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{child.name}</p>
-                        <p className="text-xs text-muted-foreground">{child.description}</p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <Badge variant="outline" className="text-[10px]">
-                            {FEATURE_TYPE_LABEL[getFeatureType(child)]}
-                          </Badge>
-                          <span className="font-mono">{child.key}</span>
-                        </div>
+
+                  {flatten ? (
+                    <ul className="divide-y">
+                      {group.children.map((child) => (
+                        <FeatureRow key={child.key} entry={child} />
+                      ))}
+                    </ul>
+                  ) : (
+                    subgroups.map((sub) => (
+                      <div key={sub.title} className="border-t" data-testid={`feature-subgroup-${sub.title}`}>
+                        <p className="px-3 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {sub.title}
+                        </p>
+                        <ul className="divide-y pl-1">
+                          {sub.features.map((child) => (
+                            <FeatureRow key={child.key} entry={child} />
+                          ))}
+                        </ul>
                       </div>
-                      <AccessSelect entry={child} className="ml-auto" />
-                    </li>
-                  ))}
-                </ul>
+                    ))
+                  )}
+                </div>
               )}
             </div>
           );
