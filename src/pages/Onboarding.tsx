@@ -908,7 +908,7 @@ export default function Onboarding() {
           .every((d) => persistedNames.has(d.name.trim().toLowerCase()));
       } catch { /* treat as not-ok */ companiesOk = false; }
       if (verified === true && companiesOk) {
-        await finalizeAndNavigate(settingsId, selectedPlan);
+        await finalizeAndNavigate(settingsId, planChoice ?? "free");
       } else {
         const isNetwork = typeof error?.message === "string" && /failed to fetch|network|timeout/i.test(error.message);
         toast.error(isNetwork
