@@ -40,7 +40,6 @@ import { formatDate, formatDateShort, formatMonthYear, getTodayLocalDateString }
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { isPersonalIncomeReportable } from "@/lib/personalIncomeReportability";
 import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 import { useCompanies } from "@/contexts/CompanyContext";
@@ -687,7 +686,7 @@ export default function PersonalIncome() {
       company: resolvedCompanyName,
       source_id: payloadSourceId,
     };
-    const showModal2 = isFeatureEnabled("recommendation_modal") && !isEditing;
+    const showModal2 = !isEditing;
 
     if (isEditing) {
       const editId = editingId!;

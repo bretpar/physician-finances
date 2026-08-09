@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { IncomeRecommendation, RecommendationStatus, RecommendationConfidence } from "@/hooks/useIncomeRecommendation";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -31,8 +30,8 @@ interface Props {
 export function RecommendationModal({ open, onClose, onApplyRecommendation, recommendation, entryTitle }: Props) {
   if (!recommendation) return null;
 
-  const showDynamic = isFeatureEnabled("dynamic_paycheck_recommendation");
-  const showQuarterly = isFeatureEnabled("quarterly_payment_tracking");
+  const showDynamic = true;
+  const showQuarterly = true;
 
   const statusCfg = STATUS_CONFIG[recommendation.recommendationStatus];
   const StatusIcon = statusCfg.icon;

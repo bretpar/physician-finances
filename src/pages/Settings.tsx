@@ -27,7 +27,6 @@ import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useTaxSettings, useUpdateTaxSettings, type TaxRates, type WithholdingMethod, type QuarterlyTrackerMethod, type HouseholdIncomeStreams, type W2PaycheckRecMethod } from "@/hooks/useTaxSettings";
-import { isPremiumFeature } from "@/lib/featureFlags";
 import {
   FILING_TYPES,
   TOGGLE_OPTIONS_BY_TYPE,
@@ -409,7 +408,8 @@ function QuarterlyTrackerMethodSection() {
   const [savedTick, setSavedTick] = useState(false);
   // Future-gated: dynamic mode is built premium-ready. Today it's unlocked.
   const dynamicLocked = false; // flip to !isFeatureEnabled("quarterly_dynamic_tracker") later
-  const showPremiumBadge = isPremiumFeature("dynamic_tax_recalc");
+  // Registry-driven: Premium badge shows only when the gate is actually locked.
+  const showPremiumBadge = isLockedFeature("quarterlyTaxPlanner");
 
   const source: QuarterlyTrackerDraft = useMemo(
     () => ({ quarterlyTrackerMethod: data?.quarterlyTrackerMethod || "even" }),

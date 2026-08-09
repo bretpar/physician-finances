@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
-import { isFeatureEnabled } from "@/lib/featureFlags";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ChevronDown } from "lucide-react";
 
@@ -13,7 +12,7 @@ interface Props {
 
 export default function IncomeModeToggle({ alwaysShow = false, className }: Props) {
   const { taxMode, setTaxMode } = useTaxEstimate();
-  const isPremium = isFeatureEnabled("premium_visibility");
+  const isPremium = true;
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
