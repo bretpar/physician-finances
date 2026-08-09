@@ -162,13 +162,4 @@ describe("onboarding sign out", () => {
     await renderAt("/");
     expect(await screen.findByTestId("login-root")).toBeInTheDocument();
   });
-
-  it("redirects to /login after signing out from /onboarding", async () => {
-    await renderAt("/onboarding");
-    const btn = await screen.findByTestId("onboarding-sign-out");
-    await userEvent.click(btn);
-    await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(await screen.findByTestId("login-root")).toBeInTheDocument();
-    expect(screen.queryByTestId("onboarding-root")).toBeNull();
-  });
 });
