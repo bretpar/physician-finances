@@ -110,11 +110,31 @@ export default function Taxes() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Entitlement gates for the Premium sections inside this Free page.
+  const { can: canFeature } = useFeatureAccess();
+  const canW4 = canFeature("w4Calculator");
+  const canAdvancedOverview = canFeature("advancedTaxOverview");
+  const canQuarterlyPlanner = canFeature("quarterlyTaxPlanner");
+  const canForecastMode = canFeature("incomePlannerForecastMode");
+  const canReserveGuidance = canFeature("advancedWithholdingGuide");
+  const accessibleTabs = useMemo(
+    () => ["overview", ...(canAdvancedOverview ? ["breakdown"] : []), ...(canW4 ? ["w4-calculator"] : [])],
+    [canAdvancedOverview, canW4],
+  );
+
+  // Keep the active tab accessible — a Premium tab must never leave the page
+  // rendering an unselected tab list with no content.
+  useEffect(() => {
+    if (!accessibleTabs.includes(activeTab)) setActiveTab("overview");
+  }, [accessibleTabs, activeTab]);
+
   // Activate a specific tab via URL hash (e.g. /taxes#w4-calculator).
   useEffect(() => {
     const hash = location.hash.replace("#", "");
     if (["overview", "breakdown", "w4-calculator"].includes(hash)) {
-      setActiveTab(hash);
+      // Deep links fall back to the first accessible tab when the requested
+      // tab is Premium-locked for this account.
+      setActiveTab(accessibleTabs.includes(hash) ? hash : "overview");
       return;
     }
     // Deep link to a section inside the overview tab (e.g. notification CTAs
@@ -125,7 +145,7 @@ export default function Taxes() {
         document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
-  }, [location.hash]);
+  }, [location.hash, accessibleTabs]);
 
   // Prefill the Log Payment dialog when navigated from the Dashboard
   // callout (e.g. /taxes?logPayment=Q2&amount=15000&year=2026#quarterly-estimator).
@@ -207,8 +227,6 @@ export default function Taxes() {
   // Shared input builder — keeps Tax Overview QuarterlyTracker aligned with
   // the Dashboard Q-payment callout. See useQuarterRecommendationInput.
   const sharedQrInput = useQuarterRecommendationInput();
-  const { can: canFeature } = useFeatureAccess();
-  const canW4 = canFeature("w4Calculator");
 
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
@@ -255,13 +273,15 @@ export default function Taxes() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Tax Overview</TabsTrigger>
-          <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>
+          {canAdvancedOverview && <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>}
           {canW4 && <TabsTrigger value="w4-calculator">W-4 Calculator</TabsTrigger>}
         </TabsList>
 
+        {canAdvancedOverview && (
         <TabsContent value="breakdown" className="mt-0">
           <TaxBreakdown />
         </TabsContent>
+        )}
 
         {canW4 && (
         <TabsContent value="w4-calculator" className="space-y-6 mt-0">
@@ -284,7 +304,7 @@ export default function Taxes() {
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
-          <button
+          {canForecastMode && <button
             onClick={() => setTaxMode("forecast")}
             className={cn(
               "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
@@ -294,7 +314,7 @@ export default function Taxes() {
             )}
           >
             Planned Income
-          </button>
+          </button>}
           <button
             onClick={() => setTaxMode("actual")}
             className={cn(
@@ -404,7 +424,20 @@ export default function Taxes() {
         </Card>
       )}
 
-      {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
+      {!isW2Only && !canQuarterlyPlanner && (
+        <section id="quarterly-estimator" className="scroll-mt-6">
+          <Card data-testid="quarterly-planner-locked">
+            <CardContent className="p-5 space-y-1">
+              <p className="text-sm font-medium text-foreground">Quarterly tax planning</p>
+              <p className="text-xs text-muted-foreground">
+                Quarter targets, pace tracking, and recommended payments are Premium features.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {!isW2Only && canQuarterlyPlanner && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
           showPaceStatus={canFeature("quarterlySavingsPace")}
           annualTaxLiability={sharedQrInput.annualTaxLiability}
@@ -433,7 +466,7 @@ export default function Taxes() {
       </section>}
 
       {/* ── Tax Calculation Details (compact, after the quarterly widget) ── */}
-      <Collapsible open={showCalcDetails} onOpenChange={setShowCalcDetails}>
+      {canAdvancedOverview && <Collapsible open={showCalcDetails} onOpenChange={setShowCalcDetails}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" className="text-muted-foreground gap-1">
             <ChevronDown className={cn("h-4 w-4 transition-transform", showCalcDetails && "rotate-180")} />
@@ -474,7 +507,7 @@ export default function Taxes() {
             </Card>
           )}
         </CollapsibleContent>
-      </Collapsible>
+      </Collapsible>}
 
       {/* ── Actions ── */}
       {!isW2Only && <div className="space-y-2">
@@ -507,9 +540,11 @@ export default function Taxes() {
               <p>
                 We estimate your annual income using actual income plus planned income when enabled. Then we subtract deductions, apply federal/state/self-employment tax rules, subtract taxes already paid, and calculate your recommended quarterly payment or remaining tax need.
               </p>
-              <Button variant="outline" size="sm" onClick={() => setActiveTab("breakdown")}>
-                View full tax breakdown
-              </Button>
+              {canAdvancedOverview && (
+                <Button variant="outline" size="sm" onClick={() => setActiveTab("breakdown")}>
+                  View full tax breakdown
+                </Button>
+              )}
             </CardContent>
           </Card>
         </CollapsibleContent>
