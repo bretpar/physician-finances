@@ -30,7 +30,7 @@ vi.mock("@/components/insights/InsightsBell", () => ({ default: () => null }));
 vi.mock("@/components/BrandLogo", () => ({ BrandLogo: () => null }));
 
 vi.mock("@/hooks/useFeatureOverrides", () => ({
-  useFeatureOverrides: () => ({ overrides: {}, isLoading: false, isFetched: true, isError: false }),
+  useFeatureOverrides: () => ({ overrides: {}, isLoading: false, isResolved: true }),
   useSetFeatureOverride: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
