@@ -490,3 +490,56 @@ export function filterFeatures(entries: FeatureRegistryEntry[], search: string):
   if (!q) return entries;
   return entries.filter((e) => e.name.toLowerCase().includes(q) || e.key.toLowerCase().includes(q));
 }
+
+/* ────────────────────────────────────────────────────────────── */
+/*  Admin grouping helpers (presentation only — no gating logic)   */
+/* ────────────────────────────────────────────────────────────── */
+
+export const OTHER_FEATURE_GROUP_ID = "__other__";
+
+export interface FeatureGroup {
+  /** Page feature key, or OTHER_FEATURE_GROUP_ID for unparented features. */
+  id: string;
+  title: string;
+  /** Page-level entry when this group is backed by a real page feature. */
+  page?: FeatureRegistryEntry;
+  children: FeatureRegistryEntry[];
+}
+
+/** Matches feature name, key or description (case-insensitive). */
+export function featureMatchesQuery(entry: FeatureRegistryEntry, search: string): boolean {
+  const q = search.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    entry.name.toLowerCase().includes(q) ||
+    entry.key.toLowerCase().includes(q) ||
+    entry.description.toLowerCase().includes(q)
+  );
+}
+
+/**
+ * Groups the registry under its page-level features using `parentFeatureKey`.
+ * Features without a valid page parent land in a single "Other / Global" group.
+ * Purely a display transform — access levels are untouched.
+ */
+export function groupFeaturesByPage(entries: FeatureRegistryEntry[] = FEATURE_REGISTRY): FeatureGroup[] {
+  const pages = entries.filter((e) => getFeatureType(e) === "page");
+  const pageKeys = new Set(pages.map((p) => p.key));
+  const groups: FeatureGroup[] = pages.map((page) => ({
+    id: page.key,
+    title: page.name.replace(/\s*\(page\)$/i, ""),
+    page,
+    children: [],
+  }));
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  const other: FeatureGroup = { id: OTHER_FEATURE_GROUP_ID, title: "Other / Global Features", children: [] };
+
+  for (const entry of entries) {
+    if (getFeatureType(entry) === "page") continue;
+    const parent = entry.parentFeatureKey;
+    if (parent && pageKeys.has(parent)) byId.get(parent)!.children.push(entry);
+    else other.children.push(entry);
+  }
+
+  return other.children.length > 0 ? [...groups, other] : groups;
+}
