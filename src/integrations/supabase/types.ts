@@ -2464,6 +2464,7 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      select_my_plan: { Args: { _plan: string }; Returns: string }
       store_plaid_token_in_vault: {
         Args: { _item_id: string; _token: string }
         Returns: undefined
