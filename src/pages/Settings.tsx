@@ -404,10 +404,11 @@ type QuarterlyTrackerDraft = { quarterlyTrackerMethod: QuarterlyTrackerMethod };
 
 function QuarterlyTrackerMethodSection() {
   const { data } = useTaxSettings();
+  const { isLocked: isLockedFeature } = useFeatureAccess();
   const updateMutation = useUpdateTaxSettings();
   const [savedTick, setSavedTick] = useState(false);
   // Future-gated: dynamic mode is built premium-ready. Today it's unlocked.
-  const dynamicLocked = false; // flip to !isFeatureEnabled("quarterly_dynamic_tracker") later
+  const dynamicLocked = false;
   // Registry-driven: Premium badge shows only when the gate is actually locked.
   const showPremiumBadge = isLockedFeature("quarterlyTaxPlanner");
 
