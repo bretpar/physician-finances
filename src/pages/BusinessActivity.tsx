@@ -61,6 +61,7 @@ import {
 } from "@/lib/filingTypes";
 import { toast } from "sonner";
 import { resolveNetReceived } from "@/lib/netReceivedPrecedence";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 
 const fmt = (n: number) =>
@@ -270,6 +271,10 @@ export default function Transactions() {
   const [reminderActualSaved, setReminderActualSaved] = useState(0);
 
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
+  // Advanced dynamic reserve recommendations are Premium; the income entry
+  // itself, its stored withholding and the basic estimate stay Free.
+  const { can: canFeatureAccess } = useFeatureAccess();
+  const canAdvancedSavings = canFeatureAccess("advancedWithholdingGuide");
 
   const isEditingIncome = !!editingIncomeTxId;
   const isEditingExpense = !!editingExpenseTxId;
@@ -932,7 +937,7 @@ export default function Transactions() {
               num(incomeForm.medicare_withholding) +
               num(incomeForm.additional_tax_reserve) +
               num(incomeForm.actual_withholding);
-            if (recommended > 0 && actualSaved < recommended * 0.9) {
+            if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
               setSavedEntryTitle(incomeForm.name);
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
@@ -2381,7 +2386,7 @@ export default function Transactions() {
 
       {/* Per-transaction tax-savings reminder */}
       <SimpleTaxReminderModal
-        open={showRecommendation}
+        open={canAdvancedSavings && showRecommendation}
         onClose={() => setShowRecommendation(false)}
         onApply={() => {
           const additional = Math.max(0, reminderRecommended - reminderActualSaved);

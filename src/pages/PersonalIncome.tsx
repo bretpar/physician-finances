@@ -737,7 +737,7 @@ export default function PersonalIncome() {
               num(form.medicare_withholding) +
               num(form.additional_tax_reserve);
             // Only nudge when meaningfully behind (< 90% of recommended).
-            if (recommended > 0 && actualSaved < recommended * 0.9) {
+            if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
               setShowRecommendation(true);
@@ -1695,7 +1695,7 @@ export default function PersonalIncome() {
 
       {/* Per-transaction tax-savings reminder */}
       <SimpleTaxReminderModal
-        open={showRecommendation}
+        open={canAdvancedSavings && showRecommendation}
         onClose={() => setShowRecommendation(false)}
         onApply={applyRecommendation}
         recommendedSavings={reminderRecommended}
