@@ -267,7 +267,7 @@ export default function Onboarding() {
   // in a partially-persisted state (only the first company saved, but
   // onboarding_complete=true). Keep the user on the onboarding screen until
   // the orchestrated submit finishes and explicitly navigates.
-  if (!authLoading && !user && !saving) return <Navigate to="/signup" replace />;
+  if (!authLoading && !user && !saving) return <Navigate to="/login" replace />;
   if (user && !saving && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
 
 
