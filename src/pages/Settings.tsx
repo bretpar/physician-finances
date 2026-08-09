@@ -194,6 +194,10 @@ function TaxWithholdingSection() {
   const { data } = useTaxSettings();
   const { actualDebug, currentPaceDebug, currentPaceEstimate, isLoading: taxEstimateLoading } = useTaxEstimate();
   const updateMutation = useUpdateTaxSettings();
+  const { isLocked: isLockedFeature } = useFeatureAccess();
+  // Planner-dependent withholding mode requires the Premium Income Planner
+  // forecast gate — the Settings page itself stays Free.
+  const plannerMethodLocked = isLockedFeature("incomePlannerForecastMode");
   const [savedTick, setSavedTick] = useState(false);
 
   const currentIncomePreview = useMemo(() => {
