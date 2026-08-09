@@ -29,6 +29,11 @@ export interface FeatureRegistryEntry {
   type?: FeatureType;
   /** Optional grouping — usually the page-level feature key this lives inside. */
   parentFeatureKey?: FeatureKey;
+  /**
+   * Display-only Admin subgroup heading inside the parent page.
+   * Purely presentational: never used for entitlement resolution.
+   */
+  adminGroup?: string;
 }
 
 export const FEATURE_TYPE_LABEL: Record<FeatureType, string> = {
