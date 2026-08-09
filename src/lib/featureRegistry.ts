@@ -549,15 +549,59 @@ export interface FeatureGroup {
   children: FeatureRegistryEntry[];
 }
 
-/** Matches feature name, key or description (case-insensitive). */
+/** Matches feature name, key, description or Admin subgroup (case-insensitive). */
 export function featureMatchesQuery(entry: FeatureRegistryEntry, search: string): boolean {
   const q = search.trim().toLowerCase();
   if (!q) return true;
   return (
     entry.name.toLowerCase().includes(q) ||
     entry.key.toLowerCase().includes(q) ||
-    entry.description.toLowerCase().includes(q)
+    entry.description.toLowerCase().includes(q) ||
+    (entry.adminGroup?.toLowerCase().includes(q) ?? false)
   );
+}
+
+export const DEFAULT_ADMIN_SUBGROUP = "Other";
+
+export interface FeatureSubgroup {
+  title: string;
+  features: FeatureRegistryEntry[];
+}
+
+/**
+ * Splits a page's children into display-only subgroups using `adminGroup`.
+ * Order follows first appearance in the registry. No gating logic involved.
+ */
+export function groupChildrenByAdminGroup(children: FeatureRegistryEntry[]): FeatureSubgroup[] {
+  const out: FeatureSubgroup[] = [];
+  const byTitle = new Map<string, FeatureSubgroup>();
+  for (const child of children) {
+    const title = child.adminGroup?.trim() || DEFAULT_ADMIN_SUBGROUP;
+    let group = byTitle.get(title);
+    if (!group) {
+      group = { title, features: [] };
+      byTitle.set(title, group);
+      out.push(group);
+    }
+    group.features.push(child);
+  }
+  return out;
+}
+
+/** Effective child tier distribution for a page header summary. */
+export function summarizeChildAccess(
+  children: FeatureRegistryEntry[],
+  overrides?: FeatureOverrideMap,
+): string {
+  if (children.length === 0) return "No subfeatures";
+  const counts = new Map<FeatureAccessLevel, number>();
+  for (const child of children) {
+    const level = resolveMinimumRole(child, overrides) ?? child.minimumRole;
+    counts.set(level, (counts.get(level) ?? 0) + 1);
+  }
+  return FEATURE_ACCESS_LEVELS.filter((l) => counts.has(l))
+    .map((l) => `${counts.get(l)} ${FEATURE_ACCESS_LEVEL_LABEL[l]}`)
+    .join(" · ");
 }
 
 /**
