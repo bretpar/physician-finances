@@ -227,11 +227,17 @@ export function TransactionDetailSheet({
 
         <Separator />
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-4 bg-background">
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="gap-1.5">
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:pb-4 bg-background">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            className="gap-1.5 min-h-[48px] sm:min-h-0"
+          >
             <X className="h-4 w-4" />
             Close
           </Button>
+
           <div className="flex flex-wrap items-center gap-2">
             {onMarkReviewed && needsReview && (
               <Button
@@ -239,24 +245,25 @@ export function TransactionDetailSheet({
                 size="sm"
                 onClick={onMarkReviewed}
                 disabled={markReviewedPending}
-                className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                className="gap-1.5 min-h-[48px] sm:min-h-0 border-amber-400 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/30"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 Mark as reviewed
               </Button>
             )}
             {!hideDelete && onDelete && (
-              <Button variant="outline" size="sm" onClick={onDelete} className="gap-1.5 text-destructive hover:text-destructive">
+              <Button variant="outline" size="sm" onClick={onDelete} className="gap-1.5 min-h-[48px] sm:min-h-0 text-destructive hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
                 {deleteLabel}
               </Button>
             )}
             {!hideEdit && onEdit && (
-              <Button size="sm" onClick={onEdit} className="gap-1.5" data-testid="tx-detail-edit">
+              <Button size="sm" onClick={onEdit} className="gap-1.5 min-h-[48px] sm:min-h-0" data-testid="tx-detail-edit">
                 <Pencil className="h-4 w-4" />
                 {editLabel}
               </Button>
             )}
+
 
           </div>
         </div>
