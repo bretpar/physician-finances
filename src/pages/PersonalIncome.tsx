@@ -54,6 +54,7 @@ import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -249,6 +250,10 @@ export default function PersonalIncome() {
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
+  // Advanced dynamic reserve/withholding recommendations are Premium; basic
+  // recorded withholding and tax amounts stay Free.
+  const { can: canFeatureAccess } = useFeatureAccess();
+  const canAdvancedSavings = canFeatureAccess("advancedWithholdingGuide");
   const { actualEstimate, currentPaceEstimate, forecastEstimate } = useTaxEstimate();
   const needsReviewCount = useMemo(
     () => rawEntries.filter((e: any) => e.needs_review).length,
@@ -1480,6 +1485,20 @@ export default function PersonalIncome() {
               // W-2 paychecks: show only transaction-level savings guidance.
               // Annual W-4 planning lives in the W-4 Calculator tab on Taxes.
               if (isW2) {
+                // Advanced "what should I save next?" guidance is Premium.
+                if (!canAdvancedSavings) {
+                  return (
+                    <div
+                      className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-1"
+                      data-testid="w2-additional-tax-savings-locked"
+                    >
+                      <p className="text-xs font-semibold text-muted-foreground">Additional savings guidance</p>
+                      <p className="text-xs text-muted-foreground">
+                        Premium unlocks dynamic recommendations for how much extra to set aside from this paycheck.
+                      </p>
+                    </div>
+                  );
+                }
                 const additional = Math.max(0, Math.round(paycheckSavings.remainingSavingsNeeded));
                 const hasAdditional = additional > 0;
                 return (

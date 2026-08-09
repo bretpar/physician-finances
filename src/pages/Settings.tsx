@@ -194,6 +194,10 @@ function TaxWithholdingSection() {
   const { data } = useTaxSettings();
   const { actualDebug, currentPaceDebug, currentPaceEstimate, isLoading: taxEstimateLoading } = useTaxEstimate();
   const updateMutation = useUpdateTaxSettings();
+  const { isLocked: isLockedFeature } = useFeatureAccess();
+  // Planner-dependent withholding mode requires the Premium Income Planner
+  // forecast gate — the Settings page itself stays Free.
+  const plannerMethodLocked = isLockedFeature("incomePlannerForecastMode");
   const [savedTick, setSavedTick] = useState(false);
 
   const currentIncomePreview = useMemo(() => {
@@ -320,10 +324,23 @@ function TaxWithholdingSection() {
             )}
           </div>
         </label>
-        <label className="flex items-start gap-3 rounded-lg border border-border p-4 cursor-pointer hover:bg-muted/30 transition-colors">
-          <RadioGroupItem value="dynamic_planner" className="mt-0.5" />
+        <label
+          className={cn(
+            "flex items-start gap-3 rounded-lg border border-border p-4 transition-colors",
+            plannerMethodLocked ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:bg-muted/30",
+          )}
+        >
+          <RadioGroupItem value="dynamic_planner" className="mt-0.5" disabled={plannerMethodLocked} data-testid="withholding-method-dynamic-planner" />
           <div>
-            <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Income Planner</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-card-foreground">Dynamic — Based on Income Planner</p>
+              {plannerMethodLocked && (
+                <>
+                  <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Premium</Badge>
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                </>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">Uses your actual income so far plus planned future income from the Income Planner. Best if you already know about upcoming W-2, 1099, K-1, bonus, or other income.</p>
           </div>
         </label>
@@ -407,10 +424,10 @@ function QuarterlyTrackerMethodSection() {
   const { isLocked: isLockedFeature } = useFeatureAccess();
   const updateMutation = useUpdateTaxSettings();
   const [savedTick, setSavedTick] = useState(false);
-  // Future-gated: dynamic mode is built premium-ready. Today it's unlocked.
-  const dynamicLocked = false;
-  // Registry-driven: Premium badge shows only when the gate is actually locked.
+  // Registry-driven: the Premium badge and the actual lock come from the same
+  // gate so a Free account can never select a Premium-only allocation mode.
   const showPremiumBadge = isLockedFeature("quarterlyTaxPlanner");
+  const dynamicLocked = showPremiumBadge;
 
   const source: QuarterlyTrackerDraft = useMemo(
     () => ({ quarterlyTrackerMethod: data?.quarterlyTrackerMethod || "even" }),

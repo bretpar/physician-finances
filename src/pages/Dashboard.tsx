@@ -57,8 +57,10 @@ export default function Dashboard() {
   const summary = useDashboardSummary(transactions, rates, incomeEntries, personalEntries, investmentEntries);
   const userType = deriveUserTypeFromIncomeStreams(rates?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const { featureAccess, can: canFeature } = useFeatureAccess(userType);
-  const hasLockedDashboardFeatures = featureAccess.advancedTaxOverview.status === "locked" || featureAccess.quarterlyTaxPlanner.status === "locked";
+  const { can: canFeature, isPremium } = useFeatureAccess(userType);
+  // Account-level tier label comes from the server-resolved account role only —
+  // never from a locked-feature signal or tax_settings.subscription_tier.
+  const accountTierLabel = isPremium ? "Premium" : "Free";
   const [showProfileReviewBanner, setShowProfileReviewBanner] = useState(false);
   const [profileFirstName, setProfileFirstName] = useState<string>("");
 
@@ -343,11 +345,12 @@ export default function Dashboard() {
       <header className="px-1 pb-1">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-medium text-foreground/90">Welcome back, {greeting}</h1>
-          {hasLockedDashboardFeatures && (
-            <span className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground">
-              Premium
-            </span>
-          )}
+          <span
+            data-testid="account-tier-label"
+            className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground"
+          >
+            {accountTierLabel}
+          </span>
         </div>
         <p className="text-xs text-muted-foreground/80">Here's your money at a glance.</p>
       </header>
