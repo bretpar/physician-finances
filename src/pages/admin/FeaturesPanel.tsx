@@ -151,7 +151,7 @@ export default function FeaturesPanel() {
           return (
             <div key={group.id} className="overflow-hidden rounded-lg border" data-testid="feature-group">
               {/* Page row */}
-              <div className="flex flex-wrap items-center gap-2 bg-muted/40 p-3 sm:flex-nowrap">
+              <div className="flex items-center gap-2 bg-muted/40 p-2 sm:p-3">
                 <button
                   type="button"
                   aria-expanded={open}
