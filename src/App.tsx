@@ -37,6 +37,7 @@ import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 import Trust from "@/pages/Trust";
 import { RouteHead } from "@/components/RouteHead";
+import { PageAccessGate } from "@/components/PageAccessGate";
 
 const queryClient = new QueryClient();
 
