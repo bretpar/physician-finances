@@ -85,7 +85,10 @@ export default function FeaturesPanel() {
           disabled={pendingKey === entry.key}
           onValueChange={(v) => handleChange(entry, v)}
         >
-          <SelectTrigger className="h-9 w-[136px] text-xs" aria-label={`Required access for ${entry.name}`}>
+          <SelectTrigger
+            className="h-9 w-[112px] px-2 text-xs sm:w-[136px] sm:px-3"
+            aria-label={`Required access for ${entry.name}`}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -97,10 +100,11 @@ export default function FeaturesPanel() {
             ))}
           </SelectContent>
         </Select>
+        {/* Override state stays internal; surfaced only as subtle desktop text. */}
         {overridden && (
-          <Badge variant="secondary" className="text-[10px]">
+          <span className="hidden text-[10px] text-muted-foreground sm:inline" data-testid="override-hint">
             Override
-          </Badge>
+          </span>
         )}
       </div>
     );
@@ -108,19 +112,19 @@ export default function FeaturesPanel() {
 
   const FeatureRow = ({ entry }: { entry: FeatureRegistryEntry }) => (
     <li
-      className="flex flex-wrap items-start gap-2 px-3 py-2.5 sm:flex-nowrap sm:items-center"
+      className="flex items-center gap-2 px-2 py-2 sm:px-3 sm:py-2.5"
       data-testid={`feature-row-${entry.key}`}
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{entry.name}</p>
         <p className="truncate text-[11px] text-muted-foreground">
-          <span className="font-mono">{entry.key}</span> · {FEATURE_TYPE_LABEL[getFeatureType(entry)]}
+          {FEATURE_TYPE_LABEL[getFeatureType(entry)]} · <span className="font-mono">{entry.key}</span>
         </p>
-        <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground/80">{entry.description}</p>
       </div>
       <AccessSelect entry={entry} className="ml-auto" />
     </li>
   );
+
 
   return (
     <Card>
