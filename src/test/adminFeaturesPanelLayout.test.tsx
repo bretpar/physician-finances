@@ -61,30 +61,33 @@ describe("Admin Features panel layout", () => {
     expect(list.className).toContain("divide-y");
   });
 
-  it("rows stay mobile-safe: wrap on small widths, single line from sm up", () => {
+  it("rows stay mobile-safe: single line, truncated, no override pill", () => {
     render(<FeaturesPanel />);
     expand(bigGroup.title);
 
     const pageRow = screen.getAllByTestId("feature-group")[0].firstElementChild as HTMLElement;
-    expect(pageRow.className).toContain("flex-wrap");
-    expect(pageRow.className).toContain("sm:flex-nowrap");
+    expect(pageRow.className).toContain("flex");
+    expect(pageRow.className).not.toContain("flex-wrap");
 
     const childRow = screen.getByTestId(`feature-row-${bigGroup.children[0].key}`);
-    expect(childRow.className).toContain("flex-wrap");
-    expect(childRow.className).toContain("sm:flex-nowrap");
+    expect(childRow.className).not.toContain("flex-wrap");
 
-    // Long keys/descriptions must be clamped/truncated so nothing overflows x.
-    expect(childRow.querySelector(".truncate")).toBeTruthy();
-    expect(childRow.querySelector(".line-clamp-2")).toBeTruthy();
+    // Long keys/names must be truncated so nothing overflows x.
+    expect(childRow.querySelectorAll(".truncate").length).toBeGreaterThanOrEqual(2);
+    // No visible override pill / long description column.
+    expect(childRow.querySelector(".line-clamp-2")).toBeNull();
+    expect(screen.queryAllByText("Override").length).toBe(0);
   });
 
-  it("access selects keep a consistent fixed-width tap target", () => {
+  it("access selects stay narrow on mobile but keep tap height", () => {
     render(<FeaturesPanel />);
     expand(bigGroup.title);
     const trigger = screen.getByLabelText(`Required access for ${bigGroup.children[0].name}`);
-    expect(trigger.className).toContain("w-[136px]");
+    expect(trigger.className).toContain("w-[112px]");
+    expect(trigger.className).toContain("sm:w-[136px]");
     expect(trigger.className).toContain("h-9");
   });
+
 
   it("collapsing a group removes its child rows again", () => {
     render(<FeaturesPanel />);
