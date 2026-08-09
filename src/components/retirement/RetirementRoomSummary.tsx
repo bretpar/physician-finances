@@ -27,6 +27,12 @@ export interface RetirementRoomSummaryProps {
   hasPlannerAccess: boolean;
   /** Access to employer contribution opportunity insights. Defaults to on. */
   hasEmployerOpportunityAccess?: boolean;
+  /**
+   * Access to forward-looking contribution capacity intelligence (remaining
+   * room, per-plan available/projected capacity). Basic contributed amounts and
+   * annual limits stay visible without it. Defaults to on.
+   */
+  hasCapacityAccess?: boolean;
 }
 
 export function RetirementRoomSummary({
@@ -36,9 +42,10 @@ export function RetirementRoomSummary({
   plans,
   hasPlannerAccess,
   hasEmployerOpportunityAccess = true,
+  hasCapacityAccess = true,
 }: RetirementRoomSummaryProps) {
   const [basis, setBasis] = useState<"ytd" | "projected">("ytd");
-  const projected = hasPlannerAccess && basis === "projected";
+  const projected = hasPlannerAccess && hasCapacityAccess && basis === "projected";
 
   const overLimitBy = Math.max(
     0,
@@ -96,12 +103,23 @@ export function RetirementRoomSummary({
             </span>
           </p>
           <Progress value={employeeRoom.employeeUsedFraction * 100} className="mt-2 h-2" />
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground tabular-nums">
-              {fmt(employeeRoom.employeeRemainingRoom)}
-            </span>{" "}
-            remaining
-          </p>
+          {hasCapacityAccess ? (
+            <p className="mt-1.5 text-sm text-muted-foreground" data-testid="employee-remaining-room">
+              <span className="font-medium text-foreground tabular-nums">
+                {fmt(employeeRoom.employeeRemainingRoom)}
+              </span>{" "}
+              remaining
+            </p>
+          ) : (
+            <p
+              className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground"
+              data-testid="employee-remaining-room-locked"
+            >
+              <Lock className="mt-0.5 h-3 w-3 shrink-0" />
+              Premium shows how much contribution room you have left and what you could still
+              contribute.
+            </p>
+          )}
           {overLimitBy > 0 && (
             <p
               data-testid="employee-over-limit"
@@ -114,7 +132,7 @@ export function RetirementRoomSummary({
         </div>
 
         {/* Basis toggle */}
-        {hasPlannerAccess ? (
+        {hasPlannerAccess && hasCapacityAccess ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Based on:</span>
             <div className="inline-flex rounded-md border p-0.5">
@@ -144,7 +162,7 @@ export function RetirementRoomSummary({
         )}
 
         {/* Projected opportunity insight */}
-        {hasPlannerAccess && hasEmployerOpportunityAccess && projectedUpside > 0 && (
+        {hasPlannerAccess && hasCapacityAccess && hasEmployerOpportunityAccess && projectedUpside > 0 && (
           <div
             data-testid="projected-opportunity"
             className="rounded-lg border bg-muted/40 p-3 text-sm"
@@ -200,7 +218,8 @@ export function RetirementRoomSummary({
                       <dt className="text-muted-foreground">Total contributed</dt>
                       <dd className="font-medium tabular-nums">{fmt(p.planContributionTotal)}</dd>
                     </div>
-                    <div className="flex items-start justify-between gap-2">
+                    {hasCapacityAccess && (
+                    <div className="flex items-start justify-between gap-2" data-testid="plan-capacity-row">
                       <dt className="text-muted-foreground">
                         {projected ? "Projected year-end capacity" : "Current available capacity"}
                       </dt>
@@ -214,9 +233,10 @@ export function RetirementRoomSummary({
                         )}
                       </dd>
                     </div>
+                    )}
                   </dl>
 
-                  {capacity == null && (
+                  {hasCapacityAccess && capacity == null && (
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       More plan or compensation information is needed to estimate this limit.
                     </p>
