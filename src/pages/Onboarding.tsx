@@ -61,7 +61,7 @@ function SelectCard({ selected, title, description, onClick, children }: { selec
 export default function Onboarding() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const { data: taxSettings, isLoading } = useTaxSettings(!!user);
   const updateTaxSettings = useUpdateTaxSettings();
   const [step, setStep] = useState(() => Math.min(TOTAL_STEPS, Math.max(1, Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1)));
@@ -918,6 +918,16 @@ export default function Onboarding() {
                 <p className="text-xs font-medium text-muted-foreground">Welcome{merged.firstName ? `, ${merged.firstName}` : ""}</p>
                 <h1 className="mt-0.5 text-2xl font-semibold text-foreground">How do you want to add income?</h1>
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-testid="onboarding-sign-out"
+                className="ml-auto shrink-0 text-xs text-muted-foreground"
+                onClick={() => { void signOut(); }}
+              >
+                Sign out
+              </Button>
             </div>
             <p className="text-sm text-muted-foreground">Pick the option that fits how you’d like to start. You can mix and match later from any tab.</p>
             <div className="grid gap-3">
@@ -979,6 +989,16 @@ export default function Onboarding() {
               <p className="text-xs font-medium text-muted-foreground">Step {Math.min(step, TOTAL_STEPS)} of {TOTAL_STEPS}</p>
               <div className="mt-1 h-2 w-44 max-w-full rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${(Math.min(step, TOTAL_STEPS) / TOTAL_STEPS) * 100}%` }} /></div>
             </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-testid="onboarding-sign-out"
+                className="ml-auto shrink-0 text-xs text-muted-foreground"
+                onClick={() => { void signOut(); }}
+              >
+                Sign out
+              </Button>
           </div>
 
           {step === 1 && (
