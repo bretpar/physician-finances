@@ -51,7 +51,17 @@ export type FeatureKey =
   | "pageSettings"
   // Staged release: not part of the FREE/PREMIUM tier matrix. Access is
   // resolved purely from the registry's minimumRole via useFeatureAccess.
-  | "studentLoanPlanner";
+  | "studentLoanPlanner"
+  // Planning / recommendation subfeatures. Registry-resolved (default premium)
+  // so Admin > Features can change each one independently.
+  | "financialAssistantRecommendations"
+  | "incomePlannerForecastMode"
+  | "projectedContributionCapacity"
+  | "employerContributionOpportunity"
+  | "w4Calculator"
+  | "quarterlySavingsPace"
+  | "forecastingAutomation"
+  | "taxSavingsOpportunities";
 
 export type FeatureAccessStatus = "available" | "locked" | "hidden";
 

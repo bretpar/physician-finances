@@ -45,6 +45,7 @@ import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -206,6 +207,8 @@ export default function Taxes() {
   // Shared input builder — keeps Tax Overview QuarterlyTracker aligned with
   // the Dashboard Q-payment callout. See useQuarterRecommendationInput.
   const sharedQrInput = useQuarterRecommendationInput();
+  const { can: canFeature } = useFeatureAccess();
+  const canW4 = canFeature("w4Calculator");
 
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
@@ -253,13 +256,14 @@ export default function Taxes() {
         <TabsList>
           <TabsTrigger value="overview">Tax Overview</TabsTrigger>
           <TabsTrigger value="breakdown">Tax Breakdown</TabsTrigger>
-          <TabsTrigger value="w4-calculator">W-4 Calculator</TabsTrigger>
+          {canW4 && <TabsTrigger value="w4-calculator">W-4 Calculator</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="breakdown" className="mt-0">
           <TaxBreakdown />
         </TabsContent>
 
+        {canW4 && (
         <TabsContent value="w4-calculator" className="space-y-6 mt-0">
           <div>
             <h1 className="text-xl font-semibold text-foreground">W-4 Calculator</h1>
@@ -269,6 +273,7 @@ export default function Taxes() {
           </div>
           <W4PaycheckAdjustmentCard />
         </TabsContent>
+        )}
 
         <TabsContent value="overview" className="space-y-6 mt-0">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -401,6 +406,7 @@ export default function Taxes() {
 
       {!isW2Only && <section id="quarterly-estimator" className="scroll-mt-6">
         <QuarterlyTracker
+          showPaceStatus={canFeature("quarterlySavingsPace")}
           annualTaxLiability={sharedQrInput.annualTaxLiability}
           payments={sharedQrInput.payments ?? []}
           methodLabel={overviewProfile.label}

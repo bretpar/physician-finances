@@ -790,7 +790,8 @@ export default function Mileage() {
         employeeRoom={retirementRoom.employeeRoom}
         employerContributionTotal={retirementRoom.employerContributionTotal}
         plans={retirementRoom.plans}
-        hasPlannerAccess={hasPlannerAccess}
+        hasPlannerAccess={hasPlannerAccess && canFeature("projectedContributionCapacity")}
+        hasEmployerOpportunityAccess={canFeature("employerContributionOpportunity")}
       />
 
 
@@ -1357,10 +1358,12 @@ export default function Mileage() {
         </CardContent>
       </Card>
 
-      <RecommendedNextStep
-        items={[...businessItems, ...personalItems]}
-        onSelect={handleAccordionChange}
-      />
+      {canFeature("taxSavingsOpportunities") && (
+        <RecommendedNextStep
+          items={[...businessItems, ...personalItems]}
+          onSelect={handleAccordionChange}
+        />
+      )}
 
 
       <div className="space-y-6">

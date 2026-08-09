@@ -375,7 +375,8 @@ export default function ProjectedIncome() {
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
   const userType = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
-  const { featureAccess } = useFeatureAccess(userType);
+  const { featureAccess, can: canFeature } = useFeatureAccess(userType);
+  const canForecastMode = canFeature("incomePlannerForecastMode");
   const spouseW2Locked = featureAccess.spouseW2Support?.status === "locked";
   const multipleW2Locked = featureAccess.multipleW2Jobs?.status === "locked";
 
@@ -1030,7 +1031,7 @@ export default function ProjectedIncome() {
 
       <DuplicateConversionsReview />
 
-      {isW2Only && forecastDebug && (
+      {isW2Only && forecastDebug && canForecastMode && (
         <Card>
           <CardContent className="p-5 space-y-4">
             <div>

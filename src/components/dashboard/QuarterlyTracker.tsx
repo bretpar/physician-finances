@@ -62,6 +62,8 @@ interface QuarterlyTrackerProps {
    *  payment deadline like Q2-on-Jun-11). Pass `getCurrentQuarter(now)` to
    *  force the IRS estimated-tax income period instead — used by the
    *  Dashboard fallback when the Q-payment callout is hidden. */
+  /** Gated by `quarterlySavingsPace` at the call site. */
+  showPaceStatus?: boolean;
   initialView?: { year: number; quarter: 1 | 2 | 3 | 4 };
 }
 
@@ -153,6 +155,7 @@ export default function QuarterlyTracker({
   onLogPayment,
   manualSavings = [],
   initialView,
+  showPaceStatus = true,
 }: QuarterlyTrackerProps) {
   const navigate = useNavigate();
   const initial = useMemo(
@@ -397,7 +400,8 @@ export default function QuarterlyTracker({
           </div>
         </div>
 
-        {/* Compact status callout */}
+        {/* Compact status callout — pacing guidance is a gated planning feature */}
+        {showPaceStatus && (
         <div className={cn("flex items-center gap-2 text-sm", toneStyles.text)}>
           <Icon className={cn("h-4 w-4 shrink-0", toneStyles.accent)} />
           <span className="truncate">
@@ -406,6 +410,7 @@ export default function QuarterlyTracker({
               : message}
           </span>
         </div>
+        )}
 
         {/* Quarterly payment details (collapsible) */}
         {showRecommendedPayment && (
