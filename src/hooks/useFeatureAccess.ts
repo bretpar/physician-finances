@@ -3,7 +3,6 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useAccountRole } from "@/hooks/useAccountRole";
 import { accountRoleToSubscriptionTier, type AccountRole } from "@/lib/roles";
 import {
-  getFeatureDefinition,
   hasFeatureOverride,
   resolveRequiredAccess,
   roleMeetsFeatureMinimum,
