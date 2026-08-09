@@ -14,6 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { YtdCatchupForm } from "@/components/YtdCatchupForm";
+import { PlanSelectionStep } from "@/components/onboarding/PlanSelectionStep";
+import { isSelectablePlan, type SelectablePlan } from "@/lib/planSelection";
+import { useSelectPlan } from "@/hooks/useSelectPlan";
 
 import { useYtdCatchupEntries, backfillYtdCatchupCompanies } from "@/hooks/useYtdCatchup";
 import { getUserOrgId } from "@/hooks/useOrgId";
@@ -31,9 +34,9 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 
-// Temporary MVP behavior: all users receive full access. Re-enable plan
-// selection when paid tiers launch (was 3 with a Free vs Premium step 3).
-const TOTAL_STEPS = 2;
+// Step 3 is the required Free vs Premium plan-selection step.
+const TOTAL_STEPS = 3;
+const PLAN_CHOICE_KEY = "paycheckmd-onboarding-plan";
 
 const companyTypeLabels: Record<OnboardingCompanyType, string> = {
   w2: "W-2 Employer",
@@ -66,6 +69,21 @@ export default function Onboarding() {
   const updateTaxSettings = useUpdateTaxSettings();
   const [step, setStep] = useState(() => Math.min(TOTAL_STEPS, Math.max(1, Number(sessionStorage.getItem("paycheckmd-onboarding-step")) || 1)));
   const [saving, setSaving] = useState(false);
+  const selectPlan = useSelectPlan();
+  const [planChoice, setPlanChoice] = useState<SelectablePlan | null>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? sessionStorage.getItem(PLAN_CHOICE_KEY) : null;
+      return isSelectablePlan(raw) ? raw : null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (planChoice) sessionStorage.setItem(PLAN_CHOICE_KEY, planChoice);
+      else sessionStorage.removeItem(PLAN_CHOICE_KEY);
+    } catch { /* non-fatal */ }
+  }, [planChoice]);
   const [draft, setDraft] = useState<UserOnboardingSettings>(() => ({ ...DEFAULT_ONBOARDING_SETTINGS }));
   const COMPANY_DRAFTS_KEY = "paycheckmd-onboarding-company-drafts";
   const [companyDrafts, setCompanyDrafts] = useState<OnboardingCompanyDraft[]>(() => {
@@ -302,6 +320,23 @@ export default function Onboarding() {
   const updateCompanyDraft = (index: number, updates: Partial<OnboardingCompanyDraft>) => setCompanyDrafts((current) => current.map((item, i) => i === index ? { ...item, ...updates } : item));
   const removeCompanyDraft = (index: number) => setCompanyDrafts((current) => current.filter((_, i) => i !== index));
 
+  /**
+   * Every "finish setup" path routes through the required plan step first;
+   * onboarding can only complete once a plan has been chosen.
+   */
+  const goToPlanStep = async () => {
+    setStep(3);
+    sessionStorage.setItem("paycheckmd-onboarding-step", "3");
+    patch({ onboardingStep: 3 });
+    if (settingsId) {
+      try {
+        await persist({ onboardingStep: 3 }, "goToPlanStep");
+      } catch (e) {
+        console.warn("[onboarding] could not persist plan step", e);
+      }
+    }
+  };
+
   const goBack = async () => {
     if (step === 1) return;
     if (step === 2 && catchupSubStep === "form") {
@@ -348,10 +383,8 @@ export default function Onboarding() {
     // Ignore blank placeholder rows so "Skip for now" works from a fresh
     // signup where the company step auto-seeds an empty draft.
     setCompanyDrafts((current) => current.filter((c) => c.name.trim()));
-    // Step 2 is the final step (TOTAL_STEPS === 2). Skipping here should
-    // complete onboarding and route to the dashboard, never advance to a
-    // nonexistent step 3.
-    await completeOnboarding();
+    // Skipping the company step still requires the plan selection step.
+    await goToPlanStep();
   };
 
   async function createOnboardingCompanies() {
@@ -613,9 +646,8 @@ export default function Onboarding() {
           setCatchupSubStep("form");
           return;
         }
-        // "no" or "skip" → complete onboarding. Plan selection step removed;
-        // all users get premium access by default (MVP behavior).
-        await completeOnboarding();
+        // "no" or "skip" → continue to the required plan-selection step.
+        await goToPlanStep();
         return;
       }
       if (catchupSubStep === "form") {
@@ -648,9 +680,17 @@ export default function Onboarding() {
           return;
         }
         setSaving(false);
-        await completeOnboarding();
+        await goToPlanStep();
         return;
       }
+    }
+    if (step === 3) {
+      if (!planChoice) {
+        toast.error("Please choose a plan to continue.");
+        return;
+      }
+      await completeOnboarding();
+      return;
     }
     setSaving(true);
     try {
@@ -718,6 +758,7 @@ export default function Onboarding() {
     sessionStorage.removeItem("paycheckmd-onboarding-step");
     sessionStorage.removeItem(COMPANY_DRAFTS_KEY);
     sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
+    sessionStorage.removeItem(PLAN_CHOICE_KEY);
     console.info("[onboarding] completion:success", { settingsId: id, selectedPlan });
     toast.success("Onboarding complete!");
     navigate("/", { replace: true });
@@ -753,8 +794,24 @@ export default function Onboarding() {
     }
     setSaving(true);
     try {
-      const selectedPlan = "premium" as const;
+      if (!planChoice) {
+        toast.error("Please choose a plan to continue.");
+        return;
+      }
+      const selectedPlan = planChoice;
+
+      // Canonical account role update (secured RPC). Elevated accounts
+      // (premium_beta / developer) are returned unchanged by the RPC.
+      try {
+        const appliedRole = await selectPlan.mutateAsync(selectedPlan);
+        console.info("[onboarding] plan applied", { selectedPlan, appliedRole });
+      } catch (planErr: any) {
+        console.error("[onboarding] plan selection failed", planErr);
+        toast.error(planErr?.message || "Could not save your plan. Please try again.");
+        return;
+      }
       console.info("[onboarding] completion:start", { settingsId, selectedPlan, ytdCatchupChoice: merged.ytdCatchupChoice });
+
 
       // 1. Ensure every named company draft is persisted BEFORE we mark
       //    onboarding complete. createOnboardingCompanies is idempotent
@@ -844,7 +901,7 @@ export default function Onboarding() {
           .every((d) => persistedNames.has(d.name.trim().toLowerCase()));
       } catch { /* treat as not-ok */ companiesOk = false; }
       if (verified === true && companiesOk) {
-        await finalizeAndNavigate(settingsId, "premium");
+        await finalizeAndNavigate(settingsId, selectedPlan);
       } else {
         const isNetwork = typeof error?.message === "string" && /failed to fetch|network|timeout/i.test(error.message);
         toast.error(isNetwork
@@ -1260,9 +1317,9 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Temporary MVP behavior: plan selection step removed. All users
-              receive full (premium) access by default. Re-enable a step-3 plan
-              chooser when paid tiers launch. */}
+          {step === 3 && (
+            <PlanSelectionStep selected={planChoice} onSelect={setPlanChoice} disabled={saving} />
+          )}
 
 
           {(() => {
@@ -1279,13 +1336,14 @@ export default function Onboarding() {
             // least one named company in their list — prevents the
             // "No companies yet" empty state on the YTD step.
             const companyStepReady = !(step === 2 && catchupSubStep === "company") || namedCompanies.length > 0;
-            const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved || !companyStepReady;
+            const planStepReady = step !== 3 || !!planChoice;
+            const continueDisabled = saving || (user && isLoading) || !allCompaniesSaved || !companyStepReady || !planStepReady;
             return (
               <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
                 <Button type="button" variant="outline" data-testid="onboarding-back-button" onClick={goBack} disabled={saving || step === 1}><ChevronLeft className="mr-1 h-4 w-4" />Back</Button>
                 <div className="flex items-center gap-2">
                   {step === 2 && catchupSubStep === "company" && <Button type="button" variant="ghost" onClick={skipCompanyStep} disabled={saving}>Skip for now</Button>}
-                  <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={continueDisabled}>{saving ? "Saving…" : (step === 2 && (catchupSubStep === "ask" || catchupSubStep === "form")) ? "Finish setup" : "Continue"}</Button>
+                  <Button type="button" data-testid="onboarding-continue-button" onClick={continueStep} disabled={continueDisabled}>{saving ? "Saving…" : step === 3 ? "Finish setup" : "Continue"}</Button>
                 </div>
               </div>
             );
