@@ -17,7 +17,8 @@ vi.mock("@/hooks/useAccountRole", () => ({
 }));
 vi.mock("@/hooks/useFeatureAccess", () => ({
   useFeatureAccess: () => ({
-    can: (key: string) => key === "studentLoanPlanner" && accessState.allowed,
+    can: (key: string) => key === "studentLoanPlanner" ? accessState.allowed : true,
+    isLocked: () => false,
     featureAccess: {},
   }),
 }));
@@ -27,6 +28,11 @@ vi.mock("@/hooks/useTaxSettings", () => ({
 vi.mock("@/hooks/usePlannerConversion", () => ({ usePlannerConversionFallback: vi.fn() }));
 vi.mock("@/components/insights/InsightsBell", () => ({ default: () => null }));
 vi.mock("@/components/BrandLogo", () => ({ BrandLogo: () => null }));
+
+vi.mock("@/hooks/useFeatureOverrides", () => ({
+  useFeatureOverrides: () => ({ overrides: {}, isLoading: false, isFetched: true, isError: false }),
+  useSetFeatureOverride: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
 
 import AppLayout from "@/components/AppLayout";
 

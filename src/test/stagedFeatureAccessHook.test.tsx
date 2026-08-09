@@ -22,6 +22,11 @@ vi.mock("@/hooks/useAccountRole", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useFeatureOverrides", () => ({
+  useFeatureOverrides: () => ({ overrides: {}, isLoading: false, isFetched: true, isError: false }),
+  useSetFeatureOverride: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 function access(role: AccountRole | null, isResolved = true) {
