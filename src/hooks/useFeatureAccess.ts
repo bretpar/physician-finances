@@ -2,7 +2,13 @@ import { useMemo } from "react";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useAccountRole } from "@/hooks/useAccountRole";
 import { accountRoleToSubscriptionTier, type AccountRole } from "@/lib/roles";
-import { roleMeetsFeatureMinimum } from "@/lib/featureRegistry";
+import {
+  getFeatureDefinition,
+  hasFeatureOverride,
+  resolveRequiredAccess,
+  roleMeetsFeatureMinimum,
+} from "@/lib/featureRegistry";
+import { useFeatureOverrides } from "@/hooks/useFeatureOverrides";
 import {
   ALL_ENTITLEMENT_FEATURES,
   canAccessFeature,
@@ -57,6 +63,8 @@ export interface FeatureAccessResult {
 export function useFeatureAccess(userTypeOverride?: UserType): FeatureAccessResult {
   const { data: taxSettings, isLoading: settingsLoading } = useTaxSettings();
   const { role, resolvedRole, isResolved, isLoading: roleLoading } = useAccountRole();
+  // Shared, cached Admin overrides (one query for the whole app).
+  const { overrides, isResolved: overridesResolved } = useFeatureOverrides();
 
   const subscriptionTier = accountRoleToSubscriptionTier(role) as SubscriptionTier;
   const userType = userTypeOverride ?? deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams);
@@ -66,8 +74,19 @@ export function useFeatureAccess(userTypeOverride?: UserType): FeatureAccessResu
   // Staged-release features are resolved from the ACCOUNT ROLE only; they are
   // never reduced to a FREE/PREMIUM subscription tier first.
   const stagedStatus = (key: FeatureKey): StagedAccessStatus => {
-    if (!isResolved || !resolvedRole) return "pending";
-    return roleMeetsFeatureMinimum(resolvedRole, key) ? "allowed" : "denied";
+    if (!isResolved || !resolvedRole || !overridesResolved) return "pending";
+    return roleMeetsFeatureMinimum(resolvedRole, key, overrides) ? "allowed" : "denied";
+  };
+
+  // A feature resolves purely from the role hierarchy when it is outside the
+  // FREE/PREMIUM tier matrix OR when an Admin override exists for it.
+  const usesRoleResolution = (key: FeatureKey) => isStagedReleaseFeature(key) || hasFeatureOverride(key, overrides);
+
+  const roleResolvedLocked = (key: FeatureKey) => {
+    if (stagedStatus(key) !== "denied") return false;
+    // Developer-only / disabled gates stay hidden; premium gates show locked.
+    const required = resolveRequiredAccess(key, overrides);
+    return required === "premium" || required === "premium_beta";
   };
 
   return {
@@ -77,12 +96,13 @@ export function useFeatureAccess(userTypeOverride?: UserType): FeatureAccessResu
     userType,
     featureAccess,
     can: (key) =>
-      isStagedReleaseFeature(key)
+      usesRoleResolution(key)
         ? stagedStatus(key) === "allowed"
         : canAccessFeature(key, { userType, subscriptionTier }),
-    isLocked: (key) => (isStagedReleaseFeature(key) ? false : isFeatureLocked(key, { userType, subscriptionTier })),
+    isLocked: (key) =>
+      usesRoleResolution(key) ? roleResolvedLocked(key) : isFeatureLocked(key, { userType, subscriptionTier }),
     accessStatus: (key) =>
-      isStagedReleaseFeature(key)
+      usesRoleResolution(key)
         ? stagedStatus(key)
         : canAccessFeature(key, { userType, subscriptionTier })
           ? "allowed"
