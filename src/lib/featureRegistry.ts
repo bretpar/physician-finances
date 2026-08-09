@@ -340,6 +340,82 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "page",
   },
+
+  // ---- Planning / recommendation subfeatures (registry-resolved) ----
+  // Each gates only the advanced/recommendation content inside an otherwise
+  // Free page, so a locked subfeature never blocks the parent page.
+  {
+    key: "financialAssistantRecommendations",
+    name: "Financial Assistant Recommendations",
+    description: "Prioritized financial recommendations surfaced through Dashboard / Insights",
+    minimumRole: "premium",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageDashboard",
+  },
+  {
+    key: "incomePlannerForecastMode",
+    name: "Income Planner Forecast Mode",
+    description: "Forward-looking household projections built from planned/projected income",
+    minimumRole: "premium",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageIncomePlanner",
+  },
+  {
+    key: "projectedContributionCapacity",
+    name: "Projected Contribution Capacity",
+    description: "Projected year-end retirement contribution capacity view",
+    minimumRole: "premium",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageTaxSavings",
+  },
+  {
+    key: "employerContributionOpportunity",
+    name: "Employer Contribution Opportunity",
+    description: "Estimated additional employer contribution capacity insights",
+    minimumRole: "premium",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageTaxSavings",
+  },
+  {
+    key: "w4Calculator",
+    name: "W-4 Calculator",
+    description: "W-4 calculator and per-paycheck withholding optimization guidance",
+    minimumRole: "premium",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageTaxes",
+  },
+  {
+    key: "quarterlySavingsPace",
+    name: "Quarterly Savings Pace",
+    description: "On track / behind / ahead quarter pacing guidance",
+    minimumRole: "premium",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageTaxes",
+  },
+  {
+    key: "forecastingAutomation",
+    name: "Forecasting Automation",
+    description: "Automation settings for planned-income conversion into the ledger",
+    minimumRole: "premium",
+    status: "active",
+    type: "setting",
+    parentFeatureKey: "pageSettings",
+  },
+  {
+    key: "taxSavingsOpportunities",
+    name: "Tax Savings Opportunities",
+    description: "Prioritized deduction / contribution opportunity recommendations",
+    minimumRole: "premium",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageTaxSavings",
+  },
 ];
 
 const REGISTRY_BY_KEY: Record<string, FeatureRegistryEntry> = FEATURE_REGISTRY.reduce(
