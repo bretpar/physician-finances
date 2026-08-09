@@ -467,7 +467,7 @@ export default function Admin() {
                           <TableHead>Role</TableHead>
                           <TableHead>Joined</TableHead>
                           <TableHead>Last sign-in</TableHead>
-                          <TableHead className="text-right">Change role</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
