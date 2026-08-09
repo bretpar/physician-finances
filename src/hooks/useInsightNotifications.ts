@@ -5,12 +5,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useInsights, type AssistantSummary } from "@/hooks/useInsights";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { filterInsightsByAccess } from "@/lib/insights";
 import {
   buildNotifications,
   markAllRead,
   type DecoratedInsight,
   type InsightReadMap,
 } from "@/lib/insightReadState";
+
 
 const storageKey = (userId?: string) => `paycheckmd:insights:read:${userId ?? "anon"}`;
 
