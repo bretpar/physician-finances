@@ -227,7 +227,7 @@ export function TransactionDetailSheet({
 
         <Separator />
 
-        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] sm:pb-4 bg-background">
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+36px)] sm:pb-4 bg-background">
           <Button
             variant="ghost"
             size="sm"
