@@ -147,14 +147,14 @@ interface OverrideForm {
   retirement_401k: string;
   pre_tax_deductions: string;
   notes: string;
-  new_date: string;
   /**
-   * Explicit opt-in for moving the paycheck to a different date. When false,
-   * `new_date` is ignored on save (persisted as null) — protects against
-   * accidentally moving a paycheck just by editing its amount.
+   * Date for THIS occurrence. When it differs from the original scheduled
+   * date it is persisted as the override's `new_date`, moving only this
+   * occurrence — the recurring stream is untouched.
    */
-  move_date_enabled: boolean;
+  new_date: string;
 }
+
 
 const emptyForm = (monthIdx?: number): StreamForm => {
   const now = new Date();
