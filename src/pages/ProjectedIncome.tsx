@@ -1200,15 +1200,7 @@ export default function ProjectedIncome() {
                 : "";
 
             const countableList = entries.filter((e) => e.matchStatus !== "skipped");
-            const rowTakeHome = countableList.reduce(
-              (s, e) => s + (e.netAmount || 0),
-              0,
-            );
-            const rowWithheld = countableList.reduce((s, e) => s + (e.taxesWithheld || 0), 0);
-            const rowTaxesToSave = Math.max(
-              0,
-              rowTotal * (effectiveRatePct / 100) - rowWithheld,
-            );
+
 
             return (
               <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
