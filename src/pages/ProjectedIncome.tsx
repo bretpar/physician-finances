@@ -1164,8 +1164,6 @@ export default function ProjectedIncome() {
             const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
             const pastDueEntries = entries.filter((e) => e.matchStatus === "past_due");
             const convertedEntries = entries.filter((e) => e.matchStatus === "converted");
-            const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
-            const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
             // Simplified row count + total exclude "skipped" entries.
             const countableEntries =
               activeEntries.length +
