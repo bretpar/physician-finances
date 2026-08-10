@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -1422,7 +1421,7 @@ export default function ProjectedIncome() {
                                   size="icon"
                                   variant="ghost"
                                   className="h-6 w-6"
-                                  title="Edit this date"
+                                  title="Edit income"
                                   onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
                                 >
                                   <Pencil className="h-3 w-3" />
@@ -1498,7 +1497,7 @@ export default function ProjectedIncome() {
                                   size="icon"
                                   variant="ghost"
                                   className="h-6 w-6"
-                                  title="Edit this date"
+                                  title="Edit income"
                                   onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
                                 >
                                   <Pencil className="h-3 w-3" />
@@ -2353,7 +2352,7 @@ export default function ProjectedIncome() {
                 )}
                 {((m_isActive && e.type === "paycheck") || (m_isPastDue && e.type === "paycheck")) && (
                   <Button variant="outline" className="justify-start h-12" onClick={() => { close(); openOverrideEdit(e); }}>
-                    <Pencil className="h-4 w-4 mr-2" /> Edit this date
+                    <Pencil className="h-4 w-4 mr-2" /> Edit income
                   </Button>
                 )}
                 {e.type === "bonus" && e.bonusEventId && !m_isMatched && !m_isConverted && !m_isSkipped && (
@@ -2387,7 +2386,7 @@ export default function ProjectedIncome() {
                 )}
                 {((m_isActive || m_isPastDue) && e.type === "paycheck") && (
                   <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => { close(); setMobileSkipConfirm(e); }}>
-                    <X className="h-4 w-4 mr-2" /> Delete (skip this date)
+                    <X className="h-4 w-4 mr-2" /> Delete
                   </Button>
                 )}
                 {e.type === "bonus" && e.bonusEventId && !m_isMatched && !m_isConverted && !m_isSkipped && (
