@@ -42,7 +42,7 @@ import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus, useUpdateBonus,
-  useAddOverride, useDeleteOverride,
+  useAddOverride, useDeleteOverride, useDeleteConvertedOccurrence,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
   generateProjectedPaychecks, getProjectedTotals,
   isStreamExpired,
@@ -323,6 +323,7 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const deleteConvertedOccurrence = useDeleteConvertedOccurrence();
   const confirmSuggested = useConfirmSuggestedMatch();
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const deleteBonus = useDeleteBonus();
@@ -371,6 +372,8 @@ export default function ProjectedIncome() {
   const [bonusDeleteConfirm, setBonusDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [mobileActionsEntry, setMobileActionsEntry] = useState<ProjectedPaycheck | null>(null);
   const [mobileSkipConfirm, setMobileSkipConfirm] = useState<ProjectedPaycheck | null>(null);
+  // Delete flow for occurrences already converted/sent to a ledger.
+  const [convertedDeleteTarget, setConvertedDeleteTarget] = useState<ProjectedPaycheck | null>(null);
 
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
@@ -2384,6 +2387,11 @@ export default function ProjectedIncome() {
                 {(m_isMatched || m_isConverted) && (
                   <Button variant="outline" className="justify-start h-12" onClick={() => { close(); navigate(m_viewDest); }}>
                     <ExternalLink className="h-4 w-4 mr-2" /> View in {m_viewLabel}
+                  </Button>
+                )}
+                {m_isConverted && (
+                  <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => { close(); setConvertedDeleteTarget(e); }}>
+                    <X className="h-4 w-4 mr-2" /> Delete
                   </Button>
                 )}
                 {m_isSkipped && !m_isConverted && (
