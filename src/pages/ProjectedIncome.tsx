@@ -350,6 +350,8 @@ export default function ProjectedIncome() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   // Months start collapsed — the summary numbers answer most questions.
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => new Set<number>());
+  // Mobile summary card starts collapsed to push Monthly Plan higher.
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const [showPreviousMonths, setShowPreviousMonths] = useState(false);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
@@ -987,46 +989,109 @@ export default function ProjectedIncome() {
 
       {/* Year at a glance */}
       <div className="space-y-3">
-        <SummaryCard
-          icon={<DollarSign className="h-5 w-5" />}
-          label="Projected Annual Income"
-          value={fmt(expectedAnnual)}
-          highlight
-          hero
-        />
-        <div className="grid grid-cols-2 gap-3">
+        {/* Mobile: single expandable summary card */}
+        <div className="block sm:hidden">
+          <Collapsible open={summaryOpen} onOpenChange={setSummaryOpen}>
+            <Card className="border-primary/20 bg-primary/5">
+              <CollapsibleTrigger asChild>
+                <CardContent className="cursor-pointer pt-5 pb-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <DollarSign className="h-5 w-5 shrink-0" />
+                        <span className="font-medium uppercase tracking-wider text-sm">Projected Annual Income</span>
+                      </div>
+                      <p className="text-3xl font-bold text-primary truncate">{fmt(expectedAnnual)}</p>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200",
+                        summaryOpen && "rotate-180"
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="grid transition-all duration-300 ease-in-out data-[state=closed]:grid-rows-[0fr] data-[state=open]:grid-rows-[1fr]">
+                <div className="overflow-hidden">
+                  <CardContent className="border-t border-primary/10 pt-4 pb-5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground">Take Home</p>
+                        <p className="text-lg font-semibold text-foreground truncate">{fmt(projectedTakeHome)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground">Projected Taxes</p>
+                        <p className="text-lg font-semibold text-foreground truncate">{fmt(projectedTaxes)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground">Retirement Contributions</p>
+                        <p className="text-lg font-semibold text-foreground truncate">{fmt(projected401k)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground">HSA Contributions</p>
+                        <p className="text-lg font-semibold text-foreground truncate">{fmt(projectedHsa)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground">Months Remaining</p>
+                        <p className="text-lg font-semibold text-foreground truncate">{String(monthsRemaining)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground">Still Expected</p>
+                        <p className="text-lg font-semibold text-foreground truncate">{fmt(projectedTotals.grossIncome)}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </div>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        </div>
+
+        {/* Desktop: existing multi-card layout */}
+        <div className="hidden sm:block space-y-3">
           <SummaryCard
-            icon={<TrendingUp className="h-4 w-4" />}
-            label="Projected Take Home"
-            value={fmt(projectedTakeHome)}
+            icon={<DollarSign className="h-5 w-5" />}
+            label="Projected Annual Income"
+            value={fmt(expectedAnnual)}
+            highlight
+            hero
           />
-          <SummaryCard
-            icon={<Shield className="h-4 w-4" />}
-            label="Projected Taxes"
-            value={fmt(projectedTaxes)}
-          />
-          <SummaryCard
-            icon={<PiggyBank className="h-4 w-4" />}
-            label="Retirement Contributions"
-            value={fmt(projected401k)}
-          />
-          <SummaryCard
-            icon={<PiggyBank className="h-4 w-4" />}
-            label="HSA Contributions"
-            value={fmt(projectedHsa)}
-          />
-          <SummaryCard
-            icon={<Calendar className="h-4 w-4" />}
-            label="Months Remaining"
-            value={String(monthsRemaining)}
-          />
-          <SummaryCard
-            icon={<TrendingUp className="h-4 w-4" />}
-            label="Still Expected"
-            value={fmt(projectedTotals.grossIncome)}
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <SummaryCard
+              icon={<TrendingUp className="h-4 w-4" />}
+              label="Projected Take Home"
+              value={fmt(projectedTakeHome)}
+            />
+            <SummaryCard
+              icon={<Shield className="h-4 w-4" />}
+              label="Projected Taxes"
+              value={fmt(projectedTaxes)}
+            />
+            <SummaryCard
+              icon={<PiggyBank className="h-4 w-4" />}
+              label="Retirement Contributions"
+              value={fmt(projected401k)}
+            />
+            <SummaryCard
+              icon={<PiggyBank className="h-4 w-4" />}
+              label="HSA Contributions"
+              value={fmt(projectedHsa)}
+            />
+            <SummaryCard
+              icon={<Calendar className="h-4 w-4" />}
+              label="Months Remaining"
+              value={String(monthsRemaining)}
+            />
+            <SummaryCard
+              icon={<TrendingUp className="h-4 w-4" />}
+              label="Still Expected"
+              value={fmt(projectedTotals.grossIncome)}
+            />
+          </div>
         </div>
       </div>
+
 
 
       <DuplicateConversionsReview />
