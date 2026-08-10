@@ -1297,6 +1297,16 @@ function getNextDate(current: Date, frequency: string, customDays?: number | nul
  *    - "skipped" — user explicitly skipped via override
  *    - "active" — future paycheck, not yet matched
  */
+/**
+ * A "skip" override created by an explicit user delete removes the occurrence
+ * entirely (it must not render as a soft-deleted row). Legacy skips written by
+ * the old conversion bridge are still surfaced so converted items stay visible.
+ */
+function isDeletedSkip(override?: { action: string; notes?: string | null } | null): boolean {
+  if (!override || override.action !== "skip") return false;
+  return !(override.notes || "").includes("Converted to actual income");
+}
+
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
@@ -1364,7 +1374,9 @@ export function generateProjectedPaychecks(
       if (!isAfter(start, yearEnd) && !isBefore(start, yearStart)) {
         const dateStr = format(start, "yyyy-MM-dd");
         const override = overrideMap.get(`${stream.id}:${dateStr}`);
-        if (override?.action === "skip") {
+        if (isDeletedSkip(override)) {
+          // Explicitly deleted by the user — omit from the planner entirely.
+        } else if (override?.action === "skip") {
           rawPaychecks.push({
             date: dateStr, grossAmount: stream.paycheck_amount,
             taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
@@ -1434,7 +1446,9 @@ export function generateProjectedPaychecks(
       const dateStr = format(current, "yyyy-MM-dd");
       const override = overrideMap.get(`${stream.id}:${dateStr}`);
 
-      if (override?.action === "skip") {
+      if (isDeletedSkip(override)) {
+        // Explicitly deleted by the user — omit from the planner entirely.
+      } else if (override?.action === "skip") {
         rawPaychecks.push({
           date: dateStr, grossAmount: stream.paycheck_amount,
           taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
