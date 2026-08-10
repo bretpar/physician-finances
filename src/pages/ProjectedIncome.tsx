@@ -1199,7 +1199,7 @@ export default function ProjectedIncome() {
               <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
                 <CollapsibleTrigger asChild>
                   <button
-                    className={`w-full px-4 py-4 rounded-xl border transition-colors text-left min-h-[44px] ${
+                    className={`w-full px-4 py-3 rounded-xl border transition-colors text-left min-h-[44px] ${
                       isCurrent
                         ? "border-primary/30 bg-primary/5"
                         : isPast
@@ -1208,26 +1208,26 @@ export default function ProjectedIncome() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-foreground truncate">
-                          {monthName} {new Date().getFullYear()}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {summaryLabel || "No planned income"}
-                        </p>
-                      </div>
+                      <p className="font-semibold text-foreground truncate">
+                        {monthName} {new Date().getFullYear()}
+                      </p>
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                       ) : (
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       )}
                     </div>
-                    {rowTotal > 0 && (
-                      <div className="mt-3">
-                        <p className="text-[11px] text-muted-foreground">Gross</p>
-                        <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
-                      </div>
-                    )}
+                    <div className="flex items-end justify-between gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground truncate">
+                        {summaryLabel || "No planned income"}
+                      </p>
+                      {rowTotal > 0 && (
+                        <div className="text-right shrink-0">
+                          <p className="text-[11px] text-muted-foreground">Gross</p>
+                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
+                        </div>
+                      )}
+                    </div>
                   </button>
                 </CollapsibleTrigger>
 
