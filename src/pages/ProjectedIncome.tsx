@@ -2460,12 +2460,14 @@ export default function ProjectedIncome() {
               onClick={() => {
                 const t = convertedDeleteTarget;
                 if (!t) return;
+                const ov = overrideLookup.get(`${t.streamId}:${t.date}`);
                 deleteConvertedOccurrence.mutate({
                   scope: "planner",
                   streamId: t.streamId,
-                  occurrenceDate: t.date,
+                  // Conversions are keyed by the original scheduled occurrence.
+                  occurrenceDate: ov?.override_date || t.date,
                   bonusEventId: t.bonusEventId ?? null,
-                  existingOverrideId: overrideLookup.get(`${t.streamId}:${t.date}`)?.id ?? null,
+                  existingOverrideId: ov?.id ?? null,
                 });
                 setConvertedDeleteTarget(null);
               }}
@@ -2479,12 +2481,14 @@ export default function ProjectedIncome() {
               onClick={() => {
                 const t = convertedDeleteTarget;
                 if (!t) return;
+                const ov = overrideLookup.get(`${t.streamId}:${t.date}`);
                 deleteConvertedOccurrence.mutate({
                   scope: "both",
                   streamId: t.streamId,
-                  occurrenceDate: t.date,
+                  // Conversions are keyed by the original scheduled occurrence.
+                  occurrenceDate: ov?.override_date || t.date,
                   bonusEventId: t.bonusEventId ?? null,
-                  existingOverrideId: overrideLookup.get(`${t.streamId}:${t.date}`)?.id ?? null,
+                  existingOverrideId: ov?.id ?? null,
                 });
                 setConvertedDeleteTarget(null);
               }}
