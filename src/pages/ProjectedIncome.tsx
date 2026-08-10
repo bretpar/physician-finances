@@ -1199,7 +1199,7 @@ export default function ProjectedIncome() {
                 ? countLabel
                 : "";
 
-            const countableList = entries.filter((e) => e.matchStatus !== "skipped");
+            
 
 
             return (
