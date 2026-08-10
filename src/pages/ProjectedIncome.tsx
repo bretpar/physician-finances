@@ -2443,6 +2443,63 @@ export default function ProjectedIncome() {
         </DialogContent>
       </Dialog>
 
+      {/* Converted item delete — planner only vs planner + ledger */}
+      <Dialog open={!!convertedDeleteTarget} onOpenChange={(open) => { if (!open) setConvertedDeleteTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Where would you like to delete this transaction?</DialogTitle>
+            <DialogDescription>
+              {convertedDeleteTarget?.label} · {formatDate(convertedDeleteTarget?.date)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <Button
+              variant="outline"
+              className="justify-start h-12"
+              disabled={deleteConvertedOccurrence.isPending}
+              onClick={() => {
+                const t = convertedDeleteTarget;
+                if (!t) return;
+                deleteConvertedOccurrence.mutate({
+                  scope: "planner",
+                  streamId: t.streamId,
+                  occurrenceDate: t.date,
+                  bonusEventId: t.bonusEventId ?? null,
+                  existingOverrideId: overrideLookup.get(`${t.streamId}:${t.date}`)?.id ?? null,
+                });
+                setConvertedDeleteTarget(null);
+              }}
+            >
+              Delete from Planner only
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+              disabled={deleteConvertedOccurrence.isPending}
+              onClick={() => {
+                const t = convertedDeleteTarget;
+                if (!t) return;
+                deleteConvertedOccurrence.mutate({
+                  scope: "both",
+                  streamId: t.streamId,
+                  occurrenceDate: t.date,
+                  bonusEventId: t.bonusEventId ?? null,
+                  existingOverrideId: overrideLookup.get(`${t.streamId}:${t.date}`)?.id ?? null,
+                });
+                setConvertedDeleteTarget(null);
+              }}
+            >
+              Delete from Planner &amp; Ledger
+            </Button>
+            <Button variant="ghost" className="justify-start h-12" onClick={() => setConvertedDeleteTarget(null)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
+
       <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
