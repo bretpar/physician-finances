@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -43,7 +42,7 @@ import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus, useUpdateBonus,
-  useAddOverride, useDeleteOverride,
+  useAddOverride, useDeleteOverride, useDeleteConvertedOccurrence,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
   generateProjectedPaychecks, getProjectedTotals,
   isStreamExpired,
@@ -147,14 +146,14 @@ interface OverrideForm {
   retirement_401k: string;
   pre_tax_deductions: string;
   notes: string;
-  new_date: string;
   /**
-   * Explicit opt-in for moving the paycheck to a different date. When false,
-   * `new_date` is ignored on save (persisted as null) — protects against
-   * accidentally moving a paycheck just by editing its amount.
+   * Date for THIS occurrence. When it differs from the original scheduled
+   * date it is persisted as the override's `new_date`, moving only this
+   * occurrence — the recurring stream is untouched.
    */
-  move_date_enabled: boolean;
+  new_date: string;
 }
+
 
 const emptyForm = (monthIdx?: number): StreamForm => {
   const now = new Date();
@@ -324,6 +323,7 @@ export default function ProjectedIncome() {
   const deleteStream = useDeleteStream();
   const addOverride = useAddOverride();
   const deleteOverride = useDeleteOverride();
+  const deleteConvertedOccurrence = useDeleteConvertedOccurrence();
   const confirmSuggested = useConfirmSuggestedMatch();
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const deleteBonus = useDeleteBonus();
@@ -361,7 +361,7 @@ export default function ProjectedIncome() {
   // Override edit state
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
-    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "", move_date_enabled: false,
+    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "",
   });
 
   // Bonus edit state
@@ -372,6 +372,8 @@ export default function ProjectedIncome() {
   const [bonusDeleteConfirm, setBonusDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [mobileActionsEntry, setMobileActionsEntry] = useState<ProjectedPaycheck | null>(null);
   const [mobileSkipConfirm, setMobileSkipConfirm] = useState<ProjectedPaycheck | null>(null);
+  // Delete flow for occurrences already converted/sent to a ledger.
+  const [convertedDeleteTarget, setConvertedDeleteTarget] = useState<ProjectedPaycheck | null>(null);
 
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
@@ -866,19 +868,14 @@ export default function ProjectedIncome() {
     // Anchor date = the original scheduled occurrence. If this entry was already moved,
     // the anchor lives on the override row, otherwise it's the entry's own date.
     const anchorDate = existing?.override_date || entry.date;
-    // Default "Move paycheck date" OFF. Only pre-enable if the saved override
-    // already has an explicit different new_date — preserves prior legitimate
-    // moves without opting new edits into date-moving by default.
-    const priorMoved =
-      !!existing?.new_date && existing.new_date !== anchorDate;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
       pre_tax_deductions: String(entry.preTaxDeductions),
       notes: existing?.notes || "",
-      new_date: priorMoved ? (existing!.new_date as string) : anchorDate,
-      move_date_enabled: priorMoved,
+      // Date field shows where this occurrence currently sits.
+      new_date: entry.date,
     });
     setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
@@ -886,13 +883,10 @@ export default function ProjectedIncome() {
   const handleOverrideSubmit = () => {
     if (!overrideTarget) return;
     const existing = overrideLookup.get(`${overrideTarget.streamId}:${overrideTarget.date}`);
-    // Only persist new_date when the user explicitly enabled "Move paycheck date"
-    // AND picked a date different from the original occurrence. Otherwise save
-    // null so a stale form value can't silently move the paycheck.
+    // Persist new_date only when the user picked a date different from the
+    // original scheduled occurrence — this moves THIS occurrence only.
     const movedDate =
-      overrideForm.move_date_enabled &&
-      overrideForm.new_date &&
-      overrideForm.new_date !== overrideTarget.date
+      overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
         ? overrideForm.new_date
         : null;
     const payload = {
@@ -916,6 +910,7 @@ export default function ProjectedIncome() {
     }
     setOverrideTarget(null);
   };
+
 
   const openConvert = (entry: ProjectedPaycheck) => {
     const t = (entry.streamCompanyType || "").toLowerCase();
@@ -1164,8 +1159,6 @@ export default function ProjectedIncome() {
             const matchedEntries = entries.filter((e) => e.matchStatus === "matched");
             const pastDueEntries = entries.filter((e) => e.matchStatus === "past_due");
             const convertedEntries = entries.filter((e) => e.matchStatus === "converted");
-            const monthTotal = activeEntries.reduce((s, e) => s + e.grossAmount, 0);
-            const monthWithheld = activeEntries.reduce((s, e) => s + e.taxesWithheld, 0);
             // Simplified row count + total exclude "skipped" entries.
             const countableEntries =
               activeEntries.length +
@@ -1199,16 +1192,8 @@ export default function ProjectedIncome() {
                 ? countLabel
                 : "";
 
-            const countableList = entries.filter((e) => e.matchStatus !== "skipped");
-            const rowTakeHome = countableList.reduce(
-              (s, e) => s + (e.netAmount || 0),
-              0,
-            );
-            const rowWithheld = countableList.reduce((s, e) => s + (e.taxesWithheld || 0), 0);
-            const rowTaxesToSave = Math.max(
-              0,
-              rowTotal * (effectiveRatePct / 100) - rowWithheld,
-            );
+            
+
 
             return (
               <Collapsible key={idx} open={isExpanded} onOpenChange={() => toggleMonth(idx)}>
@@ -1238,19 +1223,9 @@ export default function ProjectedIncome() {
                       )}
                     </div>
                     {rowTotal > 0 && (
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[11px] text-muted-foreground">Gross</p>
-                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] text-muted-foreground">Take home</p>
-                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTakeHome)}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] text-muted-foreground">Taxes to save</p>
-                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTaxesToSave)}</p>
-                        </div>
+                      <div className="mt-3">
+                        <p className="text-[11px] text-muted-foreground">Gross</p>
+                        <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
                       </div>
                     )}
                   </button>
@@ -1260,19 +1235,7 @@ export default function ProjectedIncome() {
 
                 <CollapsibleContent>
                   <div className="ml-4 mr-1 mt-1 mb-2 space-y-2">
-                    {activeEntries.length > 0 && (
-                      <div className="flex flex-wrap gap-4 px-3 py-2 rounded-md bg-muted/40 text-xs text-muted-foreground">
-                        <span>Total: <strong className="text-foreground">{fmt(monthTotal)}</strong></span>
-                        {monthWithheld > 0 && (
-                          <span>Withholding: <strong className="text-foreground">{fmt(monthWithheld)}</strong></span>
-                        )}
-                        {activeEntries.reduce((s, e) => s + e.retirement401k, 0) > 0 && (
-                          <span>401(k): <strong className="text-foreground">
-                            {fmt(activeEntries.reduce((s, e) => s + e.retirement401k, 0))}
-                          </strong></span>
-                        )}
-                      </div>
-                    )}
+
 
                     {entries.map((entry, i) => {
                       const dismissKey = `${entry.streamId}:${entry.date}`;
@@ -1398,6 +1361,18 @@ export default function ProjectedIncome() {
                                 <ExternalLink className="h-3 w-3" /> View in {viewLabel}
                               </Button>
                             )}
+                            {isConverted && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-destructive"
+                                title="Delete"
+                                onClick={(e) => { e.stopPropagation(); setConvertedDeleteTarget(entry); }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            )}
+
                             <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
@@ -1461,7 +1436,7 @@ export default function ProjectedIncome() {
                                   size="icon"
                                   variant="ghost"
                                   className="h-6 w-6"
-                                  title="Edit this date"
+                                  title="Edit income"
                                   onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
                                 >
                                   <Pencil className="h-3 w-3" />
@@ -1537,7 +1512,7 @@ export default function ProjectedIncome() {
                                   size="icon"
                                   variant="ghost"
                                   className="h-6 w-6"
-                                  title="Edit this date"
+                                  title="Edit income"
                                   onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
                                 >
                                   <Pencil className="h-3 w-3" />
@@ -2184,74 +2159,34 @@ export default function ProjectedIncome() {
       <Dialog open={!!overrideTarget} onOpenChange={(open) => { if (!open) setOverrideTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Paycheck — {overrideTarget?.date}</DialogTitle>
-            <DialogDescription className="sr-only">Override gross amount, withholding, deductions, and notes for this single paycheck date.</DialogDescription>
+            <DialogTitle>Edit Income</DialogTitle>
+            <DialogDescription className="sr-only">Edit the date, gross amount, withholding, deductions, and notes for this single planned income occurrence.</DialogDescription>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
-            Override the default amounts for this specific date only. The rest of the stream stays unchanged.
+            Changes apply to this occurrence only. The rest of the stream stays unchanged.
           </p>
           <div className="space-y-3 py-2">
-            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-muted-foreground">
-                    Original scheduled date
-                  </div>
-                  <div className="text-sm font-semibold tabular-nums">
-                    {overrideTarget?.date}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Label htmlFor="move-date-toggle" className="text-xs">
-                    Move paycheck date
-                  </Label>
-                  <Switch
-                    id="move-date-toggle"
-                    checked={overrideForm.move_date_enabled}
-                    onCheckedChange={(checked) =>
-                      setOverrideForm((p) => ({
-                        ...p,
-                        move_date_enabled: checked,
-                        // When turning OFF, snap the form date back to the anchor so the
-                        // "moved from" hint disappears and future saves stay null.
-                        new_date: checked ? p.new_date : (overrideTarget?.date || p.new_date),
-                      }))
-                    }
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Date</Label>
+                <DateField
+                  value={overrideForm.new_date}
+                  defaultMonth={overrideTarget?.date}
+                  onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
+                />
               </div>
-              <p className="text-[11px] leading-snug text-muted-foreground">
-                Use this only if the actual paycheck moved to a different date.
-              </p>
-              {overrideForm.move_date_enabled && (
-                <div className="space-y-1.5 pt-1">
-                  <Label className="text-xs">New paycheck date</Label>
-                  <DateField
-                    value={overrideForm.new_date}
-                    defaultMonth={overrideTarget?.date}
-                    onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
-                  />
-                  {overrideTarget?.date && (
-                    <p className="text-xs text-muted-foreground">
-                      Originally scheduled {formatDate(overrideTarget.date)}
-                      {overrideForm.new_date && overrideForm.new_date !== overrideTarget.date
-                        ? ` · Moved to ${formatDate(overrideForm.new_date)}`
-                        : ""}
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Label>Gross Amount</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={overrideForm.paycheck_amount}
+                  onChange={(e) => setOverrideForm((p) => ({ ...p, paycheck_amount: e.target.value }))}
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Gross Amount</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={overrideForm.paycheck_amount}
-                onChange={(e) => setOverrideForm((p) => ({ ...p, paycheck_amount: e.target.value }))}
-              />
-            </div>
+
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Tax Withholding</Label>
@@ -2432,7 +2367,7 @@ export default function ProjectedIncome() {
                 )}
                 {((m_isActive && e.type === "paycheck") || (m_isPastDue && e.type === "paycheck")) && (
                   <Button variant="outline" className="justify-start h-12" onClick={() => { close(); openOverrideEdit(e); }}>
-                    <Pencil className="h-4 w-4 mr-2" /> Edit this date
+                    <Pencil className="h-4 w-4 mr-2" /> Edit income
                   </Button>
                 )}
                 {e.type === "bonus" && e.bonusEventId && !m_isMatched && !m_isConverted && !m_isSkipped && (
@@ -2454,6 +2389,11 @@ export default function ProjectedIncome() {
                     <ExternalLink className="h-4 w-4 mr-2" /> View in {m_viewLabel}
                   </Button>
                 )}
+                {m_isConverted && (
+                  <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => { close(); setConvertedDeleteTarget(e); }}>
+                    <X className="h-4 w-4 mr-2" /> Delete
+                  </Button>
+                )}
                 {m_isSkipped && !m_isConverted && (
                   <Button variant="outline" className="justify-start h-12 text-primary" onClick={() => { close(); handleRestore(e); }}>
                     <RotateCcw className="h-4 w-4 mr-2" /> Restore this date
@@ -2466,7 +2406,7 @@ export default function ProjectedIncome() {
                 )}
                 {((m_isActive || m_isPastDue) && e.type === "paycheck") && (
                   <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => { close(); setMobileSkipConfirm(e); }}>
-                    <X className="h-4 w-4 mr-2" /> Delete (skip this date)
+                    <X className="h-4 w-4 mr-2" /> Delete
                   </Button>
                 )}
                 {e.type === "bonus" && e.bonusEventId && !m_isMatched && !m_isConverted && !m_isSkipped && (
@@ -2502,6 +2442,67 @@ export default function ProjectedIncome() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Converted item delete — planner only vs planner + ledger */}
+      <Dialog open={!!convertedDeleteTarget} onOpenChange={(open) => { if (!open) setConvertedDeleteTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Where would you like to delete this transaction?</DialogTitle>
+            <DialogDescription>
+              {convertedDeleteTarget?.label} · {formatDate(convertedDeleteTarget?.date)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <Button
+              variant="outline"
+              className="justify-start h-12"
+              disabled={deleteConvertedOccurrence.isPending}
+              onClick={() => {
+                const t = convertedDeleteTarget;
+                if (!t) return;
+                const ov = overrideLookup.get(`${t.streamId}:${t.date}`);
+                deleteConvertedOccurrence.mutate({
+                  scope: "planner",
+                  streamId: t.streamId,
+                  // Conversions are keyed by the original scheduled occurrence.
+                  occurrenceDate: ov?.override_date || t.date,
+                  bonusEventId: t.bonusEventId ?? null,
+                  existingOverrideId: ov?.id ?? null,
+                });
+                setConvertedDeleteTarget(null);
+              }}
+            >
+              Delete from Planner only
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+              disabled={deleteConvertedOccurrence.isPending}
+              onClick={() => {
+                const t = convertedDeleteTarget;
+                if (!t) return;
+                const ov = overrideLookup.get(`${t.streamId}:${t.date}`);
+                deleteConvertedOccurrence.mutate({
+                  scope: "both",
+                  streamId: t.streamId,
+                  // Conversions are keyed by the original scheduled occurrence.
+                  occurrenceDate: ov?.override_date || t.date,
+                  bonusEventId: t.bonusEventId ?? null,
+                  existingOverrideId: ov?.id ?? null,
+                });
+                setConvertedDeleteTarget(null);
+              }}
+            >
+              Delete from Planner &amp; Ledger
+            </Button>
+            <Button variant="ghost" className="justify-start h-12" onClick={() => setConvertedDeleteTarget(null)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
 
       <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
         <DialogContent className="sm:max-w-md">

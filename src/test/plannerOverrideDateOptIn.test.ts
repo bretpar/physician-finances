@@ -15,23 +15,16 @@ import {
  * that reads `new_date`, to guarantee:
  *
  *  1. Editing only amount / withholding does NOT persist new_date.
- *  2. A stale new_date on the form is NOT saved unless the toggle is on.
- *  3. A deliberately moved paycheck (toggle ON + different date) is saved
+ *  2. An empty date is never saved.
+ *  3. A deliberately moved paycheck (different date) is saved
  *     and the generated occurrence appears on the moved date.
  *  4. An already-saved override with `new_date` set continues to render on
  *     the moved date (used for the manual/automatic cleanup path).
  */
 
 // Mirrors the payload derivation used inside handleOverrideSubmit.
-function deriveOverrideNewDate(form: {
-  move_date_enabled: boolean;
-  new_date: string;
-}, anchorDate: string): string | null {
-  return form.move_date_enabled &&
-    form.new_date &&
-    form.new_date !== anchorDate
-    ? form.new_date
-    : null;
+function deriveOverrideNewDate(form: { new_date: string }, anchorDate: string): string | null {
+  return form.new_date && form.new_date !== anchorDate ? form.new_date : null;
 }
 
 const baseStream = (over: Partial<ProjectedIncomeStream> = {}): ProjectedIncomeStream => ({
@@ -67,44 +60,18 @@ const baseStream = (over: Partial<ProjectedIncomeStream> = {}): ProjectedIncomeS
   ...over,
 });
 
-describe("Move paycheck date opt-in (handleOverrideSubmit payload)", () => {
-  it("does NOT persist new_date when the user only edits amount/withholding", () => {
+describe("Edit Income date field (handleOverrideSubmit payload)", () => {
+  it("does NOT persist new_date when the date is unchanged", () => {
     const anchor = "2026-06-15";
-    // Toggle OFF, form.new_date happens to be pre-populated to the anchor.
-    const payloadDate = deriveOverrideNewDate(
-      { move_date_enabled: false, new_date: anchor },
-      anchor,
-    );
-    expect(payloadDate).toBeNull();
+    expect(deriveOverrideNewDate({ new_date: anchor }, anchor)).toBeNull();
   });
 
-  it("does NOT persist a stale form date when the toggle is OFF", () => {
-    const anchor = "2026-06-15";
-    // Simulates the reported bug: form still carries a moved value (6/29),
-    // user leaves the toggle off — we must save null, not 6/29.
-    const payloadDate = deriveOverrideNewDate(
-      { move_date_enabled: false, new_date: "2026-06-29" },
-      anchor,
-    );
-    expect(payloadDate).toBeNull();
+  it("does NOT persist new_date when the field is empty", () => {
+    expect(deriveOverrideNewDate({ new_date: "" }, "2026-06-15")).toBeNull();
   });
 
-  it("persists new_date only when toggle is ON AND date differs from the anchor", () => {
-    const anchor = "2026-06-15";
-    expect(
-      deriveOverrideNewDate(
-        { move_date_enabled: true, new_date: "2026-06-29" },
-        anchor,
-      ),
-    ).toBe("2026-06-29");
-
-    // Toggle on but same date → still null (treat as "no move").
-    expect(
-      deriveOverrideNewDate(
-        { move_date_enabled: true, new_date: anchor },
-        anchor,
-      ),
-    ).toBeNull();
+  it("persists new_date when the user picks a different date", () => {
+    expect(deriveOverrideNewDate({ new_date: "2026-06-29" }, "2026-06-15")).toBe("2026-06-29");
   });
 });
 
