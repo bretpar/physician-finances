@@ -1358,6 +1358,18 @@ export default function ProjectedIncome() {
                                 <ExternalLink className="h-3 w-3" /> View in {viewLabel}
                               </Button>
                             )}
+                            {isConverted && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-destructive"
+                                title="Delete"
+                                onClick={(e) => { e.stopPropagation(); setConvertedDeleteTarget(entry); }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            )}
+
                             <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
