@@ -350,6 +350,8 @@ export default function ProjectedIncome() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   // Months start collapsed — the summary numbers answer most questions.
   const [expandedMonths, setExpandedMonths] = useState<Set<number>>(() => new Set<number>());
+  // Mobile summary card starts collapsed to push Monthly Plan higher.
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const [showPreviousMonths, setShowPreviousMonths] = useState(false);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
