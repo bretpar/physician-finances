@@ -1230,19 +1230,9 @@ export default function ProjectedIncome() {
                       )}
                     </div>
                     {rowTotal > 0 && (
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[11px] text-muted-foreground">Gross</p>
-                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] text-muted-foreground">Take home</p>
-                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTakeHome)}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] text-muted-foreground">Taxes to save</p>
-                          <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTaxesToSave)}</p>
-                        </div>
+                      <div className="mt-3">
+                        <p className="text-[11px] text-muted-foreground">Gross</p>
+                        <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
                       </div>
                     )}
                   </button>
@@ -1252,19 +1242,7 @@ export default function ProjectedIncome() {
 
                 <CollapsibleContent>
                   <div className="ml-4 mr-1 mt-1 mb-2 space-y-2">
-                    {activeEntries.length > 0 && (
-                      <div className="flex flex-wrap gap-4 px-3 py-2 rounded-md bg-muted/40 text-xs text-muted-foreground">
-                        <span>Total: <strong className="text-foreground">{fmt(monthTotal)}</strong></span>
-                        {monthWithheld > 0 && (
-                          <span>Withholding: <strong className="text-foreground">{fmt(monthWithheld)}</strong></span>
-                        )}
-                        {activeEntries.reduce((s, e) => s + e.retirement401k, 0) > 0 && (
-                          <span>401(k): <strong className="text-foreground">
-                            {fmt(activeEntries.reduce((s, e) => s + e.retirement401k, 0))}
-                          </strong></span>
-                        )}
-                      </div>
-                    )}
+
 
                     {entries.map((entry, i) => {
                       const dismissKey = `${entry.streamId}:${entry.date}`;
