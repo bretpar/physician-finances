@@ -1274,7 +1274,7 @@ export default function ProjectedIncome() {
                         if (isMatched) return entry.matchedAmount != null ? `Matched deposit · ${fmtFull(entry.matchedAmount)}` : "Matched deposit";
                         if (isSuggested) return "Suggested match";
                         if (isPastDue) return "Past due";
-                        if (entry.isModified && isActive) return "Customized for this date";
+                        // Modified occurrences are indicated by the light-blue row styling only.
                         return null;
                       })();
                       const statusNoteTone = isConverted
