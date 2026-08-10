@@ -15,8 +15,8 @@ import {
  * that reads `new_date`, to guarantee:
  *
  *  1. Editing only amount / withholding does NOT persist new_date.
- *  2. A stale new_date on the form is NOT saved unless the toggle is on.
- *  3. A deliberately moved paycheck (toggle ON + different date) is saved
+ *  2. An empty date is never saved.
+ *  3. A deliberately moved paycheck (different date) is saved
  *     and the generated occurrence appears on the moved date.
  *  4. An already-saved override with `new_date` set continues to render on
  *     the moved date (used for the manual/automatic cleanup path).
