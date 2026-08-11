@@ -205,7 +205,7 @@ export function LedgerRow({
             if (onLongPress) e.preventDefault();
           }}
           className={cn(
-            "min-w-0 flex-1 flex items-start gap-3 px-4 py-3.5 text-left transition-colors select-none",
+            "min-w-0 flex-1 flex items-start gap-3 px-4 py-2.5 sm:py-3.5 text-left transition-colors select-none",
             "hover:bg-muted/40 active:bg-muted/60",
           )}
         >
