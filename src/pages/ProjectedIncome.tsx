@@ -1208,16 +1208,19 @@ export default function ProjectedIncome() {
                       )}
                     </div>
                     <div className="flex items-end justify-between gap-2 mt-1">
-                      <p className="text-xs text-muted-foreground truncate">
-                        {summaryLabel || "No planned income"}
-                      </p>
-                      {rowTotal > 0 && (
-                        <div className="text-right shrink-0">
+                      {hasIncome ? (
+                        <div className="text-left shrink-0">
                           <p className="text-[11px] text-muted-foreground">Gross</p>
                           <p className="text-sm font-semibold tabular-nums text-foreground">{fmt(rowTotal)}</p>
                         </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground truncate">No planned income</p>
                       )}
+                      <p className={cn("text-xs text-muted-foreground shrink-0", !hasIncome && "invisible")}>
+                        {hasIncome ? rightLabel : "—"}
+                      </p>
                     </div>
+
                   </button>
                 </CollapsibleTrigger>
 
