@@ -1174,6 +1174,10 @@ export default function ProjectedIncome() {
             const paycheckLabel = `${countableEntries} ${countableEntries === 1 ? "Paycheck" : "Paychecks"}`;
             const convertedLabel = `${convertedEntries.length} converted`;
             const rightLabel = isExpanded ? convertedLabel : paycheckLabel;
+            const hasIncome = countableEntries > 0;
+
+            
+
 
             
 
