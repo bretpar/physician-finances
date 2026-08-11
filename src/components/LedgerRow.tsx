@@ -21,8 +21,8 @@ export type LedgerRowKind =
   | "neutral";
 
 const KIND_ICON: Record<LedgerRowKind, LucideIcon> = {
-  income: ArrowDownLeft,
-  expense: ArrowUpRight,
+  income: ArrowUpRight,
+  expense: ArrowDownLeft,
   transfer: ArrowLeftRight,
   credit_card_payment: CreditCard,
   neutral: Receipt,
