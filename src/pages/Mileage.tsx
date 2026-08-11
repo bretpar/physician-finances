@@ -184,7 +184,19 @@ export default function Mileage() {
   // Add form: company_id is canonical link; UNASSIGNED for legacy/no-company entries
   const [addCompanyId, setAddCompanyId] = useState<string>("");
   const [addMiles, setAddMiles] = useState("");
+  const currentMonthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [addMonthYear, setAddMonthYear] = useState(currentMonthYear);
+
+  useEffect(() => {
+    if (showAdd) {
+      setAddCompanyId("");
+      setAddMiles("");
+      setAddMonthYear(currentMonthYear);
+    }
+  }, [showAdd, currentMonthYear]);
+
   const [editId, setEditId] = useState<string | null>(null);
+
   const [editCompanyId, setEditCompanyId] = useState<string>("");
   const [editMiles, setEditMiles] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -369,22 +381,34 @@ export default function Mileage() {
   }), [homeOfficeForm, availableProfitByCompany]);
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
+  const monthYearOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    yearOptions.forEach((y) => {
+      MONTHS.forEach((m, i) => {
+        opts.push({ value: `${y}-${String(i + 1).padStart(2, "0")}`, label: `${m} ${y}` });
+      });
+    });
+    return opts;
+  }, [yearOptions]);
 
   function handleAddMileage() {
+
     const miles = parseFloat(addMiles);
     if (!addCompanyId || isNaN(miles) || miles < 0) return;
     const isUnassigned = addCompanyId === UNASSIGNED_COMPANY_VALUE;
     const name = isUnassigned ? "Unassigned" : (companies.find((c) => c.id === addCompanyId)?.name || "");
     if (!name) return;
+    const [year, month] = addMonthYear.split("-").map(Number);
     addMileage.mutate({
-      month: selectedMonth,
-      year: selectedYear,
+      month,
+      year,
       company_name: name,
       company_id: isUnassigned ? null : addCompanyId,
       miles,
     });
     setShowAdd(false); setAddCompanyId(""); setAddMiles("");
   }
+
 
   function openEditMileage(entry: typeof monthEntries[0]) {
     setEditId(entry.id);
@@ -1462,17 +1486,38 @@ export default function Mileage() {
               </p>
             </div>
             <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Month</Label>
+              <Select value={addMonthYear} onValueChange={setAddMonthYear}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthYearOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Miles Driven</Label>
               <Input type="number" min="0" step="0.1" value={addMiles} onChange={(e) => setAddMiles(e.target.value)} placeholder="0" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              For {MONTHS[selectedMonth - 1]} {selectedYear} • Deduction: {fmt((parseFloat(addMiles) || 0) * getIrsMileageRate(selectedYear))}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              {selectedYear === 2026
-                ? "2026 IRS business mileage rate: 72.5¢ per mile."
-                : `${selectedYear} IRS business mileage rate: ${(getIrsMileageRate(selectedYear) * 100).toFixed(1)}¢ per mile.`}
-            </p>
+            {(() => {
+              const [addYear, addMonth] = addMonthYear.split("-").map(Number);
+              return (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    For {MONTHS[addMonth - 1]} {addYear} • Deduction: {fmt((parseFloat(addMiles) || 0) * getIrsMileageRate(addYear))}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {addYear === 2026
+                      ? "2026 IRS business mileage rate: 72.5¢ per mile."
+                      : `${addYear} IRS business mileage rate: ${(getIrsMileageRate(addYear) * 100).toFixed(1)}¢ per mile.`}
+                  </p>
+                </>
+              );
+            })()}
+
             <p className="text-[11px] text-muted-foreground">
               K-1 mileage may be deductible only if unreimbursed partner expenses are allowed or required by the partnership agreement.
             </p>
