@@ -23,7 +23,9 @@ export function useFeatureOverrides(): { overrides: FeatureOverrideMap; isLoadin
     staleTime: 5 * 60 * 1000,
     retry: 1,
     queryFn: async (): Promise<FeatureOverrideMap> => {
-      const { data, error } = await supabase.from("feature_access_overrides").select("feature_key, access_level");
+      // Read through a security-definer RPC: the table itself is developer-only,
+      // and this returns just feature_key/access_level (no edit metadata).
+      const { data, error } = await supabase.rpc("get_feature_access_overrides");
       if (error) throw error;
       const map: FeatureOverrideMap = {};
       for (const row of data ?? []) {
