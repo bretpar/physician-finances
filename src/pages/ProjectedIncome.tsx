@@ -1172,7 +1172,7 @@ export default function ProjectedIncome() {
             const isPast = idx < currentMonth;
             const isCurrent = idx === currentMonth;
             const paycheckLabel = `${countableEntries} ${countableEntries === 1 ? "Paycheck" : "Paychecks"}`;
-            const convertedLabel = `${convertedEntries.length} converted`;
+            const convertedLabel = `${convertedEntries.length} Converted`;
             const rightLabel = isExpanded ? convertedLabel : paycheckLabel;
             const hasIncome = countableEntries > 0;
 
