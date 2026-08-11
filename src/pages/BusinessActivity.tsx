@@ -1200,7 +1200,6 @@ export default function Transactions() {
       {/* Primary focus: Business Profit hero card */}
       <div className="rounded-xl border border-border bg-card p-6 sm:p-8 text-center shadow-sm">
         <p className="text-sm font-medium text-muted-foreground">Business Profit</p>
-        <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground/80">Revenue − Deductions</p>
         <p className={`mt-3 text-4xl sm:text-5xl font-bold tracking-tight ${summaryStats.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
           {fmt(summaryStats.profit)}
         </p>
