@@ -244,7 +244,7 @@ export function LedgerRow({
               </div>
             )}
             {meta && (
-              <div className="text-[13px] text-muted-foreground/80 leading-tight truncate">
+              <div className="hidden sm:block text-[13px] text-muted-foreground/80 leading-tight truncate">
                 {meta}
               </div>
             )}
