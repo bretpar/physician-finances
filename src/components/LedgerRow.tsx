@@ -234,12 +234,12 @@ export function LedgerRow({
           )}
 
           {/* Middle: details */}
-          <div className="min-w-0 flex-1 space-y-1">
+          <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
             <div className="text-[17px] font-semibold text-foreground leading-tight truncate">
               {title}
             </div>
             {subtitle && (
-              <div className="text-[15px] text-muted-foreground leading-tight truncate">
+              <div className="hidden sm:block text-[15px] text-muted-foreground leading-tight truncate">
                 {subtitle}
               </div>
             )}
