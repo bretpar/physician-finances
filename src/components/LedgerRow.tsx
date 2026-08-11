@@ -21,8 +21,8 @@ export type LedgerRowKind =
   | "neutral";
 
 const KIND_ICON: Record<LedgerRowKind, LucideIcon> = {
-  income: ArrowDownLeft,
-  expense: ArrowUpRight,
+  income: ArrowUpRight,
+  expense: ArrowDownLeft,
   transfer: ArrowLeftRight,
   credit_card_payment: CreditCard,
   neutral: Receipt,
@@ -205,7 +205,7 @@ export function LedgerRow({
             if (onLongPress) e.preventDefault();
           }}
           className={cn(
-            "min-w-0 flex-1 flex items-start gap-3 px-4 py-3.5 text-left transition-colors select-none",
+            "min-w-0 flex-1 flex items-start gap-3 px-4 py-2.5 sm:py-3.5 text-left transition-colors select-none",
             "hover:bg-muted/40 active:bg-muted/60",
           )}
         >
@@ -234,17 +234,17 @@ export function LedgerRow({
           )}
 
           {/* Middle: details */}
-          <div className="min-w-0 flex-1 space-y-1">
+          <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
             <div className="text-[17px] font-semibold text-foreground leading-tight truncate">
               {title}
             </div>
             {subtitle && (
-              <div className="text-[15px] text-muted-foreground leading-tight truncate">
+              <div className="hidden sm:block text-[15px] text-muted-foreground leading-tight truncate">
                 {subtitle}
               </div>
             )}
             {meta && (
-              <div className="text-[13px] text-muted-foreground/80 leading-tight truncate">
+              <div className="hidden sm:block text-[13px] text-muted-foreground/80 leading-tight truncate">
                 {meta}
               </div>
             )}
