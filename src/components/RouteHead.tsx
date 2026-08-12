@@ -127,11 +127,29 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
     },
   },
   {
+    pattern: "/student-loans",
+    meta: {
+      title: "Student Loan Estimator | Paycheck MD",
+      description:
+        "Estimate IDR payments, interest growth, and MFJ vs MFS trade-offs on physician student loans, including community-property states.",
+    },
+  },
+  {
     pattern: "/blog/1099-tax-deductions",
     meta: {
       title: "1099 Tax Deductions Guide for Freelancers | Paycheck MD",
       description:
         "Complete guide to 1099 tax deductions: home office, mileage, health insurance, retirement, QBI, and more.",
+      type: "article",
+    },
+  },
+  {
+    pattern: "/blog/physician-scorp-vs-sole-proprietorship",
+    meta: {
+      title: "Physician S-Corp vs. Sole Proprietorship Taxes | Paycheck MD",
+      description:
+        "Compare S-Corp and sole proprietorship taxes for physicians: reasonable salary rules, FICA savings, QBI, and compliance costs.",
+      type: "article",
     },
   },
   {
@@ -140,6 +158,7 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
       title: "Locum Tenens Tax Guide for Physicians | Paycheck MD",
       description:
         "Locum tenens taxes explained: multi-state filing, travel and lodging deductions, quarterly estimates, and S-Corp vs sole proprietor.",
+      type: "article",
     },
   },
   {
