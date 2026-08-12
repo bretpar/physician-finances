@@ -26,6 +26,7 @@ import { OnboardingErrorBoundary } from "@/components/OnboardingErrorBoundary";
 import Estimate from "@/pages/Estimate";
 import Tax1099Deductions from "@/pages/blog/Tax1099Deductions";
 import PhysicianScorpVsSoleProprietorship from "@/pages/blog/PhysicianScorpVsSoleProprietorship";
+import LocumTenensTaxGuide from "@/pages/blog/LocumTenensTaxGuide";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import StudentLoans from "@/pages/StudentLoans";
 import DebugTransactions from "@/pages/DebugTransactions";
