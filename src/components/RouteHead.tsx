@@ -135,6 +135,14 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
     },
   },
   {
+    pattern: "/blog/locum-tenens-tax-guide",
+    meta: {
+      title: "Locum Tenens Tax Guide for Physicians | Paycheck MD",
+      description:
+        "Locum tenens taxes explained: multi-state filing, travel and lodging deductions, quarterly estimates, and S-Corp vs sole proprietor.",
+    },
+  },
+  {
     pattern: "/trust",
     meta: {
       title: "Trust & Security | Paycheck MD",
