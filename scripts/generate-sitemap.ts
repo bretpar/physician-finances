@@ -41,6 +41,7 @@ const entries: SitemapEntry[] = [
   // Intentionally excluded (internal/admin, non-indexable): /debug/transactions, /admin/data-isolation
   { path: "/blog/1099-tax-deductions", changefreq: "monthly", priority: "0.8", lastmod: today },
   { path: "/blog/physician-scorp-vs-sole-proprietorship", changefreq: "monthly", priority: "0.8", lastmod: today },
+  { path: "/blog/locum-tenens-tax-guide", changefreq: "monthly", priority: "0.8", lastmod: today },
 ];
 
 function generateSitemap(entries: SitemapEntry[]) {
