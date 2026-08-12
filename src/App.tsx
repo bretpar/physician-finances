@@ -172,6 +172,7 @@ function AppRoutes() {
       <Route path="/estimate" element={<Estimate />} />
       <Route path="/blog/1099-tax-deductions" element={<Tax1099Deductions />} />
       <Route path="/blog/physician-scorp-vs-sole-proprietorship" element={<PhysicianScorpVsSoleProprietorship />} />
+      <Route path="/blog/locum-tenens-tax-guide" element={<LocumTenensTaxGuide />} />
       <Route path="/diagnostics/build" element={<DiagnosticsBuild />} />
       <Route path="/trust" element={<Trust />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
