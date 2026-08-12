@@ -196,6 +196,7 @@ export function RouteHead() {
       <meta property="og:title" content={meta.title} />
       <meta property="og:description" content={meta.description} />
       <meta property="og:url" content={url} />
+      <meta property="og:type" content={meta.type ?? "website"} />
       <meta name="twitter:title" content={meta.title} />
       <meta name="twitter:description" content={meta.description} />
     </Helmet>
