@@ -3,7 +3,7 @@ import { useLocation, matchPath } from "react-router-dom";
 
 const BASE = "https://app.paycheckmd.com";
 
-type Meta = { title: string; description: string };
+type Meta = { title: string; description: string; type?: "website" | "article" };
 
 // Titles kept under 60 chars including " | Paycheck MD" suffix.
 // Descriptions 50–160 chars.
