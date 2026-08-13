@@ -181,10 +181,11 @@ function Section({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
+        <CardTitle as="h2" className="text-base font-semibold flex items-center gap-2">
           <span className="text-primary">{icon}</span>
           {title}
         </CardTitle>
+
         <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
       <CardContent className="pt-0">{children}</CardContent>
