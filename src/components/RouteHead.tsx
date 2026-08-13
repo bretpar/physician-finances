@@ -146,7 +146,7 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
   {
     pattern: "/blog/physician-scorp-vs-sole-proprietorship",
     meta: {
-      title: "Physician S-Corp vs. Sole Proprietorship Taxes | Paycheck MD",
+      title: "Physician S-Corp vs Sole Proprietorship Guide | Paycheck MD",
       description:
         "Compare S-Corp and sole proprietorship taxes for physicians: reasonable salary rules, FICA savings, QBI, and compliance costs.",
       type: "article",
@@ -162,6 +162,54 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
     },
   },
   {
+    pattern: "/diagnostics/build",
+    meta: {
+      title: "Build Diagnostics | Paycheck MD",
+      description:
+        "Internal build diagnostics and version information for Paycheck MD.",
+    },
+  },
+  {
+    pattern: "/debug/transactions",
+    meta: {
+      title: "Transaction Debug | Paycheck MD",
+      description:
+        "Internal diagnostic view for auditing transaction inclusion in ledgers and tax totals.",
+    },
+  },
+  {
+    pattern: "/admin",
+    meta: {
+      title: "Admin | Paycheck MD",
+      description:
+        "Administration tools for managing Paycheck MD users, features, and system health.",
+    },
+  },
+  {
+    pattern: "/admin/data-isolation",
+    meta: {
+      title: "Data Isolation | Paycheck MD",
+      description:
+        "Audit per-table user and organization data isolation for Paycheck MD accounts.",
+    },
+  },
+  {
+    pattern: "/admin/tax-validation",
+    meta: {
+      title: "Tax Validation | Paycheck MD",
+      description:
+        "Internal tax calculation validation suite for Paycheck MD engineers.",
+    },
+  },
+  {
+    pattern: "/admin/student-loan-validation",
+    meta: {
+      title: "Student Loan Validation | Paycheck MD",
+      description:
+        "Internal student loan estimator validation suite for Paycheck MD engineers.",
+    },
+  },
+  {
     pattern: "/trust",
     meta: {
       title: "Trust & Security | Paycheck MD",
@@ -169,6 +217,7 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
         "How Paycheck MD protects physician financial data — access controls, hosting, subprocessors, retention, and security contact.",
     },
   },
+
 ];
 
 const DEFAULT_META: Meta = {
