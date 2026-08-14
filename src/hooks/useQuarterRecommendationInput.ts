@@ -118,10 +118,14 @@ export function useQuarterRecommendationInput(): QuarterRecommendationSharedInpu
       ? forecastEstimate ?? actualEstimate
       : currentPaceEstimate ?? actualEstimate;
   const annualTaxLiability = Math.max(0, Number(baseEstimate?.totalTaxLiability || 0));
+  const federalIncomeTax = Math.max(0, Number(baseEstimate?.federalTax || 0));
+  const selfEmploymentTax = Math.max(0, Number(baseEstimate?.seTax?.total || 0));
   const quarterMethod = rates?.quarterlyTrackerMethod ?? "even";
 
   return {
     annualTaxLiability,
+    federalIncomeTax,
+    selfEmploymentTax,
     quarterMethod,
     incomeEntries: incomeEntries || [],
     personalEntries: personalEntries || [],
