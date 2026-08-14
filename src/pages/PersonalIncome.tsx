@@ -43,7 +43,7 @@ import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { normalizeFilingType, resolveAdvancedVisibility, type ToggleKey } from "@/lib/filingTypes";
+import { normalizeFilingType, resolveAdvancedVisibility, resolveEmployerPaycheckReduction, type ToggleKey } from "@/lib/filingTypes";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 
