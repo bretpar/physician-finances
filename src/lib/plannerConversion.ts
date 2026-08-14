@@ -27,6 +27,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
 import { getTodayLocalDateString } from "@/lib/localDate";
+import { buildOccurrenceLedgerFields } from "@/lib/plannerOccurrenceLedger";
 
 interface PlannerConversionRow {
   stream_id: string | null;
@@ -224,17 +225,9 @@ async function convertOne(args: ConvertOneArgs): Promise<"converted" | "duplicat
         income_type: incomeType,
         ui_income_subtype: stream.ui_income_subtype ?? incomeType,
         income_date: paycheck.date,
-        gross_amount: paycheck.grossAmount,
-        paycheck_amount: paycheck.grossAmount,
-        federal_withholding: stream.federal_withholding || 0,
-        state_withholding: stream.state_withholding || 0,
-        ss_withholding: stream.ss_withholding || 0,
-        medicare_withholding: stream.medicare_withholding || 0,
-        taxes_withheld: paycheck.taxesWithheld || 0,
-        pre_tax_deductions: paycheck.preTaxDeductions || 0,
-        retirement_401k: paycheck.retirement401k || 0,
-        healthcare_deduction: paycheck.healthcareDeduction || 0,
-        hsa_contribution: paycheck.hsaContribution || 0,
+        // Occurrence-level values are the source of truth — never the parent
+        // stream defaults (a modified paycheck has its own withholding).
+        ...buildOccurrenceLedgerFields(paycheck),
         source_bucket: "personal",
         tax_category: "ordinary",
         is_actual: true,

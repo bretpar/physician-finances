@@ -187,14 +187,8 @@ export function sumDetailedDeductions(f: {
  * aggregate `pre_tax_deductions`, removing the detailed components that are
  * already stored separately (health insurance, HSA). Clamped at zero.
  */
-export function deriveOtherPreTax(
-  aggregate: number | null | undefined,
-  healthcare?: number | null,
-  hsa?: number | null,
-): number {
-  const remainder = Number(aggregate || 0) - Number(healthcare || 0) - Number(hsa || 0);
-  return remainder > 0 ? Math.round(remainder * 100) / 100 : 0;
-}
+export { deriveOtherPreTax } from "@/lib/plannerOccurrenceLedger";
+import { deriveOtherPreTax } from "@/lib/plannerOccurrenceLedger";
 
 
 

@@ -153,6 +153,14 @@ export interface ProjectedPaycheck {
   healthcareDeduction: number;
   /** HSA contribution — tracked separately for reporting. */
   hsaContribution: number;
+  /** Occurrence-level detailed withholding breakdown (override > stream). */
+  federalWithholding?: number;
+  stateWithholding?: number;
+  ssWithholding?: number;
+  medicareWithholding?: number;
+  additionalTaxReserve?: number;
+  /** True when the occurrence override carries its own detailed breakdown. */
+  hasDetailedBreakdown?: boolean;
   netAmount: number;
   type: "paycheck" | "bonus";
   label: string;
@@ -1331,6 +1339,28 @@ export function resolveOccurrenceDetail(
 
 
 
+/**
+ * Occurrence-level ledger fields for a generated paycheck. Values come from the
+ * occurrence override when it has a detailed breakdown, otherwise from the
+ * recurring stream — never a mix, never summed.
+ */
+export function occurrenceDetailFields(
+  stream: Parameters<typeof resolveOccurrenceDetail>[0],
+  override?: Partial<ProjectedIncomeOverride> | null,
+) {
+  const d = resolveOccurrenceDetail(stream, override);
+  return {
+    healthcareDeduction: d.healthcareDeduction,
+    hsaContribution: d.hsaContribution,
+    federalWithholding: d.federalWithholding,
+    stateWithholding: d.stateWithholding,
+    ssWithholding: d.ssWithholding,
+    medicareWithholding: d.medicareWithholding,
+    additionalTaxReserve: d.additionalTaxReserve,
+    hasDetailedBreakdown: d.hasDetailedBreakdown,
+  };
+}
+
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
@@ -1377,6 +1407,12 @@ export function generateProjectedPaychecks(
     preTaxDeductions: number;
     healthcareDeduction: number;
     hsaContribution: number;
+    federalWithholding: number;
+    stateWithholding: number;
+    ssWithholding: number;
+    medicareWithholding: number;
+    additionalTaxReserve: number;
+    hasDetailedBreakdown: boolean;
     type: "paycheck" | "bonus";
     label: string;
     streamId: string;
@@ -1404,8 +1440,7 @@ export function generateProjectedPaychecks(
             date: dateStr, grossAmount: stream.paycheck_amount,
             taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
             preTaxDeductions: stream.pre_tax_deductions,
-            healthcareDeduction: stream.healthcare_deduction || 0,
-            hsaContribution: stream.hsa_contribution || 0,
+            ...occurrenceDetailFields(stream, null),
             type: "paycheck", label: stream.company, streamId: stream.id,
             isSkipped: true, isModified: false, streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
           });
@@ -1417,8 +1452,7 @@ export function generateProjectedPaychecks(
           const displayDate = override?.action === "modify" && override.new_date ? override.new_date : dateStr;
           rawPaychecks.push({
             date: displayDate, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
-            healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
-            hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+            ...occurrenceDetailFields(stream, override),
 
             type: "paycheck", label: stream.company, streamId: stream.id,
             isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
@@ -1445,8 +1479,7 @@ export function generateProjectedPaychecks(
           taxesWithheld: override.taxes_withheld,
           retirement401k: override.retirement_401k,
           preTaxDeductions: override.pre_tax_deductions,
-          healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
-          hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+          ...occurrenceDetailFields(stream, override),
 
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: true,
@@ -1478,8 +1511,7 @@ export function generateProjectedPaychecks(
           date: dateStr, grossAmount: stream.paycheck_amount,
           taxesWithheld: stream.taxes_withheld, retirement401k: stream.retirement_401k,
           preTaxDeductions: stream.pre_tax_deductions,
-          healthcareDeduction: stream.healthcare_deduction || 0,
-            hsaContribution: stream.hsa_contribution || 0,
+          ...occurrenceDetailFields(stream, null),
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: true, isModified: false, streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
         });
@@ -1491,8 +1523,7 @@ export function generateProjectedPaychecks(
         const displayDate = override?.action === "modify" && override.new_date ? override.new_date : dateStr;
         rawPaychecks.push({
           date: displayDate, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
-          healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
-            hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+          ...occurrenceDetailFields(stream, override),
 
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
@@ -1531,6 +1562,12 @@ export function generateProjectedPaychecks(
         preTaxDeductions: 0,
         healthcareDeduction: 0,
         hsaContribution: 0,
+        federalWithholding: 0,
+        stateWithholding: 0,
+        ssWithholding: 0,
+        medicareWithholding: 0,
+        additionalTaxReserve: 0,
+        hasDetailedBreakdown: false,
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
