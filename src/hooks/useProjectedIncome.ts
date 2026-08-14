@@ -1451,8 +1451,9 @@ export function generateProjectedPaychecks(
           taxesWithheld: override.taxes_withheld,
           retirement401k: override.retirement_401k,
           preTaxDeductions: override.pre_tax_deductions,
-          healthcareDeduction: stream.healthcare_deduction || 0,
-          hsaContribution: stream.hsa_contribution || 0,
+          healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
+          hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: true,
           streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
