@@ -82,7 +82,7 @@ describe("QuarterlyTracker simplified UI breakdown", () => {
     expect(screen.getByText(/Tax savings set aside/i)).toBeInTheDocument();
   });
 
-  it("shows informational 'Payroll taxes already handled' section for W-2 SS/Medicare", () => {
+  it("shows informational 'Payroll taxes already handled' section for W-2 SS/Medicare", async () => {
     renderTracker({
       personalEntries: [
         {
@@ -95,6 +95,7 @@ describe("QuarterlyTracker simplified UI breakdown", () => {
         },
       ],
     });
+    await expandDetails();
     expect(screen.getByText(/Payroll taxes already handled/i)).toBeInTheDocument();
     expect(screen.getByText(/Social Security withheld/i)).toBeInTheDocument();
     expect(screen.getByText(/Medicare withheld/i)).toBeInTheDocument();
