@@ -142,7 +142,10 @@ export {
   DialogTrigger,
   DialogContent,
   DialogHeader,
+  DialogStickyHeader,
+  DialogBody,
   DialogFooter,
+  DialogStickyFooter,
   DialogTitle,
   DialogDescription,
 };
