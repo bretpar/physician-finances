@@ -1534,24 +1534,28 @@ export default function ProjectedIncome() {
                                   <Plus className="h-3 w-3 mr-0.5" />
                                   {(() => { const t = (entry.streamCompanyType || "").toLowerCase(); return (t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution") ? "To Ledger" : "To Personal"; })()}
                                 </Button>
-                                {entry.date >= getTodayLocalDateString() && <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6"
-                                  title="Edit income"
-                                  onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-destructive"
-                                  title="Skip this date"
-                                  onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>}
+                                {entry.date >= getTodayLocalDateString() && (
+                                  <>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6"
+                                      title="Edit income"
+                                      onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 text-destructive"
+                                      title="Skip this date"
+                                      onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
                               </>
                             )}
                             {entry.type === "bonus" && entry.bonusEventId && !isMatched && !isConverted && !isSkipped && (
