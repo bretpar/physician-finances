@@ -32,6 +32,8 @@ import { TransactionDetailSheet, type DetailSection } from "@/components/Transac
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/localDate";
+import { buildStopFutureSummary } from "@/lib/plannerStopFutureSummary";
+
 import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
