@@ -925,7 +925,7 @@ export default function ProjectedIncome() {
     setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
 
-  const handleOverrideSubmit = () => {
+  const handleOverrideSubmit = async () => {
     if (!overrideTarget) return;
     const existing = overrideLookup.get(`${overrideTarget.streamId}:${overrideTarget.date}`);
     // Persist new_date only when the user picked a date different from the
@@ -945,7 +945,9 @@ export default function ProjectedIncome() {
         ? sumDetailedWithholding(overrideForm)
         : num(overrideForm.taxes_withheld),
       retirement_401k: num(overrideForm.retirement_401k),
-      pre_tax_deductions: num(overrideForm.pre_tax_deductions),
+      pre_tax_deductions: overrideForm.detailed
+        ? sumDetailedDeductions(overrideForm)
+        : num(overrideForm.pre_tax_deductions),
       notes: overrideForm.notes,
       new_date: movedDate,
       has_detailed_breakdown: overrideForm.detailed,
@@ -957,16 +959,25 @@ export default function ProjectedIncome() {
       hsa_contribution: overrideForm.detailed ? num(overrideForm.hsa_contribution) : 0,
       additional_tax_reserve: overrideForm.detailed ? num(overrideForm.additional_tax_reserve) : 0,
     };
-    if (existing) {
-      deleteOverride.mutate(
-        { id: existing.id, silent: true },
-        { onSuccess: () => addOverride.mutate(payload) },
-      );
-    } else {
-      addOverride.mutate(payload);
+    setOverrideSaving(true);
+    try {
+      if (existing) {
+        // Update in place — a delete+insert pair is not atomic and loses the
+        // occurrence entirely if the insert fails.
+        await updateOverride.mutateAsync({ id: existing.id, ...payload });
+      } else {
+        await addOverride.mutateAsync(payload);
+      }
+      // Close only after the save actually succeeded.
+      setOverrideTarget(null);
+    } catch {
+      // Mutation hooks already surface the error toast. Keep the modal open
+      // with the user's entered values so nothing is lost.
+    } finally {
+      setOverrideSaving(false);
     }
-    setOverrideTarget(null);
   };
+
 
 
   const openConvert = (entry: ProjectedPaycheck) => {
