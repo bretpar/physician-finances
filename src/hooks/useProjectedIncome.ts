@@ -1337,6 +1337,37 @@ function isDeletedSkip(override?: { action: string; notes?: string | null } | nu
   return !(override.notes || "").includes("Converted to actual income");
 }
 
+/**
+ * CANONICAL: resolve the detailed paycheck fields for a single planned
+ * occurrence. When the user entered a detailed breakdown on the occurrence
+ * override, those values are the source of truth; otherwise the recurring
+ * stream's saved values are used. Never sums basic + detailed values, so
+ * nothing can be double-counted.
+ */
+export function resolveOccurrenceDetail(
+  stream: Pick<
+    ProjectedIncomeStream,
+    | "federal_withholding" | "state_withholding" | "ss_withholding" | "medicare_withholding"
+    | "healthcare_deduction" | "hsa_contribution" | "additional_tax_reserve"
+  >,
+  override?: Partial<ProjectedIncomeOverride> | null,
+) {
+  const detailed = !!override && override.action === "modify" && !!override.has_detailed_breakdown;
+  const pick = (o?: number | null, s?: number | null) => Number((detailed ? o : s) || 0);
+  return {
+    hasDetailedBreakdown: detailed,
+    federalWithholding: pick(override?.federal_withholding, stream.federal_withholding),
+    stateWithholding: pick(override?.state_withholding, stream.state_withholding),
+    ssWithholding: pick(override?.ss_withholding, stream.ss_withholding),
+    medicareWithholding: pick(override?.medicare_withholding, stream.medicare_withholding),
+    healthcareDeduction: pick(override?.healthcare_deduction, stream.healthcare_deduction),
+    hsaContribution: pick(override?.hsa_contribution, stream.hsa_contribution),
+    additionalTaxReserve: pick(override?.additional_tax_reserve, stream.additional_tax_reserve),
+  };
+}
+
+
+
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
