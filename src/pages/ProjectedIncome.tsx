@@ -909,11 +909,18 @@ export default function ProjectedIncome() {
     const detail = stream
       ? resolveOccurrenceDetail(stream, existing as any)
       : null;
+    const hasDetailed = !!(existing as any)?.has_detailed_breakdown;
+    // `pre_tax_deductions` is an AGGREGATE that already includes the separately
+    // persisted detailed components (health insurance, HSA). Hydrating it straight
+    // into "Other pre-tax" double-counts them, so derive the standalone remainder.
+    const otherPreTax = hasDetailed
+      ? deriveOtherPreTax(entry.preTaxDeductions, detail?.healthcareDeduction, detail?.hsaContribution)
+      : entry.preTaxDeductions;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
-      pre_tax_deductions: String(entry.preTaxDeductions),
+      pre_tax_deductions: String(otherPreTax),
       notes: existing?.notes || "",
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
