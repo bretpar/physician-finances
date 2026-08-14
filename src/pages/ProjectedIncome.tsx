@@ -2227,7 +2227,7 @@ export default function ProjectedIncome() {
       </Dialog>
 
       {/* Override Edit Dialog */}
-      <Dialog open={!!overrideTarget} onOpenChange={(open) => { if (!open) setOverrideTarget(null); }}>
+      <Dialog open={!!overrideTarget} onOpenChange={(open) => { if (!open && !overrideSaving) setOverrideTarget(null); }}>
         <DialogContent scrollable className="sm:max-w-md">
           <DialogStickyHeader>
             <DialogTitle>Edit Income</DialogTitle>
