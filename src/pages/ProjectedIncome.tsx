@@ -45,7 +45,7 @@ import {
   useAddOverride, useDeleteOverride, useDeleteConvertedOccurrence,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
   generateProjectedPaychecks, getProjectedTotals,
-  isStreamExpired,
+  isStreamExpired, resolveOccurrenceDetail,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";
 import {
