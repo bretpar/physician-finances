@@ -31,6 +31,9 @@ import {
   FILING_TYPES,
   TOGGLE_OPTIONS_BY_TYPE,
   resolveAdvancedVisibility,
+  EMPLOYER_RETIREMENT_REDUCES_PAYCHECK_KEY,
+  EMPLOYER_HSA_REDUCES_PAYCHECK_KEY,
+
   type FilingType,
 } from "@/lib/filingTypes";
 import { ledgerForIncomeType, ledgerLabel } from "@/lib/ledgerRouting";
