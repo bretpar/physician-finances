@@ -1076,6 +1076,16 @@ export function useAddOverride() {
       pre_tax_deductions?: number;
       notes?: string;
       new_date?: string | null;
+      // Optional detailed breakdown (same field definitions as the Personal
+      // Income ledger). Only persisted when the user expands the breakdown.
+      federal_withholding?: number;
+      state_withholding?: number;
+      ss_withholding?: number;
+      medicare_withholding?: number;
+      healthcare_deduction?: number;
+      hsa_contribution?: number;
+      additional_tax_reserve?: number;
+      has_detailed_breakdown?: boolean;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -1090,10 +1100,19 @@ export function useAddOverride() {
         taxes_withheld: override.taxes_withheld ?? 0,
         retirement_401k: override.retirement_401k ?? 0,
         pre_tax_deductions: override.pre_tax_deductions ?? 0,
+        federal_withholding: override.federal_withholding ?? 0,
+        state_withholding: override.state_withholding ?? 0,
+        ss_withholding: override.ss_withholding ?? 0,
+        medicare_withholding: override.medicare_withholding ?? 0,
+        healthcare_deduction: override.healthcare_deduction ?? 0,
+        hsa_contribution: override.hsa_contribution ?? 0,
+        additional_tax_reserve: override.additional_tax_reserve ?? 0,
+        has_detailed_breakdown: override.has_detailed_breakdown ?? false,
         notes: override.notes || "",
         new_date: override.new_date ?? null,
-      });
+      } as any);
       if (error) throw error;
+
       // If user skipped a single occurrence, remove any planner-created
       // ledger row created for it so false "actual" income doesn't remain.
       let cleanupSummary = null;
