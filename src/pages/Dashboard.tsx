@@ -444,6 +444,8 @@ export default function Dashboard() {
             <QuarterlyTracker
               showPaceStatus={canFeature("quarterlySavingsPace")}
               annualTaxLiability={sharedQrInput.annualTaxLiability}
+              federalIncomeTax={sharedQrInput.federalIncomeTax}
+              selfEmploymentTax={sharedQrInput.selfEmploymentTax}
               payments={sharedQrInput.payments ?? []}
               methodLabel={methodLabel}
               incomeEntries={sharedQrInput.incomeEntries ?? []}
