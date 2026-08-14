@@ -121,6 +121,17 @@ export interface ProjectedIncomeOverride {
   taxes_withheld: number;
   retirement_401k: number;
   pre_tax_deductions: number;
+  /** Optional detailed breakdown (mirrors the Personal Income ledger fields). */
+  federal_withholding?: number;
+  state_withholding?: number;
+  ss_withholding?: number;
+  medicare_withholding?: number;
+  healthcare_deduction?: number;
+  hsa_contribution?: number;
+  additional_tax_reserve?: number;
+  /** True when the user entered a detailed breakdown for this occurrence. */
+  has_detailed_breakdown?: boolean;
+
   notes: string;
   created_at: string;
   updated_at: string;
