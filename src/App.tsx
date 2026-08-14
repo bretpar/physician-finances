@@ -176,6 +176,7 @@ function AppRoutes() {
       <Route path="/blog/locum-tenens-tax-guide" element={<LocumTenensTaxGuide />} />
       <Route path="/diagnostics/build" element={<DiagnosticsBuild />} />
       <Route path="/trust" element={<Trust />} />
+      <Route path="/" element={user ? <ProtectedRoutes /> : <Landing />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
 
     </Routes>
