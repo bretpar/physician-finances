@@ -390,6 +390,8 @@ export default function ProjectedIncome() {
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
     paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "",
+    detailed: false, federal_withholding: "", ss_withholding: "", medicare_withholding: "",
+    state_withholding: "", healthcare_deduction: "", hsa_contribution: "", additional_tax_reserve: "",
   });
 
   // Bonus edit state
@@ -896,6 +898,12 @@ export default function ProjectedIncome() {
     // Anchor date = the original scheduled occurrence. If this entry was already moved,
     // the anchor lives on the override row, otherwise it's the entry's own date.
     const anchorDate = existing?.override_date || entry.date;
+    // Detailed breakdown: use the occurrence override when it has one,
+    // otherwise seed from the recurring stream so nothing is invented.
+    const stream = (streams || []).find((s) => s.id === entry.streamId);
+    const detail = stream
+      ? resolveOccurrenceDetail(stream, existing as any)
+      : null;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
@@ -904,6 +912,14 @@ export default function ProjectedIncome() {
       notes: existing?.notes || "",
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
+      detailed: !!(existing as any)?.has_detailed_breakdown,
+      federal_withholding: detail?.federalWithholding ? String(detail.federalWithholding) : "",
+      ss_withholding: detail?.ssWithholding ? String(detail.ssWithholding) : "",
+      medicare_withholding: detail?.medicareWithholding ? String(detail.medicareWithholding) : "",
+      state_withholding: detail?.stateWithholding ? String(detail.stateWithholding) : "",
+      healthcare_deduction: detail?.healthcareDeduction ? String(detail.healthcareDeduction) : "",
+      hsa_contribution: detail?.hsaContribution ? String(detail.hsaContribution) : "",
+      additional_tax_reserve: detail?.additionalTaxReserve ? String(detail.additionalTaxReserve) : "",
     });
     setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
@@ -922,11 +938,23 @@ export default function ProjectedIncome() {
       override_date: overrideTarget.date,
       action: "modify" as const,
       paycheck_amount: num(overrideForm.paycheck_amount),
-      taxes_withheld: num(overrideForm.taxes_withheld),
+      // When a detailed breakdown exists it is the source of truth: the basic
+      // totals are derived from the components, never added to them.
+      taxes_withheld: overrideForm.detailed
+        ? sumDetailedWithholding(overrideForm)
+        : num(overrideForm.taxes_withheld),
       retirement_401k: num(overrideForm.retirement_401k),
       pre_tax_deductions: num(overrideForm.pre_tax_deductions),
       notes: overrideForm.notes,
       new_date: movedDate,
+      has_detailed_breakdown: overrideForm.detailed,
+      federal_withholding: overrideForm.detailed ? num(overrideForm.federal_withholding) : 0,
+      ss_withholding: overrideForm.detailed ? num(overrideForm.ss_withholding) : 0,
+      medicare_withholding: overrideForm.detailed ? num(overrideForm.medicare_withholding) : 0,
+      state_withholding: overrideForm.detailed ? num(overrideForm.state_withholding) : 0,
+      healthcare_deduction: overrideForm.detailed ? num(overrideForm.healthcare_deduction) : 0,
+      hsa_contribution: overrideForm.detailed ? num(overrideForm.hsa_contribution) : 0,
+      additional_tax_reserve: overrideForm.detailed ? num(overrideForm.additional_tax_reserve) : 0,
     };
     if (existing) {
       deleteOverride.mutate(
