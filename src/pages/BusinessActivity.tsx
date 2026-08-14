@@ -497,7 +497,9 @@ export default function Transactions() {
   };
 
   // --- Smart withholding recommendation engine ---
-  const { getRecommendation } = useWithholdingRecommendation();
+  const { getRecommendation } = useWithholdingRecommendation({
+    excludeTransactionId: editingIncomeTxId,
+  });
   const grossIncome = num(incomeForm.gross_amount);
   const selectedIncomeCompany = useMemo(
     () => getCompanyByFormValue(incomeForm.company),
@@ -548,13 +550,12 @@ export default function Transactions() {
       taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
       retirement401k: num(incomeForm.retirement_401k),
       preTaxDeductions: num(incomeForm.pre_tax_deductions) + num(incomeForm.healthcare_deduction) + num(incomeForm.hsa_contribution),
-      alreadyIncludedInEstimate: isEditingIncome,
       companyId: selectedIncomeCompany?.id ?? null,
       applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
       includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
       isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
-  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, isEditingIncome, selectedIncomeCompany, isSelfEmploymentTaxableOverride]);
+  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   const calculatedNet = useMemo(() => {
@@ -2052,7 +2053,7 @@ export default function Transactions() {
                 {incomeNeedsCompanyReview && (
                   <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
                 )}
-                {isIncomeEntryTypeDisabled(taxSettings?.householdIncomeStreams, normalizeFilingType(incomeForm.income_type)) && (
+                {isEditingIncome && isIncomeEntryTypeDisabled(taxSettings?.householdIncomeStreams, normalizeFilingType(incomeForm.income_type)) && (
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     No longer active in your Household Income Profile — kept available for this existing entry only.
                   </p>
