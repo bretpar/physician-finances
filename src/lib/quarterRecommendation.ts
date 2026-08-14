@@ -14,8 +14,8 @@
  *   recommendedQuarterlyPayment =
  *     max(0, quarterTarget - paidThisQuarter - savedThisQuarter)
  *
- *   paidThisQuarter   = W-2/payroll federal withholding (getTotalFederalPaid)
- *                     + 1099/K-1 federal withholding on income dated this quarter
+ *   paidThisQuarter   = W-2 federal income-tax withholding (`federal_withholding` only)
+ *                     + 1099/K-1 federal payroll withholding on income dated this quarter
  *                     + estimated tax payments logged for this applied_quarter
  *                       (getQuarterPayments).
  *   savedThisQuarter  = reserves (paycheck additional_tax_reserve,

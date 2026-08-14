@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildOccurrenceLedgerFields, deriveOtherPreTax } from "@/lib/plannerOccurrenceLedger";
 import { computeOccurrenceRepair } from "@/lib/plannerConversionRepair";
+import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import {
   generateProjectedPaychecks,
   occurrenceDetailFields,
@@ -186,6 +187,31 @@ describe("quarterly accounting rules for converted paychecks", () => {
     const b = buildOccurrenceLedgerFields({ grossAmount: 6879.68, taxesWithheld: 2065.19, retirement401k: 0, preTaxDeductions: 0, healthcareDeduction: 0, hsaContribution: 0, federalWithholding: 1565.19 });
     expect(a).toEqual(b);
   });
+
+  it("aggregates every historical Optum conversion using federal income tax only", () => {
+    const q3Rows = [
+      { id: "jun-05", income_date: "2026-06-05", company: "Optum", origin_type: "planner_converted", federal_withholding: 75, ss_withholding: 135, medicare_withholding: 32, taxes_withheld: 75 },
+      { id: "jun-19", income_date: "2026-06-19", company: "Optum", origin_type: "planner_converted", federal_withholding: 75, ss_withholding: 135, medicare_withholding: 32, taxes_withheld: 75 },
+      { id: "jul-03", income_date: "2026-07-03", company: "Optum", origin_type: "planner_converted", federal_withholding: 75, ss_withholding: 135, medicare_withholding: 32, taxes_withheld: 242 },
+      { id: "jul-17", income_date: "2026-07-17", company: "Optum", origin_type: "planner_converted", federal_withholding: 75, ss_withholding: 135, medicare_withholding: 32, taxes_withheld: 242 },
+      { id: "jul-31", income_date: "2026-07-31", company: "Optum", origin_type: "planner_converted", federal_withholding: 75, ss_withholding: 135, medicare_withholding: 32, taxes_withheld: 242 },
+      { id: "aug-14", income_date: "2026-08-14", company: "Optum", origin_type: "planner_converted", federal_withholding: 1038.9, ss_withholding: 426.54, medicare_withholding: 99.75, taxes_withheld: 1565.19 },
+    ];
+
+    const result = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year: 2026,
+      quarter: 3,
+      now: new Date(2026, 7, 14, 12),
+      personalEntries: q3Rows,
+    });
+    const optum = result.sourceRows.find((row) => row.label === "Optum (W-2)");
+
+    expect(optum?.paid).toBeCloseTo(1413.9, 2);
+    expect(result.w2WithheldThisQuarter).toBeCloseTo(1413.9, 2);
+    expect(optum?.paid).not.toBeCloseTo(q3Rows.reduce((sum, row) => sum + row.taxes_withheld, 0), 2);
+    expect(result.sourceRows.filter((row) => row.label === "Optum (W-2)")).toHaveLength(1);
+  });
 });
 
 describe("historical repair path (idempotent)", () => {
@@ -205,6 +231,27 @@ describe("historical repair path (idempotent)", () => {
     expect(d.decision).toBe("repair");
     expect(d.patch?.federal_withholding).toBe(1565.19);
     expect(d.patch?.taxes_withheld).toBeCloseTo(1565.19 + 400 + 100, 2);
+  });
+
+  it("aggregates a repaired historical occurrence with other same-employer rows", () => {
+    const decision = computeOccurrenceRepair(staleRow, optum, detailedOverride(`${year}-08-14`, 1565.19));
+    expect(decision.decision).toBe("repair");
+
+    const repaired = { ...staleRow, ...decision.patch };
+    const result = buildQuarterRecommendation({
+      annualTaxLiability: 40_000,
+      year,
+      quarter: 3,
+      now: new Date(year, 7, 31, 12),
+      personalEntries: [
+        { income_date: `${year}-07-03`, company: "Optum", origin_type: "planner_converted", federal_withholding: 242 },
+        { income_date: `${year}-07-17`, company: "Optum", origin_type: "planner_converted", federal_withholding: 242 },
+        repaired,
+      ],
+    });
+
+    expect(result.sourceRows.find((row) => row.label === "Optum (W-2)")?.paid)
+      .toBeCloseTo(242 + 242 + 1565.19, 2);
   });
 
   it("is a no-op on a second run", () => {

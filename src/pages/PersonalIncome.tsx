@@ -1767,6 +1767,10 @@ export default function PersonalIncome() {
         const isLoss = uiType === "loss";
         const gross = Number(e.gross_amount) || 0;
         const withheld = getTotalFederalPaid(e as any);
+        const federalIncomeTax = Number(e.federal_withholding || 0);
+        const socialSecurity = Number(e.ss_withholding || 0);
+        const medicare = Number(e.medicare_withholding || 0);
+        const hasPayrollTaxBreakdown = federalIncomeTax > 0 || socialSecurity > 0 || medicare > 0;
         const reserve = Number((e as any).additional_tax_reserve || 0);
         const stateW = Number(e.state_withholding || 0);
         const preTax = Number((e as any).pre_tax_deductions || 0);
@@ -1857,7 +1861,18 @@ export default function PersonalIncome() {
                     },
                   ]
                 : []),
-              ...(withheld > 0 ? [{ label: "Federal paid", value: fmt(withheld), mono: true }] : []),
+              ...(withheld > 0
+                ? [{ label: "Federal payroll taxes withheld", value: fmt(withheld), mono: true }]
+                : []),
+              ...(hasPayrollTaxBreakdown && federalIncomeTax > 0
+                ? [{ label: "Federal income tax", value: fmt(federalIncomeTax), mono: true }]
+                : []),
+              ...(hasPayrollTaxBreakdown && socialSecurity > 0
+                ? [{ label: "Social Security", value: fmt(socialSecurity), mono: true }]
+                : []),
+              ...(hasPayrollTaxBreakdown && medicare > 0
+                ? [{ label: "Medicare", value: fmt(medicare), mono: true }]
+                : []),
               ...(stateIncomeTaxEnabled && stateW > 0 ? [{ label: "State withheld", value: fmt(stateW), mono: true }] : []),
               ...(preTax > 0 ? [{ label: "Pre-tax", value: fmt(preTax), mono: true }] : []),
               ...(ret401k > 0 ? [{ label: "401(k)", value: fmt(ret401k), mono: true }] : []),
