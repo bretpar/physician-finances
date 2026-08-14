@@ -32,6 +32,8 @@ import { TransactionDetailSheet, type DetailSection } from "@/components/Transac
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/localDate";
+import { buildStopFutureSummary } from "@/lib/plannerStopFutureSummary";
+
 import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
@@ -496,6 +498,14 @@ export default function ProjectedIncome() {
   }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
+
+  // Confirmation summary for "Stop future income": how many planned future
+  // occurrences disappear, and what stays untouched.
+  const stopFutureSummary = useMemo(() => {
+    if (!deleteConfirm) return null;
+    return buildStopFutureSummary(projectedPaychecks, deleteConfirm);
+  }, [deleteConfirm, projectedPaychecks]);
+
 
   const actualYTD = useMemo(() => {
     if (!incomeEntries) return { income: 0, withheld: 0, retirement: 0, deductions: 0 };
@@ -2239,9 +2249,47 @@ export default function ProjectedIncome() {
             <DialogTitle>Stop future income</DialogTitle>
             <DialogDescription className="sr-only">Confirm stopping future planned income from this stream.</DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            This will remove future planned income from this stream. Past income and ledger transactions will not be changed.
-          </p>
+          <div className="space-y-3">
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-1">
+              <p className="text-sm font-semibold text-foreground">
+                {stopFutureSummary?.removedCount === 0
+                  ? "No future planned income to remove"
+                  : `${stopFutureSummary?.removedCount} future ${stopFutureSummary?.removedCount === 1 ? "occurrence" : "occurrences"} will be removed`}
+              </p>
+              {!!stopFutureSummary?.removedCount && (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {fmt(stopFutureSummary.removedGross)} of projected gross income
+                    {stopFutureSummary.removedBonusCount > 0
+                      ? ` · includes ${stopFutureSummary.removedBonusCount} bonus ${stopFutureSummary.removedBonusCount === 1 ? "event" : "events"}`
+                      : ""}
+                  </p>
+                  {stopFutureSummary.firstRemovedDate && stopFutureSummary.lastRemovedDate && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(stopFutureSummary.firstRemovedDate)}
+                      {stopFutureSummary.lastRemovedDate !== stopFutureSummary.firstRemovedDate
+                        ? ` – ${formatDate(stopFutureSummary.lastRemovedDate)}`
+                        : ""}
+                    </p>
+                  )}
+                </>
+              )}
+              {(stopFutureSummary?.keptPastCount ?? 0) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {stopFutureSummary!.keptPastCount} past {stopFutureSummary!.keptPastCount === 1 ? "occurrence" : "occurrences"} kept
+                </p>
+              )}
+              {(stopFutureSummary?.keptConvertedCount ?? 0) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {stopFutureSummary!.keptConvertedCount} already converted to the ledger — kept
+                </p>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Past income and ledger transactions will not be changed.
+            </p>
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
             <Button
