@@ -420,9 +420,14 @@ export default function QuarterlyTracker({
         {/* Primary numbers */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
-              Paid + Saved
-            </p>
+            <div className="flex items-center gap-1">
+              <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
+                Covered so far
+              </p>
+              <InfoTip label="About covered so far">
+                Covered so far includes federal income tax withheld from W-2 paychecks, estimated tax payments already made, and tax savings you've set aside.
+              </InfoTip>
+            </div>
             <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums text-foreground whitespace-nowrap">
               {fmt(progressAmount)}
             </p>
