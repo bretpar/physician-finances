@@ -1171,8 +1171,10 @@ export function useUpdateOverride() {
       qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
       toast.success("Override saved");
     },
-
+    onError: (e) => toast.error(e.message),
+  });
 }
+
 
 export function useDeleteOverride() {
   const qc = useQueryClient();
