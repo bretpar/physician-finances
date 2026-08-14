@@ -54,8 +54,9 @@ describe("QuarterlyTracker simplified UI breakdown", () => {
     expect(screen.queryByText(/Paid \+ Saved/i)).not.toBeInTheDocument();
   });
 
-  it("shows 'Q2 tax target' with federal/SE breakdown when tax estimate provides split", () => {
+  it("shows 'Q2 tax target' with federal/SE breakdown when tax estimate provides split", async () => {
     renderTracker();
+    await expandDetails();
     const target = screen.getByText(/Q2 tax target/i).closest("div")!;
     expect(within(target).getByText(fmt(15_000))).toBeInTheDocument(); // 60k/4
     expect(screen.getByText(/Federal income tax/i)).toBeInTheDocument();
