@@ -20,7 +20,17 @@ export interface EstimatedNetInput {
   otherPreTax: number;
   healthcare: number;
   hsa: number;
+  /**
+   * Employer-side contributions. They stay classified as employer
+   * contributions; they only reduce net cash when the company setting
+   * "reduces my paycheck" is enabled. Defaults: 0 / false.
+   */
+  employerRetirement?: number;
+  employerRetirementReducesPaycheck?: boolean;
+  employerHsa?: number;
+  employerHsaReducesPaycheck?: boolean;
 }
+
 
 const n = (v: unknown) => {
   const x = typeof v === "number" ? v : Number(v);
@@ -42,6 +52,20 @@ export function effectiveFederalWithholding(input: {
   return Math.max(0, n(input.aggregateFederalPayrollTaxes));
 }
 
+/** Employer contribution amounts that reduce cash received, per company settings. */
+export function employerPaycheckReductions(input: {
+  employerRetirement?: number;
+  employerRetirementReducesPaycheck?: boolean;
+  employerHsa?: number;
+  employerHsaReducesPaycheck?: boolean;
+}): number {
+  const retirement = input.employerRetirementReducesPaycheck
+    ? Math.max(0, n(input.employerRetirement))
+    : 0;
+  const hsa = input.employerHsaReducesPaycheck ? Math.max(0, n(input.employerHsa)) : 0;
+  return retirement + hsa;
+}
+
 export function computeEstimatedNet(input: EstimatedNetInput): number {
   const withholding = effectiveFederalWithholding(input);
   const net =
@@ -51,6 +75,8 @@ export function computeEstimatedNet(input: EstimatedNetInput): number {
     n(input.retirement) -
     n(input.otherPreTax) -
     n(input.healthcare) -
-    n(input.hsa);
+    n(input.hsa) -
+    employerPaycheckReductions(input);
   return Math.max(0, net);
+
 }

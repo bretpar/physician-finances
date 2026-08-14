@@ -55,6 +55,7 @@ import {
   toCanonicalIncomeType,
   ADVANCED_FIELDS_BY_TYPE,
   resolveAdvancedVisibility,
+  resolveEmployerPaycheckReduction,
   type FilingType,
   type IncomeFieldKey,
   type ToggleKey,
@@ -558,10 +559,26 @@ export default function Transactions() {
   }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
+  /**
+   * Per-company cash-flow treatment of employer contributions. Classification
+   * is untouched; these flags only decide whether the employer amount reduces
+   * the net cash received. Both default OFF.
+   */
+  const employerReducesPaycheck = useMemo(() => {
+    const company = getCompanyByFormValue(incomeForm.company);
+    const filingType = normalizeFilingType(
+      incomeForm.income_type || company?.companyType || "1099_schedule_c"
+    );
+    return resolveEmployerPaycheckReduction(filingType, company?.advancedFieldVisibility);
+  }, [companies, incomeForm.company, incomeForm.income_type]);
+
   const calculatedNet = useMemo(() => {
     if (grossIncome <= 0) return 0;
-    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.healthcare_deduction) - num(incomeForm.hsa_contribution));
-  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.healthcare_deduction, incomeForm.hsa_contribution]);
+    const employerReduction =
+      (employerReducesPaycheck.retirement ? num(incomeForm.employer_retirement_contribution) : 0) +
+      (employerReducesPaycheck.hsa ? num(incomeForm.employer_hsa_contribution) : 0);
+    return Math.max(0, grossIncome - num(incomeForm.taxes_withheld) - num(incomeForm.pre_tax_deductions) - num(incomeForm.retirement_401k) - num(incomeForm.healthcare_deduction) - num(incomeForm.hsa_contribution) - employerReduction);
+  }, [grossIncome, incomeForm.taxes_withheld, incomeForm.pre_tax_deductions, incomeForm.retirement_401k, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, incomeForm.employer_retirement_contribution, incomeForm.employer_hsa_contribution, employerReducesPaycheck]);
 
   // ─── Open Income Add ───
   function openAddIncome() {
@@ -2184,10 +2201,10 @@ export default function Transactions() {
                   {(showField("retirement_401k") || showField("employer_retirement_contribution") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("employer_hsa_contribution") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {showField("retirement_401k") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">{normalizeFilingType(incomeForm.income_type) === "1099_schedule_c" ? "Employee Retirement Contribution (Solo 401(k))" : "Employee Retirement Contribution"}<LegacyNote field="retirement_401k" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" data-testid="ba-income-employee-retirement" /></div>)}
-                      {showField("employer_retirement_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employer Retirement Contribution<LegacyNote field="employer_retirement_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.employer_retirement_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, employer_retirement_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employer-retirement" /><p className="text-[10px] text-muted-foreground mt-1">Not deducted from your paycheck</p></div>)}
+                      {showField("employer_retirement_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employer Retirement Contribution<LegacyNote field="employer_retirement_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.employer_retirement_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, employer_retirement_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employer-retirement" /><p className="text-[10px] text-muted-foreground mt-1">{employerReducesPaycheck.retirement ? "Deducted from your paycheck based on this company's settings" : "Not deducted from your paycheck"}</p></div>)}
                       {showField("healthcare_deduction") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance<LegacyNote field="healthcare_deduction" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.healthcare_deduction} onChange={(e) => setIncomeForm((f) => ({ ...f, healthcare_deduction: e.target.value }))} placeholder="0.00" /></div>)}
                       {showField("hsa_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employee HSA Contribution<LegacyNote field="hsa_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.hsa_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, hsa_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employee-hsa" /></div>)}
-                      {showField("employer_hsa_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employer HSA Contribution<LegacyNote field="employer_hsa_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.employer_hsa_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, employer_hsa_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employer-hsa" /><p className="text-[10px] text-muted-foreground mt-1">Not deducted from your paycheck</p></div>)}
+                      {showField("employer_hsa_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employer HSA Contribution<LegacyNote field="employer_hsa_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.employer_hsa_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, employer_hsa_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employer-hsa" /><p className="text-[10px] text-muted-foreground mt-1">{employerReducesPaycheck.hsa ? "Deducted from your paycheck based on this company's settings" : "Not deducted from your paycheck"}</p></div>)}
                       {showField("pre_tax_deductions") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax<LegacyNote field="pre_tax_deductions" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}

@@ -31,6 +31,9 @@ import {
   FILING_TYPES,
   TOGGLE_OPTIONS_BY_TYPE,
   resolveAdvancedVisibility,
+  EMPLOYER_RETIREMENT_REDUCES_PAYCHECK_KEY,
+  EMPLOYER_HSA_REDUCES_PAYCHECK_KEY,
+
   type FilingType,
 } from "@/lib/filingTypes";
 import { ledgerForIncomeType, ledgerLabel } from "@/lib/ledgerRouting";
@@ -1378,19 +1381,51 @@ function CompaniesSection() {
                         <div className="space-y-2">
                           <p className="text-xs font-semibold text-foreground">Show these fields when adding income</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
-                            {toggleOptions.map((opt) => (
-                              <label key={opt.key} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                                <Checkbox
-                                  checked={visibility[opt.key]}
-                                  onCheckedChange={(v) => {
-                                    const next = { ...(getValue(company, "advancedFieldVisibility") || {}), [opt.key]: !!v };
-                                    setField(company.id, "advancedFieldVisibility", next);
-                                  }}
-                                />
-                                <span>{opt.label}</span>
-                              </label>
-                            ))}
+                            {toggleOptions.map((opt) => {
+                              const savedVisibility = (getValue(company, "advancedFieldVisibility") || {}) as Record<string, boolean>;
+                              const childKey =
+                                opt.key === "employer_retirement_contribution"
+                                  ? EMPLOYER_RETIREMENT_REDUCES_PAYCHECK_KEY
+                                  : opt.key === "employer_hsa_contribution"
+                                    ? EMPLOYER_HSA_REDUCES_PAYCHECK_KEY
+                                    : null;
+                              const childLabel =
+                                opt.key === "employer_retirement_contribution"
+                                  ? "Employer retirement contribution reduces my paycheck"
+                                  : "Employer HSA contribution reduces my paycheck";
+                              return (
+                                <div key={opt.key} className="space-y-1.5">
+                                  <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                                    <Checkbox
+                                      checked={visibility[opt.key]}
+                                      onCheckedChange={(v) => {
+                                        const next = { ...savedVisibility, [opt.key]: !!v };
+                                        setField(company.id, "advancedFieldVisibility", next);
+                                      }}
+                                    />
+                                    <span>{opt.label}</span>
+                                  </label>
+                                  {childKey && visibility[opt.key] && (
+                                    <label
+                                      data-testid={`settings-company-${childKey}`}
+                                      className="flex items-start gap-2 pl-6 text-[11px] text-muted-foreground cursor-pointer"
+                                    >
+                                      <Checkbox
+                                        className="mt-0.5"
+                                        checked={savedVisibility[childKey] === true}
+                                        onCheckedChange={(v) => {
+                                          const next = { ...savedVisibility, [childKey]: !!v };
+                                          setField(company.id, "advancedFieldVisibility", next);
+                                        }}
+                                      />
+                                      <span>{childLabel}</span>
+                                    </label>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
+
                         </div>
 
                         <div>
