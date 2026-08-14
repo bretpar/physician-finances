@@ -99,8 +99,10 @@ interface IncomeFormState {
   total_federal_payroll_taxes: string;
   pre_tax_deductions: string;
   retirement_401k: string;
+  employer_retirement_contribution: string;
   healthcare_deduction: string;
   hsa_contribution: string;
+  employer_hsa_contribution: string;
   actual_withholding: string;
   additional_tax_reserve: string;
   notes: string;
@@ -121,8 +123,10 @@ const emptyIncomeForm: IncomeFormState = {
   total_federal_payroll_taxes: "",
   pre_tax_deductions: "",
   retirement_401k: "",
+  employer_retirement_contribution: "",
   healthcare_deduction: "",
   hsa_contribution: "",
+  employer_hsa_contribution: "",
   actual_withholding: "",
   additional_tax_reserve: "",
   notes: "",
@@ -135,7 +139,8 @@ function resetIrrelevantAdvancedFields(form: IncomeFormState, newType: FilingTyp
   const allKeys: IncomeFieldKey[] = [
     "net_received","taxes_withheld","federal_withholding","state_withholding",
     "ss_withholding","medicare_withholding","pre_tax_deductions","retirement_401k",
-    "healthcare_deduction","hsa_contribution","actual_withholding","additional_tax_reserve",
+    "employer_retirement_contribution","healthcare_deduction","hsa_contribution",
+    "employer_hsa_contribution","actual_withholding","additional_tax_reserve",
   ];
   for (const k of allKeys) {
     if (!allowed.has(k)) (cleared as any)[k] = "";
@@ -360,6 +365,9 @@ export default function Transactions() {
       ["taxes_withheld", linkedEntry?.taxes_withheld || 0],
       ["pre_tax_deductions", linkedEntry?.pre_tax_deductions || 0],
       ["retirement_401k", linkedEntry?.retirement_401k || 0],
+      ["employer_retirement_contribution", (linkedEntry as any)?.employer_retirement_contribution || 0],
+      ["hsa_contribution", (linkedEntry as any)?.hsa_contribution || 0],
+      ["employer_hsa_contribution", (linkedEntry as any)?.employer_hsa_contribution || 0],
       ["healthcare_deduction", (linkedEntry as any)?.healthcare_deduction || 0],
       ["federal_withholding", (linkedEntry as any)?.federal_withholding || 0],
       ["state_withholding", (linkedEntry as any)?.state_withholding || 0],
@@ -641,8 +649,10 @@ export default function Transactions() {
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
         pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
         retirement_401k: linked ? String(linked.retirement_401k) : "",
+        employer_retirement_contribution: linked ? String((linked as any).employer_retirement_contribution || 0) : "",
         healthcare_deduction: linked ? String((linked as any).healthcare_deduction || 0) : "",
         hsa_contribution: linked ? String((linked as any).hsa_contribution || 0) : "",
+        employer_hsa_contribution: linked ? String((linked as any).employer_hsa_contribution || 0) : "",
         federal_withholding: linked ? String((linked as any).federal_withholding || 0) : "",
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
@@ -708,6 +718,18 @@ export default function Transactions() {
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
     const healthcare = preserve("healthcare_deduction", num(incomeForm.healthcare_deduction), (linkedEntry as any)?.healthcare_deduction || 0);
     const hsa = preserve("hsa_contribution", num(incomeForm.hsa_contribution), (linkedEntry as any)?.hsa_contribution || 0);
+    // Employer-side contributions are tracked separately and are NEVER folded
+    // into the employee amounts (no double counting, no paycheck reduction).
+    const employerRetirement = preserve(
+      "employer_retirement_contribution",
+      num(incomeForm.employer_retirement_contribution),
+      (linkedEntry as any)?.employer_retirement_contribution || 0,
+    );
+    const employerHsa = preserve(
+      "employer_hsa_contribution",
+      num(incomeForm.employer_hsa_contribution),
+      (linkedEntry as any)?.employer_hsa_contribution || 0,
+    );
     // federal_withholding stores the federal income tax COMPONENT only
     // (NOT the combined total). The combined total lives in taxes_withheld
     // and is read everywhere via getTotalFederalPaid().
@@ -783,6 +805,8 @@ export default function Transactions() {
               retirement_401k: retirement,
               healthcare_deduction: healthcare,
               hsa_contribution: hsa,
+        employer_hsa_contribution: employerHsa,
+        employer_retirement_contribution: employerRetirement,
               federal_withholding: fedWH,
               state_withholding: stateWH,
               ss_withholding: ssWH,
@@ -816,6 +840,8 @@ export default function Transactions() {
                   retirement_401k: retirement,
                   healthcare_deduction: healthcare,
               hsa_contribution: hsa,
+        employer_hsa_contribution: employerHsa,
+        employer_retirement_contribution: employerRetirement,
                   federal_withholding: fedWH,
                   state_withholding: stateWH,
                   ss_withholding: ssWH,
@@ -894,6 +920,8 @@ export default function Transactions() {
         retirement_401k: retirement,
         healthcare_deduction: healthcare,
               hsa_contribution: hsa,
+        employer_hsa_contribution: employerHsa,
+        employer_retirement_contribution: employerRetirement,
         federal_withholding: fedWH,
         state_withholding: stateWH,
         ss_withholding: ssWH,
@@ -1978,8 +2006,10 @@ export default function Transactions() {
                       taxes_withheld: "",
                       pre_tax_deductions: "",
                       retirement_401k: "",
+                      employer_retirement_contribution: "",
                       healthcare_deduction: "",
                       hsa_contribution: "",
+                      employer_hsa_contribution: "",
                       federal_withholding: "",
                       state_withholding: "",
                       ss_withholding: "",
@@ -2137,14 +2167,17 @@ export default function Transactions() {
                     </div>
                   )}
 
-                  {(showField("retirement_401k") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("pre_tax_deductions")) && (
+                  {(showField("retirement_401k") || showField("employer_retirement_contribution") || showField("healthcare_deduction") || showField("hsa_contribution") || showField("employer_hsa_contribution") || showField("pre_tax_deductions")) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {showField("retirement_401k") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">{normalizeFilingType(incomeForm.income_type) === "1099_schedule_c" ? "Solo 401(k) / retirement contribution" : "Retirement / 401(k)"}<LegacyNote field="retirement_401k" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("retirement_401k") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">{normalizeFilingType(incomeForm.income_type) === "1099_schedule_c" ? "Employee Retirement Contribution (Solo 401(k))" : "Employee Retirement Contribution"}<LegacyNote field="retirement_401k" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.retirement_401k} onChange={(e) => setIncomeForm((f) => ({ ...f, retirement_401k: e.target.value }))} placeholder="0.00" data-testid="ba-income-employee-retirement" /></div>)}
+                      {showField("employer_retirement_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employer Retirement Contribution<LegacyNote field="employer_retirement_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.employer_retirement_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, employer_retirement_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employer-retirement" /><p className="text-[10px] text-muted-foreground mt-1">Not deducted from your paycheck</p></div>)}
                       {showField("healthcare_deduction") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance<LegacyNote field="healthcare_deduction" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.healthcare_deduction} onChange={(e) => setIncomeForm((f) => ({ ...f, healthcare_deduction: e.target.value }))} placeholder="0.00" /></div>)}
-                      {showField("hsa_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">HSA Contribution<LegacyNote field="hsa_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.hsa_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, hsa_contribution: e.target.value }))} placeholder="0.00" /></div>)}
+                      {showField("hsa_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employee HSA Contribution<LegacyNote field="hsa_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.hsa_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, hsa_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employee-hsa" /></div>)}
+                      {showField("employer_hsa_contribution") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Employer HSA Contribution<LegacyNote field="employer_hsa_contribution" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.employer_hsa_contribution} onChange={(e) => setIncomeForm((f) => ({ ...f, employer_hsa_contribution: e.target.value }))} placeholder="0.00" data-testid="ba-income-employer-hsa" /><p className="text-[10px] text-muted-foreground mt-1">Not deducted from your paycheck</p></div>)}
                       {showField("pre_tax_deductions") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax<LegacyNote field="pre_tax_deductions" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
+
 
                   {showField("actual_withholding") && (
                     <div>

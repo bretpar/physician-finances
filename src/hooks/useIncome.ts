@@ -120,6 +120,7 @@ export function useAddIncome() {
         healthcare_deduction: (entry as any).healthcare_deduction || 0,
         hsa_contribution: (entry as any).hsa_contribution || 0,
         employer_hsa_contribution: (entry as any).employer_hsa_contribution || 0,
+        employer_retirement_contribution: (entry as any).employer_retirement_contribution || 0,
         source_id: (entry as any).source_id || null,
         notes: entry.notes || "",
         status: (entry.status as string) || "received",
