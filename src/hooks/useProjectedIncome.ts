@@ -956,41 +956,75 @@ export function useUpdateStream() {
   });
 }
 
+/**
+ * "Stop future income" for a recurring stream (and plain delete for a stream
+ * that has no history yet).
+ *
+ * Planner controls the forecast; the ledger owns history. This mutation NEVER
+ * deletes income_entries or transactions. If the stream already has past
+ * occurrences we truncate it (end_date = yesterday) so January–July style
+ * history keeps rendering, and only remove today/future planned items
+ * (future bonus events and future overrides). If the stream starts today or
+ * later there is no history to preserve, so it is hard-deleted.
+ */
 export function useDeleteStream() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Remove safe planner-created ledger rows BEFORE deleting the stream so
-      // we still have planner_conversions.id -> ledger id links to follow.
-      // Stream delete cascades to planner_conversions and would SET NULL the
-      // origin_planner_conversion_id on income_entries / transactions, which
-      // is exactly how false "actual" income was being left behind.
-      const summary = await cleanupConvertedLedgerForStream(id);
-      const { error } = await supabase
+      const today = getTodayLocalDateString();
+      const { data: stream } = await supabase
         .from("projected_income_streams")
-        .delete()
+        .select("id, start_date")
+        .eq("id", id)
+        .maybeSingle();
+
+      const startsInFuture = !stream || (stream as any).start_date >= today;
+
+      if (startsInFuture) {
+        const { error } = await supabase
+          .from("projected_income_streams")
+          .delete()
+          .eq("id", id);
+        if (error) throw error;
+        return { mode: "deleted" as const };
+      }
+
+      // Truncate: stop generating occurrences from today onward.
+      const yesterday = format(addDays(parseISO(today), -1), "yyyy-MM-dd");
+      const { error: updErr } = await supabase
+        .from("projected_income_streams")
+        .update({ end_date: yesterday })
         .eq("id", id);
-      if (error) throw error;
-      return summary;
+      if (updErr) throw updErr;
+
+      // Remove future planned extras tied to this stream (no ledger touched).
+      await supabase
+        .from("projected_bonus_events")
+        .delete()
+        .eq("stream_id", id)
+        .gte("scheduled_date", today);
+      await supabase
+        .from("projected_income_overrides")
+        .delete()
+        .eq("stream_id", id)
+        .gte("override_date", today);
+
+      return { mode: "stopped" as const };
     },
-    onSuccess: (summary) => {
+    onSuccess: (res) => {
       for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
         qc.invalidateQueries({ queryKey: key });
       }
-      const removed = (summary?.incomeEntriesDeleted || 0) + (summary?.transactionsDeleted || 0);
-      const skipped = summary?.skippedNotSafe || 0;
-      if (removed > 0 || skipped > 0) {
-        toast.success(
-          `Stream deleted. Removed ${removed} planner-created ledger ${removed === 1 ? "entry" : "entries"}` +
-            (skipped > 0 ? `, kept ${skipped} edited/linked` : ""),
-        );
-      } else {
-        toast.success("Income stream deleted");
-      }
+      toast.success(
+        res?.mode === "stopped"
+          ? "Future income stopped. Past income and ledger transactions were not changed."
+          : "Planned income deleted",
+      );
     },
     onError: (e) => toast.error(e.message),
   });
 }
+
 
 export function useAddBonus() {
   const qc = useQueryClient();
