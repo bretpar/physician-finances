@@ -102,6 +102,46 @@ export function isIncomeEntryTypeDisabled(
 }
 
 /**
+ * CANONICAL source-status check for company-backed income entries
+ * (Business Activity: 1099 / K-1 / S-corp / W-2 employers).
+ *
+ * The Household Income Profile stream flags are a coarse onboarding artifact —
+ * they can be stale (e.g. a brand-new K-1 company created in Settings after
+ * onboarding). The company list is the canonical model: `companies` only ever
+ * contains non-archived, selectable entities. So a source is inactive ONLY
+ * when the entity it points to is gone (archived/deleted) AND the profile no
+ * longer allows that entry type.
+ */
+export function isCompanyIncomeSourceInactive(params: {
+  streams?: HouseholdIncomeStreams | null;
+  /** Active (non-archived) companies from CompanyContext. */
+  companies: ReadonlyArray<{ id: string; companyType: string }>;
+  /** Company id assigned to the entry, if any. */
+  companyId?: string | null;
+  /** Normalized filing type of the entry (e.g. "k1_partnership"). */
+  filingType: string;
+}): boolean {
+  const { streams, companies, companyId, filingType } = params;
+  // 1. Stable-ID match against the active company collection wins outright.
+  if (companyId && companies.some((c) => c.id === companyId)) return false;
+  // 2. Any other active company of the same filing type keeps the type active.
+  if (companies.some((c) => c.companyType === filingType)) return false;
+  // 3. No active entity backs this entry — fall back to the profile flags.
+  return isIncomeEntryTypeDisabled(streams, filingTypeToEntryTypeKey(filingType));
+}
+
+function filingTypeToEntryTypeKey(filingType: string): string {
+  switch (filingType) {
+    case "w2":
+      return "w2_user";
+    case "other":
+      return "other_income";
+    default:
+      return filingType;
+  }
+}
+
+/**
  * Visibility rules for the deduction tool tabs (Mileage, Home Office,
  * Retirement, HSA). Mileage and Home Office only apply when the user has any
  * self-employed / business income (1099, K-1, S-corp). Retirement and HSA are
