@@ -1,27 +1,13 @@
 /**
- * Planner conversion cleanup helpers.
+ * Orphan planner-entry helpers.
  *
- * When a user deletes a projected income stream, skips a single planned
- * paycheck, or deletes a bonus event, any ledger row (income_entries /
- * transactions) that was AUTO/MANUALLY created from that planner occurrence
- * should be removed too — otherwise false "actual" income remains in
- * Personal Income / Business Activity and Tax Overview totals.
- *
- * We only remove rows that are still clearly planner-created:
- *   - origin_type = 'planner_converted'
- *   - notes starts with "From planner"
- *   - income_entries: linked_transaction_id IS NULL (not matched to a real
- *     Plaid/imported transaction)
- *   - transactions: account_source = 'Planner' (not Plaid-imported)
- *
- * Anything that fails these checks is left alone — the user either manually
- * edited it into a confirmed paycheck, or it has been linked/matched to a
- * real bank transaction. Those rows require explicit user action to delete.
- *
- * After ledger cleanup we delete the planner_conversions row(s). For stream
- * deletes the CASCADE would handle that, but we delete explicitly so a
- * caller can run cleanup without immediately dropping the stream.
+ * Income Planner controls the forecast; the ledger owns historical actuals.
+ * Planner deletes/skips therefore never remove income_entries or
+ * transactions. The helpers below only surface truly orphaned,
+ * never-edited planner-created income entries for an explicit,
+ * user-confirmed cleanup in the ledger cleanup UI.
  */
+
 
 import { supabase } from "@/integrations/supabase/client";
 
