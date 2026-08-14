@@ -3011,7 +3011,7 @@ function CompanyAccordion({
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
                           <Pencil className="h-3 w-3" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => onDelete(s.id)}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Stop future income" aria-label="Stop future income" onClick={() => onDelete(s.id)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
