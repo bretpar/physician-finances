@@ -1165,12 +1165,16 @@ export function useUpdateOverride() {
       if (error) throw error;
     },
     onSuccess: () => {
+      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
+        qc.invalidateQueries({ queryKey: key });
+      }
       qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
-      toast.success("Override updated");
+      toast.success("Override saved");
     },
     onError: (e) => toast.error(e.message),
   });
 }
+
 
 export function useDeleteOverride() {
   const qc = useQueryClient();
