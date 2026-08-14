@@ -715,6 +715,8 @@ export function useManualPlannerConvert() {
       stateWithholding: number;
       ssWithholding: number;
       medicareWithholding: number;
+      /** Optional — carried through from a detailed planner breakdown. */
+      additionalTaxReserve?: number;
       isBonus: boolean;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -805,6 +807,7 @@ export function useManualPlannerConvert() {
             retirement_401k: input.retirement401k,
             healthcare_deduction: input.healthcareDeduction,
             hsa_contribution: input.hsaContribution,
+            additional_tax_reserve: input.additionalTaxReserve ?? 0,
             source_bucket: "personal",
             tax_category: "ordinary",
             is_actual: true,
@@ -882,6 +885,7 @@ export function useManualPlannerConvert() {
             retirement_401k: input.retirement401k,
             healthcare_deduction: input.healthcareDeduction,
             hsa_contribution: input.hsaContribution,
+            additional_tax_reserve: input.additionalTaxReserve ?? 0,
             source_bucket: "business",
             tax_category: "ordinary",
             is_actual: true,
