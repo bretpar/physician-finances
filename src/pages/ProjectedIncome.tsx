@@ -986,6 +986,10 @@ export default function ProjectedIncome() {
     // never send literal zeros — that regressed W-2 federal/SS/Medicare
     // on ordinary "To Personal" conversions. See planner conversion spec.
     const stream = (streams || []).find((s) => s.id === entry.streamId);
+    // When this occurrence has a detailed breakdown override, those values are
+    // the source of truth for the ledger row; otherwise fall back to the stream.
+    const occOverride = overrideLookup.get(`${entry.streamId}:${entry.date}`);
+    const detail = stream ? resolveOccurrenceDetail(stream, occOverride) : null;
 
     manualConvert.mutate(
       {
@@ -1003,11 +1007,13 @@ export default function ProjectedIncome() {
         retirement401k: entry.retirement401k,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
-        federalWithholding: Number(stream?.federal_withholding || 0),
-        stateWithholding: Number(stream?.state_withholding || 0),
-        ssWithholding: Number(stream?.ss_withholding || 0),
-        medicareWithholding: Number(stream?.medicare_withholding || 0),
+        federalWithholding: Number(detail?.federalWithholding ?? stream?.federal_withholding ?? 0),
+        stateWithholding: Number(detail?.stateWithholding ?? stream?.state_withholding ?? 0),
+        ssWithholding: Number(detail?.ssWithholding ?? stream?.ss_withholding ?? 0),
+        medicareWithholding: Number(detail?.medicareWithholding ?? stream?.medicare_withholding ?? 0),
+        additionalTaxReserve: Number(detail?.additionalTaxReserve ?? stream?.additional_tax_reserve ?? 0),
         isBonus: entry.type === "bonus",
+
       },
       {
         onSuccess: () => {
