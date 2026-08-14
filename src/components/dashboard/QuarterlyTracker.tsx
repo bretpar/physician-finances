@@ -463,8 +463,20 @@ export default function QuarterlyTracker({
             )}
           </div>
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary" />Paid</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary/40" />Saved</span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-primary" />
+              Paid
+              <InfoTip label="About paid">
+                Federal income tax already withheld from W-2 paychecks plus estimated tax payments already submitted.
+              </InfoTip>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-primary/40" />
+              Saved
+              <InfoTip label="About saved">
+                Money you've reserved for taxes but have not yet submitted as an estimated payment.
+              </InfoTip>
+            </span>
             <span className="flex items-center gap-1"><span className="h-2.5 w-0.5 bg-foreground/70 rounded-sm" />Today</span>
           </div>
         </div>
