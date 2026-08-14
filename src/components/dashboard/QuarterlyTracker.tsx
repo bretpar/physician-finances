@@ -503,21 +503,85 @@ export default function QuarterlyTracker({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="divide-y divide-border border-t text-sm">
-                  {[
-                    { label: "Quarter target", value: recommendation.quarterTarget },
-                    { label: "Federal W-2 withholding paid", value: recommendation.w2WithheldThisQuarter },
-                    { label: "Estimated payments made", value: recommendation.estimatedPaymentsMade },
-                    ...(recommendation.otherWithheldThisQuarter > 0
-                      ? [{ label: "Other withholding paid", value: recommendation.otherWithheldThisQuarter }]
-                      : []),
-                    { label: "Saved/reserved but not paid", value: recommendation.savedThisQuarter },
-                    { label: "Recommended payment remaining", value: recommendation.stillNeedToSave },
-                  ].map((row) => (
-                    <div key={row.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                      <span className="text-foreground/90 min-w-0 break-words">{row.label}</span>
-                      <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(row.value)}</span>
+                  {/* Tax target group */}
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="flex items-center gap-1 font-medium text-foreground min-w-0 break-words">
+                      {q.label} tax target
+                      <InfoTip label="About tax target">
+                        Your target includes estimated federal income tax and, when applicable, self-employment tax from 1099/self-employed income.
+                      </InfoTip>
+                    </span>
+                    <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(recommendation.quarterTarget)}</span>
+                  </div>
+                  {targetBreakdown.hasBreakdown && (
+                    <>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Federal income tax</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(targetBreakdown.federalIncomeTax)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Self-employment tax</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(targetBreakdown.selfEmploymentTax)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Covered so far group */}
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-muted/20">
+                    <span className="flex items-center gap-1 font-medium text-foreground min-w-0 break-words">
+                      Covered so far
+                      <InfoTip label="About covered so far">
+                        Covered so far includes federal income tax withheld from W-2 paychecks, estimated tax payments already made, and tax savings you've set aside.
+                      </InfoTip>
+                    </span>
+                    <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(progressAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                    <span className="text-foreground/80 min-w-0 break-words">W-2 federal withholding</span>
+                    <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.w2WithheldThisQuarter)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                    <span className="text-foreground/80 min-w-0 break-words">Estimated tax payments</span>
+                    <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.estimatedPaymentsMade)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                    <span className="text-foreground/80 min-w-0 break-words">Tax savings set aside</span>
+                    <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.savedThisQuarter)}</span>
+                  </div>
+                  {recommendation.otherWithheldThisQuarter > 0 && (
+                    <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                      <span className="text-foreground/80 min-w-0 break-words">Other federal withholding paid</span>
+                      <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.otherWithheldThisQuarter)}</span>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Payroll taxes handled — informational, does not affect target or covered */}
+                  {payrollTaxesHandled.hasAny && (
+                    <>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <span className="flex items-center gap-1 font-medium text-foreground min-w-0 break-words">
+                          Payroll taxes already handled
+                          <InfoTip label="About payroll taxes already handled">
+                            Social Security and Medicare withheld from W-2 paychecks are already paid through payroll. They are tracked here for reference but do not reduce your estimated quarterly tax payment.
+                          </InfoTip>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Social Security withheld</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(payrollTaxesHandled.ss)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Medicare withheld</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(payrollTaxesHandled.medicare)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Bottom-line recommendation */}
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-foreground/90 min-w-0 break-words">Recommended payment remaining</span>
+                    <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(recommendation.stillNeedToSave)}</span>
+                  </div>
                 </div>
               </CollapsibleContent>
             </div>
