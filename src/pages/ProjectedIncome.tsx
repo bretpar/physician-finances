@@ -1030,6 +1030,14 @@ export default function ProjectedIncome() {
     const occOverride = overrideLookup.get(`${entry.streamId}:${entry.date}`);
     const detail = stream ? resolveOccurrenceDetail(stream, occOverride) : null;
 
+    // Personal Income's `pre_tax_deductions` field means "Other pre-tax" only —
+    // health insurance and HSA live in their own columns. A detailed planner
+    // occurrence stores an AGGREGATE that already includes them, so derive the
+    // standalone remainder (same rule as the editor hydration) before writing.
+    const preTaxForLedger = detail?.hasDetailedBreakdown
+      ? deriveOtherPreTax(entry.preTaxDeductions, detail.healthcareDeduction, detail.hsaContribution)
+      : entry.preTaxDeductions;
+
     manualConvert.mutate(
       {
         streamId: entry.streamId,
@@ -1042,7 +1050,7 @@ export default function ProjectedIncome() {
         uiIncomeSubtype: entry.streamCompanyType ?? null,
         grossAmount: entry.grossAmount,
         taxesWithheld: entry.taxesWithheld,
-        preTaxDeductions: entry.preTaxDeductions,
+        preTaxDeductions: preTaxForLedger,
         retirement401k: entry.retirement401k,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
