@@ -24,6 +24,10 @@ export interface CompanyQuarterRow {
 
 interface QuarterlyTrackerProps {
   annualTaxLiability: number;
+  /** Federal income tax portion of the active tax estimate. Used to split the quarter target into income-tax vs SE-tax components. */
+  federalIncomeTax?: number;
+  /** Self-employment tax portion of the active tax estimate. */
+  selfEmploymentTax?: number;
   /** All tax payments — filtered internally by the displayed quarter + year. */
   payments: TaxPayment[];
   methodLabel?: string;
