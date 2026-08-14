@@ -380,3 +380,42 @@ export function resolveAdvancedVisibility(
   }
   return out;
 }
+
+/* ─── Employer contribution paycheck treatment (per company) ───
+ * Employer retirement / HSA contributions are ALWAYS classified as employer
+ * contributions. Some employers (e.g. Vituity) nonetheless fund them out of
+ * the physician's compensation, so the amount really does reduce the net
+ * amount received. These two per-company settings control CASH FLOW ONLY —
+ * never classification and never tax treatment.
+ * Stored alongside the field-visibility toggles in
+ * companies.advanced_field_visibility. Both default to OFF.
+ */
+export const EMPLOYER_RETIREMENT_REDUCES_PAYCHECK_KEY =
+  "employer_retirement_reduces_paycheck" as const;
+export const EMPLOYER_HSA_REDUCES_PAYCHECK_KEY =
+  "employer_hsa_reduces_paycheck" as const;
+
+export interface EmployerPaycheckReduction {
+  retirement: boolean;
+  hsa: boolean;
+}
+
+/** Resolve the paycheck-reduction settings for a company.
+ *  A child setting is only effective while its parent contribution field is
+ *  enabled — disabling the parent hides the child toggle and neutralizes it.
+ */
+export function resolveEmployerPaycheckReduction(
+  filingType: FilingType,
+  saved: Record<string, boolean> | null | undefined,
+): EmployerPaycheckReduction {
+  const visibility = resolveAdvancedVisibility(filingType, saved);
+  const s = saved || {};
+  return {
+    retirement:
+      !!visibility.employer_retirement_contribution &&
+      s[EMPLOYER_RETIREMENT_REDUCES_PAYCHECK_KEY] === true,
+    hsa:
+      !!visibility.employer_hsa_contribution &&
+      s[EMPLOYER_HSA_REDUCES_PAYCHECK_KEY] === true,
+  };
+}
