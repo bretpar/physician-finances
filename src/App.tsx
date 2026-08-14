@@ -37,6 +37,7 @@ import StudentLoanValidation from "@/pages/admin/StudentLoanValidation";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 import Trust from "@/pages/Trust";
+import Landing from "@/pages/Landing";
 import { RouteHead } from "@/components/RouteHead";
 import { PageAccessGate } from "@/components/PageAccessGate";
 
