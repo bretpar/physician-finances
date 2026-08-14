@@ -146,40 +146,14 @@ async function runCleanup(conversions: ConversionRow[]): Promise<SafeEraseSummar
   return summary;
 }
 
-/** Cleanup planner-created ledger rows for an entire projected income stream. */
-export async function cleanupConvertedLedgerForStream(
-  streamId: string,
-): Promise<SafeEraseSummary> {
-  const { data } = await supabase
-    .from("planner_conversions")
-    .select("id, stream_id, bonus_event_id, occurrence_date, ledger_bucket, income_entry_id, transaction_id")
-    .eq("stream_id", streamId);
-  return runCleanup((data || []) as ConversionRow[]);
-}
+/**
+ * NOTE: the previous per-stream / per-occurrence / per-bonus ledger cleanup
+ * helpers were intentionally removed. Income Planner changes are forecast
+ * changes and must never delete income_entries or transactions. Ledger rows
+ * are only deleted from the ledger UI, or via the explicit
+ * "Delete from Planner & Ledger" choice on a converted occurrence.
+ */
 
-/** Cleanup planner-created ledger rows for a single planner occurrence. */
-export async function cleanupConvertedLedgerForOccurrence(args: {
-  streamId: string;
-  occurrenceDate: string;
-}): Promise<SafeEraseSummary> {
-  const { data } = await supabase
-    .from("planner_conversions")
-    .select("id, stream_id, bonus_event_id, occurrence_date, ledger_bucket, income_entry_id, transaction_id")
-    .eq("stream_id", args.streamId)
-    .eq("occurrence_date", args.occurrenceDate);
-  return runCleanup((data || []) as ConversionRow[]);
-}
-
-/** Cleanup planner-created ledger rows for a bonus event. */
-export async function cleanupConvertedLedgerForBonus(
-  bonusEventId: string,
-): Promise<SafeEraseSummary> {
-  const { data } = await supabase
-    .from("planner_conversions")
-    .select("id, stream_id, bonus_event_id, occurrence_date, ledger_bucket, income_entry_id, transaction_id")
-    .eq("bonus_event_id", bonusEventId);
-  return runCleanup((data || []) as ConversionRow[]);
-}
 
 export interface OrphanPlannerEntry {
   id: string;
