@@ -43,7 +43,7 @@ import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus, useUpdateBonus,
-  useAddOverride, useDeleteOverride, useDeleteConvertedOccurrence,
+  useAddOverride, useUpdateOverride, useDeleteOverride, useDeleteConvertedOccurrence,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
   generateProjectedPaychecks, getProjectedTotals,
   isStreamExpired, resolveOccurrenceDetail,
