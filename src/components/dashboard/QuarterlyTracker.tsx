@@ -205,6 +205,42 @@ export default function QuarterlyTracker({
   const progressAmount = recommendation.progressAmount;
   const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
 
+  // ── Quarter target breakdown (federal income tax vs SE tax) ─────────────
+  // Pro-rate the annual tax components by the quarter target. When the estimate
+  // doesn't provide a breakdown, hide the sub-rows so the UI never guesses.
+  const targetBreakdown = useMemo(() => {
+    const fed = Math.max(0, federalIncomeTax ?? 0);
+    const se = Math.max(0, selfEmploymentTax ?? 0);
+    const total = fed + se;
+    if (total <= 0) return { federalIncomeTax: 0, selfEmploymentTax: 0, hasBreakdown: false };
+    return {
+      federalIncomeTax: quarterTarget * (fed / total),
+      selfEmploymentTax: quarterTarget * (se / total),
+      hasBreakdown: true,
+    };
+  }, [federalIncomeTax, selfEmploymentTax, quarterTarget]);
+
+  // ── W-2 payroll taxes already handled (SS + Medicare) — informational only
+  // These are deliberately excluded from Paid / Saved / quarterly target.
+  const payrollTaxesHandled = useMemo(() => {
+    const start = q.start;
+    const end = q.end;
+    const inWin = (iso?: string | null) => {
+      if (!iso) return false;
+      const d = new Date(iso);
+      return d >= start && d < end;
+    };
+    let ss = 0;
+    let medicare = 0;
+    for (const e of personalEntries) {
+      if (!inWin(e.income_date)) continue;
+      if (!isW2FilingType(e.income_type)) continue;
+      ss += Number(e.ss_withholding || 0);
+      medicare += Number(e.medicare_withholding || 0);
+    }
+    return { ss, medicare, hasAny: ss > 0 || medicare > 0 };
+  }, [personalEntries, q.start, q.end]);
+
   // ── Pace math (vs today's expected, not full target) ──────────────────────
   // Today marker depends ONLY on the current date and quarter window — not on
   // tax/payment/savings data. Normalize to local noon to avoid TZ off-by-one.
