@@ -955,16 +955,23 @@ export default function Transactions() {
             });
           }
           setPendingIncomeAttachments([]);
-          if (showModal2 && rec) {
+          if (showModal2) {
             // Per-transaction reminder: nudge only if saved < 90% of rec.
-            const recommended = Math.max(0, rec.baseTaxEstimate || 0);
-            const actualSaved =
-              taxWithheld +
-              applicableStateWH +
-              num(incomeForm.ss_withholding) +
-              num(incomeForm.medicare_withholding) +
-              num(incomeForm.additional_tax_reserve) +
-              num(incomeForm.actual_withholding);
+            // Uses the SAME canonical recommendation the modal displayed so the
+            // prompt can never disagree with the form for the same transaction.
+            const recommended = resolveCanonicalRecommendation({
+              recommendedWithholding,
+              taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
+              fallbackGrossRecommendation: rec?.baseTaxEstimate || 0,
+            });
+            const actualSaved = resolveAmountSavedForTransaction({
+              taxesWithheld: taxWithheld,
+              stateWithheld: applicableStateWH,
+              ssWithheld: num(incomeForm.ss_withholding),
+              medicareWithheld: num(incomeForm.medicare_withholding),
+              additionalTaxReserve: num(incomeForm.additional_tax_reserve),
+              actualWithholding: num(incomeForm.actual_withholding),
+            });
             if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
               setSavedEntryTitle(incomeForm.name);
               setReminderRecommended(recommended);
