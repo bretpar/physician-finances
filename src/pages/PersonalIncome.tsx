@@ -50,6 +50,7 @@ import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/househ
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
+import { computeEstimatedNet } from "@/lib/estimatedNet";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
