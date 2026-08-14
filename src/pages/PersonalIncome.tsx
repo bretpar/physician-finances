@@ -347,6 +347,18 @@ export default function PersonalIncome() {
   const showEmployerHsa =
     showField("employer_hsa_contribution") || num(form.employer_hsa_contribution) > 0;
 
+  // Per-company cash-flow treatment of employer contributions (default OFF).
+  // Classification stays employer-side; this only affects Estimated Net.
+  const employerReducesPaycheck = useMemo(() => {
+    const company = form.source_id
+      ? companies.find((c) => c.id === form.source_id)
+      : undefined;
+    const filingType = normalizeFilingType(
+      isW2Type(form.income_type) ? "w2" : form.income_type,
+    );
+    return resolveEmployerPaycheckReduction(filingType, company?.advancedFieldVisibility);
+  }, [companies, form.source_id, form.income_type]);
+
   // CANONICAL withholding total — sourced from the unified tax engine so this
   // matches Tax Overview and the Withholding Guide exactly. Do NOT re-aggregate
   // federal_withholding / taxes_withheld here. See src/lib/canonicalWithholding.ts.
@@ -1321,6 +1333,10 @@ export default function PersonalIncome() {
                 otherPreTax: num(form.deductions_pre_tax),
                 healthcare: num(form.healthcare_deduction),
                 hsa: num(form.hsa_contribution),
+                employerRetirement: num(form.employer_retirement_contribution),
+                employerRetirementReducesPaycheck: employerReducesPaycheck.retirement,
+                employerHsa: num(form.employer_hsa_contribution),
+                employerHsaReducesPaycheck: employerReducesPaycheck.hsa,
               });
               return (
               <div className="space-y-2">
@@ -1417,6 +1433,11 @@ export default function PersonalIncome() {
                             value={form.employer_retirement_contribution}
                             onChange={(e) => setField("employer_retirement_contribution", e.target.value)}
                           />
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {employerReducesPaycheck.retirement
+                              ? "Deducted from your paycheck based on this company's settings"
+                              : "Not deducted from your paycheck"}
+                          </p>
                         </div>
                       )}
                       {showField("healthcare_deduction") && (
@@ -1461,6 +1482,11 @@ export default function PersonalIncome() {
                             value={form.employer_hsa_contribution}
                             onChange={(e) => setField("employer_hsa_contribution", e.target.value)}
                           />
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {employerReducesPaycheck.hsa
+                              ? "Deducted from your paycheck based on this company's settings"
+                              : "Not deducted from your paycheck"}
+                          </p>
                         </div>
                       )}
                       {showField("pre_tax_deductions") && (
