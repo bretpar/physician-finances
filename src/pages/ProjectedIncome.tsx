@@ -2402,9 +2402,10 @@ export default function ProjectedIncome() {
           </div>
           </DialogBody>
           <DialogStickyFooter>
-            <Button variant="outline" onClick={() => setOverrideTarget(null)}>Cancel</Button>
-            <Button onClick={handleOverrideSubmit} disabled={num(overrideForm.paycheck_amount) <= 0}>
-              Save Override
+            <Button variant="outline" onClick={() => setOverrideTarget(null)} disabled={overrideSaving}>Cancel</Button>
+            <Button onClick={handleOverrideSubmit} disabled={overrideSaving || num(overrideForm.paycheck_amount) <= 0}>
+              {overrideSaving ? "Saving…" : "Save Override"}
+
             </Button>
           </DialogStickyFooter>
 
