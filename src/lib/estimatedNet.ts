@@ -20,7 +20,17 @@ export interface EstimatedNetInput {
   otherPreTax: number;
   healthcare: number;
   hsa: number;
+  /**
+   * Employer-side contributions. They stay classified as employer
+   * contributions; they only reduce net cash when the company setting
+   * "reduces my paycheck" is enabled. Defaults: 0 / false.
+   */
+  employerRetirement?: number;
+  employerRetirementReducesPaycheck?: boolean;
+  employerHsa?: number;
+  employerHsaReducesPaycheck?: boolean;
 }
+
 
 const n = (v: unknown) => {
   const x = typeof v === "number" ? v : Number(v);
