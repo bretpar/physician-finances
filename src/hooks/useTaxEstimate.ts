@@ -32,7 +32,7 @@ import {
 import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { getApplicableHsaLimit } from "@/lib/hsaLimits";
-import { excludeIncomeTransactionFromTaxContext } from "@/lib/taxRecommendationContext";
+import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
 
 export type TaxMode = "actual" | "forecast";
 
@@ -343,8 +343,17 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const actualTxs = allTxs.filter((t) => t.transaction_date <= todayStr);
     const allIncomeRows = replacementContext.incomeEntries;
     const actualIncomeRows = allIncomeRows.filter((e) => e.income_date <= todayStr);
-    const allPersonalRows = (personalEntries || []).filter((e) => e.include_in_tax_estimate !== false);
+    // Personal-bucket rows can also belong to the transaction being edited
+    // (a Business Activity income row whose income_entry was routed to the
+    // personal ledger). Apply the SAME exclusion here, or the edited paycheck
+    // stays counted through the personal aggregate and Edit prices a higher
+    // effective rate than Add did for identical values.
+    const allPersonalRows = excludeIncomeEntriesLinkedToTransaction(
+      personalEntries || [],
+      options.excludeTransactionId,
+    ).filter((e) => e.include_in_tax_estimate !== false);
     const actualPersonalRows = allPersonalRows.filter((e) => e.income_date <= todayStr);
+
     const allStockRows = stockTxs || [];
     const actualStockRows = allStockRows.filter((s) => s.sale_date <= todayStr);
     const allInvestmentRows = investmentEntries || [];
