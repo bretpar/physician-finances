@@ -138,6 +138,8 @@ function currentOwningYear(): { year: number; quarter: 1 | 2 | 3 | 4 } {
 
 export default function QuarterlyTracker({
   annualTaxLiability,
+  federalIncomeTax,
+  selfEmploymentTax,
   payments,
   methodLabel,
   incomeEntries,
