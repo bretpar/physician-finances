@@ -45,7 +45,7 @@ import {
   useAddOverride, useDeleteOverride, useDeleteConvertedOccurrence,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
   generateProjectedPaychecks, getProjectedTotals,
-  isStreamExpired,
+  isStreamExpired, resolveOccurrenceDetail,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";
 import {
@@ -152,7 +152,35 @@ interface OverrideForm {
    * occurrence — the recurring stream is untouched.
    */
   new_date: string;
+  /** Optional detailed breakdown — same field definitions as Personal Income. */
+  detailed: boolean;
+  federal_withholding: string;
+  ss_withholding: string;
+  medicare_withholding: string;
+  state_withholding: string;
+  healthcare_deduction: string;
+  hsa_contribution: string;
+  additional_tax_reserve: string;
 }
+
+const parseAmt = (v: string) => parseFloat(v) || 0;
+
+/** Sum of the actual withholding components entered in the detailed breakdown. */
+export function sumDetailedWithholding(f: {
+  federal_withholding: string; ss_withholding: string; medicare_withholding: string; state_withholding: string;
+}): number {
+  return parseAmt(f.federal_withholding) + parseAmt(f.ss_withholding) + parseAmt(f.medicare_withholding) + parseAmt(f.state_withholding);
+}
+
+/** Sum of the deduction components entered in the detailed breakdown. */
+export function sumDetailedDeductions(f: {
+  healthcare_deduction: string; hsa_contribution: string; pre_tax_deductions: string;
+}): number {
+  return parseAmt(f.healthcare_deduction) + parseAmt(f.hsa_contribution) + parseAmt(f.pre_tax_deductions);
+}
+
+
+
 
 
 const emptyForm = (monthIdx?: number): StreamForm => {
@@ -362,6 +390,8 @@ export default function ProjectedIncome() {
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
     paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "",
+    detailed: false, federal_withholding: "", ss_withholding: "", medicare_withholding: "",
+    state_withholding: "", healthcare_deduction: "", hsa_contribution: "", additional_tax_reserve: "",
   });
 
   // Bonus edit state
@@ -868,6 +898,12 @@ export default function ProjectedIncome() {
     // Anchor date = the original scheduled occurrence. If this entry was already moved,
     // the anchor lives on the override row, otherwise it's the entry's own date.
     const anchorDate = existing?.override_date || entry.date;
+    // Detailed breakdown: use the occurrence override when it has one,
+    // otherwise seed from the recurring stream so nothing is invented.
+    const stream = (streams || []).find((s) => s.id === entry.streamId);
+    const detail = stream
+      ? resolveOccurrenceDetail(stream, existing as any)
+      : null;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
@@ -876,6 +912,14 @@ export default function ProjectedIncome() {
       notes: existing?.notes || "",
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
+      detailed: !!(existing as any)?.has_detailed_breakdown,
+      federal_withholding: detail?.federalWithholding ? String(detail.federalWithholding) : "",
+      ss_withholding: detail?.ssWithholding ? String(detail.ssWithholding) : "",
+      medicare_withholding: detail?.medicareWithholding ? String(detail.medicareWithholding) : "",
+      state_withholding: detail?.stateWithholding ? String(detail.stateWithholding) : "",
+      healthcare_deduction: detail?.healthcareDeduction ? String(detail.healthcareDeduction) : "",
+      hsa_contribution: detail?.hsaContribution ? String(detail.hsaContribution) : "",
+      additional_tax_reserve: detail?.additionalTaxReserve ? String(detail.additionalTaxReserve) : "",
     });
     setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
@@ -894,11 +938,23 @@ export default function ProjectedIncome() {
       override_date: overrideTarget.date,
       action: "modify" as const,
       paycheck_amount: num(overrideForm.paycheck_amount),
-      taxes_withheld: num(overrideForm.taxes_withheld),
+      // When a detailed breakdown exists it is the source of truth: the basic
+      // totals are derived from the components, never added to them.
+      taxes_withheld: overrideForm.detailed
+        ? sumDetailedWithholding(overrideForm)
+        : num(overrideForm.taxes_withheld),
       retirement_401k: num(overrideForm.retirement_401k),
       pre_tax_deductions: num(overrideForm.pre_tax_deductions),
       notes: overrideForm.notes,
       new_date: movedDate,
+      has_detailed_breakdown: overrideForm.detailed,
+      federal_withholding: overrideForm.detailed ? num(overrideForm.federal_withholding) : 0,
+      ss_withholding: overrideForm.detailed ? num(overrideForm.ss_withholding) : 0,
+      medicare_withholding: overrideForm.detailed ? num(overrideForm.medicare_withholding) : 0,
+      state_withholding: overrideForm.detailed ? num(overrideForm.state_withholding) : 0,
+      healthcare_deduction: overrideForm.detailed ? num(overrideForm.healthcare_deduction) : 0,
+      hsa_contribution: overrideForm.detailed ? num(overrideForm.hsa_contribution) : 0,
+      additional_tax_reserve: overrideForm.detailed ? num(overrideForm.additional_tax_reserve) : 0,
     };
     if (existing) {
       deleteOverride.mutate(
@@ -930,6 +986,10 @@ export default function ProjectedIncome() {
     // never send literal zeros — that regressed W-2 federal/SS/Medicare
     // on ordinary "To Personal" conversions. See planner conversion spec.
     const stream = (streams || []).find((s) => s.id === entry.streamId);
+    // When this occurrence has a detailed breakdown override, those values are
+    // the source of truth for the ledger row; otherwise fall back to the stream.
+    const occOverride = overrideLookup.get(`${entry.streamId}:${entry.date}`);
+    const detail = stream ? resolveOccurrenceDetail(stream, occOverride) : null;
 
     manualConvert.mutate(
       {
@@ -947,11 +1007,13 @@ export default function ProjectedIncome() {
         retirement401k: entry.retirement401k,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
-        federalWithholding: Number(stream?.federal_withholding || 0),
-        stateWithholding: Number(stream?.state_withholding || 0),
-        ssWithholding: Number(stream?.ss_withholding || 0),
-        medicareWithholding: Number(stream?.medicare_withholding || 0),
+        federalWithholding: Number(detail?.federalWithholding ?? stream?.federal_withholding ?? 0),
+        stateWithholding: Number(detail?.stateWithholding ?? stream?.state_withholding ?? 0),
+        ssWithholding: Number(detail?.ssWithholding ?? stream?.ss_withholding ?? 0),
+        medicareWithholding: Number(detail?.medicareWithholding ?? stream?.medicare_withholding ?? 0),
+        additionalTaxReserve: Number(detail?.additionalTaxReserve ?? stream?.additional_tax_reserve ?? 0),
         isBonus: entry.type === "bonus",
+
       },
       {
         onSuccess: () => {
@@ -2187,7 +2249,13 @@ export default function ProjectedIncome() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={overrideForm.taxes_withheld}
+                  readOnly={overrideForm.detailed}
+                  className={overrideForm.detailed ? "bg-muted text-muted-foreground" : undefined}
+                  value={
+                    overrideForm.detailed
+                      ? String(sumDetailedWithholding(overrideForm))
+                      : overrideForm.taxes_withheld
+                  }
                   onChange={(e) => setOverrideForm((p) => ({ ...p, taxes_withheld: e.target.value }))}
                 />
               </div>
@@ -2207,11 +2275,92 @@ export default function ProjectedIncome() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={overrideForm.pre_tax_deductions}
+                  readOnly={overrideForm.detailed}
+                  className={overrideForm.detailed ? "bg-muted text-muted-foreground" : undefined}
+                  value={
+                    overrideForm.detailed
+                      ? String(sumDetailedDeductions(overrideForm))
+                      : overrideForm.pre_tax_deductions
+                  }
                   onChange={(e) => setOverrideForm((p) => ({ ...p, pre_tax_deductions: e.target.value }))}
                 />
               </div>
             </div>
+
+            {/* Optional detailed breakdown — same field definitions as the
+                Personal Income ledger. Collapsed by default. */}
+            <Collapsible
+              open={overrideForm.detailed}
+              onOpenChange={(open) => setOverrideForm((p) => ({ ...p, detailed: open }))}
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50"
+                >
+                  <span>Add detailed tax &amp; deduction breakdown</span>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", overrideForm.detailed && "rotate-180")} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-3">
+                <p className="text-[11px] text-muted-foreground">
+                  Detailed values become the source of truth for this occurrence — the totals above are
+                  calculated from them.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Federal income tax</Label>
+                    <Input type="number" min="0" step="0.01" value={overrideForm.federal_withholding}
+                      onChange={(e) => setOverrideForm((p) => ({ ...p, federal_withholding: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Social Security</Label>
+                    <Input type="number" min="0" step="0.01" value={overrideForm.ss_withholding}
+                      onChange={(e) => setOverrideForm((p) => ({ ...p, ss_withholding: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Medicare</Label>
+                    <Input type="number" min="0" step="0.01" value={overrideForm.medicare_withholding}
+                      onChange={(e) => setOverrideForm((p) => ({ ...p, medicare_withholding: e.target.value }))} />
+                  </div>
+                  {taxSettings?.stateIncomeTaxEnabled && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">State income tax</Label>
+                      <Input type="number" min="0" step="0.01" value={overrideForm.state_withholding}
+                        onChange={(e) => setOverrideForm((p) => ({ ...p, state_withholding: e.target.value }))} />
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Employee retirement contribution</Label>
+                    <Input type="number" min="0" step="0.01" value={overrideForm.retirement_401k}
+                      onChange={(e) => setOverrideForm((p) => ({ ...p, retirement_401k: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Health insurance</Label>
+                    <Input type="number" min="0" step="0.01" value={overrideForm.healthcare_deduction}
+                      onChange={(e) => setOverrideForm((p) => ({ ...p, healthcare_deduction: e.target.value }))} />
+                  </div>
+                  {taxSettings?.hsaEnabled && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">HSA</Label>
+                      <Input type="number" min="0" step="0.01" value={overrideForm.hsa_contribution}
+                        onChange={(e) => setOverrideForm((p) => ({ ...p, hsa_contribution: e.target.value }))} />
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Other pre-tax deductions</Label>
+                    <Input type="number" min="0" step="0.01" value={overrideForm.pre_tax_deductions}
+                      onChange={(e) => setOverrideForm((p) => ({ ...p, pre_tax_deductions: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Additional Tax Reserve</Label>
+                    <Input type="number" min="0" step="0.01" value={overrideForm.additional_tax_reserve}
+                      onChange={(e) => setOverrideForm((p) => ({ ...p, additional_tax_reserve: e.target.value }))} />
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
             <div className="space-y-1.5">
               <Label className="text-xs">Notes (optional)</Label>
               <Input
@@ -2224,10 +2373,14 @@ export default function ProjectedIncome() {
               <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
                 <span className="text-muted-foreground">Est. take-home: </span>
                 <span className="font-semibold text-foreground">
-                  {fmtFull(Math.max(0, num(overrideForm.paycheck_amount) - num(overrideForm.taxes_withheld) - num(overrideForm.retirement_401k) - num(overrideForm.pre_tax_deductions)))}
+                  {fmtFull(Math.max(0, num(overrideForm.paycheck_amount)
+                    - (overrideForm.detailed ? sumDetailedWithholding(overrideForm) : num(overrideForm.taxes_withheld))
+                    - num(overrideForm.retirement_401k)
+                    - (overrideForm.detailed ? sumDetailedDeductions(overrideForm) : num(overrideForm.pre_tax_deductions))))}
                 </span>
               </div>
             )}
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOverrideTarget(null)}>Cancel</Button>

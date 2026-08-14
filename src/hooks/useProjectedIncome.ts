@@ -121,6 +121,17 @@ export interface ProjectedIncomeOverride {
   taxes_withheld: number;
   retirement_401k: number;
   pre_tax_deductions: number;
+  /** Optional detailed breakdown (mirrors the Personal Income ledger fields). */
+  federal_withholding?: number;
+  state_withholding?: number;
+  ss_withholding?: number;
+  medicare_withholding?: number;
+  healthcare_deduction?: number;
+  hsa_contribution?: number;
+  additional_tax_reserve?: number;
+  /** True when the user entered a detailed breakdown for this occurrence. */
+  has_detailed_breakdown?: boolean;
+
   notes: string;
   created_at: string;
   updated_at: string;
@@ -704,6 +715,8 @@ export function useManualPlannerConvert() {
       stateWithholding: number;
       ssWithholding: number;
       medicareWithholding: number;
+      /** Optional — carried through from a detailed planner breakdown. */
+      additionalTaxReserve?: number;
       isBonus: boolean;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -794,6 +807,7 @@ export function useManualPlannerConvert() {
             retirement_401k: input.retirement401k,
             healthcare_deduction: input.healthcareDeduction,
             hsa_contribution: input.hsaContribution,
+            additional_tax_reserve: input.additionalTaxReserve ?? 0,
             source_bucket: "personal",
             tax_category: "ordinary",
             is_actual: true,
@@ -871,6 +885,7 @@ export function useManualPlannerConvert() {
             retirement_401k: input.retirement401k,
             healthcare_deduction: input.healthcareDeduction,
             hsa_contribution: input.hsaContribution,
+            additional_tax_reserve: input.additionalTaxReserve ?? 0,
             source_bucket: "business",
             tax_category: "ordinary",
             is_actual: true,
@@ -1076,6 +1091,16 @@ export function useAddOverride() {
       pre_tax_deductions?: number;
       notes?: string;
       new_date?: string | null;
+      // Optional detailed breakdown (same field definitions as the Personal
+      // Income ledger). Only persisted when the user expands the breakdown.
+      federal_withholding?: number;
+      state_withholding?: number;
+      ss_withholding?: number;
+      medicare_withholding?: number;
+      healthcare_deduction?: number;
+      hsa_contribution?: number;
+      additional_tax_reserve?: number;
+      has_detailed_breakdown?: boolean;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
@@ -1090,10 +1115,19 @@ export function useAddOverride() {
         taxes_withheld: override.taxes_withheld ?? 0,
         retirement_401k: override.retirement_401k ?? 0,
         pre_tax_deductions: override.pre_tax_deductions ?? 0,
+        federal_withholding: override.federal_withholding ?? 0,
+        state_withholding: override.state_withholding ?? 0,
+        ss_withholding: override.ss_withholding ?? 0,
+        medicare_withholding: override.medicare_withholding ?? 0,
+        healthcare_deduction: override.healthcare_deduction ?? 0,
+        hsa_contribution: override.hsa_contribution ?? 0,
+        additional_tax_reserve: override.additional_tax_reserve ?? 0,
+        has_detailed_breakdown: override.has_detailed_breakdown ?? false,
         notes: override.notes || "",
         new_date: override.new_date ?? null,
-      });
+      } as any);
       if (error) throw error;
+
       // If user skipped a single occurrence, remove any planner-created
       // ledger row created for it so false "actual" income doesn't remain.
       let cleanupSummary = null;
@@ -1307,6 +1341,37 @@ function isDeletedSkip(override?: { action: string; notes?: string | null } | nu
   return !(override.notes || "").includes("Converted to actual income");
 }
 
+/**
+ * CANONICAL: resolve the detailed paycheck fields for a single planned
+ * occurrence. When the user entered a detailed breakdown on the occurrence
+ * override, those values are the source of truth; otherwise the recurring
+ * stream's saved values are used. Never sums basic + detailed values, so
+ * nothing can be double-counted.
+ */
+export function resolveOccurrenceDetail(
+  stream: Pick<
+    ProjectedIncomeStream,
+    | "federal_withholding" | "state_withholding" | "ss_withholding" | "medicare_withholding"
+    | "healthcare_deduction" | "hsa_contribution" | "additional_tax_reserve"
+  >,
+  override?: Partial<ProjectedIncomeOverride> | null,
+) {
+  const detailed = !!override && override.action === "modify" && !!override.has_detailed_breakdown;
+  const pick = (o?: number | null, s?: number | null) => Number((detailed ? o : s) || 0);
+  return {
+    hasDetailedBreakdown: detailed,
+    federalWithholding: pick(override?.federal_withholding, stream.federal_withholding),
+    stateWithholding: pick(override?.state_withholding, stream.state_withholding),
+    ssWithholding: pick(override?.ss_withholding, stream.ss_withholding),
+    medicareWithholding: pick(override?.medicare_withholding, stream.medicare_withholding),
+    healthcareDeduction: pick(override?.healthcare_deduction, stream.healthcare_deduction),
+    hsaContribution: pick(override?.hsa_contribution, stream.hsa_contribution),
+    additionalTaxReserve: pick(override?.additional_tax_reserve, stream.additional_tax_reserve),
+  };
+}
+
+
+
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
@@ -1394,8 +1459,9 @@ export function generateProjectedPaychecks(
           const displayDate = override?.action === "modify" && override.new_date ? override.new_date : dateStr;
           rawPaychecks.push({
             date: displayDate, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
-            healthcareDeduction: stream.healthcare_deduction || 0,
-            hsaContribution: stream.hsa_contribution || 0,
+            healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
+            hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+
             type: "paycheck", label: stream.company, streamId: stream.id,
             isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
           });
@@ -1421,8 +1487,9 @@ export function generateProjectedPaychecks(
           taxesWithheld: override.taxes_withheld,
           retirement401k: override.retirement_401k,
           preTaxDeductions: override.pre_tax_deductions,
-          healthcareDeduction: stream.healthcare_deduction || 0,
-          hsaContribution: stream.hsa_contribution || 0,
+          healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
+          hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: true,
           streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
@@ -1466,8 +1533,9 @@ export function generateProjectedPaychecks(
         const displayDate = override?.action === "modify" && override.new_date ? override.new_date : dateStr;
         rawPaychecks.push({
           date: displayDate, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
-          healthcareDeduction: stream.healthcare_deduction || 0,
-            hsaContribution: stream.hsa_contribution || 0,
+          healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
+            hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
         });

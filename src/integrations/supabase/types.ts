@@ -1162,10 +1162,14 @@ export type Database = {
       projected_income_overrides: {
         Row: {
           action: string
+          additional_tax_reserve: number
           created_at: string
+          federal_withholding: number
+          has_detailed_breakdown: boolean
           healthcare_deduction: number
           hsa_contribution: number
           id: string
+          medicare_withholding: number
           new_date: string | null
           notes: string | null
           organization_id: string | null
@@ -1173,6 +1177,8 @@ export type Database = {
           paycheck_amount: number
           pre_tax_deductions: number
           retirement_401k: number
+          ss_withholding: number
+          state_withholding: number
           stream_id: string
           taxes_withheld: number
           updated_at: string
@@ -1180,10 +1186,14 @@ export type Database = {
         }
         Insert: {
           action?: string
+          additional_tax_reserve?: number
           created_at?: string
+          federal_withholding?: number
+          has_detailed_breakdown?: boolean
           healthcare_deduction?: number
           hsa_contribution?: number
           id?: string
+          medicare_withholding?: number
           new_date?: string | null
           notes?: string | null
           organization_id?: string | null
@@ -1191,6 +1201,8 @@ export type Database = {
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
+          ss_withholding?: number
+          state_withholding?: number
           stream_id: string
           taxes_withheld?: number
           updated_at?: string
@@ -1198,10 +1210,14 @@ export type Database = {
         }
         Update: {
           action?: string
+          additional_tax_reserve?: number
           created_at?: string
+          federal_withholding?: number
+          has_detailed_breakdown?: boolean
           healthcare_deduction?: number
           hsa_contribution?: number
           id?: string
+          medicare_withholding?: number
           new_date?: string | null
           notes?: string | null
           organization_id?: string | null
@@ -1209,6 +1225,8 @@ export type Database = {
           paycheck_amount?: number
           pre_tax_deductions?: number
           retirement_401k?: number
+          ss_withholding?: number
+          state_withholding?: number
           stream_id?: string
           taxes_withheld?: number
           updated_at?: string
