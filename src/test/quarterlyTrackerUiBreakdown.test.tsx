@@ -61,7 +61,7 @@ describe("QuarterlyTracker simplified UI breakdown", () => {
         { income_date: `${YEAR}-05-15`, gross_amount: 20_000, federal_withholding: 2_000, income_type: "w2" },
       ],
       payments: [
-        { payment_date: `${YEAR}-05-20`, amount: 1_500, applied_quarter: "Q2", applied_tax_year: YEAR, quarter: "Q2" },
+        { payment_date: `${YEAR}-05-20`, amount: 1_500, applied_quarter: "Q2", applied_tax_year: YEAR, quarter: "Q2" } as any,
       ],
       incomeEntries: [
         { income_date: `${YEAR}-05-10`, amount: 10_000, additional_tax_reserve: 1_000 },
