@@ -77,7 +77,12 @@ export interface WithholdingRecommendation {
  * and the full combined tax picture (all income sources) to compute accurate
  * per-entry withholding.
  */
-export function useWithholdingRecommendation() {
+export interface WithholdingRecommendationOptions {
+  /** Existing transaction replaced by the current edit draft. */
+  excludeTransactionId?: string | null;
+}
+
+export function useWithholdingRecommendation(options: WithholdingRecommendationOptions = {}) {
   const {
     actualEstimate,
     currentPaceEstimate,
@@ -86,7 +91,7 @@ export function useWithholdingRecommendation() {
     currentPaceDebug,
     forecastDebug,
     isLoading: estLoading,
-  } = useTaxEstimate();
+  } = useTaxEstimate({ excludeTransactionId: options.excludeTransactionId });
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
 
   const isLoading = estLoading || settingsLoading;
@@ -232,13 +237,9 @@ export function useWithholdingRecommendation() {
       // set-aside style recommendation is still appropriate. Use the blended
       // rate (federal + SE + state business) for this entry, then subtract
       // any withholding already applied to THIS paycheck. Floor at 0.
-      // When editing an existing entry, the entry is already inside
-      // actualEstimate.seIncome — subtract it so the wage-base accounting
-      // doesn't double-count this entry against the SS cap.
+      // Edit mode supplies an estimate that already excludes the current
+      // transaction, so all annual and wage-base fields share one baseline.
       const baseCurrentNetSE = Math.max(0, Number(actualEstimate?.seIncome ?? 0));
-      const currentNetSEForBreakdown = alreadyIncludedInEstimate
-        ? Math.max(0, baseCurrentNetSE - grossIncome)
-        : baseCurrentNetSE;
       const rateSelection = getSavingsRateForIncomeBucket({
         incomeBucket: "business",
         incomeType,
@@ -252,7 +253,7 @@ export function useWithholdingRecommendation() {
         isSelfEmploymentTaxable,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
         currentW2Wages: Math.max(0, Number(actualEstimate?.w2Income ?? 0)),
-        currentNetSEIncome: currentNetSEForBreakdown,
+        currentNetSEIncome: baseCurrentNetSE,
         entryGrossAmount: netTaxableForEntry,
       });
       const rateToUse = rateSelection.rate;

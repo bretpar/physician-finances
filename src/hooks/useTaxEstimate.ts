@@ -32,10 +32,16 @@ import {
 import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { getApplicableHsaLimit } from "@/lib/hsaLimits";
+import { excludeIncomeTransactionFromTaxContext } from "@/lib/taxRecommendationContext";
 
 export type TaxMode = "actual" | "forecast";
 
-export function useTaxEstimate(): {
+export interface TaxEstimateOptions {
+  /** Existing income transaction replaced by the current form draft. */
+  excludeTransactionId?: string | null;
+}
+
+export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   estimate: TaxEstimate | null;
   isLoading: boolean;
   taxMode: TaxMode;
@@ -325,9 +331,17 @@ export function useTaxEstimate(): {
     };
     };
 
-    const allTxs = transactions || [];
+    // Keep the full transaction set for Planner conversion matching, but
+    // exclude the row being edited from the tax aggregate and enrichment.
+    const matchingTxs = transactions || [];
+    const replacementContext = excludeIncomeTransactionFromTaxContext(
+      matchingTxs,
+      reconciledIncomeEntries || [],
+      options.excludeTransactionId,
+    );
+    const allTxs = replacementContext.transactions;
     const actualTxs = allTxs.filter((t) => t.transaction_date <= todayStr);
-    const allIncomeRows = reconciledIncomeEntries || [];
+    const allIncomeRows = replacementContext.incomeEntries;
     const actualIncomeRows = allIncomeRows.filter((e) => e.income_date <= todayStr);
     const allPersonalRows = (personalEntries || []).filter((e) => e.include_in_tax_estimate !== false);
     const actualPersonalRows = allPersonalRows.filter((e) => e.income_date <= todayStr);
@@ -344,6 +358,7 @@ export function useTaxEstimate(): {
         stockTransactions: actualStockRows,
         investmentEntries: actualInvestmentRows,
         canonicalBusiness: makeCanonicalBusiness(actualTxs, actualIncomeRows),
+        matchingTransactions: matchingTxs,
       },
       includePlannedTaxInputs: {
         transactions: allTxs,
@@ -352,9 +367,10 @@ export function useTaxEstimate(): {
         stockTransactions: allStockRows,
         investmentEntries: allInvestmentRows,
         canonicalBusiness: makeCanonicalBusiness(allTxs, allIncomeRows),
+        matchingTransactions: matchingTxs,
       },
     };
-  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr]);
+  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr, options.excludeTransactionId]);
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || invLoading || retLoading || tpLoading || tsLoading || hoLoading;
 
@@ -639,7 +655,7 @@ export function useTaxEstimate(): {
       // matched occurrences and getProjectedTotals excludes them — preventing
       // double-counting of converted planner rows alongside their ledger twin.
       const activeBusinessIncomeTransactions: import("@/hooks/useProjectedIncome").MatchableBusinessTransaction[] =
-        scope.transactions
+        scope.matchingTransactions
           .filter(
             (t) =>
               t.transaction_type === "income" &&
