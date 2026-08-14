@@ -37,6 +37,7 @@ import StudentLoanValidation from "@/pages/admin/StudentLoanValidation";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 import Trust from "@/pages/Trust";
+import Landing from "@/pages/Landing";
 import { RouteHead } from "@/components/RouteHead";
 import { PageAccessGate } from "@/components/PageAccessGate";
 
@@ -175,6 +176,7 @@ function AppRoutes() {
       <Route path="/blog/locum-tenens-tax-guide" element={<LocumTenensTaxGuide />} />
       <Route path="/diagnostics/build" element={<DiagnosticsBuild />} />
       <Route path="/trust" element={<Trust />} />
+      <Route path="/" element={user ? <ProtectedRoutes /> : <Landing />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
 
     </Routes>

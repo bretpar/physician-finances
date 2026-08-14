@@ -11,9 +11,9 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
   {
     pattern: "/",
     meta: {
-      title: "Dashboard | Paycheck MD",
+      title: "Tax Planning for Doctors | Paycheck MD",
       description:
-        "Your physician finance dashboard — income, withholding, tax reserves, and estimated quarterly progress at a glance.",
+        "Tax planning for doctors: track W-2 and 1099 income, estimate federal, state, and self-employment tax, and stay ahead of quarterly payments.",
     },
   },
   {
