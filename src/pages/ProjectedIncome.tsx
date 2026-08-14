@@ -2212,15 +2212,17 @@ export default function ProjectedIncome() {
 
       {/* Override Edit Dialog */}
       <Dialog open={!!overrideTarget} onOpenChange={(open) => { if (!open) setOverrideTarget(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent scrollable className="sm:max-w-md">
+          <DialogStickyHeader>
             <DialogTitle>Edit Income</DialogTitle>
             <DialogDescription className="sr-only">Edit the date, gross amount, withholding, deductions, and notes for this single planned income occurrence.</DialogDescription>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground">
-            Changes apply to this occurrence only. The rest of the stream stays unchanged.
-          </p>
-          <div className="space-y-3 py-2">
+          </DialogStickyHeader>
+          <DialogBody className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Changes apply to this occurrence only. The rest of the stream stays unchanged.
+            </p>
+            <div className="space-y-3">
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Date</Label>
