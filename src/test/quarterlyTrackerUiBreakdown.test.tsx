@@ -112,8 +112,9 @@ describe("QuarterlyTracker simplified UI breakdown", () => {
     expect(screen.queryByText(/Payroll taxes already handled/i)).not.toBeInTheDocument();
   });
 
-  it("hides federal/SE target breakdown when tax estimate has no split", () => {
+  it("hides federal/SE target breakdown when tax estimate has no split", async () => {
     renderTracker({ federalIncomeTax: 0, selfEmploymentTax: 0 });
+    await expandDetails();
     expect(screen.getByText(/Q2 tax target/i)).toBeInTheDocument();
     expect(screen.queryByText(/Federal income tax/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Self-employment tax/i)).not.toBeInTheDocument();
