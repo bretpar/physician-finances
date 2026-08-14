@@ -2232,15 +2232,15 @@ export default function ProjectedIncome() {
       </Dialog>
 
 
-      {/* Delete Stream Confirm Dialog */}
+      {/* Stop Future Income Confirm Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete Income Stream</DialogTitle>
-            <DialogDescription className="sr-only">Confirm deletion of this projected income stream and all its paychecks.</DialogDescription>
+            <DialogTitle>Stop future income</DialogTitle>
+            <DialogDescription className="sr-only">Confirm stopping future planned income from this stream.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will remove the income stream and all projected paychecks. This cannot be undone.
+            This will remove future planned income from this stream. Past income and ledger transactions will not be changed.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
@@ -2251,11 +2251,12 @@ export default function ProjectedIncome() {
                 setDeleteConfirm(null);
               }}
             >
-              Delete
+              Stop future income
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Override Edit Dialog */}
       <Dialog open={!!overrideTarget} onOpenChange={(open) => { if (!open && !overrideSaving) setOverrideTarget(null); }}>
@@ -3010,7 +3011,7 @@ function CompanyAccordion({
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(s)}>
                           <Pencil className="h-3 w-3" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => onDelete(s.id)}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Stop future income" aria-label="Stop future income" onClick={() => onDelete(s.id)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>

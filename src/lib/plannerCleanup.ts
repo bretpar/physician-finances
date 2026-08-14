@@ -1,185 +1,25 @@
 /**
- * Planner conversion cleanup helpers.
+ * Orphan planner-entry helpers.
  *
- * When a user deletes a projected income stream, skips a single planned
- * paycheck, or deletes a bonus event, any ledger row (income_entries /
- * transactions) that was AUTO/MANUALLY created from that planner occurrence
- * should be removed too — otherwise false "actual" income remains in
- * Personal Income / Business Activity and Tax Overview totals.
- *
- * We only remove rows that are still clearly planner-created:
- *   - origin_type = 'planner_converted'
- *   - notes starts with "From planner"
- *   - income_entries: linked_transaction_id IS NULL (not matched to a real
- *     Plaid/imported transaction)
- *   - transactions: account_source = 'Planner' (not Plaid-imported)
- *
- * Anything that fails these checks is left alone — the user either manually
- * edited it into a confirmed paycheck, or it has been linked/matched to a
- * real bank transaction. Those rows require explicit user action to delete.
- *
- * After ledger cleanup we delete the planner_conversions row(s). For stream
- * deletes the CASCADE would handle that, but we delete explicitly so a
- * caller can run cleanup without immediately dropping the stream.
+ * Income Planner controls the forecast; the ledger owns historical actuals.
+ * Planner deletes/skips therefore never remove income_entries or
+ * transactions. The helpers below only surface truly orphaned,
+ * never-edited planner-created income entries for an explicit,
+ * user-confirmed cleanup in the ledger cleanup UI.
  */
+
 
 import { supabase } from "@/integrations/supabase/client";
 
-export interface SafeEraseSummary {
-  conversionsScanned: number;
-  conversionsDeleted: number;
-  incomeEntriesDeleted: number;
-  transactionsDeleted: number;
-  skippedNotSafe: number;
-}
-
-const empty = (): SafeEraseSummary => ({
-  conversionsScanned: 0,
-  conversionsDeleted: 0,
-  incomeEntriesDeleted: 0,
-  transactionsDeleted: 0,
-  skippedNotSafe: 0,
-});
-
-interface ConversionRow {
-  id: string;
-  stream_id: string | null;
-  bonus_event_id: string | null;
-  occurrence_date: string;
-  ledger_bucket: string | null;
-  income_entry_id: string | null;
-  transaction_id: string | null;
-}
-
-function notesLooksPlannerCreated(notes: string | null | undefined): boolean {
-  if (!notes) return false;
-  return notes.trim().toLowerCase().startsWith("from planner");
-}
 
 /**
- * Attempt to delete the ledger row tied to a single planner_conversions row,
- * but only if it still looks planner-created and unedited. Returns whether
- * the ledger row was removed.
+ * NOTE: the previous per-stream / per-occurrence / per-bonus ledger cleanup
+ * helpers were intentionally removed. Income Planner changes are forecast
+ * changes and must never delete income_entries or transactions. Ledger rows
+ * are only deleted from the ledger UI, or via the explicit
+ * "Delete from Planner & Ledger" choice on a converted occurrence.
  */
-async function tryDeleteLedgerForConversion(
-  conv: ConversionRow,
-): Promise<{ deletedIncome: boolean; deletedTx: boolean; skipped: boolean }> {
-  let deletedIncome = false;
-  let deletedTx = false;
-  let skipped = false;
 
-  if (conv.income_entry_id) {
-    const { data: row } = await supabase
-      .from("income_entries")
-      .select("id, origin_type, notes, linked_transaction_id")
-      .eq("id", conv.income_entry_id)
-      .maybeSingle();
-    if (row) {
-      const safe =
-        (row as any).origin_type === "planner_converted" &&
-        notesLooksPlannerCreated((row as any).notes) &&
-        !(row as any).linked_transaction_id;
-      if (safe) {
-        const { error } = await supabase
-          .from("income_entries")
-          .delete()
-          .eq("id", conv.income_entry_id);
-        if (!error) deletedIncome = true;
-      } else {
-        skipped = true;
-      }
-    }
-  }
-
-  if (conv.transaction_id) {
-    const { data: row } = await supabase
-      .from("transactions")
-      .select("id, origin_type, notes, account_source")
-      .eq("id", conv.transaction_id)
-      .maybeSingle();
-    if (row) {
-      const safe =
-        (row as any).origin_type === "planner_converted" &&
-        notesLooksPlannerCreated((row as any).notes) &&
-        ((row as any).account_source === "Planner" ||
-          (row as any).account_source === null);
-      if (safe) {
-        const { error } = await supabase
-          .from("transactions")
-          .delete()
-          .eq("id", conv.transaction_id);
-        if (!error) deletedTx = true;
-      } else {
-        skipped = true;
-      }
-    }
-  }
-
-  return { deletedIncome, deletedTx, skipped };
-}
-
-async function runCleanup(conversions: ConversionRow[]): Promise<SafeEraseSummary> {
-  const summary = empty();
-  summary.conversionsScanned = conversions.length;
-  const idsToDelete: string[] = [];
-
-  for (const conv of conversions) {
-    const r = await tryDeleteLedgerForConversion(conv);
-    if (r.deletedIncome) summary.incomeEntriesDeleted++;
-    if (r.deletedTx) summary.transactionsDeleted++;
-    if (r.skipped) summary.skippedNotSafe++;
-    // Always remove the planner_conversion record so the planner row no
-    // longer renders as "Converted". Even when we couldn't safely remove
-    // the ledger row, the conversion link itself is stale once the
-    // underlying planner occurrence is gone.
-    idsToDelete.push(conv.id);
-  }
-
-  if (idsToDelete.length > 0) {
-    const { error } = await supabase
-      .from("planner_conversions")
-      .delete()
-      .in("id", idsToDelete);
-    if (!error) summary.conversionsDeleted = idsToDelete.length;
-  }
-
-  return summary;
-}
-
-/** Cleanup planner-created ledger rows for an entire projected income stream. */
-export async function cleanupConvertedLedgerForStream(
-  streamId: string,
-): Promise<SafeEraseSummary> {
-  const { data } = await supabase
-    .from("planner_conversions")
-    .select("id, stream_id, bonus_event_id, occurrence_date, ledger_bucket, income_entry_id, transaction_id")
-    .eq("stream_id", streamId);
-  return runCleanup((data || []) as ConversionRow[]);
-}
-
-/** Cleanup planner-created ledger rows for a single planner occurrence. */
-export async function cleanupConvertedLedgerForOccurrence(args: {
-  streamId: string;
-  occurrenceDate: string;
-}): Promise<SafeEraseSummary> {
-  const { data } = await supabase
-    .from("planner_conversions")
-    .select("id, stream_id, bonus_event_id, occurrence_date, ledger_bucket, income_entry_id, transaction_id")
-    .eq("stream_id", args.streamId)
-    .eq("occurrence_date", args.occurrenceDate);
-  return runCleanup((data || []) as ConversionRow[]);
-}
-
-/** Cleanup planner-created ledger rows for a bonus event. */
-export async function cleanupConvertedLedgerForBonus(
-  bonusEventId: string,
-): Promise<SafeEraseSummary> {
-  const { data } = await supabase
-    .from("planner_conversions")
-    .select("id, stream_id, bonus_event_id, occurrence_date, ledger_bucket, income_entry_id, transaction_id")
-    .eq("bonus_event_id", bonusEventId);
-  return runCleanup((data || []) as ConversionRow[]);
-}
 
 export interface OrphanPlannerEntry {
   id: string;
