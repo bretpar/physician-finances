@@ -497,6 +497,14 @@ export default function ProjectedIncome() {
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
 
+  // Confirmation summary for "Stop future income": how many planned future
+  // occurrences disappear, and what stays untouched.
+  const stopFutureSummary = useMemo(() => {
+    if (!deleteConfirm) return null;
+    return buildStopFutureSummary(projectedPaychecks, deleteConfirm);
+  }, [deleteConfirm, projectedPaychecks]);
+
+
   const actualYTD = useMemo(() => {
     if (!incomeEntries) return { income: 0, withheld: 0, retirement: 0, deductions: 0 };
     const year = new Date().getFullYear();
