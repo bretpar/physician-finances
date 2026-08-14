@@ -163,19 +163,23 @@ interface OverrideForm {
   additional_tax_reserve: string;
 }
 
+const parseAmt = (v: string) => parseFloat(v) || 0;
+
 /** Sum of the actual withholding components entered in the detailed breakdown. */
 export function sumDetailedWithholding(f: {
   federal_withholding: string; ss_withholding: string; medicare_withholding: string; state_withholding: string;
 }): number {
-  return num(f.federal_withholding) + num(f.ss_withholding) + num(f.medicare_withholding) + num(f.state_withholding);
+  return parseAmt(f.federal_withholding) + parseAmt(f.ss_withholding) + parseAmt(f.medicare_withholding) + parseAmt(f.state_withholding);
 }
 
 /** Sum of the deduction components entered in the detailed breakdown. */
 export function sumDetailedDeductions(f: {
   healthcare_deduction: string; hsa_contribution: string; pre_tax_deductions: string;
 }): number {
-  return num(f.healthcare_deduction) + num(f.hsa_contribution) + num(f.pre_tax_deductions);
+  return parseAmt(f.healthcare_deduction) + parseAmt(f.hsa_contribution) + parseAmt(f.pre_tax_deductions);
 }
+
+
 
 
 
