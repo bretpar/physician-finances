@@ -180,6 +180,22 @@ export function sumDetailedDeductions(f: {
   return parseAmt(f.healthcare_deduction) + parseAmt(f.hsa_contribution) + parseAmt(f.pre_tax_deductions);
 }
 
+/**
+ * Derive the standalone "Other pre-tax deductions" value from the persisted
+ * aggregate `pre_tax_deductions`, removing the detailed components that are
+ * already stored separately (health insurance, HSA). Clamped at zero.
+ */
+export function deriveOtherPreTax(
+  aggregate: number | null | undefined,
+  healthcare?: number | null,
+  hsa?: number | null,
+): number {
+  const remainder = Number(aggregate || 0) - Number(healthcare || 0) - Number(hsa || 0);
+  return remainder > 0 ? Math.round(remainder * 100) / 100 : 0;
+}
+
+
+
 
 
 
@@ -909,11 +925,18 @@ export default function ProjectedIncome() {
     const detail = stream
       ? resolveOccurrenceDetail(stream, existing as any)
       : null;
+    const hasDetailed = !!(existing as any)?.has_detailed_breakdown;
+    // `pre_tax_deductions` is an AGGREGATE that already includes the separately
+    // persisted detailed components (health insurance, HSA). Hydrating it straight
+    // into "Other pre-tax" double-counts them, so derive the standalone remainder.
+    const otherPreTax = hasDetailed
+      ? deriveOtherPreTax(entry.preTaxDeductions, detail?.healthcareDeduction, detail?.hsaContribution)
+      : entry.preTaxDeductions;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
-      pre_tax_deductions: String(entry.preTaxDeductions),
+      pre_tax_deductions: String(otherPreTax),
       notes: existing?.notes || "",
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
