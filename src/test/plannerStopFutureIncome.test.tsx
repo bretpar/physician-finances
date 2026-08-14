@@ -17,6 +17,7 @@ type Op =
 
 const ops: Op[] = [];
 let streamRow: any = { id: "s1", start_date: "2026-01-01" };
+let conversionRows: any[] = [];
 
 vi.mock("@/hooks/useOrgId", () => ({
   getUserOrgId: async () => "org-1",
@@ -49,7 +50,7 @@ vi.mock("@/integrations/supabase/client", () => ({
           }),
           then: (resolve: any) => {
             const data = table === "planner_conversions"
-              ? []
+              ? conversionRows
               : table === "projected_bonus_events"
                 ? [{ id: "future-bonus" }]
                 : table === "projected_income_overrides"
@@ -119,6 +120,7 @@ const updates = (table: string) => ops.filter((o) => o.kind === "update" && o.ta
 beforeEach(() => {
   ops.length = 0;
   streamRow = { id: "s1", start_date: "2026-01-01" };
+  conversionRows = [];
 });
 
 describe("stop future income (stream delete)", () => {
@@ -149,6 +151,19 @@ describe("stop future income (stream delete)", () => {
     const res = await runStreamDelete("s2");
     expect(res.mode).toBe("deleted");
     expect(deletes("projected_income_streams")[0].filters.id).toBe("s2");
+    expect(deletes("income_entries")).toHaveLength(0);
+    expect(deletes("transactions")).toHaveLength(0);
+  });
+
+  it("does not hard-delete a future one-time stream that was already converted", async () => {
+    streamRow = { id: "s3", start_date: "2026-09-01" };
+    conversionRows = [{ occurrence_date: "2026-09-01", bonus_event_id: null }];
+
+    await expect(runStreamDelete("s3")).rejects.toThrow(
+      "Converted income can only be changed from its ledger.",
+    );
+    expect(deletes("projected_income_streams")).toHaveLength(0);
+    expect(deletes("planner_conversions")).toHaveLength(0);
     expect(deletes("income_entries")).toHaveLength(0);
     expect(deletes("transactions")).toHaveLength(0);
   });
