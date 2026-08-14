@@ -38,6 +38,10 @@ export interface QuarterRecommendationSharedInput
   extends Omit<QuarterRecommendationInput, "year" | "quarter" | "payments"> {
   /** Annual liability selected from the active tax-mode estimate. */
   annualTaxLiability: number;
+  /** Federal income tax portion of the active tax-mode estimate. */
+  federalIncomeTax: number;
+  /** Self-employment tax portion of the active tax-mode estimate. */
+  selfEmploymentTax: number;
   /** Full TaxPayment rows so consumers like QuarterlyTracker keep their typed shape. */
   payments: TaxPayment[];
   isLoading: boolean;
