@@ -391,6 +391,8 @@ export default function ProjectedIncome() {
 
   // Override edit state
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
+  const [overrideSaving, setOverrideSaving] = useState(false);
+
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
     paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "",
     detailed: false, federal_withholding: "", ss_withholding: "", medicare_withholding: "",
