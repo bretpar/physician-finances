@@ -32,9 +32,13 @@ export function excludeIncomeTransactionFromTaxContext<
  * transaction priced a higher effective rate than the Add flow did for the very
  * same values. This helper keeps both buckets on one exclusion rule.
  */
-export function excludeIncomeEntriesLinkedToTransaction<
-  E extends { linked_transaction_id?: string | null },
->(entries: readonly E[], transactionId?: string | null): E[] {
+export function excludeIncomeEntriesLinkedToTransaction<E extends object>(
+  entries: readonly E[],
+  transactionId?: string | null,
+): E[] {
   if (!transactionId) return [...entries];
-  return entries.filter((entry) => entry.linked_transaction_id !== transactionId);
+  return entries.filter(
+    (entry) => (entry as { linked_transaction_id?: string | null }).linked_transaction_id !== transactionId,
+  );
 }
+
