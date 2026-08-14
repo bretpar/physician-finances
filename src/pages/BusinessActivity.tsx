@@ -123,8 +123,10 @@ const emptyIncomeForm: IncomeFormState = {
   total_federal_payroll_taxes: "",
   pre_tax_deductions: "",
   retirement_401k: "",
+  employer_retirement_contribution: "",
   healthcare_deduction: "",
   hsa_contribution: "",
+  employer_hsa_contribution: "",
   actual_withholding: "",
   additional_tax_reserve: "",
   notes: "",
@@ -137,7 +139,8 @@ function resetIrrelevantAdvancedFields(form: IncomeFormState, newType: FilingTyp
   const allKeys: IncomeFieldKey[] = [
     "net_received","taxes_withheld","federal_withholding","state_withholding",
     "ss_withholding","medicare_withholding","pre_tax_deductions","retirement_401k",
-    "healthcare_deduction","hsa_contribution","actual_withholding","additional_tax_reserve",
+    "employer_retirement_contribution","healthcare_deduction","hsa_contribution",
+    "employer_hsa_contribution","actual_withholding","additional_tax_reserve",
   ];
   for (const k of allKeys) {
     if (!allowed.has(k)) (cleared as any)[k] = "";
@@ -362,6 +365,9 @@ export default function Transactions() {
       ["taxes_withheld", linkedEntry?.taxes_withheld || 0],
       ["pre_tax_deductions", linkedEntry?.pre_tax_deductions || 0],
       ["retirement_401k", linkedEntry?.retirement_401k || 0],
+      ["employer_retirement_contribution", (linkedEntry as any)?.employer_retirement_contribution || 0],
+      ["hsa_contribution", (linkedEntry as any)?.hsa_contribution || 0],
+      ["employer_hsa_contribution", (linkedEntry as any)?.employer_hsa_contribution || 0],
       ["healthcare_deduction", (linkedEntry as any)?.healthcare_deduction || 0],
       ["federal_withholding", (linkedEntry as any)?.federal_withholding || 0],
       ["state_withholding", (linkedEntry as any)?.state_withholding || 0],
@@ -643,8 +649,10 @@ export default function Transactions() {
         taxes_withheld: linked ? String(linked.taxes_withheld) : "",
         pre_tax_deductions: linked ? String(linked.pre_tax_deductions) : "",
         retirement_401k: linked ? String(linked.retirement_401k) : "",
+        employer_retirement_contribution: linked ? String((linked as any).employer_retirement_contribution || 0) : "",
         healthcare_deduction: linked ? String((linked as any).healthcare_deduction || 0) : "",
         hsa_contribution: linked ? String((linked as any).hsa_contribution || 0) : "",
+        employer_hsa_contribution: linked ? String((linked as any).employer_hsa_contribution || 0) : "",
         federal_withholding: linked ? String((linked as any).federal_withholding || 0) : "",
         state_withholding: linked ? String((linked as any).state_withholding || 0) : "",
         ss_withholding: linked ? String((linked as any).ss_withholding || 0) : "",
@@ -710,6 +718,18 @@ export default function Transactions() {
     const retirement = preserve("retirement_401k", num(incomeForm.retirement_401k), linkedEntry?.retirement_401k || 0);
     const healthcare = preserve("healthcare_deduction", num(incomeForm.healthcare_deduction), (linkedEntry as any)?.healthcare_deduction || 0);
     const hsa = preserve("hsa_contribution", num(incomeForm.hsa_contribution), (linkedEntry as any)?.hsa_contribution || 0);
+    // Employer-side contributions are tracked separately and are NEVER folded
+    // into the employee amounts (no double counting, no paycheck reduction).
+    const employerRetirement = preserve(
+      "employer_retirement_contribution",
+      num(incomeForm.employer_retirement_contribution),
+      (linkedEntry as any)?.employer_retirement_contribution || 0,
+    );
+    const employerHsa = preserve(
+      "employer_hsa_contribution",
+      num(incomeForm.employer_hsa_contribution),
+      (linkedEntry as any)?.employer_hsa_contribution || 0,
+    );
     // federal_withholding stores the federal income tax COMPONENT only
     // (NOT the combined total). The combined total lives in taxes_withheld
     // and is read everywhere via getTotalFederalPaid().
@@ -785,6 +805,10 @@ export default function Transactions() {
               retirement_401k: retirement,
               healthcare_deduction: healthcare,
               hsa_contribution: hsa,
+        employer_hsa_contribution: employerHsa,
+        employer_retirement_contribution: employerRetirement,
+              employer_hsa_contribution: employerHsa,
+              employer_retirement_contribution: employerRetirement,
               federal_withholding: fedWH,
               state_withholding: stateWH,
               ss_withholding: ssWH,
@@ -818,6 +842,10 @@ export default function Transactions() {
                   retirement_401k: retirement,
                   healthcare_deduction: healthcare,
               hsa_contribution: hsa,
+        employer_hsa_contribution: employerHsa,
+        employer_retirement_contribution: employerRetirement,
+              employer_hsa_contribution: employerHsa,
+              employer_retirement_contribution: employerRetirement,
                   federal_withholding: fedWH,
                   state_withholding: stateWH,
                   ss_withholding: ssWH,
@@ -896,6 +924,10 @@ export default function Transactions() {
         retirement_401k: retirement,
         healthcare_deduction: healthcare,
               hsa_contribution: hsa,
+        employer_hsa_contribution: employerHsa,
+        employer_retirement_contribution: employerRetirement,
+              employer_hsa_contribution: employerHsa,
+              employer_retirement_contribution: employerRetirement,
         federal_withholding: fedWH,
         state_withholding: stateWH,
         ss_withholding: ssWH,
