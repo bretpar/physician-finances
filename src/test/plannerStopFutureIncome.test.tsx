@@ -33,12 +33,30 @@ vi.mock("@/integrations/supabase/client", () => ({
     auth: { getUser: async () => ({ data: { user: { id: "user-1" } } }) },
     from: (table: string) => ({
       select: () => {
+        const filters: Record<string, any> = {};
         const chain: any = {
-          eq: () => chain,
+          eq: (col: string, value: any) => {
+            filters[col] = value;
+            return chain;
+          },
+          gte: (col: string, value: any) => {
+            filters[`gte:${col}`] = value;
+            return chain;
+          },
           maybeSingle: async () => ({
             data: table === "projected_income_streams" ? streamRow : null,
             error: null,
           }),
+          then: (resolve: any) => {
+            const data = table === "planner_conversions"
+              ? []
+              : table === "projected_bonus_events"
+                ? [{ id: "future-bonus" }]
+                : table === "projected_income_overrides"
+                  ? [{ id: "future-override", override_date: "2026-09-01" }]
+                  : [];
+            return Promise.resolve({ data, error: null }).then(resolve);
+          },
         };
         return chain;
       },
@@ -66,6 +84,11 @@ vi.mock("@/integrations/supabase/client", () => ({
           gte: (col: string, v: any) => {
             filters[`gte:${col}`] = v;
             return chain;
+          },
+          in: (col: string, values: any[]) => {
+            filters[`in:${col}`] = values;
+            ops.push({ kind: "delete", table, filters });
+            return Promise.resolve({ data: null, error: null });
           },
           then: (res: any) => Promise.resolve({ data: null, error: null }).then(res),
         };
@@ -113,12 +136,12 @@ describe("stop future income (stream delete)", () => {
     expect(deletes("planner_conversions")).toHaveLength(0);
   });
 
-  it("removes only today/future bonuses and overrides", async () => {
+  it("removes only selected future, unconverted bonuses and overrides", async () => {
     await runStreamDelete("s1");
     const bonus = deletes("projected_bonus_events")[0];
     const overrides = deletes("projected_income_overrides")[0];
-    expect(bonus.filters["gte:scheduled_date"]).toBe("2026-08-14");
-    expect(overrides.filters["gte:override_date"]).toBe("2026-08-14");
+    expect(bonus.filters["in:id"]).toEqual(["future-bonus"]);
+    expect(overrides.filters["in:id"]).toEqual(["future-override"]);
   });
 
   it("hard-deletes a stream that starts today or later (no history)", async () => {

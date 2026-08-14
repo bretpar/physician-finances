@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
  * helpers were intentionally removed. Income Planner changes are forecast
  * changes and must never delete income_entries or transactions. Ledger rows
  * are only deleted from the ledger UI, or via the explicit
- * "Delete from Planner & Ledger" choice on a converted occurrence.
+ * explicit, user-confirmed cleanup from the ledger cleanup UI.
  */
 
 

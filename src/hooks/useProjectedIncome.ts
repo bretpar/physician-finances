@@ -972,13 +972,15 @@ export function useDeleteStream() {
   return useMutation({
     mutationFn: async (id: string) => {
       const today = getTodayLocalDateString();
-      const { data: stream } = await supabase
+      const { data: stream, error: streamError } = await supabase
         .from("projected_income_streams")
         .select("id, start_date")
         .eq("id", id)
         .maybeSingle();
+      if (streamError) throw streamError;
+      if (!stream) throw new Error("Income stream not found");
 
-      const startsInFuture = !stream || (stream as any).start_date >= today;
+      const startsInFuture = (stream as any).start_date >= today;
 
       if (startsInFuture) {
         const { error } = await supabase
@@ -997,17 +999,47 @@ export function useDeleteStream() {
         .eq("id", id);
       if (updErr) throw updErr;
 
-      // Remove future planned extras tied to this stream (no ledger touched).
-      await supabase
+      // Keep converted future rows too: they are historical linkage even when
+      // their occurrence date has not arrived yet. Only unconverted forecast
+      // extras may be removed by the Planner.
+      const { data: conversions, error: conversionError } = await supabase
+        .from("planner_conversions")
+        .select("occurrence_date, bonus_event_id")
+        .eq("stream_id", id)
+        .eq("status", "converted");
+      if (conversionError) throw conversionError;
+      const convertedDates = new Set((conversions || []).map((c: any) => c.occurrence_date));
+      const convertedBonusIds = new Set(
+        (conversions || []).map((c: any) => c.bonus_event_id).filter(Boolean),
+      );
+
+      const { data: futureBonuses, error: bonusReadError } = await supabase
         .from("projected_bonus_events")
-        .delete()
+        .select("id")
         .eq("stream_id", id)
         .gte("scheduled_date", today);
-      await supabase
+      if (bonusReadError) throw bonusReadError;
+      const removableBonusIds = (futureBonuses || [])
+        .map((b: any) => b.id)
+        .filter((bonusId: string) => !convertedBonusIds.has(bonusId));
+      if (removableBonusIds.length > 0) {
+        const { error } = await supabase.from("projected_bonus_events").delete().in("id", removableBonusIds);
+        if (error) throw error;
+      }
+
+      const { data: futureOverrides, error: overrideReadError } = await supabase
         .from("projected_income_overrides")
-        .delete()
+        .select("id, override_date")
         .eq("stream_id", id)
         .gte("override_date", today);
+      if (overrideReadError) throw overrideReadError;
+      const removableOverrideIds = (futureOverrides || [])
+        .filter((o: any) => !convertedDates.has(o.override_date))
+        .map((o: any) => o.id);
+      if (removableOverrideIds.length > 0) {
+        const { error } = await supabase.from("projected_income_overrides").delete().in("id", removableOverrideIds);
+        if (error) throw error;
+      }
 
       return { mode: "stopped" as const };
     },
@@ -1057,7 +1089,27 @@ export function useDeleteBonus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Planner-only: never removes ledger rows created from this bonus.
+      const today = getTodayLocalDateString();
+      const { data: bonus, error: readError } = await supabase
+        .from("projected_bonus_events")
+        .select("scheduled_date")
+        .eq("id", id)
+        .maybeSingle();
+      if (readError) throw readError;
+      if (!bonus || (bonus as any).scheduled_date < today) {
+        throw new Error("Historical planned income can only be changed from its ledger.");
+      }
+      const { data: conversion, error: conversionError } = await supabase
+        .from("planner_conversions")
+        .select("id")
+        .eq("bonus_event_id", id)
+        .eq("status", "converted")
+        .maybeSingle();
+      if (conversionError) throw conversionError;
+      if (conversion) {
+        throw new Error("Converted income can only be deleted from its ledger.");
+      }
+      // Future, unconverted Planner row only; no ledger or conversion cleanup.
       const { error } = await supabase
         .from("projected_bonus_events")
         .delete()
@@ -1206,119 +1258,6 @@ export function useDeleteOverride() {
   });
 }
 
-/**
- * Delete a planner occurrence that has already been converted to a ledger row.
- *
- * `scope = "planner"` removes the planner occurrence only (skip override +
- * conversion link) and leaves the converted ledger transaction untouched.
- * `scope = "both"` additionally deletes the exact linked ledger row using the
- * `planner_conversions` link (income_entry_id / transaction_id) — never any
- * unrelated transaction.
- */
-export function useDeleteConvertedOccurrence() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      scope: "planner" | "both";
-      streamId: string;
-      occurrenceDate: string;
-      bonusEventId?: string | null;
-      /** Existing override row for this occurrence, if any (replaced by a skip). */
-      existingOverrideId?: string | null;
-    }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      // Resolve the conversion link for this occurrence.
-      let convQuery = supabase
-        .from("planner_conversions")
-        .select("id, income_entry_id, transaction_id");
-      convQuery = input.bonusEventId
-        ? convQuery.eq("bonus_event_id", input.bonusEventId)
-        : convQuery.eq("stream_id", input.streamId).eq("occurrence_date", input.occurrenceDate);
-      const { data: conv } = await convQuery.maybeSingle();
-
-      let ledgerDeleted = 0;
-      if (input.scope === "both" && conv) {
-        if ((conv as any).income_entry_id) {
-          const { error } = await supabase
-            .from("income_entries")
-            .delete()
-            .eq("id", (conv as any).income_entry_id);
-          if (error) throw error;
-          ledgerDeleted++;
-        }
-        if ((conv as any).transaction_id) {
-          const { error } = await supabase
-            .from("transactions")
-            .delete()
-            .eq("id", (conv as any).transaction_id);
-          if (error) throw error;
-          ledgerDeleted++;
-        }
-      }
-
-      // Drop the conversion link so the occurrence is no longer "converted".
-      if (conv) {
-        await supabase.from("planner_conversions").delete().eq("id", (conv as any).id);
-      }
-
-      if (input.bonusEventId) {
-        const { error } = await supabase
-          .from("projected_bonus_events")
-          .delete()
-          .eq("id", input.bonusEventId);
-        if (error) throw error;
-      } else {
-        // Replace any existing override with a plain skip so the recurring
-        // stream keeps generating every other occurrence untouched.
-        if (input.existingOverrideId) {
-          await supabase
-            .from("projected_income_overrides")
-            .delete()
-            .eq("id", input.existingOverrideId);
-        }
-        const orgId = await getUserOrgId();
-        const { error } = await supabase.from("projected_income_overrides").insert({
-          stream_id: input.streamId,
-          user_id: user.id,
-          organization_id: orgId,
-          override_date: input.occurrenceDate,
-          action: "skip",
-          paycheck_amount: 0,
-          taxes_withheld: 0,
-          retirement_401k: 0,
-          pre_tax_deductions: 0,
-          notes: "Deleted from planner",
-          new_date: null,
-        });
-        if (error) throw error;
-      }
-
-      return { ledgerDeleted };
-    },
-    onSuccess: (res) => {
-      for (const key of PLANNER_CLEANUP_INVALIDATION_KEYS) {
-        qc.invalidateQueries({ queryKey: key });
-      }
-      qc.invalidateQueries({ queryKey: ["planner_conversions"] });
-      qc.invalidateQueries({ queryKey: ["planner_conversions_full"] });
-      qc.invalidateQueries({ queryKey: ["projected_income_overrides"] });
-      qc.invalidateQueries({ queryKey: ["projected_bonus_events"] });
-      qc.invalidateQueries({ queryKey: ["income_entries"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      toast.success(
-        res?.ledgerDeleted
-          ? "Deleted from planner and ledger"
-          : "Deleted from planner",
-      );
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-}
-
-
-
 /* ─── Projection engine ─── */
 function getNextDate(current: Date, frequency: string, customDays?: number | null): Date {
   switch (frequency) {
@@ -1444,7 +1383,6 @@ export function generateProjectedPaychecks(
 
   for (const stream of streams) {
     if (!stream.is_active || !stream.include_in_tax) continue;
-    if (isStreamExpired(stream)) continue;
 
     const start = parseISO(stream.start_date);
 

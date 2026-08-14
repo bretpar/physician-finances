@@ -31,7 +31,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { formatDate } from "@/lib/localDate";
+import { formatDate, getTodayLocalDateString } from "@/lib/localDate";
 import { buildStopFutureSummary } from "@/lib/plannerStopFutureSummary";
 
 import { DuplicateConversionsReview } from "@/components/DuplicateConversionsReview";
@@ -45,7 +45,7 @@ import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides,
   useAddStream, useUpdateStream, useDeleteStream,
   useAddBonus, useDeleteBonus, useUpdateBonus,
-  useAddOverride, useUpdateOverride, useDeleteOverride, useDeleteConvertedOccurrence,
+  useAddOverride, useUpdateOverride, useDeleteOverride,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
   generateProjectedPaychecks, getProjectedTotals,
   isStreamExpired, resolveOccurrenceDetail,
@@ -372,7 +372,6 @@ export default function ProjectedIncome() {
   const updateOverride = useUpdateOverride();
   const deleteOverride = useDeleteOverride();
 
-  const deleteConvertedOccurrence = useDeleteConvertedOccurrence();
   const confirmSuggested = useConfirmSuggestedMatch();
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const deleteBonus = useDeleteBonus();
@@ -426,7 +425,6 @@ export default function ProjectedIncome() {
   const [mobileActionsEntry, setMobileActionsEntry] = useState<ProjectedPaycheck | null>(null);
   const [mobileSkipConfirm, setMobileSkipConfirm] = useState<ProjectedPaycheck | null>(null);
   // Delete flow for occurrences already converted/sent to a ledger.
-  const [convertedDeleteTarget, setConvertedDeleteTarget] = useState<ProjectedPaycheck | null>(null);
 
   const num = (v: string) => parseFloat(v) || 0;
   const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
@@ -910,6 +908,10 @@ export default function ProjectedIncome() {
 
   // Override handlers
   const handleSkip = (entry: ProjectedPaycheck) => {
+    if (entry.date < getTodayLocalDateString() || entry.matchStatus === "converted") {
+      toast.error("Historical income can only be changed from Personal Income or Business Activity.");
+      return;
+    }
     addOverride.mutate({
       stream_id: entry.streamId,
       override_date: entry.date,
@@ -1473,18 +1475,6 @@ export default function ProjectedIncome() {
                                 <ExternalLink className="h-3 w-3" /> View in {viewLabel}
                               </Button>
                             )}
-                            {isConverted && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 text-destructive"
-                                title="Delete"
-                                onClick={(e) => { e.stopPropagation(); setConvertedDeleteTarget(entry); }}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            )}
-
                             <span className={`text-sm font-semibold ${isSkipped || isMatched || isConverted ? "text-muted-foreground" : isPastDue ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                               {fmtFull(entry.grossAmount)}
                             </span>
@@ -1544,24 +1534,28 @@ export default function ProjectedIncome() {
                                   <Plus className="h-3 w-3 mr-0.5" />
                                   {(() => { const t = (entry.streamCompanyType || "").toLowerCase(); return (t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution") ? "To Ledger" : "To Personal"; })()}
                                 </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6"
-                                  title="Edit income"
-                                  onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-destructive"
-                                  title="Skip this date"
-                                  onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                                {entry.date >= getTodayLocalDateString() && (
+                                  <>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6"
+                                      title="Edit income"
+                                      onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 text-destructive"
+                                      title="Skip this date"
+                                      onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
                               </>
                             )}
                             {entry.type === "bonus" && entry.bonusEventId && !isMatched && !isConverted && !isSkipped && (
@@ -1628,15 +1622,6 @@ export default function ProjectedIncome() {
                                   onClick={(e) => { e.stopPropagation(); openOverrideEdit(entry); }}
                                 >
                                   <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 text-destructive"
-                                  title="Skip — income not received"
-                                  onClick={(e) => { e.stopPropagation(); handleSkip(entry); }}
-                                >
-                                  <X className="h-3 w-3" />
                                 </Button>
                               </>
                             )}
@@ -2286,7 +2271,7 @@ export default function ProjectedIncome() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              Past income and ledger transactions will not be changed.
+              This removes future planned income from this stream. Past income and ledger transactions will not be changed.
             </p>
           </div>
 
@@ -2636,11 +2621,6 @@ export default function ProjectedIncome() {
                     <ExternalLink className="h-4 w-4 mr-2" /> View in {m_viewLabel}
                   </Button>
                 )}
-                {m_isConverted && (
-                  <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => { close(); setConvertedDeleteTarget(e); }}>
-                    <X className="h-4 w-4 mr-2" /> Delete
-                  </Button>
-                )}
                 {m_isSkipped && !m_isConverted && (
                   <Button variant="outline" className="justify-start h-12 text-primary" onClick={() => { close(); handleRestore(e); }}>
                     <RotateCcw className="h-4 w-4 mr-2" /> Restore this date
@@ -2651,7 +2631,7 @@ export default function ProjectedIncome() {
                     <RotateCcw className="h-4 w-4 mr-2" /> Reset to default
                   </Button>
                 )}
-                {((m_isActive || m_isPastDue) && e.type === "paycheck") && (
+                {(m_isActive && e.date >= getTodayLocalDateString() && e.type === "paycheck") && (
                   <Button variant="outline" className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive" onClick={() => { close(); setMobileSkipConfirm(e); }}>
                     <X className="h-4 w-4 mr-2" /> Delete
                   </Button>
@@ -2689,67 +2669,6 @@ export default function ProjectedIncome() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Converted item delete — planner only vs planner + ledger */}
-      <Dialog open={!!convertedDeleteTarget} onOpenChange={(open) => { if (!open) setConvertedDeleteTarget(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Where would you like to delete this transaction?</DialogTitle>
-            <DialogDescription>
-              {convertedDeleteTarget?.label} · {formatDate(convertedDeleteTarget?.date)}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2 py-2">
-            <Button
-              variant="outline"
-              className="justify-start h-12"
-              disabled={deleteConvertedOccurrence.isPending}
-              onClick={() => {
-                const t = convertedDeleteTarget;
-                if (!t) return;
-                const ov = overrideLookup.get(`${t.streamId}:${t.date}`);
-                deleteConvertedOccurrence.mutate({
-                  scope: "planner",
-                  streamId: t.streamId,
-                  // Conversions are keyed by the original scheduled occurrence.
-                  occurrenceDate: ov?.override_date || t.date,
-                  bonusEventId: t.bonusEventId ?? null,
-                  existingOverrideId: ov?.id ?? null,
-                });
-                setConvertedDeleteTarget(null);
-              }}
-            >
-              Delete from Planner only
-            </Button>
-            <Button
-              variant="outline"
-              className="justify-start h-12 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-              disabled={deleteConvertedOccurrence.isPending}
-              onClick={() => {
-                const t = convertedDeleteTarget;
-                if (!t) return;
-                const ov = overrideLookup.get(`${t.streamId}:${t.date}`);
-                deleteConvertedOccurrence.mutate({
-                  scope: "both",
-                  streamId: t.streamId,
-                  // Conversions are keyed by the original scheduled occurrence.
-                  occurrenceDate: ov?.override_date || t.date,
-                  bonusEventId: t.bonusEventId ?? null,
-                  existingOverrideId: ov?.id ?? null,
-                });
-                setConvertedDeleteTarget(null);
-              }}
-            >
-              Delete from Planner &amp; Ledger
-            </Button>
-            <Button variant="ghost" className="justify-start h-12" onClick={() => setConvertedDeleteTarget(null)}>
-              Cancel
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-
 
       <Dialog open={!!convertTarget} onOpenChange={(open) => { if (!open) setConvertTarget(null); }}>
         <DialogContent className="sm:max-w-md">
@@ -2872,7 +2791,7 @@ export default function ProjectedIncome() {
               <Button variant="outline" size="sm" className="justify-start" onClick={() => { setDetailEntry(null); handleRestore(e); }}>
                 <RotateCcw className="h-4 w-4 mr-2" /> Restore
               </Button>
-            ) : !isConverted && (
+            ) : !isConverted && e.date >= getTodayLocalDateString() && (
               <Button variant="outline" size="sm" className="justify-start text-destructive" onClick={() => { setDetailEntry(null); handleSkip(e); }}>
                 <X className="h-4 w-4 mr-2" /> Skip
               </Button>
