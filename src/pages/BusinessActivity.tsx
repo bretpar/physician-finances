@@ -99,8 +99,10 @@ interface IncomeFormState {
   total_federal_payroll_taxes: string;
   pre_tax_deductions: string;
   retirement_401k: string;
+  employer_retirement_contribution: string;
   healthcare_deduction: string;
   hsa_contribution: string;
+  employer_hsa_contribution: string;
   actual_withholding: string;
   additional_tax_reserve: string;
   notes: string;
