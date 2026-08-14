@@ -63,7 +63,7 @@ describe("QuarterlyTracker simplified UI breakdown", () => {
     expect(screen.getByText(/Self-employment tax/i)).toBeInTheDocument();
   });
 
-  it("shows covered sub-items: W-2 withholding, estimated payments, and savings", () => {
+  it("shows covered sub-items: W-2 withholding, estimated payments, and savings", async () => {
     renderTracker({
       personalEntries: [
         { income_date: `${YEAR}-05-15`, gross_amount: 20_000, federal_withholding: 2_000, income_type: "w2" },
@@ -75,8 +75,8 @@ describe("QuarterlyTracker simplified UI breakdown", () => {
         { income_date: `${YEAR}-05-10`, amount: 10_000, additional_tax_reserve: 1_000 },
       ],
     });
-    const detail = screen.getByText("Quarterly payment details");
-    expect(detail).toBeInTheDocument();
+    await expandDetails();
+    expect(screen.getByText("Quarterly payment details")).toBeInTheDocument();
     expect(screen.getByText(/W-2 federal withholding/i)).toBeInTheDocument();
     expect(screen.getByText(/Estimated tax payments/i)).toBeInTheDocument();
     expect(screen.getByText(/Tax savings set aside/i)).toBeInTheDocument();
