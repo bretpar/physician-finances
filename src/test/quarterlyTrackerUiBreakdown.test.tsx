@@ -33,6 +33,12 @@ function renderTracker(props: Partial<React.ComponentProps<typeof QuarterlyTrack
   );
 }
 
+async function expandDetails() {
+  const trigger = screen.getByText("Quarterly payment details");
+  await userEvent.click(trigger);
+  await waitFor(() => expect(screen.getByText(/tax target/i)).toBeInTheDocument());
+}
+
 describe("QuarterlyTracker simplified UI breakdown", () => {
   beforeEach(() => {
     vi.useFakeTimers();
