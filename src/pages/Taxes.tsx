@@ -446,6 +446,8 @@ export default function Taxes() {
         <QuarterlyTracker
           showPaceStatus={canFeature("quarterlySavingsPace")}
           annualTaxLiability={sharedQrInput.annualTaxLiability}
+          federalIncomeTax={sharedQrInput.federalIncomeTax}
+          selfEmploymentTax={sharedQrInput.selfEmploymentTax}
           payments={sharedQrInput.payments ?? []}
           methodLabel={overviewProfile.label}
           incomeEntries={sharedQrInput.incomeEntries ?? []}

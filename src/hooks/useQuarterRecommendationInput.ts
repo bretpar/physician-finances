@@ -38,6 +38,10 @@ export interface QuarterRecommendationSharedInput
   extends Omit<QuarterRecommendationInput, "year" | "quarter" | "payments"> {
   /** Annual liability selected from the active tax-mode estimate. */
   annualTaxLiability: number;
+  /** Federal income tax portion of the active tax-mode estimate. */
+  federalIncomeTax: number;
+  /** Self-employment tax portion of the active tax-mode estimate. */
+  selfEmploymentTax: number;
   /** Full TaxPayment rows so consumers like QuarterlyTracker keep their typed shape. */
   payments: TaxPayment[];
   isLoading: boolean;
@@ -114,10 +118,14 @@ export function useQuarterRecommendationInput(): QuarterRecommendationSharedInpu
       ? forecastEstimate ?? actualEstimate
       : currentPaceEstimate ?? actualEstimate;
   const annualTaxLiability = Math.max(0, Number(baseEstimate?.totalTaxLiability || 0));
+  const federalIncomeTax = Math.max(0, Number(baseEstimate?.federalTax || 0));
+  const selfEmploymentTax = Math.max(0, Number(baseEstimate?.seTax?.total || 0));
   const quarterMethod = rates?.quarterlyTrackerMethod ?? "even";
 
   return {
     annualTaxLiability,
+    federalIncomeTax,
+    selfEmploymentTax,
     quarterMethod,
     incomeEntries: incomeEntries || [],
     personalEntries: personalEntries || [],

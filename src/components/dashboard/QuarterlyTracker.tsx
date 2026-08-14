@@ -12,6 +12,7 @@ import { type QuarterLabel, getCurrentQuarter } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
+import { isW2FilingType } from "@/lib/filingTypes";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
 export interface CompanyQuarterRow {
@@ -23,6 +24,10 @@ export interface CompanyQuarterRow {
 
 interface QuarterlyTrackerProps {
   annualTaxLiability: number;
+  /** Federal income tax portion of the active tax estimate. Used to split the quarter target into income-tax vs SE-tax components. */
+  federalIncomeTax?: number;
+  /** Self-employment tax portion of the active tax estimate. */
+  selfEmploymentTax?: number;
   /** All tax payments — filtered internally by the displayed quarter + year. */
   payments: TaxPayment[];
   methodLabel?: string;
@@ -120,6 +125,27 @@ function stepQuarter(year: number, quarter: 1 | 2 | 3 | 4, dir: -1 | 1): { year:
   return { year: y, quarter: q as 1 | 2 | 3 | 4 };
 }
 
+function InfoTip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground"
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          {children}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 /** Owning year/quarter for "today" using `getActivePaymentTarget` so the
  *  Tax Overview tracker stays aligned with the Dashboard's Q2 Payment Due
  *  card during the 20-day-before / 7-day-after due window. On e.g. Jun 9
@@ -133,6 +159,8 @@ function currentOwningYear(): { year: number; quarter: 1 | 2 | 3 | 4 } {
 
 export default function QuarterlyTracker({
   annualTaxLiability,
+  federalIncomeTax,
+  selfEmploymentTax,
   payments,
   methodLabel,
   incomeEntries,
@@ -197,6 +225,42 @@ export default function QuarterlyTracker({
   const savedThisQuarter = recommendation.savedThisQuarter;
   const progressAmount = recommendation.progressAmount;
   const remainingThisQuarter = Math.max(0, quarterTarget - progressAmount);
+
+  // ── Quarter target breakdown (federal income tax vs SE tax) ─────────────
+  // Pro-rate the annual tax components by the quarter target. When the estimate
+  // doesn't provide a breakdown, hide the sub-rows so the UI never guesses.
+  const targetBreakdown = useMemo(() => {
+    const fed = Math.max(0, federalIncomeTax ?? 0);
+    const se = Math.max(0, selfEmploymentTax ?? 0);
+    const total = fed + se;
+    if (total <= 0) return { federalIncomeTax: 0, selfEmploymentTax: 0, hasBreakdown: false };
+    return {
+      federalIncomeTax: quarterTarget * (fed / total),
+      selfEmploymentTax: quarterTarget * (se / total),
+      hasBreakdown: true,
+    };
+  }, [federalIncomeTax, selfEmploymentTax, quarterTarget]);
+
+  // ── W-2 payroll taxes already handled (SS + Medicare) — informational only
+  // These are deliberately excluded from Paid / Saved / quarterly target.
+  const payrollTaxesHandled = useMemo(() => {
+    const start = q.start;
+    const end = q.end;
+    const inWin = (iso?: string | null) => {
+      if (!iso) return false;
+      const d = new Date(iso);
+      return d >= start && d < end;
+    };
+    let ss = 0;
+    let medicare = 0;
+    for (const e of personalEntries) {
+      if (!inWin(e.income_date)) continue;
+      if (!isW2FilingType(e.income_type)) continue;
+      ss += Number(e.ss_withholding || 0);
+      medicare += Number(e.medicare_withholding || 0);
+    }
+    return { ss, medicare, hasAny: ss > 0 || medicare > 0 };
+  }, [personalEntries, q.start, q.end]);
 
   // ── Pace math (vs today's expected, not full target) ──────────────────────
   // Today marker depends ONLY on the current date and quarter window — not on
@@ -356,9 +420,14 @@ export default function QuarterlyTracker({
         {/* Primary numbers */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
-              Paid + Saved
-            </p>
+            <div className="flex items-center gap-1">
+              <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground/70 font-medium break-words">
+                Covered so far
+              </p>
+              <InfoTip label="About covered so far">
+                Covered so far includes federal income tax withheld from W-2 paychecks, estimated tax payments already made, and tax savings you've set aside.
+              </InfoTip>
+            </div>
             <p className="mt-1 text-2xl sm:text-3xl font-bold tabular-nums text-foreground whitespace-nowrap">
               {fmt(progressAmount)}
             </p>
@@ -394,8 +463,20 @@ export default function QuarterlyTracker({
             )}
           </div>
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary" />Paid</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-primary/40" />Saved</span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-primary" />
+              Paid
+              <InfoTip label="About paid">
+                Federal income tax already withheld from W-2 paychecks plus estimated tax payments already submitted.
+              </InfoTip>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-primary/40" />
+              Saved
+              <InfoTip label="About saved">
+                Money you've reserved for taxes but have not yet submitted as an estimated payment.
+              </InfoTip>
+            </span>
             <span className="flex items-center gap-1"><span className="h-2.5 w-0.5 bg-foreground/70 rounded-sm" />Today</span>
           </div>
         </div>
@@ -422,21 +503,85 @@ export default function QuarterlyTracker({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="divide-y divide-border border-t text-sm">
-                  {[
-                    { label: "Quarter target", value: recommendation.quarterTarget },
-                    { label: "Federal W-2 withholding paid", value: recommendation.w2WithheldThisQuarter },
-                    { label: "Estimated payments made", value: recommendation.estimatedPaymentsMade },
-                    ...(recommendation.otherWithheldThisQuarter > 0
-                      ? [{ label: "Other withholding paid", value: recommendation.otherWithheldThisQuarter }]
-                      : []),
-                    { label: "Saved/reserved but not paid", value: recommendation.savedThisQuarter },
-                    { label: "Recommended payment remaining", value: recommendation.stillNeedToSave },
-                  ].map((row) => (
-                    <div key={row.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                      <span className="text-foreground/90 min-w-0 break-words">{row.label}</span>
-                      <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(row.value)}</span>
+                  {/* Tax target group */}
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="flex items-center gap-1 font-medium text-foreground min-w-0 break-words">
+                      {q.label} tax target
+                      <InfoTip label="About tax target">
+                        Your target includes estimated federal income tax and, when applicable, self-employment tax from 1099/self-employed income.
+                      </InfoTip>
+                    </span>
+                    <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(recommendation.quarterTarget)}</span>
+                  </div>
+                  {targetBreakdown.hasBreakdown && (
+                    <>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Federal income tax</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(targetBreakdown.federalIncomeTax)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Self-employment tax</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(targetBreakdown.selfEmploymentTax)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Covered so far group */}
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-muted/20">
+                    <span className="flex items-center gap-1 font-medium text-foreground min-w-0 break-words">
+                      Covered so far
+                      <InfoTip label="About covered so far">
+                        Covered so far includes federal income tax withheld from W-2 paychecks, estimated tax payments already made, and tax savings you've set aside.
+                      </InfoTip>
+                    </span>
+                    <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(progressAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                    <span className="text-foreground/80 min-w-0 break-words">W-2 federal withholding</span>
+                    <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.w2WithheldThisQuarter)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                    <span className="text-foreground/80 min-w-0 break-words">Estimated tax payments</span>
+                    <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.estimatedPaymentsMade)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                    <span className="text-foreground/80 min-w-0 break-words">Tax savings set aside</span>
+                    <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.savedThisQuarter)}</span>
+                  </div>
+                  {recommendation.otherWithheldThisQuarter > 0 && (
+                    <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                      <span className="text-foreground/80 min-w-0 break-words">Other federal withholding paid</span>
+                      <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(recommendation.otherWithheldThisQuarter)}</span>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Payroll taxes handled — informational, does not affect target or covered */}
+                  {payrollTaxesHandled.hasAny && (
+                    <>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <span className="flex items-center gap-1 font-medium text-foreground min-w-0 break-words">
+                          Payroll taxes already handled
+                          <InfoTip label="About payroll taxes already handled">
+                            Social Security and Medicare withheld from W-2 paychecks are already paid through payroll. They are tracked here for reference but do not reduce your estimated quarterly tax payment.
+                          </InfoTip>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Social Security withheld</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(payrollTaxesHandled.ss)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 pl-6">
+                        <span className="text-foreground/80 min-w-0 break-words">Medicare withheld</span>
+                        <span className="font-medium tabular-nums text-foreground/80 shrink-0">{fmt(payrollTaxesHandled.medicare)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Bottom-line recommendation */}
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-foreground/90 min-w-0 break-words">Recommended payment remaining</span>
+                    <span className="font-semibold tabular-nums text-foreground shrink-0">{fmt(recommendation.stillNeedToSave)}</span>
+                  </div>
                 </div>
               </CollapsibleContent>
             </div>
