@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
+import { isCompanyIncomeSourceInactive } from "@/lib/householdIncomeProfile";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
@@ -2053,7 +2053,12 @@ export default function Transactions() {
                 {incomeNeedsCompanyReview && (
                   <p className="mt-1 text-[10px] text-muted-foreground">Unassigned — review needed before this counts as business income.</p>
                 )}
-                {isEditingIncome && isIncomeEntryTypeDisabled(taxSettings?.householdIncomeStreams, normalizeFilingType(incomeForm.income_type)) && (
+                {isEditingIncome && isCompanyIncomeSourceInactive({
+                  streams: taxSettings?.householdIncomeStreams,
+                  companies,
+                  companyId: incomeForm.company === UNASSIGNED_COMPANY_VALUE ? null : incomeForm.company,
+                  filingType: normalizeFilingType(incomeForm.income_type),
+                }) && (
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     No longer active in your Household Income Profile — kept available for this existing entry only.
                   </p>
