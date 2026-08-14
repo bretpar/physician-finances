@@ -981,6 +981,18 @@ export function useDeleteStream() {
       if (!stream) throw new Error("Income stream not found");
 
       const startsInFuture = (stream as any).start_date >= today;
+      const { data: conversions, error: conversionError } = await supabase
+        .from("planner_conversions")
+        .select("occurrence_date, bonus_event_id")
+        .eq("stream_id", id)
+        .eq("status", "converted");
+      if (conversionError) throw conversionError;
+
+      // A future/one-time stream may already have been manually converted.
+      // Hard-deleting its parent would erase or orphan that Planner history.
+      if (startsInFuture && (conversions || []).length > 0) {
+        throw new Error("Converted income can only be changed from its ledger.");
+      }
 
       if (startsInFuture) {
         const { error } = await supabase
@@ -1002,12 +1014,6 @@ export function useDeleteStream() {
       // Keep converted future rows too: they are historical linkage even when
       // their occurrence date has not arrived yet. Only unconverted forecast
       // extras may be removed by the Planner.
-      const { data: conversions, error: conversionError } = await supabase
-        .from("planner_conversions")
-        .select("occurrence_date, bonus_event_id")
-        .eq("stream_id", id)
-        .eq("status", "converted");
-      if (conversionError) throw conversionError;
       const convertedDates = new Set((conversions || []).map((c: any) => c.occurrence_date));
       const convertedBonusIds = new Set(
         (conversions || []).map((c: any) => c.bonus_event_id).filter(Boolean),
