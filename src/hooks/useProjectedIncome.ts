@@ -1496,8 +1496,9 @@ export function generateProjectedPaychecks(
         const displayDate = override?.action === "modify" && override.new_date ? override.new_date : dateStr;
         rawPaychecks.push({
           date: displayDate, grossAmount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: ded,
-          healthcareDeduction: stream.healthcare_deduction || 0,
-            hsaContribution: stream.hsa_contribution || 0,
+          healthcareDeduction: resolveOccurrenceDetail(stream, override).healthcareDeduction,
+            hsaContribution: resolveOccurrenceDetail(stream, override).hsaContribution,
+
           type: "paycheck", label: stream.company, streamId: stream.id,
           isSkipped: false, isModified: override?.action === "modify", streamCompanyType: stream.company_type, streamSourceId: stream.source_id,
         });
