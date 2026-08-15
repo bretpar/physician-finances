@@ -187,6 +187,13 @@ export interface QuarterRecommendation {
   coverageStatus: CoverageStatus;
   statusHeadline: string;
   statusDetail: string;
+  /**
+   * Quarter target the user was effectively recommended against (0 when unknown).
+   * Exposed so surfaces that recompute catch-up with their own
+   * `remainingOpportunities` keep the same "estimate increased" vs "behind"
+   * classification instead of falling back to generic catch-up copy.
+   */
+  baselineQuarterTarget: number;
 
   // ── Legacy duplicate fields kept for older callers ────────────────────────
   /** @deprecated split into paidFromWithholding. */
@@ -333,9 +340,17 @@ export function buildQuarterRecommendation(
    * guarantees the SAME employer can't surface as two rows
    * ("Employer" + "Employer (W-2)") just because two code paths formatted
    * the label differently.
+   *
+   * `scope` namespaces W-2 employers apart from 1099/K-1 businesses. Production
+   * defect: a manual 1099 entry whose `source_id` collided with (or was written
+   * as) the W-2 employer's source id landed in the W-2 row, so its $2,305
+   * reserve showed as W-2 Saved and no 1099 row appeared. A W-2 employer and a
+   * business source are distinct canonical entities and must never collapse.
    */
-  const bucketKeyFor = (e: any, fallbackName: string) =>
-    e?.source_id ? `source:${e.source_id}` : `name:${fallbackName.toLowerCase()}`;
+  const bucketKeyFor = (e: any, fallbackName: string, scope: "w2" | "biz") =>
+    e?.source_id
+      ? `${scope}:source:${e.source_id}`
+      : `${scope}:name:${fallbackName.toLowerCase()}`;
 
   // ── Row-level double-count guard ─────────────────────────────────────────
   // `useIncomeEntries()` selects EVERY `income_entries` row (no
@@ -414,7 +429,7 @@ export function buildQuarterRecommendation(
     businessSavedFromIncome += saved;
     if (paid > 0 || saved > 0) {
       const name = (e.company || "Business income").toString().trim() || "Business income";
-      const row = ensure(bucketKeyFor(e, name), name);
+      const row = ensure(bucketKeyFor(e, name, "biz"), name);
       row.paid += paid;
       row.saved += saved;
     }
@@ -483,7 +498,7 @@ export function buildQuarterRecommendation(
       // Group by the stable source/employer id when present so a W-2 employer
       // that also has business rows shares ONE canonical bucket instead of
       // splitting into "Employer" + "Employer (W-2)".
-      const row = ensure(bucketKeyFor(e, `personal:${name}`), `${name} (W-2)`);
+      const row = ensure(bucketKeyFor(e, name, "w2"), `${name} (W-2)`);
       row.paid += paid;
       row.saved += saved;
     }
@@ -671,6 +686,7 @@ export function buildQuarterRecommendation(
     coverageStatus: catchUp.recommendationStatus,
     statusHeadline: catchUp.statusHeadline,
     statusDetail: catchUp.statusDetail,
+    baselineQuarterTarget: round2(baselineQuarterTarget),
     estimatedPaymentsThisQuarter: estimatedPaymentsMade,
   };
 }
