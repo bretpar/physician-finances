@@ -188,7 +188,7 @@ export function sumDetailedDeductions(f: {
  * already stored separately (health insurance, HSA). Clamped at zero.
  */
 export { deriveOtherPreTax } from "@/lib/plannerOccurrenceLedger";
-import { deriveOtherPreTax } from "@/lib/plannerOccurrenceLedger";
+import { deriveOtherPreTax, pickExistingBankTransactionId } from "@/lib/plannerOccurrenceLedger";
 
 
 
