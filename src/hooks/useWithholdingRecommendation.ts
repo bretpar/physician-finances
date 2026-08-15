@@ -173,196 +173,93 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         0,
         Math.round((taxesAlreadyWithheld - ficaExcludedFromCredits) * 100) / 100,
       );
-      const catchUpApplied =
-        input.catchUpAmount != null
-          ? Math.max(0, input.catchUpAmount)
-          : Math.max(0, catchUpContext.quarterlyAdjustmentAmount);
-      const catchUpFields = {
-        ficaExcludedFromCredits,
-        creditedWithholding,
-        catchUpApplied: Math.round(catchUpApplied * 100) / 100,
-        catchUp: catchUpContext,
-      };
 
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
       const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
       const withholdingMethod = settings.withholdingMethod || "dynamic_planner";
-      const selectedProfile = getSelectedWithholdingProfileRate({
-        taxSettings: settings,
-        actualEstimate,
-        currentPaceEstimate,
-        forecastEstimate,
-      });
+      const isFlat = withholdingMethod === "flat_estimate";
 
-      // Net taxable income for this entry
-      const netTaxableForEntry = Math.max(0, grossIncome - retirement401k - preTaxDeductions);
-
-      // FLAT ESTIMATE MODE
-      if (withholdingMethod === "flat_estimate") {
-        const rateSel = getSavingsRateForIncomeBucket({
-          incomeBucket: resolvedBucket,
-          incomeType,
-          taxSettings: settings,
-          actualEstimate,
-          currentPaceEstimate,
-          forecastEstimate,
-          companyId,
-          applyBusinessStateTax,
-          includeSETaxInRecommendation,
-          isSelfEmploymentTaxable,
-          filingStatus: (settings as any)?.filingStatus ?? undefined,
-          entryGrossAmount: netTaxableForEntry,
-        });
-        const flatRate = rateSel.rate;
-        const taxOnEntry = netTaxableForEntry * (flatRate / 100);
-
-        const rec = Math.max(
-          0,
-          Math.round((taxOnEntry + catchUpApplied - creditedWithholding) * 100) / 100,
-        );
-
-        return {
-          recommendedWithholding: rec,
-          annualIncomeEstimate: 0,
-          estimatedTaxableIncome: 0,
-          estimatedAnnualTax: 0,
-          taxesAlreadyCovered: 0,
-          estimatedRemainingTax: 0,
-          effectiveRate: flatRate,
-          isManualMode: true,
-          isOverWithheld: rec <= 0,
-          methodLabel: rateSel.label,
-          rateBreakdown: rateSel,
-          annualTaxLiability: 0,
-          countedCreditsTotal: 0,
-          annualRemainingTax: 0,
-          projectedFederalWithheld: 0,
-          projectedStateWithheld: 0,
-          actualFederalWithheld: 0,
-          actualStateWithheld: 0,
-          estimatedPaymentsMade: 0,
-          taxSavingsSetAside: 0,
-          recommendationBasis: "flat_rate",
-          ...catchUpFields,
-        };
-      }
-
-      // DYNAMIC MODES: pick the selected unified estimate + debug without changing engine math
+      // ONE annual estimate + ONE debug source, selected by the user's method.
       const useForecastSource = withholdingMethod === "dynamic_planner";
-      const estimate = useForecastSource ? forecastEstimate : (currentPaceEstimate ?? actualEstimate);
-      const debug = useForecastSource ? forecastDebug : (currentPaceDebug ?? actualDebug);
-      if (!estimate || !debug) return null;
+      const estimate = isFlat
+        ? (forecastEstimate ?? currentPaceEstimate ?? actualEstimate)
+        : useForecastSource
+          ? forecastEstimate
+          : (currentPaceEstimate ?? actualEstimate);
+      const debug = isFlat
+        ? (forecastDebug ?? currentPaceDebug ?? actualDebug)
+        : useForecastSource
+          ? forecastDebug
+          : (currentPaceDebug ?? actualDebug);
+      if (!isFlat && (!estimate || !debug)) return null;
 
-      const methodLabel = selectedProfile.label;
+      // Annual transparency fields — never a second liability.
+      const annualTaxLiability = Number(estimate?.totalTaxLiability ?? 0);
+      const countedCreditsTotal = Number(debug?.countedCreditsTotal ?? 0);
+      const annualRemainingTax = Number(debug?.remainingTaxDue ?? 0);
 
-      // Annual fields are kept for transparency only; they do not drive the
-      // per-entry reserve recommendation.
-      // debug.countedCreditsTotal already includes:
-      //   - actual federal withholding
-      //   - actual state withholding
-      //   - projected federal withholding (planner mode only)
-      //   - projected state withholding (planner mode only)
-      //   - estimated payments actually made
-      // It explicitly does NOT include tax savings / reserves.
-      const annualTaxLiability = estimate.totalTaxLiability;
-      const countedCreditsTotal = debug.countedCreditsTotal;
-      const annualRemainingTax = debug.remainingTaxDue; // = max(0, liability − credits)
+      const requestedCatchUp =
+        input.catchUpAmount != null
+          ? Math.max(0, input.catchUpAmount)
+          : Math.max(0, catchUpContext.quarterlyAdjustmentAmount);
 
-      // ── W-2 path: per-entry reserve math ────────────────────────────────
-      if (resolvedBucket === "personal" || isW2) {
-        const rateSelection = getSavingsRateForIncomeBucket({
-          incomeBucket: "personal",
-          incomeType,
-          taxSettings: settings,
-          actualEstimate,
-          currentPaceEstimate,
-          forecastEstimate,
-        });
-        const paycheckTarget = netTaxableForEntry * (rateSelection.rate / 100);
-        const recommendedWithholding = Math.max(
-          0,
-          Math.round((paycheckTarget + catchUpApplied - creditedWithholding) * 100) / 100,
-        );
-
-        return {
-          recommendedWithholding,
-          annualIncomeEstimate: estimate.totalIncome + (alreadyIncludedInEstimate ? 0 : grossIncome),
-          estimatedTaxableIncome: estimate.taxableIncome,
-          estimatedAnnualTax: annualTaxLiability,
-          taxesAlreadyCovered: countedCreditsTotal,
-          estimatedRemainingTax: annualRemainingTax,
-          effectiveRate: rateSelection.rate,
-          isManualMode: false,
-          isOverWithheld: recommendedWithholding <= 0,
-          methodLabel,
-          rateBreakdown: rateSelection,
-          annualTaxLiability,
-          countedCreditsTotal,
-          annualRemainingTax,
-          projectedFederalWithheld: debug.projectedFederalWithheld,
-          projectedStateWithheld: debug.projectedStateWithheld,
-          actualFederalWithheld: debug.actualFederalWithheld,
-          actualStateWithheld: debug.actualStateWithheld,
-          estimatedPaymentsMade: debug.estimatedPaymentsMade,
-          taxSavingsSetAside: debug.taxSavingsSetAside,
-          recommendationBasis: "per_entry_rate",
-          ...catchUpFields,
-        };
-      }
-
-      // ── 1099 / K-1 / Schedule-C path ────────────────────────────────────
-      // Non-W2 income typically has no automatic withholding, so a per-entry
-      // set-aside style recommendation is still appropriate. Use the blended
-      // rate (federal + SE + state business) for this entry, then subtract
-      // any withholding already applied to THIS paycheck. Floor at 0.
-      // Edit mode supplies an estimate that already excludes the current
-      // transaction, so all annual and wage-base fields share one baseline.
-      const baseCurrentNetSE = Math.max(0, Number(actualEstimate?.seIncome ?? 0));
-      const rateSelection = getSavingsRateForIncomeBucket({
-        incomeBucket: "business",
-        incomeType,
+      const canonical = computeCanonicalEventRecommendation({
+        estimate,
         taxSettings: settings,
-        actualEstimate,
-        currentPaceEstimate,
-        forecastEstimate,
+        incomeType,
+        incomeBucket: resolvedBucket,
+        grossIncome,
+        retirement401k,
+        preTaxDeductions,
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
         isSelfEmploymentTaxable,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
-        currentW2Wages: Math.max(0, Number(actualEstimate?.w2Income ?? 0)),
-        currentNetSEIncome: baseCurrentNetSE,
-        entryGrossAmount: netTaxableForEntry,
+        creditedWithholding,
+        catchUpAmount: requestedCatchUp,
+        isFutureOpportunity: input.isFutureOpportunity,
+        annualRemainingTax: isFlat ? undefined : annualRemainingTax,
+        w2FundingMethod: (settings as any)?.w2PaycheckRecMethod ?? "annual_w4",
+        forceFlatRatePct: isFlat ? undefined : null,
       });
-      const rateToUse = rateSelection.rate;
-      const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
-      const raw = Math.round((taxOnEntry + catchUpApplied - creditedWithholding) * 100) / 100;
-      const recommendedWithholding = Math.max(0, raw);
+      if (!canonical) return null;
+
+      const catchUpFields = {
+        ficaExcludedFromCredits,
+        creditedWithholding,
+        catchUpApplied: canonical.catchUpApplied,
+        catchUp: catchUpContext,
+      };
 
       return {
-        recommendedWithholding,
-        annualIncomeEstimate: estimate.totalIncome + (alreadyIncludedInEstimate ? 0 : grossIncome),
-        estimatedTaxableIncome: estimate.taxableIncome,
+        recommendedWithholding: canonical.recommendedWithholding,
+        annualIncomeEstimate:
+          Number(estimate?.totalIncome ?? 0) + (alreadyIncludedInEstimate ? 0 : grossIncome),
+        estimatedTaxableIncome: Number(estimate?.taxableIncome ?? 0),
         estimatedAnnualTax: annualTaxLiability,
         taxesAlreadyCovered: countedCreditsTotal,
         estimatedRemainingTax: annualRemainingTax,
-        effectiveRate: rateToUse,
-        isManualMode: false,
-        isOverWithheld: false,
-        methodLabel,
-        rateBreakdown: rateSelection,
+        effectiveRate: canonical.rateBreakdown.rate,
+        isManualMode: canonical.basis === "flat_rate",
+        isOverWithheld: canonical.signedRecommendation <= 0,
+        methodLabel: canonical.methodLabel,
+        rateBreakdown: canonical.rateBreakdown,
         annualTaxLiability,
         countedCreditsTotal,
         annualRemainingTax,
-        projectedFederalWithheld: debug.projectedFederalWithheld,
-        projectedStateWithheld: debug.projectedStateWithheld,
-        actualFederalWithheld: debug.actualFederalWithheld,
-        actualStateWithheld: debug.actualStateWithheld,
-        estimatedPaymentsMade: debug.estimatedPaymentsMade,
-        taxSavingsSetAside: debug.taxSavingsSetAside,
-        recommendationBasis: "per_entry_rate",
+        projectedFederalWithheld: Number(debug?.projectedFederalWithheld ?? 0),
+        projectedStateWithheld: Number(debug?.projectedStateWithheld ?? 0),
+        actualFederalWithheld: Number(debug?.actualFederalWithheld ?? 0),
+        actualStateWithheld: Number(debug?.actualStateWithheld ?? 0),
+        estimatedPaymentsMade: Number(debug?.estimatedPaymentsMade ?? 0),
+        taxSavingsSetAside: Number(debug?.taxSavingsSetAside ?? 0),
+        recommendationBasis: canonical.basis === "flat_rate" ? "flat_rate" : "per_entry_rate",
+        eventTaxTarget: canonical.eventTaxTarget,
+        allocatedEventTax: canonical.target,
+        fundedByAnnualW4: canonical.fundedByAnnualW4,
         ...catchUpFields,
       };
     };
