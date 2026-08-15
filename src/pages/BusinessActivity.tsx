@@ -821,6 +821,7 @@ export default function Transactions() {
           // Keep taxes_withheld as employer-only; actual_withholding is saved separately on the transaction
           const effectiveWithheld = taxWithheld;
           const rec = getIncomeRec({
+            isFutureOpportunity: incomeEntryIsFutureOpportunity,
             grossIncome: paycheckAmt,
             incomeType: companyType,
             federalWithheld: effectiveWithheld,
@@ -937,6 +938,7 @@ export default function Transactions() {
       return; // Don't close modal yet — onSuccess handles it
     } else {
       const rec = getIncomeRec({
+        isFutureOpportunity: incomeEntryIsFutureOpportunity,
         grossIncome: paycheckAmt,
         incomeType: companyType,
         federalWithheld: taxWithheld,
@@ -1006,7 +1008,11 @@ export default function Transactions() {
             const recommended = resolveCanonicalRecommendation({
               recommendedWithholding,
               taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
-              fallbackGrossRecommendation: rec?.baseTaxEstimate || 0,
+              // Historical events never get an actionable funding ask, so the
+              // gross fallback must stay 0 for them too.
+              fallbackGrossRecommendation: incomeEntryIsFutureOpportunity
+                ? rec?.baseTaxEstimate || 0
+                : 0,
             });
             const actualSaved = resolveAmountSavedForTransaction({
               taxesWithheld: taxWithheld,
