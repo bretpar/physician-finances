@@ -423,6 +423,10 @@ export default function PersonalIncome() {
           ss_withholding: num(form.ss_withholding),
           medicare_withholding: num(form.medicare_withholding),
         }) + (stateIncomeTaxEnabled ? num(form.state_withholding) : 0),
+      // Employee SS + Medicare are payroll taxes, NOT income-tax credits. They
+      // are passed separately so the engine removes them from the credit while
+      // the canonical total above stays intact for display.
+      ficaWithheldNotCredited: num(form.ss_withholding) + num(form.medicare_withholding),
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
       alreadyIncludedInEstimate: isEditing,
@@ -473,7 +477,19 @@ export default function PersonalIncome() {
       eligiblePreTaxDeductions: eligibleDeductions,
       selectedProfileEffectiveTaxRate: effectiveRate,
       totalFederalPayrollTaxes,
+      // Only federal INCOME TAX may reduce the recommendation. Employee
+      // SS/Medicare are reported separately as "already handled".
+      federalIncomeTaxWithheld: Math.max(
+        0,
+        totalFederalPayrollTaxes -
+          (num(form.ss_withholding) + num(form.medicare_withholding)),
+      ),
+      socialSecurityAndMedicareWithheld:
+        num(form.ss_withholding) + num(form.medicare_withholding),
       stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
+      stateTaxIncludedInTarget: stateIncomeTaxEnabled,
+      // Prospective catch-up so a user who is behind can actually recover.
+      catchUpAmount: baseRecommendation?.catchUpApplied ?? 0,
       // Live form value — the paycheck guide updates immediately when the
       // user types in the Additional Tax Reserve field for this entry.
       // This reserve applies ONLY to this entry and is not actual withholding.
@@ -516,6 +532,7 @@ export default function PersonalIncome() {
     form.state_withholding,
     form.additional_tax_reserve,
     stateIncomeTaxEnabled,
+    baseRecommendation,
     taxSettings,
     actualEstimate,
     currentPaceEstimate,
@@ -744,11 +761,12 @@ export default function PersonalIncome() {
             // Per-transaction reminder: compare amount saved on THIS entry
             // against the per-transaction recommended savings (baseTaxEstimate).
             const recommended = Math.max(0, recommendation.baseTaxEstimate || 0);
+            // Credits must mirror the target: federal INCOME TAX + state (only
+            // when state tax is enabled) + this entry's reserve. Employee
+            // SS/Medicare are payroll taxes and never count here.
             const actualSaved =
               num(form.federal_withholding) +
-              num(form.state_withholding) +
-              num(form.ss_withholding) +
-              num(form.medicare_withholding) +
+              (stateIncomeTaxEnabled ? num(form.state_withholding) : 0) +
               num(form.additional_tax_reserve);
             // Only nudge when meaningfully behind (< 90% of recommended).
             if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
