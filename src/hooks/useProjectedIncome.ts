@@ -783,17 +783,24 @@ export function useManualPlannerConvert() {
       }
       const conversionId = (conv as any).id as string;
 
-      // Compute take-home / deposited amount from planner fields so the
-      // ledger row Net Received matches the planner's estimated take-home.
-      const estimatedTakeHome = Math.max(
-        0,
-        input.grossAmount
-          - (input.taxesWithheld || 0)
-          - (input.preTaxDeductions || 0)
-          - (input.retirement401k || 0)
-          - (input.healthcareDeduction || 0)
-          - (input.hsaContribution || 0),
-      );
+      // CANONICAL occurrence → ledger mapping. Splits the planner's aggregate
+      // pre-tax amount into Health Insurance / HSA / Other Pre-Tax exactly once
+      // and derives Net Received from the separated fields.
+      const ledger = buildOccurrenceLedgerFields({
+        grossAmount: input.grossAmount,
+        taxesWithheld: input.taxesWithheld,
+        retirement401k: input.retirement401k,
+        preTaxDeductions: input.preTaxDeductions,
+        healthcareDeduction: input.healthcareDeduction,
+        hsaContribution: input.hsaContribution,
+        federalWithholding: input.federalWithholding,
+        stateWithholding: input.stateWithholding,
+        ssWithholding: input.ssWithholding,
+        medicareWithholding: input.medicareWithholding,
+        additionalTaxReserve: input.additionalTaxReserve ?? 0,
+        hasDetailedBreakdown: input.hasDetailedBreakdown,
+      });
+      const estimatedTakeHome = ledger.deposited_amount;
 
       // 2. Create the ledger row
       if (input.ledgerBucket === "personal") {
