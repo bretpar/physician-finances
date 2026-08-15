@@ -68,7 +68,16 @@ export interface W4CalculationResult {
   projectedFederalWithholding: number;
   annualTaxGap: number;
   annualTaxSurplus: number;
+  /** Canonical annual allocation the W-4 gap is derived from. */
+  allocation: ReturnType<typeof buildAllocationFromEstimate>;
+  /** Source-specific funding plan. `w2.remainingNeed` === `remainingW4Gap`. */
+  sourceFunding: SourceFundingPlan;
+  /** Business/1099 remaining canonical responsibility (funded by reserves). */
+  businessRemainingNeed: number;
+  /** Display-only: remaining business gross × canonical bucket rate. */
+  projectedPlannedFutureBusinessReserves: number;
 }
+
 
 export function useW4Calculation(): W4CalculationResult {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
