@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import type { CoverageStatus } from "@/lib/catchUpRecommendation";
 import { ExpenseCategoryCombobox, mapLegacyCategory } from "@/components/ExpenseCategoryCombobox";
 import { useTransactions, useDeleteTransaction, useAddTransaction, useUpdateTransaction, useBulkUpdateTransactions, useBulkDeleteTransactions, TRANSFER_SUBTYPES, type DbTransaction } from "@/hooks/useTransactions";
 import { dedupeYtdBusinessMirrors } from "@/lib/ytdCatchupLedger";
@@ -276,6 +277,7 @@ export default function Transactions() {
   const [savedEntryTitle, setSavedEntryTitle] = useState("");
   const [reminderRecommended, setReminderRecommended] = useState(0);
   const [reminderActualSaved, setReminderActualSaved] = useState(0);
+  const [reminderStatus, setReminderStatus] = useState<CoverageStatus | undefined>(undefined);
 
   const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   // Advanced dynamic reserve recommendations are Premium; the income entry
@@ -995,6 +997,7 @@ export default function Transactions() {
               setSavedEntryTitle(incomeForm.name);
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
+              setReminderStatus(rec?.coverageStatus);
               setShowRecommendation(true);
             }
           }
@@ -2468,6 +2471,7 @@ export default function Transactions() {
         recommendedSavings={reminderRecommended}
         actualSaved={reminderActualSaved}
         entryTitle={savedEntryTitle}
+        coverageStatus={reminderStatus}
       />
 
       {/* Bulk Category Assignment Dialog */}

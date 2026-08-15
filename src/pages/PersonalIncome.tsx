@@ -1780,6 +1780,7 @@ export default function PersonalIncome() {
         recommendedSavings={reminderRecommended}
         actualSaved={reminderActualSaved}
         entryTitle={savedEntryTitle}
+        coverageStatus={reminderStatus}
       />
 
       {/* Delete confirmation */}
