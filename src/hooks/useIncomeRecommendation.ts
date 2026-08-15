@@ -13,7 +13,8 @@ import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isW2FilingType } from "@/lib/filingTypes";
-import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { computeCanonicalEventRecommendation } from "@/lib/canonicalEventRecommendation";
+import type { EventTaxTarget } from "@/lib/taxAllocation";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 import {
@@ -67,6 +68,12 @@ export interface IncomeRecommendation {
   isDynamicEnabled: boolean;
   /** Next quarterly deadline label */
   nextDeadlineLabel: string;
+  /** This event's share of the canonical annual liability (before coverage). */
+  eventTaxTarget: number;
+  /** Component split of that share (federal / state / SE / business state). */
+  allocatedEventTax: EventTaxTarget;
+  /** True when a W-2 deficit is delivered via the annual W-4 instead of savings. */
+  fundedByAnnualW4: boolean;
 }
 
 interface RecommendationInput {
@@ -86,6 +93,8 @@ interface RecommendationInput {
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
+  /** False for historical events — they never receive future catch-up dollars. */
+  isFutureOpportunity?: boolean;
 }
 
 // getNextQuarterDeadline now lives in src/lib/quarters.ts (shared helper).
