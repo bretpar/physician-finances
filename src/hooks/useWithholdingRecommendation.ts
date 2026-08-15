@@ -17,7 +17,9 @@ import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isW2FilingType } from "@/lib/filingTypes";
-import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
+import { type SavingsRateResult } from "@/lib/savingsRateSelection";
+import { computeCanonicalEventRecommendation } from "@/lib/canonicalEventRecommendation";
+import type { EventTaxTarget } from "@/lib/taxAllocation";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 import {
@@ -53,6 +55,11 @@ export interface WithholdingInput {
    * quarterly shortfall spread across remaining paychecks. Pass 0 to opt out.
    */
   catchUpAmount?: number;
+  /**
+   * False for historical / already-received events. Historical events keep
+   * their event tax target but never receive future catch-up dollars.
+   */
+  isFutureOpportunity?: boolean;
 }
 
 export interface WithholdingRecommendation {
@@ -97,6 +104,13 @@ export interface WithholdingRecommendation {
   catchUpApplied: number;
   /** Quarter-level shortfall context driving the catch-up. */
   catchUp: CatchUpResult;
+  // ── Canonical allocation transparency ──
+  /** This event's share of the canonical annual liability (before coverage). */
+  eventTaxTarget: number;
+  /** Component split of that share (federal / state / SE / business state). */
+  allocatedEventTax: EventTaxTarget;
+  /** True when a W-2 deficit is delivered via the annual W-4 instead of savings. */
+  fundedByAnnualW4: boolean;
 }
 
 /**
