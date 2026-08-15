@@ -463,7 +463,10 @@ export function buildQuarterRecommendation(
     w2SavedFromIncome += saved;
     if (paid > 0 || saved > 0) {
       const name = (e.company || "Personal W-2").toString().trim() || "Personal W-2";
-      const row = ensure(`personal:${name.toLowerCase()}`, `${name} (W-2)`);
+      // Group by the stable source/employer id when present so a W-2 employer
+      // that also has business rows shares ONE canonical bucket instead of
+      // splitting into "Employer" + "Employer (W-2)".
+      const row = ensure(bucketKeyFor(e, `personal:${name}`), `${name} (W-2)`);
       row.paid += paid;
       row.saved += saved;
     }
