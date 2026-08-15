@@ -618,18 +618,36 @@ export function useConfirmSuggestedMatch() {
           const s: any = stream || {};
           const ov: any = overrideRow || {};
           const gross = Number(ov.paycheck_amount ?? s.paycheck_amount ?? 0) || 0;
+          const detail = resolveOccurrenceDetail(s as ProjectedIncomeStream, overrideRow as any);
+          // Canonical mapping — splits the planner aggregate pre-tax amount so
+          // health/HSA are never double-counted inside "Other pre-tax".
+          const mapped = buildOccurrenceLedgerFields({
+            grossAmount: gross,
+            taxesWithheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
+            preTaxDeductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+            healthcareDeduction: detail.healthcareDeduction,
+            hsaContribution: detail.hsaContribution,
+            federalWithholding: detail.federalWithholding,
+            stateWithholding: detail.stateWithholding,
+            ssWithholding: detail.ssWithholding,
+            medicareWithholding: detail.medicareWithholding,
+            additionalTaxReserve: detail.additionalTaxReserve,
+            hasDetailedBreakdown: detail.hasDetailedBreakdown,
+          });
           const patch: Record<string, any> = {
             origin_type: "planner_converted",
             origin_planner_conversion_id: conversionId,
-            federal_withholding: Number(s.federal_withholding || 0),
-            state_withholding: Number(s.state_withholding || 0),
-            ss_withholding: Number(s.ss_withholding || 0),
-            medicare_withholding: Number(s.medicare_withholding || 0),
-            taxes_withheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
-            retirement_401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
-            healthcare_deduction: Number(s.healthcare_deduction || 0),
-            hsa_contribution: Number(s.hsa_contribution || 0),
-            pre_tax_deductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+            federal_withholding: mapped.federal_withholding,
+            state_withholding: mapped.state_withholding,
+            ss_withholding: mapped.ss_withholding,
+            medicare_withholding: mapped.medicare_withholding,
+            taxes_withheld: mapped.taxes_withheld,
+            retirement_401k: mapped.retirement_401k,
+            healthcare_deduction: mapped.healthcare_deduction,
+            hsa_contribution: mapped.hsa_contribution,
+            pre_tax_deductions: mapped.pre_tax_deductions,
+            additional_tax_reserve: mapped.additional_tax_reserve,
           };
           if (gross > 0) {
             patch.gross_amount = gross;
