@@ -1012,9 +1012,11 @@ export default function Transactions() {
               // BEFORE this new income event; the brand-new recommendation is
               // excluded so a moved target reads "estimate increased".
               setReminderStatus(
-                (newEntryId ? getCatchUpExcludingEntry(newEntryId).recommendationStatus : undefined) ??
-                  rec?.coverageStatus,
+                getCatchUpExcludingEntry(newEntryId, {
+                  additionalQuarterTarget: recommended,
+                }).recommendationStatus ?? rec?.coverageStatus,
               );
+
               setShowRecommendation(true);
             }
           }
