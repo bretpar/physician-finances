@@ -315,6 +315,8 @@ export default function PersonalIncome() {
   const [savedEntryMode, setSavedEntryMode] = useState<"create" | "update" | null>(null);
   const [reminderRecommended, setReminderRecommended] = useState(0);
   const [reminderActualSaved, setReminderActualSaved] = useState(0);
+  const [reminderStatus, setReminderStatus] = useState<CoverageStatus | undefined>(undefined);
+
 
   const isEditing = !!editingId;
   const setField = (key: keyof FormState, value: string) =>
