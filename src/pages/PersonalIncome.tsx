@@ -38,6 +38,7 @@ import { useNavigate } from "react-router-dom";
 import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
 import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
+import { resolveReserveTargetEntry, nextReserveAmount } from "@/lib/reserveTargetEntry";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { formatDate, formatDateShort, formatMonthYear, getTodayLocalDateString } from "@/lib/localDate";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
@@ -800,13 +801,14 @@ export default function PersonalIncome() {
       // Persist against the entry that was JUST saved (not merely the newest
       // row) so the reserve lands on the right paycheck and immediately counts
       // toward Saved in the quarterly tracker.
-      const latestEntry =
-        entries.find((e) => e.id === savedEntryId) || entries[0];
+      const latestEntry = resolveReserveTargetEntry(entries as any[], savedEntryId);
       if (latestEntry) {
-        const currentReserve = Number((latestEntry as any).additional_tax_reserve || 0);
         updateMutation.mutate({
           id: latestEntry.id,
-          additional_tax_reserve: Math.round((currentReserve + additional) * 100) / 100,
+          additional_tax_reserve: nextReserveAmount(
+            (latestEntry as any).additional_tax_reserve,
+            additional,
+          ),
         } as any);
       }
     }
