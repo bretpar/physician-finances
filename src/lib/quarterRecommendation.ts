@@ -187,6 +187,13 @@ export interface QuarterRecommendation {
   coverageStatus: CoverageStatus;
   statusHeadline: string;
   statusDetail: string;
+  /**
+   * Quarter target the user was effectively recommended against (0 when unknown).
+   * Exposed so surfaces that recompute catch-up with their own
+   * `remainingOpportunities` keep the same "estimate increased" vs "behind"
+   * classification instead of falling back to generic catch-up copy.
+   */
+  baselineQuarterTarget: number;
 
   // ── Legacy duplicate fields kept for older callers ────────────────────────
   /** @deprecated split into paidFromWithholding. */
