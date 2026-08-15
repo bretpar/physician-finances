@@ -131,28 +131,37 @@ export function useIncomeRecommendation() {
    * "estimate increased" unreachable and the UI falls back to generic copy.
    */
   const getCatchUpExcludingEntry = useMemo(() => {
-    return (incomeEntryId?: string | null): CatchUpResult => {
-      if (!incomeEntryId) return catchUpContext;
+    return (
+      incomeEntryId?: string | null,
+      opts?: { additionalQuarterTarget?: number },
+    ): CatchUpResult => {
+      const extra = Math.max(0, opts?.additionalQuarterTarget ?? 0);
+      if (!incomeEntryId && extra <= 0) return catchUpContext;
       const target = getActivePaymentTarget();
       const quarterRec = buildQuarterRecommendation({
         ...quarterInput,
         year: target.year,
         quarter: target.quarter,
-        excludeRecommendationEntryIds: [incomeEntryId],
+        ...(incomeEntryId ? { excludeRecommendationEntryIds: [incomeEntryId] } : {}),
       });
       const remainingOpportunities = countRemainingOpportunities(
         quarterInput.projectedPaychecks,
         new Date(),
         quarterRec.deadline,
       );
+      // The caller runs immediately after saving the new income event, so the
+      // cached quarter data still predates it. `additionalQuarterTarget` adds
+      // the brand-new event's tax target so the moved target is visible here —
+      // without it the status reads "on_track" and the modal shows generic copy.
       return computeCatchUpRecommendation({
-        quarterTarget: quarterRec.quarterTarget,
+        quarterTarget: quarterRec.quarterTarget + extra,
         coveredSoFar: quarterRec.progressAmount,
         remainingOpportunities,
         baselineQuarterTarget: quarterRec.baselineQuarterTarget,
       });
     };
   }, [quarterInput, catchUpContext]);
+
 
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
