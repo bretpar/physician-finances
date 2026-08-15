@@ -40,7 +40,8 @@ import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks } 
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { getActivePaymentTarget } from "@/lib/quarterRecommendation";
-import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { getCanonicalBucketRatePct } from "@/lib/canonicalEventRecommendation";
 import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
@@ -210,23 +211,18 @@ export default function Taxes() {
   );
   const method = rates?.withholdingMethod ?? "dynamic_planner";
   const trackerEstimate = method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate);
-  const personalRate = getSavingsRateForIncomeBucket({
-    incomeBucket: "personal",
+  const personalRate = getCanonicalBucketRatePct({
+    estimate: method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate),
+    taxSettings: rates,
+    bucket: "personal",
     incomeType: "W2",
+  });
+  const businessRate = getCanonicalBucketRatePct({
+    estimate: method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate),
     taxSettings: rates,
-    actualEstimate,
-    currentPaceEstimate,
-    forecastEstimate,
-  }).rate;
-  const businessRate = getSavingsRateForIncomeBucket({
-    incomeBucket: "business",
+    bucket: "business",
     incomeType: "1099",
-    taxSettings: rates,
-    actualEstimate,
-    currentPaceEstimate,
-    forecastEstimate,
-    includeSETaxInRecommendation: true,
-  }).rate;
+  });
   const annualTaxLiability = Math.max(0, Number(trackerEstimate?.totalTaxLiability || 0));
   const trackerEffectiveTaxRate = method === "flat_estimate" ? overviewProfile.federalProfileRate : overviewProfile.canonicalEffectiveTaxRate;
   // Shared input builder — keeps Tax Overview QuarterlyTracker aligned with

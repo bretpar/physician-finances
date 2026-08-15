@@ -107,10 +107,11 @@ beforeEach(() => {
 });
 
 describe("onboarding route guard", () => {
+  // First render in this file pays the App module-graph transform cost.
   it("allows a developer with incomplete onboarding to reach /admin", async () => {
     await renderAt("/admin");
     expect(await screen.findByTestId("admin-root")).toBeInTheDocument();
-  });
+  }, 20000);
 
   it("allows a developer with incomplete onboarding to reach /admin/tax-validation", async () => {
     await renderAt("/admin/tax-validation");
@@ -159,7 +160,9 @@ describe("onboarding sign out", () => {
 
   it("lands an unauthenticated user on login after sign out", async () => {
     authState.user = null;
-    await renderAt("/");
+    // "/" is the public marketing landing page now — a protected route is what
+    // bounces a signed-out user to login.
+    await renderAt("/dashboard");
     expect(await screen.findByTestId("login-root")).toBeInTheDocument();
   });
 });

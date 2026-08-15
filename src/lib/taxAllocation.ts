@@ -316,6 +316,13 @@ export interface EventTaxTargetInput {
   ordinaryTaxBase: number;
   /** Preferential base for this event (LTCG / qualified dividends). */
   preferentialTaxBase?: number;
+  /**
+   * Base subject to PERSONAL state income tax for this event. Defaults to
+   * `ordinaryTaxBase`. Pass 0 for business profit — the annual engine keeps
+   * business income out of the personal state base, so charging it here would
+   * inflate the event target.
+   */
+  personalStateTaxBase?: number;
   /** Net SE income for this event, before the 92.35% factor. */
   selfEmploymentBase?: number;
   /** Marginal SE rate as a FRACTION of the SE base (e.g. 0.1413). */
@@ -356,7 +363,8 @@ export function computeEventTaxTarget(input: EventTaxTargetInput): EventTaxTarge
   const isInvestment = sourceType === "investment";
 
   const federalIncomeTax = round2(ordinaryBase * allocation.federalOrdinaryAllocationRate);
-  const personalStateTax = round2(ordinaryBase * allocation.personalStateAllocationRate);
+  const personalStateBase = pos(input.personalStateTaxBase ?? input.ordinaryTaxBase);
+  const personalStateTax = round2(personalStateBase * allocation.personalStateAllocationRate);
   const investmentTax = round2(preferentialBase * allocation.preferentialAllocationRate);
 
   const selfEmploymentTax =

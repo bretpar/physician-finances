@@ -456,8 +456,10 @@ export default function PersonalIncome() {
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
       alreadyIncludedInEstimate: isEditing,
+      // Historical paychecks never receive future catch-up dollars.
+      isFutureOpportunity: entryIsFutureOpportunity,
     });
-  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing]);
+  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing, entryIsFutureOpportunity]);
 
   // ── Per-paycheck profile-based savings guide ────────────────────────────
   // Simple paycheck-only calculation: uses the user's selected tax profile
@@ -467,10 +469,11 @@ export default function PersonalIncome() {
   const paycheckSavings = useMemo(() => {
     if (grossAmount <= 0 || !taxSettings) return null;
 
-    // 1. Resolve the selected withholding profile directly for W-2 paychecks.
-    //    Flat mode uses the manual rate; dynamic modes use the same all-inclusive
-    //    canonical effective rate shown on the Tax page. Business income keeps
-    //    using the bucket-aware selector elsewhere so SE/B&O add-ons stay separate.
+    // 1. Rate for this paycheck comes from the CANONICAL annual allocation
+    //    (federal ordinary + personal state share of the household liability),
+    //    not from the all-inclusive household ETR — that blended rate carried
+    //    SE tax and business state tax into W-2 paychecks. Flat mode still uses
+    //    the user's manual rate.
     const selectedProfile = getSelectedWithholdingProfileRate({
       taxSettings,
       actualEstimate,
@@ -481,7 +484,8 @@ export default function PersonalIncome() {
     const effectiveRate =
       method === "flat_estimate"
         ? selectedProfile.federalProfileRate
-        : selectedProfile.canonicalEffectiveTaxRate;
+        : (baseRecommendation?.rateBreakdown?.rate ?? 0);
+
 
     // 2. Eligible pre-tax deductions for this paycheck.
     const eligibleDeductions =
