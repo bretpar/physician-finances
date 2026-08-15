@@ -179,3 +179,36 @@ describe("W-2 funding method", () => {
     expect(rec.signedRecommendation).toBeLessThan(0);
   });
 });
+
+describe("historical events never receive an actionable funding ask", () => {
+  it("zeroes recommendedWithholding for a past 1099 event but keeps the shortfall for display", () => {
+    const past = computeCanonicalEventRecommendation({
+      ...baseEvent,
+      incomeType: "1099",
+      incomeBucket: "business",
+      grossIncome: 10000,
+      includeSETaxInRecommendation: true,
+      isFutureOpportunity: false,
+      annualRemainingTax: 50000,
+    })!;
+    expect(past.isFutureOpportunity).toBe(false);
+    expect(past.recommendedFutureFunding).toBe(0);
+    expect(past.recommendedWithholding).toBe(0);
+    expect(past.historicalTarget).toBeGreaterThan(0);
+    expect(past.historicalShortfall).toBeGreaterThan(0);
+  });
+
+  it("still asks a future 1099 event to fund its own share", () => {
+    const future = computeCanonicalEventRecommendation({
+      ...baseEvent,
+      incomeType: "1099",
+      incomeBucket: "business",
+      grossIncome: 10000,
+      includeSETaxInRecommendation: true,
+      isFutureOpportunity: true,
+      annualRemainingTax: 50000,
+    })!;
+    expect(future.recommendedFutureFunding).toBeGreaterThan(0);
+    expect(future.recommendedWithholding).toBe(future.recommendedFutureFunding);
+  });
+});
