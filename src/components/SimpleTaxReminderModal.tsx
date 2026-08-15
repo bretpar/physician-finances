@@ -14,6 +14,12 @@ interface Props {
   recommendedSavings: number;
   actualSaved: number;
   entryTitle: string;
+  /**
+   * Canonical quarterly coverage status. When the shortfall came from a tax
+   * estimate that increased AFTER prior recommendations were satisfied, the copy
+   * must never imply the user under-saved.
+   */
+  coverageStatus?: CoverageStatus;
 }
 
 /**
@@ -33,8 +39,10 @@ export function SimpleTaxReminderModal({
   recommendedSavings,
   actualSaved,
   entryTitle,
+  coverageStatus,
 }: Props) {
   const additional = Math.max(0, recommendedSavings - actualSaved);
+  const estimateIncreased = coverageStatus === "estimate_increased";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -42,16 +50,28 @@ export function SimpleTaxReminderModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Info className="h-4 w-4 text-primary" />
-            Stay on pace with taxes
+            {estimateIncreased ? "Estimate increased — catch-up needed" : "Stay on pace with taxes"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            You're a little behind on tax savings for{" "}
-            <strong className="text-foreground">{entryTitle}</strong>. To stay
-            on pace, save about <strong className="text-foreground">{fmt(additional)}</strong> more.
+            {estimateIncreased ? (
+              <>
+                Your tax estimate went up after adding{" "}
+                <strong className="text-foreground">{entryTitle}</strong>. Earlier
+                recommendations were correct at the time — set aside about{" "}
+                <strong className="text-foreground">{fmt(additional)}</strong> here to catch up.
+              </>
+            ) : (
+              <>
+                To stay on pace with taxes for{" "}
+                <strong className="text-foreground">{entryTitle}</strong>, save about{" "}
+                <strong className="text-foreground">{fmt(additional)}</strong> more.
+              </>
+            )}
           </p>
+
 
           <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5 text-sm">
             <div className="flex justify-between">
