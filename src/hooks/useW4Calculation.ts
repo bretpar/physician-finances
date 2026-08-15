@@ -450,5 +450,9 @@ export function useW4Calculation(): W4CalculationResult {
     projectedFederalWithholding,
     annualTaxGap,
     annualTaxSurplus,
+    allocation,
+    sourceFunding,
+    businessRemainingNeed,
+    projectedPlannedFutureBusinessReserves,
   };
 }
