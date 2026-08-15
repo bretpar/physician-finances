@@ -482,7 +482,7 @@ export function buildQuarterRecommendation(
     isOverdueWindow,
     showDashboardPaymentCallout,
     dashboardCalloutMode,
-    sourceRows: Array.from(buckets.values()),
+    sourceRows: rows,
     w2WithheldThisQuarter,
     otherWithheldThisQuarter,
     estimatedPaymentsThisQuarter: estimatedPaymentsMade,
