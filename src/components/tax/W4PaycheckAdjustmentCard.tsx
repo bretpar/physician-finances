@@ -906,16 +906,15 @@ export default function W4PaycheckAdjustmentCard() {
     }
   };
 
-  // Future business gross = planner (forecast) gross business − actual gross business
+  // Display-only: expected reserve out of remaining business gross at the
+  // canonical bucket rate. NOT an input to the W-4 gap.
   const futureBusinessGross = Math.max(
     0,
     Number(forecastDebug?.grossBusinessIncome ?? 0) - Number(actualDebug?.grossBusinessIncome ?? 0),
   );
   const projectedPlannedFutureBusinessReserves =
     futureBusinessGross * (businessReserveRate / 100);
-  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
-    ? projectedPlannedFutureBusinessReserves
-    : 0;
+
 
   // Per-company W-4 settings map (companies hook called earlier).
 
