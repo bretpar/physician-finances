@@ -21,7 +21,7 @@ import { filterNonOrphanIncomeEntries } from "@/lib/incomeOrphanFilter";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
 import { useYtdCatchupEntries, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
@@ -279,7 +279,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       (e) => e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id),
     );
 
-    const businessFederalWithheld = linkedEntries.reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
+    // Federal INCOME TAX withheld only — SS/Medicare are payroll taxes, never
+    // credits against federal income-tax liability.
+    const businessFederalWithheld = linkedEntries.reduce((s, e) => s + getFederalIncomeTaxWithheld(e as any), 0);
     const businessStateWithheld = linkedEntries.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
     // Pre-tax = `pre_tax_deductions` field + (W-2-only) payroll HSA on the same paycheck.
     // HSA on K-1 / 1099 / S-Corp distribution entries is NOT Section 125 payroll
@@ -545,7 +547,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const personalCapGains = buckets.capital_gains;
       const personalRental = buckets.rental;
       const personalLosses = buckets.loss;
-      const personalFederalWithheld = personal.reduce((s, e) => s + getTotalFederalPaid(e as any), 0);
+      // Federal INCOME TAX withheld only — W-2 SS/Medicare are settled through
+      // payroll and must never reduce income-tax liability / projected shortage.
+      const personalFederalWithheld = personal.reduce((s, e) => s + getFederalIncomeTaxWithheld(e as any), 0);
       const personalStateWithheld = personal.reduce((s, e) => s + Number((e as any).state_withholding || 0), 0);
       const scopedHsaRows = (hsaRows || []).filter((r) =>
         r.source_type === "individual" && (incomeScope === "actualPlusPlanned" || r.contribution_date <= todayStr),

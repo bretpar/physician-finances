@@ -33,7 +33,7 @@ import {
   type QuarterLabel,
   type QuarterNumber,
 } from "@/lib/quarters";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import type { InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 
@@ -280,7 +280,9 @@ export function buildQuarterRecommendation(
     if (!inWin(e.income_date)) continue;
     // Paid (actual withholding already submitted) requires the income to
     // have already occurred — future-dated entries don't yet have paid tax.
-    const paid = isPast(e.income_date) ? getTotalFederalPaid(e) : 0;
+    // Federal income tax withheld ONLY — SS/Medicare are payroll taxes and are
+    // never income-tax credits, so they can never count toward quarterly Paid.
+    const paid = isPast(e.income_date) ? getFederalIncomeTaxWithheld(e) : 0;
     const saved =
       Number((tx as any).actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
@@ -381,6 +383,42 @@ export function buildQuarterRecommendation(
   const savedThisQuarter = Math.max(0, rawSavedThisQuarter - estimatedPaymentsMade);
   const progressAmount = paidThisQuarter + savedThisQuarter;
 
+  // ── Source-row reconciliation ────────────────────────────────────────────
+  // The double-count guard above reduces the headline Saved when reserves are
+  // converted into an estimated payment. The estimated payment shows up as its
+  // own `paid` row, so `sum(rows.paid) === paidThisQuarter` already holds — but
+  // the per-source `saved` values still carry the pre-guard balances, which made
+  // the expanded "This Quarter by Source" table over-report Saved by exactly the
+  // payment amount.
+  //
+  // An estimated payment cannot be deterministically attributed to the specific
+  // reserve(s) that funded it, so we apply the SAME guard pro-rata across every
+  // row that holds saved dollars. That keeps the presentation honest (each source
+  // keeps its proportional share) and guarantees the invariants:
+  //   sum(rows.paid)  === paidThisQuarter
+  //   sum(rows.saved) === savedThisQuarter
+  //   sum(rows.paid + rows.saved) === progressAmount
+  const rows = Array.from(buckets.values());
+  if (rawSavedThisQuarter > 0 && savedThisQuarter < rawSavedThisQuarter) {
+    const savedRows = rows.filter((r) => r.saved > 0);
+    if (savedThisQuarter <= 0) {
+      // Payment absorbed every reserved dollar.
+      for (const r of savedRows) r.saved = 0;
+    } else {
+      const scale = savedThisQuarter / rawSavedThisQuarter;
+      let allocated = 0;
+      savedRows.forEach((r, i) => {
+        if (i === savedRows.length - 1) {
+          // Last row absorbs any floating-point residual so the sum is exact.
+          r.saved = Math.max(0, savedThisQuarter - allocated);
+        } else {
+          r.saved = r.saved * scale;
+          allocated += r.saved;
+        }
+      });
+    }
+  }
+
   const recommendedQuarterlyPayment = Math.max(
     0,
     quarterTarget - paidThisQuarter - savedThisQuarter,
@@ -444,7 +482,7 @@ export function buildQuarterRecommendation(
     isOverdueWindow,
     showDashboardPaymentCallout,
     dashboardCalloutMode,
-    sourceRows: Array.from(buckets.values()),
+    sourceRows: rows,
     w2WithheldThisQuarter,
     otherWithheldThisQuarter,
     estimatedPaymentsThisQuarter: estimatedPaymentsMade,

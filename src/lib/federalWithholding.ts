@@ -55,6 +55,37 @@ export function getTotalFederalPaid(entry: WithholdingFields | null | undefined)
 }
 
 /**
+ * Federal INCOME TAX withheld only — Social Security and Medicare excluded.
+ *
+ * Use this (never `getTotalFederalPaid`) whenever the number is a **credit
+ * against federal income-tax liability**: counted credits, remaining tax due,
+ * projected shortage, quarterly "Paid", and "Covered so far". W-2 payroll
+ * SS/Medicare are settled through payroll and are not income-tax credits.
+ *
+ * `getTotalFederalPaid()` keeps its meaning (total federal payroll taxes) for
+ * payroll-tax reporting and informational display.
+ *
+ * Precedence:
+ *   1. If either SS or Medicare is populated, the split fields exist, so
+ *      `federal_withholding` is unambiguously income tax only.
+ *   2. Otherwise, if `federal_withholding` is populated, use it.
+ *   3. Otherwise fall back to `taxes_withheld` — a legacy row that stored a
+ *      single amount with no split available.
+ */
+export function getFederalIncomeTaxWithheld(
+  entry: WithholdingFields | null | undefined,
+): number {
+  if (!entry) return 0;
+  const fed = Number(entry.federal_withholding || 0);
+  const ss = Number(entry.ss_withholding || 0);
+  const medicare = Number(entry.medicare_withholding || 0);
+  const total = Number(entry.taxes_withheld || 0);
+  if (ss > 0 || medicare > 0) return Math.max(0, fed);
+  if (fed > 0) return fed;
+  return Math.max(0, total);
+}
+
+/**
  * Build the canonical "Total Federal Payroll Taxes" total from split form
  * components. Used by save handlers to derive the value written to
  * `taxes_withheld`.
