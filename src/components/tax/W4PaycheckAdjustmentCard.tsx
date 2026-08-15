@@ -22,7 +22,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
-import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
+import { getCanonicalBucketRatePct } from "@/lib/canonicalEventRecommendation";
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 
 const fmt = (n: number) =>
