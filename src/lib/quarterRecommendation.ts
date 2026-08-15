@@ -340,9 +340,17 @@ export function buildQuarterRecommendation(
    * guarantees the SAME employer can't surface as two rows
    * ("Employer" + "Employer (W-2)") just because two code paths formatted
    * the label differently.
+   *
+   * `scope` namespaces W-2 employers apart from 1099/K-1 businesses. Production
+   * defect: a manual 1099 entry whose `source_id` collided with (or was written
+   * as) the W-2 employer's source id landed in the W-2 row, so its $2,305
+   * reserve showed as W-2 Saved and no 1099 row appeared. A W-2 employer and a
+   * business source are distinct canonical entities and must never collapse.
    */
-  const bucketKeyFor = (e: any, fallbackName: string) =>
-    e?.source_id ? `source:${e.source_id}` : `name:${fallbackName.toLowerCase()}`;
+  const bucketKeyFor = (e: any, fallbackName: string, scope: "w2" | "biz") =>
+    e?.source_id
+      ? `${scope}:source:${e.source_id}`
+      : `${scope}:name:${fallbackName.toLowerCase()}`;
 
   // ── Row-level double-count guard ─────────────────────────────────────────
   // `useIncomeEntries()` selects EVERY `income_entries` row (no
