@@ -50,7 +50,7 @@ import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/househ
 
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
-import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
+import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes, getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { computeEstimatedNet } from "@/lib/estimatedNet";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
@@ -479,11 +479,17 @@ export default function PersonalIncome() {
       totalFederalPayrollTaxes,
       // Only federal INCOME TAX may reduce the recommendation. Employee
       // SS/Medicare are reported separately as "already handled".
-      federalIncomeTaxWithheld: Math.max(
-        0,
-        totalFederalPayrollTaxes -
-          (num(form.ss_withholding) + num(form.medicare_withholding)),
-      ),
+      // Read through the canonical helper so the split `federal_withholding`
+      // field wins whenever the breakdown is in use. Deriving this as
+      // `total - (ss + medicare)` used to leak a stale aggregate total into
+      // the credit (clearing Medicare changed the recommendation even though
+      // FICA is never a credit).
+      federalIncomeTaxWithheld: getFederalIncomeTaxWithheld({
+        taxes_withheld: totalFederalPayrollTaxes,
+        federal_withholding: num(form.federal_withholding),
+        ss_withholding: num(form.ss_withholding),
+        medicare_withholding: num(form.medicare_withholding),
+      }),
       socialSecurityAndMedicareWithheld:
         num(form.ss_withholding) + num(form.medicare_withholding),
       stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,

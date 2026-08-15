@@ -61,8 +61,21 @@ export function TotalFederalTaxField({
 
   // Whenever any breakdown value changes, push the sum to the main total.
   const lastSumRef = useRef<string | null>(null);
+  // True once the user has driven the total from the breakdown. Needed so
+  // clearing the LAST breakdown field also clears the total — otherwise a
+  // stale aggregate (e.g. Medicare's $72.50) survived and leaked into
+  // downstream credit math.
+  const drivenByBreakdownRef = useRef(false);
   useEffect(() => {
-    if (!hasBreakdown) return;
+    if (!hasBreakdown) {
+      if (drivenByBreakdownRef.current) {
+        drivenByBreakdownRef.current = false;
+        lastSumRef.current = null;
+        if (num(total) !== 0) onTotalChange("");
+      }
+      return;
+    }
+    drivenByBreakdownRef.current = true;
     const sum = num(federal) + num(ss) + num(medicare);
     const sumStr = sum > 0 ? sum.toFixed(2) : "";
     if (sumStr !== lastSumRef.current) {
@@ -70,12 +83,7 @@ export function TotalFederalTaxField({
       onTotalChange(sumStr);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [federal, ss, medicare, hasBreakdown]);
-
-  // When breakdown is cleared, free the main total for direct edits.
-  useEffect(() => {
-    if (!hasBreakdown) lastSumRef.current = null;
-  }, [hasBreakdown]);
+  }, [federal, ss, medicare, hasBreakdown, total]);
 
   return (
     <div className={className}>
