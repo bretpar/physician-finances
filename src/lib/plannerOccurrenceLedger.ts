@@ -85,3 +85,29 @@ export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): Occurr
     additional_tax_reserve: n(src.additionalTaxReserve),
   };
 }
+
+/**
+ * CANONICAL: when a planner occurrence already points at a real imported bank
+ * transaction (confirmed match or high-confidence suggestion in the business
+ * bucket), conversion must ENRICH that transaction instead of inserting a new
+ * `account_source = "Planner"` row. Returns the transaction id to reuse, or
+ * null when a fresh planner-generated row must be created.
+ */
+export function pickExistingBankTransactionId(
+  occurrence: {
+    matchStatus?: string;
+    matchedIncomeId?: string | null;
+    suggestedTransactionId?: string | null;
+    suggestedBucket?: "personal" | "business" | null;
+  },
+  ledgerBucket: "personal" | "business",
+): string | null {
+  if (ledgerBucket !== "business") return null;
+  if (occurrence.matchStatus === "matched" && occurrence.matchedIncomeId) {
+    return occurrence.matchedIncomeId;
+  }
+  if (occurrence.matchStatus === "suggested" && occurrence.suggestedBucket === "business") {
+    return occurrence.suggestedTransactionId || null;
+  }
+  return null;
+}
