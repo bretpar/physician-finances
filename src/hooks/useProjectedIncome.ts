@@ -283,17 +283,125 @@ function isImportedCashMatchable(e: MatchableIncomeEntry): boolean {
  *   tolerance and never *disqualify* on amount alone.
  * - Threshold: date + one other strong signal (source or strong company).
  */
+/* ─── Stable planner-occurrence identity (authoritative over heuristics) ─── */
+
+/**
+ * A ledger row created by (or linked to) a planner conversion belongs to
+ * exactly ONE planner occurrence. Weak date+amount heuristics must never pull
+ * such a row onto a different occurrence — that is what made a converted 1099
+ * deposit show up as a "matched" W-2 paycheck on the same date.
+ */
+export interface OccurrenceIdentity {
+  streamId: string;
+  date: string;
+  bonusEventId?: string | null;
+  streamCompanyType?: string;
+  streamSourceId?: string | null;
+}
+
+export interface LedgerOwnershipIndex {
+  /** ledger row id → owning occurrence key ("stream:<id>:<date>" or "bonus:<id>"). */
+  owners: Map<string, string>;
+}
+
+export function occurrenceOwnerKey(o: {
+  stream_id?: string | null;
+  occurrence_date?: string | null;
+  bonus_event_id?: string | null;
+}): string | null {
+  if (o.bonus_event_id) return `bonus:${o.bonus_event_id}`;
+  if (o.stream_id && o.occurrence_date) return `stream:${o.stream_id}:${o.occurrence_date}`;
+  return null;
+}
+
+/** Build the ledger-row → owning-occurrence index from planner_conversions. */
+export function buildLedgerOwnershipIndex(
+  conversions?: Array<{
+    stream_id?: string | null;
+    occurrence_date?: string | null;
+    bonus_event_id?: string | null;
+    income_entry_id?: string | null;
+    transaction_id?: string | null;
+    status?: string | null;
+  }>,
+): LedgerOwnershipIndex {
+  const owners = new Map<string, string>();
+  for (const c of conversions || []) {
+    if (c.status && c.status !== "converted") continue;
+    const key = occurrenceOwnerKey(c);
+    if (!key) continue;
+    if (c.income_entry_id) owners.set(c.income_entry_id, key);
+    if (c.transaction_id) owners.set(c.transaction_id, key);
+  }
+  return { owners };
+}
+
+/**
+ * True when a ledger row may be considered for this occurrence. Rows owned by
+ * a DIFFERENT occurrence are rejected outright.
+ */
+function ledgerRowAvailableForOccurrence(
+  rowId: string,
+  identity: OccurrenceIdentity,
+  ownership?: LedgerOwnershipIndex,
+): boolean {
+  const owner = ownership?.owners.get(rowId);
+  if (!owner) return true;
+  const selfKey = identity.bonusEventId
+    ? `bonus:${identity.bonusEventId}`
+    : `stream:${identity.streamId}:${identity.date}`;
+  return owner === selfKey;
+}
+
+/**
+ * Cross-source protection: same date + same amount is NOT evidence that two
+ * records are the same income event. A candidate must live in the same ledger
+ * bucket, must not belong to a different employer/company, and must not cross
+ * W-2 ↔ 1099 ↔ K-1 boundaries.
+ */
+function sourceIdentityCompatible(
+  identity: OccurrenceIdentity,
+  candidate: { sourceId?: string | null; incomeType?: string | null },
+): boolean {
+  const streamSource = identity.streamSourceId || null;
+  const candidateSource = candidate.sourceId || null;
+  if (streamSource && candidateSource && streamSource !== candidateSource) return false;
+
+  const plannedType = (identity.streamCompanyType || "").toLowerCase().trim();
+  const candidateType = (candidate.incomeType || "").toLowerCase().trim();
+  if (!plannedType || !candidateType) return true;
+  if (isBusinessIncomeType(plannedType) !== isBusinessIncomeType(candidateType)) return false;
+  if (isBusinessIncomeType(plannedType)) {
+    const norm = (t: string) =>
+      t.startsWith("k1") ? "k1" : t.startsWith("scorp") ? "scorp" : t.startsWith("1099") ? "1099" : t;
+    if (norm(plannedType) !== norm(candidateType)) return false;
+  }
+  return true;
+}
+
 function findMatchingIncome(
-  paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string; streamSourceId?: string | null },
+  paycheck: { date: string; grossAmount: number; label: string; streamCompanyType?: string; streamSourceId?: string | null; streamId?: string; bonusEventId?: string | null },
   incomeEntries: MatchableIncomeEntry[],
   usedEntryIds: Set<string>,
+  ownership?: LedgerOwnershipIndex,
 ): { entry: MatchableIncomeEntry; score: number } | null {
   const pDate = parseISO(paycheck.date).getTime();
   let bestMatch: { entry: MatchableIncomeEntry; score: number } | null = null;
+  const identity: OccurrenceIdentity = {
+    streamId: paycheck.streamId || "",
+    date: paycheck.date,
+    bonusEventId: paycheck.bonusEventId ?? null,
+    streamCompanyType: paycheck.streamCompanyType,
+    streamSourceId: paycheck.streamSourceId ?? null,
+  };
+  const candidates: Array<{ entry: MatchableIncomeEntry; score: number }> = [];
 
   for (const entry of incomeEntries) {
     if (usedEntryIds.has(entry.id)) continue;
     if (entry.status === "projected") continue; // Don't match against other projected items
+    // Stable identity wins: a row owned by another occurrence is off-limits.
+    if (!ledgerRowAvailableForOccurrence(entry.id, identity, ownership)) continue;
+    if (!sourceIdentityCompatible(identity, { sourceId: entry.source_id, incomeType: entry.income_type })) continue;
 
     let score = 0;
 
@@ -337,10 +445,21 @@ function findMatchingIncome(
       }
     }
 
-    // Threshold: need at least date + one other strong signal.
-    if (score >= 45 && (!bestMatch || score > bestMatch.score)) {
-      bestMatch = { entry, score };
+    // Date + amount alone is NOT enough — an identity signal (same source id
+    // or a strong company-name match) is required.
+    if (companySignal === "none") continue;
+
+    if (score >= 45) {
+      candidates.push({ entry, score });
+      if (!bestMatch || score > bestMatch.score) bestMatch = { entry, score };
     }
+  }
+
+  // Ambiguous fallback: several equally plausible candidates → leave unmatched
+  // rather than guessing and mutating the wrong occurrence.
+  if (bestMatch) {
+    const tied = candidates.filter((c) => c.score === bestMatch!.score);
+    if (tied.length > 1) return null;
   }
 
   return bestMatch;
@@ -354,19 +473,31 @@ function findMatchingIncome(
  * Heuristic match only; the user must confirm before it becomes a stored link.
  */
 function findMatchingBusinessTransaction(
-  paycheck: { date: string; grossAmount: number; label: string; streamSourceId?: string | null },
+  paycheck: { date: string; grossAmount: number; label: string; streamSourceId?: string | null; streamCompanyType?: string; streamId?: string; bonusEventId?: string | null },
   transactions: MatchableBusinessTransaction[],
   usedTxIds: Set<string>,
+  ownership?: LedgerOwnershipIndex,
 ): { tx: MatchableBusinessTransaction; score: number } | null {
   const pDate = parseISO(paycheck.date).getTime();
   let best: { tx: MatchableBusinessTransaction; score: number } | null = null;
+  const identity: OccurrenceIdentity = {
+    streamId: paycheck.streamId || "",
+    date: paycheck.date,
+    bonusEventId: paycheck.bonusEventId ?? null,
+    streamCompanyType: paycheck.streamCompanyType,
+    streamSourceId: paycheck.streamSourceId ?? null,
+  };
+  const candidates: Array<{ tx: MatchableBusinessTransaction; score: number }> = [];
 
   for (const tx of transactions) {
     if (usedTxIds.has(tx.id)) continue;
     if (tx.status !== "active") continue;
     if (tx.transaction_type !== "income") continue;
+    if (!ledgerRowAvailableForOccurrence(tx.id, identity, ownership)) continue;
+    if (!sourceIdentityCompatible(identity, { sourceId: tx.source_id, incomeType: null })) continue;
 
     let score = 0;
+    let identitySignal = false;
     const tDate = parseISO(tx.transaction_date).getTime();
     const daysDiff = Math.abs(pDate - tDate) / (1000 * 60 * 60 * 24);
     if (daysDiff === 0) score += 40;
@@ -376,11 +507,13 @@ function findMatchingBusinessTransaction(
 
     if (paycheck.streamSourceId && tx.source_id && paycheck.streamSourceId === tx.source_id) {
       score += 30;
+      identitySignal = true;
     } else {
       const pVendor = (paycheck.label || "").toLowerCase();
       const tVendor = (tx.vendor || "").toLowerCase();
       if (pVendor && tVendor && (pVendor.includes(tVendor) || tVendor.includes(pVendor))) {
         score += 30;
+        identitySignal = true;
       }
     }
 
@@ -394,9 +527,17 @@ function findMatchingBusinessTransaction(
       else if (pct <= 0.10) score += 5;
     }
 
-    if (score >= 45 && (!best || score > best.score)) {
-      best = { tx, score };
+    // Same date + same amount is never enough on its own.
+    if (!identitySignal) continue;
+
+    if (score >= 45) {
+      candidates.push({ tx, score });
+      if (!best || score > best.score) best = { tx, score };
     }
+  }
+  if (best) {
+    const tied = candidates.filter((c) => c.score === best!.score);
+    if (tied.length > 1) return null;
   }
   return best;
 }
@@ -1517,6 +1658,9 @@ export function generateProjectedPaychecks(
     }
   }
 
+  // Ledger rows already owned by a specific planner occurrence (stable identity).
+  const ledgerOwnership = buildLedgerOwnershipIndex(plannerConversions as any);
+
   // Track which ledger rows have been used for matching (separate sets per bucket)
   const usedEntryIds = new Set<string>();
   const usedTxIds = new Set<string>();
@@ -1729,9 +1873,10 @@ export function generateProjectedPaychecks(
 
     if (bucket === "business") {
       const m = findMatchingBusinessTransaction(
-        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamSourceId: raw.streamSourceId },
+        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamSourceId: raw.streamSourceId, streamCompanyType: raw.streamCompanyType, streamId: raw.streamId, bonusEventId: raw.bonusEventId ?? null },
         businessTxs,
         usedTxIds,
+        ledgerOwnership,
       );
       if (m) {
         usedTxIds.add(m.tx.id);
@@ -1753,9 +1898,10 @@ export function generateProjectedPaychecks(
       }
     } else {
       const match = findMatchingIncome(
-        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType, streamSourceId: raw.streamSourceId },
+        { date: raw.date, grossAmount: raw.grossAmount, label: raw.label, streamCompanyType: raw.streamCompanyType, streamSourceId: raw.streamSourceId, streamId: raw.streamId, bonusEventId: raw.bonusEventId ?? null },
         entries,
         usedEntryIds,
+        ledgerOwnership,
       );
       if (match) {
         usedEntryIds.add(match.entry.id);
