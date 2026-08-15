@@ -44,6 +44,8 @@ export interface QuarterRecommendationSharedInput
   selfEmploymentTax: number;
   /** Full TaxPayment rows so consumers like QuarterlyTracker keep their typed shape. */
   payments: TaxPayment[];
+  /** True when state income tax is part of the annual liability/target. */
+  stateIncomeTaxIncludedInTarget: boolean;
   isLoading: boolean;
 }
 
@@ -134,6 +136,9 @@ export function useQuarterRecommendationInput(): QuarterRecommendationSharedInpu
     projectedPaychecks,
     payments,
     manualSavings,
+    // Symmetry: state withholding may only be credited toward quarterly Paid
+    // when state income tax is actually part of the target.
+    stateIncomeTaxIncludedInTarget: !!rates?.stateIncomeTaxEnabled,
     isLoading: ratesLoading || estLoading || txLoading || incLoading || piLoading,
   };
 }

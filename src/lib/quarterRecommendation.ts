@@ -34,6 +34,10 @@ import {
   type QuarterNumber,
 } from "@/lib/quarters";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
+import {
+  computeCatchUpRecommendation,
+  type CoverageStatus,
+} from "@/lib/catchUpRecommendation";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import type { InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 
@@ -63,9 +67,27 @@ export interface QuarterRecommendationInput {
   }>;
   /** Optional manual `tax_savings` rows (counted toward "savedFromIncome"). */
   manualSavings?: Array<{ savings_date?: string; amount: number | string }>;
+  /**
+   * Whether state income tax is part of `annualTaxLiability`. When true, state
+   * withholding dated in the quarter counts toward Paid — keeping the target
+   * and the credits symmetric. When false (default) state tax is neither in
+   * the target nor credited.
+   */
+  stateIncomeTaxIncludedInTarget?: boolean;
+  /**
+   * Remaining savings opportunities (paychecks / income events) before the
+   * deadline, used to spread any shortfall PROSPECTIVELY. Defaults to 1.
+   */
+  remainingOpportunities?: number;
+  /**
+   * Quarter target the user was previously recommended against, when known.
+   * Only used to label a gap as "estimate increased" instead of "behind".
+   */
+  baselineQuarterTarget?: number;
   /** Used for the "due soon / overdue" callout window. Defaults to `new Date()`. */
   now?: Date;
 }
+
 
 export interface QuarterSourceRow {
   key: string;
@@ -136,6 +158,32 @@ export interface QuarterRecommendation {
   // ── Per-company breakdown ─────────────────────────────────────────────────
   sourceRows: QuarterSourceRow[];
 
+  // ── Informational payroll taxes (never credited) ──────────────────────────
+  /**
+   * Employee Social Security + Medicare withheld from W-2 paychecks dated in
+   * this quarter. Shown as "already handled" — NEVER counted toward Paid,
+   * because the quarter target contains income tax + SE tax (+ state), not
+   * employee FICA.
+   */
+  payrollTaxesHandledThisQuarter: number;
+  /** State withholding dated this quarter (credited only when in target). */
+  stateWithheldThisQuarter: number;
+  /** Whether state withholding was credited toward Paid. */
+  stateIncomeTaxIncludedInTarget: boolean;
+
+  // ── Prospective catch-up + status ─────────────────────────────────────────
+  /** Signed gap for the quarter: positive = shortfall, negative = surplus. */
+  shortfallOrSurplus: number;
+  /** Dollars still needed by the deadline (floored at 0). */
+  totalShortfallByDeadline: number;
+  /** Opportunities the shortfall is spread across (>= 1). */
+  remainingOpportunities: number;
+  /** Per-opportunity catch-up to add to future recommendations. */
+  catchUpPerOpportunity: number;
+  coverageStatus: CoverageStatus;
+  statusHeadline: string;
+  statusDetail: string;
+
   // ── Legacy duplicate fields kept for older callers ────────────────────────
   /** @deprecated split into paidFromWithholding. */
   w2WithheldThisQuarter: number;
@@ -144,6 +192,7 @@ export interface QuarterRecommendation {
   /** @deprecated use estimatedPaymentsMade. */
   estimatedPaymentsThisQuarter: number;
 }
+
 
 const Q_META: Record<QuarterNum, { label: QuarterLabel; deadlineLabel: string }> = {
   1: { label: "Q1", deadlineLabel: "Apr 15" },
@@ -160,6 +209,8 @@ const Q_META: Record<QuarterNum, { label: QuarterLabel; deadlineLabel: string }>
  *   Q4: Sep 1 – Dec 31, deadline Jan 15 of next year
  * Mirrors `getCurrentQuarter` from `src/lib/quarters.ts`.
  */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 function buildWindow(year: number, quarter: QuarterNum) {
   const meta = Q_META[quarter];
   let start: Date, end: Date, deadline: Date;
@@ -188,6 +239,7 @@ export function buildQuarterRecommendation(
     projectedPaychecks = [],
     payments = [],
     manualSavings = [],
+    stateIncomeTaxIncludedInTarget = false,
   } = input;
 
   const { start, end, deadline, label, deadlineLabel } = buildWindow(year, quarter);
@@ -272,19 +324,35 @@ export function buildQuarterRecommendation(
   };
 
   let otherWithheldThisQuarter = 0;
+  // Informational only — employee SS/Medicare are never income-tax credits.
+  let payrollTaxesHandledThisQuarter = 0;
+  let stateWithheldThisQuarter = 0;
   let businessSavedFromIncome = 0;
   for (const e of incomeEntries) {
-    if (!e.linked_transaction_id) continue;
-    const tx = liveTxById.get(e.linked_transaction_id);
-    if (!tx) continue;
+    // Business/1099 Paid path: an income entry may legitimately have NO linked
+    // bank transaction (manual 1099/K-1 entry). Those rows previously fell out
+    // of Paid/Saved entirely. Only skip when the entry POINTS AT a transaction
+    // that is missing or intentionally excluded from business — that exclusion
+    // is deliberate.
+    const tx = e.linked_transaction_id
+      ? liveTxById.get(e.linked_transaction_id)
+      : undefined;
+    if (e.linked_transaction_id && !tx) continue;
     if (!inWin(e.income_date)) continue;
     // Paid (actual withholding already submitted) requires the income to
     // have already occurred — future-dated entries don't yet have paid tax.
     // Federal income tax withheld ONLY — SS/Medicare are payroll taxes and are
     // never income-tax credits, so they can never count toward quarterly Paid.
-    const paid = isPast(e.income_date) ? getFederalIncomeTaxWithheld(e) : 0;
+    // State withholding is credited ONLY when state tax is part of the target.
+    const businessState = stateIncomeTaxIncludedInTarget
+      ? Math.max(0, Number((e as any).state_withholding || 0))
+      : 0;
+    const paid = isPast(e.income_date)
+      ? getFederalIncomeTaxWithheld(e) + businessState
+      : 0;
+    if (isPast(e.income_date)) stateWithheldThisQuarter += businessState;
     const saved =
-      Number((tx as any).actual_withholding || 0) +
+      Number((tx as any)?.actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
     otherWithheldThisQuarter += paid;
     businessSavedFromIncome += saved;
@@ -337,6 +405,16 @@ export function buildQuarterRecommendation(
       // withholding ONLY — payroll SS/Medicare are not income-tax credits.
       const countAsPaid = inQuarter && isPast(e.income_date);
       paid = countAsPaid ? Math.max(0, Number(e.federal_withholding || 0)) : 0;
+      if (countAsPaid) {
+        // Symmetry rule: credit state withholding only when state income tax
+        // is part of the quarter target.
+        const st = Math.max(0, Number((e as any).state_withholding || 0));
+        stateWithheldThisQuarter += st;
+        if (stateIncomeTaxIncludedInTarget) paid += st;
+        payrollTaxesHandledThisQuarter +=
+          Math.max(0, Number((e as any).ss_withholding || 0)) +
+          Math.max(0, Number((e as any).medicare_withholding || 0));
+      }
     }
     const saved = inQuarter ? Number(e.additional_tax_reserve || 0) : 0;
     w2WithheldThisQuarter += paid;
@@ -419,6 +497,16 @@ export function buildQuarterRecommendation(
     }
   }
 
+  // ── Prospective catch-up + status language ───────────────────────────────
+  // Shortfalls are spread across REMAINING opportunities only; past
+  // recommendations are never rewritten.
+  const catchUp = computeCatchUpRecommendation({
+    quarterTarget,
+    coveredSoFar: progressAmount,
+    remainingOpportunities: input.remainingOpportunities,
+    baselineQuarterTarget: input.baselineQuarterTarget,
+  });
+
   const recommendedQuarterlyPayment = Math.max(
     0,
     quarterTarget - paidThisQuarter - savedThisQuarter,
@@ -485,6 +573,16 @@ export function buildQuarterRecommendation(
     sourceRows: rows,
     w2WithheldThisQuarter,
     otherWithheldThisQuarter,
+    payrollTaxesHandledThisQuarter: round2(payrollTaxesHandledThisQuarter),
+    stateWithheldThisQuarter: round2(stateWithheldThisQuarter),
+    stateIncomeTaxIncludedInTarget,
+    shortfallOrSurplus: catchUp.shortfallOrSurplus,
+    totalShortfallByDeadline: catchUp.totalShortfallByDeadline,
+    remainingOpportunities: catchUp.remainingOpportunities,
+    catchUpPerOpportunity: catchUp.quarterlyAdjustmentAmount,
+    coverageStatus: catchUp.recommendationStatus,
+    statusHeadline: catchUp.statusHeadline,
+    statusDetail: catchUp.statusDetail,
     estimatedPaymentsThisQuarter: estimatedPaymentsMade,
   };
 }
