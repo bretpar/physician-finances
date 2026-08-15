@@ -241,15 +241,15 @@ export function useW4Calculation(): W4CalculationResult {
     try { localStorage.setItem(TOGGLE_KEY, next ? "true" : "false"); } catch { /* ignore */ }
   };
 
+  // Display-only: what the business source is expected to reserve out of its
+  // remaining gross at the canonical bucket rate. NOT used for the W-4 gap.
   const futureBusinessGross = Math.max(
     0,
     Number(forecastDebug?.grossBusinessIncome ?? 0) - Number(actualDebug?.grossBusinessIncome ?? 0),
   );
   const projectedPlannedFutureBusinessReserves =
     futureBusinessGross * (businessReserveRate / 100);
-  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
-    ? projectedPlannedFutureBusinessReserves
-    : 0;
+
 
   const companyByEmployerKey = useMemo(() => {
     const map = new Map<string, {
