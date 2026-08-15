@@ -350,7 +350,12 @@ export function computeCanonicalEventRecommendation(
 
   const creditedWithholding = round2(pos(input.creditedWithholding));
   const totalSuggestedReserve = round2(eventTaxTarget + catchUpApplied);
-  const signedRecommendation = round2(totalSuggestedReserve - creditedWithholding);
+  // Annual-W-4 method: the W-4 card funds this source's deficit through Step
+  // 4(c) withholding, so the paycheck surface must NOT also ask for savings.
+  const signedRecommendation = fundedByAnnualW4
+    ? 0
+    : round2(totalSuggestedReserve - creditedWithholding);
+
 
   return {
     allocation,
