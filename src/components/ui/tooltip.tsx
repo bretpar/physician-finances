@@ -106,7 +106,8 @@ const TooltipTrigger = React.forwardRef<
       onPointerDown={(e) => {
         // Toggle on tap (touch/pen) so mobile users can reveal/dismiss tooltips
         // via a single tap — never long-press or hover.
-        const isTouch = e.pointerType === "touch" || e.pointerType === "pen";
+        const isTouch =
+          e.pointerType === "touch" || e.pointerType === "pen" || !!ctx?.isMobile;
         touchRef.current = isTouch;
         if (ctx && isTouch) {
           e.preventDefault();
@@ -128,7 +129,12 @@ const TooltipTrigger = React.forwardRef<
       }}
       onClick={(e) => {
         const pointerType = (e.nativeEvent as PointerEvent).pointerType;
-        if (pointerType === "touch" || pointerType === "pen" || touchRef.current) {
+        if (
+          pointerType === "touch" ||
+          pointerType === "pen" ||
+          touchRef.current ||
+          ctx?.isMobile
+        ) {
           // The pointerdown handler already toggled; swallow the synthetic click
           // so nested buttons/links/rows never activate.
           e.preventDefault();

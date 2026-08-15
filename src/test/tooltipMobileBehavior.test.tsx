@@ -6,6 +6,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * UI-only behavior tests for the shared tooltip primitive.
  * No business logic is involved.
  */
+// Force the mobile breakpoint so the shared tooltip uses tap semantics.
+Object.defineProperty(window, "innerWidth", { writable: true, value: 390 });
+
 function tap(el: Element) {
   fireEvent.pointerDown(el, { pointerType: "touch", bubbles: true });
   fireEvent.click(el, { pointerType: "touch", bubbles: true, detail: 0 });
