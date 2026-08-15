@@ -714,16 +714,15 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [streams, companies]);
 
-  const businessRateSel = getSavingsRateForIncomeBucket({
-    incomeBucket: "business",
-    incomeType: "1099",
+  const businessReserveRate = getCanonicalBucketRatePct({
+    estimate:
+      (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+        ? (forecastEstimate ?? actualEstimate)
+        : (currentPaceEstimate ?? actualEstimate),
     taxSettings: settings,
-    actualEstimate,
-    currentPaceEstimate,
-    forecastEstimate,
-    includeSETaxInRecommendation: true,
-  });
-  const businessReserveRate = businessRateSel.rate; // % expected on future 1099/business income
+    bucket: "business",
+    incomeType: "1099",
+  }); // % expected on future 1099/business income
 
   const todayStr = new Date().toISOString().split("T")[0];
 

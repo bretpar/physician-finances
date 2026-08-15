@@ -374,3 +374,43 @@ export function computeCanonicalEventRecommendation(
     basis,
   };
 }
+
+/**
+ * Canonical set-aside RATE (percent) for an income bucket.
+ *
+ * Replaces the legacy blended `getSavingsRateForIncomeBucket().rate` on
+ * display surfaces (Dashboard, Tax Overview, the W-4 card's future business
+ * reserve) so every screen quotes the same allocation the per-event
+ * recommendation uses. Derived by running the canonical event pipeline on a
+ * reference amount — never an independent formula.
+ */
+export function getCanonicalBucketRatePct(input: {
+  estimate: TaxEstimate | null | undefined;
+  taxSettings: SavingsRateSettingsLike | null | undefined;
+  bucket: "personal" | "business";
+  incomeType?: string;
+  companyId?: string | null;
+  applyBusinessStateTax?: boolean | null;
+  includeSETaxInRecommendation?: boolean | null;
+  filingStatus?: "single" | "married_filing_jointly" | null;
+  /** Reference amount used to resolve wage-base-sensitive SE rates. */
+  referenceAmount?: number;
+}): number {
+  const reference = pos(input.referenceAmount) || 10000;
+  const rec = computeCanonicalEventRecommendation({
+    estimate: input.estimate,
+    taxSettings: input.taxSettings,
+    incomeType: input.incomeType ?? (input.bucket === "personal" ? "w2" : "1099"),
+    incomeBucket: input.bucket,
+    grossIncome: reference,
+    companyId: input.companyId,
+    applyBusinessStateTax: input.applyBusinessStateTax,
+    includeSETaxInRecommendation: input.includeSETaxInRecommendation ?? true,
+    filingStatus: input.filingStatus ?? undefined,
+    creditedWithholding: 0,
+    catchUpAmount: 0,
+    // A bucket rate is a pure rate — no W-4 funding gate, no catch-up.
+    w2FundingMethod: "paycheck_target",
+  });
+  return rec ? round2(rec.effectiveRatePct) : 0;
+}

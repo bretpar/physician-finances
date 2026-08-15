@@ -231,23 +231,18 @@ export default function Dashboard() {
   const baseEstimate =
     method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate);
   const profile = getSelectedWithholdingProfileRate({ taxSettings: rates, actualEstimate, currentPaceEstimate, forecastEstimate });
-  const personalRate = getSavingsRateForIncomeBucket({
-    incomeBucket: "personal",
+  const personalRate = getCanonicalBucketRatePct({
+    estimate: method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate),
+    taxSettings: rates,
+    bucket: "personal",
     incomeType: "W2",
+  });
+  const businessRate = getCanonicalBucketRatePct({
+    estimate: method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate),
     taxSettings: rates,
-    actualEstimate,
-    currentPaceEstimate,
-    forecastEstimate,
-  }).rate;
-  const businessRate = getSavingsRateForIncomeBucket({
-    incomeBucket: "business",
+    bucket: "business",
     incomeType: "1099",
-    taxSettings: rates,
-    actualEstimate,
-    currentPaceEstimate,
-    forecastEstimate,
-    includeSETaxInRecommendation: true,
-  }).rate;
+  });
   const annualTaxLiability = Math.max(0, Number(baseEstimate?.totalTaxLiability || 0));
   const methodLabel = profile.label;
   const effectiveTaxRate = method === "flat_estimate" ? profile.federalProfileRate : profile.canonicalEffectiveTaxRate;
