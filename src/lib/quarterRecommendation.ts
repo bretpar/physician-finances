@@ -323,12 +323,50 @@ export function buildQuarterRecommendation(
     return row;
   };
 
+  /**
+   * Canonical bucket key for an income row. Grouping by the stable
+   * `source_id` (the employer/business record) — never by display label —
+   * guarantees the SAME employer can't surface as two rows
+   * ("Employer" + "Employer (W-2)") just because two code paths formatted
+   * the label differently.
+   */
+  const bucketKeyFor = (e: any, fallbackName: string) =>
+    e?.source_id ? `source:${e.source_id}` : `name:${fallbackName.toLowerCase()}`;
+
+  // ── Row-level double-count guard ─────────────────────────────────────────
+  // `useIncomeEntries()` selects EVERY `income_entries` row (no
+  // `source_bucket` filter), while `usePersonalIncomeEntries()` selects the
+  // personal (W-2) subset of the SAME table. Callers pass both lists, so
+  // without this guard each W-2 paycheck was aggregated twice: once by the
+  // business loop (inflating Paid, Saved and "Other federal withholding
+  // paid") and once by the personal loop — the production $1,873 → $3,746
+  // defect, with the employer appearing as two rows.
+  //
+  // Identity is the row id (never the display label). Rows already owned by
+  // the personal/W-2 loop are skipped in the business loop entirely.
+  const personalEntryIds = new Set(
+    personalEntries.map((e: any) => e?.id).filter(Boolean),
+  );
+  const hasPersonalList = personalEntries.length > 0;
+  const isPersonalOwnedRow = (e: any) => {
+    if (e?.id && personalEntryIds.has(e.id)) return true;
+    // Defensive: a personal-bucket row that (for any reason) isn't in the
+    // personal list is still not business income. Only apply when a personal
+    // list was supplied, so callers that pass personal rows exclusively via
+    // `incomeEntries` keep working.
+    return hasPersonalList && e?.source_bucket === "personal";
+  };
+  /** Row ids already accounted for, so nothing can be counted twice. */
+  const accountedRowIds = new Set<string>();
+
   let otherWithheldThisQuarter = 0;
   // Informational only — employee SS/Medicare are never income-tax credits.
   let payrollTaxesHandledThisQuarter = 0;
   let stateWithheldThisQuarter = 0;
   let businessSavedFromIncome = 0;
   for (const e of incomeEntries) {
+    if (isPersonalOwnedRow(e)) continue;
+    if (e?.id && accountedRowIds.has(e.id)) continue;
     // Business/1099 Paid path: an income entry may legitimately have NO linked
     // bank transaction (manual 1099/K-1 entry). Those rows previously fell out
     // of Paid/Saved entirely. Only skip when the entry POINTS AT a transaction
