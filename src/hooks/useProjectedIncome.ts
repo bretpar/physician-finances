@@ -8,6 +8,7 @@ import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 import { PLANNER_CLEANUP_INVALIDATION_KEYS } from "@/lib/plannerCleanup";
 import { getTodayLocalDateString } from "@/lib/localDate";
 import { excludeLinkedTransactionForIncomeEntry } from "@/lib/plaidTransactionExclusion";
+import { buildOccurrenceLedgerFields } from "@/lib/plannerOccurrenceLedger";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
@@ -617,18 +618,36 @@ export function useConfirmSuggestedMatch() {
           const s: any = stream || {};
           const ov: any = overrideRow || {};
           const gross = Number(ov.paycheck_amount ?? s.paycheck_amount ?? 0) || 0;
+          const detail = resolveOccurrenceDetail(s as ProjectedIncomeStream, overrideRow as any);
+          // Canonical mapping — splits the planner aggregate pre-tax amount so
+          // health/HSA are never double-counted inside "Other pre-tax".
+          const mapped = buildOccurrenceLedgerFields({
+            grossAmount: gross,
+            taxesWithheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
+            preTaxDeductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+            healthcareDeduction: detail.healthcareDeduction,
+            hsaContribution: detail.hsaContribution,
+            federalWithholding: detail.federalWithholding,
+            stateWithholding: detail.stateWithholding,
+            ssWithholding: detail.ssWithholding,
+            medicareWithholding: detail.medicareWithholding,
+            additionalTaxReserve: detail.additionalTaxReserve,
+            hasDetailedBreakdown: detail.hasDetailedBreakdown,
+          });
           const patch: Record<string, any> = {
             origin_type: "planner_converted",
             origin_planner_conversion_id: conversionId,
-            federal_withholding: Number(s.federal_withholding || 0),
-            state_withholding: Number(s.state_withholding || 0),
-            ss_withholding: Number(s.ss_withholding || 0),
-            medicare_withholding: Number(s.medicare_withholding || 0),
-            taxes_withheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
-            retirement_401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
-            healthcare_deduction: Number(s.healthcare_deduction || 0),
-            hsa_contribution: Number(s.hsa_contribution || 0),
-            pre_tax_deductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+            federal_withholding: mapped.federal_withholding,
+            state_withholding: mapped.state_withholding,
+            ss_withholding: mapped.ss_withholding,
+            medicare_withholding: mapped.medicare_withholding,
+            taxes_withheld: mapped.taxes_withheld,
+            retirement_401k: mapped.retirement_401k,
+            healthcare_deduction: mapped.healthcare_deduction,
+            hsa_contribution: mapped.hsa_contribution,
+            pre_tax_deductions: mapped.pre_tax_deductions,
+            additional_tax_reserve: mapped.additional_tax_reserve,
           };
           if (gross > 0) {
             patch.gross_amount = gross;
@@ -670,13 +689,88 @@ export function useConfirmSuggestedMatch() {
             }
           }
         } else {
-          await supabase
-            .from("transactions")
-            .update({
-              origin_type: "planner_converted",
-              origin_planner_conversion_id: conversionId,
-            } as any)
-            .eq("id", input.incomeEntryId);
+          // Business bucket: `incomeEntryId` is the real bank transaction id.
+          // Preserve its amount / account_source / bank metadata and mirror the
+          // planner deductions onto the single linked income_entries row.
+          const [{ data: txRow }, { data: stream }, { data: overrideRow }] = await Promise.all([
+            supabase
+              .from("transactions")
+              .update({
+                origin_type: "planner_converted",
+                origin_planner_conversion_id: conversionId,
+              } as any)
+              .eq("id", input.incomeEntryId)
+              .select("id, amount, transaction_date, vendor, source_id, company_type, user_id, organization_id")
+              .maybeSingle(),
+            supabase.from("projected_income_streams").select("*").eq("id", input.streamId).maybeSingle(),
+            supabase
+              .from("projected_income_overrides")
+              .select("*")
+              .eq("stream_id", input.streamId)
+              .eq("override_date", input.occurrenceDate)
+              .maybeSingle(),
+          ]);
+
+          const s: any = stream || {};
+          const ov: any = overrideRow || {};
+          const tx: any = txRow || {};
+          const gross = Number(ov.paycheck_amount ?? s.paycheck_amount ?? 0) || 0;
+          const detail = resolveOccurrenceDetail(s as ProjectedIncomeStream, overrideRow as any);
+          const mapped = buildOccurrenceLedgerFields({
+            grossAmount: gross,
+            taxesWithheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
+            preTaxDeductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+            healthcareDeduction: detail.healthcareDeduction,
+            hsaContribution: detail.hsaContribution,
+            federalWithholding: detail.federalWithholding,
+            stateWithholding: detail.stateWithholding,
+            ssWithholding: detail.ssWithholding,
+            medicareWithholding: detail.medicareWithholding,
+            additionalTaxReserve: detail.additionalTaxReserve,
+            hasDetailedBreakdown: detail.hasDetailedBreakdown,
+          });
+          // The bank deposit is the cash truth for Net Received.
+          const bankAmount = Math.abs(Number(tx.amount) || 0);
+          const mirror: Record<string, any> = {
+            ...mapped,
+            deposited_amount: bankAmount > 0 ? bankAmount : mapped.deposited_amount,
+            linked_transaction_id: input.incomeEntryId,
+            source_bucket: "business",
+            income_date: tx.transaction_date || input.occurrenceDate,
+            income_type: s.company_type || tx.company_type || "1099_schedule_c",
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+            is_actual: true,
+            include_in_tax_estimate: true,
+            include_in_cash_flow: false,
+            status: "received",
+          };
+          if (gross <= 0) {
+            delete mirror.gross_amount;
+            delete mirror.paycheck_amount;
+          }
+          const { data: existingMirror } = await supabase
+            .from("income_entries")
+            .select("id")
+            .eq("linked_transaction_id", input.incomeEntryId)
+            .limit(1)
+            .maybeSingle();
+          if (existingMirror) {
+            await supabase.from("income_entries").update(mirror as any).eq("id", (existingMirror as any).id);
+          } else if (tx.user_id) {
+            await supabase.from("income_entries").insert({
+              user_id: tx.user_id,
+              organization_id: tx.organization_id ?? null,
+              name: s.company || tx.vendor || "Income",
+              company: s.company || tx.vendor || "Income",
+              source_id: s.source_id ?? tx.source_id ?? null,
+              ui_income_subtype: s.ui_income_subtype ?? null,
+              tax_category: "ordinary",
+              notes: "From planner (confirmed match)",
+              ...mirror,
+            } as any);
+          }
         }
       }
     },
@@ -721,6 +815,14 @@ export function useManualPlannerConvert() {
       medicareWithholding: number;
       /** Optional — carried through from a detailed planner breakdown. */
       additionalTaxReserve?: number;
+      /** True when `preTaxDeductions` is the planner AGGREGATE (health + HSA + other). */
+      hasDetailedBreakdown?: boolean;
+      /**
+       * Existing imported/bank transaction that already represents this deposit.
+       * When set, the conversion enriches that row instead of creating a new
+       * `account_source = "Planner"` transaction.
+       */
+      existingTransactionId?: string | null;
       isBonus: boolean;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -774,17 +876,24 @@ export function useManualPlannerConvert() {
       }
       const conversionId = (conv as any).id as string;
 
-      // Compute take-home / deposited amount from planner fields so the
-      // ledger row Net Received matches the planner's estimated take-home.
-      const estimatedTakeHome = Math.max(
-        0,
-        input.grossAmount
-          - (input.taxesWithheld || 0)
-          - (input.preTaxDeductions || 0)
-          - (input.retirement401k || 0)
-          - (input.healthcareDeduction || 0)
-          - (input.hsaContribution || 0),
-      );
+      // CANONICAL occurrence → ledger mapping. Splits the planner's aggregate
+      // pre-tax amount into Health Insurance / HSA / Other Pre-Tax exactly once
+      // and derives Net Received from the separated fields.
+      const ledger = buildOccurrenceLedgerFields({
+        grossAmount: input.grossAmount,
+        taxesWithheld: input.taxesWithheld,
+        retirement401k: input.retirement401k,
+        preTaxDeductions: input.preTaxDeductions,
+        healthcareDeduction: input.healthcareDeduction,
+        hsaContribution: input.hsaContribution,
+        federalWithholding: input.federalWithholding,
+        stateWithholding: input.stateWithholding,
+        ssWithholding: input.ssWithholding,
+        medicareWithholding: input.medicareWithholding,
+        additionalTaxReserve: input.additionalTaxReserve ?? 0,
+        hasDetailedBreakdown: input.hasDetailedBreakdown,
+      });
+      const estimatedTakeHome = ledger.deposited_amount;
 
       // 2. Create the ledger row
       if (input.ledgerBucket === "personal") {
@@ -799,19 +908,7 @@ export function useManualPlannerConvert() {
             income_type: input.incomeType,
             ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
             income_date: input.occurrenceDate,
-            gross_amount: input.grossAmount,
-            paycheck_amount: input.grossAmount,
-            deposited_amount: estimatedTakeHome,
-            federal_withholding: input.federalWithholding,
-            state_withholding: input.stateWithholding,
-            ss_withholding: input.ssWithholding,
-            medicare_withholding: input.medicareWithholding,
-            taxes_withheld: input.taxesWithheld,
-            pre_tax_deductions: input.preTaxDeductions,
-            retirement_401k: input.retirement401k,
-            healthcare_deduction: input.healthcareDeduction,
-            hsa_contribution: input.hsaContribution,
-            additional_tax_reserve: input.additionalTaxReserve ?? 0,
+            ...ledger,
             source_bucket: "personal",
             tax_category: "ordinary",
             is_actual: true,
@@ -833,76 +930,102 @@ export function useManualPlannerConvert() {
           .update({ income_entry_id: (ie as any).id })
           .eq("id", conversionId);
       } else {
-        const { data: tx, error } = await supabase
-          .from("transactions")
-          .insert({
-            user_id: user.id,
-            organization_id: orgId,
-            transaction_date: input.occurrenceDate,
-            vendor: input.label,
-            amount: input.grossAmount,
-            account_source: "Planner",
-            category: "Income",
-            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
-            entity: input.label || "Unassigned",
-            company_type: input.incomeType,
-            source_id: input.sourceId,
-            transaction_type: "income",
-            needs_review: true,
-            status: "active",
-            actual_withholding: input.taxesWithheld,
-            origin_type: "planner_converted",
-            origin_planner_conversion_id: conversionId,
-          } as any)
-          .select("id")
-          .single();
-        if (error) {
-          await supabase.from("planner_conversions").delete().eq("id", conversionId);
-          throw error;
-        }
-        const txId = (tx as any).id as string;
+        let txId: string;
+        // Net Received falls back to the real bank deposit when this occurrence
+        // is being converted onto an existing imported transaction.
+        let depositedAmount = ledger.deposited_amount;
 
-        // Also create a linked income_entries row so Business Activity's
-        // Edit Income form and Tax Details Net Received pick up the saved
-        // planner paycheck fields (401(k), pre-tax, healthcare, HSA,
-        // withholdings, and estimated take-home).
-        const { error: ieErr } = await supabase
+        if (input.existingTransactionId) {
+          // Enrich the real bank transaction — never replace its amount,
+          // account_source, or bank metadata with planner values.
+          const { data: existingTx, error: exErr } = await supabase
+            .from("transactions")
+            .update({
+              company_type: input.incomeType,
+              ...(input.sourceId ? { source_id: input.sourceId } : {}),
+              actual_withholding: input.taxesWithheld,
+              needs_review: false,
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .eq("id", input.existingTransactionId)
+            .select("id, amount")
+            .single();
+          if (exErr) {
+            await supabase.from("planner_conversions").delete().eq("id", conversionId);
+            throw exErr;
+          }
+          txId = (existingTx as any).id as string;
+          const bankAmount = Math.abs(Number((existingTx as any).amount) || 0);
+          if (bankAmount > 0) depositedAmount = bankAmount;
+        } else {
+          const { data: tx, error } = await supabase
+            .from("transactions")
+            .insert({
+              user_id: user.id,
+              organization_id: orgId,
+              transaction_date: input.occurrenceDate,
+              vendor: input.label,
+              amount: input.grossAmount,
+              account_source: "Planner",
+              category: "Income",
+              notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+              entity: input.label || "Unassigned",
+              company_type: input.incomeType,
+              source_id: input.sourceId,
+              transaction_type: "income",
+              needs_review: true,
+              status: "active",
+              actual_withholding: input.taxesWithheld,
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .select("id")
+            .single();
+          if (error) {
+            await supabase.from("planner_conversions").delete().eq("id", conversionId);
+            throw error;
+          }
+          txId = (tx as any).id as string;
+        }
+
+        // One event = one mirror income_entries row. Reuse the row already
+        // linked to this transaction instead of inserting a duplicate.
+        const mirrorFields = {
+          name: input.label,
+          company: input.label,
+          source_id: input.sourceId,
+          income_type: input.incomeType,
+          ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
+          income_date: input.occurrenceDate,
+          ...ledger,
+          deposited_amount: depositedAmount,
+          source_bucket: "business",
+          tax_category: "ordinary",
+          is_actual: true,
+          include_in_tax_estimate: true,
+          include_in_cash_flow: false,
+          status: "received",
+          linked_transaction_id: txId,
+          origin_type: "planner_converted",
+          origin_planner_conversion_id: conversionId,
+        };
+        const { data: existingIe } = await supabase
           .from("income_entries")
-          .insert({
-            user_id: user.id,
-            organization_id: orgId,
-            name: input.label,
-            company: input.label,
-            source_id: input.sourceId,
-            income_type: input.incomeType,
-            ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
-            income_date: input.occurrenceDate,
-            gross_amount: input.grossAmount,
-            paycheck_amount: input.grossAmount,
-            deposited_amount: estimatedTakeHome,
-            federal_withholding: input.federalWithholding,
-            state_withholding: input.stateWithholding,
-            ss_withholding: input.ssWithholding,
-            medicare_withholding: input.medicareWithholding,
-            taxes_withheld: input.taxesWithheld,
-            pre_tax_deductions: input.preTaxDeductions,
-            retirement_401k: input.retirement401k,
-            healthcare_deduction: input.healthcareDeduction,
-            hsa_contribution: input.hsaContribution,
-            additional_tax_reserve: input.additionalTaxReserve ?? 0,
-            source_bucket: "business",
-            tax_category: "ordinary",
-            is_actual: true,
-            include_in_tax_estimate: true,
-            include_in_cash_flow: false,
-            status: "received",
-            linked_transaction_id: txId,
-            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
-            origin_type: "planner_converted",
-            origin_planner_conversion_id: conversionId,
-          } as any);
+          .select("id")
+          .eq("linked_transaction_id", txId)
+          .limit(1)
+          .maybeSingle();
+        const { error: ieErr } = existingIe
+          ? await supabase.from("income_entries").update(mirrorFields as any).eq("id", (existingIe as any).id)
+          : await supabase.from("income_entries").insert({
+              user_id: user.id,
+              organization_id: orgId,
+              ...mirrorFields,
+              notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+            } as any);
         if (ieErr) {
-          console.warn("[planner-convert] business income_entry insert failed", ieErr);
+          console.warn("[planner-convert] business income_entry upsert failed", ieErr);
         }
 
         await supabase

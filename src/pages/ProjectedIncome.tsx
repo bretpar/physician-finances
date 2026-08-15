@@ -188,7 +188,7 @@ export function sumDetailedDeductions(f: {
  * already stored separately (health insurance, HSA). Clamped at zero.
  */
 export { deriveOtherPreTax } from "@/lib/plannerOccurrenceLedger";
-import { deriveOtherPreTax } from "@/lib/plannerOccurrenceLedger";
+import { deriveOtherPreTax, pickExistingBankTransactionId } from "@/lib/plannerOccurrenceLedger";
 
 
 
@@ -1038,12 +1038,8 @@ export default function ProjectedIncome() {
 
     // Personal Income's `pre_tax_deductions` field means "Other pre-tax" only —
     // health insurance and HSA live in their own columns. A detailed planner
-    // occurrence stores an AGGREGATE that already includes them, so derive the
-    // standalone remainder (same rule as the editor hydration) before writing.
-    const preTaxForLedger = detail?.hasDetailedBreakdown
-      ? deriveOtherPreTax(entry.preTaxDeductions, detail.healthcareDeduction, detail.hsaContribution)
-      : entry.preTaxDeductions;
-
+    // occurrence stores an AGGREGATE that already includes them; the canonical
+    // mapping in the conversion hook derives the standalone remainder.
     manualConvert.mutate(
       {
         streamId: entry.streamId,
@@ -1056,7 +1052,12 @@ export default function ProjectedIncome() {
         uiIncomeSubtype: entry.streamCompanyType ?? null,
         grossAmount: entry.grossAmount,
         taxesWithheld: entry.taxesWithheld,
-        preTaxDeductions: preTaxForLedger,
+        preTaxDeductions: entry.preTaxDeductions,
+        hasDetailedBreakdown: Boolean(detail?.hasDetailedBreakdown),
+        existingTransactionId: pickExistingBankTransactionId(
+          entry,
+          isBusiness ? "business" : "personal",
+        ),
         retirement401k: entry.retirement401k,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
