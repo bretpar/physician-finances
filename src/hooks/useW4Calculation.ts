@@ -25,7 +25,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
-import { getSavingsRateForIncomeBucket } from "@/lib/savingsRateSelection";
+import { getCanonicalBucketRatePct } from "@/lib/canonicalEventRecommendation";
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
   buildYtdFallbackEmployerRows,
@@ -76,16 +76,19 @@ export function useW4Calculation(): W4CalculationResult {
   const { data: transactions } = useTransactions();
   const { companies } = useCompanies();
 
-  const businessRateSel = getSavingsRateForIncomeBucket({
-    incomeBucket: "business",
-    incomeType: "1099",
+  // Future business reserve coverage comes from the CANONICAL source
+  // allocation (same helper the W-4 card and Dashboard use), never from a
+  // legacy blended household savings rate. This keeps the W-4 gap from
+  // inventing a second business tax target.
+  const businessReserveRate = getCanonicalBucketRatePct({
+    estimate:
+      (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+        ? (forecastEstimate ?? actualEstimate)
+        : (currentPaceEstimate ?? actualEstimate),
     taxSettings: settings,
-    actualEstimate,
-    currentPaceEstimate,
-    forecastEstimate,
-    includeSETaxInRecommendation: true,
+    bucket: "business",
+    incomeType: "1099",
   });
-  const businessReserveRate = businessRateSel.rate;
 
   const todayStr = new Date().toISOString().split("T")[0];
 
