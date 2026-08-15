@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import type { CoverageStatus } from "@/lib/catchUpRecommendation";
+
 import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip, Link2, Info, X } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
