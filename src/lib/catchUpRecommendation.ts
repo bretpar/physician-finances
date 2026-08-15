@@ -187,9 +187,9 @@ export function deriveBaselineQuarterTarget(
   }
   return sawRecommendation ? Math.max(0, num(coveredSoFar)) : 0;
 }
-
-
+/**
  * Count remaining savings opportunities (future income events) between `now`
+
  * (exclusive) and the deadline (inclusive). Always at least 1 so a shortfall is
  * never silently dropped.
  */
