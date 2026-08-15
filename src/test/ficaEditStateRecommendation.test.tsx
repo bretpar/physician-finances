@@ -95,6 +95,7 @@ describe("FICA edit state", () => {
 
   it("auto-total updates immediately when SS then Medicare are cleared", () => {
     render(<Harness />);
+    fireEvent.click(screen.getByTestId("paycheck-federal-breakdown-toggle"));
     const ssInput = screen.getByTestId("paycheck-social-security-input");
     const medInput = screen.getByTestId("paycheck-medicare-input");
 
