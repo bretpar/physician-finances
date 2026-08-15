@@ -36,8 +36,6 @@ import {
   buildYtdFallbackEmployerRows,
   buildCompanyOnlyEmployerRows,
   computeAllocations,
-  computeRemainingW4Gap,
-  computeSignedW4Gap,
   defaultRemainingPaychecks,
   detectFrequencyFromDates,
   groupW2StreamsByEmployer,
