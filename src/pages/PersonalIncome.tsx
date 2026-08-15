@@ -456,8 +456,10 @@ export default function PersonalIncome() {
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
       alreadyIncludedInEstimate: isEditing,
+      // Historical paychecks never receive future catch-up dollars.
+      isFutureOpportunity: entryIsFutureOpportunity,
     });
-  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing]);
+  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing, entryIsFutureOpportunity]);
 
   // ── Per-paycheck profile-based savings guide ────────────────────────────
   // Simple paycheck-only calculation: uses the user's selected tax profile
