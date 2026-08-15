@@ -39,6 +39,8 @@ import {
   type CoverageStatus,
 } from "@/lib/catchUpRecommendation";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import { isBusinessIncomeType } from "@/lib/ledgerRouting";
+
 import type { InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 
 export type QuarterNum = QuarterNumber;
