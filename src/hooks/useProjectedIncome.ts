@@ -689,13 +689,88 @@ export function useConfirmSuggestedMatch() {
             }
           }
         } else {
-          await supabase
-            .from("transactions")
-            .update({
-              origin_type: "planner_converted",
-              origin_planner_conversion_id: conversionId,
-            } as any)
-            .eq("id", input.incomeEntryId);
+          // Business bucket: `incomeEntryId` is the real bank transaction id.
+          // Preserve its amount / account_source / bank metadata and mirror the
+          // planner deductions onto the single linked income_entries row.
+          const [{ data: txRow }, { data: stream }, { data: overrideRow }] = await Promise.all([
+            supabase
+              .from("transactions")
+              .update({
+                origin_type: "planner_converted",
+                origin_planner_conversion_id: conversionId,
+              } as any)
+              .eq("id", input.incomeEntryId)
+              .select("id, amount, transaction_date, vendor, source_id, company_type, user_id, organization_id")
+              .maybeSingle(),
+            supabase.from("projected_income_streams").select("*").eq("id", input.streamId).maybeSingle(),
+            supabase
+              .from("projected_income_overrides")
+              .select("*")
+              .eq("stream_id", input.streamId)
+              .eq("override_date", input.occurrenceDate)
+              .maybeSingle(),
+          ]);
+
+          const s: any = stream || {};
+          const ov: any = overrideRow || {};
+          const tx: any = txRow || {};
+          const gross = Number(ov.paycheck_amount ?? s.paycheck_amount ?? 0) || 0;
+          const detail = resolveOccurrenceDetail(s as ProjectedIncomeStream, overrideRow as any);
+          const mapped = buildOccurrenceLedgerFields({
+            grossAmount: gross,
+            taxesWithheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
+            preTaxDeductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+            healthcareDeduction: detail.healthcareDeduction,
+            hsaContribution: detail.hsaContribution,
+            federalWithholding: detail.federalWithholding,
+            stateWithholding: detail.stateWithholding,
+            ssWithholding: detail.ssWithholding,
+            medicareWithholding: detail.medicareWithholding,
+            additionalTaxReserve: detail.additionalTaxReserve,
+            hasDetailedBreakdown: detail.hasDetailedBreakdown,
+          });
+          // The bank deposit is the cash truth for Net Received.
+          const bankAmount = Math.abs(Number(tx.amount) || 0);
+          const mirror: Record<string, any> = {
+            ...mapped,
+            deposited_amount: bankAmount > 0 ? bankAmount : mapped.deposited_amount,
+            linked_transaction_id: input.incomeEntryId,
+            source_bucket: "business",
+            income_date: tx.transaction_date || input.occurrenceDate,
+            income_type: s.company_type || tx.company_type || "1099_schedule_c",
+            origin_type: "planner_converted",
+            origin_planner_conversion_id: conversionId,
+            is_actual: true,
+            include_in_tax_estimate: true,
+            include_in_cash_flow: false,
+            status: "received",
+          };
+          if (gross <= 0) {
+            delete mirror.gross_amount;
+            delete mirror.paycheck_amount;
+          }
+          const { data: existingMirror } = await supabase
+            .from("income_entries")
+            .select("id")
+            .eq("linked_transaction_id", input.incomeEntryId)
+            .limit(1)
+            .maybeSingle();
+          if (existingMirror) {
+            await supabase.from("income_entries").update(mirror as any).eq("id", (existingMirror as any).id);
+          } else if (tx.user_id) {
+            await supabase.from("income_entries").insert({
+              user_id: tx.user_id,
+              organization_id: tx.organization_id ?? null,
+              name: s.company || tx.vendor || "Income",
+              company: s.company || tx.vendor || "Income",
+              source_id: s.source_id ?? tx.source_id ?? null,
+              ui_income_subtype: s.ui_income_subtype ?? null,
+              tax_category: "ordinary",
+              notes: "From planner (confirmed match)",
+              ...mirror,
+            } as any);
+          }
         }
       }
     },
