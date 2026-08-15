@@ -192,13 +192,25 @@ export interface CanonicalEventRecommendation {
   recommendedWithholding: number;
   /** Signed version (negative = over-covered). */
   signedRecommendation: number;
-  /** True when the W-2 deficit is delivered through the annual W-4 instead. */
+  /** True when a W-2 deficit is delivered through the annual W-4 instead. */
   fundedByAnnualW4: boolean;
+  // ── Historical vs future eligibility (single centralized rule) ──────────
+  /** False for events already received/completed. */
+  isFutureOpportunity: boolean;
+  /** This event's tax responsibility at the time (display only). */
+  historicalTarget: number;
+  /** Coverage credited to this historical event (display only). */
+  historicalCoverage: number;
+  /** Historical shortfall (target − coverage, floored at 0). Display only. */
+  historicalShortfall: number;
+  /** Actionable future funding ask. Always 0 for historical events. */
+  recommendedFutureFunding: number;
   /** Component breakdown kept for existing tooltips / UI. */
   rateBreakdown: SavingsRateResult;
   methodLabel: string;
   basis: "flat_rate" | "canonical_allocation";
 }
+
 
 function resolveSourceType(incomeType: string, incomeBucket?: "personal" | "business"): AllocationSourceType {
   const raw = (incomeType ?? "").toLowerCase();
