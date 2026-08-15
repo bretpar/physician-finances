@@ -106,3 +106,45 @@ export const PLANNER_CLEANUP_INVALIDATION_KEYS: string[][] = [
   ["orphan_income_entries"],
   ["orphan_planner_entries"],
 ];
+
+/**
+ * Release planner conversions whose ledger row is being deleted.
+ *
+ * The FK is one-directional (income_entries/transactions ->
+ * planner_conversions ON DELETE SET NULL), so deleting a converted ledger row
+ * used to leave the planner_conversions row at status 'converted' forever.
+ * generateProjectedPaychecks then kept tagging the occurrence "converted",
+ * which excludes it from projected totals — while the actual row no longer
+ * exists. The income silently vanished from both sides of the forecast.
+ *
+ * Flipping the conversion to 'cancelled' hands the occurrence back to the
+ * Planner: it flips to "active" and is counted in projected totals again.
+ *
+ * Call this BEFORE deleting the ledger rows.
+ */
+export async function releasePlannerConversionsForLedgerRows(input: {
+  incomeEntryIds?: string[];
+  transactionIds?: string[];
+}): Promise<void> {
+  const incomeEntryIds = (input.incomeEntryIds || []).filter(Boolean);
+  const transactionIds = (input.transactionIds || []).filter(Boolean);
+  const patch = { status: "cancelled", needs_review_reason: "Ledger row deleted — returned to planner" } as any;
+
+  try {
+    if (incomeEntryIds.length > 0) {
+      await supabase
+        .from("planner_conversions")
+        .update({ ...patch, income_entry_id: null })
+        .in("income_entry_id", incomeEntryIds);
+    }
+    if (transactionIds.length > 0) {
+      await supabase
+        .from("planner_conversions")
+        .update({ ...patch, transaction_id: null })
+        .in("transaction_id", transactionIds);
+    }
+  } catch (err) {
+    // Never block the user's delete on this bookkeeping step.
+    console.error("[releasePlannerConversionsForLedgerRows] failed", err);
+  }
+}
