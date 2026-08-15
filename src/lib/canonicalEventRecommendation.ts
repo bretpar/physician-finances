@@ -368,6 +368,10 @@ export function computeCanonicalEventRecommendation(
     ? 0
     : round2(totalSuggestedReserve - creditedWithholding);
 
+  // Historical events are history: they keep their target/coverage for
+  // display but NEVER receive an actionable future funding ask.
+  const historicalShortfall = Math.max(0, round2(eventTaxTarget - creditedWithholding));
+  const recommendedFutureFunding = isFuture ? Math.max(0, signedRecommendation) : 0;
 
   return {
     allocation,
@@ -379,9 +383,15 @@ export function computeCanonicalEventRecommendation(
     catchUpApplied,
     totalSuggestedReserve,
     creditedWithholding,
-    recommendedWithholding: Math.max(0, signedRecommendation),
+    recommendedWithholding: recommendedFutureFunding,
     signedRecommendation,
     fundedByAnnualW4,
+    isFutureOpportunity: isFuture,
+    historicalTarget: eventTaxTarget,
+    historicalCoverage: creditedWithholding,
+    historicalShortfall,
+    recommendedFutureFunding,
+
     rateBreakdown: {
       ...rateBreakdown,
       // Report the rate the recommendation actually used.
