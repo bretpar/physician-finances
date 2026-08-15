@@ -92,9 +92,14 @@ describe("Business Activity income form wiring", () => {
     expect(src).not.toMatch(/retirement\s*\+\s*employerRetirement/);
   });
 
-  it("keeps employer contributions out of take-home / recommendation math", () => {
-    const netBlock = src.slice(src.indexOf("const calculatedNet"), src.indexOf("const calculatedNet") + 700);
-    expect(netBlock).not.toContain("employer_hsa_contribution");
-    expect(netBlock).not.toContain("employer_retirement_contribution");
+  it("only reduces take-home by employer contributions when the company toggle is ON", () => {
+    const netBlock = src.slice(src.indexOf("const calculatedNet"), src.indexOf("const calculatedNet") + 900);
+    // Employer amounts are gated behind the per-company paycheck-reduction
+    // toggles — never subtracted unconditionally.
+    expect(netBlock).toMatch(/employerReducesPaycheck\.retirement\s*\?/);
+    expect(netBlock).toMatch(/employerReducesPaycheck\.hsa\s*\?/);
+    expect(netBlock).not.toMatch(/-\s*num\(incomeForm\.employer_hsa_contribution\)/);
+    expect(netBlock).not.toMatch(/-\s*num\(incomeForm\.employer_retirement_contribution\)/);
   });
+
 });
