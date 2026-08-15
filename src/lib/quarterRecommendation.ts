@@ -209,6 +209,8 @@ const Q_META: Record<QuarterNum, { label: QuarterLabel; deadlineLabel: string }>
  *   Q4: Sep 1 – Dec 31, deadline Jan 15 of next year
  * Mirrors `getCurrentQuarter` from `src/lib/quarters.ts`.
  */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 function buildWindow(year: number, quarter: QuarterNum) {
   const meta = Q_META[quarter];
   let start: Date, end: Date, deadline: Date;
