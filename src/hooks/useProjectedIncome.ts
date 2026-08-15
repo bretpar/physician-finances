@@ -722,6 +722,14 @@ export function useManualPlannerConvert() {
       medicareWithholding: number;
       /** Optional — carried through from a detailed planner breakdown. */
       additionalTaxReserve?: number;
+      /** True when `preTaxDeductions` is the planner AGGREGATE (health + HSA + other). */
+      hasDetailedBreakdown?: boolean;
+      /**
+       * Existing imported/bank transaction that already represents this deposit.
+       * When set, the conversion enriches that row instead of creating a new
+       * `account_source = "Planner"` transaction.
+       */
+      existingTransactionId?: string | null;
       isBonus: boolean;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
