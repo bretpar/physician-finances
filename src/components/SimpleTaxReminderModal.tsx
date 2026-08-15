@@ -52,7 +52,7 @@ export function SimpleTaxReminderModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Info className="h-4 w-4 text-primary" />
-            {estimateIncreased ? "Estimate increased — catch-up needed" : "Stay on pace with taxes"}
+            {estimateIncreased ? "On plan — estimate increased" : "Stay on pace with taxes"}
           </DialogTitle>
         </DialogHeader>
 
