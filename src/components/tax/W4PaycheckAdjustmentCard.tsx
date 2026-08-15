@@ -714,15 +714,26 @@ export default function W4PaycheckAdjustmentCard() {
     });
   }, [streams, companies]);
 
+  // Annual estimate selected by the user's withholding method — one source for
+  // the canonical allocation and every rate below.
+  const selectedEstimate =
+    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? (forecastEstimate ?? actualEstimate)
+      : (currentPaceEstimate ?? actualEstimate);
+
+  // Canonical annual allocation drives the SOURCE-specific W-4 gap below.
+  const canonicalAllocation = useMemo(
+    () => buildAllocationFromEstimate(selectedEstimate),
+    [selectedEstimate],
+  );
+
   const businessReserveRate = getCanonicalBucketRatePct({
-    estimate:
-      (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-        ? (forecastEstimate ?? actualEstimate)
-        : (currentPaceEstimate ?? actualEstimate),
+    estimate: selectedEstimate,
     taxSettings: settings,
     bucket: "business",
     incomeType: "1099",
   }); // % expected on future 1099/business income
+
 
   const todayStr = new Date().toISOString().split("T")[0];
 
