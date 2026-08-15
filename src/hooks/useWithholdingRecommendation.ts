@@ -18,6 +18,13 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isW2FilingType } from "@/lib/filingTypes";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
+import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
+import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
+import {
+  computeCatchUpRecommendation,
+  countRemainingOpportunities,
+  type CatchUpResult,
+} from "@/lib/catchUpRecommendation";
 
 export interface WithholdingInput {
   grossIncome: number;
@@ -33,6 +40,19 @@ export interface WithholdingInput {
   /** Explicit override — true forces SE tax included, false forces it excluded.
    *  Used to apply K-1 entity tax-treatment (active vs passive). */
   isSelfEmploymentTaxable?: boolean | null;
+  /**
+   * Employee Social Security + Medicare contained in `taxesAlreadyWithheld`.
+   * FICA is NOT part of the tax target (federal income tax + SE tax + state),
+   * so this amount is removed from the credit. Pass it whenever the split is
+   * known; legacy callers that only have a single combined number keep the old
+   * behavior.
+   */
+  ficaWithheldNotCredited?: number;
+  /**
+   * Explicit per-paycheck catch-up. When omitted, the hook uses the live
+   * quarterly shortfall spread across remaining paychecks. Pass 0 to opt out.
+   */
+  catchUpAmount?: number;
 }
 
 export interface WithholdingRecommendation {
@@ -68,6 +88,15 @@ export interface WithholdingRecommendation {
   estimatedPaymentsMade: number;
   taxSavingsSetAside: number;
   recommendationBasis: "flat_rate" | "per_entry_rate";
+  // ── FICA / catch-up transparency ──
+  /** Employee SS+Medicare removed from the credit (never offsets income tax). */
+  ficaExcludedFromCredits: number;
+  /** Withholding actually credited against this entry's target. */
+  creditedWithholding: number;
+  /** Prospective catch-up dollars folded into this recommendation. */
+  catchUpApplied: number;
+  /** Quarter-level shortfall context driving the catch-up. */
+  catchUp: CatchUpResult;
 }
 
 /**
@@ -93,8 +122,34 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
     isLoading: estLoading,
   } = useTaxEstimate({ excludeTransactionId: options.excludeTransactionId });
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
+  const quarterInput = useQuarterRecommendationInput();
 
   const isLoading = estLoading || settingsLoading;
+
+  /**
+   * Live quarter shortfall spread PROSPECTIVELY across the paychecks that are
+   * still ahead of the user. This is what makes recovery possible: a user who
+   * fell behind now sees a slightly larger per-paycheck recommendation instead
+   * of a permanently unreachable target.
+   */
+  const catchUpContext = useMemo<CatchUpResult>(() => {
+    const target = getActivePaymentTarget();
+    const quarterRec = buildQuarterRecommendation({
+      ...quarterInput,
+      year: target.year,
+      quarter: target.quarter,
+    });
+    const remainingOpportunities = countRemainingOpportunities(
+      quarterInput.projectedPaychecks,
+      new Date(),
+      quarterRec.deadline,
+    );
+    return computeCatchUpRecommendation({
+      quarterTarget: quarterRec.quarterTarget,
+      coveredSoFar: quarterRec.progressAmount,
+      remainingOpportunities,
+    });
+  }, [quarterInput]);
 
   const getRecommendation = useMemo(() => {
     return (input: WithholdingInput): WithholdingRecommendation | null => {
@@ -111,6 +166,23 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         includeSETaxInRecommendation,
         isSelfEmploymentTaxable,
       } = input;
+
+      // FICA never offsets income tax / SE tax / state tax.
+      const ficaExcludedFromCredits = Math.max(0, Number(input.ficaWithheldNotCredited) || 0);
+      const creditedWithholding = Math.max(
+        0,
+        Math.round((taxesAlreadyWithheld - ficaExcludedFromCredits) * 100) / 100,
+      );
+      const catchUpApplied =
+        input.catchUpAmount != null
+          ? Math.max(0, input.catchUpAmount)
+          : Math.max(0, catchUpContext.quarterlyAdjustmentAmount);
+      const catchUpFields = {
+        ficaExcludedFromCredits,
+        creditedWithholding,
+        catchUpApplied: Math.round(catchUpApplied * 100) / 100,
+        catchUp: catchUpContext,
+      };
 
       if (!settings || grossIncome <= 0) return null;
 
@@ -146,7 +218,10 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         const flatRate = rateSel.rate;
         const taxOnEntry = netTaxableForEntry * (flatRate / 100);
 
-        const rec = Math.max(0, Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100);
+        const rec = Math.max(
+          0,
+          Math.round((taxOnEntry + catchUpApplied - creditedWithholding) * 100) / 100,
+        );
 
         return {
           recommendedWithholding: rec,
@@ -170,6 +245,7 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
           estimatedPaymentsMade: 0,
           taxSavingsSetAside: 0,
           recommendationBasis: "flat_rate",
+          ...catchUpFields,
         };
       }
 
@@ -205,7 +281,10 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
           forecastEstimate,
         });
         const paycheckTarget = netTaxableForEntry * (rateSelection.rate / 100);
-        const recommendedWithholding = Math.max(0, Math.round((paycheckTarget - taxesAlreadyWithheld) * 100) / 100);
+        const recommendedWithholding = Math.max(
+          0,
+          Math.round((paycheckTarget + catchUpApplied - creditedWithholding) * 100) / 100,
+        );
 
         return {
           recommendedWithholding,
@@ -229,6 +308,7 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
           estimatedPaymentsMade: debug.estimatedPaymentsMade,
           taxSavingsSetAside: debug.taxSavingsSetAside,
           recommendationBasis: "per_entry_rate",
+          ...catchUpFields,
         };
       }
 
@@ -258,7 +338,7 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
       });
       const rateToUse = rateSelection.rate;
       const taxOnEntry = netTaxableForEntry * (rateToUse / 100);
-      const raw = Math.round((taxOnEntry - taxesAlreadyWithheld) * 100) / 100;
+      const raw = Math.round((taxOnEntry + catchUpApplied - creditedWithholding) * 100) / 100;
       const recommendedWithholding = Math.max(0, raw);
 
       return {
@@ -283,9 +363,10 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         estimatedPaymentsMade: debug.estimatedPaymentsMade,
         taxSavingsSetAside: debug.taxSavingsSetAside,
         recommendationBasis: "per_entry_rate",
+        ...catchUpFields,
       };
     };
-  }, [actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, settings]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, settings, catchUpContext]);
 
   return { getRecommendation, isLoading };
 }
