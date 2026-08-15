@@ -67,6 +67,39 @@ const Tooltip = ({ open: openProp, defaultOpen, onOpenChange, children, ...props
     };
   }, [open, isControlled, onOpenChange]);
 
+  // On mobile the tooltip is driven EXCLUSIVELY by our own tap handling.
+  // Radix's Root also emits open changes from its internal trigger handlers
+  // (focus, pointerenter, pointerdown-to-close). On touch, tapping a trigger
+  // focuses it, and Radix's focus handler re-opened the tooltip immediately
+  // after our tap closed it — which is why some triggers (Paid) appeared not to
+  // toggle while others (Covered) did, depending on whether the element already
+  // held focus. Ignoring Radix-initiated changes on mobile makes every trigger
+  // behave identically.
+  const handleRadixOpenChange = React.useCallback(
+    (o: boolean) => {
+      if (isMobile) return;
+      setOpen(o);
+    },
+    [isMobile, setOpen],
+  );
+
+  // Mobile: tap anywhere outside the trigger/content closes. The trigger and
+  // content both stop propagation, so any pointerdown that reaches the document
+  // is by definition an outside tap. Escape closes too.
+  React.useEffect(() => {
+    if (!isMobile || !open) return;
+    const onOutside = () => setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onOutside);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [isMobile, open, setOpen]);
+
   const ctx = React.useMemo<TooltipCtx>(
     () => ({ open, setOpen, isMobile, id: idRef.current }),
     [open, setOpen, isMobile],
@@ -76,7 +109,7 @@ const Tooltip = ({ open: openProp, defaultOpen, onOpenChange, children, ...props
     <TooltipContext.Provider value={ctx}>
       <TooltipPrimitive.Root
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={handleRadixOpenChange}
         // On mobile, remove hover delay entirely; tap toggles.
         delayDuration={isMobile ? 0 : props.delayDuration ?? 150}
         disableHoverableContent={isMobile ? true : props.disableHoverableContent}
