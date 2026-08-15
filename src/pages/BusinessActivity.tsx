@@ -48,7 +48,7 @@ import { txTone } from "@/lib/transactionTones";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
 import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
-import { formatDate, formatDateShort } from "@/lib/localDate";
+import { formatDate, formatDateShort, getTodayLocalDateString } from "@/lib/localDate";
 import { DateField } from "@/components/DateField";
 import {
   getFilingMeta,
