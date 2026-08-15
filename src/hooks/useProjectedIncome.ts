@@ -815,19 +815,7 @@ export function useManualPlannerConvert() {
             income_type: input.incomeType,
             ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
             income_date: input.occurrenceDate,
-            gross_amount: input.grossAmount,
-            paycheck_amount: input.grossAmount,
-            deposited_amount: estimatedTakeHome,
-            federal_withholding: input.federalWithholding,
-            state_withholding: input.stateWithholding,
-            ss_withholding: input.ssWithholding,
-            medicare_withholding: input.medicareWithholding,
-            taxes_withheld: input.taxesWithheld,
-            pre_tax_deductions: input.preTaxDeductions,
-            retirement_401k: input.retirement401k,
-            healthcare_deduction: input.healthcareDeduction,
-            hsa_contribution: input.hsaContribution,
-            additional_tax_reserve: input.additionalTaxReserve ?? 0,
+            ...ledger,
             source_bucket: "personal",
             tax_category: "ordinary",
             is_actual: true,
@@ -849,76 +837,102 @@ export function useManualPlannerConvert() {
           .update({ income_entry_id: (ie as any).id })
           .eq("id", conversionId);
       } else {
-        const { data: tx, error } = await supabase
-          .from("transactions")
-          .insert({
-            user_id: user.id,
-            organization_id: orgId,
-            transaction_date: input.occurrenceDate,
-            vendor: input.label,
-            amount: input.grossAmount,
-            account_source: "Planner",
-            category: "Income",
-            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
-            entity: input.label || "Unassigned",
-            company_type: input.incomeType,
-            source_id: input.sourceId,
-            transaction_type: "income",
-            needs_review: true,
-            status: "active",
-            actual_withholding: input.taxesWithheld,
-            origin_type: "planner_converted",
-            origin_planner_conversion_id: conversionId,
-          } as any)
-          .select("id")
-          .single();
-        if (error) {
-          await supabase.from("planner_conversions").delete().eq("id", conversionId);
-          throw error;
-        }
-        const txId = (tx as any).id as string;
+        let txId: string;
+        // Net Received falls back to the real bank deposit when this occurrence
+        // is being converted onto an existing imported transaction.
+        let depositedAmount = ledger.deposited_amount;
 
-        // Also create a linked income_entries row so Business Activity's
-        // Edit Income form and Tax Details Net Received pick up the saved
-        // planner paycheck fields (401(k), pre-tax, healthcare, HSA,
-        // withholdings, and estimated take-home).
-        const { error: ieErr } = await supabase
+        if (input.existingTransactionId) {
+          // Enrich the real bank transaction — never replace its amount,
+          // account_source, or bank metadata with planner values.
+          const { data: existingTx, error: exErr } = await supabase
+            .from("transactions")
+            .update({
+              company_type: input.incomeType,
+              ...(input.sourceId ? { source_id: input.sourceId } : {}),
+              actual_withholding: input.taxesWithheld,
+              needs_review: false,
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .eq("id", input.existingTransactionId)
+            .select("id, amount")
+            .single();
+          if (exErr) {
+            await supabase.from("planner_conversions").delete().eq("id", conversionId);
+            throw exErr;
+          }
+          txId = (existingTx as any).id as string;
+          const bankAmount = Math.abs(Number((existingTx as any).amount) || 0);
+          if (bankAmount > 0) depositedAmount = bankAmount;
+        } else {
+          const { data: tx, error } = await supabase
+            .from("transactions")
+            .insert({
+              user_id: user.id,
+              organization_id: orgId,
+              transaction_date: input.occurrenceDate,
+              vendor: input.label,
+              amount: input.grossAmount,
+              account_source: "Planner",
+              category: "Income",
+              notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+              entity: input.label || "Unassigned",
+              company_type: input.incomeType,
+              source_id: input.sourceId,
+              transaction_type: "income",
+              needs_review: true,
+              status: "active",
+              actual_withholding: input.taxesWithheld,
+              origin_type: "planner_converted",
+              origin_planner_conversion_id: conversionId,
+            } as any)
+            .select("id")
+            .single();
+          if (error) {
+            await supabase.from("planner_conversions").delete().eq("id", conversionId);
+            throw error;
+          }
+          txId = (tx as any).id as string;
+        }
+
+        // One event = one mirror income_entries row. Reuse the row already
+        // linked to this transaction instead of inserting a duplicate.
+        const mirrorFields = {
+          name: input.label,
+          company: input.label,
+          source_id: input.sourceId,
+          income_type: input.incomeType,
+          ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
+          income_date: input.occurrenceDate,
+          ...ledger,
+          deposited_amount: depositedAmount,
+          source_bucket: "business",
+          tax_category: "ordinary",
+          is_actual: true,
+          include_in_tax_estimate: true,
+          include_in_cash_flow: false,
+          status: "received",
+          linked_transaction_id: txId,
+          origin_type: "planner_converted",
+          origin_planner_conversion_id: conversionId,
+        };
+        const { data: existingIe } = await supabase
           .from("income_entries")
-          .insert({
-            user_id: user.id,
-            organization_id: orgId,
-            name: input.label,
-            company: input.label,
-            source_id: input.sourceId,
-            income_type: input.incomeType,
-            ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
-            income_date: input.occurrenceDate,
-            gross_amount: input.grossAmount,
-            paycheck_amount: input.grossAmount,
-            deposited_amount: estimatedTakeHome,
-            federal_withholding: input.federalWithholding,
-            state_withholding: input.stateWithholding,
-            ss_withholding: input.ssWithholding,
-            medicare_withholding: input.medicareWithholding,
-            taxes_withheld: input.taxesWithheld,
-            pre_tax_deductions: input.preTaxDeductions,
-            retirement_401k: input.retirement401k,
-            healthcare_deduction: input.healthcareDeduction,
-            hsa_contribution: input.hsaContribution,
-            additional_tax_reserve: input.additionalTaxReserve ?? 0,
-            source_bucket: "business",
-            tax_category: "ordinary",
-            is_actual: true,
-            include_in_tax_estimate: true,
-            include_in_cash_flow: false,
-            status: "received",
-            linked_transaction_id: txId,
-            notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
-            origin_type: "planner_converted",
-            origin_planner_conversion_id: conversionId,
-          } as any);
+          .select("id")
+          .eq("linked_transaction_id", txId)
+          .limit(1)
+          .maybeSingle();
+        const { error: ieErr } = existingIe
+          ? await supabase.from("income_entries").update(mirrorFields as any).eq("id", (existingIe as any).id)
+          : await supabase.from("income_entries").insert({
+              user_id: user.id,
+              organization_id: orgId,
+              ...mirrorFields,
+              notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+            } as any);
         if (ieErr) {
-          console.warn("[planner-convert] business income_entry insert failed", ieErr);
+          console.warn("[planner-convert] business income_entry upsert failed", ieErr);
         }
 
         await supabase
