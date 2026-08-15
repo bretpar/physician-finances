@@ -780,8 +780,10 @@ export default function PersonalIncome() {
             if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
+              setReminderStatus(recommendation.coverageStatus);
               setShowRecommendation(true);
             }
+
           }
         },
       });
