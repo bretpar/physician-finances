@@ -11,6 +11,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isCompanyIncomeSourceInactive } from "@/lib/householdIncomeProfile";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
+import { resolveReserveTargetEntry, nextReserveAmount } from "@/lib/reserveTargetEntry";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import {
@@ -278,8 +279,15 @@ export default function Transactions() {
   const [reminderRecommended, setReminderRecommended] = useState(0);
   const [reminderActualSaved, setReminderActualSaved] = useState(0);
   const [reminderStatus, setReminderStatus] = useState<CoverageStatus | undefined>(undefined);
+  /**
+   * The income_entries row that generated the recommendation currently shown in
+   * the reminder modal. The reserve MUST land on this row — writing to
+   * `incomeEntries[0]` put a 1099 reserve on the newest W-2 paycheck, which
+   * inflated W-2 Saved and left the 1099 source row missing entirely.
+   */
+  const [savedEntryId, setSavedEntryId] = useState<string | null>(null);
 
-  const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
+  const { getRecommendation: getIncomeRec, getCatchUpExcludingEntry } = useIncomeRecommendation();
   // Advanced dynamic reserve recommendations are Premium; the income entry
   // itself, its stored withholding and the basic estimate stay Free.
   const { can: canFeatureAccess } = useFeatureAccess();
@@ -968,6 +976,9 @@ export default function Transactions() {
         onSuccess: (result) => {
           // Flush any locally staged receipts to the new transaction.
           const newTxId = (result as { transactionId?: string | null } | undefined)?.transactionId || null;
+          const newEntryId =
+            (result as { incomeEntryId?: string | null } | undefined)?.incomeEntryId || null;
+          setSavedEntryId(newEntryId);
           if (newTxId && pendingIncomeAttachments.length > 0) {
             uploadAttachments.mutate({
               transactionId: newTxId,
@@ -997,7 +1008,13 @@ export default function Transactions() {
               setSavedEntryTitle(incomeForm.name);
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
-              setReminderStatus(rec?.coverageStatus);
+              // Status must judge compliance with recommendations that existed
+              // BEFORE this new income event; the brand-new recommendation is
+              // excluded so a moved target reads "estimate increased".
+              setReminderStatus(
+                (newEntryId ? getCatchUpExcludingEntry(newEntryId).recommendationStatus : undefined) ??
+                  rec?.coverageStatus,
+              );
               setShowRecommendation(true);
             }
           }
@@ -2457,12 +2474,16 @@ export default function Transactions() {
         onApply={() => {
           const additional = Math.max(0, reminderRecommended - reminderActualSaved);
           if (additional > 0 && incomeEntries?.length) {
-            const latestEntry = incomeEntries[0];
-            if (latestEntry) {
-              const currentReserve = Number((latestEntry as any).additional_tax_reserve || 0);
+            // Persist against the entry that OWNS this recommendation. Only fall
+            // back to the newest row for legacy flows with no captured id.
+            const targetEntry = resolveReserveTargetEntry(incomeEntries as any[], savedEntryId);
+            if (targetEntry) {
               updateIncomeMutation.mutate({
-                id: latestEntry.id,
-                additional_tax_reserve: Math.round((currentReserve + additional) * 100) / 100,
+                id: targetEntry.id,
+                additional_tax_reserve: nextReserveAmount(
+                  (targetEntry as any).additional_tax_reserve,
+                  additional,
+                ),
               } as any);
             }
           }

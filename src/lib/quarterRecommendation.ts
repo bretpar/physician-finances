@@ -88,6 +88,13 @@ export interface QuarterRecommendationInput {
    * Only used to label a gap as "estimate increased" instead of "behind".
    */
   baselineQuarterTarget?: number;
+  /**
+   * Income entry ids whose recommendation was created by the liability-changing
+   * event currently being evaluated. Excluded from the prior-compliance
+   * baseline only — no dollar amount, aggregation or source row is affected.
+   */
+  excludeRecommendationEntryIds?: string[];
+
   /** Used for the "due soon / overdue" callout window. Defaults to `new Date()`. */
   now?: Date;
 }
@@ -581,7 +588,7 @@ export function buildQuarterRecommendation(
   // When the caller doesn't supply a baseline, derive it from the per-row
   // recommendation snapshots so a target that moved up AFTER the user followed
   // every prior recommendation reads "estimate increased" instead of "behind".
-  const complianceRows: Array<{ recommended: number; satisfied: number }> = [];
+  const complianceRows: Array<{ id?: string | null; recommended: number; satisfied: number }> = [];
   const seenComplianceIds = new Set<string>();
   for (const e of [...incomeEntries, ...personalEntries] as any[]) {
     if (e?.id) {
@@ -596,11 +603,16 @@ export function buildQuarterRecommendation(
       Math.max(0, Number(e?.additional_tax_reserve || 0)) +
       Math.max(0, Number((tx as any)?.actual_withholding || 0)) +
       Math.max(0, getFederalIncomeTaxWithheld(e));
-    complianceRows.push({ recommended, satisfied });
+    complianceRows.push({ id: e?.id ?? null, recommended, satisfied });
   }
   const baselineQuarterTarget =
     input.baselineQuarterTarget ??
-    deriveBaselineQuarterTarget(complianceRows, progressAmount);
+    deriveBaselineQuarterTarget(
+      complianceRows,
+      progressAmount,
+      input.excludeRecommendationEntryIds,
+    );
+
 
   const catchUp = computeCatchUpRecommendation({
     quarterTarget,

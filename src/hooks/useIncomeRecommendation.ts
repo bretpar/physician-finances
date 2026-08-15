@@ -124,6 +124,36 @@ export function useIncomeRecommendation() {
     });
   }, [quarterInput]);
 
+  /**
+   * Same quarter status as `catchUpContext`, but with the recommendation that
+   * the just-saved income event generated excluded from the prior-compliance
+   * baseline. Without this, a brand-new (not yet acted on) recommendation makes
+   * "estimate increased" unreachable and the UI falls back to generic copy.
+   */
+  const getCatchUpExcludingEntry = useMemo(() => {
+    return (incomeEntryId?: string | null): CatchUpResult => {
+      if (!incomeEntryId) return catchUpContext;
+      const target = getActivePaymentTarget();
+      const quarterRec = buildQuarterRecommendation({
+        ...quarterInput,
+        year: target.year,
+        quarter: target.quarter,
+        excludeRecommendationEntryIds: [incomeEntryId],
+      });
+      const remainingOpportunities = countRemainingOpportunities(
+        quarterInput.projectedPaychecks,
+        new Date(),
+        quarterRec.deadline,
+      );
+      return computeCatchUpRecommendation({
+        quarterTarget: quarterRec.quarterTarget,
+        coveredSoFar: quarterRec.progressAmount,
+        remainingOpportunities,
+        baselineQuarterTarget: quarterRec.baselineQuarterTarget,
+      });
+    };
+  }, [quarterInput, catchUpContext]);
+
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
       const { grossIncome, incomeType, incomeBucket, federalWithheld, stateWithheld, retirement401k, preTaxDeductions, companyId, applyBusinessStateTax, includeSETaxInRecommendation } = input;
@@ -236,5 +266,5 @@ export function useIncomeRecommendation() {
     };
   }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings, catchUpContext]);
 
-  return { getRecommendation, isLoading };
+  return { getRecommendation, getCatchUpExcludingEntry, isLoading };
 }
