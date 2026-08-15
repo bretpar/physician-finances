@@ -154,6 +154,32 @@ export interface QuarterRecommendation {
   // ── Per-company breakdown ─────────────────────────────────────────────────
   sourceRows: QuarterSourceRow[];
 
+  // ── Informational payroll taxes (never credited) ──────────────────────────
+  /**
+   * Employee Social Security + Medicare withheld from W-2 paychecks dated in
+   * this quarter. Shown as "already handled" — NEVER counted toward Paid,
+   * because the quarter target contains income tax + SE tax (+ state), not
+   * employee FICA.
+   */
+  payrollTaxesHandledThisQuarter: number;
+  /** State withholding dated this quarter (credited only when in target). */
+  stateWithheldThisQuarter: number;
+  /** Whether state withholding was credited toward Paid. */
+  stateIncomeTaxIncludedInTarget: boolean;
+
+  // ── Prospective catch-up + status ─────────────────────────────────────────
+  /** Signed gap for the quarter: positive = shortfall, negative = surplus. */
+  shortfallOrSurplus: number;
+  /** Dollars still needed by the deadline (floored at 0). */
+  totalShortfallByDeadline: number;
+  /** Opportunities the shortfall is spread across (>= 1). */
+  remainingOpportunities: number;
+  /** Per-opportunity catch-up to add to future recommendations. */
+  catchUpPerOpportunity: number;
+  coverageStatus: CoverageStatus;
+  statusHeadline: string;
+  statusDetail: string;
+
   // ── Legacy duplicate fields kept for older callers ────────────────────────
   /** @deprecated split into paidFromWithholding. */
   w2WithheldThisQuarter: number;
@@ -162,6 +188,7 @@ export interface QuarterRecommendation {
   /** @deprecated use estimatedPaymentsMade. */
   estimatedPaymentsThisQuarter: number;
 }
+
 
 const Q_META: Record<QuarterNum, { label: QuarterLabel; deadlineLabel: string }> = {
   1: { label: "Q1", deadlineLabel: "Apr 15" },
