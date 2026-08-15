@@ -165,78 +165,29 @@ export function useIncomeRecommendation() {
 
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
-      const { grossIncome, incomeType, incomeBucket, federalWithheld, stateWithheld, retirement401k, preTaxDeductions, companyId, applyBusinessStateTax, includeSETaxInRecommendation } = input;
+      const {
+        grossIncome,
+        incomeType,
+        incomeBucket,
+        federalWithheld,
+        stateWithheld,
+        retirement401k,
+        preTaxDeductions,
+        companyId,
+        applyBusinessStateTax,
+        includeSETaxInRecommendation,
+      } = input;
 
       if (!settings || grossIncome <= 0) return null;
 
       const isW2 = isW2FilingType(incomeType);
       const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
       const withholdingMethod = settings.withholdingMethod || "dynamic_planner";
-      const profile = getSelectedWithholdingProfileRate({ taxSettings: settings, actualEstimate, currentPaceEstimate, forecastEstimate });
-
-      // Net taxable for this entry
-      const netTaxable = Math.max(0, grossIncome - retirement401k - preTaxDeductions);
-
-      // ── BASE TAX ESTIMATE (always available, core feature) ──
-      let baseTaxEstimate: number;
-      let effectiveRate: number;
-      let methodLabel: string;
-
-      if (withholdingMethod === "flat_estimate") {
-        const rateSel = getSavingsRateForIncomeBucket({
-          incomeBucket: resolvedBucket,
-          incomeType,
-          taxSettings: settings,
-          actualEstimate,
-          currentPaceEstimate,
-          forecastEstimate,
-          companyId,
-          applyBusinessStateTax,
-          includeSETaxInRecommendation,
-          filingStatus: (settings as any)?.filingStatus ?? undefined,
-          entryGrossAmount: netTaxable,
-        });
-        baseTaxEstimate = netTaxable * (rateSel.rate / 100);
-        effectiveRate = rateSel.rate;
-        methodLabel = rateSel.label;
-      } else {
-        const estimate = withholdingMethod === "dynamic_planner" ? forecastEstimate : (currentPaceEstimate ?? actualEstimate);
-        if (!estimate) return null;
-        const rateToUse = getSavingsRateForIncomeBucket({
-          incomeBucket: resolvedBucket,
-          incomeType,
-          taxSettings: settings,
-          actualEstimate,
-          currentPaceEstimate,
-          forecastEstimate,
-          companyId,
-          applyBusinessStateTax,
-          includeSETaxInRecommendation,
-          filingStatus: (settings as any)?.filingStatus ?? undefined,
-          entryGrossAmount: netTaxable,
-        }).rate;
-        baseTaxEstimate = netTaxable * (rateToUse / 100);
-        effectiveRate = rateToUse;
-        methodLabel = profile.label;
-      }
-
-      baseTaxEstimate = Math.round(baseTaxEstimate * 100) / 100;
-
-      // ── PER-ENTRY RESERVE RECOMMENDATION ──
-      const dynamicTaxRecommendation = baseTaxEstimate;
-      const quarterlyAdjustmentAmount =
-        input.catchUpAmount != null
-          ? Math.max(0, Math.round(input.catchUpAmount * 100) / 100)
-          : catchUpContext.quarterlyAdjustmentAmount;
-      const recommendationStatus: RecommendationStatus = catchUpContext.legacyStatus;
-      const shortfallOrSurplus = catchUpContext.shortfallOrSurplus;
-      const totalShortfallByDeadline = catchUpContext.totalShortfallByDeadline;
-      const confidence: RecommendationConfidence = "high";
-      const spreadExplanation =
-        quarterlyAdjustmentAmount > 0
-          ? `This paycheck plus a catch-up share of this quarter's shortfall, spread across your remaining ${catchUpContext.remainingOpportunities} paycheck(s)`
-          : "Based on this paycheck only";
-      const projectedEventsUsed = catchUpContext.remainingOpportunities;
+      const estimate =
+        withholdingMethod === "dynamic_planner"
+          ? forecastEstimate
+          : (currentPaceEstimate ?? actualEstimate);
+      if (withholdingMethod !== "flat_estimate" && !estimate) return null;
 
       // FICA is never an income-tax credit; state counts only when it is part
       // of the target.
@@ -244,31 +195,62 @@ export function useIncomeRecommendation() {
       const creditedFederal = Math.max(0, federalWithheld - ficaExcludedFromCredits);
       const creditedState = input.stateTaxIncludedInTarget === false ? 0 : stateWithheld;
       const actualWithheld = creditedFederal + creditedState;
-      const totalSuggestedReserve = Math.round((baseTaxEstimate + quarterlyAdjustmentAmount) * 100) / 100;
-      const recommendedAdditionalReserve = Math.max(
-        0,
-        Math.round((totalSuggestedReserve - actualWithheld) * 100) / 100,
-      );
+
+      const requestedCatchUp =
+        input.catchUpAmount != null
+          ? Math.max(0, input.catchUpAmount)
+          : catchUpContext.quarterlyAdjustmentAmount;
+
+      // ONE canonical source of truth, shared with useWithholdingRecommendation.
+      const canonical = computeCanonicalEventRecommendation({
+        estimate: estimate ?? actualEstimate,
+        taxSettings: settings,
+        incomeType,
+        incomeBucket: resolvedBucket,
+        grossIncome,
+        retirement401k,
+        preTaxDeductions,
+        companyId,
+        applyBusinessStateTax,
+        includeSETaxInRecommendation,
+        filingStatus: (settings as any)?.filingStatus ?? undefined,
+        creditedWithholding: actualWithheld,
+        catchUpAmount: requestedCatchUp,
+        isFutureOpportunity: input.isFutureOpportunity,
+        w2FundingMethod: (settings as any)?.w2PaycheckRecMethod ?? "annual_w4",
+      });
+      if (!canonical) return null;
+
+      const baseTaxEstimate = canonical.eventTaxTarget;
+      const quarterlyAdjustmentAmount = canonical.catchUpApplied;
+      const recommendationStatus: RecommendationStatus = catchUpContext.legacyStatus;
+      const spreadExplanation =
+        quarterlyAdjustmentAmount > 0
+          ? `This paycheck plus a catch-up share of this quarter's shortfall, spread across your remaining ${catchUpContext.remainingOpportunities} paycheck(s)`
+          : "Based on this paycheck only";
 
       return {
         baseTaxEstimate,
-        dynamicTaxRecommendation,
+        dynamicTaxRecommendation: baseTaxEstimate,
         quarterlyAdjustmentAmount,
-        totalSuggestedReserve,
+        totalSuggestedReserve: canonical.totalSuggestedReserve,
         recommendationStatus,
-        shortfallOrSurplus,
-        totalShortfallByDeadline,
-        recommendedAdditionalReserve,
+        shortfallOrSurplus: catchUpContext.shortfallOrSurplus,
+        totalShortfallByDeadline: catchUpContext.totalShortfallByDeadline,
+        recommendedAdditionalReserve: canonical.recommendedWithholding,
         ficaExcludedFromCredits,
         coverageStatus: catchUpContext.recommendationStatus,
         statusHeadline: catchUpContext.statusHeadline,
         statusDetail: catchUpContext.statusDetail,
         catchUp: catchUpContext,
-        projectedEventsBeforeDeadline: projectedEventsUsed,
-        confidence,
+        eventTaxTarget: canonical.eventTaxTarget,
+        allocatedEventTax: canonical.target,
+        fundedByAnnualW4: canonical.fundedByAnnualW4,
+        projectedEventsBeforeDeadline: catchUpContext.remainingOpportunities,
+        confidence: "high",
         spreadExplanation,
-        effectiveRate,
-        methodLabel,
+        effectiveRate: canonical.rateBreakdown.rate,
+        methodLabel: canonical.methodLabel,
         isDynamicEnabled: quarterlyAdjustmentAmount > 0,
         nextDeadlineLabel: "this paycheck",
       };
