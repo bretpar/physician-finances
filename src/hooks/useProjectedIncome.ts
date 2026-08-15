@@ -142,6 +142,9 @@ export interface PlannerConversionRef {
   bonus_event_id: string | null;
   occurrence_date: string;
   status: string;
+  /** Stable link to the ledger row this occurrence produced (identity anchor). */
+  income_entry_id?: string | null;
+  transaction_id?: string | null;
 }
 
 export interface ProjectedPaycheck {
@@ -591,7 +594,7 @@ export function usePlannerConversions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("planner_conversions")
-        .select("stream_id, bonus_event_id, occurrence_date, status");
+        .select("stream_id, bonus_event_id, occurrence_date, status, income_entry_id, transaction_id");
       if (error) throw error;
       return (data || []) as PlannerConversionRef[];
     },
