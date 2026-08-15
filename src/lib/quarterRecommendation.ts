@@ -678,6 +678,7 @@ export function buildQuarterRecommendation(
     coverageStatus: catchUp.recommendationStatus,
     statusHeadline: catchUp.statusHeadline,
     statusDetail: catchUp.statusDetail,
+    baselineQuarterTarget: round2(baselineQuarterTarget),
     estimatedPaymentsThisQuarter: estimatedPaymentsMade,
   };
 }
