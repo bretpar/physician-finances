@@ -315,6 +315,12 @@ export interface TaxEstimate {
   deductionType: "standard" | "itemized";
   taxableIncome: number;
   federalTaxBeforeCredits: number;
+  /** Ordinary-income slice of federalTaxBeforeCredits (progressive brackets). */
+  ordinaryFederalTaxBeforeCredits: number;
+  /** Preferential slice (LTCG + qualified dividends) of federalTaxBeforeCredits. */
+  preferentialFederalTaxBeforeCredits: number;
+  /** Portion of taxableIncome taxed at LTCG / qualified-dividend rates. */
+  preferentialTaxableIncome: number;
   /** Total credits applied (CTC + ODC, with phase-out) */
   taxCredits: number;
   federalTax: number;
@@ -727,6 +733,9 @@ export function calculateFullEstimate(params: {
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
     deductionApplied, deductionType,
     federalTaxBeforeCredits, taxCredits,
+    ordinaryFederalTaxBeforeCredits: ordinaryFederalTax,
+    preferentialFederalTaxBeforeCredits: ltcgFederalTax,
+    preferentialTaxableIncome: ltcgSlice,
     federalTax, seTax,
     personalStateTax, businessStateTax, stateTax,
     totalTaxLiability,
