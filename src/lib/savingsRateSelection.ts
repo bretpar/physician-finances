@@ -283,6 +283,37 @@ function getBusinessStateRate(s: SavingsRateSettingsLike, input: SavingsRateInpu
   return Math.max(0, Number(s.businessStateTaxRate || 0));
 }
 
+/**
+ * Business state / B&O rate (PERCENT) for one entry. Exported so the canonical
+ * event-recommendation layer can attach this tax to the responsible business
+ * only — it must never be blended into a household rate applied to W-2 income.
+ */
+export function getBusinessStateRateForEntry(
+  settings: SavingsRateSettingsLike | null | undefined,
+  entry: { companyId?: string | null; applyBusinessStateTax?: boolean | null },
+): number {
+  return getBusinessStateRate(settings ?? {}, {
+    incomeBucket: "business",
+    taxSettings: settings,
+    actualEstimate: null,
+    forecastEstimate: null,
+    companyId: entry.companyId,
+    applyBusinessStateTax: entry.applyBusinessStateTax,
+  });
+}
+
+/**
+ * Marginal SE tax rate for one entry as a FRACTION of the entry's SE base.
+ * Wraps the wage-base-aware breakdown so the canonical recommendation layer
+ * reuses the same Social Security cap / Additional Medicare logic rather than
+ * re-deriving SE tax.
+ */
+export function getMarginalSelfEmploymentRateFraction(input: SavingsRateInput): number {
+  if (!isSETaxableIncome(input)) return 0;
+  const b = computeMarginalSelfEmploymentBreakdown(input);
+  return Math.max(0, (b.socialSecurity + b.medicare + b.additionalMedicare) / 100);
+}
+
 /** Legacy "flat" SE effective rate (≈14.13%). Kept for back-compat; the
  *  recommendation layer now uses computeMarginalSelfEmploymentRate so that
  *  Social Security drops off after the annual wage base is reached. */

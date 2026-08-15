@@ -201,10 +201,14 @@ export interface CanonicalEventRecommendation {
 }
 
 function resolveSourceType(incomeType: string, incomeBucket?: "personal" | "business"): AllocationSourceType {
+  const raw = (incomeType ?? "").toLowerCase();
+  if (raw.includes("investment") || raw.includes("dividend") || raw.includes("capital")) {
+    return "investment";
+  }
   const filing = normalizeFilingType(incomeType);
   if (isW2FilingType(filing) || incomeBucket === "personal") return "w2";
-  if (filing === "k1_partnership") return "k1";
-  if (filing === "investment") return "investment";
+  if (filing === "scorp_w2") return "scorp_w2";
+  if (raw.includes("k1")) return "k1";
   return "1099";
 }
 
@@ -212,7 +216,8 @@ function isSETaxable(input: CanonicalEventRecommendationInput): boolean {
   if (input.includeSETaxInRecommendation === false) return false;
   if (input.isSelfEmploymentTaxable != null) return !!input.isSelfEmploymentTaxable;
   const filing = normalizeFilingType(input.incomeType);
-  return filing === "1099_schedule_c" || filing === "k1_partnership";
+  const raw = (input.incomeType ?? "").toLowerCase();
+  return filing === "1099_schedule_c" || raw.includes("k1");
 }
 
 /**
