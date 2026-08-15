@@ -560,12 +560,38 @@ export function buildQuarterRecommendation(
   // ── Prospective catch-up + status language ───────────────────────────────
   // Shortfalls are spread across REMAINING opportunities only; past
   // recommendations are never rewritten.
+  //
+  // When the caller doesn't supply a baseline, derive it from the per-row
+  // recommendation snapshots so a target that moved up AFTER the user followed
+  // every prior recommendation reads "estimate increased" instead of "behind".
+  const complianceRows: Array<{ recommended: number; satisfied: number }> = [];
+  const seenComplianceIds = new Set<string>();
+  for (const e of [...incomeEntries, ...personalEntries] as any[]) {
+    if (e?.id) {
+      if (seenComplianceIds.has(e.id)) continue;
+      seenComplianceIds.add(e.id);
+    }
+    if (!inWin(e?.income_date)) continue;
+    const recommended = Math.max(0, Number(e?.dynamic_tax_recommendation || 0));
+    if (recommended <= 0) continue;
+    const tx = e?.linked_transaction_id ? liveTxById.get(e.linked_transaction_id) : undefined;
+    const satisfied =
+      Math.max(0, Number(e?.additional_tax_reserve || 0)) +
+      Math.max(0, Number((tx as any)?.actual_withholding || 0)) +
+      Math.max(0, getFederalIncomeTaxWithheld(e));
+    complianceRows.push({ recommended, satisfied });
+  }
+  const baselineQuarterTarget =
+    input.baselineQuarterTarget ??
+    deriveBaselineQuarterTarget(complianceRows, progressAmount);
+
   const catchUp = computeCatchUpRecommendation({
     quarterTarget,
     coveredSoFar: progressAmount,
     remainingOpportunities: input.remainingOpportunities,
-    baselineQuarterTarget: input.baselineQuarterTarget,
+    baselineQuarterTarget,
   });
+
 
   const recommendedQuarterlyPayment = Math.max(
     0,
