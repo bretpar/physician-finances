@@ -164,6 +164,31 @@ export function computeCatchUpRecommendation(input: CatchUpInput): CatchUpResult
 }
 
 /**
+ * Derive the quarter target the user was effectively recommended against,
+ * WITHOUT any new schema. Prior recommendations are snapshotted per income row
+ * (`dynamic_tax_recommendation`); when every in-quarter row that carried a
+ * recommendation was satisfied, the dollars covered so far represent a plan the
+ * user fully followed — so that becomes the baseline. A later target increase is
+ * then reported as "estimate increased" instead of blaming the user.
+ *
+ * Returns 0 when there is nothing to judge, or when any recommendation was left
+ * unsatisfied (genuine noncompliance still shows as behind).
+ */
+export function deriveBaselineQuarterTarget(
+  rows: Array<{ recommended?: number | null; satisfied?: number | null }>,
+  coveredSoFar: number,
+): number {
+  let sawRecommendation = false;
+  for (const r of rows) {
+    const recommended = Math.max(0, num(r?.recommended));
+    if (recommended <= 0) continue;
+    sawRecommendation = true;
+    if (Math.max(0, num(r?.satisfied)) < recommended * COVERAGE_ON_TRACK) return 0;
+  }
+  return sawRecommendation ? Math.max(0, num(coveredSoFar)) : 0;
+}
+
+
  * Count remaining savings opportunities (future income events) between `now`
  * (exclusive) and the deadline (inclusive). Always at least 1 so a shortfall is
  * never silently dropped.
