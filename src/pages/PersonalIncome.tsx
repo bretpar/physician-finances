@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import type { CoverageStatus } from "@/lib/catchUpRecommendation";
+
 import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip, Link2, Info, X } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
@@ -315,6 +317,8 @@ export default function PersonalIncome() {
   const [savedEntryMode, setSavedEntryMode] = useState<"create" | "update" | null>(null);
   const [reminderRecommended, setReminderRecommended] = useState(0);
   const [reminderActualSaved, setReminderActualSaved] = useState(0);
+  const [reminderStatus, setReminderStatus] = useState<CoverageStatus | undefined>(undefined);
+
 
   const isEditing = !!editingId;
   const setField = (key: keyof FormState, value: string) =>
@@ -780,8 +784,10 @@ export default function PersonalIncome() {
             if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
               setReminderRecommended(recommended);
               setReminderActualSaved(actualSaved);
+              setReminderStatus(recommendation.coverageStatus);
               setShowRecommendation(true);
             }
+
           }
         },
       });
@@ -1774,6 +1780,7 @@ export default function PersonalIncome() {
         recommendedSavings={reminderRecommended}
         actualSaved={reminderActualSaved}
         entryTitle={savedEntryTitle}
+        coverageStatus={reminderStatus}
       />
 
       {/* Delete confirmation */}
