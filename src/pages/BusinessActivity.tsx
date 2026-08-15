@@ -553,9 +553,21 @@ export default function Transactions() {
     if (k1TreatmentForEntry === "passive" || k1TreatmentForEntry === "scorp_distribution") return false;
     return undefined;
   }, [incomeForm.income_type, k1TreatmentForEntry]);
+  /**
+   * Catch-up dollars may only be assigned to FUTURE income events. A business
+   * income event dated in the past is history — loading it with a quarterly
+   * deficit produces a recommendation the user can never act on.
+   */
+  const incomeEntryIsFutureOpportunity = useMemo(() => {
+    const d = incomeForm.date;
+    if (!d) return true;
+    return d >= getTodayLocalDateString();
+  }, [incomeForm.date]);
+
   const recommendation = useMemo(() => {
     if (grossIncome <= 0) return null;
     return getRecommendation({
+      isFutureOpportunity: incomeEntryIsFutureOpportunity,
       grossIncome,
       incomeType: incomeForm.income_type,
       taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
@@ -566,7 +578,7 @@ export default function Transactions() {
       includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
       isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
-  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride]);
+  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
 
   /**
