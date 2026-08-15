@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { X } from "lucide-react";
+import { Info, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -217,4 +217,42 @@ const TooltipContent = React.forwardRef<
 );
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+/**
+ * Shared info-icon tooltip. Use this instead of a native `title` attribute so
+ * the tap-to-open / tap-outside-to-close behavior is identical everywhere.
+ */
+const InfoTooltip = ({
+  children,
+  label = "More information",
+  className,
+  contentClassName,
+  side,
+}: {
+  children: React.ReactNode;
+  label?: string;
+  className?: string;
+  contentClassName?: string;
+  side?: "top" | "right" | "bottom" | "left";
+}) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className={cn(
+            "inline-flex items-center justify-center align-middle text-muted-foreground hover:text-foreground",
+            className,
+          )}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side={side} className={cn("max-w-[16rem] text-xs leading-relaxed", contentClassName)}>
+        {children}
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, InfoTooltip };
