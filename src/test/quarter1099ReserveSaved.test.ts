@@ -180,7 +180,7 @@ describe("catch-up status language", () => {
     const rows = withRecommendations(true);
     const r = buildQuarterRecommendation(
       base({
-        annualTaxLiability: 6164 * 4,
+        annualTaxLiability: 9000 * 4,
         personalEntries: rows,
         incomeEntries: [...rows, make1099({ dynamic_tax_recommendation: 0 })],
         remainingOpportunities: 2,
@@ -195,7 +195,7 @@ describe("catch-up status language", () => {
     const rows = withRecommendations(false);
     const r = buildQuarterRecommendation(
       base({
-        annualTaxLiability: 6164 * 4,
+        annualTaxLiability: 9000 * 4,
         personalEntries: rows,
         incomeEntries: [...rows],
         remainingOpportunities: 2,
