@@ -340,7 +340,7 @@ export default function Dashboard() {
     <div className="space-y-6 max-w-3xl mx-auto">
       <header className="px-1 pb-1">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-lg font-medium text-foreground/90">Welcome back, {greeting}</h1>
+          <h1 className="text-lg font-medium text-foreground/90">Welcome Bback, {greeting}</h1>
           <span
             data-testid="account-tier-label"
             className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-muted-foreground"
