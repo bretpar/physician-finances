@@ -60,6 +60,9 @@ import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useW4Calculation } from "@/hooks/useW4Calculation";
+import { decideW2PaycheckRecDisplay } from "@/lib/w2PaycheckRecMethod";
+import { normalizeEmployerName } from "@/components/tax/W4PaycheckAdjustmentCard";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -413,8 +416,26 @@ export default function PersonalIncome() {
   }, [entries, stateIncomeTaxEnabled]);
 
 
+  // Annual W-4 planning context. When the user's W-2 recommendation method is
+  // "annual_w4", the W-2 share of the canonical annual liability is funded via
+  // Step 4(c) extra withholding — Personal Income must NOT also ask for a
+  // separate savings amount for the same dollars.
+  const w4 = useW4Calculation();
+
   // Base withholding recommendation for Modal 1
   const grossAmount = num(form.gross_amount);
+
+  /**
+   * Catch-up dollars may only be assigned to FUTURE savings opportunities.
+   * A paycheck dated in the past is already history — loading it with a
+   * quarterly deficit produces a recommendation the user can never act on.
+   */
+  const entryIsFutureOpportunity = useMemo(() => {
+    const d = form.date;
+    if (!d) return true;
+    return d >= getTodayLocalDateString();
+  }, [form.date]);
+
   const baseRecommendation = useMemo(() => {
     if (grossAmount <= 0) return null;
     return getWithholdingRec({
@@ -500,7 +521,10 @@ export default function PersonalIncome() {
       stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
       stateTaxIncludedInTarget: stateIncomeTaxEnabled,
       // Prospective catch-up so a user who is behind can actually recover.
-      catchUpAmount: baseRecommendation?.catchUpApplied ?? 0,
+      // Prospective ONLY: historical paychecks never carry catch-up.
+      catchUpAmount: entryIsFutureOpportunity
+        ? (baseRecommendation?.catchUpApplied ?? 0)
+        : 0,
       // Live form value — the paycheck guide updates immediately when the
       // user types in the Additional Tax Reserve field for this entry.
       // This reserve applies ONLY to this entry and is not actual withholding.
@@ -548,7 +572,33 @@ export default function PersonalIncome() {
     actualEstimate,
     currentPaceEstimate,
     forecastEstimate,
+    entryIsFutureOpportunity,
   ]);
+
+  /**
+   * W-2 delivery mechanism for this source's share of the canonical annual
+   * liability: annual W-4 Step 4(c) extra withholding, or per-paycheck savings.
+   * Never both — that would fund the same tax twice.
+   */
+  const w2RecDisplay = useMemo(() => {
+    if (!isW2Type(form.income_type)) return null;
+    const method = taxSettings?.w2PaycheckRecMethod ?? "annual_w4";
+    const key = normalizeEmployerName(form.source_name || "");
+    const match = key
+      ? (w4.allocations ?? []).find((a: any) => normalizeEmployerName(a?.employerName ?? a?.company ?? "") === key)
+      : undefined;
+    const extraPerPaycheck = Number(
+      match?.step4cPerPaycheck ??
+        (w4.allocations ?? []).reduce((s: number, a: any) => s + Number(a?.step4cPerPaycheck || 0), 0),
+    ) || 0;
+    return decideW2PaycheckRecDisplay({
+      method,
+      isW2: true,
+      signedAnnualGap: w4.signedAnnualGap ?? 0,
+      extraPerPaycheck,
+    });
+  }, [form.income_type, form.source_name, taxSettings?.w2PaycheckRecMethod, w4.allocations, w4.signedAnnualGap]);
+
 
 
 
@@ -1562,6 +1612,53 @@ export default function PersonalIncome() {
                 tax profile effective rate (NOT annual remaining tax). */}
             {grossAmount > 0 && paycheckSavings && (() => {
               const isW2 = isW2Type(form.income_type);
+
+              // W-2 paychecks: the delivery mechanism follows the user's
+              // w2PaycheckRecMethod setting. Under "annual_w4" the W-2 share of
+              // the canonical annual liability is funded through Step 4(c) extra
+              // withholding, so we must NOT also show a separate savings ask for
+              // the same dollars.
+              if (isW2 && w2RecDisplay) {
+                return (
+                  <div
+                    className="rounded-md border border-border p-3 sm:p-4 bg-background space-y-3"
+                    data-testid="w2-annual-w4-mode"
+                    data-w4-mode={w2RecDisplay.mode}
+                  >
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      {w2RecDisplay.heading}
+                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-sm font-semibold text-foreground leading-snug">
+                          {w2RecDisplay.primary}
+                        </p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {w2RecDisplay.secondary}
+                        </p>
+                      </div>
+                      {w2RecDisplay.amount != null && (
+                        <div className="flex flex-col items-baseline sm:items-end gap-0.5 shrink-0">
+                          <p className="text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap text-orange-600 dark:text-orange-400">
+                            {fmt(Math.round(w2RecDisplay.amount))}
+                          </p>
+                          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            {w2RecDisplay.rightLabel}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-primary"
+                      onClick={() => navigate("/taxes#w4-calculator")}
+                    >
+                      Open the W-4 Calculator →
+                    </Button>
+                  </div>
+                );
+              }
 
               // W-2 paychecks: show only transaction-level savings guidance.
               // Annual W-4 planning lives in the W-4 Calculator tab on Taxes.
