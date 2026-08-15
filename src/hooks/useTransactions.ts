@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { releasePlannerConversionsForLedgerRows } from "@/lib/plannerCleanup";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 
@@ -240,6 +241,10 @@ export function useDeleteTransaction() {
         }
       }
 
+      // Release the planner occurrence (if any) that was converted onto this
+      // transaction, so it returns to the forecast instead of vanishing.
+      await releasePlannerConversionsForLedgerRows({ transactionIds: [id] });
+
       // Clean up any link/match records pointing at this transaction.
       await supabase.from("transaction_links").delete()
         .or(`manual_transaction_id.eq.${id},plaid_transaction_record_id.eq.${id}`);
@@ -284,6 +289,9 @@ export function useBulkDeleteTransactions() {
           .in("linked_transaction_id", incomeTxIds);
         if (delIeError) console.error("Delete linked income_entries error:", delIeError);
       }
+
+      // Release any planner occurrences converted onto these transactions.
+      await releasePlannerConversionsForLedgerRows({ transactionIds: ids });
 
       // Delete the transactions
       const { error } = await supabase

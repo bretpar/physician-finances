@@ -915,7 +915,11 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       actualOnlyTaxInputs: buildInput(scopedTaxData.actualOnlyTaxInputs, "actualOnly"),
       includePlannedTaxInputs: buildInput(scopedTaxData.includePlannedTaxInputs, "actualPlusPlanned"),
     };
-  }, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, companies, annualizedRetirement, homeOfficeDeductions, ytdCatchups]);
+    // `overrides` and `plannerConversions` MUST stay in this list: they feed
+  // generateProjectedPaychecks inside buildInput. Omitting them froze the
+  // headline Projected Income / Projected Taxes numbers after an occurrence
+  // edit or a planner conversion.
+}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, annualizedRetirement, homeOfficeDeductions, ytdCatchups]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;

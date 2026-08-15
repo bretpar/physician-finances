@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { releasePlannerConversionsForLedgerRows } from "@/lib/plannerCleanup";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo, useCallback } from "react";
@@ -272,6 +273,10 @@ export function useDeleteIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Hand any planner occurrence that produced this row back to the
+      // Planner so it is counted as projected income again.
+      await releasePlannerConversionsForLedgerRows({ incomeEntryIds: [id] });
+
       // ON DELETE CASCADE on hsa_contributions.income_entry_id removes any
       // linked payroll/employer HSA rows atomically with the parent delete.
       const { error } = await supabase
