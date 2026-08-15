@@ -33,7 +33,7 @@ import {
   type QuarterLabel,
   type QuarterNumber,
 } from "@/lib/quarters";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import type { InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 
@@ -280,7 +280,9 @@ export function buildQuarterRecommendation(
     if (!inWin(e.income_date)) continue;
     // Paid (actual withholding already submitted) requires the income to
     // have already occurred — future-dated entries don't yet have paid tax.
-    const paid = isPast(e.income_date) ? getTotalFederalPaid(e) : 0;
+    // Federal income tax withheld ONLY — SS/Medicare are payroll taxes and are
+    // never income-tax credits, so they can never count toward quarterly Paid.
+    const paid = isPast(e.income_date) ? getFederalIncomeTaxWithheld(e) : 0;
     const saved =
       Number((tx as any).actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
