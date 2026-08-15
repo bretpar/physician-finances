@@ -159,7 +159,9 @@ describe("onboarding sign out", () => {
 
   it("lands an unauthenticated user on login after sign out", async () => {
     authState.user = null;
-    await renderAt("/");
+    // "/" is the public marketing landing page now — a protected route is what
+    // bounces a signed-out user to login.
+    await renderAt("/dashboard");
     expect(await screen.findByTestId("login-root")).toBeInTheDocument();
   });
 });
