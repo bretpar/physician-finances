@@ -412,6 +412,10 @@ export function buildQuarterRecommendation(
   let w2WithheldThisQuarter = 0;
   let w2SavedFromIncome = 0;
   for (const e of personalEntries) {
+    // Same row can never be aggregated twice (e.g. duplicated across the
+    // business + personal lists, or a repeated list entry).
+    if ((e as any)?.id && accountedRowIds.has((e as any).id)) continue;
+    if ((e as any)?.id) accountedRowIds.add((e as any).id);
     const inQuarter = inWin(e.income_date);
     // YTD-catchup mirror entries represent withholding accrued from Jan 1
     // through their `period_end` (stored as income_date). Allocate linearly
