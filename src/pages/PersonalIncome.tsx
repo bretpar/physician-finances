@@ -614,7 +614,9 @@ export default function PersonalIncome() {
       incomeType: form.income_type,
       incomeBucket: "personal",
       federalWithheld: totalFederal,
+      ficaWithheldNotCredited: ssOnly + medicareOnly,
       stateWithheld: stateW,
+      stateTaxIncludedInTarget: stateIncomeTaxEnabled,
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
     });
@@ -783,7 +785,11 @@ export default function PersonalIncome() {
   function applyRecommendation() {
     const additional = Math.max(0, reminderRecommended - reminderActualSaved);
     if (additional > 0) {
-      const latestEntry = entries[0];
+      // Persist against the entry that was JUST saved (not merely the newest
+      // row) so the reserve lands on the right paycheck and immediately counts
+      // toward Saved in the quarterly tracker.
+      const latestEntry =
+        entries.find((e) => e.id === savedEntryId) || entries[0];
       if (latestEntry) {
         const currentReserve = Number((latestEntry as any).additional_tax_reserve || 0);
         updateMutation.mutate({

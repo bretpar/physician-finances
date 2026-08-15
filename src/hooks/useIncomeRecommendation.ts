@@ -14,6 +14,14 @@ import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isW2FilingType } from "@/lib/filingTypes";
 import { getSavingsRateForIncomeBucket, getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
+import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
+import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
+import {
+  computeCatchUpRecommendation,
+  countRemainingOpportunities,
+  type CatchUpResult,
+  type CoverageStatus,
+} from "@/lib/catchUpRecommendation";
 
 export type RecommendationStatus = "ahead" | "on_track" | "behind";
 export type RecommendationConfidence = "high" | "estimated" | "low";
@@ -23,8 +31,18 @@ export interface IncomeRecommendation {
   baseTaxEstimate: number;
   /** Per-entry tax target before subtracting taxes already withheld */
   dynamicTaxRecommendation: number;
-  /** Deprecated compatibility field; paycheck recommendations do not add catch-up */
+  /** Prospective catch-up folded into this paycheck's recommendation. */
   quarterlyAdjustmentAmount: number;
+  /** Employee SS+Medicare removed from the credit (never offsets income tax). */
+  ficaExcludedFromCredits: number;
+  /** Detailed 5-value coverage status for this quarter. */
+  coverageStatus: CoverageStatus;
+  /** Short status label. */
+  statusHeadline: string;
+  /** Plain-language explanation (distinguishes a moved estimate from undersaving). */
+  statusDetail: string;
+  /** Quarter-level catch-up context. */
+  catchUp: CatchUpResult;
   /** Per-entry tax target before subtracting taxes already withheld */
   totalSuggestedReserve: number;
   /** User's status for next estimated payment */
@@ -59,6 +77,12 @@ interface RecommendationInput {
   stateWithheld: number;
   retirement401k: number;
   preTaxDeductions: number;
+  /** Employee SS+Medicare included in `federalWithheld`; excluded from credit. */
+  ficaWithheldNotCredited?: number;
+  /** Whether state income tax is part of the target (gates the state credit). */
+  stateTaxIncludedInTarget?: boolean;
+  /** Explicit catch-up; omit for the live quarterly shortfall, 0 to opt out. */
+  catchUpAmount?: number;
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
@@ -69,7 +93,31 @@ interface RecommendationInput {
 export function useIncomeRecommendation() {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
+  const quarterInput = useQuarterRecommendationInput();
   const isLoading = estLoading || settingsLoading;
+
+  /**
+   * Live quarter shortfall spread across the paychecks that are STILL AHEAD.
+   * Prospective only — earlier recommendations are never rewritten.
+   */
+  const catchUpContext = useMemo<CatchUpResult>(() => {
+    const target = getActivePaymentTarget();
+    const quarterRec = buildQuarterRecommendation({
+      ...quarterInput,
+      year: target.year,
+      quarter: target.quarter,
+    });
+    const remainingOpportunities = countRemainingOpportunities(
+      quarterInput.projectedPaychecks,
+      new Date(),
+      quarterRec.deadline,
+    );
+    return computeCatchUpRecommendation({
+      quarterTarget: quarterRec.quarterTarget,
+      coveredSoFar: quarterRec.progressAmount,
+      remainingOpportunities,
+    });
+  }, [quarterInput]);
 
   const getRecommendation = useMemo(() => {
     return (input: RecommendationInput): IncomeRecommendation | null => {
@@ -132,18 +180,31 @@ export function useIncomeRecommendation() {
 
       // ── PER-ENTRY RESERVE RECOMMENDATION ──
       const dynamicTaxRecommendation = baseTaxEstimate;
-      const quarterlyAdjustmentAmount = 0;
-      const recommendationStatus: RecommendationStatus = "on_track";
-      const shortfallOrSurplus = 0;
-      const totalShortfallByDeadline = 0;
+      const quarterlyAdjustmentAmount =
+        input.catchUpAmount != null
+          ? Math.max(0, Math.round(input.catchUpAmount * 100) / 100)
+          : catchUpContext.quarterlyAdjustmentAmount;
+      const recommendationStatus: RecommendationStatus = catchUpContext.legacyStatus;
+      const shortfallOrSurplus = catchUpContext.shortfallOrSurplus;
+      const totalShortfallByDeadline = catchUpContext.totalShortfallByDeadline;
       const confidence: RecommendationConfidence = "high";
-      const spreadExplanation = "Based on this paycheck only";
-      const projectedEventsUsed = 0;
+      const spreadExplanation =
+        quarterlyAdjustmentAmount > 0
+          ? `This paycheck plus a catch-up share of this quarter's shortfall, spread across your remaining ${catchUpContext.remainingOpportunities} paycheck(s)`
+          : "Based on this paycheck only";
+      const projectedEventsUsed = catchUpContext.remainingOpportunities;
 
-      const actualWithheld = federalWithheld + stateWithheld;
-      const recommendedAdditionalReserve = Math.max(0, Math.round((baseTaxEstimate - actualWithheld) * 100) / 100);
-
+      // FICA is never an income-tax credit; state counts only when it is part
+      // of the target.
+      const ficaExcludedFromCredits = Math.max(0, Number(input.ficaWithheldNotCredited) || 0);
+      const creditedFederal = Math.max(0, federalWithheld - ficaExcludedFromCredits);
+      const creditedState = input.stateTaxIncludedInTarget === false ? 0 : stateWithheld;
+      const actualWithheld = creditedFederal + creditedState;
       const totalSuggestedReserve = Math.round((baseTaxEstimate + quarterlyAdjustmentAmount) * 100) / 100;
+      const recommendedAdditionalReserve = Math.max(
+        0,
+        Math.round((totalSuggestedReserve - actualWithheld) * 100) / 100,
+      );
 
       return {
         baseTaxEstimate,
@@ -154,16 +215,21 @@ export function useIncomeRecommendation() {
         shortfallOrSurplus,
         totalShortfallByDeadline,
         recommendedAdditionalReserve,
+        ficaExcludedFromCredits,
+        coverageStatus: catchUpContext.recommendationStatus,
+        statusHeadline: catchUpContext.statusHeadline,
+        statusDetail: catchUpContext.statusDetail,
+        catchUp: catchUpContext,
         projectedEventsBeforeDeadline: projectedEventsUsed,
         confidence,
         spreadExplanation,
         effectiveRate,
         methodLabel,
-        isDynamicEnabled: false,
+        isDynamicEnabled: quarterlyAdjustmentAmount > 0,
         nextDeadlineLabel: "this paycheck",
       };
     };
-  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings, catchUpContext]);
 
   return { getRecommendation, isLoading };
 }
