@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { releasePlannerConversionsForLedgerRows } from "@/lib/plannerCleanup";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
@@ -401,17 +402,12 @@ export function useDeletePersonalIncome() {
         console.warn("[DeletePersonalIncome] link cleanup skipped:", err);
       }
 
-      //   2. planner_conversions.income_entry_id must not dangle after the
-      //      referenced income row is deleted. Null it so the planner can
-      //      re-produce or the user can re-associate a fresh entry.
-      try {
-        await supabase
-          .from("planner_conversions")
-          .update({ income_entry_id: null } as any)
-          .eq("income_entry_id", id);
-      } catch (err) {
-        console.warn("[DeletePersonalIncome] planner_conversions cleanup skipped:", err);
-      }
+      //   2. The planner conversion that produced this row must be RELEASED,
+      //      not just unlinked: nulling income_entry_id alone left status
+      //      'converted', so the occurrence stayed excluded from projected
+      //      totals while its actual row no longer existed.
+      await releasePlannerConversionsForLedgerRows({ incomeEntryIds: [id] });
+
 
       // ON DELETE CASCADE on hsa_contributions.income_entry_id removes any
       // linked payroll/employer HSA rows atomically with the parent delete.

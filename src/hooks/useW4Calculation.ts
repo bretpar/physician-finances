@@ -25,14 +25,17 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
-import { getCanonicalBucketRatePct } from "@/lib/canonicalEventRecommendation";
+import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/canonicalEventRecommendation";
+import {
+  buildSourceFundingPlan,
+  type SourceFundingPlan,
+} from "@/lib/sourceFundingPlan";
+
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
   buildYtdFallbackEmployerRows,
   buildCompanyOnlyEmployerRows,
   computeAllocations,
-  computeRemainingW4Gap,
-  computeSignedW4Gap,
   defaultRemainingPaychecks,
   detectFrequencyFromDates,
   groupW2StreamsByEmployer,
@@ -63,7 +66,16 @@ export interface W4CalculationResult {
   projectedFederalWithholding: number;
   annualTaxGap: number;
   annualTaxSurplus: number;
+  /** Canonical annual allocation the W-4 gap is derived from. */
+  allocation: ReturnType<typeof buildAllocationFromEstimate>;
+  /** Source-specific funding plan. `w2.remainingNeed` === `remainingW4Gap`. */
+  sourceFunding: SourceFundingPlan;
+  /** Business/1099 remaining canonical responsibility (funded by reserves). */
+  businessRemainingNeed: number;
+  /** Display-only: remaining business gross × canonical bucket rate. */
+  projectedPlannedFutureBusinessReserves: number;
 }
+
 
 export function useW4Calculation(): W4CalculationResult {
   const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
@@ -76,21 +88,31 @@ export function useW4Calculation(): W4CalculationResult {
   const { data: transactions } = useTransactions();
   const { companies } = useCompanies();
 
-  // Future business reserve coverage comes from the CANONICAL source
-  // allocation (same helper the W-4 card and Dashboard use), never from a
-  // legacy blended household savings rate. This keeps the W-4 gap from
-  // inventing a second business tax target.
+  // The annual estimate selected by the user's withholding method. Single
+  // source for BOTH the canonical allocation and every rate below.
+  const selectedEstimate =
+    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? (forecastEstimate ?? actualEstimate)
+      : (currentPaceEstimate ?? actualEstimate);
+
+  // Canonical annual allocation: how much of the annual liability each source
+  // owes. The W-4 gap below is derived from the W-2 slice of THIS, never from a
+  // household residual.
+  const allocation = useMemo(
+    () => buildAllocationFromEstimate(selectedEstimate),
+    [selectedEstimate],
+  );
+
+  // Display-only business reserve rate (used for the projected-reserve line).
   const businessReserveRate = getCanonicalBucketRatePct({
-    estimate:
-      (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-        ? (forecastEstimate ?? actualEstimate)
-        : (currentPaceEstimate ?? actualEstimate),
+    estimate: selectedEstimate,
     taxSettings: settings,
     bucket: "business",
     incomeType: "1099",
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
+
 
   const allProjected = useMemo(
     () =>
@@ -226,15 +248,15 @@ export function useW4Calculation(): W4CalculationResult {
     try { localStorage.setItem(TOGGLE_KEY, next ? "true" : "false"); } catch { /* ignore */ }
   };
 
+  // Display-only: what the business source is expected to reserve out of its
+  // remaining gross at the canonical bucket rate. NOT used for the W-4 gap.
   const futureBusinessGross = Math.max(
     0,
     Number(forecastDebug?.grossBusinessIncome ?? 0) - Number(actualDebug?.grossBusinessIncome ?? 0),
   );
   const projectedPlannedFutureBusinessReserves =
     futureBusinessGross * (businessReserveRate / 100);
-  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
-    ? projectedPlannedFutureBusinessReserves
-    : 0;
+
 
   const companyByEmployerKey = useMemo(() => {
     const map = new Map<string, {
@@ -356,22 +378,50 @@ export function useW4Calculation(): W4CalculationResult {
     0,
   );
 
+  // ── SOURCE-SPECIFIC funding (the W-4 fix) ───────────────────────────────
+  // The W-4 ask must close ONLY the W-2 source's deficit:
+  //   W-2 allocated responsibility
+  //     − W-2 actual income-tax withholding (never FICA)
+  //     − expected baseline future W-2 withholding
+  //     − W-2's share of household estimated payments / savings
+  // Uncovered BUSINESS responsibility stays with the business source; it can
+  // no longer spill into W-2 withholding as a household residual.
+  const sourceFunding: SourceFundingPlan = buildSourceFundingPlan({
+    allocation,
+    w2ActualWithheldYtd: taxesAlreadyWithheld,
+    w2ExpectedFutureBaselineWithholding: expectedFutureNormalW2Withholding,
+    estimatedPaymentsMade: estPaymentsAlreadyMade,
+    householdSavingsSetAside: actualTaxSavedOrPaid,
+  });
+
+  // Business/1099 funds its own canonical allocated responsibility minus its
+  // own coverage — not `future gross × rate`.
+  const businessRemainingNeed = sourceFunding.nonW2.remainingNeed;
+  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
+    ? businessRemainingNeed
+    : 0;
+
+  const signedAnnualGap = sourceFunding.w2.signedNeed;
+  const remainingW4Gap = sourceFunding.w2.remainingNeed;
+
+  // Kept for the card's reconciliation display and existing unit tests. With
+  // the business term set to the canonical business remaining need, this
+  // household formula now evaluates to the SAME W-2 signed need above.
   const w4GapInputs: W4GapInputs = {
     projectedAnnualFederalTax: projectedTotalTax,
     actualWithheldYtd: taxesAlreadyWithheld,
     projectedFutureFederalW2Withholding: expectedFutureNormalW2Withholding,
     actualTaxSavedOrPaid,
     estimatedPaymentsMade: estPaymentsAlreadyMade,
-    plannedFutureNonW2ReservesCounted: plannedFutureBusinessReservesCounted,
+    plannedFutureNonW2ReservesCounted: businessRemainingNeed,
   };
-  const signedAnnualGap = computeSignedW4Gap(w4GapInputs);
-  const remainingW4Gap = computeRemainingW4Gap(w4GapInputs);
 
   const projectedHouseholdGross = Number(forecastDebug?.totalGrossIncome ?? 0);
   const projectedFederalWithholding =
     Number(forecastDebug?.actualFederalWithheld ?? 0) + expectedFutureNormalW2Withholding;
   const annualTaxGap = Math.max(0, signedAnnualGap);
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
+
 
   const allocations = useMemo(
     () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
@@ -398,5 +448,9 @@ export function useW4Calculation(): W4CalculationResult {
     projectedFederalWithholding,
     annualTaxGap,
     annualTaxSurplus,
+    allocation,
+    sourceFunding,
+    businessRemainingNeed,
+    projectedPlannedFutureBusinessReserves,
   };
 }
