@@ -162,3 +162,24 @@ export function computeCatchUpRecommendation(input: CatchUpInput): CatchUpResult
       `${opportunities === 1 ? "paycheck" : "paychecks"} closes the gap by the deadline.`,
   };
 }
+
+/**
+ * Count remaining savings opportunities (future income events) between `now`
+ * (exclusive) and the deadline (inclusive). Always at least 1 so a shortfall is
+ * never silently dropped.
+ */
+export function countRemainingOpportunities(
+  events: Array<{ date?: string | null }> | undefined,
+  now: Date,
+  deadline: Date,
+): number {
+  if (!events || events.length === 0) return 1;
+  let count = 0;
+  for (const e of events) {
+    if (!e?.date) continue;
+    const d = new Date(e.date);
+    if (Number.isNaN(d.getTime())) continue;
+    if (d > now && d <= deadline) count += 1;
+  }
+  return Math.max(1, count);
+}
