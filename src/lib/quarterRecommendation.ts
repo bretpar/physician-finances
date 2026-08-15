@@ -63,9 +63,27 @@ export interface QuarterRecommendationInput {
   }>;
   /** Optional manual `tax_savings` rows (counted toward "savedFromIncome"). */
   manualSavings?: Array<{ savings_date?: string; amount: number | string }>;
+  /**
+   * Whether state income tax is part of `annualTaxLiability`. When true, state
+   * withholding dated in the quarter counts toward Paid — keeping the target
+   * and the credits symmetric. When false (default) state tax is neither in
+   * the target nor credited.
+   */
+  stateIncomeTaxIncludedInTarget?: boolean;
+  /**
+   * Remaining savings opportunities (paychecks / income events) before the
+   * deadline, used to spread any shortfall PROSPECTIVELY. Defaults to 1.
+   */
+  remainingOpportunities?: number;
+  /**
+   * Quarter target the user was previously recommended against, when known.
+   * Only used to label a gap as "estimate increased" instead of "behind".
+   */
+  baselineQuarterTarget?: number;
   /** Used for the "due soon / overdue" callout window. Defaults to `new Date()`. */
   now?: Date;
 }
+
 
 export interface QuarterSourceRow {
   key: string;
