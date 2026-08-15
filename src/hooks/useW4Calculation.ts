@@ -25,7 +25,12 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
-import { getCanonicalBucketRatePct } from "@/lib/canonicalEventRecommendation";
+import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/canonicalEventRecommendation";
+import {
+  buildSourceFundingPlan,
+  type SourceFundingPlan,
+} from "@/lib/sourceFundingPlan";
+
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
   buildYtdFallbackEmployerRows,
