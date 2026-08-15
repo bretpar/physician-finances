@@ -348,7 +348,19 @@ export function buildQuarterRecommendation(
     personalEntries.map((e: any) => e?.id).filter(Boolean),
   );
   const hasPersonalList = personalEntries.length > 0;
+  /**
+   * A 1099 / K-1 / S-corp-distribution row is BUSINESS income even when the
+   * writer stored it with `source_bucket = 'personal'` (which happens for some
+   * filing types). `usePersonalIncomeEntries()` filters those rows OUT of the
+   * personal list, so the old `source_bucket === 'personal'` fallback below
+   * dropped them from BOTH loops — their reserve (and the linked deposit's
+   * `actual_withholding`) never reached `savedThisQuarter` and no 1099 source
+   * row appeared. Income type wins over the stored bucket here.
+   */
+  const isBusinessTypeRow = (e: any) =>
+    isBusinessIncomeType(e?.income_type) || isBusinessIncomeType(e?.company_type);
   const isPersonalOwnedRow = (e: any) => {
+    if (isBusinessTypeRow(e)) return false;
     if (e?.id && personalEntryIds.has(e.id)) return true;
     // Defensive: a personal-bucket row that (for any reason) isn't in the
     // personal list is still not business income. Only apply when a personal
@@ -356,6 +368,7 @@ export function buildQuarterRecommendation(
     // `incomeEntries` keep working.
     return hasPersonalList && e?.source_bucket === "personal";
   };
+
   /** Row ids already accounted for, so nothing can be counted twice. */
   const accountedRowIds = new Set<string>();
 
