@@ -91,25 +91,54 @@ const Tooltip = ({ open: openProp, defaultOpen, onOpenChange, children, ...props
 const TooltipTrigger = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
->(({ onClick, onPointerDown, ...props }, ref) => {
+>(({ onClick, onPointerDown, onContextMenu, onTouchStart, className, ...props }, ref) => {
   const ctx = React.useContext(TooltipContext);
+  const touchRef = React.useRef(false);
   return (
     <TooltipPrimitive.Trigger
       ref={ref}
+      className={cn(
+        // Never let mobile browsers treat the trigger as selectable text and
+        // never surface the iOS long-press callout / copy bubble.
+        "select-none touch-manipulation [-webkit-touch-callout:none] [-webkit-tap-highlight-color:transparent] [-webkit-user-select:none]",
+        className,
+      )}
       onPointerDown={(e) => {
         // Toggle on tap (touch/pen) so mobile users can reveal/dismiss tooltips
         // via a single tap — never long-press or hover.
-        if (ctx && (e.pointerType === "touch" || e.pointerType === "pen")) {
+        const isTouch = e.pointerType === "touch" || e.pointerType === "pen";
+        touchRef.current = isTouch;
+        if (ctx && isTouch) {
           e.preventDefault();
+          // Don't let an underlying row/button/link react to the same tap.
+          e.stopPropagation();
           ctx.setOpen(!ctx.open);
         }
         onPointerDown?.(e);
       }}
+      onTouchStart={(e) => {
+        // Guard against parent row handlers bound to touch events.
+        e.stopPropagation();
+        onTouchStart?.(e);
+      }}
+      onContextMenu={(e) => {
+        // Long-press on iOS Safari would otherwise select / offer copy.
+        if (touchRef.current) e.preventDefault();
+        onContextMenu?.(e);
+      }}
       onClick={(e) => {
-        // Mouse click also toggles (desktop hover still works via Radix)
-        if (ctx && (e.nativeEvent as PointerEvent).pointerType === "mouse") {
-          ctx.setOpen(!ctx.open);
+        const pointerType = (e.nativeEvent as PointerEvent).pointerType;
+        if (pointerType === "touch" || pointerType === "pen" || touchRef.current) {
+          // The pointerdown handler already toggled; swallow the synthetic click
+          // so nested buttons/links/rows never activate.
+          e.preventDefault();
+          e.stopPropagation();
+          touchRef.current = false;
+          onClick?.(e);
+          return;
         }
+        // Mouse click also toggles (desktop hover still works via Radix)
+        if (ctx) ctx.setOpen(!ctx.open);
         onClick?.(e);
       }}
       {...props}
@@ -117,6 +146,7 @@ const TooltipTrigger = React.forwardRef<
   );
 });
 TooltipTrigger.displayName = "TooltipTrigger";
+
 
 type TooltipContentProps = React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
   /** Show a close (X) button — auto-shown on mobile. */
