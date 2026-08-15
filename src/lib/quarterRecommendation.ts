@@ -392,12 +392,12 @@ export function buildQuarterRecommendation(
     const saved =
       Number((tx as any)?.actual_withholding || 0) +
       Number(e.additional_tax_reserve || 0);
+    if (e?.id) accountedRowIds.add(e.id);
     otherWithheldThisQuarter += paid;
     businessSavedFromIncome += saved;
     if (paid > 0 || saved > 0) {
       const name = (e.company || "Business income").toString().trim() || "Business income";
-      const key = e.source_id ? `source:${e.source_id}` : `name:${name.toLowerCase()}`;
-      const row = ensure(key, name);
+      const row = ensure(bucketKeyFor(e, name), name);
       row.paid += paid;
       row.saved += saved;
     }
