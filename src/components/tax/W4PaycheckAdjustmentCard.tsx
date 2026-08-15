@@ -1143,15 +1143,31 @@ export default function W4PaycheckAdjustmentCard() {
     0,
   );
 
+  // ── SOURCE-SPECIFIC W-4 gap ─────────────────────────────────────────────
+  // The gap closes ONLY the W-2 source's canonical deficit. Uncovered business
+  // responsibility stays with the business source and can no longer spill into
+  // W-2 withholding as a household residual.
+  const sourceFunding = buildSourceFundingPlan({
+    allocation: canonicalAllocation,
+    w2ActualWithheldYtd: taxesAlreadyWithheld,
+    w2ExpectedFutureBaselineWithholding: expectedFutureNormalW2Withholding,
+    estimatedPaymentsMade: estPaymentsAlreadyMade,
+    householdSavingsSetAside: actualTaxSavedOrPaid,
+  });
+  const businessRemainingNeed = sourceFunding.nonW2.remainingNeed;
+  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
+    ? businessRemainingNeed
+    : 0;
+
   const w4GapInputs: W4GapInputs = {
     projectedAnnualFederalTax: projectedTotalTax,
     actualWithheldYtd: taxesAlreadyWithheld,
     projectedFutureFederalW2Withholding: expectedFutureNormalW2Withholding,
     actualTaxSavedOrPaid,
     estimatedPaymentsMade: estPaymentsAlreadyMade,
-    plannedFutureNonW2ReservesCounted: plannedFutureBusinessReservesCounted,
+    plannedFutureNonW2ReservesCounted: businessRemainingNeed,
   };
-  const remainingW4Gap = computeRemainingW4Gap(w4GapInputs);
+  const remainingW4Gap = sourceFunding.w2.remainingNeed;
 
   // ── Stable testable summary numbers ──
   // projectedHouseholdGross = full forecast household gross (W-2 + business +
@@ -1162,9 +1178,10 @@ export default function W4PaycheckAdjustmentCard() {
   const projectedFederalWithholding =
     Number(forecastDebug?.actualFederalWithheld ?? 0) +
     expectedFutureNormalW2Withholding;
-  const signedAnnualGap = computeSignedW4Gap(w4GapInputs);
+  const signedAnnualGap = sourceFunding.w2.signedNeed;
   const annualTaxGap = Math.max(0, signedAnnualGap);
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
+
 
   const allocations = useMemo(
     () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
