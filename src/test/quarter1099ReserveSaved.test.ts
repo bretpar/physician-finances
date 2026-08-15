@@ -107,13 +107,13 @@ describe("1099 reserve reaches canonical savedThisQuarter", () => {
     const r = buildQuarterRecommendation(
       base({ incomeEntries: [...w2Entries, entry] }),
     );
-    const row = r.sourceRows.find((x) => x.key === "source:biz-1");
+    const row = r.sourceRows.find((x) => x.key === "biz:source:biz-1");
     expect(row).toBeTruthy();
     expect(row!.label).toBe("QA Focused 1099");
     // Never dumped into a generic fallback bucket.
-    expect(r.sourceRows.some((x) => x.key === "name:business income")).toBe(false);
+    expect(r.sourceRows.some((x) => x.key === "biz:name:business income")).toBe(false);
     // W-2 employer row still separate and intact.
-    const w2Row = r.sourceRows.find((x) => x.key === "source:emp-1");
+    const w2Row = r.sourceRows.find((x) => x.key === "w2:source:emp-1");
     expect(w2Row!.paid).toBeCloseTo(1500, 2);
     expect(w2Row!.saved).toBeCloseTo(4468, 2);
   });
