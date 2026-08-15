@@ -107,10 +107,11 @@ beforeEach(() => {
 });
 
 describe("onboarding route guard", () => {
+  // First render in this file pays the App module-graph transform cost.
   it("allows a developer with incomplete onboarding to reach /admin", async () => {
     await renderAt("/admin");
     expect(await screen.findByTestId("admin-root")).toBeInTheDocument();
-  });
+  }, 20000);
 
   it("allows a developer with incomplete onboarding to reach /admin/tax-validation", async () => {
     await renderAt("/admin/tax-validation");
