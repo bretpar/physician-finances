@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoTooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -1421,11 +1422,11 @@ export default function PersonalIncome() {
                       )}
                       {showEmployerRetirement && (
                         <div>
-                          <Label
-                            className="text-xs text-muted-foreground mb-1.5 block"
-                            title="Employer retirement contribution (match or profit sharing) funded by the employer. Tracked separately from your own contribution."
-                          >
+                          <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
                             Employer retirement contribution
+                            <InfoTooltip label="About employer retirement contributions">
+                              Employer retirement contribution (match or profit sharing) funded by the employer. Tracked separately from your own contribution.
+                            </InfoTooltip>
                           </Label>
                           <Input
                             data-testid="paycheck-employer-401k-input"
@@ -1448,11 +1449,11 @@ export default function PersonalIncome() {
                       )}
                       {showField("hsa_contribution") && (
                         <div>
-                          <Label
-                            className="text-xs text-muted-foreground mb-1.5 block"
-                            title="Your pre-tax HSA contribution deducted from this paycheck (Section 125). Reduces your W-2 wages."
-                          >
+                          <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
                             Employee HSA contribution
+                            <InfoTooltip label="About employee HSA contributions">
+                              Your pre-tax HSA contribution deducted from this paycheck (Section 125). Reduces your W-2 wages.
+                            </InfoTooltip>
                           </Label>
                           <Input
                             data-testid="paycheck-hsa-input"

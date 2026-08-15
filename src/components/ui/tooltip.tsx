@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { X } from "lucide-react";
+import { Info, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -91,25 +91,60 @@ const Tooltip = ({ open: openProp, defaultOpen, onOpenChange, children, ...props
 const TooltipTrigger = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
->(({ onClick, onPointerDown, ...props }, ref) => {
+>(({ onClick, onPointerDown, onContextMenu, onTouchStart, className, ...props }, ref) => {
   const ctx = React.useContext(TooltipContext);
+  const touchRef = React.useRef(false);
   return (
     <TooltipPrimitive.Trigger
       ref={ref}
+      className={cn(
+        // Never let mobile browsers treat the trigger as selectable text and
+        // never surface the iOS long-press callout / copy bubble.
+        "select-none touch-manipulation [-webkit-touch-callout:none] [-webkit-tap-highlight-color:transparent] [-webkit-user-select:none]",
+        className,
+      )}
       onPointerDown={(e) => {
         // Toggle on tap (touch/pen) so mobile users can reveal/dismiss tooltips
         // via a single tap — never long-press or hover.
-        if (ctx && (e.pointerType === "touch" || e.pointerType === "pen")) {
+        const isTouch =
+          e.pointerType === "touch" || e.pointerType === "pen" || !!ctx?.isMobile;
+        touchRef.current = isTouch;
+        if (ctx && isTouch) {
           e.preventDefault();
+          // Don't let an underlying row/button/link react to the same tap.
+          e.stopPropagation();
           ctx.setOpen(!ctx.open);
         }
         onPointerDown?.(e);
       }}
+      onTouchStart={(e) => {
+        // Guard against parent row handlers bound to touch events.
+        e.stopPropagation();
+        onTouchStart?.(e);
+      }}
+      onContextMenu={(e) => {
+        // Long-press on iOS Safari would otherwise select / offer copy.
+        if (touchRef.current) e.preventDefault();
+        onContextMenu?.(e);
+      }}
       onClick={(e) => {
-        // Mouse click also toggles (desktop hover still works via Radix)
-        if (ctx && (e.nativeEvent as PointerEvent).pointerType === "mouse") {
-          ctx.setOpen(!ctx.open);
+        const pointerType = (e.nativeEvent as PointerEvent).pointerType;
+        if (
+          pointerType === "touch" ||
+          pointerType === "pen" ||
+          touchRef.current ||
+          ctx?.isMobile
+        ) {
+          // The pointerdown handler already toggled; swallow the synthetic click
+          // so nested buttons/links/rows never activate.
+          e.preventDefault();
+          e.stopPropagation();
+          touchRef.current = false;
+          onClick?.(e);
+          return;
         }
+        // Mouse click also toggles (desktop hover still works via Radix)
+        if (ctx) ctx.setOpen(!ctx.open);
         onClick?.(e);
       }}
       {...props}
@@ -117,6 +152,7 @@ const TooltipTrigger = React.forwardRef<
   );
 });
 TooltipTrigger.displayName = "TooltipTrigger";
+
 
 type TooltipContentProps = React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
   /** Show a close (X) button — auto-shown on mobile. */
@@ -128,7 +164,15 @@ const TooltipContent = React.forwardRef<
   TooltipContentProps
 >(
   (
-    { className, sideOffset = 6, collisionPadding = 8, showClose, children, ...props },
+    {
+      className,
+      sideOffset = 6,
+      collisionPadding = 8,
+      showClose,
+      children,
+      onPointerDown,
+      ...props
+    },
     ref,
   ) => {
     const ctx = React.useContext(TooltipContext);
@@ -140,6 +184,11 @@ const TooltipContent = React.forwardRef<
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         avoidCollisions
+        // Tapping / scrolling inside the tooltip must not dismiss it.
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onPointerDown?.(e);
+        }}
         className={cn(
           "z-50 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           shouldShowClose && "pr-8",
@@ -147,6 +196,7 @@ const TooltipContent = React.forwardRef<
         )}
         {...props}
       >
+
         {children}
         {shouldShowClose && ctx && (
           <button
@@ -173,4 +223,42 @@ const TooltipContent = React.forwardRef<
 );
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+/**
+ * Shared info-icon tooltip. Use this instead of a native `title` attribute so
+ * the tap-to-open / tap-outside-to-close behavior is identical everywhere.
+ */
+const InfoTooltip = ({
+  children,
+  label = "More information",
+  className,
+  contentClassName,
+  side,
+}: {
+  children: React.ReactNode;
+  label?: string;
+  className?: string;
+  contentClassName?: string;
+  side?: "top" | "right" | "bottom" | "left";
+}) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className={cn(
+            "inline-flex items-center justify-center align-middle text-muted-foreground hover:text-foreground",
+            className,
+          )}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side={side} className={cn("max-w-[16rem] text-xs leading-relaxed", contentClassName)}>
+        {children}
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, InfoTooltip };
