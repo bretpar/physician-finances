@@ -76,21 +76,31 @@ export function useW4Calculation(): W4CalculationResult {
   const { data: transactions } = useTransactions();
   const { companies } = useCompanies();
 
-  // Future business reserve coverage comes from the CANONICAL source
-  // allocation (same helper the W-4 card and Dashboard use), never from a
-  // legacy blended household savings rate. This keeps the W-4 gap from
-  // inventing a second business tax target.
+  // The annual estimate selected by the user's withholding method. Single
+  // source for BOTH the canonical allocation and every rate below.
+  const selectedEstimate =
+    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? (forecastEstimate ?? actualEstimate)
+      : (currentPaceEstimate ?? actualEstimate);
+
+  // Canonical annual allocation: how much of the annual liability each source
+  // owes. The W-4 gap below is derived from the W-2 slice of THIS, never from a
+  // household residual.
+  const allocation = useMemo(
+    () => buildAllocationFromEstimate(selectedEstimate),
+    [selectedEstimate],
+  );
+
+  // Display-only business reserve rate (used for the projected-reserve line).
   const businessReserveRate = getCanonicalBucketRatePct({
-    estimate:
-      (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-        ? (forecastEstimate ?? actualEstimate)
-        : (currentPaceEstimate ?? actualEstimate),
+    estimate: selectedEstimate,
     taxSettings: settings,
     bucket: "business",
     incomeType: "1099",
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
+
 
   const allProjected = useMemo(
     () =>
