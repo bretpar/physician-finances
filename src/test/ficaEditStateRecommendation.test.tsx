@@ -80,11 +80,17 @@ describe("FICA edit state", () => {
     ).toBeCloseTo(392, 2);
   });
 
-  it("a stale aggregate total can no longer act as a federal income-tax credit", () => {
-    // Even if a stale total somehow survives, the split fields win.
+  it("split fields win over the aggregate total whenever a breakdown exists", () => {
+    // Aggregate says 500 but the breakdown says the federal income tax is 100 —
+    // only the 100 may be credited (SS/Medicare are never credits).
+    expect(
+      recommendationFor({ total: "500", federal: "100", ss: "310", medicare: "72.50" }),
+    ).toBeCloseTo(292, 2);
+    // A total-only entry (no breakdown at all) still credits the whole total —
+    // and the field no longer leaves a stale total behind after clearing FICA.
     expect(
       recommendationFor({ total: "72.50", federal: "0", ss: "0", medicare: "0" }),
-    ).toBeCloseTo(392, 2);
+    ).toBeCloseTo(319.5, 2);
   });
 
   it("real federal income tax still reduces the recommendation", () => {
