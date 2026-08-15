@@ -158,7 +158,15 @@ const TooltipContent = React.forwardRef<
   TooltipContentProps
 >(
   (
-    { className, sideOffset = 6, collisionPadding = 8, showClose, children, ...props },
+    {
+      className,
+      sideOffset = 6,
+      collisionPadding = 8,
+      showClose,
+      children,
+      onPointerDown,
+      ...props
+    },
     ref,
   ) => {
     const ctx = React.useContext(TooltipContext);
@@ -170,6 +178,11 @@ const TooltipContent = React.forwardRef<
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         avoidCollisions
+        // Tapping / scrolling inside the tooltip must not dismiss it.
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onPointerDown?.(e);
+        }}
         className={cn(
           "z-50 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           shouldShowClose && "pr-8",
@@ -177,6 +190,7 @@ const TooltipContent = React.forwardRef<
         )}
         {...props}
       >
+
         {children}
         {shouldShowClose && ctx && (
           <button
