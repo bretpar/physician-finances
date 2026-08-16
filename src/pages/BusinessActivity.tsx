@@ -2297,10 +2297,9 @@ export default function Transactions() {
                         Amount you're saving for taxes<LegacyNote field="actual_withholding" />
                       </Label>
                       <p className="text-[10px] text-muted-foreground mb-1">
-                        {recommendedWithholding > 0
-                          ? `Recommended: ${fmt(recommendedWithholding)}. Tracked as a reserve only. This is not counted as taxes paid until you make an IRS or state tax payment.`
-                          : "Tracked as a reserve only. This is not counted as taxes paid until you make an IRS or state tax payment."}
+                        Tracked as a reserve only. This is not counted as taxes paid until you make an IRS or state tax payment.
                       </p>
+
                       <Input
                         type="number"
                         min="0"
