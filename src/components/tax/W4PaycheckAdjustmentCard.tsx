@@ -649,7 +649,7 @@ export function computeRemainingW4Gap(inp: W4GapInputs): number {
 }
 
 export default function W4PaycheckAdjustmentCard() {
-  const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug, currentPaceDebug } = useTaxEstimate();
   const { data: settings } = useTaxSettings();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
@@ -1053,12 +1053,13 @@ export default function W4PaycheckAdjustmentCard() {
         expectedNormalWithholding = r.expectedNormalWithholding;
       }
 
-      // Employer-specific extra W-4 withholding already on file is FUTURE
-      // expected withholding — it is never applied to past paychecks.
+      // Employer-specific extra W-4 withholding already on file. Tracked
+      // separately from the baseline payroll projection so the user's own
+      // setting can never shrink the target it is measured against.
       const currentExtraW4PerPaycheck = resolveCurrentExtraW4(
         settings?.currentExtraW4Withholding,
       );
-      expectedNormalWithholding += currentExtraW4PerPaycheck * remainingPaychecks;
+
 
       const missingSettings = !settings?.payFrequency;
       const usedSavedSettings =
@@ -1155,20 +1156,32 @@ export default function W4PaycheckAdjustmentCard() {
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
 
-  const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
+  // Use the estimate the user's withholding method selects (same one Tax
+  // Overview shows) so planned income changes move the W-4 recommendation.
+  const selectedDebug =
+    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? (forecastDebug ?? actualDebug)
+      : (currentPaceDebug ?? actualDebug);
+
+  const projectedTotalTax = Number(selectedDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
-    Number(forecastDebug?.actualFederalWithheld ?? 0) +
-    Number(forecastDebug?.actualStateWithheld ?? 0);
-  const actualTaxSavedOrPaid = Number(forecastDebug?.taxSavingsSetAside ?? 0);
-  const estPaymentsAlreadyMade = Number(forecastDebug?.estimatedPaymentsMade ?? 0);
+    Number(selectedDebug?.actualFederalWithheld ?? 0) +
+    Number(selectedDebug?.actualStateWithheld ?? 0);
+  const actualTaxSavedOrPaid = Number(selectedDebug?.taxSavingsSetAside ?? 0);
+  const estPaymentsAlreadyMade = Number(selectedDebug?.estimatedPaymentsMade ?? 0);
   // Projected future W-2 federal withholding is derived from the SAME effective
   // employer rows shown in the W-4 table (federal only — no state, no FICA),
   // so the displayed breakdown and the gap formula can never disagree.
-  // Upstream forecastDebug.projectedFederalWithheld is often $0 for W-2 users
-  // whose company settings carry the projection; using it directly would leave
-  // future W-2 withholding out of the gap and overstate the W-4 recommendation.
+  // Baseline payroll only — extras already on the W-4 are added once, below.
   const expectedFutureNormalW2Withholding = effectiveRows.reduce(
     (s, r) => s + (Number(r.expectedNormalWithholding) || 0),
+    0,
+  );
+  const currentExtraW4FutureWithholding = effectiveRows.reduce(
+    (s, r) =>
+      s +
+      resolveCurrentExtraW4((r as any).currentExtraW4PerPaycheck) *
+        Math.max(0, Number(r.remainingPaychecks) || 0),
     0,
   );
 
@@ -1191,30 +1204,36 @@ export default function W4PaycheckAdjustmentCard() {
   const w4GapInputs: W4GapInputs = {
     projectedAnnualFederalTax: projectedTotalTax,
     actualWithheldYtd: taxesAlreadyWithheld,
-    projectedFutureFederalW2Withholding: expectedFutureNormalW2Withholding,
+    projectedFutureFederalW2Withholding:
+      expectedFutureNormalW2Withholding + currentExtraW4FutureWithholding,
     actualTaxSavedOrPaid,
     estimatedPaymentsMade: estPaymentsAlreadyMade,
     plannedFutureNonW2ReservesCounted: businessRemainingNeed,
   };
-  const remainingW4Gap = sourceFunding.w2.remainingNeed;
+  // Stable target (independent of what's currently on the W-4) …
+  const grossW4Gap = sourceFunding.w2.remainingNeed;
+  // … and the shortfall that remains after crediting current W-4 extras.
+  const remainingW4Gap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
 
   // ── Stable testable summary numbers ──
   // projectedHouseholdGross = full forecast household gross (W-2 + business +
   // other), so audits can verify the full-picture input the W-4 math uses.
-  const projectedHouseholdGross = Number(forecastDebug?.totalGrossIncome ?? 0);
+  const projectedHouseholdGross = Number(selectedDebug?.totalGrossIncome ?? 0);
   // projectedFederalWithholding = actual YTD federal + projected future federal
   // withholding (derived from the same effective rows that drive the table).
   const projectedFederalWithholding =
-    Number(forecastDebug?.actualFederalWithheld ?? 0) +
-    expectedFutureNormalW2Withholding;
-  const signedAnnualGap = sourceFunding.w2.signedNeed;
+    Number(selectedDebug?.actualFederalWithheld ?? 0) +
+    expectedFutureNormalW2Withholding +
+    currentExtraW4FutureWithholding;
+  const signedAnnualGap =
+    sourceFunding.w2.signedNeed - currentExtraW4FutureWithholding;
   const annualTaxGap = Math.max(0, signedAnnualGap);
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
 
   const allocations = useMemo(
-    () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
-    [effectiveRows, totalRemainingW2Gross, remainingW4Gap],
+    () => computeAllocations(effectiveRows, grossW4Gap, totalRemainingW2Gross),
+    [effectiveRows, totalRemainingW2Gross, grossW4Gap],
   );
 
   const totalExtraThroughYearEnd = allocations.reduce(
@@ -1228,8 +1247,8 @@ export default function W4PaycheckAdjustmentCard() {
   const w4Recs = buildEmployerW4Recommendations(
     effectiveRows as any[],
     allocations,
-    annualTaxSurplus,
   );
+
   const employerRecs = w4Recs.map((rec) => {
     const a = allocations.find((x) => x.streamId === rec.row.streamId);
     const perPaycheck = rec.change.recommendedExtraPerPaycheck;

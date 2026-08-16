@@ -85,7 +85,7 @@ export interface W4CalculationResult {
 
 
 export function useW4Calculation(): W4CalculationResult {
-  const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug } = useTaxEstimate();
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug, currentPaceDebug } = useTaxEstimate();
   const { data: settings } = useTaxSettings();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
@@ -351,11 +351,14 @@ export function useW4Calculation(): W4CalculationResult {
       else if (isYtdFallback) expectedNormalWithholding = ((r as any).__ytdAvgWithheld || 0) * remainingPaychecks;
       else expectedNormalWithholding = r.expectedNormalWithholding;
 
-      // Employer-specific extra W-4 withholding already on file counts as
-      // FUTURE expected withholding only — historical paychecks keep their
-      // actual recorded withholding.
+      // Employer-specific extra W-4 withholding already on file. This is NOT
+      // folded into the baseline projection used to size the gap — doing so
+      // made the user's own setting shrink the target it was measured against
+      // (a moving target / feedback loop). The baseline stays the employer's
+      // normal payroll withholding; the current extra is tracked separately and
+      // subtracted ONCE at the end to show the still-uncovered shortfall.
       const currentExtraW4PerPaycheck = resolveCurrentExtraW4(settings?.currentExtraW4Withholding);
-      expectedNormalWithholding += currentExtraW4PerPaycheck * remainingPaychecks;
+
 
       return {
         ...r,
@@ -384,14 +387,31 @@ export function useW4Calculation(): W4CalculationResult {
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
-  const projectedTotalTax = Number(forecastDebug?.totalEstimatedTax ?? 0);
+  // The debug bundle MUST come from the SAME estimate the user's withholding
+  // method selects (and that Tax Overview shows), otherwise planned income
+  // changes never move the W-4 recommendation.
+  const selectedDebug =
+    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? (forecastDebug ?? actualDebug)
+      : (currentPaceDebug ?? actualDebug);
+
+  const projectedTotalTax = Number(selectedDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
-    Number(forecastDebug?.actualFederalWithheld ?? 0) +
-    Number(forecastDebug?.actualStateWithheld ?? 0);
-  const actualTaxSavedOrPaid = Number(forecastDebug?.taxSavingsSetAside ?? 0);
-  const estPaymentsAlreadyMade = Number(forecastDebug?.estimatedPaymentsMade ?? 0);
+    Number(selectedDebug?.actualFederalWithheld ?? 0) +
+    Number(selectedDebug?.actualStateWithheld ?? 0);
+  const actualTaxSavedOrPaid = Number(selectedDebug?.taxSavingsSetAside ?? 0);
+  const estPaymentsAlreadyMade = Number(selectedDebug?.estimatedPaymentsMade ?? 0);
+  // Baseline future W-2 withholding — payroll only, excludes any extra the user
+  // already has on their W-4 (that is applied once, below).
   const expectedFutureNormalW2Withholding = effectiveRows.reduce(
     (s, r) => s + (Number(r.expectedNormalWithholding) || 0),
+    0,
+  );
+  const currentExtraW4FutureWithholding = effectiveRows.reduce(
+    (s, r) =>
+      s +
+      resolveCurrentExtraW4((r as any).currentExtraW4PerPaycheck) *
+        Math.max(0, Number(r.remainingPaychecks) || 0),
     0,
   );
 
@@ -418,8 +438,12 @@ export function useW4Calculation(): W4CalculationResult {
     ? businessRemainingNeed
     : 0;
 
-  const signedAnnualGap = sourceFunding.w2.signedNeed;
-  const remainingW4Gap = sourceFunding.w2.remainingNeed;
+  // Total W-2 target extra withholding for the rest of the year. Independent of
+  // what the user currently has on file → stable target, no feedback loop.
+  const grossW4Gap = sourceFunding.w2.remainingNeed;
+  // What is still uncovered once the current W-4 extras are recognized.
+  const signedAnnualGap = sourceFunding.w2.signedNeed - currentExtraW4FutureWithholding;
+  const remainingW4Gap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
 
   // Kept for the card's reconciliation display and existing unit tests. With
   // the business term set to the canonical business remaining need, this
@@ -427,22 +451,27 @@ export function useW4Calculation(): W4CalculationResult {
   const w4GapInputs: W4GapInputs = {
     projectedAnnualFederalTax: projectedTotalTax,
     actualWithheldYtd: taxesAlreadyWithheld,
-    projectedFutureFederalW2Withholding: expectedFutureNormalW2Withholding,
+    projectedFutureFederalW2Withholding:
+      expectedFutureNormalW2Withholding + currentExtraW4FutureWithholding,
     actualTaxSavedOrPaid,
     estimatedPaymentsMade: estPaymentsAlreadyMade,
     plannedFutureNonW2ReservesCounted: businessRemainingNeed,
   };
 
-  const projectedHouseholdGross = Number(forecastDebug?.totalGrossIncome ?? 0);
+  const projectedHouseholdGross = Number(selectedDebug?.totalGrossIncome ?? 0);
   const projectedFederalWithholding =
-    Number(forecastDebug?.actualFederalWithheld ?? 0) + expectedFutureNormalW2Withholding;
+    Number(selectedDebug?.actualFederalWithheld ?? 0) +
+    expectedFutureNormalW2Withholding +
+    currentExtraW4FutureWithholding;
   const annualTaxGap = Math.max(0, signedAnnualGap);
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
 
+  // Allocations are sized from the GROSS target so one employer's current W-4
+  // amount never re-weights another employer's target.
   const allocations = useMemo(
-    () => computeAllocations(effectiveRows, remainingW4Gap, totalRemainingW2Gross),
-    [effectiveRows, totalRemainingW2Gross, remainingW4Gap],
+    () => computeAllocations(effectiveRows, grossW4Gap, totalRemainingW2Gross),
+    [effectiveRows, totalRemainingW2Gross, grossW4Gap],
   );
 
   const totalExtraThroughYearEnd = allocations.reduce(
@@ -453,8 +482,8 @@ export function useW4Calculation(): W4CalculationResult {
   const employerW4Recommendations = buildEmployerW4Recommendations(
     effectiveRows as any[],
     allocations,
-    annualTaxSurplus,
   );
+
 
   return {
     effectiveRows,

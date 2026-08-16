@@ -18,30 +18,39 @@ describe("resolveCurrentExtraW4", () => {
 });
 
 describe("computeW4RecommendedChange", () => {
-  it("recommends an increase equal to the incremental ask", () => {
-    const r = computeW4RecommendedChange(100, 200);
+  it("recommends the difference between target and current", () => {
+    const r = computeW4RecommendedChange(300, 200);
     expect(r.recommendedExtraPerPaycheck).toBe(300);
     expect(r.direction).toBe("increase");
     expect(r.changeAmountPerPaycheck).toBe(100);
   });
 
   it("reports no change inside the tolerance band", () => {
-    const r = computeW4RecommendedChange(W4_CHANGE_TOLERANCE - 1, 200);
+    const r = computeW4RecommendedChange(200 + W4_CHANGE_TOLERANCE - 1, 200);
     expect(r.direction).toBe("none");
     expect(r.label).toBe("No change recommended");
   });
 
-  it("recommends a decrease when over-withheld, never below zero", () => {
-    const r = computeW4RecommendedChange(0, 150, 400);
+  it("recommends a decrease when the target is below the current amount", () => {
+    const r = computeW4RecommendedChange(0, 150);
     expect(r.recommendedExtraPerPaycheck).toBe(0);
     expect(r.direction).toBe("decrease");
     expect(r.changeAmountPerPaycheck).toBe(150);
   });
 
-  it("is fully satisfied when the current amount already covers the need", () => {
-    const r = computeW4RecommendedChange(0, 250);
+  it("is satisfied when the current amount already equals the target", () => {
+    const r = computeW4RecommendedChange(250, 250);
     expect(r.recommendedExtraPerPaycheck).toBe(250);
     expect(r.direction).toBe("none");
+  });
+
+  it("target is a stable value — it does not move with the current amount", () => {
+    const a = computeW4RecommendedChange(1400, 0);
+    const b = computeW4RecommendedChange(1400, 1350);
+    expect(a.recommendedExtraPerPaycheck).toBe(1400);
+    expect(b.recommendedExtraPerPaycheck).toBe(1400);
+    expect(b.changeAmountPerPaycheck).toBe(50);
+    expect(b.direction).toBe("increase");
   });
 });
 
@@ -74,7 +83,7 @@ describe("buildEmployerW4Recommendations", () => {
       { streamId: "e2", company: "Hospital B", remainingPaychecks: 6, currentExtraW4PerPaycheck: 0 },
     ];
     const recs = buildEmployerW4Recommendations(rows, [
-      { streamId: "e1", step4cPerPaycheck: 50 },
+      { streamId: "e1", step4cPerPaycheck: 250 },
       { streamId: "e2", step4cPerPaycheck: 120 },
     ]);
     const a = recs.find((r) => r.row.streamId === "e1")!;
@@ -84,5 +93,30 @@ describe("buildEmployerW4Recommendations", () => {
     expect(a.annualRecommendedExtra).toBe(2500);
     expect(b.change.currentExtraPerPaycheck).toBe(0);
     expect(b.change.recommendedExtraPerPaycheck).toBe(120);
+  });
+
+  it("one employer's current amount never changes another's target", () => {
+    const allocations = [
+      { streamId: "e1", step4cPerPaycheck: 400 },
+      { streamId: "e2", step4cPerPaycheck: 300 },
+    ];
+    const base = buildEmployerW4Recommendations(
+      [
+        { streamId: "e1", company: "A", remainingPaychecks: 10, currentExtraW4PerPaycheck: 0 },
+        { streamId: "e2", company: "B", remainingPaychecks: 10, currentExtraW4PerPaycheck: 0 },
+      ],
+      allocations,
+    );
+    const afterEdit = buildEmployerW4Recommendations(
+      [
+        { streamId: "e1", company: "A", remainingPaychecks: 10, currentExtraW4PerPaycheck: 400 },
+        { streamId: "e2", company: "B", remainingPaychecks: 10, currentExtraW4PerPaycheck: 0 },
+      ],
+      allocations,
+    );
+    expect(afterEdit[0].change.direction).toBe("none");
+    expect(afterEdit[1].change.recommendedExtraPerPaycheck).toBe(
+      base[1].change.recommendedExtraPerPaycheck,
+    );
   });
 });
