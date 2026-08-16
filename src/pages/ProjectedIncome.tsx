@@ -347,6 +347,11 @@ function defaultSubtypeForSourceKind(kind: SourceKind | undefined): string | nul
 
 export default function ProjectedIncome() {
   const navigate = useNavigate();
+  const [recurringWarning, setRecurringWarning] = useState<{
+    company: string;
+    amount: number;
+    frequency: string;
+  } | null>(null);
   const { companies } = useCompanies();
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
@@ -896,7 +901,24 @@ export default function ProjectedIncome() {
     if (editingId) {
       updateStream.mutate({ id: editingId, ...payload }, { onSuccess: resetForm });
     } else {
-      addStream.mutate(payload, { onSuccess: resetForm });
+      const warnCompany = payload.company;
+      const warnAmount = num(form.paycheck_amount);
+      const warnFrequency = form.pay_frequency;
+      addStream.mutate(payload, {
+        onSuccess: () => {
+          resetForm();
+          // Recurring income warning: a new multi-occurrence stream materially
+          // changes the annual picture, so W-4 / reserve guidance may shift.
+          const isRecurring = !isOneTime && warnFrequency !== "one_time";
+          if (isRecurring && warnAmount >= 500) {
+            setRecurringWarning({
+              company: warnCompany,
+              amount: warnAmount,
+              frequency: warnFrequency,
+            });
+          }
+        },
+      });
     }
   };
 
