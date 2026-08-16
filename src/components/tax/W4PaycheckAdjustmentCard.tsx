@@ -938,6 +938,7 @@ export default function W4PaycheckAdjustmentCard() {
       remainingOverride: number | null;
       projectedAnnualGross: number | null;
       expectedFederalWithholdingPerPaycheck: number | null;
+      currentExtraW4Withholding: number;
     }>();
     for (const c of companies) {
       const ft = normalizeFilingType(c.companyType);
@@ -951,6 +952,7 @@ export default function W4PaycheckAdjustmentCard() {
         projectedAnnualGross: c.projectedAnnualGross ?? null,
         expectedFederalWithholdingPerPaycheck:
           c.expectedFederalWithholdingPerPaycheck ?? null,
+        currentExtraW4Withholding: resolveCurrentExtraW4(c.currentExtraW4Withholding),
       };
       // Prefer the entry that has the richest signal.
       if (

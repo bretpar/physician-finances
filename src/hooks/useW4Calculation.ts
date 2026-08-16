@@ -265,6 +265,7 @@ export function useW4Calculation(): W4CalculationResult {
       remainingOverride: number | null;
       projectedAnnualGross: number | null;
       expectedFederalWithholdingPerPaycheck: number | null;
+      currentExtraW4Withholding: number;
     }>();
     for (const c of companies) {
       const ft = normalizeFilingType(c.companyType);
@@ -277,6 +278,7 @@ export function useW4Calculation(): W4CalculationResult {
         remainingOverride: c.remainingPaychecksOverride,
         projectedAnnualGross: c.projectedAnnualGross ?? null,
         expectedFederalWithholdingPerPaycheck: c.expectedFederalWithholdingPerPaycheck ?? null,
+        currentExtraW4Withholding: resolveCurrentExtraW4(c.currentExtraW4Withholding),
       };
       if (
         !prev ||
