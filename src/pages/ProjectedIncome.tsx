@@ -2594,7 +2594,7 @@ export default function ProjectedIncome() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{recurringWarning?.company}</span> at{" "}
-            {formatCurrency(recurringWarning?.amount || 0)} per occurrence will raise your
+            {fmt(recurringWarning?.amount || 0)} per occurrence will raise your
             projected annual tax. Your W-4 and set-aside recommendations may increase — review
             the W-4 recommendation so each employer's extra withholding stays accurate.
           </p>
