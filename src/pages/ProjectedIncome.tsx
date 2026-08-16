@@ -347,6 +347,11 @@ function defaultSubtypeForSourceKind(kind: SourceKind | undefined): string | nul
 
 export default function ProjectedIncome() {
   const navigate = useNavigate();
+  const [recurringWarning, setRecurringWarning] = useState<{
+    company: string;
+    amount: number;
+    frequency: string;
+  } | null>(null);
   const { companies } = useCompanies();
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
@@ -896,7 +901,24 @@ export default function ProjectedIncome() {
     if (editingId) {
       updateStream.mutate({ id: editingId, ...payload }, { onSuccess: resetForm });
     } else {
-      addStream.mutate(payload, { onSuccess: resetForm });
+      const warnCompany = payload.company;
+      const warnAmount = num(form.paycheck_amount);
+      const warnFrequency = form.pay_frequency;
+      addStream.mutate(payload, {
+        onSuccess: () => {
+          resetForm();
+          // Recurring income warning: a new multi-occurrence stream materially
+          // changes the annual picture, so W-4 / reserve guidance may shift.
+          const isRecurring = !isOneTime && warnFrequency !== "one_time";
+          if (isRecurring && warnAmount >= 500) {
+            setRecurringWarning({
+              company: warnCompany,
+              amount: warnAmount,
+              frequency: warnFrequency,
+            });
+          }
+        },
+      });
     }
   };
 
@@ -2560,6 +2582,37 @@ export default function ProjectedIncome() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Recurring income warning — new repeating income changes annual guidance */}
+      <Dialog open={!!recurringWarning} onOpenChange={(open) => { if (!open) setRecurringWarning(null); }}>
+        <DialogContent className="sm:max-w-md" data-testid="recurring-income-warning">
+          <DialogHeader>
+            <DialogTitle>Recurring income added</DialogTitle>
+            <DialogDescription>
+              This repeats, so it changes your projected income for the rest of the year.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{recurringWarning?.company}</span> at{" "}
+            {fmt(recurringWarning?.amount || 0)} per occurrence will raise your
+            projected annual tax. Your W-4 and set-aside recommendations may increase — review
+            the W-4 recommendation so each employer's extra withholding stays accurate.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecurringWarning(null)}>Got it</Button>
+            <Button
+              onClick={() => {
+                setRecurringWarning(null);
+                navigate("/taxes");
+              }}
+            >
+              Review W-4
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
 
 
       {/* Mobile actions bottom sheet */}

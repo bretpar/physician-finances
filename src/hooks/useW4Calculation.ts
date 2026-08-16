@@ -33,6 +33,11 @@ import {
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
+  buildEmployerW4Recommendations,
+  resolveCurrentExtraW4,
+  type EmployerW4Recommendation,
+} from "@/lib/w4CurrentWithholding";
+import {
   buildYtdFallbackEmployerRows,
   buildCompanyOnlyEmployerRows,
   computeAllocations,
@@ -74,6 +79,8 @@ export interface W4CalculationResult {
   businessRemainingNeed: number;
   /** Display-only: remaining business gross × canonical bucket rate. */
   projectedPlannedFutureBusinessReserves: number;
+  /** Per-employer recommendation net of that employer's current W-4 extra. */
+  employerW4Recommendations: EmployerW4Recommendation<any>[];
 }
 
 
@@ -265,6 +272,7 @@ export function useW4Calculation(): W4CalculationResult {
       remainingOverride: number | null;
       projectedAnnualGross: number | null;
       expectedFederalWithholdingPerPaycheck: number | null;
+      currentExtraW4Withholding: number;
     }>();
     for (const c of companies) {
       const ft = normalizeFilingType(c.companyType);
@@ -277,6 +285,7 @@ export function useW4Calculation(): W4CalculationResult {
         remainingOverride: c.remainingPaychecksOverride,
         projectedAnnualGross: c.projectedAnnualGross ?? null,
         expectedFederalWithholdingPerPaycheck: c.expectedFederalWithholdingPerPaycheck ?? null,
+        currentExtraW4Withholding: resolveCurrentExtraW4(c.currentExtraW4Withholding),
       };
       if (
         !prev ||
@@ -342,12 +351,20 @@ export function useW4Calculation(): W4CalculationResult {
       else if (isYtdFallback) expectedNormalWithholding = ((r as any).__ytdAvgWithheld || 0) * remainingPaychecks;
       else expectedNormalWithholding = r.expectedNormalWithholding;
 
+      // Employer-specific extra W-4 withholding already on file counts as
+      // FUTURE expected withholding only — historical paychecks keep their
+      // actual recorded withholding.
+      const currentExtraW4PerPaycheck = resolveCurrentExtraW4(settings?.currentExtraW4Withholding);
+      expectedNormalWithholding += currentExtraW4PerPaycheck * remainingPaychecks;
+
       return {
         ...r,
         payFrequency: frequency,
         remainingPaychecks,
         remainingGross,
         expectedNormalWithholding,
+        currentExtraW4PerPaycheck,
+        companyId: settings?.id ?? null,
         missingSettings: !settings?.payFrequency,
         isYtdFallback,
         usedSavedSettings: savedAnnualGross != null || savedFedPerPaycheck != null,
@@ -433,9 +450,16 @@ export function useW4Calculation(): W4CalculationResult {
     0,
   );
 
+  const employerW4Recommendations = buildEmployerW4Recommendations(
+    effectiveRows as any[],
+    allocations,
+    annualTaxSurplus,
+  );
+
   return {
     effectiveRows,
     allocations,
+    employerW4Recommendations,
     signedAnnualGap,
     remainingW4Gap,
     totalExtraThroughYearEnd,

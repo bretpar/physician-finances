@@ -41,6 +41,12 @@ export interface Company {
   projectedAnnualGross: number | null;
   /** Optional user-supplied expected federal withholding per paycheck. */
   expectedFederalWithholdingPerPaycheck: number | null;
+  /**
+   * Extra federal withholding (per paycheck) the user currently has entered on
+   * THIS employer's Form W-4 Step 4(c). Employer-specific; never shared across
+   * employers. 0 = nothing extra on file.
+   */
+  currentExtraW4Withholding: number;
   /** K-1 entity tax treatment. Null = unset (UI should warn). Only meaningful for K-1 companies. */
   k1TaxTreatment: K1TaxTreatment | null;
 }
@@ -110,6 +116,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         employeeRole: ((c as any).employee_role ?? null) as "primary" | "spouse" | null,
         projectedAnnualGross: (c as any).projected_annual_gross != null ? Number((c as any).projected_annual_gross) : null,
         expectedFederalWithholdingPerPaycheck: (c as any).expected_federal_withholding_per_paycheck != null ? Number((c as any).expected_federal_withholding_per_paycheck) : null,
+        currentExtraW4Withholding: Number((c as any).current_extra_w4_withholding) || 0,
         k1TaxTreatment: ((c as any).k1_tax_treatment ?? null) as K1TaxTreatment | null,
       }))
     );
@@ -156,6 +163,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       employee_role: company.employeeRole ?? null,
       projected_annual_gross: company.projectedAnnualGross ?? null,
       expected_federal_withholding_per_paycheck: company.expectedFederalWithholdingPerPaycheck ?? null,
+      current_extra_w4_withholding: company.currentExtraW4Withholding ?? 0,
       k1_tax_treatment: company.k1TaxTreatment ?? null,
     } as any);
     if (error) { toast.error(error.message); return; }
@@ -183,6 +191,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.employeeRole !== undefined) dbUpdates.employee_role = updates.employeeRole;
     if (updates.projectedAnnualGross !== undefined) dbUpdates.projected_annual_gross = updates.projectedAnnualGross;
     if (updates.expectedFederalWithholdingPerPaycheck !== undefined) dbUpdates.expected_federal_withholding_per_paycheck = updates.expectedFederalWithholdingPerPaycheck;
+    if (updates.currentExtraW4Withholding !== undefined) dbUpdates.current_extra_w4_withholding = updates.currentExtraW4Withholding ?? 0;
     if (updates.k1TaxTreatment !== undefined) dbUpdates.k1_tax_treatment = updates.k1TaxTreatment;
 
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);

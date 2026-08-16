@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { Input } from "@/components/ui/input";
 import { useCompanies } from "@/contexts/CompanyContext";
 import {
   useProjectedStreams,
@@ -26,6 +28,10 @@ import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/ca
 import { buildSourceFundingPlan } from "@/lib/sourceFundingPlan";
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
+import {
+  buildEmployerW4Recommendations,
+  resolveCurrentExtraW4,
+} from "@/lib/w4CurrentWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
@@ -653,7 +659,7 @@ export default function W4PaycheckAdjustmentCard() {
   const { data: transactions } = useTransactions();
   // Read per-company W-4 settings from Settings > Companies. Hoisted here
   // so employee role maps (used in render) can read it.
-  const { companies } = useCompanies();
+  const { companies, updateCompany } = useCompanies();
 
 
   // Resolve an employee label (primary user vs spouse) for each W-2 employer.
@@ -938,6 +944,7 @@ export default function W4PaycheckAdjustmentCard() {
       remainingOverride: number | null;
       projectedAnnualGross: number | null;
       expectedFederalWithholdingPerPaycheck: number | null;
+      currentExtraW4Withholding: number;
     }>();
     for (const c of companies) {
       const ft = normalizeFilingType(c.companyType);
@@ -951,6 +958,7 @@ export default function W4PaycheckAdjustmentCard() {
         projectedAnnualGross: c.projectedAnnualGross ?? null,
         expectedFederalWithholdingPerPaycheck:
           c.expectedFederalWithholdingPerPaycheck ?? null,
+        currentExtraW4Withholding: resolveCurrentExtraW4(c.currentExtraW4Withholding),
       };
       // Prefer the entry that has the richest signal.
       if (
@@ -1045,6 +1053,13 @@ export default function W4PaycheckAdjustmentCard() {
         expectedNormalWithholding = r.expectedNormalWithholding;
       }
 
+      // Employer-specific extra W-4 withholding already on file is FUTURE
+      // expected withholding — it is never applied to past paychecks.
+      const currentExtraW4PerPaycheck = resolveCurrentExtraW4(
+        settings?.currentExtraW4Withholding,
+      );
+      expectedNormalWithholding += currentExtraW4PerPaycheck * remainingPaychecks;
+
       const missingSettings = !settings?.payFrequency;
       const usedSavedSettings =
         savedAnnualGross != null || savedFedPerPaycheck != null;
@@ -1075,6 +1090,8 @@ export default function W4PaycheckAdjustmentCard() {
         remainingPaychecks,
         remainingGross,
         expectedNormalWithholding,
+        currentExtraW4PerPaycheck,
+        companyId: settings?.id ?? null,
         missingSettings,
         isYtdFallback,
         usedSavedSettings,
@@ -1208,13 +1225,25 @@ export default function W4PaycheckAdjustmentCard() {
   // Hide card entirely if user has no W-2 streams at all — nothing to recommend.
   if (sourceRows.length === 0) return null;
 
-  const employerRecs = effectiveRows.map((r) => {
-    const a = allocations.find((x) => x.streamId === r.streamId);
-    const perPaycheck = a?.step4cPerPaycheck ?? 0;
-    const annualForEmployer = perPaycheck * r.remainingPaychecks;
-    return { row: r, perPaycheck, annualForEmployer, allocation: a };
+  const w4Recs = buildEmployerW4Recommendations(
+    effectiveRows as any[],
+    allocations,
+    annualTaxSurplus,
+  );
+  const employerRecs = w4Recs.map((rec) => {
+    const a = allocations.find((x) => x.streamId === rec.row.streamId);
+    const perPaycheck = rec.change.recommendedExtraPerPaycheck;
+    return {
+      row: rec.row,
+      perPaycheck,
+      annualForEmployer: rec.annualRecommendedExtra,
+      allocation: a,
+      change: rec.change,
+    };
   });
-  const recsWithExtra = employerRecs.filter((e) => e.perPaycheck > 0);
+  const recsWithExtra = employerRecs.filter(
+    (e) => e.perPaycheck > 0 || e.change.direction !== "none",
+  );
   const hasAnyDataWarning =
     dataCompleteness.missingYtdAggregate ||
     dataCompleteness.missingFutureAggregate ||
@@ -1278,7 +1307,7 @@ export default function W4PaycheckAdjustmentCard() {
             </div>
           ) : (
             <div className="space-y-3" data-testid="w4-hero">
-              {recsWithExtra.map(({ row: r, perPaycheck, annualForEmployer }) => {
+              {recsWithExtra.map(({ row: r, perPaycheck, annualForEmployer, change }) => {
                 const slug = employerSlug(r.company);
                 return (
                   <div
@@ -1297,6 +1326,19 @@ export default function W4PaycheckAdjustmentCard() {
                       <span className="text-sm font-medium text-muted-foreground ml-1">
                         per paycheck
                       </span>
+                    </p>
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        change.direction === "increase" && "text-warning",
+                        change.direction === "decrease" && "text-success",
+                        change.direction === "none" && "text-muted-foreground",
+                      )}
+                      data-testid={`w4-change-${slug}`}
+                      data-direction={change.direction}
+                      data-value={change.changeAmountPerPaycheck}
+                    >
+                      {change.label}
                     </p>
                     <p className="text-sm text-foreground flex items-center gap-1.5 flex-wrap">
                       Enter this amount in Form W-4 Step 4(c).
@@ -1318,6 +1360,16 @@ export default function W4PaycheckAdjustmentCard() {
                         </TooltipContent>
                       </Tooltip>
                     </p>
+                    <CurrentExtraW4Field
+                      slug={slug}
+                      companyId={(r as any).companyId ?? null}
+                      value={change.currentExtraPerPaycheck}
+                      onSave={async (next) => {
+                        const cid = (r as any).companyId as string | null;
+                        if (!cid) return;
+                        await updateCompany(cid, { currentExtraW4Withholding: next });
+                      }}
+                    />
                     <p className="text-xs text-muted-foreground">
                       Based on {r.remainingPaychecks} remaining paycheck
                       {r.remainingPaychecks === 1 ? "" : "s"} · about{" "}
@@ -1573,6 +1625,67 @@ function RowSmall({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between text-xs">
       <span className="text-muted-foreground">{label}</span>
       <span className="tabular-nums text-foreground">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Employer-specific "Current Extra W-4 Withholding per Paycheck" editor.
+ * Stored per company, so one employer's entry never affects another's
+ * recommendation.
+ */
+function CurrentExtraW4Field({
+  slug,
+  companyId,
+  value,
+  onSave,
+}: {
+  slug: string;
+  companyId: string | null;
+  value: number;
+  onSave: (next: number) => Promise<void> | void;
+}) {
+  const [draft, setDraft] = React.useState(value ? String(value) : "");
+  React.useEffect(() => {
+    setDraft(value ? String(value) : "");
+  }, [value]);
+
+  if (!companyId) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Save this employer in Settings to record what you already have on its W-4.
+      </p>
+    );
+  }
+
+  const commit = () => {
+    const n = draft.trim() === "" ? 0 : Number(draft);
+    const next = Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
+    if (next !== value) void onSave(next);
+    setDraft(next ? String(next) : "");
+  };
+
+  return (
+    <div className="space-y-1">
+      <label
+        htmlFor={`current-extra-w4-${slug}`}
+        className="text-xs font-medium text-muted-foreground"
+      >
+        Current extra W-4 withholding on file (per paycheck)
+      </label>
+      <Input
+        id={`current-extra-w4-${slug}`}
+        data-testid={`w4-current-extra-${slug}`}
+        inputMode="decimal"
+        type="number"
+        min={0}
+        step="1"
+        placeholder="0"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        className="h-9 max-w-[10rem] bg-background"
+      />
     </div>
   );
 }

@@ -194,6 +194,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
           isW2 && expectedWithholding.trim() !== ""
             ? Number(expectedWithholding)
             : null,
+        currentExtraW4Withholding: 0,
         k1TaxTreatment: isK1 ? k1Treatment : null,
       });
       resetAndClose();
