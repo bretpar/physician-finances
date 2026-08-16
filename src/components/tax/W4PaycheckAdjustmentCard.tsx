@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
+import { Input } from "@/components/ui/input";
 import { useCompanies } from "@/contexts/CompanyContext";
 import {
   useProjectedStreams,
@@ -657,7 +659,7 @@ export default function W4PaycheckAdjustmentCard() {
   const { data: transactions } = useTransactions();
   // Read per-company W-4 settings from Settings > Companies. Hoisted here
   // so employee role maps (used in render) can read it.
-  const { companies } = useCompanies();
+  const { companies, updateCompany } = useCompanies();
 
 
   // Resolve an employee label (primary user vs spouse) for each W-2 employer.
@@ -1362,11 +1364,11 @@ export default function W4PaycheckAdjustmentCard() {
                       slug={slug}
                       companyId={(r as any).companyId ?? null}
                       value={change.currentExtraPerPaycheck}
-                      onSave={(next) =>
-                        updateCompany((r as any).companyId, {
-                          currentExtraW4Withholding: next,
-                        })
-                      }
+                      onSave={async (next) => {
+                        const cid = (r as any).companyId as string | null;
+                        if (!cid) return;
+                        await updateCompany(cid, { currentExtraW4Withholding: next });
+                      }}
                     />
                     <p className="text-xs text-muted-foreground">
                       Based on {r.remainingPaychecks} remaining paycheck
@@ -1623,6 +1625,67 @@ function RowSmall({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between text-xs">
       <span className="text-muted-foreground">{label}</span>
       <span className="tabular-nums text-foreground">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Employer-specific "Current Extra W-4 Withholding per Paycheck" editor.
+ * Stored per company, so one employer's entry never affects another's
+ * recommendation.
+ */
+function CurrentExtraW4Field({
+  slug,
+  companyId,
+  value,
+  onSave,
+}: {
+  slug: string;
+  companyId: string | null;
+  value: number;
+  onSave: (next: number) => Promise<void> | void;
+}) {
+  const [draft, setDraft] = React.useState(value ? String(value) : "");
+  React.useEffect(() => {
+    setDraft(value ? String(value) : "");
+  }, [value]);
+
+  if (!companyId) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Save this employer in Settings to record what you already have on its W-4.
+      </p>
+    );
+  }
+
+  const commit = () => {
+    const n = draft.trim() === "" ? 0 : Number(draft);
+    const next = Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
+    if (next !== value) void onSave(next);
+    setDraft(next ? String(next) : "");
+  };
+
+  return (
+    <div className="space-y-1">
+      <label
+        htmlFor={`current-extra-w4-${slug}`}
+        className="text-xs font-medium text-muted-foreground"
+      >
+        Current extra W-4 withholding on file (per paycheck)
+      </label>
+      <Input
+        id={`current-extra-w4-${slug}`}
+        data-testid={`w4-current-extra-${slug}`}
+        inputMode="decimal"
+        type="number"
+        min={0}
+        step="1"
+        placeholder="0"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        className="h-9 max-w-[10rem] bg-background"
+      />
     </div>
   );
 }
