@@ -541,18 +541,30 @@ export default function Transactions() {
       });
     }
   }, [transactions, companies, bulkUpdateMutation]);
+  /**
+   * Income type the recommendation engine must use. The SAVE path resolves the
+   * persisted type as `selectedIncomeCompany.companyType || income_type`, so
+   * the recommendation has to resolve it the same way. Legacy rows on a K-1 /
+   * 1099 company that carry a stale `income_type: "w2"` were otherwise treated
+   * as W-2 payroll (funded by the annual W-4) and produced no reserve.
+   */
+  const effectiveIncomeType = useMemo(
+    () => selectedIncomeCompany?.companyType || incomeForm.income_type || "1099_schedule_c",
+    [selectedIncomeCompany, incomeForm.income_type],
+  );
   const k1TreatmentForEntry = useMemo(() => {
-    const ft = normalizeFilingType(incomeForm.income_type);
+    const ft = normalizeFilingType(effectiveIncomeType);
     if (ft !== "k1_partnership") return null;
     return selectedIncomeCompany?.k1TaxTreatment ?? null;
-  }, [incomeForm.income_type, selectedIncomeCompany]);
+  }, [effectiveIncomeType, selectedIncomeCompany]);
   const isSelfEmploymentTaxableOverride = useMemo<boolean | null | undefined>(() => {
-    const ft = normalizeFilingType(incomeForm.income_type);
+    const ft = normalizeFilingType(effectiveIncomeType);
     if (ft !== "k1_partnership") return undefined;
     if (k1TreatmentForEntry === "active_partnership" || k1TreatmentForEntry === "guaranteed_payments") return true;
     if (k1TreatmentForEntry === "passive" || k1TreatmentForEntry === "scorp_distribution") return false;
     return undefined;
-  }, [incomeForm.income_type, k1TreatmentForEntry]);
+  }, [effectiveIncomeType, k1TreatmentForEntry]);
+
   /**
    * Catch-up dollars may only be assigned to FUTURE income events. A business
    * income event dated in the past is history — loading it with a quarterly
