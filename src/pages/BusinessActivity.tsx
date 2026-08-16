@@ -2185,7 +2185,7 @@ export default function Transactions() {
                         otherPreTax: num(incomeForm.pre_tax_deductions),
                       }}
                       k1Treatment={k1TreatmentForEntry}
-                      isK1={normalizeFilingType(incomeForm.income_type) === "k1_partnership"}
+                      isK1={normalizeFilingType(effectiveIncomeType) === "k1_partnership"}
                     />
                   </p>
                 </div>
