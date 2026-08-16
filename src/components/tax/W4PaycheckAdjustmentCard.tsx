@@ -1725,26 +1725,41 @@ function CurrentExtraW4Field({
   };
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <label
         htmlFor={`current-extra-w4-${slug}`}
         className="text-xs font-medium text-muted-foreground"
       >
-        Current extra W-4 withholding on file (per paycheck)
+        Current extra W-4 withholding
       </label>
-      <Input
-        id={`current-extra-w4-${slug}`}
-        data-testid={`w4-current-extra-${slug}`}
-        inputMode="decimal"
-        type="number"
-        min={0}
-        step="1"
-        placeholder="0"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        className="h-9 max-w-[10rem] bg-background"
-      />
+      <div className="flex items-center gap-2">
+        <div className="relative w-full max-w-[11rem]">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+            $
+          </span>
+          <Input
+            id={`current-extra-w4-${slug}`}
+            data-testid={`w4-current-extra-${slug}`}
+            inputMode="decimal"
+            type="number"
+            min={0}
+            step="1"
+            placeholder="0.00"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            className="h-11 pl-7 bg-background tabular-nums"
+          />
+        </div>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          per paycheck
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Enter the extra withholding currently on this employer&apos;s W-4 (Step 4(c)).
+        Enter $0 if none.
+      </p>
     </div>
   );
+
 }
