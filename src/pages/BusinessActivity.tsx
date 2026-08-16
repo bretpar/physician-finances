@@ -2176,14 +2176,15 @@ export default function Transactions() {
                     />
                   </p>
                 </div>
-                <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(recommendedWithholding)}</span>
+                <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(displayRecommendedSavings)}</span>
               </div>
             )}
-            {grossIncome > 0 && recommendation && recommendation.isOverWithheld && (
+            {grossIncome > 0 && recommendation && isEventOverWithheld && (
               <div className="rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20 p-3">
                 <p className="text-sm text-emerald-700 dark:text-emerald-400">
-                  Employer over-withheld by <strong>{fmt(Math.abs(recommendedWithholding))}</strong> — consider adjusting your W-4.
+                  Employer over-withheld by <strong>{fmt(Math.abs(recommendation.signedRecommendation))}</strong> — consider adjusting your W-4.
                 </p>
+
               </div>
             )}
 
