@@ -541,18 +541,30 @@ export default function Transactions() {
       });
     }
   }, [transactions, companies, bulkUpdateMutation]);
+  /**
+   * Income type the recommendation engine must use. The SAVE path resolves the
+   * persisted type as `selectedIncomeCompany.companyType || income_type`, so
+   * the recommendation has to resolve it the same way. Legacy rows on a K-1 /
+   * 1099 company that carry a stale `income_type: "w2"` were otherwise treated
+   * as W-2 payroll (funded by the annual W-4) and produced no reserve.
+   */
+  const effectiveIncomeType = useMemo(
+    () => selectedIncomeCompany?.companyType || incomeForm.income_type || "1099_schedule_c",
+    [selectedIncomeCompany, incomeForm.income_type],
+  );
   const k1TreatmentForEntry = useMemo(() => {
-    const ft = normalizeFilingType(incomeForm.income_type);
+    const ft = normalizeFilingType(effectiveIncomeType);
     if (ft !== "k1_partnership") return null;
     return selectedIncomeCompany?.k1TaxTreatment ?? null;
-  }, [incomeForm.income_type, selectedIncomeCompany]);
+  }, [effectiveIncomeType, selectedIncomeCompany]);
   const isSelfEmploymentTaxableOverride = useMemo<boolean | null | undefined>(() => {
-    const ft = normalizeFilingType(incomeForm.income_type);
+    const ft = normalizeFilingType(effectiveIncomeType);
     if (ft !== "k1_partnership") return undefined;
     if (k1TreatmentForEntry === "active_partnership" || k1TreatmentForEntry === "guaranteed_payments") return true;
     if (k1TreatmentForEntry === "passive" || k1TreatmentForEntry === "scorp_distribution") return false;
     return undefined;
-  }, [incomeForm.income_type, k1TreatmentForEntry]);
+  }, [effectiveIncomeType, k1TreatmentForEntry]);
+
   /**
    * Catch-up dollars may only be assigned to FUTURE income events. A business
    * income event dated in the past is history — loading it with a quarterly
@@ -569,7 +581,7 @@ export default function Transactions() {
     return getRecommendation({
       isFutureOpportunity: incomeEntryIsFutureOpportunity,
       grossIncome,
-      incomeType: incomeForm.income_type,
+      incomeType: effectiveIncomeType,
       taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
       retirement401k: num(incomeForm.retirement_401k),
       preTaxDeductions: num(incomeForm.pre_tax_deductions) + num(incomeForm.healthcare_deduction) + num(incomeForm.hsa_contribution),
@@ -578,8 +590,26 @@ export default function Transactions() {
       includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
       isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
-  }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
+  }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
+
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
+  /**
+   * Reserve figure the modal DISPLAYS. Historical (already-received) business
+   * income gets no actionable future funding ask from the canonical engine
+   * (`recommendedWithholding` is 0 by design), but the user still needs to see
+   * the reserve that entry is responsible for — this is why K-1 / 1099 edits
+   * showed no "Recommended to save for taxes" block at all. Falls back to the
+   * canonical event shortfall from the SAME engine result; no new math.
+   * W-2 sources funded through the annual W-4 stay suppressed.
+   */
+  const displayRecommendedSavings = useMemo(() => {
+    if (!recommendation) return 0;
+    if (recommendation.fundedByAnnualW4) return 0;
+    return Math.max(0, recommendedWithholding > 0 ? recommendedWithholding : recommendation.eventShortfall);
+  }, [recommendation, recommendedWithholding]);
+  /** True over-withholding only — never a $0 historical event. */
+  const isEventOverWithheld = !!recommendation && recommendation.signedRecommendation < -0.5;
+
 
   /**
    * Per-company cash-flow treatment of employer contributions. Classification
@@ -2138,7 +2168,7 @@ export default function Transactions() {
             </div>
 
             {/* Recommended to Set Aside */}
-            {grossIncome > 0 && recommendation && !recommendation.isOverWithheld && recommendedWithholding > 0 && (
+            {grossIncome > 0 && recommendation && !isEventOverWithheld && displayRecommendedSavings > 0 && (
               <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
@@ -2155,18 +2185,19 @@ export default function Transactions() {
                         otherPreTax: num(incomeForm.pre_tax_deductions),
                       }}
                       k1Treatment={k1TreatmentForEntry}
-                      isK1={normalizeFilingType(incomeForm.income_type) === "k1_partnership"}
+                      isK1={normalizeFilingType(effectiveIncomeType) === "k1_partnership"}
                     />
                   </p>
                 </div>
-                <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(recommendedWithholding)}</span>
+                <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(displayRecommendedSavings)}</span>
               </div>
             )}
-            {grossIncome > 0 && recommendation && recommendation.isOverWithheld && (
+            {grossIncome > 0 && recommendation && isEventOverWithheld && (
               <div className="rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20 p-3">
                 <p className="text-sm text-emerald-700 dark:text-emerald-400">
-                  Employer over-withheld by <strong>{fmt(Math.abs(recommendedWithholding))}</strong> — consider adjusting your W-4.
+                  Employer over-withheld by <strong>{fmt(Math.abs(recommendation.signedRecommendation))}</strong> — consider adjusting your W-4.
                 </p>
+
               </div>
             )}
 
@@ -2256,8 +2287,8 @@ export default function Transactions() {
                   {showField("actual_withholding") &&
                     grossIncome > 0 &&
                     recommendation &&
-                    !recommendation.isOverWithheld &&
-                    recommendedWithholding > 0 && (
+                    !isEventOverWithheld &&
+                    displayRecommendedSavings > 0 && (
                       <div
                         className="rounded-md border border-primary/30 bg-primary/5 p-3"
                         data-testid="ba-income-recommended-savings"
@@ -2266,10 +2297,10 @@ export default function Transactions() {
                           Recommended to save for taxes
                         </p>
                         <p className="text-lg font-bold text-primary tabular-nums">
-                          {fmt(recommendedWithholding)}
+                          {fmt(displayRecommendedSavings)}
                           <span className="text-sm font-semibold text-primary/80">
                             {" · "}
-                            {((recommendedWithholding / grossIncome) * 100).toFixed(1)}%
+                            {((displayRecommendedSavings / grossIncome) * 100).toFixed(1)}%
                           </span>
                         </p>
                         <p className="text-[10px] text-muted-foreground leading-snug">
@@ -2280,15 +2311,16 @@ export default function Transactions() {
                             className="text-[10px] text-muted-foreground mt-1"
                             data-testid="ba-income-recommended-savings-delta"
                           >
-                            {Math.abs(num(incomeForm.actual_withholding) - recommendedWithholding) < 1
+                            {Math.abs(num(incomeForm.actual_withholding) - displayRecommendedSavings) < 1
                               ? "On target"
-                              : num(incomeForm.actual_withholding) < recommendedWithholding
-                                ? `${fmt(recommendedWithholding - num(incomeForm.actual_withholding))} below recommendation`
-                                : `${fmt(num(incomeForm.actual_withholding) - recommendedWithholding)} above recommendation`}
+                              : num(incomeForm.actual_withholding) < displayRecommendedSavings
+                                ? `${fmt(displayRecommendedSavings - num(incomeForm.actual_withholding))} below recommendation`
+                                : `${fmt(num(incomeForm.actual_withholding) - displayRecommendedSavings)} above recommendation`}
                           </p>
                         )}
                       </div>
                     )}
+
 
                   {showField("actual_withholding") && (
 
@@ -2304,7 +2336,7 @@ export default function Transactions() {
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder={recommendedWithholding > 0 ? fmt(recommendedWithholding) : "0.00"}
+                        placeholder={displayRecommendedSavings > 0 ? fmt(displayRecommendedSavings) : "0.00"}
                         value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding}
                         onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))}
                       />
