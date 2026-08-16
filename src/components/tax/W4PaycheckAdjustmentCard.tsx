@@ -1223,13 +1223,25 @@ export default function W4PaycheckAdjustmentCard() {
   // Hide card entirely if user has no W-2 streams at all — nothing to recommend.
   if (sourceRows.length === 0) return null;
 
-  const employerRecs = effectiveRows.map((r) => {
-    const a = allocations.find((x) => x.streamId === r.streamId);
-    const perPaycheck = a?.step4cPerPaycheck ?? 0;
-    const annualForEmployer = perPaycheck * r.remainingPaychecks;
-    return { row: r, perPaycheck, annualForEmployer, allocation: a };
+  const w4Recs = buildEmployerW4Recommendations(
+    effectiveRows as any[],
+    allocations,
+    annualTaxSurplus,
+  );
+  const employerRecs = w4Recs.map((rec) => {
+    const a = allocations.find((x) => x.streamId === rec.row.streamId);
+    const perPaycheck = rec.change.recommendedExtraPerPaycheck;
+    return {
+      row: rec.row,
+      perPaycheck,
+      annualForEmployer: rec.annualRecommendedExtra,
+      allocation: a,
+      change: rec.change,
+    };
   });
-  const recsWithExtra = employerRecs.filter((e) => e.perPaycheck > 0);
+  const recsWithExtra = employerRecs.filter(
+    (e) => e.perPaycheck > 0 || e.change.direction !== "none",
+  );
   const hasAnyDataWarning =
     dataCompleteness.missingYtdAggregate ||
     dataCompleteness.missingFutureAggregate ||
