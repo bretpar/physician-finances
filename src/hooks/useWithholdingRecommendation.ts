@@ -104,6 +104,19 @@ export interface WithholdingRecommendation {
   catchUpApplied: number;
   /** Quarter-level shortfall context driving the catch-up. */
   catchUp: CatchUpResult;
+  /**
+   * This event's reserve shortfall (allocated target − coverage credited to
+   * the event), floored at 0. Populated for BOTH future and historical events,
+   * so an already-received 1099 / K-1 entry can still display the reserve it
+   * should carry even though `recommendedWithholding` (the actionable future
+   * ask) is 0 for history.
+   */
+  eventShortfall: number;
+  /** Signed canonical recommendation (negative = over-covered). */
+  signedRecommendation: number;
+  /** False for historical / already-received events. */
+  isFutureOpportunity: boolean;
+
   // ── Canonical allocation transparency ──
   /** This event's share of the canonical annual liability (before coverage). */
   eventTaxTarget: number;
