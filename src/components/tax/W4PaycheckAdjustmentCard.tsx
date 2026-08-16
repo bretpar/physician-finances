@@ -26,6 +26,10 @@ import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/ca
 import { buildSourceFundingPlan } from "@/lib/sourceFundingPlan";
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
+import {
+  buildEmployerW4Recommendations,
+  resolveCurrentExtraW4,
+} from "@/lib/w4CurrentWithholding";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
@@ -1047,6 +1051,13 @@ export default function W4PaycheckAdjustmentCard() {
         expectedNormalWithholding = r.expectedNormalWithholding;
       }
 
+      // Employer-specific extra W-4 withholding already on file is FUTURE
+      // expected withholding — it is never applied to past paychecks.
+      const currentExtraW4PerPaycheck = resolveCurrentExtraW4(
+        settings?.currentExtraW4Withholding,
+      );
+      expectedNormalWithholding += currentExtraW4PerPaycheck * remainingPaychecks;
+
       const missingSettings = !settings?.payFrequency;
       const usedSavedSettings =
         savedAnnualGross != null || savedFedPerPaycheck != null;
@@ -1077,6 +1088,8 @@ export default function W4PaycheckAdjustmentCard() {
         remainingPaychecks,
         remainingGross,
         expectedNormalWithholding,
+        currentExtraW4PerPaycheck,
+        companyId: settings?.id ?? null,
         missingSettings,
         isYtdFallback,
         usedSavedSettings,
