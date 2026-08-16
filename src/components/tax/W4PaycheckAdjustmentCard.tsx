@@ -1655,9 +1655,16 @@ export default function W4PaycheckAdjustmentCard() {
               </div>
             </CollapsibleContent>
           </Collapsible>
-        </CardContent>
-      </Card>
+
+            <p className="text-xs text-muted-foreground">
+              Recommendations use your current tax estimate and planned income so they
+              can adjust as your income changes.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </TooltipProvider>
+
   );
 }
 
