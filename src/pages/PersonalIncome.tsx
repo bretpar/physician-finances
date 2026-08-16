@@ -381,9 +381,15 @@ export default function PersonalIncome() {
     // Exclude shadow rows (unlinked imported Plaid cash-confirmation) from
     // aggregate totals so they don't double-count against the canonical
     // planner/manual paycheck. They remain visible in the ledger below.
-    const reportableEntries = entries.filter((e) =>
-      isPersonalIncomeReportable(e as any),
+    // YTD catch-up mirror rows carry include_in_tax_estimate=false (so the tax
+    // engine doesn't double-count the catch-up entry), but they ARE real income
+    // shown in this ledger — they must be counted in the header totals.
+    const reportableEntries = entries.filter(
+      (e) =>
+        isPersonalIncomeReportable(e as any) ||
+        (e as any).entry_kind === "ytd_catchup",
     );
+
     const stats = reportableEntries.reduce(
       (acc, e) => {
         const amt = Number(e.gross_amount);

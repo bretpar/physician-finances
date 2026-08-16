@@ -47,29 +47,20 @@ const fmtUsd = (n: number) =>
   );
 
 /**
- * Build the employer-specific recommendation from the engine's incremental
- * per-paycheck ask and the employer's current W-4 extra amount.
+ * Build the employer-specific recommendation from the employer's TARGET extra
+ * per paycheck (sized from the stable annual W-2 gap, independent of what the
+ * user currently has on file) and the employer's current W-4 extra amount.
  *
- * @param incrementalPerPaycheck additional per-paycheck need from the engine
- *        (already net of the current extra, because the current extra is
- *        counted as projected future withholding)
+ * @param targetPerPaycheck full recommended Step 4(c) amount for this employer
  * @param currentExtraPerPaycheck what's on the employer's W-4 today
- * @param surplusReductionPerPaycheck optional over-withholding reduction
- *        attributable to this employer (never more than the current extra)
  */
 export function computeW4RecommendedChange(
-  incrementalPerPaycheck: number,
+  targetPerPaycheck: number,
   currentExtraPerPaycheck: unknown,
-  surplusReductionPerPaycheck = 0,
   tolerance = W4_CHANGE_TOLERANCE,
 ): W4RecommendedChange {
   const current = resolveCurrentExtraW4(currentExtraPerPaycheck);
-  const increment = Math.max(0, Number(incrementalPerPaycheck) || 0);
-  const reduction = Math.min(
-    current,
-    Math.max(0, Number(surplusReductionPerPaycheck) || 0),
-  );
-  const recommended = Math.max(0, current + increment - reduction);
+  const recommended = Math.max(0, Number(targetPerPaycheck) || 0);
   const delta = Math.round((recommended - current) * 100) / 100;
   const abs = Math.abs(delta);
 
@@ -94,6 +85,7 @@ export function computeW4RecommendedChange(
     label: `${direction === "increase" ? "Increase" : "Decrease"} by ${fmtUsd(abs)}/paycheck`,
   };
 }
+
 
 export interface SurplusRowInput {
   key: string;
@@ -144,7 +136,7 @@ export interface EmployerW4Row {
 
 export interface EmployerW4Recommendation<TRow extends EmployerW4Row = EmployerW4Row> {
   row: TRow;
-  /** Additional per-paycheck ask straight from the existing engine allocation. */
+  /** Target per-paycheck extra for this employer, from the engine allocation. */
   incrementalPerPaycheck: number;
   change: W4RecommendedChange;
   /** Total recommended extra across remaining paychecks this year. */
@@ -152,37 +144,29 @@ export interface EmployerW4Recommendation<TRow extends EmployerW4Row = EmployerW
 }
 
 /**
- * Join the existing engine allocations with each employer's current W-4 extra
- * amount. Employer-specific throughout — one employer's setting never leaks
- * into another's recommendation.
+ * Join the engine allocations (stable per-employer TARGETS) with each
+ * employer's current W-4 extra amount. Employer-specific throughout — one
+ * employer's setting never leaks into another's recommendation, and changing it
+ * never re-weights the shared target.
  */
 export function buildEmployerW4Recommendations<TRow extends EmployerW4Row>(
   rows: TRow[],
   allocations: Array<{ streamId: string; step4cPerPaycheck: number }>,
-  annualSurplus = 0,
 ): Array<EmployerW4Recommendation<TRow>> {
-  const surplusByKey = allocateW4SurplusReduction(
-    rows.map((r) => ({
-      key: r.streamId,
-      currentExtraPerPaycheck: resolveCurrentExtraW4(r.currentExtraW4PerPaycheck),
-      remainingPaychecks: r.remainingPaychecks,
-    })),
-    annualSurplus,
-  );
   return rows.map((row) => {
-    const incrementalPerPaycheck =
+    const targetPerPaycheck =
       allocations.find((a) => a.streamId === row.streamId)?.step4cPerPaycheck ?? 0;
     const change = computeW4RecommendedChange(
-      incrementalPerPaycheck,
+      targetPerPaycheck,
       row.currentExtraW4PerPaycheck,
-      surplusByKey.get(row.streamId) ?? 0,
     );
     return {
       row,
-      incrementalPerPaycheck,
+      incrementalPerPaycheck: targetPerPaycheck,
       change,
       annualRecommendedExtra:
         change.recommendedExtraPerPaycheck * Math.max(0, row.remainingPaychecks),
     };
   });
 }
+

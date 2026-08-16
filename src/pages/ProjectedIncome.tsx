@@ -2603,7 +2603,7 @@ export default function ProjectedIncome() {
             <Button
               onClick={() => {
                 setRecurringWarning(null);
-                navigate("/taxes");
+                navigate("/taxes#w4-calculator");
               }}
             >
               Review W-4
