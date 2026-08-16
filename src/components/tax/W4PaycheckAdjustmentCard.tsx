@@ -1305,7 +1305,7 @@ export default function W4PaycheckAdjustmentCard() {
             </div>
           ) : (
             <div className="space-y-3" data-testid="w4-hero">
-              {recsWithExtra.map(({ row: r, perPaycheck, annualForEmployer }) => {
+              {recsWithExtra.map(({ row: r, perPaycheck, annualForEmployer, change }) => {
                 const slug = employerSlug(r.company);
                 return (
                   <div
@@ -1324,6 +1324,19 @@ export default function W4PaycheckAdjustmentCard() {
                       <span className="text-sm font-medium text-muted-foreground ml-1">
                         per paycheck
                       </span>
+                    </p>
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        change.direction === "increase" && "text-warning",
+                        change.direction === "decrease" && "text-success",
+                        change.direction === "none" && "text-muted-foreground",
+                      )}
+                      data-testid={`w4-change-${slug}`}
+                      data-direction={change.direction}
+                      data-value={change.changeAmountPerPaycheck}
+                    >
+                      {change.label}
                     </p>
                     <p className="text-sm text-foreground flex items-center gap-1.5 flex-wrap">
                       Enter this amount in Form W-4 Step 4(c).
@@ -1345,6 +1358,16 @@ export default function W4PaycheckAdjustmentCard() {
                         </TooltipContent>
                       </Tooltip>
                     </p>
+                    <CurrentExtraW4Field
+                      slug={slug}
+                      companyId={(r as any).companyId ?? null}
+                      value={change.currentExtraPerPaycheck}
+                      onSave={(next) =>
+                        updateCompany((r as any).companyId, {
+                          currentExtraW4Withholding: next,
+                        })
+                      }
+                    />
                     <p className="text-xs text-muted-foreground">
                       Based on {r.remainingPaychecks} remaining paycheck
                       {r.remainingPaychecks === 1 ? "" : "s"} · about{" "}
