@@ -2274,8 +2274,8 @@ export default function Transactions() {
                   {showField("actual_withholding") &&
                     grossIncome > 0 &&
                     recommendation &&
-                    !recommendation.isOverWithheld &&
-                    recommendedWithholding > 0 && (
+                    !isEventOverWithheld &&
+                    displayRecommendedSavings > 0 && (
                       <div
                         className="rounded-md border border-primary/30 bg-primary/5 p-3"
                         data-testid="ba-income-recommended-savings"
@@ -2284,10 +2284,10 @@ export default function Transactions() {
                           Recommended to save for taxes
                         </p>
                         <p className="text-lg font-bold text-primary tabular-nums">
-                          {fmt(recommendedWithholding)}
+                          {fmt(displayRecommendedSavings)}
                           <span className="text-sm font-semibold text-primary/80">
                             {" · "}
-                            {((recommendedWithholding / grossIncome) * 100).toFixed(1)}%
+                            {((displayRecommendedSavings / grossIncome) * 100).toFixed(1)}%
                           </span>
                         </p>
                         <p className="text-[10px] text-muted-foreground leading-snug">
@@ -2298,15 +2298,16 @@ export default function Transactions() {
                             className="text-[10px] text-muted-foreground mt-1"
                             data-testid="ba-income-recommended-savings-delta"
                           >
-                            {Math.abs(num(incomeForm.actual_withholding) - recommendedWithholding) < 1
+                            {Math.abs(num(incomeForm.actual_withholding) - displayRecommendedSavings) < 1
                               ? "On target"
-                              : num(incomeForm.actual_withholding) < recommendedWithholding
-                                ? `${fmt(recommendedWithholding - num(incomeForm.actual_withholding))} below recommendation`
-                                : `${fmt(num(incomeForm.actual_withholding) - recommendedWithholding)} above recommendation`}
+                              : num(incomeForm.actual_withholding) < displayRecommendedSavings
+                                ? `${fmt(displayRecommendedSavings - num(incomeForm.actual_withholding))} below recommendation`
+                                : `${fmt(num(incomeForm.actual_withholding) - displayRecommendedSavings)} above recommendation`}
                           </p>
                         )}
                       </div>
                     )}
+
 
                   {showField("actual_withholding") && (
 
