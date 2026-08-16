@@ -2323,7 +2323,7 @@ export default function Transactions() {
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder={recommendedWithholding > 0 ? fmt(recommendedWithholding) : "0.00"}
+                        placeholder={displayRecommendedSavings > 0 ? fmt(displayRecommendedSavings) : "0.00"}
                         value={incomeForm.actual_withholding === "0" ? "" : incomeForm.actual_withholding}
                         onChange={(e) => setIncomeForm((f) => ({ ...f, actual_withholding: e.target.value }))}
                       />
