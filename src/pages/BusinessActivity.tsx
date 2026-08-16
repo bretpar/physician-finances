@@ -2155,7 +2155,7 @@ export default function Transactions() {
             </div>
 
             {/* Recommended to Set Aside */}
-            {grossIncome > 0 && recommendation && !recommendation.isOverWithheld && recommendedWithholding > 0 && (
+            {grossIncome > 0 && recommendation && !isEventOverWithheld && displayRecommendedSavings > 0 && (
               <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
