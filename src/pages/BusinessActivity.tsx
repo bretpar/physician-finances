@@ -580,6 +580,23 @@ export default function Transactions() {
     });
   }, [grossIncome, incomeForm.income_type, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
+  /**
+   * Reserve figure the modal DISPLAYS. Historical (already-received) business
+   * income gets no actionable future funding ask from the canonical engine
+   * (`recommendedWithholding` is 0 by design), but the user still needs to see
+   * the reserve that entry is responsible for — this is why K-1 / 1099 edits
+   * showed no "Recommended to save for taxes" block at all. Falls back to the
+   * canonical event shortfall from the SAME engine result; no new math.
+   * W-2 sources funded through the annual W-4 stay suppressed.
+   */
+  const displayRecommendedSavings = useMemo(() => {
+    if (!recommendation) return 0;
+    if (recommendation.fundedByAnnualW4) return 0;
+    return Math.max(0, recommendedWithholding > 0 ? recommendedWithholding : recommendation.eventShortfall);
+  }, [recommendation, recommendedWithholding]);
+  /** True over-withholding only — never a $0 historical event. */
+  const isEventOverWithheld = !!recommendation && recommendation.signedRecommendation < -0.5;
+
 
   /**
    * Per-company cash-flow treatment of employer contributions. Classification
