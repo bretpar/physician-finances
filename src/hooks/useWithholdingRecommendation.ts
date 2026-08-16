@@ -259,7 +259,16 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         creditedWithholding,
         catchUpApplied: canonical.catchUpApplied,
         catchUp: catchUpContext,
+        eventShortfall: Math.max(
+          0,
+          canonical.recommendedWithholding > 0
+            ? canonical.recommendedWithholding
+            : canonical.historicalShortfall,
+        ),
+        signedRecommendation: canonical.signedRecommendation,
+        isFutureOpportunity: canonical.isFutureOpportunity,
       };
+
 
       return {
         recommendedWithholding: canonical.recommendedWithholding,
