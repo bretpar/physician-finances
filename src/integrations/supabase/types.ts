@@ -21,6 +21,7 @@ export type Database = {
           archived_at: string | null
           company_type: string
           created_at: string
+          current_extra_w4_withholding: number
           default_setaside_method: string
           default_setaside_pct: number | null
           employee_role: string | null
@@ -47,6 +48,7 @@ export type Database = {
           archived_at?: string | null
           company_type?: string
           created_at?: string
+          current_extra_w4_withholding?: number
           default_setaside_method?: string
           default_setaside_pct?: number | null
           employee_role?: string | null
@@ -73,6 +75,7 @@ export type Database = {
           archived_at?: string | null
           company_type?: string
           created_at?: string
+          current_extra_w4_withholding?: number
           default_setaside_method?: string
           default_setaside_pct?: number | null
           employee_role?: string | null
