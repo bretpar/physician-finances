@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, AlertCircle, Info } from "lucide-react";
+import { ChevronDown, AlertCircle, Info, ArrowUp, ArrowDown, Check } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -1270,115 +1270,64 @@ export default function W4PaycheckAdjustmentCard() {
 
   return (
     <TooltipProvider>
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            Recommended extra W-4 withholding
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="About this estimate"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Info className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p className="text-xs">
-                  This estimate uses your W-2 paychecks, YTD withholding, estimated
-                  payments, saved tax entries, and selected income plans.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Stable, machine-readable W-4 summary outputs for audits. */}
-          <div className="sr-only" aria-hidden="true" data-testid="w4-summary-outputs">
-            <span data-testid="w4-projected-household-gross" data-value={projectedHouseholdGross}>
-              {fmt(projectedHouseholdGross)}
-            </span>
-            <span data-testid="w4-projected-federal-withholding" data-value={projectedFederalWithholding}>
-              {fmt(projectedFederalWithholding)}
-            </span>
-            <span data-testid="w4-annual-tax-gap" data-value={annualTaxGap}>
-              {fmt(annualTaxGap)}
-            </span>
-            <span data-testid="w4-annual-tax-surplus" data-value={annualTaxSurplus}>
-              {fmt(annualTaxSurplus)}
-            </span>
-            <span data-testid="w4-total-extra-withholding-needed" data-value={totalExtraThroughYearEnd}>
-              {fmt(totalExtraThroughYearEnd)}
-            </span>
-            <span data-testid="w4-fica-disclaimer">
-              W-4 extra withholding only applies to federal income tax. Social Security and Medicare are handled through payroll.
-            </span>
-          </div>
+      <div className="space-y-4">
+        {/* Stable, machine-readable W-4 summary outputs for audits. */}
+        <div className="sr-only" aria-hidden="true" data-testid="w4-summary-outputs">
+          <span data-testid="w4-projected-household-gross" data-value={projectedHouseholdGross}>
+            {fmt(projectedHouseholdGross)}
+          </span>
+          <span data-testid="w4-projected-federal-withholding" data-value={projectedFederalWithholding}>
+            {fmt(projectedFederalWithholding)}
+          </span>
+          <span data-testid="w4-annual-tax-gap" data-value={annualTaxGap}>
+            {fmt(annualTaxGap)}
+          </span>
+          <span data-testid="w4-annual-tax-surplus" data-value={annualTaxSurplus}>
+            {fmt(annualTaxSurplus)}
+          </span>
+          <span data-testid="w4-total-extra-withholding-needed" data-value={totalExtraThroughYearEnd}>
+            {fmt(totalExtraThroughYearEnd)}
+          </span>
+          <span data-testid="w4-fica-disclaimer">
+            W-4 extra withholding only applies to federal income tax. Social Security and Medicare are handled through payroll.
+          </span>
+        </div>
 
-          {/* Hero: per-employer extra-per-paycheck recommendation */}
-          {recsWithExtra.length === 0 ? (
-            <div
-              className="rounded-lg border border-success/40 bg-success/5 p-4 text-sm text-foreground"
-              data-testid="w4-hero-empty"
-            >
-              No extra W-4 withholding needed right now.
-            </div>
-          ) : (
-            <div className="space-y-3" data-testid="w4-hero">
-              {recsWithExtra.map(({ row: r, perPaycheck, annualForEmployer, change }) => {
-                const slug = employerSlug(r.company);
-                return (
-                  <div
-                    key={`hero-${r.streamId}`}
-                    className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2"
-                    data-testid={`w4-hero-card-${slug}`}
-                  >
-                    <p
-                      className="text-sm font-medium text-foreground break-words [overflow-wrap:anywhere] hyphens-auto leading-snug"
-                      title={r.company}
-                    >
-                      {r.company}
-                    </p>
-                    <p className="text-3xl sm:text-4xl font-bold tabular-nums text-primary leading-tight">
-                      {fmt(perPaycheck)}
-                      <span className="text-sm font-medium text-muted-foreground ml-1">
-                        per paycheck
-                      </span>
-                    </p>
-                    <p
-                      className={cn(
-                        "text-sm font-medium",
-                        change.direction === "increase" && "text-warning",
-                        change.direction === "decrease" && "text-success",
-                        change.direction === "none" && "text-muted-foreground",
-                      )}
-                      data-testid={`w4-change-${slug}`}
-                      data-direction={change.direction}
-                      data-value={change.changeAmountPerPaycheck}
-                    >
-                      {change.label}
-                    </p>
-                    <p className="text-sm text-foreground flex items-center gap-1.5 flex-wrap">
-                      Enter this amount in Form W-4 Step 4(c).
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            aria-label="About W-4 Step 4(c)"
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <Info className="h-3.5 w-3.5" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p className="text-xs">
-                            Step 4(c) is where you enter extra federal income tax to
-                            withhold from each paycheck.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </p>
+        {/* One compact card per active W-2 employer */}
+        {employerRecs.length === 0 ? (
+          <Card>
+            <CardContent className="p-4">
+              <p
+                className="text-sm text-muted-foreground"
+                data-testid="w4-hero-empty"
+              >
+                No active W-2 employers to show yet.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3" data-testid="w4-hero">
+            {employerRecs.map(({ row: r, perPaycheck, annualForEmployer, change }) => {
+              const slug = employerSlug(r.company);
+              const onTrack = change.direction === "none";
+              return (
+                <Card key={`hero-${r.streamId}`} data-testid={`w4-hero-card-${slug}`}>
+                  <CardContent className="p-4 space-y-4">
+                    {/* Employer identity */}
+                    <div className="min-w-0">
+                      <p
+                        className="text-base font-semibold text-foreground break-words [overflow-wrap:anywhere] leading-snug"
+                        title={r.company}
+                      >
+                        {r.company}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {r.remainingPaychecks} paycheck
+                        {r.remainingPaychecks === 1 ? "" : "s"} remaining
+                      </p>
+                    </div>
+
+                    {/* Current extra W-4 withholding (existing per-employer field) */}
                     <CurrentExtraW4Field
                       slug={slug}
                       companyId={(r as any).companyId ?? null}
@@ -1389,16 +1338,100 @@ export default function W4PaycheckAdjustmentCard() {
                         await updateCompany(cid, { currentExtraW4Withholding: next });
                       }}
                     />
+
+                    {/* Recommendation + adjustment */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-lg border border-border bg-muted/30 p-3">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                          PaycheckMD recommendation
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="About the recommended amount"
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="text-xs">
+                                The total amount to enter in Form W-4 Step 4(c) for this
+                                employer — extra federal income tax withheld from each
+                                paycheck.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </p>
+                        <p className="text-2xl font-bold tabular-nums text-foreground leading-tight mt-1">
+                          {fmt(perPaycheck)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">per paycheck</p>
+                      </div>
+
+                      <div
+                        className={cn(
+                          "rounded-lg border p-3",
+                          change.direction === "increase" && "border-warning/40 bg-warning/10",
+                          change.direction === "decrease" && "border-success/40 bg-success/10",
+                          onTrack && "border-success/40 bg-success/5",
+                        )}
+                        data-testid={`w4-change-${slug}`}
+                        data-direction={change.direction}
+                        data-value={change.changeAmountPerPaycheck}
+                      >
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Your adjustment
+                        </p>
+                        {onTrack ? (
+                          <>
+                            <p className="text-base font-semibold text-success leading-tight mt-1 flex items-center gap-1.5">
+                              <Check className="h-4 w-4 shrink-0" />
+                              You&apos;re on track
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              No change needed
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p
+                              className={cn(
+                                "text-2xl font-bold tabular-nums leading-tight mt-1 flex items-center gap-1",
+                                change.direction === "increase" ? "text-warning" : "text-success",
+                              )}
+                            >
+                              {change.direction === "increase" ? (
+                                <ArrowUp className="h-5 w-5 shrink-0" />
+                              ) : (
+                                <ArrowDown className="h-5 w-5 shrink-0" />
+                              )}
+                              {fmt(change.changeAmountPerPaycheck)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {change.direction === "increase" ? "Increase" : "Decrease"} per
+                              paycheck
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
                     <p className="text-xs text-muted-foreground">
-                      Based on {r.remainingPaychecks} remaining paycheck
-                      {r.remainingPaychecks === 1 ? "" : "s"} · about{" "}
+                      Enter the recommended amount in Form W-4 Step 4(c) · about{" "}
                       {fmt(annualForEmployer)} extra this year.
                     </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Lower summary card — secondary details */}
+        <Card>
+          <CardContent className="p-4 space-y-4">
+
 
           {/* Estimated remaining annual gap — secondary to per-paycheck hero */}
           <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
@@ -1622,9 +1655,16 @@ export default function W4PaycheckAdjustmentCard() {
               </div>
             </CollapsibleContent>
           </Collapsible>
-        </CardContent>
-      </Card>
+
+            <p className="text-xs text-muted-foreground">
+              Recommendations use your current tax estimate and planned income so they
+              can adjust as your income changes.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </TooltipProvider>
+
   );
 }
 
@@ -1685,26 +1725,41 @@ function CurrentExtraW4Field({
   };
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <label
         htmlFor={`current-extra-w4-${slug}`}
         className="text-xs font-medium text-muted-foreground"
       >
-        Current extra W-4 withholding on file (per paycheck)
+        Current extra W-4 withholding
       </label>
-      <Input
-        id={`current-extra-w4-${slug}`}
-        data-testid={`w4-current-extra-${slug}`}
-        inputMode="decimal"
-        type="number"
-        min={0}
-        step="1"
-        placeholder="0"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        className="h-9 max-w-[10rem] bg-background"
-      />
+      <div className="flex items-center gap-2">
+        <div className="relative w-full max-w-[11rem]">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+            $
+          </span>
+          <Input
+            id={`current-extra-w4-${slug}`}
+            data-testid={`w4-current-extra-${slug}`}
+            inputMode="decimal"
+            type="number"
+            min={0}
+            step="1"
+            placeholder="0.00"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            className="h-11 pl-7 bg-background tabular-nums"
+          />
+        </div>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          per paycheck
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Enter the extra withholding currently on this employer&apos;s W-4 (Step 4(c)).
+        Enter $0 if none.
+      </p>
     </div>
   );
+
 }

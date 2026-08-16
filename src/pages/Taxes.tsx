@@ -289,7 +289,8 @@ export default function Taxes() {
           <div>
             <h1 className="text-xl font-semibold text-foreground">W-4 Calculator</h1>
             <p className="text-sm text-muted-foreground">
-              Estimate extra withholding needed on each W-2 paycheck.
+              See what to enter for extra withholding on each W-4 based on your current
+              and planned income.
             </p>
           </div>
           <W4PaycheckAdjustmentCard />
