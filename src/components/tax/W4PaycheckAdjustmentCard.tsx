@@ -1011,11 +1011,11 @@ export default function W4PaycheckAdjustmentCard() {
   }, [incomeEntries]);
 
   // Apply company settings to produce effective rows used in allocation.
-  // Priority (per spec):
-  //   1. Saved expectedFederalWithholdingPerPaycheck * remainingPaychecks
-  //   2. Saved projectedAnnualGross minus YTD gross
-  //   3. Derived from projected paycheck streams
-  //   4. YTD fallback per-paycheck averages (catch-up rows excluded)
+  // Source precedence (per spec):
+  //   1. Recurring W-2 Income Planner stream (2+ future occurrences) — primary
+  //   2. Saved company Settings (annual gross / expected federal per paycheck)
+  //   3. YTD/historical fallback per-paycheck averages (catch-up rows excluded)
+
   const effectiveRows = useMemo(() => {
     return sourceRows.map((r) => {
       const lookupKey = `emp:${normalizeEmployerName(r.company)}|w2`;
