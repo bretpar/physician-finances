@@ -32,6 +32,8 @@ import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
   buildEmployerW4Recommendations,
   resolveCurrentExtraW4,
+  allocateW4SurplusReduction,
+  stabilizeW4Targets,
 } from "@/lib/w4CurrentWithholding";
 
 const fmt = (n: number) =>
@@ -1226,12 +1228,15 @@ export default function W4PaycheckAdjustmentCard() {
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
 
-  // Use the estimate the user's withholding method selects (same one Tax
-  // Overview shows) so planned income changes move the W-4 recommendation.
+  // The W-4 is inherently forward-looking: it must fund the rest of the year,
+  // including recurring 1099/K-1 planned income. Use the same actual+planned
+  // forecast bundle the Income Planner uses, falling back to the
+  // method-selected bundle only when no forecast exists.
   const selectedDebug =
-    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-      ? (forecastDebug ?? actualDebug)
-      : (currentPaceDebug ?? actualDebug);
+    forecastDebug ??
+    ((settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? actualDebug
+      : (currentPaceDebug ?? actualDebug));
 
   const projectedTotalTax = Number(selectedDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
@@ -1305,10 +1310,32 @@ export default function W4PaycheckAdjustmentCard() {
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
 
-  const allocations = useMemo(
-    () => computeAllocations(effectiveRows, grossW4Gap, totalRemainingW2Gross),
-    [effectiveRows, totalRemainingW2Gross, grossW4Gap],
-  );
+  // Weight only the INCREMENTAL gap (after crediting all current Step 4(c)),
+  // then add each employer's own current extra back to form its stable target.
+  // This keeps one employer's Step 4(c) edit from re-weighting the others.
+  const allocations = useMemo(() => {
+    const incrementalGap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
+    const incremental = computeAllocations(
+      effectiveRows,
+      incrementalGap,
+      totalRemainingW2Gross,
+    );
+    const surplus = Math.max(0, currentExtraW4FutureWithholding - grossW4Gap);
+    const reductions = allocateW4SurplusReduction(
+      effectiveRows.map((r) => ({
+        key: r.streamId,
+        currentExtraPerPaycheck: resolveCurrentExtraW4((r as any).currentExtraW4PerPaycheck),
+        remainingPaychecks: Math.max(0, Number(r.remainingPaychecks) || 0),
+      })),
+      surplus,
+    );
+    const targets = stabilizeW4Targets(effectiveRows as any[], incremental, reductions);
+    return incremental.map((a) => ({
+      ...a,
+      step4cPerPaycheck:
+        targets.find((t) => t.streamId === a.streamId)?.step4cPerPaycheck ?? 0,
+    }));
+  }, [effectiveRows, totalRemainingW2Gross, grossW4Gap, currentExtraW4FutureWithholding]);
 
   const totalExtraThroughYearEnd = allocations.reduce(
     (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
@@ -1656,6 +1683,10 @@ export default function W4PaycheckAdjustmentCard() {
                   <Row
                     label="Projected future W-2 withholding"
                     value={fmt(expectedFutureNormalW2Withholding)}
+                  />
+                  <Row
+                    label="Current extra W-4 withholding on remaining paychecks"
+                    value={fmt(currentExtraW4FutureWithholding)}
                   />
                   <Row label="Actual tax saved YTD" value={fmt(actualTaxSavedOrPaid)} />
                   <Row
