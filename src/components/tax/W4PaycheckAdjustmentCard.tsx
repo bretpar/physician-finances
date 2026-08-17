@@ -1158,6 +1158,9 @@ export default function W4PaycheckAdjustmentCard() {
         hasFutureProjection,
         hasStreamProjection,
         settingsOnlyFuture,
+        projectionSource,
+        hasRecurringPlannerStream,
+
         ytdGrossTotal,
         ytdWithheldTotal,
         // Override-visibility disclosure (display only — no math impact).
