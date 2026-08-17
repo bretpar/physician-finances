@@ -1027,8 +1027,15 @@ export default function W4PaycheckAdjustmentCard() {
       const detectedPaychecks = r.remainingPaychecks;
       const isYtdFallback = Boolean((r as any).__isYtdFallback);
 
+      // A RECURRING planner stream (multiple scheduled future paychecks) is the
+      // primary source of truth. A single one-time occurrence is not.
+      const hasRecurringPlannerStream =
+        !isYtdFallback && detectedPaychecks >= 2 && r.remainingGross > 0;
+
       let autoPaychecks: number;
-      if (r.lastPaycheckDate) {
+      if (hasRecurringPlannerStream) {
+        autoPaychecks = detectedPaychecks;
+      } else if (r.lastPaycheckDate) {
         autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
       } else if (detectedPaychecks > 0 && !settings?.payFrequency) {
         autoPaychecks = detectedPaychecks;
@@ -1041,9 +1048,15 @@ export default function W4PaycheckAdjustmentCard() {
           ? Math.max(0, Math.floor(settings.remainingOverride))
           : autoPaychecks;
 
-      const savedAnnualGross = settings?.projectedAnnualGross ?? null;
-      const savedFedPerPaycheck =
-        settings?.expectedFederalWithholdingPerPaycheck ?? null;
+      // Saved Settings estimates are FALLBACKS — ignored while a recurring
+      // planner stream exists (prevents stale saved values winning).
+      const savedAnnualGross = hasRecurringPlannerStream
+        ? null
+        : settings?.projectedAnnualGross ?? null;
+      const savedFedPerPaycheck = hasRecurringPlannerStream
+        ? null
+        : settings?.expectedFederalWithholdingPerPaycheck ?? null;
+
       const ytd =
         ytdByEmployerKey.get(lookupKey) || {
           gross: 0,
