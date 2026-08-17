@@ -1226,12 +1226,15 @@ export default function W4PaycheckAdjustmentCard() {
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
 
-  // Use the estimate the user's withholding method selects (same one Tax
-  // Overview shows) so planned income changes move the W-4 recommendation.
+  // The W-4 is inherently forward-looking: it must fund the rest of the year,
+  // including recurring 1099/K-1 planned income. Use the same actual+planned
+  // forecast bundle the Income Planner uses, falling back to the
+  // method-selected bundle only when no forecast exists.
   const selectedDebug =
-    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-      ? (forecastDebug ?? actualDebug)
-      : (currentPaceDebug ?? actualDebug);
+    forecastDebug ??
+    ((settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? actualDebug
+      : (currentPaceDebug ?? actualDebug));
 
   const projectedTotalTax = Number(selectedDebug?.totalEstimatedTax ?? 0);
   const taxesAlreadyWithheld =
