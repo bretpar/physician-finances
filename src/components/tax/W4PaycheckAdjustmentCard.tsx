@@ -1136,6 +1136,15 @@ export default function W4PaycheckAdjustmentCard() {
         settingsOnlyFuture,
         ytdGrossTotal,
         ytdWithheldTotal,
+        // Override-visibility disclosure (display only — no math impact).
+        savedFedPerPaycheckOverride: savedFedPerPaycheck,
+        savedAnnualGrossOverride: savedAnnualGross,
+        recentActualFedPerPaycheck:
+          ytd.paycheckCount > 0 ? ytd.fedIncomeTax / ytd.paycheckCount : null,
+        recentActualGrossPerPaycheck:
+          ytd.paycheckCount > 0 && ytd.gross > 0
+            ? ytd.gross / ytd.paycheckCount
+            : null,
       };
     });
 
