@@ -123,6 +123,32 @@ export function allocateW4SurplusReduction(
   return out;
 }
 
+/**
+ * Convert INCREMENTAL allocations (allocated from the gap that remains AFTER
+ * crediting every employer's current Step 4(c)) into absolute per-employer
+ * targets: `target = current extra + incremental − surplus reduction`.
+ *
+ * Weighting happens upstream on the incremental gap only, so one employer's
+ * current Step 4(c) can never re-weight another employer's target.
+ */
+export function stabilizeW4Targets<
+  TRow extends { streamId: string; remainingPaychecks: number; currentExtraW4PerPaycheck?: number },
+>(
+  rows: TRow[],
+  incrementalAllocations: Array<{ streamId: string; step4cPerPaycheck: number }>,
+  surplusReductions: Map<string, number> = new Map(),
+): Array<{ streamId: string; step4cPerPaycheck: number }> {
+  return rows.map((row) => {
+    const incremental =
+      incrementalAllocations.find((a) => a.streamId === row.streamId)?.step4cPerPaycheck ?? 0;
+    const current = resolveCurrentExtraW4(row.currentExtraW4PerPaycheck);
+    const reduction = Math.max(0, Number(surplusReductions.get(row.streamId)) || 0);
+    const hasPaychecks = Math.max(0, Number(row.remainingPaychecks) || 0) > 0;
+    const target = hasPaychecks ? current + incremental - reduction : 0;
+    return { streamId: row.streamId, step4cPerPaycheck: Math.max(0, Math.round(target)) };
+  });
+}
+
 export interface EmployerW4Row {
   /** Row key (employer key) used to match the allocation entry. */
   streamId: string;
