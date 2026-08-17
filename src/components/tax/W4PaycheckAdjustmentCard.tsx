@@ -1414,6 +1414,11 @@ export default function W4PaycheckAdjustmentCard() {
                             <p className="text-xs text-muted-foreground">
                               No change needed
                             </p>
+                            {hasNonW2Income && countPlannedNonW2Reserves && (
+                              <p className="text-[11px] text-muted-foreground/80 leading-snug mt-1.5">
+                                Assumes you continue making your planned business tax reserves.
+                              </p>
+                            )}
                           </>
                         ) : (
                           <>
@@ -1434,6 +1439,15 @@ export default function W4PaycheckAdjustmentCard() {
                               {change.direction === "increase" ? "Increase" : "Decrease"} per
                               paycheck
                             </p>
+                            {hasNonW2Income && (
+                              <p className="text-[11px] text-muted-foreground/80 leading-snug mt-1.5">
+                                {!countPlannedNonW2Reserves && change.direction === "increase"
+                                  ? "If you prefer to cover your remaining tax gap through W-4 withholding."
+                                  : countPlannedNonW2Reserves && change.direction === "decrease"
+                                    ? "Assumes you continue making your planned business tax reserves."
+                                    : null}
+                              </p>
+                            )}
                           </>
                         )}
                       </div>
@@ -1492,9 +1506,26 @@ export default function W4PaycheckAdjustmentCard() {
                   className="text-sm font-medium text-foreground"
                 >
                   Include business tax reserves
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="About including business tax reserves"
+                        className="text-muted-foreground hover:text-foreground transition-colors ml-1 align-middle"
+                      >
+                        <Info className="h-3.5 w-3.5 inline" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-xs">
+                        ON: assume you will continue saving separately for 1099/K-1/business taxes.
+                        OFF: do not assume those future savings; show how much of the remaining tax gap could be covered through your W-4s.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
                 </Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Counts planned 1099/K-1 tax savings when estimating your W-4 gap.
+                  Count your planned 1099/K-1/business tax savings toward your tax needs, which may reduce how much extra W-4 withholding you need.
                 </p>
               </div>
               <Switch
