@@ -1802,6 +1802,43 @@ function RowSmall({ label, value }: { label: string; value: string }) {
 }
 
 /**
+ * Subtle source label: which existing data source drives this employer's
+ * future paycheck assumptions. Display only.
+ */
+function ProjectionSourceLabel({
+  row,
+  slug,
+}: {
+  row: { projectionSource?: "planner" | "settings" | "history" };
+  slug: string;
+}) {
+  const source = row.projectionSource ?? "history";
+  const text =
+    source === "planner"
+      ? "Using Income Planner"
+      : source === "settings"
+        ? "Using W-4 Settings"
+        : "Using recent paycheck history";
+  const link =
+    source === "planner"
+      ? { to: "/projected-income", label: "View in Income Planner" }
+      : { to: "/settings", label: "Edit in Settings" };
+  return (
+    <p
+      className="text-[11px] text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-1.5"
+      data-testid={`w4-projection-source-${slug}`}
+      data-source={source}
+    >
+      <span>{text}</span>
+      <Link to={link.to} className="font-medium text-primary hover:underline">
+        {link.label}
+      </Link>
+    </p>
+  );
+}
+
+/**
+
  * Small, secondary disclosure shown when a company's saved W-4 / paycheck
  * Settings estimate is the value actually driving this employer's W-4
  * projection (instead of Planner/actual-derived data).
