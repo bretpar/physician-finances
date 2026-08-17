@@ -26,6 +26,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/canonicalEventRecommendation";
 import { buildSourceFundingPlan } from "@/lib/sourceFundingPlan";
+import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
@@ -839,7 +840,14 @@ export default function W4PaycheckAdjustmentCard() {
           remainingPaychecks += 1;
         }
         remainingGross += Number(p.grossAmount || 0);
-        expectedNormalWithholding += Number(p.taxesWithheld || 0);
+        // FEDERAL INCOME TAX ONLY — SS/Medicare are settled through payroll and
+        // are not credits against the income-tax-only W-2 responsibility.
+        expectedNormalWithholding += getFederalIncomeTaxWithheld({
+          taxes_withheld: p.taxesWithheld,
+          federal_withholding: p.federalWithholding,
+          ss_withholding: p.ssWithholding,
+          medicare_withholding: p.medicareWithholding,
+        });
       }
 
       return {
@@ -1044,20 +1052,30 @@ export default function W4PaycheckAdjustmentCard() {
           detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
       }
 
-      if (savedFedPerPaycheck != null) {
-        expectedNormalWithholding = savedFedPerPaycheck * remainingPaychecks;
-      } else if (isYtdFallback) {
-        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
-        expectedNormalWithholding = avgWithheld * remainingPaychecks;
-      } else {
-        expectedNormalWithholding = r.expectedNormalWithholding;
-      }
-
       // Employer-specific extra W-4 withholding already on file. Tracked
       // separately from the baseline payroll projection so the user's own
       // setting can never shrink the target it is measured against.
       const currentExtraW4PerPaycheck = resolveCurrentExtraW4(
         settings?.currentExtraW4Withholding,
+      );
+
+      let rawFutureFederalWithholding: number;
+      if (savedFedPerPaycheck != null) {
+        rawFutureFederalWithholding = savedFedPerPaycheck * remainingPaychecks;
+      } else if (isYtdFallback) {
+        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
+        rawFutureFederalWithholding = avgWithheld * remainingPaychecks;
+      } else {
+        rawFutureFederalWithholding = r.expectedNormalWithholding;
+      }
+
+      // Stored per-paycheck federal withholding already includes any Step 4(c)
+      // extra on file, so strip it here — it is added back exactly once as
+      // `currentExtraW4FutureWithholding`.
+      expectedNormalWithholding = Math.max(
+        0,
+        rawFutureFederalWithholding -
+          currentExtraW4PerPaycheck * Math.max(0, remainingPaychecks),
       );
 
 

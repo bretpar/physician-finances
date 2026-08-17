@@ -25,6 +25,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
+import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/canonicalEventRecommendation";
 import {
   buildSourceFundingPlan,
@@ -197,7 +198,16 @@ export function useW4Calculation(): W4CalculationResult {
           remainingPaychecks += 1;
         }
         remainingGross += Number(p.grossAmount || 0);
-        expectedNormalWithholding += Number(p.taxesWithheld || 0);
+        // FEDERAL INCOME TAX ONLY. `taxesWithheld` is the canonical total
+        // federal payroll tax (fed + SS + Medicare); crediting SS/Medicare
+        // against the income-tax-only W-2 allocated responsibility would
+        // understate the W-4 gap.
+        expectedNormalWithholding += getFederalIncomeTaxWithheld({
+          taxes_withheld: p.taxesWithheld,
+          federal_withholding: p.federalWithholding,
+          ss_withholding: p.ssWithholding,
+          medicare_withholding: p.medicareWithholding,
+        });
       }
 
       return {
@@ -347,10 +357,6 @@ export function useW4Calculation(): W4CalculationResult {
         remainingGross = detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
       }
 
-      if (savedFedPerPaycheck != null) expectedNormalWithholding = savedFedPerPaycheck * remainingPaychecks;
-      else if (isYtdFallback) expectedNormalWithholding = ((r as any).__ytdAvgWithheld || 0) * remainingPaychecks;
-      else expectedNormalWithholding = r.expectedNormalWithholding;
-
       // Employer-specific extra W-4 withholding already on file. This is NOT
       // folded into the baseline projection used to size the gap — doing so
       // made the user's own setting shrink the target it was measured against
@@ -358,6 +364,22 @@ export function useW4Calculation(): W4CalculationResult {
       // normal payroll withholding; the current extra is tracked separately and
       // subtracted ONCE at the end to show the still-uncovered shortfall.
       const currentExtraW4PerPaycheck = resolveCurrentExtraW4(settings?.currentExtraW4Withholding);
+
+      let rawFutureFederalWithholding: number;
+      if (savedFedPerPaycheck != null) rawFutureFederalWithholding = savedFedPerPaycheck * remainingPaychecks;
+      else if (isYtdFallback) rawFutureFederalWithholding = ((r as any).__ytdAvgWithheld || 0) * remainingPaychecks;
+      else rawFutureFederalWithholding = r.expectedNormalWithholding;
+
+      // The stored per-paycheck federal withholding (planner stream, saved
+      // company setting, or YTD average) is the employer's ACTUAL current
+      // withholding — it already contains any Step 4(c) extra on file. The
+      // baseline must be pre-4(c), otherwise the same extra is counted twice
+      // (once here, once as `currentExtraW4FutureWithholding`).
+      expectedNormalWithholding = Math.max(
+        0,
+        rawFutureFederalWithholding -
+          currentExtraW4PerPaycheck * Math.max(0, remainingPaychecks),
+      );
 
 
       return {
