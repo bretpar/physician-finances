@@ -197,7 +197,16 @@ export function useW4Calculation(): W4CalculationResult {
           remainingPaychecks += 1;
         }
         remainingGross += Number(p.grossAmount || 0);
-        expectedNormalWithholding += Number(p.taxesWithheld || 0);
+        // FEDERAL INCOME TAX ONLY. `taxesWithheld` is the canonical total
+        // federal payroll tax (fed + SS + Medicare); crediting SS/Medicare
+        // against the income-tax-only W-2 allocated responsibility would
+        // understate the W-4 gap.
+        expectedNormalWithholding += getFederalIncomeTaxWithheld({
+          taxes_withheld: p.taxesWithheld,
+          federal_withholding: p.federalWithholding,
+          ss_withholding: p.ssWithholding,
+          medicare_withholding: p.medicareWithholding,
+        });
       }
 
       return {
