@@ -1414,6 +1414,11 @@ export default function W4PaycheckAdjustmentCard() {
                             <p className="text-xs text-muted-foreground">
                               No change needed
                             </p>
+                            {hasNonW2Income && countPlannedNonW2Reserves && (
+                              <p className="text-[11px] text-muted-foreground/80 leading-snug mt-1.5">
+                                Assumes you continue making your planned business tax reserves.
+                              </p>
+                            )}
                           </>
                         ) : (
                           <>
@@ -1434,6 +1439,15 @@ export default function W4PaycheckAdjustmentCard() {
                               {change.direction === "increase" ? "Increase" : "Decrease"} per
                               paycheck
                             </p>
+                            {hasNonW2Income && (
+                              <p className="text-[11px] text-muted-foreground/80 leading-snug mt-1.5">
+                                {!countPlannedNonW2Reserves && change.direction === "increase"
+                                  ? "If you prefer to cover your remaining tax gap through W-4 withholding."
+                                  : countPlannedNonW2Reserves && change.direction === "decrease"
+                                    ? "Assumes you continue making your planned business tax reserves."
+                                    : null}
+                              </p>
+                            )}
                           </>
                         )}
                       </div>
