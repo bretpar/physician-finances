@@ -334,8 +334,14 @@ export function useW4Calculation(): W4CalculationResult {
       const detectedPaychecks = r.remainingPaychecks;
       const isYtdFallback = Boolean((r as any).__isYtdFallback);
 
+      // Recurring W-2 planner stream (multiple scheduled future paychecks) is
+      // the primary source; saved Settings estimates are fallbacks only.
+      const hasRecurringPlannerStream =
+        !isYtdFallback && detectedPaychecks >= 2 && r.remainingGross > 0;
+
       let autoPaychecks: number;
-      if (r.lastPaycheckDate) autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
+      if (hasRecurringPlannerStream) autoPaychecks = detectedPaychecks;
+      else if (r.lastPaycheckDate) autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
       else if (detectedPaychecks > 0 && !settings?.payFrequency) autoPaychecks = detectedPaychecks;
       else autoPaychecks = defaultRemainingPaychecks(frequency);
 
@@ -343,8 +349,9 @@ export function useW4Calculation(): W4CalculationResult {
         ? Math.max(0, Math.floor(settings.remainingOverride))
         : autoPaychecks;
 
-      const savedAnnualGross = settings?.projectedAnnualGross ?? null;
-      const savedFedPerPaycheck = settings?.expectedFederalWithholdingPerPaycheck ?? null;
+      const savedAnnualGross = hasRecurringPlannerStream ? null : (settings?.projectedAnnualGross ?? null);
+      const savedFedPerPaycheck = hasRecurringPlannerStream ? null : (settings?.expectedFederalWithholdingPerPaycheck ?? null);
+
       const ytd = ytdByEmployerKey.get(lookupKey) || { gross: 0, withheld: 0 };
 
       let remainingGross: number;
