@@ -438,16 +438,23 @@ export function useW4Calculation(): W4CalculationResult {
     ? businessRemainingNeed
     : 0;
 
+  // Business responsibility the user is NOT planning to reserve. When the
+  // toggle is OFF we do not assume those future 1099/K-1 reserves happen, so
+  // that responsibility has to be funded by W-2 withholding instead. When ON,
+  // it is credited to the business source and never reaches the W-4 ask.
+  const uncreditedBusinessNeed = countPlannedNonW2Reserves ? 0 : businessRemainingNeed;
+
   // Total W-2 target extra withholding for the rest of the year. Independent of
   // what the user currently has on file → stable target, no feedback loop.
-  const grossW4Gap = sourceFunding.w2.remainingNeed;
+  const grossW4Gap = sourceFunding.w2.remainingNeed + uncreditedBusinessNeed;
   // What is still uncovered once the current W-4 extras are recognized.
-  const signedAnnualGap = sourceFunding.w2.signedNeed - currentExtraW4FutureWithholding;
+  const signedAnnualGap =
+    sourceFunding.w2.signedNeed + uncreditedBusinessNeed - currentExtraW4FutureWithholding;
   const remainingW4Gap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
 
-  // Kept for the card's reconciliation display and existing unit tests. With
-  // the business term set to the canonical business remaining need, this
-  // household formula now evaluates to the SAME W-2 signed need above.
+  // Kept for the card's reconciliation display and existing unit tests. The
+  // business term mirrors the toggle so the displayed lines reconcile with the
+  // gap in BOTH states.
   const w4GapInputs: W4GapInputs = {
     projectedAnnualFederalTax: projectedTotalTax,
     actualWithheldYtd: taxesAlreadyWithheld,
@@ -455,8 +462,9 @@ export function useW4Calculation(): W4CalculationResult {
       expectedFutureNormalW2Withholding + currentExtraW4FutureWithholding,
     actualTaxSavedOrPaid,
     estimatedPaymentsMade: estPaymentsAlreadyMade,
-    plannedFutureNonW2ReservesCounted: businessRemainingNeed,
+    plannedFutureNonW2ReservesCounted: plannedFutureBusinessReservesCounted,
   };
+
 
   const projectedHouseholdGross = Number(selectedDebug?.totalGrossIncome ?? 0);
   const projectedFederalWithholding =

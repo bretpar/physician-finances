@@ -1200,6 +1200,9 @@ export default function W4PaycheckAdjustmentCard() {
   const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
     ? businessRemainingNeed
     : 0;
+  // Toggle OFF → we do NOT assume those future business reserves happen, so the
+  // uncovered business responsibility must be funded by W-2 withholding.
+  const uncreditedBusinessNeed = countPlannedNonW2Reserves ? 0 : businessRemainingNeed;
 
   const w4GapInputs: W4GapInputs = {
     projectedAnnualFederalTax: projectedTotalTax,
@@ -1208,10 +1211,10 @@ export default function W4PaycheckAdjustmentCard() {
       expectedFutureNormalW2Withholding + currentExtraW4FutureWithholding,
     actualTaxSavedOrPaid,
     estimatedPaymentsMade: estPaymentsAlreadyMade,
-    plannedFutureNonW2ReservesCounted: businessRemainingNeed,
+    plannedFutureNonW2ReservesCounted: plannedFutureBusinessReservesCounted,
   };
   // Stable target (independent of what's currently on the W-4) …
-  const grossW4Gap = sourceFunding.w2.remainingNeed;
+  const grossW4Gap = sourceFunding.w2.remainingNeed + uncreditedBusinessNeed;
   // … and the shortfall that remains after crediting current W-4 extras.
   const remainingW4Gap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
 
@@ -1226,7 +1229,8 @@ export default function W4PaycheckAdjustmentCard() {
     expectedFutureNormalW2Withholding +
     currentExtraW4FutureWithholding;
   const signedAnnualGap =
-    sourceFunding.w2.signedNeed - currentExtraW4FutureWithholding;
+    sourceFunding.w2.signedNeed + uncreditedBusinessNeed - currentExtraW4FutureWithholding;
+
   const annualTaxGap = Math.max(0, signedAnnualGap);
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
