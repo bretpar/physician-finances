@@ -1132,7 +1132,18 @@ export default function W4PaycheckAdjustmentCard() {
       // Premium users get a nudge to add a stream for higher accuracy.
       const settingsOnlyFuture = hasSavedFutureSettings && !hasStreamProjection;
 
+      // Which existing source is driving future paycheck assumptions.
+      const projectionSource: "planner" | "settings" | "history" =
+        hasRecurringPlannerStream
+          ? "planner"
+          : hasSavedFutureSettings
+            ? "settings"
+            : hasStreamProjection
+              ? "planner"
+              : "history";
+
       return {
+
         ...r,
         payFrequency: frequency,
         remainingPaychecks,
