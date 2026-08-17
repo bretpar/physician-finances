@@ -1052,20 +1052,30 @@ export default function W4PaycheckAdjustmentCard() {
           detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
       }
 
-      if (savedFedPerPaycheck != null) {
-        expectedNormalWithholding = savedFedPerPaycheck * remainingPaychecks;
-      } else if (isYtdFallback) {
-        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
-        expectedNormalWithholding = avgWithheld * remainingPaychecks;
-      } else {
-        expectedNormalWithholding = r.expectedNormalWithholding;
-      }
-
       // Employer-specific extra W-4 withholding already on file. Tracked
       // separately from the baseline payroll projection so the user's own
       // setting can never shrink the target it is measured against.
       const currentExtraW4PerPaycheck = resolveCurrentExtraW4(
         settings?.currentExtraW4Withholding,
+      );
+
+      let rawFutureFederalWithholding: number;
+      if (savedFedPerPaycheck != null) {
+        rawFutureFederalWithholding = savedFedPerPaycheck * remainingPaychecks;
+      } else if (isYtdFallback) {
+        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
+        rawFutureFederalWithholding = avgWithheld * remainingPaychecks;
+      } else {
+        rawFutureFederalWithholding = r.expectedNormalWithholding;
+      }
+
+      // Stored per-paycheck federal withholding already includes any Step 4(c)
+      // extra on file, so strip it here — it is added back exactly once as
+      // `currentExtraW4FutureWithholding`.
+      expectedNormalWithholding = Math.max(
+        0,
+        rawFutureFederalWithholding -
+          currentExtraW4PerPaycheck * Math.max(0, remainingPaychecks),
       );
 
 
