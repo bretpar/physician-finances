@@ -1011,11 +1011,11 @@ export default function W4PaycheckAdjustmentCard() {
   }, [incomeEntries]);
 
   // Apply company settings to produce effective rows used in allocation.
-  // Priority (per spec):
-  //   1. Saved expectedFederalWithholdingPerPaycheck * remainingPaychecks
-  //   2. Saved projectedAnnualGross minus YTD gross
-  //   3. Derived from projected paycheck streams
-  //   4. YTD fallback per-paycheck averages (catch-up rows excluded)
+  // Source precedence (per spec):
+  //   1. Recurring W-2 Income Planner stream (2+ future occurrences) — primary
+  //   2. Saved company Settings (annual gross / expected federal per paycheck)
+  //   3. YTD/historical fallback per-paycheck averages (catch-up rows excluded)
+
   const effectiveRows = useMemo(() => {
     return sourceRows.map((r) => {
       const lookupKey = `emp:${normalizeEmployerName(r.company)}|w2`;
@@ -1027,8 +1027,15 @@ export default function W4PaycheckAdjustmentCard() {
       const detectedPaychecks = r.remainingPaychecks;
       const isYtdFallback = Boolean((r as any).__isYtdFallback);
 
+      // A RECURRING planner stream (multiple scheduled future paychecks) is the
+      // primary source of truth. A single one-time occurrence is not.
+      const hasRecurringPlannerStream =
+        !isYtdFallback && detectedPaychecks >= 2 && r.remainingGross > 0;
+
       let autoPaychecks: number;
-      if (r.lastPaycheckDate) {
+      if (hasRecurringPlannerStream) {
+        autoPaychecks = detectedPaychecks;
+      } else if (r.lastPaycheckDate) {
         autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
       } else if (detectedPaychecks > 0 && !settings?.payFrequency) {
         autoPaychecks = detectedPaychecks;
@@ -1041,9 +1048,15 @@ export default function W4PaycheckAdjustmentCard() {
           ? Math.max(0, Math.floor(settings.remainingOverride))
           : autoPaychecks;
 
-      const savedAnnualGross = settings?.projectedAnnualGross ?? null;
-      const savedFedPerPaycheck =
-        settings?.expectedFederalWithholdingPerPaycheck ?? null;
+      // Saved Settings estimates are FALLBACKS — ignored while a recurring
+      // planner stream exists (prevents stale saved values winning).
+      const savedAnnualGross = hasRecurringPlannerStream
+        ? null
+        : settings?.projectedAnnualGross ?? null;
+      const savedFedPerPaycheck = hasRecurringPlannerStream
+        ? null
+        : settings?.expectedFederalWithholdingPerPaycheck ?? null;
+
       const ytd =
         ytdByEmployerKey.get(lookupKey) || {
           gross: 0,
@@ -1119,7 +1132,18 @@ export default function W4PaycheckAdjustmentCard() {
       // Premium users get a nudge to add a stream for higher accuracy.
       const settingsOnlyFuture = hasSavedFutureSettings && !hasStreamProjection;
 
+      // Which existing source is driving future paycheck assumptions.
+      const projectionSource: "planner" | "settings" | "history" =
+        hasRecurringPlannerStream
+          ? "planner"
+          : hasSavedFutureSettings
+            ? "settings"
+            : hasStreamProjection
+              ? "planner"
+              : "history";
+
       return {
+
         ...r,
         payFrequency: frequency,
         remainingPaychecks,
@@ -1134,6 +1158,9 @@ export default function W4PaycheckAdjustmentCard() {
         hasFutureProjection,
         hasStreamProjection,
         settingsOnlyFuture,
+        projectionSource,
+        hasRecurringPlannerStream,
+
         ytdGrossTotal,
         ytdWithheldTotal,
         // Override-visibility disclosure (display only — no math impact).
@@ -1372,7 +1399,9 @@ export default function W4PaycheckAdjustmentCard() {
                         {r.remainingPaychecks} paycheck
                         {r.remainingPaychecks === 1 ? "" : "s"} remaining
                       </p>
+                      <ProjectionSourceLabel row={r as any} slug={slug} />
                     </div>
+
 
                     {/* Saved Settings override disclosure — manual overrides
                         stay supported, but must never operate invisibly. */}
@@ -1773,6 +1802,43 @@ function RowSmall({ label, value }: { label: string; value: string }) {
 }
 
 /**
+ * Subtle source label: which existing data source drives this employer's
+ * future paycheck assumptions. Display only.
+ */
+function ProjectionSourceLabel({
+  row,
+  slug,
+}: {
+  row: { projectionSource?: "planner" | "settings" | "history" };
+  slug: string;
+}) {
+  const source = row.projectionSource ?? "history";
+  const text =
+    source === "planner"
+      ? "Using Income Planner"
+      : source === "settings"
+        ? "Using W-4 Settings"
+        : "Using recent paycheck history";
+  const link =
+    source === "planner"
+      ? { to: "/projected-income", label: "View in Income Planner" }
+      : { to: "/settings", label: "Edit in Settings" };
+  return (
+    <p
+      className="text-[11px] text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-1.5"
+      data-testid={`w4-projection-source-${slug}`}
+      data-source={source}
+    >
+      <span>{text}</span>
+      <Link to={link.to} className="font-medium text-primary hover:underline">
+        {link.label}
+      </Link>
+    </p>
+  );
+}
+
+/**
+
  * Small, secondary disclosure shown when a company's saved W-4 / paycheck
  * Settings estimate is the value actually driving this employer's W-4
  * projection (instead of Planner/actual-derived data).
