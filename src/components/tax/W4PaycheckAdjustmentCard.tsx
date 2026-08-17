@@ -1308,10 +1308,27 @@ export default function W4PaycheckAdjustmentCard() {
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
 
-  const allocations = useMemo(
-    () => computeAllocations(effectiveRows, grossW4Gap, totalRemainingW2Gross),
-    [effectiveRows, totalRemainingW2Gross, grossW4Gap],
-  );
+  // Weight only the INCREMENTAL gap (after crediting all current Step 4(c)),
+  // then add each employer's own current extra back to form its stable target.
+  // This keeps one employer's Step 4(c) edit from re-weighting the others.
+  const allocations = useMemo(() => {
+    const incrementalGap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
+    const incremental = computeAllocations(
+      effectiveRows,
+      incrementalGap,
+      totalRemainingW2Gross,
+    );
+    const surplus = Math.max(0, currentExtraW4FutureWithholding - grossW4Gap);
+    const reductions = allocateW4SurplusReduction(
+      effectiveRows.map((r) => ({
+        key: r.streamId,
+        currentExtraPerPaycheck: resolveCurrentExtraW4((r as any).currentExtraW4PerPaycheck),
+        remainingPaychecks: Math.max(0, Number(r.remainingPaychecks) || 0),
+      })),
+      surplus,
+    );
+    return stabilizeW4Targets(effectiveRows as any[], incremental, reductions);
+  }, [effectiveRows, totalRemainingW2Gross, grossW4Gap, currentExtraW4FutureWithholding]);
 
   const totalExtraThroughYearEnd = allocations.reduce(
     (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
