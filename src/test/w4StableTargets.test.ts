@@ -74,10 +74,11 @@ describe("stable employer W-4 targets", () => {
     const bBase = base.find((t) => t.streamId === "b")!.step4cPerPaycheck;
     const bAfter = afterEdit.find((t) => t.streamId === "b")!.step4cPerPaycheck;
     expect(bAfter).toBe(bBase);
-    // Employer A's own target is unchanged too — the extra just becomes credited.
+    // Employer A's absolute target = its own current extra + its share of the
+    // shared need, so the recommended CHANGE stays the same.
     const aBase = base.find((t) => t.streamId === "a")!.step4cPerPaycheck;
     const aAfter = afterEdit.find((t) => t.streamId === "a")!.step4cPerPaycheck;
-    expect(Math.abs(aAfter - aBase)).toBeLessThanOrEqual(5);
+    expect(Math.abs(aAfter - (aBase + 300))).toBeLessThanOrEqual(5);
   });
 
   it("targets cover the gross gap without double-counting current extras", () => {
@@ -85,13 +86,15 @@ describe("stable employer W-4 targets", () => {
       mk({ streamId: "a", remainingGross: 60000, currentExtraW4PerPaycheck: 200 }),
       mk({ streamId: "b", company: "B", remainingGross: 20000 }),
     ];
-    const gap = 6000;
-    const covered = targetsFor(rows, gap).reduce(
+    const need = 6000;
+    const extras = 200 * 10;
+    const covered = targetsFor(rows, need).reduce(
       (s, t) => s + t.step4cPerPaycheck * 10,
       0,
     );
-    expect(covered).toBeGreaterThan(gap * 0.9);
-    expect(covered).toBeLessThan(gap * 1.15);
+    // Absolute targets = existing extras + the shared need, counted once.
+    expect(covered).toBeGreaterThan((need + extras) * 0.9);
+    expect(covered).toBeLessThan((need + extras) * 1.1);
   });
 
   it("recommends a reduction when current extras over-withhold", () => {
