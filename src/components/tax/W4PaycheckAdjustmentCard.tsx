@@ -1374,6 +1374,12 @@ export default function W4PaycheckAdjustmentCard() {
                       </p>
                     </div>
 
+                    {/* Saved Settings override disclosure — manual overrides
+                        stay supported, but must never operate invisibly. */}
+                    <SavedOverrideNotice row={r as any} slug={slug} />
+
+
+
                     {/* Current extra W-4 withholding (existing per-employer field) */}
                     <CurrentExtraW4Field
                       slug={slug}
