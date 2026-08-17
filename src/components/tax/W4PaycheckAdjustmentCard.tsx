@@ -1657,6 +1657,10 @@ export default function W4PaycheckAdjustmentCard() {
                     label="Projected future W-2 withholding"
                     value={fmt(expectedFutureNormalW2Withholding)}
                   />
+                  <Row
+                    label="Current extra W-4 withholding on remaining paychecks"
+                    value={fmt(currentExtraW4FutureWithholding)}
+                  />
                   <Row label="Actual tax saved YTD" value={fmt(actualTaxSavedOrPaid)} />
                   <Row
                     label="Estimated payments already made"
