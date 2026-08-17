@@ -26,6 +26,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/canonicalEventRecommendation";
 import { buildSourceFundingPlan } from "@/lib/sourceFundingPlan";
+import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
