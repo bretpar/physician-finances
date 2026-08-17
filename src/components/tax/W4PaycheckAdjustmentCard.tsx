@@ -986,15 +986,25 @@ export default function W4PaycheckAdjustmentCard() {
   // a saved projected annual gross. Built from this year's W-2 income entries.
   const ytdByEmployerKey = useMemo(() => {
     const year = new Date().getFullYear().toString();
-    const map = new Map<string, { gross: number; withheld: number }>();
+    const map = new Map<
+      string,
+      { gross: number; withheld: number; fedIncomeTax: number; paycheckCount: number }
+    >();
     for (const e of incomeEntries || []) {
       if (typeof e.income_type !== "string" || !isW2FilingType(e.income_type)) continue;
       const d = (e as any).income_date as string | undefined;
       if (!d || !d.startsWith(year)) continue;
       const key = `emp:${normalizeEmployerName((e as any).company)}|w2`;
-      const prev = map.get(key) || { gross: 0, withheld: 0 };
+      const prev =
+        map.get(key) || { gross: 0, withheld: 0, fedIncomeTax: 0, paycheckCount: 0 };
       prev.gross += Number((e as any).paycheck_amount) || 0;
       prev.withheld += Number((e as any).taxes_withheld) || 0;
+      // Federal income tax only (SS/Medicare excluded) — reuses the canonical
+      // helper purely to display "recent actual" context, never for math.
+      if (!isYtdCatchupEntry(e as any)) {
+        prev.fedIncomeTax += getFederalIncomeTaxWithheld(e as any);
+        prev.paycheckCount += 1;
+      }
       map.set(key, prev);
     }
     return map;
@@ -1034,7 +1044,13 @@ export default function W4PaycheckAdjustmentCard() {
       const savedAnnualGross = settings?.projectedAnnualGross ?? null;
       const savedFedPerPaycheck =
         settings?.expectedFederalWithholdingPerPaycheck ?? null;
-      const ytd = ytdByEmployerKey.get(lookupKey) || { gross: 0, withheld: 0 };
+      const ytd =
+        ytdByEmployerKey.get(lookupKey) || {
+          gross: 0,
+          withheld: 0,
+          fedIncomeTax: 0,
+          paycheckCount: 0,
+        };
 
       let remainingGross: number;
       let expectedNormalWithholding: number;
@@ -1120,6 +1136,15 @@ export default function W4PaycheckAdjustmentCard() {
         settingsOnlyFuture,
         ytdGrossTotal,
         ytdWithheldTotal,
+        // Override-visibility disclosure (display only — no math impact).
+        savedFedPerPaycheckOverride: savedFedPerPaycheck,
+        savedAnnualGrossOverride: savedAnnualGross,
+        recentActualFedPerPaycheck:
+          ytd.paycheckCount > 0 ? ytd.fedIncomeTax / ytd.paycheckCount : null,
+        recentActualGrossPerPaycheck:
+          ytd.paycheckCount > 0 && ytd.gross > 0
+            ? ytd.gross / ytd.paycheckCount
+            : null,
       };
     });
 
@@ -1348,6 +1373,12 @@ export default function W4PaycheckAdjustmentCard() {
                         {r.remainingPaychecks === 1 ? "" : "s"} remaining
                       </p>
                     </div>
+
+                    {/* Saved Settings override disclosure — manual overrides
+                        stay supported, but must never operate invisibly. */}
+                    <SavedOverrideNotice row={r as any} slug={slug} />
+
+
 
                     {/* Current extra W-4 withholding (existing per-employer field) */}
                     <CurrentExtraW4Field
@@ -1740,6 +1771,67 @@ function RowSmall({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+/**
+ * Small, secondary disclosure shown when a company's saved W-4 / paycheck
+ * Settings estimate is the value actually driving this employer's W-4
+ * projection (instead of Planner/actual-derived data).
+ *
+ * Display only — it reads values already computed in `effectiveRows` and
+ * changes no math or source precedence.
+ */
+function SavedOverrideNotice({
+  row,
+  slug,
+}: {
+  row: {
+    savedFedPerPaycheckOverride?: number | null;
+    savedAnnualGrossOverride?: number | null;
+    recentActualFedPerPaycheck?: number | null;
+    recentActualGrossPerPaycheck?: number | null;
+  };
+  slug: string;
+}) {
+  const savedFed = row.savedFedPerPaycheckOverride ?? null;
+  const savedGross = row.savedAnnualGrossOverride ?? null;
+  if (savedFed == null && savedGross == null) return null;
+
+  const actualFed = row.recentActualFedPerPaycheck ?? null;
+  const actualGross = row.recentActualGrossPerPaycheck ?? null;
+
+  return (
+    <div
+      className="rounded-md border border-border bg-muted/30 px-2.5 py-2 space-y-1"
+      data-testid={`w4-saved-override-${slug}`}
+    >
+      {savedFed != null && (
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          Using your saved Settings estimate of {fmt(savedFed)} federal withholding
+          per paycheck.
+          {actualFed != null && actualFed > 0
+            ? ` Recent actual federal withholding is about ${fmt(actualFed)}/paycheck.`
+            : ""}
+        </p>
+      )}
+      {savedGross != null && (
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          Using your saved Settings estimate of {fmt(savedGross)} annual gross pay.
+          {actualGross != null && actualGross > 0
+            ? ` Recent actual gross pay is about ${fmt(actualGross)}/paycheck.`
+            : ""}
+        </p>
+      )}
+      <Link
+        to="/settings"
+        className="text-[11px] font-medium text-primary hover:underline inline-block"
+      >
+        Edit in Settings
+      </Link>
+    </div>
+  );
+}
+
+
 
 /**
  * Employer-specific "Current Extra W-4 Withholding per Paycheck" editor.
