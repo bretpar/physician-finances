@@ -26,12 +26,18 @@ const mk = (over: Partial<Row>): Row => ({
   ...over,
 });
 
-/** Mirrors the production allocation pipeline (incremental gap → targets). */
-function targetsFor(rows: Row[], grossGap: number) {
+/**
+ * Mirrors the production allocation pipeline. `need` is the extra-invariant
+ * shortfall (annual liability − credits − RAW projected withholding); in
+ * production `grossW4Gap` = need + current extras, because the baseline strips
+ * the extras out of the raw projection.
+ */
+function targetsFor(rows: Row[], need: number) {
   const extraTotal = rows.reduce(
     (s, r) => s + r.currentExtraW4PerPaycheck * r.remainingPaychecks,
     0,
   );
+  const grossGap = need + extraTotal;
   const totalGross = rows.reduce((s, r) => s + r.remainingGross, 0);
   const incremental = computeAllocations(
     rows as any,
@@ -90,7 +96,8 @@ describe("stable employer W-4 targets", () => {
 
   it("recommends a reduction when current extras over-withhold", () => {
     const rows = [mk({ streamId: "a", currentExtraW4PerPaycheck: 100 })];
-    const targets = targetsFor(rows, 400); // needs $400, currently withholds $1,000
+    // Raw projection already over-covers by $600 → need is negative.
+    const targets = targetsFor(rows, -600);
     expect(targets[0].step4cPerPaycheck).toBeLessThan(100);
   });
 
