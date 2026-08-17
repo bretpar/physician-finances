@@ -1568,6 +1568,7 @@ function CompaniesSection() {
                     const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
                     const projGross = getValue(company, "projectedAnnualGross") as number | null;
                     const expFedWh = getValue(company, "expectedFederalWithholdingPerPaycheck") as number | null;
+                    const curExtraW4 = getValue(company, "currentExtraW4Withholding") as number | null;
                     const isIrregular = freq === "irregular";
                     const w4Open = w4OpenIds.has(company.id);
                     return (
