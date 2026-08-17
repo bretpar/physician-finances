@@ -1044,7 +1044,13 @@ export default function W4PaycheckAdjustmentCard() {
       const savedAnnualGross = settings?.projectedAnnualGross ?? null;
       const savedFedPerPaycheck =
         settings?.expectedFederalWithholdingPerPaycheck ?? null;
-      const ytd = ytdByEmployerKey.get(lookupKey) || { gross: 0, withheld: 0 };
+      const ytd =
+        ytdByEmployerKey.get(lookupKey) || {
+          gross: 0,
+          withheld: 0,
+          fedIncomeTax: 0,
+          paycheckCount: 0,
+        };
 
       let remainingGross: number;
       let expectedNormalWithholding: number;
