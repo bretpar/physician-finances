@@ -1568,6 +1568,7 @@ function CompaniesSection() {
                     const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
                     const projGross = getValue(company, "projectedAnnualGross") as number | null;
                     const expFedWh = getValue(company, "expectedFederalWithholdingPerPaycheck") as number | null;
+                    const curExtraW4 = getValue(company, "currentExtraW4Withholding") as number | null;
                     const isIrregular = freq === "irregular";
                     const w4Open = w4OpenIds.has(company.id);
                     return (
@@ -1668,10 +1669,30 @@ function CompaniesSection() {
                                   }}
                                 />
                               </div>
+                              <div className="sm:col-span-2">
+                                <Label className="text-xs text-muted-foreground mb-1.5 block">Current extra W-4 withholding per paycheck (Step 4(c))</Label>
+                                <Input
+                                  data-testid="settings-company-row-current-extra-w4-input"
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  placeholder="0.00"
+                                  value={curExtraW4 ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setField(company.id, "currentExtraW4Withholding", v === "" ? 0 : Math.max(0, Number(v) || 0));
+                                  }}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1.5">
+                                  What this employer already withholds beyond normal payroll. The W-4 Calculator subtracts it from this employer's target.
+                                </p>
+                              </div>
                             </div>
                             <p className="text-[11px] text-muted-foreground">
                               Used by the W-4 Paycheck Adjustment worksheet. Leave remaining paychecks blank to auto-detect from your paycheck history.
                             </p>
+
                           </div>
                         </CollapsibleContent>
                       </Collapsible>
