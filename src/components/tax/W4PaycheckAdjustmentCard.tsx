@@ -32,6 +32,8 @@ import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
   buildEmployerW4Recommendations,
   resolveCurrentExtraW4,
+  allocateW4SurplusReduction,
+  stabilizeW4Targets,
 } from "@/lib/w4CurrentWithholding";
 
 const fmt = (n: number) =>
@@ -1327,7 +1329,12 @@ export default function W4PaycheckAdjustmentCard() {
       })),
       surplus,
     );
-    return stabilizeW4Targets(effectiveRows as any[], incremental, reductions);
+    const targets = stabilizeW4Targets(effectiveRows as any[], incremental, reductions);
+    return incremental.map((a) => ({
+      ...a,
+      step4cPerPaycheck:
+        targets.find((t) => t.streamId === a.streamId)?.step4cPerPaycheck ?? 0,
+    }));
   }, [effectiveRows, totalRemainingW2Gross, grossW4Gap, currentExtraW4FutureWithholding]);
 
   const totalExtraThroughYearEnd = allocations.reduce(
