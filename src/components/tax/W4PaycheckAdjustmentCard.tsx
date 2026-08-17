@@ -986,7 +986,10 @@ export default function W4PaycheckAdjustmentCard() {
   // a saved projected annual gross. Built from this year's W-2 income entries.
   const ytdByEmployerKey = useMemo(() => {
     const year = new Date().getFullYear().toString();
-    const map = new Map<string, { gross: number; withheld: number }>();
+    const map = new Map<
+      string,
+      { gross: number; withheld: number; fedIncomeTax: number; paycheckCount: number }
+    >();
     for (const e of incomeEntries || []) {
       if (typeof e.income_type !== "string" || !isW2FilingType(e.income_type)) continue;
       const d = (e as any).income_date as string | undefined;
