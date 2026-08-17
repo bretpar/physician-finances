@@ -839,7 +839,14 @@ export default function W4PaycheckAdjustmentCard() {
           remainingPaychecks += 1;
         }
         remainingGross += Number(p.grossAmount || 0);
-        expectedNormalWithholding += Number(p.taxesWithheld || 0);
+        // FEDERAL INCOME TAX ONLY — SS/Medicare are settled through payroll and
+        // are not credits against the income-tax-only W-2 responsibility.
+        expectedNormalWithholding += getFederalIncomeTaxWithheld({
+          taxes_withheld: p.taxesWithheld,
+          federal_withholding: p.federalWithholding,
+          ss_withholding: p.ssWithholding,
+          medicare_withholding: p.medicareWithholding,
+        });
       }
 
       return {
