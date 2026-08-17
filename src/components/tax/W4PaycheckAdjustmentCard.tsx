@@ -1399,7 +1399,9 @@ export default function W4PaycheckAdjustmentCard() {
                         {r.remainingPaychecks} paycheck
                         {r.remainingPaychecks === 1 ? "" : "s"} remaining
                       </p>
+                      <ProjectionSourceLabel row={r as any} slug={slug} />
                     </div>
+
 
                     {/* Saved Settings override disclosure — manual overrides
                         stay supported, but must never operate invisibly. */}
