@@ -47,6 +47,7 @@ import {
   defaultRemainingPaychecks,
   detectFrequencyFromDates,
   groupW2StreamsByEmployer,
+  isYtdCatchupEntry,
   normalizeEmployerName,
   paychecksFromLastDate,
   type Allocation,
