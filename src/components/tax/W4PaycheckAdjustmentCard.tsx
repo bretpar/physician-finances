@@ -1,8 +1,7 @@
 import * as React from "react";
-import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, AlertCircle, Info, ArrowUp, ArrowDown, Check } from "lucide-react";
@@ -10,31 +9,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useTaxEstimate } from "@/hooks/useTaxEstimate";
-import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { Input } from "@/components/ui/input";
 import { useCompanies } from "@/contexts/CompanyContext";
-import {
-  useProjectedStreams,
-  useProjectedBonuses,
-  useStreamOverrides,
-  usePlannerConversions,
-  generateProjectedPaychecks,
-  type ProjectedIncomeStream,
-} from "@/hooks/useProjectedIncome";
-import { useIncomeEntries } from "@/hooks/useIncome";
-import { useTransactions } from "@/hooks/useTransactions";
-import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/canonicalEventRecommendation";
-import { buildSourceFundingPlan } from "@/lib/sourceFundingPlan";
+import { useW4Calculation } from "@/hooks/useW4Calculation";
+import { type ProjectedIncomeStream } from "@/hooks/useProjectedIncome";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
-import {
-  buildEmployerW4Recommendations,
-  resolveCurrentExtraW4,
-  allocateW4SurplusReduction,
-  stabilizeW4Targets,
-} from "@/lib/w4CurrentWithholding";
+
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
