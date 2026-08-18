@@ -84,6 +84,22 @@ export interface W4CalculationResult {
   projectedPlannedFutureBusinessReserves: number;
   /** Per-employer recommendation net of that employer's current W-4 extra. */
   employerW4Recommendations: EmployerW4Recommendation<any>[];
+  /** Canonical annual liability shown in Calculation details. */
+  projectedTotalTax: number;
+  /** Actual YTD W-2 federal + state withholding. */
+  taxesAlreadyWithheld: number;
+  actualTaxSavedOrPaid: number;
+  estimatedPaymentsMade: number;
+  /** Projected future W-2 withholding EXCLUDING current Step 4(c). */
+  projectedFutureBaselineW2Withholding: number;
+  /** Current Step 4(c) across all remaining paychecks (counted once). */
+  currentExtraW4FutureWithholding: number;
+  /** Business reserves credited toward the gap (0 when the toggle is off). */
+  plannedFutureBusinessReservesCounted: number;
+  /** Total future W-2 federal withholding required (Step-4(c)-invariant). */
+  requiredFutureW2Withholding: number;
+  /** True when the household has 1099/K-1/business income. */
+  hasNonW2Income: boolean;
 }
 
 
