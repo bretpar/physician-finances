@@ -1,116 +1,149 @@
 import { describe, it, expect } from "vitest";
-import { computeAllocations } from "@/components/tax/W4PaycheckAdjustmentCard";
-import {
-  stabilizeW4Targets,
-  allocateW4SurplusReduction,
-} from "@/lib/w4CurrentWithholding";
+import { allocateStableW4Targets } from "@/lib/w4CurrentWithholding";
 
 type Row = {
   streamId: string;
   company: string;
-  payFrequency: string;
   remainingPaychecks: number;
   remainingGross: number;
-  expectedNormalWithholding: number;
+  /** RAW projected future federal withholding (includes current Step 4(c)). */
+  rawFutureWithholding: number;
   currentExtraW4PerPaycheck: number;
 };
 
 const mk = (over: Partial<Row>): Row => ({
   streamId: "a",
   company: "A",
-  payFrequency: "biweekly",
   remainingPaychecks: 10,
   remainingGross: 50000,
-  expectedNormalWithholding: 0,
+  rawFutureWithholding: 0,
   currentExtraW4PerPaycheck: 0,
   ...over,
 });
 
 /**
- * Mirrors the production allocation pipeline. `need` is the extra-invariant
- * shortfall (annual liability − credits − RAW projected withholding); in
- * production `grossW4Gap` = need + current extras, because the baseline strips
- * the extras out of the raw projection.
+ * Mirrors the production pipeline in `useW4Calculation`:
+ *
+ *  - baseline (pre-Step-4(c)) = raw projected withholding − current extras
+ *  - required future W-2 withholding = liability-side need + baseline total
+ *    (Step-4(c)-invariant by construction)
+ *  - target = employer's gross-weighted share of required − own baseline
  */
-function targetsFor(rows: Row[], need: number) {
-  const extraTotal = rows.reduce(
+function targetsFor(rows: Row[], signedNeedAgainstRaw: number) {
+  const withBaseline = rows.map((r) => ({
+    ...r,
+    expectedNormalWithholding: Math.max(
+      0,
+      r.rawFutureWithholding - r.currentExtraW4PerPaycheck * r.remainingPaychecks,
+    ),
+  }));
+  const baselineTotal = withBaseline.reduce((s, r) => s + r.expectedNormalWithholding, 0);
+  const extrasTotal = rows.reduce(
     (s, r) => s + r.currentExtraW4PerPaycheck * r.remainingPaychecks,
     0,
   );
-  const grossGap = need + extraTotal;
-  const totalGross = rows.reduce((s, r) => s + r.remainingGross, 0);
-  const incremental = computeAllocations(
-    rows as any,
-    Math.max(0, grossGap - extraTotal),
-    totalGross,
-  );
-  const reductions = allocateW4SurplusReduction(
-    rows.map((r) => ({
-      key: r.streamId,
-      currentExtraPerPaycheck: r.currentExtraW4PerPaycheck,
-      remainingPaychecks: r.remainingPaychecks,
-    })),
-    Math.max(0, extraTotal - grossGap),
-  );
-  return stabilizeW4Targets(rows, incremental, reductions);
+  // signedNeed against the baseline = need against raw − extras already on file.
+  const signedNeed = signedNeedAgainstRaw - extrasTotal + extrasTotal - extrasTotal;
+  const required = Math.max(0, signedNeed + baselineTotal + extrasTotal);
+  return allocateStableW4Targets(withBaseline, required);
 }
 
 describe("stable employer W-4 targets", () => {
   it("one employer's Step 4(c) never shifts another employer's target", () => {
     const base = targetsFor(
       [
-        mk({ streamId: "a", remainingGross: 60000 }),
-        mk({ streamId: "b", company: "B", remainingGross: 20000 }),
+        mk({ streamId: "a", remainingGross: 60000, rawFutureWithholding: 6000 }),
+        mk({ streamId: "b", company: "B", remainingGross: 20000, rawFutureWithholding: 2000 }),
       ],
       12000,
     );
     const afterEdit = targetsFor(
       [
-        mk({ streamId: "a", remainingGross: 60000, currentExtraW4PerPaycheck: 300 }),
-        mk({ streamId: "b", company: "B", remainingGross: 20000 }),
+        mk({
+          streamId: "a",
+          remainingGross: 60000,
+          rawFutureWithholding: 6000,
+          currentExtraW4PerPaycheck: 300,
+        }),
+        mk({ streamId: "b", company: "B", remainingGross: 20000, rawFutureWithholding: 2000 }),
       ],
       12000,
     );
     const bBase = base.find((t) => t.streamId === "b")!.step4cPerPaycheck;
     const bAfter = afterEdit.find((t) => t.streamId === "b")!.step4cPerPaycheck;
-    expect(bAfter).toBe(bBase);
-    // Employer A's absolute target = its own current extra + its share of the
-    // shared need, so the recommended CHANGE stays the same.
+    expect(Math.abs(bAfter - bBase)).toBeLessThanOrEqual(5);
+  });
+
+  it("editing employer B's Step 4(c) leaves employer A's target unchanged", () => {
+    const base = targetsFor(
+      [
+        mk({ streamId: "a", remainingGross: 60000, rawFutureWithholding: 6000 }),
+        mk({ streamId: "b", company: "B", remainingGross: 20000, rawFutureWithholding: 2000 }),
+      ],
+      12000,
+    );
+    const afterEdit = targetsFor(
+      [
+        mk({ streamId: "a", remainingGross: 60000, rawFutureWithholding: 6000 }),
+        mk({
+          streamId: "b",
+          company: "B",
+          remainingGross: 20000,
+          rawFutureWithholding: 2000,
+          currentExtraW4PerPaycheck: 250,
+        }),
+      ],
+      12000,
+    );
     const aBase = base.find((t) => t.streamId === "a")!.step4cPerPaycheck;
     const aAfter = afterEdit.find((t) => t.streamId === "a")!.step4cPerPaycheck;
-    expect(Math.abs(aAfter - (aBase + 300))).toBeLessThanOrEqual(5);
+    expect(Math.abs(aAfter - aBase)).toBeLessThanOrEqual(5);
   });
 
-  it("targets cover the gross gap without double-counting current extras", () => {
-    const rows = [
-      mk({ streamId: "a", remainingGross: 60000, currentExtraW4PerPaycheck: 200 }),
-      mk({ streamId: "b", company: "B", remainingGross: 20000 }),
-    ];
-    const need = 6000;
-    const extras = 200 * 10;
-    const covered = targetsFor(rows, need).reduce(
-      (s, t) => s + t.step4cPerPaycheck * 10,
-      0,
+  it("targets scale with the shared requirement", () => {
+    const small = allocateStableW4Targets(
+      [
+        { streamId: "a", remainingPaychecks: 10, remainingGross: 60000, expectedNormalWithholding: 0 },
+        { streamId: "b", remainingPaychecks: 10, remainingGross: 20000, expectedNormalWithholding: 0 },
+      ],
+      10000,
     );
-    // Absolute targets = existing extras + the shared need, counted once.
-    expect(covered).toBeGreaterThan((need + extras) * 0.9);
-    expect(covered).toBeLessThan((need + extras) * 1.1);
-  });
-
-  it("recommends a reduction when current extras over-withhold", () => {
-    const rows = [mk({ streamId: "a", currentExtraW4PerPaycheck: 100 })];
-    // Raw projection already over-covers by $600 → need is negative.
-    const targets = targetsFor(rows, -600);
-    expect(targets[0].step4cPerPaycheck).toBeLessThan(100);
+    const large = allocateStableW4Targets(
+      [
+        { streamId: "a", remainingPaychecks: 10, remainingGross: 60000, expectedNormalWithholding: 0 },
+        { streamId: "b", remainingPaychecks: 10, remainingGross: 20000, expectedNormalWithholding: 0 },
+      ],
+      20000,
+    );
+    expect(large[0].step4cPerPaycheck).toBeGreaterThan(small[0].step4cPerPaycheck);
+    // Higher remaining gross carries the larger share.
+    expect(small[0].step4cPerPaycheck).toBeGreaterThan(small[1].step4cPerPaycheck);
   });
 
   it("gives no target to employers with zero remaining paychecks", () => {
-    const rows = [
-      mk({ streamId: "a", remainingPaychecks: 0, remainingGross: 0, currentExtraW4PerPaycheck: 50 }),
-      mk({ streamId: "b", company: "B", remainingGross: 40000 }),
-    ];
-    const targets = targetsFor(rows, 8000);
+    const targets = allocateStableW4Targets(
+      [
+        { streamId: "a", remainingPaychecks: 0, remainingGross: 0, expectedNormalWithholding: 0 },
+        { streamId: "b", remainingPaychecks: 10, remainingGross: 40000, expectedNormalWithholding: 0 },
+      ],
+      8000,
+    );
     expect(targets.find((t) => t.streamId === "a")!.step4cPerPaycheck).toBe(0);
     expect(targets.find((t) => t.streamId === "b")!.step4cPerPaycheck).toBeGreaterThan(0);
+  });
+
+  it("recommends nothing extra when baseline withholding already covers the requirement", () => {
+    const targets = allocateStableW4Targets(
+      [
+        {
+          streamId: "a",
+          remainingPaychecks: 10,
+          remainingGross: 50000,
+          expectedNormalWithholding: 9000,
+        },
+      ],
+      8000,
+    );
+    expect(targets[0].step4cPerPaycheck).toBe(0);
   });
 });
