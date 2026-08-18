@@ -1055,6 +1055,12 @@ export default function W4PaycheckAdjustmentCard() {
                         : `${fmt(0)} (toggle off)`
                     }
                   />
+                  {Math.abs(reconciliationResidual) >= 1 && (
+                    <Row
+                      label="Tax owed by other income sources (not funded by your W-4)"
+                      value={fmt(reconciliationResidual)}
+                    />
+                  )}
                   <div className="my-1 border-t border-border" />
                   <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
                 </div>
