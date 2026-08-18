@@ -619,5 +619,16 @@ export function useW4Calculation(): W4CalculationResult {
     sourceFunding,
     businessRemainingNeed,
     projectedPlannedFutureBusinessReserves,
+    // ── Canonical reconciliation values (single source for the card's
+    // "Calculation details" rows — the card must never recompute these). ──
+    projectedTotalTax,
+    taxesAlreadyWithheld,
+    actualTaxSavedOrPaid,
+    estimatedPaymentsMade: estPaymentsAlreadyMade,
+    projectedFutureBaselineW2Withholding: expectedFutureNormalW2Withholding,
+    currentExtraW4FutureWithholding,
+    plannedFutureBusinessReservesCounted,
+    requiredFutureW2Withholding,
+    hasNonW2Income,
   };
 }
