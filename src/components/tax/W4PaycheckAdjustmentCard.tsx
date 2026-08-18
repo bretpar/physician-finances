@@ -1,8 +1,7 @@
 import * as React from "react";
-import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, AlertCircle, Info, ArrowUp, ArrowDown, Check } from "lucide-react";
@@ -10,31 +9,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useTaxEstimate } from "@/hooks/useTaxEstimate";
-import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { Input } from "@/components/ui/input";
 import { useCompanies } from "@/contexts/CompanyContext";
-import {
-  useProjectedStreams,
-  useProjectedBonuses,
-  useStreamOverrides,
-  usePlannerConversions,
-  generateProjectedPaychecks,
-  type ProjectedIncomeStream,
-} from "@/hooks/useProjectedIncome";
-import { useIncomeEntries } from "@/hooks/useIncome";
-import { useTransactions } from "@/hooks/useTransactions";
-import { getCanonicalBucketRatePct, buildAllocationFromEstimate } from "@/lib/canonicalEventRecommendation";
-import { buildSourceFundingPlan } from "@/lib/sourceFundingPlan";
+import { useW4Calculation } from "@/hooks/useW4Calculation";
+import { type ProjectedIncomeStream } from "@/hooks/useProjectedIncome";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
-import {
-  buildEmployerW4Recommendations,
-  resolveCurrentExtraW4,
-  allocateW4SurplusReduction,
-  stabilizeW4Targets,
-} from "@/lib/w4CurrentWithholding";
+
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
@@ -374,7 +356,7 @@ export type YtdFallbackRow = {
 };
 
 /** YTD catch-up rows are lump-sum onboarding imports — never recurring paychecks. */
-function isYtdCatchupEntry(e: YtdW2Entry): boolean {
+export function isYtdCatchupEntry(e: YtdW2Entry): boolean {
   return (
     e.entry_kind === "ytd_catchup" ||
     e.origin_type === "ytd_catchup" ||
@@ -651,535 +633,43 @@ export function computeRemainingW4Gap(inp: W4GapInputs): number {
   return Math.max(0, computeSignedW4Gap(inp));
 }
 
+/**
+ * W-4 Calculator card.
+ *
+ * PRESENTATION ONLY. Every number shown here comes from `useW4Calculation`,
+ * the single canonical W-4 calculation path. The card must never recompute
+ * gaps, allocations, funding, or employer targets — duplicated math is what
+ * previously produced stale/mismatched displays.
+ */
 export default function W4PaycheckAdjustmentCard() {
-  const { actualEstimate, currentPaceEstimate, forecastEstimate, forecastDebug, actualDebug, currentPaceDebug } = useTaxEstimate();
-  const { data: settings } = useTaxSettings();
-  const { data: streams } = useProjectedStreams();
-  const { data: bonuses } = useProjectedBonuses();
-  const { data: overrides } = useStreamOverrides();
-  const { data: plannerConversions } = usePlannerConversions();
-  const { data: incomeEntries } = useIncomeEntries();
-  const { data: transactions } = useTransactions();
-  // Read per-company W-4 settings from Settings > Companies. Hoisted here
-  // so employee role maps (used in render) can read it.
-  const { companies, updateCompany } = useCompanies();
-
-
-  // Resolve an employee label (primary user vs spouse) for each W-2 employer.
-  // Source of truth: companies.employee_role saved in Settings, keyed by
-  // company id (source_id). Falls back to ui_income_subtype on the most
-  // recent income entry when the company role is unset (legacy data).
-  const employeeBySourceId = useMemo(() => {
-    const map = new Map<string, "primary" | "spouse">();
-    // 1) Seed from saved companies (Settings is the source of truth).
-    for (const c of companies || []) {
-      const ft = normalizeFilingType(c.companyType);
-      if (ft !== "w2" && ft !== "scorp_w2") continue;
-      if (c.employeeRole === "primary" || c.employeeRole === "spouse") {
-        map.set(c.id, c.employeeRole);
-      }
-    }
-    // 2) Fall back to ledger ui_income_subtype for source_ids without a role.
-    const byDate = [...(incomeEntries || [])].sort((a, b) =>
-      (b.income_date || "").localeCompare(a.income_date || ""),
-    );
-    for (const e of byDate) {
-      const sid = (e as any).source_id as string | null;
-      if (!sid || map.has(sid)) continue;
-      const subtype = ((e as any).ui_income_subtype || (e as any).income_type || "") as string;
-      map.set(sid, subtype === "w2_partner" ? "spouse" : "primary");
-    }
-    return map;
-  }, [incomeEntries, companies]);
-
-  // Same resolution but keyed by normalized employer name so company-only
-  // placeholder rows (which carry no source_id) still get the correct
-  // primary/spouse label.
-  const employeeByEmployerName = useMemo(() => {
-    const map = new Map<string, "primary" | "spouse">();
-    for (const c of companies || []) {
-      const ft = normalizeFilingType(c.companyType);
-      if (ft !== "w2" && ft !== "scorp_w2") continue;
-      if (c.employeeRole === "primary" || c.employeeRole === "spouse") {
-        map.set(normalizeEmployerName(c.name), c.employeeRole);
-      }
-    }
-    return map;
-  }, [companies]);
+  const {
+    effectiveRows,
+    employerW4Recommendations,
+    remainingW4Gap,
+    countPlannedNonW2Reserves,
+    setCountPlannedNonW2Reserves,
+    projectedHouseholdGross,
+    projectedFederalWithholding,
+    annualTaxGap,
+    annualTaxSurplus,
+    totalExtraThroughYearEnd,
+    projectedTotalTax,
+    taxesAlreadyWithheld,
+    actualTaxSavedOrPaid,
+    estimatedPaymentsMade,
+    projectedFutureBaselineW2Withholding,
+    currentExtraW4FutureWithholding,
+    plannedFutureBusinessReservesCounted,
+    hasNonW2Income,
+  } = useW4Calculation();
+  const { updateCompany } = useCompanies();
 
   const [showHow, setShowHow] = useState(false);
 
-  // Show the "Include business tax reserves" toggle only when the user has
-  // active non-W-2 income (1099, business, or active K-1). Pure W-2 households
-  // have nothing to reserve, so the toggle would be confusing noise.
-  const hasNonW2Income = useMemo(() => {
-    const streamHasNonW2 = (streams || []).some((s) => {
-      if (!s.is_active) return false;
-      const ft = normalizeFilingType(s.company_type);
-      return ft !== "w2" && ft !== "scorp_w2";
-    });
-    if (streamHasNonW2) return true;
-    return (companies || []).some((c) => {
-      const ft = normalizeFilingType(c.companyType);
-      return ft !== "w2" && ft !== "scorp_w2";
-    });
-  }, [streams, companies]);
-
-  // Annual estimate selected by the user's withholding method — one source for
-  // the canonical allocation and every rate below.
-  const selectedEstimate =
-    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-      ? (forecastEstimate ?? actualEstimate)
-      : (currentPaceEstimate ?? actualEstimate);
-
-  // Canonical annual allocation drives the SOURCE-specific W-4 gap below.
-  const canonicalAllocation = useMemo(
-    () => buildAllocationFromEstimate(selectedEstimate),
-    [selectedEstimate],
-  );
-
-  const businessReserveRate = getCanonicalBucketRatePct({
-    estimate: selectedEstimate,
-    taxSettings: settings,
-    bucket: "business",
-    incomeType: "1099",
-  }); // % expected on future 1099/business income
-
-
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  // Build projected paychecks with full match/override context, then filter to
-  // FUTURE, W-2, unconverted/unmatched/active occurrences.
-  const allProjected = useMemo(
-    () =>
-      generateProjectedPaychecks(
-        streams || [],
-        bonuses || [],
-        incomeEntries || [],
-        overrides || [],
-        plannerConversions || [],
-        (transactions || []).map((t) => ({
-          id: t.id,
-          transaction_date: t.transaction_date,
-          vendor: t.vendor || "",
-          amount: Number(t.amount) || 0,
-          source_id: (t as any).source_id ?? null,
-          status: t.status,
-          transaction_type: t.transaction_type,
-        })),
-      ),
-    [streams, bonuses, incomeEntries, overrides, plannerConversions, transactions],
-  );
-
-  // Per-stream detection from real past paychecks (income entries this year).
-  // Keyed by source_id (matches stream.source_id). Streams without a
-  // source_id fall back to lookup by stream.id below.
-  const detectionBySourceId = useMemo(() => {
-    const year = new Date().getFullYear().toString();
-    const bySource = new Map<string, string[]>();
-    for (const e of incomeEntries || []) {
-      const sid = (e as any).source_id as string | null;
-      if (!sid) continue;
-      const d = e.income_date;
-      if (!d || !d.startsWith(year)) continue;
-      if (!bySource.has(sid)) bySource.set(sid, []);
-      bySource.get(sid)!.push(d);
-    }
-    const out = new Map<string, { frequency: string | null; lastDate: string | null }>();
-    for (const [sid, dates] of bySource) {
-      out.set(sid, detectFrequencyFromDates(dates));
-    }
-    return out;
-  }, [incomeEntries]);
-
-  // Per-employer rollup for active W-2 streams
-  const employerRows = useMemo(() => {
-    const w2Streams = (streams || []).filter((s) => s.is_active && isW2Stream(s));
-
-    // Future, unmatched paycheck dates per stream — drives both dup detection
-    // and the per-employer paycheck rollup.
-    const futureDatesByStream = new Map<string, Set<string>>();
-    for (const p of allProjected) {
-      if (p.isSkipped) continue;
-      if (p.date <= todayStr) continue;
-      if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
-      if (p.type !== "paycheck") continue; // bonuses don't define the schedule
-      if (!futureDatesByStream.has(p.streamId)) futureDatesByStream.set(p.streamId, new Set());
-      futureDatesByStream.get(p.streamId)!.add(p.date);
-    }
-
-    const groups = groupW2StreamsByEmployer(w2Streams, futureDatesByStream);
-
-    return groups.map((g) => {
-      // Prefer detection from any source_id in this employer group; fall back
-      // to detection keyed by the primary stream id.
-      let det: { frequency: string | null; lastDate: string | null } | null = null;
-      for (const sid of g.uniqueSourceIds) {
-        const d = detectionBySourceId.get(sid);
-        if (d && (d.frequency || d.lastDate)) {
-          det = d;
-          break;
-        }
-      }
-      if (!det) det = detectionBySourceId.get(g.primaryStreamId) ?? null;
-
-      let remainingPaychecks = 0;
-      let remainingGross = 0;
-      let expectedNormalWithholding = 0;
-      const includedSet = new Set(g.includedStreamIds);
-      const seenPaycheckDates = new Set<string>();
-
-      // Sum paychecks across all streams in the group, deduping by date so
-      // overlapping duplicate schedules don't double-count.
-      for (const p of allProjected) {
-        if (!includedSet.has(p.streamId)) continue;
-        if (p.isSkipped) continue;
-        if (p.date <= todayStr) continue;
-        if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
-        if (p.type === "paycheck") {
-          if (seenPaycheckDates.has(p.date)) continue;
-          seenPaycheckDates.add(p.date);
-          remainingPaychecks += 1;
-        }
-        remainingGross += Number(p.grossAmount || 0);
-        // FEDERAL INCOME TAX ONLY — SS/Medicare are settled through payroll and
-        // are not credits against the income-tax-only W-2 responsibility.
-        expectedNormalWithholding += getFederalIncomeTaxWithheld({
-          taxes_withheld: p.taxesWithheld,
-          federal_withholding: p.federalWithholding,
-          ss_withholding: p.ssWithholding,
-          medicare_withholding: p.medicareWithholding,
-        });
-      }
-
-      return {
-        streamId: g.employerKey,
-        employerKey: g.employerKey,
-        company: g.company,
-        payFrequency: g.payFrequency,
-        detectedFrequency: det?.frequency ?? null,
-        lastPaycheckDate: det?.lastDate ?? null,
-        remainingPaychecks,
-        remainingGross,
-        expectedNormalWithholding,
-        streamIds: g.includedStreamIds,
-        droppedStreamIds: g.droppedStreamIds,
-        uniqueSourceIds: g.uniqueSourceIds,
-        overlapDateCount: g.overlapDateCount,
-      };
-    });
-  }, [streams, allProjected, todayStr, detectionBySourceId]);
-
-  // ── YTD fallback ──
-  // When a W-2 user has not yet set up projected income streams (e.g. they
-  // only entered YTD W-2 catchup during onboarding), `employerRows` will be
-  // empty and the W-4 Calculator would otherwise render nothing. Build a
-  // best-effort employer list from this year's W-2 income entries so the tab
-  // shows actionable per-employer W-4 guidance based on the federal income
-  // tax shortfall.
-  const ytdFallbackRows = useMemo(() => {
-    if (employerRows.length > 0) return [];
-    return buildYtdFallbackEmployerRows(incomeEntries as any);
-  }, [employerRows, incomeEntries]);
-
-  // companies is hoisted above (see top of component) so the employee role
-  // maps can read it.
-
-  // Saved W-2 companies always contribute an employer row, even when the
-  // user has no active projected income streams or YTD income entries yet.
-  // Without this, Settings-only W-2 users would see a blank W-4 tab.
-  const companyOnlyRows = useMemo(() => {
-    const baseRows = employerRows.length > 0 ? employerRows : ytdFallbackRows;
-    const existingKeys = new Set<string>();
-    for (const r of baseRows) {
-      const k = `emp:${normalizeEmployerName(r.company)}|w2`;
-      existingKeys.add(k);
-    }
-    return buildCompanyOnlyEmployerRows(
-      companies.map((c) => ({
-        name: c.name,
-        companyType: c.companyType,
-        payFrequency: c.payFrequency,
-      })),
-      existingKeys,
-    );
-  }, [companies, employerRows, ytdFallbackRows]);
-
-  const sourceRows = [
-    ...(employerRows.length > 0 ? employerRows : ytdFallbackRows),
-    ...companyOnlyRows,
-  ];
-
-
-  // User-facing toggle: whether to assume the user will save the recommended
-  // future 1099/business/K-1 tax reserves. Defaults ON because most app users
-  // are being told to save reserves from non-W-2 income. Persisted locally so
-  // the choice survives reloads without requiring a backend change.
-  const TOGGLE_KEY = "w4.countPlannedNonW2Reserves";
-  const [countPlannedNonW2Reserves, setCountPlannedNonW2Reserves] = useState<boolean>(true);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(TOGGLE_KEY);
-      if (raw === "false") setCountPlannedNonW2Reserves(false);
-      else if (raw === "true") setCountPlannedNonW2Reserves(true);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  const handleToggleChange = (next: boolean) => {
-    setCountPlannedNonW2Reserves(next);
-    try {
-      localStorage.setItem(TOGGLE_KEY, next ? "true" : "false");
-    } catch {
-      /* ignore */
-    }
-  };
-
-  // Display-only: expected reserve out of remaining business gross at the
-  // canonical bucket rate. NOT an input to the W-4 gap.
-  const futureBusinessGross = Math.max(
-    0,
-    Number(forecastDebug?.grossBusinessIncome ?? 0) - Number(actualDebug?.grossBusinessIncome ?? 0),
-  );
-  const projectedPlannedFutureBusinessReserves =
-    futureBusinessGross * (businessReserveRate / 100);
-
-
-  // Per-company W-4 settings map (companies hook called earlier).
-
-  const companyByEmployerKey = useMemo(() => {
-    const map = new Map<string, {
-      id: string;
-      payFrequency: string | null;
-      remainingOverride: number | null;
-      projectedAnnualGross: number | null;
-      expectedFederalWithholdingPerPaycheck: number | null;
-      currentExtraW4Withholding: number;
-    }>();
-    for (const c of companies) {
-      const ft = normalizeFilingType(c.companyType);
-      if (ft !== "w2" && ft !== "scorp_w2") continue;
-      const key = `emp:${normalizeEmployerName(c.name)}|w2`;
-      const prev = map.get(key);
-      const next = {
-        id: c.id,
-        payFrequency: c.payFrequency,
-        remainingOverride: c.remainingPaychecksOverride,
-        projectedAnnualGross: c.projectedAnnualGross ?? null,
-        expectedFederalWithholdingPerPaycheck:
-          c.expectedFederalWithholdingPerPaycheck ?? null,
-        currentExtraW4Withholding: resolveCurrentExtraW4(c.currentExtraW4Withholding),
-      };
-      // Prefer the entry that has the richest signal.
-      if (
-        !prev ||
-        (!prev.payFrequency && next.payFrequency) ||
-        (prev.projectedAnnualGross == null && next.projectedAnnualGross != null) ||
-        (prev.expectedFederalWithholdingPerPaycheck == null &&
-          next.expectedFederalWithholdingPerPaycheck != null)
-      ) {
-        map.set(key, next);
-      }
-    }
-    return map;
-  }, [companies]);
-
-  // YTD gross/withheld per employer key — used to compute remaining-gross from
-  // a saved projected annual gross. Built from this year's W-2 income entries.
-  const ytdByEmployerKey = useMemo(() => {
-    const year = new Date().getFullYear().toString();
-    const map = new Map<
-      string,
-      { gross: number; withheld: number; fedIncomeTax: number; paycheckCount: number }
-    >();
-    for (const e of incomeEntries || []) {
-      if (typeof e.income_type !== "string" || !isW2FilingType(e.income_type)) continue;
-      const d = (e as any).income_date as string | undefined;
-      if (!d || !d.startsWith(year)) continue;
-      const key = `emp:${normalizeEmployerName((e as any).company)}|w2`;
-      const prev =
-        map.get(key) || { gross: 0, withheld: 0, fedIncomeTax: 0, paycheckCount: 0 };
-      prev.gross += Number((e as any).paycheck_amount) || 0;
-      prev.withheld += Number((e as any).taxes_withheld) || 0;
-      // Federal income tax only (SS/Medicare excluded) — reuses the canonical
-      // helper purely to display "recent actual" context, never for math.
-      if (!isYtdCatchupEntry(e as any)) {
-        prev.fedIncomeTax += getFederalIncomeTaxWithheld(e as any);
-        prev.paycheckCount += 1;
-      }
-      map.set(key, prev);
-    }
-    return map;
-  }, [incomeEntries]);
-
-  // Apply company settings to produce effective rows used in allocation.
-  // Source precedence (per spec):
-  //   1. Recurring W-2 Income Planner stream (2+ future occurrences) — primary
-  //   2. Saved company Settings (annual gross / expected federal per paycheck)
-  //   3. YTD/historical fallback per-paycheck averages (catch-up rows excluded)
-
-  const effectiveRows = useMemo(() => {
-    return sourceRows.map((r) => {
-      const lookupKey = `emp:${normalizeEmployerName(r.company)}|w2`;
-      const settings =
-        companyByEmployerKey.get(r.streamId) ||
-        companyByEmployerKey.get(lookupKey);
-      const autoFrequency = r.detectedFrequency ?? r.payFrequency;
-      const frequency = settings?.payFrequency || autoFrequency;
-      const detectedPaychecks = r.remainingPaychecks;
-      const isYtdFallback = Boolean((r as any).__isYtdFallback);
-
-      // A RECURRING planner stream (multiple scheduled future paychecks) is the
-      // primary source of truth. A single one-time occurrence is not.
-      const hasRecurringPlannerStream =
-        !isYtdFallback && detectedPaychecks >= 2 && r.remainingGross > 0;
-
-      let autoPaychecks: number;
-      if (hasRecurringPlannerStream) {
-        autoPaychecks = detectedPaychecks;
-      } else if (r.lastPaycheckDate) {
-        autoPaychecks = paychecksFromLastDate(frequency, r.lastPaycheckDate);
-      } else if (detectedPaychecks > 0 && !settings?.payFrequency) {
-        autoPaychecks = detectedPaychecks;
-      } else {
-        autoPaychecks = defaultRemainingPaychecks(frequency);
-      }
-
-      const remainingPaychecks =
-        settings?.remainingOverride != null
-          ? Math.max(0, Math.floor(settings.remainingOverride))
-          : autoPaychecks;
-
-      // Saved Settings estimates are FALLBACKS — ignored while a recurring
-      // planner stream exists (prevents stale saved values winning).
-      const savedAnnualGross = hasRecurringPlannerStream
-        ? null
-        : settings?.projectedAnnualGross ?? null;
-      const savedFedPerPaycheck = hasRecurringPlannerStream
-        ? null
-        : settings?.expectedFederalWithholdingPerPaycheck ?? null;
-
-      const ytd =
-        ytdByEmployerKey.get(lookupKey) || {
-          gross: 0,
-          withheld: 0,
-          fedIncomeTax: 0,
-          paycheckCount: 0,
-        };
-
-      let remainingGross: number;
-      let expectedNormalWithholding: number;
-
-      if (savedAnnualGross != null) {
-        // Explicit annual gross wins. Remaining = annual − YTD already received.
-        remainingGross = Math.max(0, savedAnnualGross - ytd.gross);
-      } else if (isYtdFallback) {
-        const avgGross = (r as any).__ytdAvgGross || 0;
-        remainingGross = avgGross * remainingPaychecks;
-      } else {
-        const ratio =
-          detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
-        remainingGross =
-          detectedPaychecks > 0 ? r.remainingGross * ratio : r.remainingGross;
-      }
-
-      // Employer-specific extra W-4 withholding already on file. Tracked
-      // separately from the baseline payroll projection so the user's own
-      // setting can never shrink the target it is measured against.
-      const currentExtraW4PerPaycheck = resolveCurrentExtraW4(
-        settings?.currentExtraW4Withholding,
-      );
-
-      let rawFutureFederalWithholding: number;
-      if (savedFedPerPaycheck != null) {
-        rawFutureFederalWithholding = savedFedPerPaycheck * remainingPaychecks;
-      } else if (isYtdFallback) {
-        const avgWithheld = (r as any).__ytdAvgWithheld || 0;
-        rawFutureFederalWithholding = avgWithheld * remainingPaychecks;
-      } else {
-        rawFutureFederalWithholding = r.expectedNormalWithholding;
-      }
-
-      // Stored per-paycheck federal withholding already includes any Step 4(c)
-      // extra on file, so strip it here — it is added back exactly once as
-      // `currentExtraW4FutureWithholding`.
-      expectedNormalWithholding = Math.max(
-        0,
-        rawFutureFederalWithholding -
-          currentExtraW4PerPaycheck * Math.max(0, remainingPaychecks),
-      );
-
-
-      const missingSettings = !settings?.payFrequency;
-      const usedSavedSettings =
-        savedAnnualGross != null || savedFedPerPaycheck != null;
-
-      // Data-completeness signals (drive W-4 accuracy warnings, not math).
-      const ytdGrossTotal =
-        Number((r as any).__ytdGrossTotal) || ytd.gross || 0;
-      const ytdWithheldTotal =
-        Number((r as any).__ytdWithheldTotal) || ytd.withheld || 0;
-      const hasYtdData =
-        ytdGrossTotal > 0 || ytdWithheldTotal > 0 || detectedPaychecks > 0;
-      // "Future projection" = saved annual gross, saved per-paycheck
-      // withholding (paired with a known pay frequency), or an active
-      // projected stream contributing remaining gross/paychecks.
-      const hasSavedFutureSettings =
-        savedAnnualGross != null ||
-        (savedFedPerPaycheck != null && !!settings?.payFrequency);
-      const hasStreamProjection = !isYtdFallback && detectedPaychecks > 0;
-      const hasFutureProjection =
-        hasSavedFutureSettings || hasStreamProjection || remainingGross > 0;
-      // Settings-only future projection (no active income stream backing it).
-      // Premium users get a nudge to add a stream for higher accuracy.
-      const settingsOnlyFuture = hasSavedFutureSettings && !hasStreamProjection;
-
-      // Which existing source is driving future paycheck assumptions.
-      const projectionSource: "planner" | "settings" | "history" =
-        hasRecurringPlannerStream
-          ? "planner"
-          : hasSavedFutureSettings
-            ? "settings"
-            : hasStreamProjection
-              ? "planner"
-              : "history";
-
-      return {
-
-        ...r,
-        payFrequency: frequency,
-        remainingPaychecks,
-        remainingGross,
-        expectedNormalWithholding,
-        currentExtraW4PerPaycheck,
-        companyId: settings?.id ?? null,
-        missingSettings,
-        isYtdFallback,
-        usedSavedSettings,
-        hasYtdData,
-        hasFutureProjection,
-        hasStreamProjection,
-        settingsOnlyFuture,
-        projectionSource,
-        hasRecurringPlannerStream,
-
-        ytdGrossTotal,
-        ytdWithheldTotal,
-        // Override-visibility disclosure (display only — no math impact).
-        savedFedPerPaycheckOverride: savedFedPerPaycheck,
-        savedAnnualGrossOverride: savedAnnualGross,
-        recentActualFedPerPaycheck:
-          ytd.paycheckCount > 0 ? ytd.fedIncomeTax / ytd.paycheckCount : null,
-        recentActualGrossPerPaycheck:
-          ytd.paycheckCount > 0 && ytd.gross > 0
-            ? ytd.gross / ytd.paycheckCount
-            : null,
-      };
-    });
-
-  }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
-
-  const { isPremium } = useFeatureAccess();
+  // Display aliases for the canonical hook values.
+  const expectedFutureNormalW2Withholding = projectedFutureBaselineW2Withholding;
+  const estPaymentsAlreadyMade = estimatedPaymentsMade;
+  const handleToggleChange = setCountPlannedNonW2Reserves;
 
   // Data-completeness signals used to warn users when the W-4 recommendation
   // may be inaccurate because YTD or future projection data is missing.
@@ -1192,178 +682,56 @@ export default function W4PaycheckAdjustmentCard() {
       (s, r: any) => s + (Number(r.ytdWithheldTotal) || 0),
       0,
     );
-    const anyYtd = effectiveRows.some((r: any) => r.hasYtdData);
     const anyFuture = effectiveRows.some((r: any) => r.hasFutureProjection);
-    const anyStream = effectiveRows.some((r: any) => r.hasStreamProjection);
-    const anySettingsOnlyFuture = effectiveRows.some(
-      (r: any) => r.settingsOnlyFuture,
-    );
     const missingYtdAggregate =
       effectiveRows.length > 0 && (totalYtdGross <= 0 || totalYtdWithheld <= 0);
     const missingFutureAggregate = effectiveRows.length > 0 && !anyFuture;
-    const partialEmployers = effectiveRows.filter(
-      (r: any) => !r.hasYtdData || !r.hasFutureProjection,
-    );
     const anyPartialEmployer =
-      effectiveRows.length > 0 && partialEmployers.length > 0;
-    const multipleW2 = effectiveRows.length > 1;
-    const allComplete =
       effectiveRows.length > 0 &&
-      !missingYtdAggregate &&
-      !missingFutureAggregate &&
-      !anyPartialEmployer;
+      effectiveRows.some((r: any) => !r.hasYtdData || !r.hasFutureProjection);
     return {
-      anyYtd,
+      anyYtd: effectiveRows.some((r: any) => r.hasYtdData),
       anyFuture,
-      anyStream,
-      anySettingsOnlyFuture,
+      anyStream: effectiveRows.some((r: any) => r.hasStreamProjection),
+      anySettingsOnlyFuture: effectiveRows.some((r: any) => r.settingsOnlyFuture),
       missingYtdAggregate,
       missingFutureAggregate,
       anyPartialEmployer,
-      multipleW2,
-      allComplete,
+      multipleW2: effectiveRows.length > 1,
+      allComplete:
+        effectiveRows.length > 0 &&
+        !missingYtdAggregate &&
+        !missingFutureAggregate &&
+        !anyPartialEmployer,
     };
   }, [effectiveRows]);
 
-  const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
+  // Hide card entirely if user has no W-2 employers at all.
+  if (effectiveRows.length === 0) return null;
 
+  const w4Recs = employerW4Recommendations;
 
-  // The W-4 is inherently forward-looking: it must fund the rest of the year,
-  // including recurring 1099/K-1 planned income. Use the same actual+planned
-  // forecast bundle the Income Planner uses, falling back to the
-  // method-selected bundle only when no forecast exists.
-  const selectedDebug =
-    forecastDebug ??
-    ((settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-      ? actualDebug
-      : (currentPaceDebug ?? actualDebug));
+  // Display-only reconciliation term so the visible arithmetic always equals
+  // the canonical gap. It is the tax owed by non-W-2 sources (investments,
+  // other income, un-credited business responsibility) that the W-4 does not
+  // fund — never a fudge of the gap itself.
+  const reconciliationResidual =
+    projectedTotalTax -
+    taxesAlreadyWithheld -
+    expectedFutureNormalW2Withholding -
+    currentExtraW4FutureWithholding -
+    actualTaxSavedOrPaid -
+    estPaymentsAlreadyMade -
+    plannedFutureBusinessReservesCounted -
+    remainingW4Gap;
 
-  const projectedTotalTax = Number(selectedDebug?.totalEstimatedTax ?? 0);
-  const taxesAlreadyWithheld =
-    Number(selectedDebug?.actualFederalWithheld ?? 0) +
-    Number(selectedDebug?.actualStateWithheld ?? 0);
-  const actualTaxSavedOrPaid = Number(selectedDebug?.taxSavingsSetAside ?? 0);
-  const estPaymentsAlreadyMade = Number(selectedDebug?.estimatedPaymentsMade ?? 0);
-  // Projected future W-2 federal withholding is derived from the SAME effective
-  // employer rows shown in the W-4 table (federal only — no state, no FICA),
-  // so the displayed breakdown and the gap formula can never disagree.
-  // Baseline payroll only — extras already on the W-4 are added once, below.
-  const expectedFutureNormalW2Withholding = effectiveRows.reduce(
-    (s, r) => s + (Number(r.expectedNormalWithholding) || 0),
-    0,
-  );
-  const currentExtraW4FutureWithholding = effectiveRows.reduce(
-    (s, r) =>
-      s +
-      resolveCurrentExtraW4((r as any).currentExtraW4PerPaycheck) *
-        Math.max(0, Number(r.remainingPaychecks) || 0),
-    0,
-  );
+  const employerRecs = w4Recs.map((rec) => ({
+    row: rec.row,
+    perPaycheck: rec.change.recommendedExtraPerPaycheck,
+    annualForEmployer: rec.annualRecommendedExtra,
+    change: rec.change,
+  }));
 
-  // ── SOURCE-SPECIFIC W-4 gap ─────────────────────────────────────────────
-  // The gap closes ONLY the W-2 source's canonical deficit. Uncovered business
-  // responsibility stays with the business source and can no longer spill into
-  // W-2 withholding as a household residual.
-  const sourceFunding = buildSourceFundingPlan({
-    allocation: canonicalAllocation,
-    w2ActualWithheldYtd: taxesAlreadyWithheld,
-    w2ExpectedFutureBaselineWithholding: expectedFutureNormalW2Withholding,
-    estimatedPaymentsMade: estPaymentsAlreadyMade,
-    householdSavingsSetAside: actualTaxSavedOrPaid,
-  });
-  const businessRemainingNeed = sourceFunding.nonW2.remainingNeed;
-  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
-    ? businessRemainingNeed
-    : 0;
-  // Toggle OFF → we do NOT assume those future business reserves happen, so the
-  // uncovered business responsibility must be funded by W-2 withholding.
-  const uncreditedBusinessNeed = countPlannedNonW2Reserves ? 0 : businessRemainingNeed;
-
-  const w4GapInputs: W4GapInputs = {
-    projectedAnnualFederalTax: projectedTotalTax,
-    actualWithheldYtd: taxesAlreadyWithheld,
-    projectedFutureFederalW2Withholding:
-      expectedFutureNormalW2Withholding + currentExtraW4FutureWithholding,
-    actualTaxSavedOrPaid,
-    estimatedPaymentsMade: estPaymentsAlreadyMade,
-    plannedFutureNonW2ReservesCounted: plannedFutureBusinessReservesCounted,
-  };
-  // Stable target (independent of what's currently on the W-4) …
-  const grossW4Gap = sourceFunding.w2.remainingNeed + uncreditedBusinessNeed;
-  // … and the shortfall that remains after crediting current W-4 extras.
-  const remainingW4Gap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
-
-  // ── Stable testable summary numbers ──
-  // projectedHouseholdGross = full forecast household gross (W-2 + business +
-  // other), so audits can verify the full-picture input the W-4 math uses.
-  const projectedHouseholdGross = Number(selectedDebug?.totalGrossIncome ?? 0);
-  // projectedFederalWithholding = actual YTD federal + projected future federal
-  // withholding (derived from the same effective rows that drive the table).
-  const projectedFederalWithholding =
-    Number(selectedDebug?.actualFederalWithheld ?? 0) +
-    expectedFutureNormalW2Withholding +
-    currentExtraW4FutureWithholding;
-  const signedAnnualGap =
-    sourceFunding.w2.signedNeed + uncreditedBusinessNeed - currentExtraW4FutureWithholding;
-
-  const annualTaxGap = Math.max(0, signedAnnualGap);
-  const annualTaxSurplus = Math.max(0, -signedAnnualGap);
-
-
-  // Weight only the INCREMENTAL gap (after crediting all current Step 4(c)),
-  // then add each employer's own current extra back to form its stable target.
-  // This keeps one employer's Step 4(c) edit from re-weighting the others.
-  const allocations = useMemo(() => {
-    const incrementalGap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
-    const incremental = computeAllocations(
-      effectiveRows,
-      incrementalGap,
-      totalRemainingW2Gross,
-    );
-    const surplus = Math.max(0, currentExtraW4FutureWithholding - grossW4Gap);
-    const reductions = allocateW4SurplusReduction(
-      effectiveRows.map((r) => ({
-        key: r.streamId,
-        currentExtraPerPaycheck: resolveCurrentExtraW4((r as any).currentExtraW4PerPaycheck),
-        remainingPaychecks: Math.max(0, Number(r.remainingPaychecks) || 0),
-      })),
-      surplus,
-    );
-    const targets = stabilizeW4Targets(effectiveRows as any[], incremental, reductions);
-    return incremental.map((a) => ({
-      ...a,
-      step4cPerPaycheck:
-        targets.find((t) => t.streamId === a.streamId)?.step4cPerPaycheck ?? 0,
-    }));
-  }, [effectiveRows, totalRemainingW2Gross, grossW4Gap, currentExtraW4FutureWithholding]);
-
-  const totalExtraThroughYearEnd = allocations.reduce(
-    (s, a) => s + a.step4cPerPaycheck * a.remainingPaychecks,
-    0,
-  );
-
-  // Hide card entirely if user has no W-2 streams at all — nothing to recommend.
-  if (sourceRows.length === 0) return null;
-
-  const w4Recs = buildEmployerW4Recommendations(
-    effectiveRows as any[],
-    allocations,
-  );
-
-  const employerRecs = w4Recs.map((rec) => {
-    const a = allocations.find((x) => x.streamId === rec.row.streamId);
-    const perPaycheck = rec.change.recommendedExtraPerPaycheck;
-    return {
-      row: rec.row,
-      perPaycheck,
-      annualForEmployer: rec.annualRecommendedExtra,
-      allocation: a,
-      change: rec.change,
-    };
-  });
-  const recsWithExtra = employerRecs.filter(
-    (e) => e.perPaycheck > 0 || e.change.direction !== "none",
-  );
   const hasAnyDataWarning =
     dataCompleteness.missingYtdAggregate ||
     dataCompleteness.missingFutureAggregate ||
@@ -1701,6 +1069,12 @@ export default function W4PaycheckAdjustmentCard() {
                         : `${fmt(0)} (toggle off)`
                     }
                   />
+                  {Math.abs(reconciliationResidual) >= 1 && (
+                    <Row
+                      label="Tax owed by other income sources (not funded by your W-4)"
+                      value={fmt(reconciliationResidual)}
+                    />
+                  )}
                   <div className="my-1 border-t border-border" />
                   <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
                 </div>
@@ -1990,6 +1364,13 @@ function CurrentExtraW4Field({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
             className="h-11 pl-7 bg-background tabular-nums"
           />
         </div>

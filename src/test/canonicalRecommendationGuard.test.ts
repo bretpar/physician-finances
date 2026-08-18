@@ -49,14 +49,17 @@ describe("canonical recommendation architecture guard", () => {
     expect(src).not.toContain("getSavingsRateForIncomeBucket");
   });
 
-  it("W-4 card and bucket-rate display surfaces use the canonical helper", () => {
-    for (const rel of [
-      "components/tax/W4PaycheckAdjustmentCard.tsx",
-      "pages/Dashboard.tsx",
-      "pages/Taxes.tsx",
-    ]) {
+  it("bucket-rate display surfaces use the canonical helper", () => {
+    for (const rel of ["pages/Dashboard.tsx", "pages/Taxes.tsx"]) {
       const src = readFileSync(join(ROOT, rel), "utf8");
       expect(src, rel).toContain("getCanonicalBucketRatePct");
     }
+  });
+
+  it("the W-4 card consumes canonical values from useW4Calculation, not its own rates", () => {
+    const src = readFileSync(join(ROOT, "components/tax/W4PaycheckAdjustmentCard.tsx"), "utf8");
+    expect(src).toContain("useW4Calculation");
+    expect(src).not.toContain("getCanonicalBucketRatePct");
+    expect(src).not.toContain("buildAllocationFromEstimate");
   });
 });

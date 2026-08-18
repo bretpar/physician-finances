@@ -35,8 +35,7 @@ import {
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
   buildEmployerW4Recommendations,
-  allocateW4SurplusReduction,
-  stabilizeW4Targets,
+  allocateStableW4Targets,
   resolveCurrentExtraW4,
   type EmployerW4Recommendation,
 } from "@/lib/w4CurrentWithholding";
@@ -47,6 +46,7 @@ import {
   defaultRemainingPaychecks,
   detectFrequencyFromDates,
   groupW2StreamsByEmployer,
+  isYtdCatchupEntry,
   normalizeEmployerName,
   paychecksFromLastDate,
   type Allocation,
@@ -84,6 +84,22 @@ export interface W4CalculationResult {
   projectedPlannedFutureBusinessReserves: number;
   /** Per-employer recommendation net of that employer's current W-4 extra. */
   employerW4Recommendations: EmployerW4Recommendation<any>[];
+  /** Canonical annual liability shown in Calculation details. */
+  projectedTotalTax: number;
+  /** Actual YTD W-2 federal + state withholding. */
+  taxesAlreadyWithheld: number;
+  actualTaxSavedOrPaid: number;
+  estimatedPaymentsMade: number;
+  /** Projected future W-2 withholding EXCLUDING current Step 4(c). */
+  projectedFutureBaselineW2Withholding: number;
+  /** Current Step 4(c) across all remaining paychecks (counted once). */
+  currentExtraW4FutureWithholding: number;
+  /** Business reserves credited toward the gap (0 when the toggle is off). */
+  plannedFutureBusinessReservesCounted: number;
+  /** Total future W-2 federal withholding required (Step-4(c)-invariant). */
+  requiredFutureW2Withholding: number;
+  /** True when the household has 1099/K-1/business income. */
+  hasNonW2Income: boolean;
 }
 
 
@@ -100,10 +116,15 @@ export function useW4Calculation(): W4CalculationResult {
 
   // The annual estimate selected by the user's withholding method. Single
   // source for BOTH the canonical allocation and every rate below.
+  // The W-4 funds the REST OF THE YEAR, so the canonical allocation must come
+  // from the SAME actual+planned forecast bundle as `selectedDebug` below.
+  // Mixing bundles (allocation from current-pace, liability from forecast) made
+  // the gap/targets go stale when planned 1099/K-1 income changed.
   const selectedEstimate =
-    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-      ? (forecastEstimate ?? actualEstimate)
-      : (currentPaceEstimate ?? actualEstimate);
+    forecastEstimate ??
+    ((settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? actualEstimate
+      : (currentPaceEstimate ?? actualEstimate));
 
   // Canonical annual allocation: how much of the annual liability each source
   // owes. The W-4 gap below is derived from the W-2 slice of THIS, never from a
@@ -122,6 +143,21 @@ export function useW4Calculation(): W4CalculationResult {
   });
 
   const todayStr = new Date().toISOString().split("T")[0];
+
+  // Whether the household has non-W-2 income (drives the business-reserve
+  // toggle visibility on the card).
+  const hasNonW2Income = useMemo(() => {
+    const streamHasNonW2 = (streams || []).some((s) => {
+      if (!s.is_active) return false;
+      const ft = normalizeFilingType(s.company_type);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+    if (streamHasNonW2) return true;
+    return (companies || []).some((c) => {
+      const ft = normalizeFilingType(c.companyType);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+  }, [streams, companies]);
 
 
   const allProjected = useMemo(
@@ -313,15 +349,24 @@ export function useW4Calculation(): W4CalculationResult {
 
   const ytdByEmployerKey = useMemo(() => {
     const year = new Date().getFullYear().toString();
-    const map = new Map<string, { gross: number; withheld: number }>();
+    const map = new Map<
+      string,
+      { gross: number; withheld: number; fedIncomeTax: number; paycheckCount: number }
+    >();
     for (const e of incomeEntries || []) {
       if (typeof e.income_type !== "string" || !isW2FilingType(e.income_type)) continue;
       const d = (e as any).income_date as string | undefined;
       if (!d || !d.startsWith(year)) continue;
       const key = `emp:${normalizeEmployerName((e as any).company)}|w2`;
-      const prev = map.get(key) || { gross: 0, withheld: 0 };
+      const prev =
+        map.get(key) || { gross: 0, withheld: 0, fedIncomeTax: 0, paycheckCount: 0 };
       prev.gross += Number((e as any).paycheck_amount) || 0;
       prev.withheld += Number((e as any).taxes_withheld) || 0;
+      // Display-only "recent actual" context (federal income tax only).
+      if (!isYtdCatchupEntry(e as any)) {
+        prev.fedIncomeTax += getFederalIncomeTaxWithheld(e as any);
+        prev.paycheckCount += 1;
+      }
       map.set(key, prev);
     }
     return map;
@@ -354,7 +399,13 @@ export function useW4Calculation(): W4CalculationResult {
       const savedAnnualGross = hasRecurringPlannerStream ? null : (settings?.projectedAnnualGross ?? null);
       const savedFedPerPaycheck = hasRecurringPlannerStream ? null : (settings?.expectedFederalWithholdingPerPaycheck ?? null);
 
-      const ytd = ytdByEmployerKey.get(lookupKey) || { gross: 0, withheld: 0 };
+      const ytd =
+        ytdByEmployerKey.get(lookupKey) || {
+          gross: 0,
+          withheld: 0,
+          fedIncomeTax: 0,
+          paycheckCount: 0,
+        };
 
       let remainingGross: number;
       let expectedNormalWithholding: number;
@@ -391,6 +442,11 @@ export function useW4Calculation(): W4CalculationResult {
       );
 
 
+      const hasSavedFutureSettings =
+        savedAnnualGross != null ||
+        (savedFedPerPaycheck != null && !!settings?.payFrequency);
+      const hasStreamProjection = !isYtdFallback && detectedPaychecks > 0;
+
       return {
         ...r,
         payFrequency: frequency,
@@ -406,12 +462,27 @@ export function useW4Calculation(): W4CalculationResult {
           || (Number((r as any).__ytdWithheldTotal) || ytd.withheld || 0) > 0
           || detectedPaychecks > 0,
         hasFutureProjection:
-          savedAnnualGross != null
-          || (savedFedPerPaycheck != null && !!settings?.payFrequency)
-          || (!isYtdFallback && detectedPaychecks > 0)
-          || remainingGross > 0,
+          hasSavedFutureSettings || hasStreamProjection || remainingGross > 0,
+        hasStreamProjection,
+        settingsOnlyFuture: hasSavedFutureSettings && !hasStreamProjection,
+        hasRecurringPlannerStream,
+        // Which existing source drives this employer's future paycheck data.
+        projectionSource: (hasRecurringPlannerStream
+          ? "planner"
+          : hasSavedFutureSettings
+            ? "settings"
+            : hasStreamProjection
+              ? "planner"
+              : "history") as "planner" | "settings" | "history",
         ytdGrossTotal: Number((r as any).__ytdGrossTotal) || ytd.gross || 0,
         ytdWithheldTotal: Number((r as any).__ytdWithheldTotal) || ytd.withheld || 0,
+        // Override-visibility disclosure (display only — no math impact).
+        savedFedPerPaycheckOverride: savedFedPerPaycheck,
+        savedAnnualGrossOverride: savedAnnualGross,
+        recentActualFedPerPaycheck:
+          ytd.paycheckCount > 0 ? ytd.fedIncomeTax / ytd.paycheckCount : null,
+        recentActualGrossPerPaycheck:
+          ytd.paycheckCount > 0 && ytd.gross > 0 ? ytd.gross / ytd.paycheckCount : null,
       };
     });
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
@@ -510,35 +581,42 @@ export function useW4Calculation(): W4CalculationResult {
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
 
-  // Allocations are sized from the GROSS target so one employer's current W-4
-  // amount never re-weights another employer's target.
+  // Total federal income tax the W-2 source must still withhold this year.
+  // Deliberately baseline- AND Step-4(c)-free: baseline withholding cancels out
+  // (`signedNeed` already subtracts it), so this requirement — and therefore
+  // every employer target derived from it — cannot be re-weighted by what any
+  // employer currently has on their W-4.
+  const requiredFutureW2Withholding = Math.max(
+    0,
+    sourceFunding.w2.signedNeed +
+      expectedFutureNormalW2Withholding +
+      uncreditedBusinessNeed,
+  );
+
+  // Each employer takes a gross-weighted share of the shared requirement and
+  // subtracts only ITS OWN baseline payroll withholding → stable targets.
   const allocations = useMemo(
     () => {
-      // Weight only the incremental gap (after crediting all current Step
-      // 4(c)); each employer's own current extra is added back afterwards so
-      // one employer's Step 4(c) edit cannot re-weight the others' targets.
-      const incrementalGap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
-      const incremental = computeAllocations(
-        effectiveRows,
-        incrementalGap,
-        totalRemainingW2Gross,
+      const stable = allocateStableW4Targets(
+        effectiveRows as any[],
+        requiredFutureW2Withholding,
       );
-      const reductions = allocateW4SurplusReduction(
-        effectiveRows.map((r: any) => ({
-          key: r.streamId,
-          currentExtraPerPaycheck: resolveCurrentExtraW4(r.currentExtraW4PerPaycheck),
-          remainingPaychecks: Math.max(0, Number(r.remainingPaychecks) || 0),
-        })),
-        Math.max(0, currentExtraW4FutureWithholding - grossW4Gap),
-      );
-      const targets = stabilizeW4Targets(effectiveRows as any[], incremental, reductions);
-      return incremental.map((a) => ({
-        ...a,
-        step4cPerPaycheck:
-          targets.find((t) => t.streamId === a.streamId)?.step4cPerPaycheck ?? 0,
-      }));
+      return effectiveRows
+        .filter((r: any) => Math.max(0, Number(r.remainingPaychecks) || 0) > 0)
+        .map((r: any) => {
+          const t = stable.find((s) => s.streamId === r.streamId);
+          const step4cPerPaycheck = t?.step4cPerPaycheck ?? 0;
+          return {
+            ...r,
+            exactPerPaycheck: t?.exactPerPaycheck ?? 0,
+            exactEmployerGap:
+              (t?.exactPerPaycheck ?? 0) * Math.max(0, Number(r.remainingPaychecks) || 0),
+            step4cPerPaycheck,
+            employerGap: step4cPerPaycheck * Math.max(0, Number(r.remainingPaychecks) || 0),
+          };
+        }) as Allocation[];
     },
-    [effectiveRows, totalRemainingW2Gross, grossW4Gap, currentExtraW4FutureWithholding],
+    [effectiveRows, requiredFutureW2Withholding],
   );
 
   const totalExtraThroughYearEnd = allocations.reduce(
@@ -572,5 +650,16 @@ export function useW4Calculation(): W4CalculationResult {
     sourceFunding,
     businessRemainingNeed,
     projectedPlannedFutureBusinessReserves,
+    // ── Canonical reconciliation values (single source for the card's
+    // "Calculation details" rows — the card must never recompute these). ──
+    projectedTotalTax,
+    taxesAlreadyWithheld,
+    actualTaxSavedOrPaid,
+    estimatedPaymentsMade: estPaymentsAlreadyMade,
+    projectedFutureBaselineW2Withholding: expectedFutureNormalW2Withholding,
+    currentExtraW4FutureWithholding,
+    plannedFutureBusinessReservesCounted,
+    requiredFutureW2Withholding,
+    hasNonW2Income,
   };
 }
