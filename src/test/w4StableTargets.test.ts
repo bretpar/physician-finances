@@ -37,14 +37,10 @@ function targetsFor(rows: Row[], signedNeedAgainstRaw: number) {
       r.rawFutureWithholding - r.currentExtraW4PerPaycheck * r.remainingPaychecks,
     ),
   }));
-  const baselineTotal = withBaseline.reduce((s, r) => s + r.expectedNormalWithholding, 0);
-  const extrasTotal = rows.reduce(
-    (s, r) => s + r.currentExtraW4PerPaycheck * r.remainingPaychecks,
-    0,
-  );
-  // signedNeed against the baseline = need against raw − extras already on file.
-  const signedNeed = signedNeedAgainstRaw - extrasTotal + extrasTotal - extrasTotal;
-  const required = Math.max(0, signedNeed + baselineTotal + extrasTotal);
+  const rawTotal = rows.reduce((s, r) => s + r.rawFutureWithholding, 0);
+  // required future W-2 withholding is Step-4(c)-invariant: whatever is
+  // already projected to be withheld, plus whatever is still needed.
+  const required = Math.max(0, signedNeedAgainstRaw + rawTotal);
   return allocateStableW4Targets(withBaseline, required);
 }
 
@@ -62,12 +58,12 @@ describe("stable employer W-4 targets", () => {
         mk({
           streamId: "a",
           remainingGross: 60000,
-          rawFutureWithholding: 6000,
+          rawFutureWithholding: 6000 + 3000,
           currentExtraW4PerPaycheck: 300,
         }),
         mk({ streamId: "b", company: "B", remainingGross: 20000, rawFutureWithholding: 2000 }),
       ],
-      12000,
+      12000 - 3000,
     );
     const bBase = base.find((t) => t.streamId === "b")!.step4cPerPaycheck;
     const bAfter = afterEdit.find((t) => t.streamId === "b")!.step4cPerPaycheck;
@@ -89,11 +85,11 @@ describe("stable employer W-4 targets", () => {
           streamId: "b",
           company: "B",
           remainingGross: 20000,
-          rawFutureWithholding: 2000,
+          rawFutureWithholding: 2000 + 2500,
           currentExtraW4PerPaycheck: 250,
         }),
       ],
-      12000,
+      12000 - 2500,
     );
     const aBase = base.find((t) => t.streamId === "a")!.step4cPerPaycheck;
     const aAfter = afterEdit.find((t) => t.streamId === "a")!.step4cPerPaycheck;
