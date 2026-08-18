@@ -551,35 +551,44 @@ export function useW4Calculation(): W4CalculationResult {
   const annualTaxSurplus = Math.max(0, -signedAnnualGap);
 
 
-  // Allocations are sized from the GROSS target so one employer's current W-4
-  // amount never re-weights another employer's target.
+  // Total federal income tax the W-2 source must still withhold this year.
+  // Deliberately baseline- AND Step-4(c)-free: baseline withholding cancels out
+  // (`signedNeed` already subtracts it), so this requirement — and therefore
+  // every employer target derived from it — cannot be re-weighted by what any
+  // employer currently has on their W-4.
+  const requiredFutureW2Withholding = Math.max(
+    0,
+    sourceFunding.w2.signedNeed +
+      expectedFutureNormalW2Withholding +
+      uncreditedBusinessNeed,
+  );
+
+  // Each employer takes a gross-weighted share of the shared requirement and
+  // subtracts only ITS OWN baseline payroll withholding → stable targets.
   const allocations = useMemo(
     () => {
-      // Weight only the incremental gap (after crediting all current Step
-      // 4(c)); each employer's own current extra is added back afterwards so
-      // one employer's Step 4(c) edit cannot re-weight the others' targets.
-      const incrementalGap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
-      const incremental = computeAllocations(
-        effectiveRows,
-        incrementalGap,
-        totalRemainingW2Gross,
+      const targets = allocateStableW4Targets(effectiveRows as any[]);
+      void targets;
+      const stable = allocateStableW4Targets(
+        effectiveRows as any[],
+        requiredFutureW2Withholding,
       );
-      const reductions = allocateW4SurplusReduction(
-        effectiveRows.map((r: any) => ({
-          key: r.streamId,
-          currentExtraPerPaycheck: resolveCurrentExtraW4(r.currentExtraW4PerPaycheck),
-          remainingPaychecks: Math.max(0, Number(r.remainingPaychecks) || 0),
-        })),
-        Math.max(0, currentExtraW4FutureWithholding - grossW4Gap),
-      );
-      const targets = stabilizeW4Targets(effectiveRows as any[], incremental, reductions);
-      return incremental.map((a) => ({
-        ...a,
-        step4cPerPaycheck:
-          targets.find((t) => t.streamId === a.streamId)?.step4cPerPaycheck ?? 0,
-      }));
+      return effectiveRows
+        .filter((r: any) => Math.max(0, Number(r.remainingPaychecks) || 0) > 0)
+        .map((r: any) => {
+          const t = stable.find((s) => s.streamId === r.streamId);
+          const step4cPerPaycheck = t?.step4cPerPaycheck ?? 0;
+          return {
+            ...r,
+            exactPerPaycheck: t?.exactPerPaycheck ?? 0,
+            exactEmployerGap:
+              (t?.exactPerPaycheck ?? 0) * Math.max(0, Number(r.remainingPaychecks) || 0),
+            step4cPerPaycheck,
+            employerGap: step4cPerPaycheck * Math.max(0, Number(r.remainingPaychecks) || 0),
+          };
+        }) as Allocation[];
     },
-    [effectiveRows, totalRemainingW2Gross, grossW4Gap, currentExtraW4FutureWithholding],
+    [effectiveRows, requiredFutureW2Withholding],
   );
 
   const totalExtraThroughYearEnd = allocations.reduce(
