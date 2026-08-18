@@ -374,7 +374,7 @@ export type YtdFallbackRow = {
 };
 
 /** YTD catch-up rows are lump-sum onboarding imports — never recurring paychecks. */
-function isYtdCatchupEntry(e: YtdW2Entry): boolean {
+export function isYtdCatchupEntry(e: YtdW2Entry): boolean {
   return (
     e.entry_kind === "ytd_catchup" ||
     e.origin_type === "ytd_catchup" ||
