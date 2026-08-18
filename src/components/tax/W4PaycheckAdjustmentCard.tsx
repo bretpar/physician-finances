@@ -1344,6 +1344,13 @@ function CurrentExtraW4Field({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
             className="h-11 pl-7 bg-background tabular-nums"
           />
         </div>
