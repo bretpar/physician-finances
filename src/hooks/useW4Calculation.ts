@@ -35,8 +35,7 @@ import {
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
   buildEmployerW4Recommendations,
-  allocateW4SurplusReduction,
-  stabilizeW4Targets,
+  allocateStableW4Targets,
   resolveCurrentExtraW4,
   type EmployerW4Recommendation,
 } from "@/lib/w4CurrentWithholding";
