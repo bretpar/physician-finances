@@ -144,6 +144,21 @@ export function useW4Calculation(): W4CalculationResult {
 
   const todayStr = new Date().toISOString().split("T")[0];
 
+  // Whether the household has non-W-2 income (drives the business-reserve
+  // toggle visibility on the card).
+  const hasNonW2Income = useMemo(() => {
+    const streamHasNonW2 = (streams || []).some((s) => {
+      if (!s.is_active) return false;
+      const ft = normalizeFilingType(s.company_type);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+    if (streamHasNonW2) return true;
+    return (companies || []).some((c) => {
+      const ft = normalizeFilingType(c.companyType);
+      return ft !== "w2" && ft !== "scorp_w2";
+    });
+  }, [streams, companies]);
+
 
   const allProjected = useMemo(
     () =>
