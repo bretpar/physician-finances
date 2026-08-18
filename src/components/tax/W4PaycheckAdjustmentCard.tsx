@@ -729,20 +729,13 @@ export default function W4PaycheckAdjustmentCard() {
 
   const w4Recs = employerW4Recommendations;
 
-  const employerRecs = w4Recs.map((rec) => {
-    const a = allocations.find((x) => x.streamId === rec.row.streamId);
-    const perPaycheck = rec.change.recommendedExtraPerPaycheck;
-    return {
-      row: rec.row,
-      perPaycheck,
-      annualForEmployer: rec.annualRecommendedExtra,
-      allocation: a,
-      change: rec.change,
-    };
-  });
-  const recsWithExtra = employerRecs.filter(
-    (e) => e.perPaycheck > 0 || e.change.direction !== "none",
-  );
+  const employerRecs = w4Recs.map((rec) => ({
+    row: rec.row,
+    perPaycheck: rec.change.recommendedExtraPerPaycheck,
+    annualForEmployer: rec.annualRecommendedExtra,
+    change: rec.change,
+  }));
+
   const hasAnyDataWarning =
     dataCompleteness.missingYtdAggregate ||
     dataCompleteness.missingFutureAggregate ||
