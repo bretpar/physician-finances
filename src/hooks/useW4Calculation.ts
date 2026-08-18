@@ -100,10 +100,15 @@ export function useW4Calculation(): W4CalculationResult {
 
   // The annual estimate selected by the user's withholding method. Single
   // source for BOTH the canonical allocation and every rate below.
+  // The W-4 funds the REST OF THE YEAR, so the canonical allocation must come
+  // from the SAME actual+planned forecast bundle as `selectedDebug` below.
+  // Mixing bundles (allocation from current-pace, liability from forecast) made
+  // the gap/targets go stale when planned 1099/K-1 income changed.
   const selectedEstimate =
-    (settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
-      ? (forecastEstimate ?? actualEstimate)
-      : (currentPaceEstimate ?? actualEstimate);
+    forecastEstimate ??
+    ((settings?.withholdingMethod ?? "dynamic_planner") === "dynamic_planner"
+      ? actualEstimate
+      : (currentPaceEstimate ?? actualEstimate));
 
   // Canonical annual allocation: how much of the annual liability each source
   // owes. The W-4 gap below is derived from the W-2 slice of THIS, never from a
