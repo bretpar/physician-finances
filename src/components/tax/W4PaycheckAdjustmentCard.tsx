@@ -711,6 +711,20 @@ export default function W4PaycheckAdjustmentCard() {
 
   const w4Recs = employerW4Recommendations;
 
+  // Display-only reconciliation term so the visible arithmetic always equals
+  // the canonical gap. It is the tax owed by non-W-2 sources (investments,
+  // other income, un-credited business responsibility) that the W-4 does not
+  // fund — never a fudge of the gap itself.
+  const reconciliationResidual =
+    projectedTotalTax -
+    taxesAlreadyWithheld -
+    expectedFutureNormalW2Withholding -
+    currentExtraW4FutureWithholding -
+    actualTaxSavedOrPaid -
+    estPaymentsAlreadyMade -
+    plannedFutureBusinessReservesCounted -
+    remainingW4Gap;
+
   const employerRecs = w4Recs.map((rec) => ({
     row: rec.row,
     perPaycheck: rec.change.recommendedExtraPerPaycheck,
