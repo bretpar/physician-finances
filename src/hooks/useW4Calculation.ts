@@ -369,7 +369,13 @@ export function useW4Calculation(): W4CalculationResult {
       const savedAnnualGross = hasRecurringPlannerStream ? null : (settings?.projectedAnnualGross ?? null);
       const savedFedPerPaycheck = hasRecurringPlannerStream ? null : (settings?.expectedFederalWithholdingPerPaycheck ?? null);
 
-      const ytd = ytdByEmployerKey.get(lookupKey) || { gross: 0, withheld: 0 };
+      const ytd =
+        ytdByEmployerKey.get(lookupKey) || {
+          gross: 0,
+          withheld: 0,
+          fedIncomeTax: 0,
+          paycheckCount: 0,
+        };
 
       let remainingGross: number;
       let expectedNormalWithholding: number;
