@@ -412,6 +412,11 @@ export function useW4Calculation(): W4CalculationResult {
       );
 
 
+      const hasSavedFutureSettings =
+        savedAnnualGross != null ||
+        (savedFedPerPaycheck != null && !!settings?.payFrequency);
+      const hasStreamProjection = !isYtdFallback && detectedPaychecks > 0;
+
       return {
         ...r,
         payFrequency: frequency,
@@ -427,12 +432,27 @@ export function useW4Calculation(): W4CalculationResult {
           || (Number((r as any).__ytdWithheldTotal) || ytd.withheld || 0) > 0
           || detectedPaychecks > 0,
         hasFutureProjection:
-          savedAnnualGross != null
-          || (savedFedPerPaycheck != null && !!settings?.payFrequency)
-          || (!isYtdFallback && detectedPaychecks > 0)
-          || remainingGross > 0,
+          hasSavedFutureSettings || hasStreamProjection || remainingGross > 0,
+        hasStreamProjection,
+        settingsOnlyFuture: hasSavedFutureSettings && !hasStreamProjection,
+        hasRecurringPlannerStream,
+        // Which existing source drives this employer's future paycheck data.
+        projectionSource: (hasRecurringPlannerStream
+          ? "planner"
+          : hasSavedFutureSettings
+            ? "settings"
+            : hasStreamProjection
+              ? "planner"
+              : "history") as "planner" | "settings" | "history",
         ytdGrossTotal: Number((r as any).__ytdGrossTotal) || ytd.gross || 0,
         ytdWithheldTotal: Number((r as any).__ytdWithheldTotal) || ytd.withheld || 0,
+        // Override-visibility disclosure (display only — no math impact).
+        savedFedPerPaycheckOverride: savedFedPerPaycheck,
+        savedAnnualGrossOverride: savedAnnualGross,
+        recentActualFedPerPaycheck:
+          ytd.paycheckCount > 0 ? ytd.fedIncomeTax / ytd.paycheckCount : null,
+        recentActualGrossPerPaycheck:
+          ytd.paycheckCount > 0 && ytd.gross > 0 ? ytd.gross / ytd.paycheckCount : null,
       };
     });
   }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
