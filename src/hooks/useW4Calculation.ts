@@ -318,15 +318,24 @@ export function useW4Calculation(): W4CalculationResult {
 
   const ytdByEmployerKey = useMemo(() => {
     const year = new Date().getFullYear().toString();
-    const map = new Map<string, { gross: number; withheld: number }>();
+    const map = new Map<
+      string,
+      { gross: number; withheld: number; fedIncomeTax: number; paycheckCount: number }
+    >();
     for (const e of incomeEntries || []) {
       if (typeof e.income_type !== "string" || !isW2FilingType(e.income_type)) continue;
       const d = (e as any).income_date as string | undefined;
       if (!d || !d.startsWith(year)) continue;
       const key = `emp:${normalizeEmployerName((e as any).company)}|w2`;
-      const prev = map.get(key) || { gross: 0, withheld: 0 };
+      const prev =
+        map.get(key) || { gross: 0, withheld: 0, fedIncomeTax: 0, paycheckCount: 0 };
       prev.gross += Number((e as any).paycheck_amount) || 0;
       prev.withheld += Number((e as any).taxes_withheld) || 0;
+      // Display-only "recent actual" context (federal income tax only).
+      if (!isYtdCatchupEntry(e as any)) {
+        prev.fedIncomeTax += getFederalIncomeTaxWithheld(e as any);
+        prev.paycheckCount += 1;
+      }
       map.set(key, prev);
     }
     return map;
