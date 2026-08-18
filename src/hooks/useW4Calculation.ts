@@ -567,8 +567,6 @@ export function useW4Calculation(): W4CalculationResult {
   // subtracts only ITS OWN baseline payroll withholding → stable targets.
   const allocations = useMemo(
     () => {
-      const targets = allocateStableW4Targets(effectiveRows as any[]);
-      void targets;
       const stable = allocateStableW4Targets(
         effectiveRows as any[],
         requiredFutureW2Withholding,
