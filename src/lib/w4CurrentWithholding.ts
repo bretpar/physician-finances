@@ -149,6 +149,61 @@ export function stabilizeW4Targets<
   });
 }
 
+export interface StableTargetRow {
+  streamId: string;
+  remainingPaychecks: number;
+  remainingGross: number;
+  /**
+   * Baseline (pre-Step-4(c)) projected future federal income-tax withholding
+   * for this employer across its remaining paychecks.
+   */
+  expectedNormalWithholding: number;
+}
+
+/**
+ * Allocate STABLE absolute per-employer Step 4(c) targets.
+ *
+ * `requiredFutureFederalWithholding` is the total federal income tax the W-2
+ * source must still withhold for the rest of the year. It is derived WITHOUT
+ * any baseline/extra terms, so it never moves when a user edits an employer's
+ * current Step 4(c):
+ *
+ *   required = W-2 allocated responsibility − actual YTD withholding
+ *              − W-2 share of payments/savings (+ uncredited business need)
+ *
+ * Each employer gets a share of that requirement weighted by remaining gross,
+ * then subtracts its OWN baseline payroll withholding. Because only an
+ * employer's own baseline enters its own target, changing one employer's
+ * current Step 4(c) can never re-weight another employer's target.
+ */
+export function allocateStableW4Targets<TRow extends StableTargetRow>(
+  rows: TRow[],
+  requiredFutureFederalWithholding: number,
+): Array<{ streamId: string; step4cPerPaycheck: number; exactPerPaycheck: number }> {
+  const active = rows.filter((r) => Math.max(0, Number(r.remainingPaychecks) || 0) > 0);
+  const totalGross = active.reduce((s, r) => s + Math.max(0, Number(r.remainingGross) || 0), 0);
+  const required = Math.max(0, Number(requiredFutureFederalWithholding) || 0);
+
+  return rows.map((row) => {
+    const paychecks = Math.max(0, Number(row.remainingPaychecks) || 0);
+    if (paychecks <= 0) return { streamId: row.streamId, step4cPerPaycheck: 0, exactPerPaycheck: 0 };
+    const share =
+      active.length === 1
+        ? 1
+        : totalGross > 0
+          ? Math.max(0, Number(row.remainingGross) || 0) / totalGross
+          : 1 / active.length;
+    const employerRequired = required * share;
+    const baseline = Math.max(0, Number(row.expectedNormalWithholding) || 0);
+    const exact = Math.max(0, (employerRequired - baseline) / paychecks);
+    return {
+      streamId: row.streamId,
+      step4cPerPaycheck: Math.max(0, Math.round(exact / 5) * 5),
+      exactPerPaycheck: exact,
+    };
+  });
+}
+
 export interface EmployerW4Row {
   /** Row key (employer key) used to match the allocation entry. */
   streamId: string;
