@@ -489,24 +489,30 @@ const TRANSACTION_LEVEL_KEYS: FieldKey[] = [
   "notes",
 ];
 
-export function useLinkTransactions() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      manualTxId,
-      plaidTxId,
-      confidence,
-      resolutions,
-    }: {
-      manualTxId: string;
-      plaidTxId: string;
-      confidence?: number;
-      /**
-       * Per-field decisions from ResolveDifferencesModal. When omitted, we
-       * link with today's default behavior (no field overrides written).
-       */
-      resolutions?: ConflictResolution[];
-    }) => {
+export interface LinkTransactionPairArgs {
+  manualTxId: string;
+  plaidTxId: string;
+  confidence?: number;
+  /**
+   * Per-field decisions from ResolveDifferencesModal. When omitted, we
+   * link with today's default behavior (no field overrides written).
+   */
+  resolutions?: ConflictResolution[];
+}
+
+/**
+ * Shared link implementation. The manual row stays canonical/active; the Plaid
+ * row is soft-marked `merged`. Used by the manual "Confirm match" flow and by
+ * the expense auto-link pass so both share identical backend behavior.
+ */
+export async function linkTransactionPair({
+  manualTxId,
+  plaidTxId,
+  confidence,
+  resolutions,
+}: LinkTransactionPairArgs): Promise<void> {
+  {
+    {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
