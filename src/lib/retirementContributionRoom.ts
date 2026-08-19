@@ -18,13 +18,17 @@ export interface RetirementYearLimits {
   employeeDeferral: number;
   /** 415(c) overall annual additions limit (employee + employer) per plan. */
   overallPlan: number;
+  /** §414(v) age-50+ catch-up. */
+  catchUp50: number;
+  /** SECURE 2.0 §109 higher catch-up for ages 60–63. */
+  catchUp60to63: number;
 }
 
 /** Statutory limits by tax year. Add new years here — never inline in components. */
 export const RETIREMENT_LIMITS_BY_YEAR: Record<number, RetirementYearLimits> = {
-  2024: { employeeDeferral: 23_000, overallPlan: 69_000 },
-  2025: { employeeDeferral: 23_500, overallPlan: 70_000 },
-  2026: { employeeDeferral: 24_500, overallPlan: 72_000 },
+  2024: { employeeDeferral: 23_000, overallPlan: 69_000, catchUp50: 7_500, catchUp60to63: 7_500 },
+  2025: { employeeDeferral: 23_500, overallPlan: 70_000, catchUp50: 7_500, catchUp60to63: 11_250 },
+  2026: { employeeDeferral: 24_500, overallPlan: 72_000, catchUp50: 8_000, catchUp60to63: 11_250 },
 };
 
 const LATEST_YEAR = Math.max(...Object.keys(RETIREMENT_LIMITS_BY_YEAR).map(Number));
@@ -41,6 +45,64 @@ export function getOverallPlanLimit(taxYear: number, extraCatchUp = 0): number {
   return getRetirementLimits(taxYear).overallPlan + nonNeg(extraCatchUp);
 }
 
+/* ── Age-based catch-up resolution ──────────────────────────────────────── */
+
+/**
+ * Age ATTAINED during the tax year (IRS rule: you are treated as reaching an
+ * age for the whole year if your birthday falls in it). Returns null when the
+ * date of birth is missing or unparseable.
+ */
+export function ageAttainedInTaxYear(
+  dateOfBirth: string | Date | null | undefined,
+  taxYear: number,
+): number | null {
+  if (!dateOfBirth) return null;
+  const birthYear =
+    dateOfBirth instanceof Date
+      ? dateOfBirth.getFullYear()
+      : Number(String(dateOfBirth).slice(0, 4));
+  if (!Number.isFinite(birthYear) || birthYear < 1900) return null;
+  const age = taxYear - birthYear;
+  return age >= 0 ? age : null;
+}
+
+/**
+ * Permitted employee catch-up for a given age attained during the tax year.
+ * Ages 60–63 get the SECURE 2.0 higher catch-up; 50+ (and 64+) get the
+ * standard catch-up; under 50 gets none.
+ */
+export function getCatchUpForAge(taxYear: number, age: number | null | undefined): number {
+  if (age == null || !Number.isFinite(age)) return 0;
+  const limits = getRetirementLimits(taxYear);
+  if (age >= 60 && age <= 63) return limits.catchUp60to63;
+  if (age >= 50) return limits.catchUp50;
+  return 0;
+}
+
+/** Convenience: resolve catch-up straight from a date of birth. */
+export function getCatchUpForDateOfBirth(
+  taxYear: number,
+  dateOfBirth: string | Date | null | undefined,
+): number {
+  return getCatchUpForAge(taxYear, ageAttainedInTaxYear(dateOfBirth, taxYear));
+}
+
+/**
+ * Resolve the catch-up amount from whichever age signal is available.
+ * Explicit `extraCatchUp` is kept only for backward compatibility and is used
+ * when no age/DOB is supplied.
+ */
+export function resolveCatchUp(input: {
+  taxYear: number;
+  dateOfBirth?: string | Date | null;
+  age?: number | null;
+  extraCatchUp?: number | null;
+}): number {
+  if (input.dateOfBirth) return getCatchUpForDateOfBirth(input.taxYear, input.dateOfBirth);
+  if (input.age != null) return getCatchUpForAge(input.taxYear, input.age);
+  return nonNeg(input.extraCatchUp);
+}
+
 const nonNeg = (n: unknown) => {
   const v = Number(n);
   return Number.isFinite(v) && v > 0 ? v : 0;
@@ -53,15 +115,21 @@ export interface EmployeeRoomInput {
   /** Employee elective deferrals across every company/plan. */
   employeeContributions: number[];
   /**
-   * Extra catch-up room, only when the app already resolves age-based
-   * catch-up elsewhere. No new catch-up system is introduced here.
+   * Legacy escape hatch. Prefer `dateOfBirth` / `age` so the catch-up is
+   * derived from statutory limits instead of an arbitrary caller value.
    */
   extraCatchUp?: number;
+  /** Date of birth — catch-up derived from the age attained in the tax year. */
+  dateOfBirth?: string | Date | null;
+  /** Age attained during the tax year, when DOB is unavailable. */
+  age?: number | null;
 }
 
 export interface EmployeeRoomSummary {
   employeeContributionTotal: number;
   employeeDeferralLimit: number;
+  /** Catch-up included in `employeeDeferralLimit` (0 when under 50/unknown). */
+  catchUpAllowed: number;
   employeeRemainingRoom: number;
   /** 0–1 progress toward the deferral limit. */
   employeeUsedFraction: number;
@@ -69,10 +137,17 @@ export interface EmployeeRoomSummary {
 
 export function computeEmployeeContributionRoom(input: EmployeeRoomInput): EmployeeRoomSummary {
   const employeeContributionTotal = input.employeeContributions.reduce((s, n) => s + nonNeg(n), 0);
-  const employeeDeferralLimit = getEmployeeDeferralLimit(input.taxYear, input.extraCatchUp ?? 0);
+  const catchUp = resolveCatchUp({
+    taxYear: input.taxYear,
+    dateOfBirth: input.dateOfBirth,
+    age: input.age,
+    extraCatchUp: input.extraCatchUp,
+  });
+  const employeeDeferralLimit = getEmployeeDeferralLimit(input.taxYear, catchUp);
   return {
     employeeContributionTotal,
     employeeDeferralLimit,
+    catchUpAllowed: catchUp,
     employeeRemainingRoom: Math.max(0, employeeDeferralLimit - employeeContributionTotal),
     employeeUsedFraction:
       employeeDeferralLimit > 0 ? Math.min(1, employeeContributionTotal / employeeDeferralLimit) : 0,
