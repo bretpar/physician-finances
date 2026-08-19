@@ -12,7 +12,11 @@
  * hardcode bracket numbers.
  */
 
-export type FilingStatus = "single" | "married_filing_jointly" | "married_filing_separately";
+export type FilingStatus =
+  | "single"
+  | "married_filing_jointly"
+  | "married_filing_separately"
+  | "head_of_household";
 
 export interface Bracket {
   min: number;
