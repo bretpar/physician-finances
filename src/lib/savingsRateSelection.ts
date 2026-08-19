@@ -17,6 +17,7 @@
  * dynamic_planner) all flow through the same selection logic so the bucket
  * separation is consistent regardless of which method the user picked.
  */
+import { isSETaxableEntity, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
 import { SE_TAX_RATE, SE_INCOME_FACTOR, MEDICARE_ADDITIONAL_RATE, type TaxEstimate } from "@/lib/taxEngine";
 import { SS_RATE, MEDICARE_RATE, getTaxYearConfig, ACTIVE_TAX_YEAR } from "@/lib/taxBrackets";
 import { isW2FilingType, normalizeFilingType } from "@/lib/filingTypes";
@@ -48,6 +49,8 @@ export interface SavingsRateInput {
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
+  /** Canonical K-1 treatment. Source of truth for K-1 SE-tax eligibility. */
+  k1TaxTreatment?: K1TaxTreatment | null;
   /** Explicit override for K-1 guaranteed payments or other SE-taxable edge cases. */
   isSelfEmploymentTaxable?: boolean | null;
   /** Filing status used for Additional Medicare threshold. Defaults to "single". */
@@ -169,12 +172,13 @@ function canonicalEffectiveTaxRate(estimate: TaxEstimate | null | undefined): nu
 }
 
 function isSETaxableIncome(input: SavingsRateInput): boolean {
-  if (input.includeSETaxInRecommendation === false) return false;
   if (input.isSelfEmploymentTaxable != null) return !!input.isSelfEmploymentTaxable;
   const filing = normalizeFilingType(input.incomeType);
-  if (filing === "1099_schedule_c") return true;
-  if (filing === "k1_partnership") return true;
-  return false;
+  return isSETaxableEntity({
+    filingType: filing,
+    k1TaxTreatment: input.k1TaxTreatment,
+    includeSETaxInRecommendation: input.includeSETaxInRecommendation,
+  });
 }
 
 export function getBaseRateForIncomeType(input: SavingsRateInput): SavingsRateResult {

@@ -32,6 +32,7 @@
  */
 
 import type { TaxEstimate } from "@/lib/taxEngine";
+import { isSETaxableEntity, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
 import { isW2FilingType, normalizeFilingType } from "@/lib/filingTypes";
 import {
   buildAnnualTaxAllocation,
@@ -142,6 +143,8 @@ export interface CanonicalEventRecommendationInput {
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
+  /** Canonical K-1 treatment. Source of truth for K-1 SE-tax eligibility. */
+  k1TaxTreatment?: K1TaxTreatment | null;
   isSelfEmploymentTaxable?: boolean | null;
   filingStatus?: "single" | "married_filing_jointly" | null;
 
@@ -225,11 +228,15 @@ function resolveSourceType(incomeType: string, incomeBucket?: "personal" | "busi
 }
 
 function isSETaxable(input: CanonicalEventRecommendationInput): boolean {
-  if (input.includeSETaxInRecommendation === false) return false;
   if (input.isSelfEmploymentTaxable != null) return !!input.isSelfEmploymentTaxable;
-  const filing = normalizeFilingType(input.incomeType);
   const raw = (input.incomeType ?? "").toLowerCase();
-  return filing === "1099_schedule_c" || raw.includes("k1");
+  const filing = raw.includes("k1") ? "k1_partnership" : normalizeFilingType(input.incomeType);
+  return isSETaxableEntity({
+    filingType: filing,
+    k1TaxTreatment: input.k1TaxTreatment,
+    includeSETaxInRecommendation: input.includeSETaxInRecommendation,
+    k1TaxTreatment: input.k1TaxTreatment,
+  });
 }
 
 /**
@@ -273,6 +280,7 @@ export function computeCanonicalEventRecommendation(
     companyId: input.companyId,
     applyBusinessStateTax: input.applyBusinessStateTax,
     includeSETaxInRecommendation: input.includeSETaxInRecommendation,
+    k1TaxTreatment: input.k1TaxTreatment,
     isSelfEmploymentTaxable: input.isSelfEmploymentTaxable,
     filingStatus: input.filingStatus ?? undefined,
     currentW2Wages: pos(input.estimate?.w2Income),
@@ -318,6 +326,7 @@ export function computeCanonicalEventRecommendation(
           companyId: input.companyId,
           applyBusinessStateTax: input.applyBusinessStateTax,
           includeSETaxInRecommendation: input.includeSETaxInRecommendation,
+    k1TaxTreatment: input.k1TaxTreatment,
           isSelfEmploymentTaxable: input.isSelfEmploymentTaxable,
           filingStatus: input.filingStatus ?? undefined,
           currentW2Wages: pos(input.estimate?.w2Income),
