@@ -170,8 +170,9 @@ export function useSyncTransactions() {
       const autoLinked = await runExpenseAutoLink();
       return { data, silent, autoLinked };
     },
-    onSuccess: ({ data, silent }) => {
+    onSuccess: ({ data, silent, autoLinked }) => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
