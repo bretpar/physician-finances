@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { runExpenseAutoLink } from "@/hooks/useTransactionMatching";
 
 // ---- Plaid Items ----
 export function usePlaidItems() {
@@ -165,10 +166,13 @@ export function useSyncTransactions() {
         body: itemId ? { item_id: itemId } : {},
       });
       if (error) throw error;
-      return { data, silent };
+      // Auto-link unambiguous expense pairs (manual stays canonical).
+      const autoLinked = await runExpenseAutoLink();
+      return { data, silent, autoLinked };
     },
-    onSuccess: ({ data, silent }) => {
+    onSuccess: ({ data, silent, autoLinked }) => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["transaction-links"] });
       qc.invalidateQueries({ queryKey: ["plaid-transactions"] });
       qc.invalidateQueries({ queryKey: ["plaid-items"] });
       qc.invalidateQueries({ queryKey: ["plaid-accounts"] });
@@ -187,7 +191,8 @@ export function useSyncTransactions() {
       }
       if (silent) return;
       toast.success(data?.mode === "backfill" ? "Backfill complete" : "Sync complete", {
-        description: syncSummary(data),
+        description:
+          syncSummary(data) + (autoLinked ? ` · Auto-linked ${autoLinked} expense${autoLinked > 1 ? "s" : ""}` : ""),
       });
     },
     onError: (e) => toast.error(e.message),

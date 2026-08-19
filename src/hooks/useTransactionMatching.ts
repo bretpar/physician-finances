@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { findExpenseAutoLinkPairs, type AutoLinkCandidate } from "@/lib/expenseAutoLink";
 
 export type ConfidenceLabel = "Strong match" | "Possible match" | "Review needed";
 
@@ -489,24 +490,30 @@ const TRANSACTION_LEVEL_KEYS: FieldKey[] = [
   "notes",
 ];
 
-export function useLinkTransactions() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      manualTxId,
-      plaidTxId,
-      confidence,
-      resolutions,
-    }: {
-      manualTxId: string;
-      plaidTxId: string;
-      confidence?: number;
-      /**
-       * Per-field decisions from ResolveDifferencesModal. When omitted, we
-       * link with today's default behavior (no field overrides written).
-       */
-      resolutions?: ConflictResolution[];
-    }) => {
+export interface LinkTransactionPairArgs {
+  manualTxId: string;
+  plaidTxId: string;
+  confidence?: number;
+  /**
+   * Per-field decisions from ResolveDifferencesModal. When omitted, we
+   * link with today's default behavior (no field overrides written).
+   */
+  resolutions?: ConflictResolution[];
+}
+
+/**
+ * Shared link implementation. The manual row stays canonical/active; the Plaid
+ * row is soft-marked `merged`. Used by the manual "Confirm match" flow and by
+ * the expense auto-link pass so both share identical backend behavior.
+ */
+export async function linkTransactionPair({
+  manualTxId,
+  plaidTxId,
+  confidence,
+  resolutions,
+}: LinkTransactionPairArgs): Promise<void> {
+  {
+    {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const orgId = await getUserOrgId();
@@ -667,7 +674,15 @@ export function useLinkTransactions() {
         console.warn("[LinkTx] income_entry backfill skipped:", err);
       }
 
-    },
+    }
+  }
+}
+
+
+export function useLinkTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: LinkTransactionPairArgs) => linkTransactionPair(args),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["transaction-links"] });
@@ -677,6 +692,41 @@ export function useLinkTransactions() {
     },
     onError: (e) => toast.error(e.message),
   });
+}
+
+/**
+ * Auto-link pass for EXPENSE transactions only. Runs after a Plaid sync:
+ * finds unambiguous manual↔imported expense pairs (same type, ≤2 calendar
+ * days, ≤1% amount drift, exactly one qualifying manual row, neither side
+ * already actively linked) and links them with the shared
+ * `linkTransactionPair` logic. Everything else is left for Suggested Matches.
+ *
+ * Returns the number of pairs linked. Never throws — auto-link is best-effort.
+ */
+export async function runExpenseAutoLink(): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("id, transaction_type, transaction_date, amount, source_type, match_status, status")
+      .eq("transaction_type", "expense")
+      .eq("status", "active");
+    if (error) throw error;
+
+    const pairs = findExpenseAutoLinkPairs((data || []) as AutoLinkCandidate[]);
+    let linked = 0;
+    for (const pair of pairs) {
+      try {
+        await linkTransactionPair({ ...pair, confidence: 100 });
+        linked += 1;
+      } catch (err) {
+        console.warn("[AutoLink] pair skipped:", pair, err);
+      }
+    }
+    return linked;
+  } catch (err) {
+    console.warn("[AutoLink] pass skipped:", err);
+    return 0;
+  }
 }
 
 
