@@ -371,7 +371,7 @@ export default function Mileage() {
     const plans = computePlanCapacities(currentYear, planInputs);
     const employerContributionTotal = plans.reduce((s, p) => s + p.employerContribution, 0);
     return { employeeRoom, plans, employerContributionTotal };
-  }, [incomeEntries, currentYear, annualized.total, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess]);
+  }, [incomeEntries, currentYear, annualized.total, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess, taxSettings?.dateOfBirth]);
 
 
 
