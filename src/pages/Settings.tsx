@@ -882,7 +882,7 @@ function OnboardingPreferencesSection() {
 
 /* ──────────────────────────────────────────────────────────── */
 type TaxProfileDraft = Pick<TaxRates,
-  | "filingStatus" | "deductionType" | "itemizedDeductionAmount"
+  | "filingStatus" | "dateOfBirth" | "deductionType" | "itemizedDeductionAmount"
   | "qualifyingChildrenCount" | "otherDependentsCount"
   | "withholdingOverrideType" | "withholdingOverridePercent" | "withholdingOverrideAmount"
   | "stateIncomeTaxEnabled" | "stateOfResidence" | "personalStateTaxMode"
@@ -912,6 +912,7 @@ function TaxProfileSection() {
 
   const source: TaxProfileDraft = useMemo(() => ({
     filingStatus: data?.filingStatus || "single",
+    dateOfBirth: data?.dateOfBirth ?? null,
     deductionType: data?.deductionType || "standard",
     itemizedDeductionAmount: data?.itemizedDeductionAmount ?? 0,
     qualifyingChildrenCount: data?.qualifyingChildrenCount ?? 0,
