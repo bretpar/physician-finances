@@ -21,9 +21,13 @@ export type StudentLoanFilingStatus =
 export const STUDENT_LOAN_INTEREST_MAX = 2500;
 
 /** Phase-out ranges (MAGI). Update here when IRS releases new figures. */
-export const STUDENT_LOAN_PHASEOUT: Record<"single" | "married_filing_jointly", { start: number; end: number }> = {
+export const STUDENT_LOAN_PHASEOUT: Record<string, { start: number; end: number }> = {
   single: { start: 85_000, end: 100_000 },
   married_filing_jointly: { start: 170_000, end: 200_000 },
+  // Head of household uses the single-filer range; MFS is ineligible in
+  // practice, so it keeps the single range as a conservative fallback.
+  head_of_household: { start: 85_000, end: 100_000 },
+  married_filing_separately: { start: 85_000, end: 100_000 },
 };
 
 export interface StudentLoanInterestDeductionResult {

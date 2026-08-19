@@ -1,3 +1,4 @@
+import type { FilingStatus } from "@/lib/taxBrackets";
 /**
  * Canonical per-event recommendation layer
  * ==========================================================================
@@ -146,7 +147,7 @@ export interface CanonicalEventRecommendationInput {
   /** Canonical K-1 treatment. Source of truth for K-1 SE-tax eligibility. */
   k1TaxTreatment?: K1TaxTreatment | null;
   isSelfEmploymentTaxable?: boolean | null;
-  filingStatus?: "single" | "married_filing_jointly" | null;
+  filingStatus?: FilingStatus | null;
 
   /** Preferential (LTCG / qualified dividend) portion of this event. */
   preferentialAmount?: number;
@@ -427,7 +428,7 @@ export function getCanonicalBucketRatePct(input: {
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
-  filingStatus?: "single" | "married_filing_jointly" | null;
+  filingStatus?: FilingStatus | null;
   /** Reference amount used to resolve wage-base-sensitive SE rates. */
   referenceAmount?: number;
 }): number {

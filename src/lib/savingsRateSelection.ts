@@ -1,3 +1,4 @@
+import type { FilingStatus } from "@/lib/taxBrackets";
 /**
  * Savings Rate Selection
  * --------------------------------------------------------------------------
@@ -54,7 +55,7 @@ export interface SavingsRateInput {
   /** Explicit override for K-1 guaranteed payments or other SE-taxable edge cases. */
   isSelfEmploymentTaxable?: boolean | null;
   /** Filing status used for Additional Medicare threshold. Defaults to "single". */
-  filingStatus?: "single" | "married_filing_jointly" | null;
+  filingStatus?: FilingStatus | null;
   /** Current annualized W-2 wages already subject to SS payroll tax.
    *  Defaults to actualEstimate.w2Income when omitted. */
   currentW2Wages?: number | null;
@@ -354,7 +355,7 @@ interface SelfEmploymentBreakdown {
 
 function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEmploymentBreakdown {
   const estimate = input.actualEstimate ?? input.currentPaceEstimate ?? input.forecastEstimate ?? null;
-  const filing = (input.filingStatus ?? "single") as "single" | "married_filing_jointly";
+  const filing = (input.filingStatus ?? "single") as FilingStatus;
   const yearConfig = getTaxYearConfig();
   const ssWageBase = yearConfig.ssWageBase;
   const addlThreshold = yearConfig.additionalMedicareThreshold[filing];

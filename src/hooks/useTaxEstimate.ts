@@ -892,7 +892,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         projectedPreTax: projTotals.preTaxDeductions,
         projectedRetirement: projTotals.retirement401k,
         projectedHealthInsuranceDeduction: projTotals.healthInsuranceDeduction,
-        filingStatus: rates.filingStatus as "single" | "married_filing_jointly",
+        filingStatus: rates.filingStatus as FilingStatus,
         lastYearTax: rates.lastYearTax,
         standardDeductionOverride: rates.standardDeductionOverride,
         ssWageCap: rates.ssWageCap,
