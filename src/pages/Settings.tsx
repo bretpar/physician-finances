@@ -963,8 +963,21 @@ function TaxProfileSection() {
             <SelectContent>
               <SelectItem value="single">Single</SelectItem>
               <SelectItem value="married_filing_jointly" data-testid="onboarding-filing-status-mfj">Married Filing Jointly</SelectItem>
+              <SelectItem value="head_of_household" data-testid="onboarding-filing-status-hoh">Head of Household</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Date of Birth</Label>
+          <Input
+            type="date"
+            data-testid="settings-date-of-birth"
+            value={d.dateOfBirth ?? ""}
+            onChange={(e) => set({ dateOfBirth: e.target.value || null })}
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Optional. Used to apply age 50+ and age 60–63 retirement catch-up limits.
+          </p>
         </div>
         <div>
           <Label className="text-xs text-muted-foreground mb-1.5 block">Deduction Type</Label>

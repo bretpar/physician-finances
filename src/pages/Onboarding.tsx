@@ -1099,8 +1099,9 @@ export default function Onboarding() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="single" data-testid="onboarding-filing-status-single">Single / Head of household</SelectItem>
+                    <SelectItem value="single" data-testid="onboarding-filing-status-single">Single</SelectItem>
                     <SelectItem value="married_filing_jointly" data-testid="onboarding-filing-status-mfj">Married Filing Jointly</SelectItem>
+                    <SelectItem value="head_of_household" data-testid="onboarding-filing-status-hoh">Head of Household</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="mt-1 text-xs text-muted-foreground">Choose Married Filing Jointly to track separate W-2s for you and your spouse.</p>

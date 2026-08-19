@@ -44,7 +44,7 @@ export interface UserOnboardingSettings {
   onboardingComplete: boolean | null;
   onboardingBannerDismissed: boolean;
   firstName: string;
-  filingStatus: "single" | "married_filing_jointly";
+  filingStatus: "single" | "married_filing_jointly" | "head_of_household";
   onboardingStep: number;
   incomeProfileType: IncomeProfileType;
   enabledIncomeSources: EnabledIncomeSources;

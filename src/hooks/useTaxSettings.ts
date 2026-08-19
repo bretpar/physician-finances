@@ -73,7 +73,9 @@ export interface HouseholdIncomeStreams {
 export interface TaxRates {
   id?: string;
   // Core profile
-  filingStatus: "single" | "married_filing_jointly";
+  filingStatus: "single" | "married_filing_jointly" | "head_of_household";
+  /** ISO date (yyyy-mm-dd). Drives age-based retirement catch-up limits. */
+  dateOfBirth: string | null;
   lastYearTax: number;
   standardDeductionOverride: number | null;
   ssWageCap: number;
@@ -154,6 +156,7 @@ export interface TaxRates {
 
 const DEFAULT_RATES: TaxRates = {
   filingStatus: "single",
+  dateOfBirth: null,
   lastYearTax: 0,
   standardDeductionOverride: null,
   ssWageCap: SS_WAGE_BASE,
@@ -292,6 +295,7 @@ function mapTaxSettingsRow(data: any): TaxRates {
   return {
     id: data.id,
     filingStatus: (data.filing_status as TaxRates["filingStatus"]) || "single",
+    dateOfBirth: d.date_of_birth ? String(d.date_of_birth).slice(0, 10) : null,
     lastYearTax: Number(data.last_year_tax) || 0,
     standardDeductionOverride: data.standard_deduction_override != null ? Number(data.standard_deduction_override) : null,
     ssWageCap: resolveEffectiveSsWageCap(data.ss_wage_cap, data.custom_ss_wage_cap_enabled),
@@ -372,6 +376,7 @@ export function useUpdateTaxSettings() {
       const cacheUpdates = { ...rest };
       const payload: Record<string, unknown> = {};
       if (rest.filingStatus !== undefined) payload.filing_status = rest.filingStatus;
+      if (rest.dateOfBirth !== undefined) payload.date_of_birth = rest.dateOfBirth || null;
       if (rest.lastYearTax !== undefined) payload.last_year_tax = rest.lastYearTax;
       if (rest.standardDeductionOverride !== undefined) payload.standard_deduction_override = rest.standardDeductionOverride;
       if (rest.ssWageCap !== undefined) payload.ss_wage_cap = rest.ssWageCap;
