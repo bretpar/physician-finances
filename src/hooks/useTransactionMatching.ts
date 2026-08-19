@@ -673,8 +673,10 @@ export async function linkTransactionPair({
         console.warn("[LinkTx] income_entry backfill skipped:", err);
       }
 
+    }
   }
 }
+
 
 export function useLinkTransactions() {
   const qc = useQueryClient();
