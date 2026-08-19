@@ -13,6 +13,7 @@
  *   projected future W-2 withholding as a counted credit)
  */
 
+import type { K1TaxTreatment } from "@/lib/k1TaxTreatment";
 import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -39,6 +40,8 @@ export interface WithholdingInput {
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
+  /** Canonical K-1 treatment — source of truth for K-1 SE-tax eligibility. */
+  k1TaxTreatment?: K1TaxTreatment | null;
   /** Explicit override — true forces SE tax included, false forces it excluded.
    *  Used to apply K-1 entity tax-treatment (active vs passive). */
   isSelfEmploymentTaxable?: boolean | null;
@@ -191,6 +194,7 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        k1TaxTreatment,
         isSelfEmploymentTaxable,
       } = input;
 
@@ -243,6 +247,7 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        k1TaxTreatment,
         isSelfEmploymentTaxable,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
         creditedWithholding,
