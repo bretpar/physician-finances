@@ -165,7 +165,9 @@ export function useSyncTransactions() {
         body: itemId ? { item_id: itemId } : {},
       });
       if (error) throw error;
-      return { data, silent };
+      // Auto-link unambiguous expense pairs (manual stays canonical).
+      const autoLinked = await runExpenseAutoLink();
+      return { data, silent, autoLinked };
     },
     onSuccess: ({ data, silent }) => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
