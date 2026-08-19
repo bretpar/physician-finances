@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { DbTransaction } from "@/hooks/useTransactions";
 import type { IncomeEntry } from "@/hooks/useIncome";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { findExpenseAutoLinkPairs, type AutoLinkCandidate } from "@/lib/expenseAutoLink";
 
 export type ConfidenceLabel = "Strong match" | "Possible match" | "Review needed";
 
