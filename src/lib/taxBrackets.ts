@@ -72,6 +72,16 @@ const CONFIG_2025: TaxYearConfig = {
       { min: 250525, max: 375800, rate: 0.35 },
       { min: 375800, max: Infinity, rate: 0.37 },
     ],
+    // HOH — Rev. Proc. 2024-40
+    head_of_household: [
+      { min: 0, max: 17000, rate: 0.10 },
+      { min: 17000, max: 64850, rate: 0.12 },
+      { min: 64850, max: 103350, rate: 0.22 },
+      { min: 103350, max: 197300, rate: 0.24 },
+      { min: 197300, max: 250500, rate: 0.32 },
+      { min: 250500, max: 626350, rate: 0.35 },
+      { min: 626350, max: Infinity, rate: 0.37 },
+    ],
   },
   ltcgBrackets: {
     single: [
@@ -89,16 +99,22 @@ const CONFIG_2025: TaxYearConfig = {
       { min: 48350, max: 300025, rate: 0.15 },
       { min: 300025, max: Infinity, rate: 0.20 },
     ],
+    head_of_household: [
+      { min: 0, max: 64750, rate: 0 },
+      { min: 64750, max: 566700, rate: 0.15 },
+      { min: 566700, max: Infinity, rate: 0.20 },
+    ],
   },
-  standardDeduction: { single: 15750, married_filing_jointly: 31500, married_filing_separately: 15750 },
+  standardDeduction: { single: 15750, married_filing_jointly: 31500, married_filing_separately: 15750, head_of_household: 23625 },
   ssWageBase: 176100,
   // Additional Medicare threshold: MFS = $125,000 (IRC §3101(b)(2)(C))
-  additionalMedicareThreshold: { single: 200000, married_filing_jointly: 250000, married_filing_separately: 125000 },
-  // §199A thresholds — Rev. Proc. 2024-40. MFS = MFJ ÷ 2.
+  additionalMedicareThreshold: { single: 200000, married_filing_jointly: 250000, married_filing_separately: 125000, head_of_household: 200000 },
+  // §199A thresholds — Rev. Proc. 2024-40. MFS = MFJ ÷ 2. HOH = single.
   qbiThresholds: {
     single: { threshold: 197300, phaseIn: 50000 },
     married_filing_jointly: { threshold: 394600, phaseIn: 100000 },
     married_filing_separately: { threshold: 197300, phaseIn: 50000 },
+    head_of_household: { threshold: 197300, phaseIn: 50000 },
   },
 };
 
@@ -134,6 +150,16 @@ const CONFIG_2026: TaxYearConfig = {
       { min: 256225, max: 384350, rate: 0.35 },
       { min: 384350, max: Infinity, rate: 0.37 },
     ],
+    // HOH — Rev. Proc. 2025-32
+    head_of_household: [
+      { min: 0, max: 17700, rate: 0.10 },
+      { min: 17700, max: 67450, rate: 0.12 },
+      { min: 67450, max: 105700, rate: 0.22 },
+      { min: 105700, max: 201775, rate: 0.24 },
+      { min: 201775, max: 256200, rate: 0.32 },
+      { min: 256200, max: 640600, rate: 0.35 },
+      { min: 640600, max: Infinity, rate: 0.37 },
+    ],
   },
   ltcgBrackets: {
     single: [
@@ -151,15 +177,21 @@ const CONFIG_2026: TaxYearConfig = {
       { min: 49450, max: 306850, rate: 0.15 },
       { min: 306850, max: Infinity, rate: 0.20 },
     ],
+    head_of_household: [
+      { min: 0, max: 66200, rate: 0 },
+      { min: 66200, max: 578800, rate: 0.15 },
+      { min: 578800, max: Infinity, rate: 0.20 },
+    ],
   },
-  standardDeduction: { single: 16100, married_filing_jointly: 32200, married_filing_separately: 16100 },
+  standardDeduction: { single: 16100, married_filing_jointly: 32200, married_filing_separately: 16100, head_of_household: 24150 },
   ssWageBase: 184500,
-  additionalMedicareThreshold: { single: 200000, married_filing_jointly: 250000, married_filing_separately: 125000 },
-  // §199A thresholds — Rev. Proc. 2025-32. MFS = MFJ ÷ 2.
+  additionalMedicareThreshold: { single: 200000, married_filing_jointly: 250000, married_filing_separately: 125000, head_of_household: 200000 },
+  // §199A thresholds — Rev. Proc. 2025-32. MFS = MFJ ÷ 2. HOH = single.
   qbiThresholds: {
     single: { threshold: 201775, phaseIn: 50000 },
     married_filing_jointly: { threshold: 403550, phaseIn: 100000 },
     married_filing_separately: { threshold: 201775, phaseIn: 50000 },
+    head_of_household: { threshold: 201775, phaseIn: 50000 },
   },
 };
 
