@@ -328,6 +328,9 @@ export default function Mileage() {
         annualized.total,
         ...Array.from(perCompany.values()).map((r) => r.employee),
       ],
+      // Age-based catch-up (50+, and the higher 60–63 band) comes from the
+      // date of birth saved in Tax Profile settings.
+      dateOfBirth: taxSettings?.dateOfBirth ?? null,
     });
 
     const remainingPlanned = sumRemainingPlannedIncomeByCompany(
@@ -368,7 +371,7 @@ export default function Mileage() {
     const plans = computePlanCapacities(currentYear, planInputs);
     const employerContributionTotal = plans.reduce((s, p) => s + p.employerContribution, 0);
     return { employeeRoom, plans, employerContributionTotal };
-  }, [incomeEntries, currentYear, annualized.total, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess]);
+  }, [incomeEntries, currentYear, annualized.total, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess, taxSettings?.dateOfBirth]);
 
 
 

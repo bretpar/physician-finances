@@ -1,3 +1,4 @@
+import type { FilingStatus } from "@/lib/taxBrackets";
 import { useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +20,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { type TaxEstimate } from "@/lib/taxEngine";
 import { filterNonOrphanIncomeEntries } from "@/lib/incomeOrphanFilter";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
+import { isSETaxableEntity } from "@/lib/k1TaxTreatment";
 import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
@@ -218,7 +220,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const amt = Math.abs(Number(t.amount) || 0);
 
       if (filing === "1099_schedule_c" || filing === "k1_partnership") {
-        if (company?.includeSETaxInRecommendation !== false) {
+        if (isSETaxableEntity({ filingType: filing, k1TaxTreatment: company?.k1TaxTreatment, includeSETaxInRecommendation: company?.includeSETaxInRecommendation })) {
           grossSE += amt;
           seEligibleTxIds.add(t.id);
           seEligibleByTx.set(t.id, amt);
@@ -262,7 +264,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       // expense in SE — passive K-1 expenses must never reduce an active K-1's
       // SE-taxable net profit.
       if (!company) continue;
-      if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company.includeSETaxInRecommendation !== false) {
+      if (isSETaxableEntity({ filingType: filing, k1TaxTreatment: company.k1TaxTreatment, includeSETaxInRecommendation: company.includeSETaxInRecommendation })) {
         seEligibleExpenses += Math.abs(Number(t.amount) || 0);
       }
     }
@@ -508,7 +510,11 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
                   )
                 : undefined);
             const seEligible = linkedCompany
-              ? linkedCompany.includeSETaxInRecommendation !== false
+              ? isSETaxableEntity({
+                  filingType: normalizeFilingType(linkedCompany.companyType),
+                  k1TaxTreatment: linkedCompany.k1TaxTreatment,
+                  includeSETaxInRecommendation: linkedCompany.includeSETaxInRecommendation,
+                })
               : true;
             if (seEligible) {
               bucket.seEligibleGross += cGross;
@@ -610,7 +616,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       for (const [companyId, amount] of homeOfficeByCompany.entries()) {
         const company = companies.find((c) => c.id === companyId);
         const filing = normalizeFilingType(company?.companyType);
-        if ((filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false) {
+        if (isSETaxableEntity({ filingType: filing, k1TaxTreatment: company?.k1TaxTreatment, includeSETaxInRecommendation: company?.includeSETaxInRecommendation })) {
           seEligibleHomeOfficeDeduction += amount;
         }
         if (company && (filing === "1099_schedule_c" || filing === "k1_partnership" || filing === "scorp_distribution")) {
@@ -749,7 +755,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         const stream = streamById.get(p.streamId);
         const company = stream?.source_id ? companyById.get(stream.source_id) : undefined;
         const filing = normalizeFilingType(company?.companyType || stream?.company_type || p.streamCompanyType);
-        return (filing === "1099_schedule_c" || filing === "k1_partnership") && company?.includeSETaxInRecommendation !== false
+        return isSETaxableEntity({ filingType: filing, k1TaxTreatment: company?.k1TaxTreatment, includeSETaxInRecommendation: company?.includeSETaxInRecommendation })
           ? sum + p.grossAmount
           : sum;
       }, 0);
@@ -887,7 +893,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         projectedPreTax: projTotals.preTaxDeductions,
         projectedRetirement: projTotals.retirement401k,
         projectedHealthInsuranceDeduction: projTotals.healthInsuranceDeduction,
-        filingStatus: rates.filingStatus as "single" | "married_filing_jointly",
+        filingStatus: rates.filingStatus as FilingStatus,
         lastYearTax: rates.lastYearTax,
         standardDeductionOverride: rates.standardDeductionOverride,
         ssWageCap: rates.ssWageCap,

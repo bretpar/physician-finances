@@ -9,6 +9,7 @@
  * taxes already withheld on this entry?
  */
 
+import type { K1TaxTreatment } from "@/lib/k1TaxTreatment";
 import { useMemo } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
@@ -93,6 +94,8 @@ interface RecommendationInput {
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
   includeSETaxInRecommendation?: boolean | null;
+  /** Canonical K-1 treatment — source of truth for K-1 SE-tax eligibility. */
+  k1TaxTreatment?: K1TaxTreatment | null;
   /** False for historical events — they never receive future catch-up dollars. */
   isFutureOpportunity?: boolean;
 }
@@ -185,6 +188,7 @@ export function useIncomeRecommendation() {
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        k1TaxTreatment,
       } = input;
 
       if (!settings || grossIncome <= 0) return null;
@@ -222,6 +226,7 @@ export function useIncomeRecommendation() {
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
+        k1TaxTreatment,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
         creditedWithholding: actualWithheld,
         catchUpAmount: requestedCatchUp,

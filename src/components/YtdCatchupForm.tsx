@@ -16,7 +16,7 @@ interface Props {
   onSaved?: () => void;
   onCancel?: () => void;
   incomeProfileType?: IncomeProfileType;
-  filingStatus?: "single" | "married_filing_jointly";
+  filingStatus?: "single" | "married_filing_jointly" | "head_of_household";
   lockedCompanyName?: string;
   lockedSourceType?: YtdCatchupSourceType;
   saveLabel?: string;

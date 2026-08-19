@@ -588,6 +588,7 @@ export default function Transactions() {
       companyId: selectedIncomeCompany?.id ?? null,
       applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
       includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
+      k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
       isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
   }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
@@ -861,6 +862,7 @@ export default function Transactions() {
             companyId: selectedIncomeCompany?.id ?? null,
             applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
             includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
+      k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
           });
           if (editingIncomeEntryId) {
             updateIncomeMutation.mutate({
@@ -978,6 +980,7 @@ export default function Transactions() {
         companyId: selectedIncomeCompany?.id ?? null,
         applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
         includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
+      k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
       });
 
       const payload: Partial<IncomeEntry> = {

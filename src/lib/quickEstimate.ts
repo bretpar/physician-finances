@@ -1,7 +1,10 @@
 // Lightweight federal + SE + state tax estimate used by the public /estimate flow.
 // Intentionally simple — this is a marketing preview, not the tax engine.
 
-export type FilingStatus = "single" | "married_filing_jointly";
+// Filing status comes from the centralized tax config so Quick Estimate and
+// the main engine can never diverge.
+export type { FilingStatus } from "@/lib/taxBrackets";
+import type { FilingStatus } from "@/lib/taxBrackets";
 export type IncomeKind = "w2_only" | "w2_plus_business" | "business_only";
 export type DeductionStrategy = "standard" | "itemized";
 
@@ -37,13 +40,16 @@ export interface QuickEstimateResult {
 import {
   ORDINARY_BRACKETS as _ORD,
   STANDARD_DEDUCTION as _STD,
-  SS_WAGE_BASE as _SS,
+  calcSETax,
 } from "@/lib/taxBrackets";
 
-const BRACKETS_SINGLE: Array<[number, number]> = _ORD.single.map((b) => [b.max, b.rate]);
-const BRACKETS_MFJ: Array<[number, number]> = _ORD.married_filing_jointly.map((b) => [b.max, b.rate]);
+const BRACKETS_BY_STATUS: Record<FilingStatus, Array<[number, number]>> = {
+  single: _ORD.single.map((b) => [b.max, b.rate]),
+  married_filing_jointly: _ORD.married_filing_jointly.map((b) => [b.max, b.rate]),
+  married_filing_separately: _ORD.married_filing_separately.map((b) => [b.max, b.rate]),
+  head_of_household: _ORD.head_of_household.map((b) => [b.max, b.rate]),
+};
 const STD_DEDUCTION = _STD;
-const SS_WAGE_CAP_2024 = _SS;
 
 // Rough state-level flat-ish estimates. Not precise — preview only.
 const STATE_FLAT_RATES: Record<string, number> = {
@@ -74,12 +80,12 @@ export function computeQuickEstimate(input: QuickEstimateInput): QuickEstimateRe
   const grossIncome = Math.max(0, input.w2Income) + Math.max(0, input.businessIncome) + Math.max(0, input.investmentIncome);
   const pretaxDeductions = Math.max(0, input.retirement401k) + Math.max(0, input.hsa) + Math.max(0, input.otherPretax);
 
-  // SE tax on business income (92.35% base, 15.3% combined SS+Medicare up to SS cap; Medicare-only above)
-  const seBase = Math.max(0, input.businessIncome) * 0.9235;
-  const ssPortion = Math.min(seBase, SS_WAGE_CAP_2024) * 0.124;
-  const medicarePortion = seBase * 0.029;
-  const seTax = ssPortion + medicarePortion;
-  const seDeduction = seTax / 2;
+  // SE tax uses the SAME canonical helper as the main tax engine. W-2 wages
+  // consume the Social Security wage base first, so business income above the
+  // base adds Medicare only.
+  const se = calcSETax(Math.max(0, input.businessIncome), Math.max(0, input.w2Income));
+  const seTax = se.total;
+  const seDeduction = se.deductibleHalf;
 
   const stdOrItemized = input.deductionStrategy === "itemized"
     ? Math.max(0, input.itemizedAmount)
@@ -87,7 +93,7 @@ export function computeQuickEstimate(input: QuickEstimateInput): QuickEstimateRe
 
   const taxableBase = Math.max(0, grossIncome - pretaxDeductions - seDeduction - stdOrItemized);
 
-  const brackets = input.filingStatus === "married_filing_jointly" ? BRACKETS_MFJ : BRACKETS_SINGLE;
+  const brackets = BRACKETS_BY_STATUS[input.filingStatus] ?? BRACKETS_BY_STATUS.single;
   const federalTax = applyBrackets(taxableBase, brackets);
 
   const stateRate = STATE_FLAT_RATES[input.state?.toUpperCase()] ?? 0.05;

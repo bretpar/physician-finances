@@ -31,6 +31,7 @@ import {
   K1_TAX_TREATMENT_OPTIONS,
   K1_TAX_TREATMENT_DEFAULT,
   type K1TaxTreatment,
+  seTaxFlagForK1Treatment,
 } from "@/lib/k1TaxTreatment";
 
 interface AddCompanyDialogProps {
@@ -181,7 +182,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
         notes: "",
         advancedFieldVisibility: {},
         applyBusinessStateTax: true,
-        includeSETaxInRecommendation: true,
+        includeSETaxInRecommendation: isK1 ? seTaxFlagForK1Treatment(k1Treatment) : true,
         payFrequency: isW2 ? frequency : null,
         remainingPaychecksOverride:
           isW2 && remainingPaychecks.trim() !== ""

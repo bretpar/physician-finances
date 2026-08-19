@@ -1,3 +1,4 @@
+import type { FilingStatus } from "@/lib/taxBrackets";
 /**
  * Centralized Tax Calculation Service
  *
@@ -91,7 +92,7 @@ export interface UnifiedTaxInput {
   projectedHealthInsuranceDeduction: number;
 
   // ── Settings ──
-  filingStatus: "single" | "married_filing_jointly";
+  filingStatus: FilingStatus;
   lastYearTax: number;
   standardDeductionOverride?: number | null;
   ssWageCap: number;
@@ -130,7 +131,7 @@ export interface UnifiedTaxResult {
 
 export interface TaxDebugBreakdown {
   includeProjectedIncome: boolean;
-  filingStatus: "single" | "married_filing_jointly";
+  filingStatus: FilingStatus;
   actualIncome: number;
   projectedIncome: number;
   totalGrossIncome: number;

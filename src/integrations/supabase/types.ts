@@ -1617,6 +1617,7 @@ export type Database = {
           business_state_tax_rate: number
           created_at: string
           custom_ss_wage_cap_enabled: boolean
+          date_of_birth: string | null
           deduction_strategy: string
           deduction_type: string
           enabled_deduction_types: string[]
@@ -1687,6 +1688,7 @@ export type Database = {
           business_state_tax_rate?: number
           created_at?: string
           custom_ss_wage_cap_enabled?: boolean
+          date_of_birth?: string | null
           deduction_strategy?: string
           deduction_type?: string
           enabled_deduction_types?: string[]
@@ -1757,6 +1759,7 @@ export type Database = {
           business_state_tax_rate?: number
           created_at?: string
           custom_ss_wage_cap_enabled?: boolean
+          date_of_birth?: string | null
           deduction_strategy?: string
           deduction_type?: string
           enabled_deduction_types?: string[]
