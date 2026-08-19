@@ -191,7 +191,8 @@ export function useSyncTransactions() {
       }
       if (silent) return;
       toast.success(data?.mode === "backfill" ? "Backfill complete" : "Sync complete", {
-        description: syncSummary(data),
+        description:
+          syncSummary(data) + (autoLinked ? ` · Auto-linked ${autoLinked} expense${autoLinked > 1 ? "s" : ""}` : ""),
       });
     },
     onError: (e) => toast.error(e.message),
