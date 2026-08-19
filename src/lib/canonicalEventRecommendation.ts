@@ -235,7 +235,6 @@ function isSETaxable(input: CanonicalEventRecommendationInput): boolean {
     filingType: filing,
     k1TaxTreatment: input.k1TaxTreatment,
     includeSETaxInRecommendation: input.includeSETaxInRecommendation,
-    k1TaxTreatment: input.k1TaxTreatment,
   });
 }
 
