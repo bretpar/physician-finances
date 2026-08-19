@@ -69,3 +69,49 @@ export function isK1TreatmentSETaxable(value: K1TaxTreatment | null | undefined)
   const meta = getK1TreatmentMeta(value);
   return meta ? meta.seTaxable : null;
 }
+
+/* ── Canonical SE-tax eligibility ────────────────────────────────────────
+ * ONE helper that decides whether income linked to a company is subject to
+ * self-employment tax. `k1TaxTreatment` is the source of truth for K-1
+ * entities; the legacy `includeSETaxInRecommendation` boolean is only a
+ * fallback for rows saved before the treatment field existed.
+ */
+
+export interface SETaxEligibilityInput {
+  /** Company filing type / income type string (any legacy spelling is fine). */
+  filingType?: string | null;
+  k1TaxTreatment?: K1TaxTreatment | null;
+  /** Legacy per-company boolean. Only consulted when treatment is unset. */
+  includeSETaxInRecommendation?: boolean | null;
+}
+
+/**
+ * True when income for this entity belongs in the SE-taxable pool.
+ *
+ *   1099 / Schedule C                 → SE taxable (legacy boolean may opt out)
+ *   K-1 active / guaranteed payments  → SE taxable
+ *   K-1 passive / S-corp distribution → NOT SE taxable
+ *   W-2, S-corp W-2, other            → NOT SE taxable
+ */
+export function isSETaxableEntity(input: SETaxEligibilityInput): boolean {
+  const raw = (input.filingType ?? "").toLowerCase().trim();
+  const isK1 = raw.includes("k1") || raw.includes("k-1") || raw.includes("partnership");
+  const is1099 = raw === "1099" || raw.includes("1099") || raw.includes("schedule_c");
+
+  if (isK1) {
+    // Treatment field wins whenever it is set.
+    const seTaxable = isK1TreatmentSETaxable(input.k1TaxTreatment);
+    if (seTaxable !== null) return seTaxable;
+    // Legacy fallback only.
+    return input.includeSETaxInRecommendation !== false;
+  }
+
+  if (is1099) return input.includeSETaxInRecommendation !== false;
+
+  return false;
+}
+
+/** The `include_se_tax_in_recommendation` value implied by a K-1 treatment. */
+export function seTaxFlagForK1Treatment(value: K1TaxTreatment | null | undefined): boolean {
+  return isK1TreatmentSETaxable(value) ?? true;
+}
