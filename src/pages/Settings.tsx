@@ -61,6 +61,7 @@ import AddCompanyDialog from "@/components/settings/AddCompanyDialog";
 import { DangerZoneSection } from "@/components/settings/DangerZoneSection";
 import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 import { PlannerWithholdingRepairCard } from "@/components/PlannerWithholdingRepairCard";
+import { normalizeDateOfBirthInput, sameDateOfBirth } from "@/lib/dateOfBirth";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
