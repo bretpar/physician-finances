@@ -655,22 +655,14 @@ export default function W4PaycheckAdjustmentCard() {
     totalExtraThroughYearEnd,
     projectedTotalTax,
     reconciliation,
-    taxesAlreadyWithheld,
-    actualTaxSavedOrPaid,
-    estimatedPaymentsMade,
-    projectedFutureBaselineW2Withholding,
-    currentExtraW4FutureWithholding,
-    plannedFutureBusinessReservesCounted,
     hasNonW2Income,
   } = useW4Calculation();
   const { updateCompany } = useCompanies();
 
   const [showHow, setShowHow] = useState(false);
 
-  // Display aliases for the canonical hook values.
-  const expectedFutureNormalW2Withholding = projectedFutureBaselineW2Withholding;
-  const estPaymentsAlreadyMade = estimatedPaymentsMade;
   const handleToggleChange = setCountPlannedNonW2Reserves;
+
 
   // Data-completeness signals used to warn users when the W-4 recommendation
   // may be inaccurate because YTD or future projection data is missing.
