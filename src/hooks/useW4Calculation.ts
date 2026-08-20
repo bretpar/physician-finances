@@ -540,23 +540,31 @@ export function useW4Calculation(): W4CalculationResult {
   // Business/1099 funds its own canonical allocated responsibility minus its
   // own coverage — not `future gross × rate`.
   const businessRemainingNeed = sourceFunding.nonW2.remainingNeed;
-  const plannedFutureBusinessReservesCounted = countPlannedNonW2Reserves
-    ? businessRemainingNeed
-    : 0;
 
-  // Business responsibility the user is NOT planning to reserve. When the
-  // toggle is OFF we do not assume those future 1099/K-1 reserves happen, so
-  // that responsibility has to be funded by W-2 withholding instead. When ON,
-  // it is credited to the business source and never reaches the W-4 ask.
-  const uncreditedBusinessNeed = countPlannedNonW2Reserves ? 0 : businessRemainingNeed;
+  // ONLY genuinely future Planner business income can produce a reserve credit.
+  // Recommendations attached to already-earned YTD 1099/K-1 income are guidance,
+  // not money, and never reduce the W-4 gap (audit finding #2).
+  const eligibleFutureBusinessReserves = computeEligibleFutureBusinessReserves({
+    enabled: countPlannedNonW2Reserves,
+    futureBusinessGross,
+    reserveRatePct: businessReserveRate,
+    nonW2RemainingNeed: businessRemainingNeed,
+  });
+  const plannedFutureBusinessReservesCounted = eligibleFutureBusinessReserves;
 
-  // Total W-2 target extra withholding for the rest of the year. Independent of
-  // what the user currently has on file → stable target, no feedback loop.
-  const grossW4Gap = sourceFunding.w2.remainingNeed + uncreditedBusinessNeed;
-  // What is still uncovered once the current W-4 extras are recognized.
-  const signedAnnualGap =
-    sourceFunding.w2.signedNeed + uncreditedBusinessNeed - currentExtraW4FutureWithholding;
-  const remainingW4Gap = Math.max(0, grossW4Gap - currentExtraW4FutureWithholding);
+  // ── Canonical reconciliation (single formula, no plug values) ────────────
+  const reconciliation = buildW4Reconciliation({
+    projectedTotalTax,
+    actualW2WithholdingYtd: taxesAlreadyWithheld,
+    futureBaselineW2Withholding: expectedFutureNormalW2Withholding,
+    futureCurrentStep4c: currentExtraW4FutureWithholding,
+    actualSavedReserves: actualTaxSavedOrPaid,
+    estimatedPaymentsMade: estPaymentsAlreadyMade,
+    eligibleFutureBusinessReserves,
+  });
+
+  const signedAnnualGap = reconciliation.signedRemainingGap;
+  const remainingW4Gap = reconciliation.remainingGap;
 
   // Kept for the card's reconciliation display and existing unit tests. The
   // business term mirrors the toggle so the displayed lines reconcile with the
@@ -582,16 +590,10 @@ export function useW4Calculation(): W4CalculationResult {
 
 
   // Total federal income tax the W-2 source must still withhold this year.
-  // Deliberately baseline- AND Step-4(c)-free: baseline withholding cancels out
-  // (`signedNeed` already subtracts it), so this requirement — and therefore
-  // every employer target derived from it — cannot be re-weighted by what any
-  // employer currently has on their W-4.
-  const requiredFutureW2Withholding = Math.max(
-    0,
-    sourceFunding.w2.signedNeed +
-      expectedFutureNormalW2Withholding +
-      uncreditedBusinessNeed,
-  );
+  // Step-4(c)-invariant by construction (see w4Reconciliation), so employer
+  // targets cannot be re-weighted by what any employer currently has on file.
+  const requiredFutureW2Withholding = reconciliation.requiredFutureW2Withholding;
+
 
   // Each employer takes a gross-weighted share of the shared requirement and
   // subtracts only ITS OWN baseline payroll withholding → stable targets.
