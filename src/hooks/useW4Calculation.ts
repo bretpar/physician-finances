@@ -92,6 +92,8 @@ export interface W4CalculationResult {
   employerW4Recommendations: EmployerW4Recommendation<any>[];
   /** Canonical annual liability shown in Calculation details. */
   projectedTotalTax: number;
+  /** Canonical reconciliation — the exact rows the card must render. */
+  reconciliation: W4Reconciliation;
   /** Actual YTD W-2 federal + state withholding. */
   taxesAlreadyWithheld: number;
   actualTaxSavedOrPaid: number;
@@ -661,6 +663,7 @@ export function useW4Calculation(): W4CalculationResult {
     // ── Canonical reconciliation values (single source for the card's
     // "Calculation details" rows — the card must never recompute these). ──
     projectedTotalTax,
+    reconciliation,
     taxesAlreadyWithheld,
     actualTaxSavedOrPaid,
     estimatedPaymentsMade: estPaymentsAlreadyMade,
