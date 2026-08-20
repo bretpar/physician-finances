@@ -1045,39 +1045,29 @@ export default function W4PaycheckAdjustmentCard() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="mt-2 space-y-3 rounded-md border border-border p-3">
-                <div className="space-y-1">
+                <div className="space-y-1" data-testid="w4-calculation-details">
                   <Row label="Estimated annual tax liability" value={fmt(projectedTotalTax)} />
-                  <Row label="Actual W-2 withholding YTD" value={fmt(taxesAlreadyWithheld)} />
-                  <Row
-                    label="Projected future W-2 withholding"
-                    value={fmt(expectedFutureNormalW2Withholding)}
-                  />
-                  <Row
-                    label="Current extra W-4 withholding on remaining paychecks"
-                    value={fmt(currentExtraW4FutureWithholding)}
-                  />
-                  <Row label="Actual tax saved YTD" value={fmt(actualTaxSavedOrPaid)} />
-                  <Row
-                    label="Estimated payments already made"
-                    value={fmt(estPaymentsAlreadyMade)}
-                  />
-                  <Row
-                    label="Planned future 1099/business/K-1 reserves"
-                    value={
-                      countPlannedNonW2Reserves
-                        ? fmt(plannedFutureBusinessReservesCounted)
-                        : `${fmt(0)} (toggle off)`
-                    }
-                  />
-                  {Math.abs(reconciliationResidual) >= 1 && (
+                  {reconciliation.credits.map((c) => (
                     <Row
-                      label="Tax owed by other income sources (not funded by your W-4)"
-                      value={fmt(reconciliationResidual)}
+                      key={c.key}
+                      label={
+                        c.key === "eligibleFutureBusinessReserves" && !countPlannedNonW2Reserves
+                          ? `${c.label} (not counted)`
+                          : c.label
+                      }
+                      value={fmt(c.amount)}
                     />
-                  )}
+                  ))}
                   <div className="my-1 border-t border-border" />
                   <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
+                  {reconciliation.signedRemainingGap < 0 && (
+                    <Row
+                      label="Projected over-withholding"
+                      value={fmt(Math.abs(reconciliation.signedRemainingGap))}
+                    />
+                  )}
                 </div>
+
 
                 {employerRecs.length > 0 && (
                   <div className="space-y-2">
