@@ -31,6 +31,12 @@ import {
   buildSourceFundingPlan,
   type SourceFundingPlan,
 } from "@/lib/sourceFundingPlan";
+import {
+  buildW4Reconciliation,
+  computeEligibleFutureBusinessReserves,
+  type W4Reconciliation,
+} from "@/lib/w4Reconciliation";
+
 
 import { normalizeFilingType, isW2FilingType } from "@/lib/filingTypes";
 import {
