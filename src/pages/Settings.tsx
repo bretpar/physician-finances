@@ -61,6 +61,7 @@ import AddCompanyDialog from "@/components/settings/AddCompanyDialog";
 import { DangerZoneSection } from "@/components/settings/DangerZoneSection";
 import { OrphanIncomeCleanupCard } from "@/components/OrphanIncomeCleanupCard";
 import { PlannerWithholdingRepairCard } from "@/components/PlannerWithholdingRepairCard";
+import { normalizeDateOfBirthInput, sameDateOfBirth } from "@/lib/dateOfBirth";
 import { useSectionDraft } from "@/hooks/useSectionDraft";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
@@ -975,11 +976,26 @@ function TaxProfileSection() {
             data-testid="settings-date-of-birth"
             value={d.dateOfBirth ?? ""}
             onChange={(e) => set({ dateOfBirth: e.target.value || null })}
+            onBlur={async (e) => {
+              // DOB persists on blur, independently of this section's Save
+              // button: the adjacent Profile section has its own Save, and
+              // users who clicked that one silently lost their DOB.
+              // Date-only string — never converted through UTC.
+              const normalized = normalizeDateOfBirthInput(e.target.value);
+              if (!data?.id) return;
+              if (sameDateOfBirth(normalized, data.dateOfBirth)) return;
+              if (!normalized && e.target.value) return; // partial/invalid: leave as-is
+              set({ dateOfBirth: normalized });
+              await updateMutation.mutateAsync({ id: data.id, dateOfBirth: normalized });
+              setSavedTick(true);
+              setTimeout(() => setSavedTick(false), 2000);
+            }}
           />
           <p className="mt-1 text-[11px] text-muted-foreground">
             Optional. Used to apply age 50+ and age 60–63 retirement catch-up limits.
           </p>
         </div>
+
         <div>
           <Label className="text-xs text-muted-foreground mb-1.5 block">Deduction Type</Label>
           <Select value={d.deductionType} onValueChange={(v) => set({ deductionType: v as TaxRates["deductionType"] })}>
