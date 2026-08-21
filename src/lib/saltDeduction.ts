@@ -168,3 +168,70 @@ export function selectDeduction(params: {
     itemizingBenefit: Math.max(0, itemizedDeduction - standardDeduction),
   };
 }
+
+/**
+ * Bridge between saved tax settings and the engine's flat deduction inputs.
+ *
+ * When itemized deductions are turned off, saved `deductionType` /
+ * `itemizedDeductionAmount` behavior is preserved exactly. When on, SALT is
+ * computed here and the greater of standard vs itemized is applied.
+ */
+export function resolveItemizedDeductionInputs(params: {
+  rates: {
+    filingStatus: string;
+    deductionType: "standard" | "itemized";
+    itemizedDeductionAmount: number;
+    standardDeductionOverride?: number | null;
+    itemizedDeductionsEnabled?: boolean;
+    saltPropertyTax?: number;
+    saltStateIncomeTaxMode?: StateTaxEntryMode;
+    saltStateIncomeTaxManual?: number;
+    saltSalesTaxBase?: number;
+    saltSalesTaxLargePurchases?: number;
+    saltPersonalPropertyTax?: number;
+    saltForceSalesTaxElection?: boolean;
+    saltCapOverride?: number | null;
+    itemizedOtherDeductions?: number;
+    personalStateTaxAnnualEstimate?: number;
+  };
+  /** Fallback state income tax estimate when no annual estimate is saved. */
+  stateWithheldEstimate: number;
+  magiApprox: number;
+}): { deductionType: "standard" | "itemized"; itemizedDeductionAmount: number } {
+  const { rates } = params;
+  if (!rates.itemizedDeductionsEnabled) {
+    return {
+      deductionType: rates.deductionType,
+      itemizedDeductionAmount: rates.itemizedDeductionAmount,
+    };
+  }
+
+  const filingStatus = rates.filingStatus as FilingStatus;
+  const savedStateEstimate = nonNeg(rates.personalStateTaxAnnualEstimate);
+  const itemized = computeItemizedDeductions({
+    propertyTax: nonNeg(rates.saltPropertyTax),
+    stateIncomeTaxMode: rates.saltStateIncomeTaxMode === "manual" ? "manual" : "estimate",
+    stateIncomeTaxEstimate: savedStateEstimate > 0 ? savedStateEstimate : nonNeg(params.stateWithheldEstimate),
+    stateIncomeTaxManual: nonNeg(rates.saltStateIncomeTaxManual),
+    salesTaxBase: nonNeg(rates.saltSalesTaxBase),
+    salesTaxLargePurchases: nonNeg(rates.saltSalesTaxLargePurchases),
+    personalPropertyTax: nonNeg(rates.saltPersonalPropertyTax),
+    forceSalesTaxElection: !!rates.saltForceSalesTaxElection,
+    saltCapOverride: rates.saltCapOverride ?? null,
+    otherItemizedDeductions: nonNeg(rates.itemizedOtherDeductions),
+    filingStatus,
+    magi: params.magiApprox,
+  });
+
+  const selection = selectDeduction({
+    filingStatus,
+    itemizedTotal: itemized.totalItemized,
+    standardDeductionOverride: rates.standardDeductionOverride ?? null,
+  });
+
+  // The engine applies `itemizedDeductionAmount` verbatim when the type is
+  // "itemized", so only send that when itemizing actually wins.
+  return selection.deductionType === "itemized"
+    ? { deductionType: "itemized", itemizedDeductionAmount: selection.deductionApplied }
+    : { deductionType: "standard", itemizedDeductionAmount: 0 };
+}
