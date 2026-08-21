@@ -2466,6 +2466,10 @@ export type Database = {
         Args: { _user_id?: string }
         Returns: Json
       }
+      cleanup_conflicting_transaction_links: {
+        Args: { _user_id?: string }
+        Returns: Json
+      }
       get_feature_access_overrides: {
         Args: never
         Returns: {

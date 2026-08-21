@@ -25,6 +25,9 @@ export interface AutoLinkCandidate {
   source_type?: string | null;
   match_status?: string | null;
   status?: string | null;
+  /** Auto-link never crosses organizations, even for the same user. */
+  organization_id?: string | null;
+  user_id?: string | null;
 }
 
 export interface AutoLinkPair {
@@ -67,8 +70,15 @@ export function amountsWithinTolerance(manualAmount: number, plaidAmount: number
   return Math.abs(plaid - manual) / manual <= AUTO_LINK_MAX_AMOUNT_REL + 1e-9;
 }
 
+/** Same owner AND same organization — auto-link is never cross-organization. */
+export function sameScope(a: AutoLinkCandidate, b: AutoLinkCandidate): boolean {
+  if ((a.user_id ?? null) !== (b.user_id ?? null)) return false;
+  return (a.organization_id ?? null) === (b.organization_id ?? null);
+}
+
 export function isAutoLinkMatch(manual: AutoLinkCandidate, plaid: AutoLinkCandidate): boolean {
   if (!isExpense(manual) || !isExpense(plaid)) return false;
+  if (!sameScope(manual, plaid)) return false;
   if ((manual.transaction_type || "expense") !== (plaid.transaction_type || "expense")) return false;
   if (calendarDaysApart(manual.transaction_date, plaid.transaction_date) > AUTO_LINK_MAX_DAYS) return false;
   return amountsWithinTolerance(manual.amount, plaid.amount);

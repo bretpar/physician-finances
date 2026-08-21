@@ -98,9 +98,12 @@ describe("atomic + concurrency-safe linking", () => {
     expect(PAIR_SQL).toContain("already_linked");
   });
 
-  it("database uniqueness prevents a transaction from having two active links", () => {
-    expect(PAIR_SQL).toContain("transaction_links_active_manual_uniq");
-    expect(PAIR_SQL).toContain("transaction_links_active_plaid_uniq");
+  it("database protection prevents a transaction from having two active link groups", () => {
+    const FIX_SQL = readFileSync(
+      "supabase/migrations/20260821043642_950261a4-2d00-4e52-9811-3ba86a620121.sql",
+      "utf8",
+    );
+    expect(FIX_SQL).toContain("transaction_links_single_active_group");
   });
 
   it("loses races safely instead of creating a duplicate link", () => {
