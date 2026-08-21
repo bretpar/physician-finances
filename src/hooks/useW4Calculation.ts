@@ -513,8 +513,19 @@ export function useW4Calculation(): W4CalculationResult {
   const taxesAlreadyWithheld =
     Number(selectedDebug?.actualFederalWithheld ?? 0) +
     Number(selectedDebug?.actualStateWithheld ?? 0);
-  const actualTaxSavedOrPaid = Number(selectedDebug?.taxSavingsSetAside ?? 0);
+  // CANONICAL "actual saved": the same total Tax Overview treats as money set
+  // aside but not paid — manual tax-savings entries + per-entry additional tax
+  // reserves + explicitly saved amounts on business (1099/K-1) and YTD
+  // catch-up income rows (`transactions.actual_withholding`, the Business
+  // Activity "Amount you're saving for taxes" field). Recommendations are
+  // never included here.
+  const actualTaxSavedOrPaid = Number(
+    (selectedDebug as any)?.nonCountedSavingsTotal ??
+      selectedDebug?.taxSavingsSetAside ??
+      0,
+  );
   const estPaymentsAlreadyMade = Number(selectedDebug?.estimatedPaymentsMade ?? 0);
+
   // Baseline future W-2 withholding — payroll only, excludes any extra the user
   // already has on their W-4 (that is applied once, below).
   const expectedFutureNormalW2Withholding = effectiveRows.reduce(
