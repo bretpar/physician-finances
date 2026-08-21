@@ -1642,6 +1642,8 @@ export type Database = {
           id: string
           income_profile_type: string
           itemized_deduction_amount: number
+          itemized_deductions_enabled: boolean
+          itemized_other_deductions: number
           last_year_tax: number
           manual_effective_tax_rate: number | null
           onboarding_banner_dismissed: boolean
@@ -1655,6 +1657,14 @@ export type Database = {
           personal_state_tax_rate: number
           qualifying_children_count: number
           quarterly_tracker_method: string
+          salt_cap_override: number | null
+          salt_force_sales_tax_election: boolean
+          salt_personal_property_tax: number
+          salt_property_tax: number
+          salt_sales_tax_base: number
+          salt_sales_tax_large_purchases: number
+          salt_state_income_tax_manual: number
+          salt_state_income_tax_mode: string
           ss_wage_cap: number
           standard_deduction_override: number | null
           state_income_tax_enabled: boolean
@@ -1713,6 +1723,8 @@ export type Database = {
           id?: string
           income_profile_type?: string
           itemized_deduction_amount?: number
+          itemized_deductions_enabled?: boolean
+          itemized_other_deductions?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null
           onboarding_banner_dismissed?: boolean
@@ -1726,6 +1738,14 @@ export type Database = {
           personal_state_tax_rate?: number
           qualifying_children_count?: number
           quarterly_tracker_method?: string
+          salt_cap_override?: number | null
+          salt_force_sales_tax_election?: boolean
+          salt_personal_property_tax?: number
+          salt_property_tax?: number
+          salt_sales_tax_base?: number
+          salt_sales_tax_large_purchases?: number
+          salt_state_income_tax_manual?: number
+          salt_state_income_tax_mode?: string
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_income_tax_enabled?: boolean
@@ -1784,6 +1804,8 @@ export type Database = {
           id?: string
           income_profile_type?: string
           itemized_deduction_amount?: number
+          itemized_deductions_enabled?: boolean
+          itemized_other_deductions?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null
           onboarding_banner_dismissed?: boolean
@@ -1797,6 +1819,14 @@ export type Database = {
           personal_state_tax_rate?: number
           qualifying_children_count?: number
           quarterly_tracker_method?: string
+          salt_cap_override?: number | null
+          salt_force_sales_tax_election?: boolean
+          salt_personal_property_tax?: number
+          salt_property_tax?: number
+          salt_sales_tax_base?: number
+          salt_sales_tax_large_purchases?: number
+          salt_state_income_tax_manual?: number
+          salt_state_income_tax_mode?: string
           ss_wage_cap?: number
           standard_deduction_override?: number | null
           state_income_tax_enabled?: boolean
