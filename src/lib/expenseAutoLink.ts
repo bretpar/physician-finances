@@ -25,6 +25,9 @@ export interface AutoLinkCandidate {
   source_type?: string | null;
   match_status?: string | null;
   status?: string | null;
+  /** Auto-link never crosses organizations, even for the same user. */
+  organization_id?: string | null;
+  user_id?: string | null;
 }
 
 export interface AutoLinkPair {
