@@ -532,9 +532,11 @@ export default function PersonalIncome() {
       stateTaxIncludedInTarget: stateIncomeTaxEnabled,
       // Prospective catch-up so a user who is behind can actually recover.
       // Prospective ONLY: historical paychecks never carry catch-up.
+      // W-2 paycheck targets NEVER receive catch-up (see isW2PaycheckTarget).
       catchUpAmount: entryIsFutureOpportunity
         ? (baseRecommendation?.catchUpApplied ?? 0)
         : 0,
+      isW2PaycheckTarget: isW2Type(form.income_type),
       // Live form value — the paycheck guide updates immediately when the
       // user types in the Additional Tax Reserve field for this entry.
       // This reserve applies ONLY to this entry and is not actual withholding.
