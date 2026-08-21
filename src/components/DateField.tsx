@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { closeOtherPickers, createPickerId, registerPicker } from "@/lib/pickerCoordination";
+
 
 interface DateFieldProps {
   /** ISO date string (yyyy-MM-dd) */
