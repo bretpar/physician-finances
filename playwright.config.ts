@@ -56,6 +56,11 @@ const fallbackConfig: PlaywrightTestConfig = defineConfig({
       if (lower === "1" || lower === "true") return true;
       return !!process.env.CI;
     })(),
+    // Sandboxes/CI images sometimes ship a Chromium at a different path than
+    // the one the installed Playwright version expects.
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+      : undefined,
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     trace: "retain-on-failure",

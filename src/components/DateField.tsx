@@ -38,20 +38,36 @@ export function DateField({
   const [open, setOpen] = React.useState(false);
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const pickerId = React.useRef(createPickerId("date")).current;
+  /**
+   * Timestamp of the last selection-driven close. Any reopen request that
+   * arrives inside this window (stale Radix pointer/focus callback, registry
+   * sync, re-render effect) is ignored so the calendar cannot pop straight
+   * back open over the Income Source field.
+   */
+  const justClosedAt = React.useRef(0);
 
   // Only one picker may be open at a time.
   React.useEffect(() => registerPicker(pickerId, () => setOpen(false)), [pickerId]);
 
   function handleOpenChange(next: boolean) {
-    if (next) closeOtherPickers(pickerId);
+    if (next) {
+      if (Date.now() - justClosedAt.current < 350) return;
+      closeOtherPickers(pickerId);
+    }
     setOpen(next);
   }
 
   function close() {
+    justClosedAt.current = Date.now();
+    // Explicit, state-driven close — never rely on the Calendar, event
+    // bubbling or outside-click behavior to dismiss the popover.
     setOpen(false);
-    // Deterministic focus return to the trigger (mobile Safari included).
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    // Deterministic focus return to the trigger, after the popover unmounts.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }));
+    });
   }
+
 
   const parsed = React.useMemo(() => {
     if (!value) return undefined;
@@ -86,11 +102,23 @@ export function DateField({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto max-w-[calc(100vw-1.5rem)] p-0"
+        data-testid="date-field-popover"
+        className={cn(
+          "w-auto max-w-[calc(100vw-1.5rem)] p-0",
+          // Belt-and-braces: if the content is ever kept mounted mid-animation
+          // it can never intercept taps meant for the next field.
+          !open && "pointer-events-none",
+        )}
         align="start"
         side="bottom"
         avoidCollisions
         collisionPadding={12}
+        // Radix would otherwise restore focus on its own schedule and can
+        // re-trigger the trigger's open handler.
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          triggerRef.current?.focus({ preventScroll: true });
+        }}
       >
         <Calendar
           mode="single"
