@@ -8,6 +8,7 @@ import {
   type OpportunityStatus,
 } from "@/components/tax-savings/OpportunityCard";
 import { RecommendedNextStep } from "@/components/tax-savings/RecommendedNextStep";
+import { ItemizedDeductionsCard } from "@/components/tax-savings/ItemizedDeductionsCard";
 import {
   DEDUCTION_INSIGHTS,
   DeductionInsightPanel,
