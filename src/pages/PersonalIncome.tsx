@@ -1704,8 +1704,8 @@ export default function PersonalIncome() {
                       <div className="min-w-0 flex-1 space-y-1">
                         <p className="text-sm text-foreground leading-snug">
                           {hasAdditional
-                            ? `Your employer is already withholding payroll taxes from this paycheck. Based on your current annual tax estimate, consider saving an additional ${fmt(additional)} from this paycheck.`
-                            : "Your current payroll withholding appears sufficient based on your tax estimate. No extra savings are recommended for this paycheck."}
+                            ? `Based on this paycheck's federal income tax target, consider saving an additional ${fmt(additional)} from this paycheck.`
+                            : "The federal income tax already withheld from this paycheck appears sufficient. No extra savings are recommended for this paycheck."}
                         </p>
                       </div>
                       {hasAdditional && (
