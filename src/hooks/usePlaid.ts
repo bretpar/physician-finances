@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { runExpenseAutoLink } from "@/hooks/useTransactionMatching";
 
 // ---- Plaid Items ----
 export function usePlaidItems() {
@@ -166,8 +165,10 @@ export function useSyncTransactions() {
         body: itemId ? { item_id: itemId } : {},
       });
       if (error) throw error;
-      // Auto-link unambiguous expense pairs (manual stays canonical).
-      const autoLinked = await runExpenseAutoLink();
+      // Auto-link now runs server-side inside plaid-sync-transactions (so the
+      // webhook / cron / backfill paths get it too). We only report the count
+      // the server returned; the client no longer drives linking.
+      const autoLinked = Number(data?.auto_linked_expenses || 0);
       return { data, silent, autoLinked };
     },
     onSuccess: ({ data, silent, autoLinked }) => {

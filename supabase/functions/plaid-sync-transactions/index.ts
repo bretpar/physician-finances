@@ -1056,7 +1056,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Auto-link unambiguous manual↔imported EXPENSE pairs. This runs in the
+    // shared import path, so every route reaches it: client sync, Plaid
+    // webhook, nightly cron, and backfill. The DB function is the single
+    // implementation of the criteria (expense↔expense, ≤2 calendar days,
+    // imported amount within 1% of the manual amount, exactly one qualifying
+    // manual candidate, neither side already linked) and links each pair
+    // atomically — the manual row stays canonical, the imported row is merged.
+    let autoLinkedExpenses = 0;
+    try {
+      const { data: autoLinkRes, error: autoLinkErr } = await adminClient.rpc(
+        "auto_link_expenses_for_user",
+        { _user_id: user.id },
+      );
+      if (autoLinkErr) throw autoLinkErr;
+      autoLinkedExpenses = Number(autoLinkRes?.linked || 0);
+      console.log("Plaid expense auto-link", { user_id: user.id, mode, ...(autoLinkRes || {}) });
+    } catch (e) {
+      // Best-effort: never fail a sync because auto-link could not run.
+      console.error("Plaid expense auto-link failed", { user_id: user.id, error: e });
+    }
+
     const account_logs = Object.values(stats);
+
     console.log("Plaid sync account summary", { user_id: user.id, mode, account_logs, balances_refreshed: balancesRefreshed, balance_warnings: balanceWarnings });
     for (const s of account_logs) console.log("Plaid account sync", s);
 
@@ -1073,6 +1095,7 @@ Deno.serve(async (req) => {
       transactions_tombstoned: totalTombstoned,
       tombstoned_transactions: totalTombstoned,
       duplicate_routes: totalDuplicates,
+      auto_linked_expenses: autoLinkedExpenses,
       relinked_transactions: totalRelinked,
       balances_refreshed: balancesRefreshed,
       balance_warnings: balanceWarnings,

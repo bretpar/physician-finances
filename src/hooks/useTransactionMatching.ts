@@ -705,24 +705,12 @@ export function useLinkTransactions() {
  */
 export async function runExpenseAutoLink(): Promise<number> {
   try {
-    const { data, error } = await supabase
-      .from("transactions")
-      .select("id, transaction_type, transaction_date, amount, source_type, match_status, status")
-      .eq("transaction_type", "expense")
-      .eq("status", "active");
+    // Single implementation of the criteria + atomic linking lives in the
+    // database (auto_link_expenses_for_user → auto_link_expense_pair), shared
+    // with the server-side Plaid import path.
+    const { data, error } = await supabase.rpc("auto_link_expenses_for_user", {});
     if (error) throw error;
-
-    const pairs = findExpenseAutoLinkPairs((data || []) as AutoLinkCandidate[]);
-    let linked = 0;
-    for (const pair of pairs) {
-      try {
-        await linkTransactionPair({ ...pair, confidence: 100 });
-        linked += 1;
-      } catch (err) {
-        console.warn("[AutoLink] pair skipped:", pair, err);
-      }
-    }
-    return linked;
+    return Number((data as any)?.linked || 0);
   } catch (err) {
     console.warn("[AutoLink] pass skipped:", err);
     return 0;

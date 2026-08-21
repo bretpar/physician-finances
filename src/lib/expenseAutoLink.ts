@@ -53,12 +53,18 @@ export function calendarDaysApart(a: string, b: string): number {
   return Math.abs(da - db) / 86_400_000;
 }
 
-export function amountsWithinTolerance(a: number, b: number): boolean {
-  const av = Math.abs(Number(a) || 0);
-  const bv = Math.abs(Number(b) || 0);
-  const base = Math.max(av, bv);
-  if (base === 0) return av === bv;
-  return Math.abs(av - bv) / base <= AUTO_LINK_MAX_AMOUNT_REL + 1e-9;
+/**
+ * The imported (Plaid) amount must be within 1% of the MANUAL amount — the
+ * manual transaction is always the denominator, since it is the canonical row.
+ *
+ *   manual $100.00 / plaid $101.00  → qualifies (exactly 1%)
+ *   manual $100.00 / plaid $101.01  → does not qualify (1.01%)
+ */
+export function amountsWithinTolerance(manualAmount: number, plaidAmount: number): boolean {
+  const manual = Math.abs(Number(manualAmount) || 0);
+  const plaid = Math.abs(Number(plaidAmount) || 0);
+  if (manual === 0) return plaid === 0;
+  return Math.abs(plaid - manual) / manual <= AUTO_LINK_MAX_AMOUNT_REL + 1e-9;
 }
 
 export function isAutoLinkMatch(manual: AutoLinkCandidate, plaid: AutoLinkCandidate): boolean {
