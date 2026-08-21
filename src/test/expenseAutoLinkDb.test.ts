@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Executable Postgres regression coverage for the expense auto-link database
  * layer (advisory-lock ambiguity protection, cluster-scoped cleanup,
