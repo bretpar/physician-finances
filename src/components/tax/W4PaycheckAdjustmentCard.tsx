@@ -23,6 +23,20 @@ const fmt = (n: number) =>
     Math.round(n),
   );
 
+/**
+ * Cents-preserving formatter. Used for every canonical reconciliation figure
+ * (liability, credits, remaining gap) so the displayed arithmetic reconciles
+ * exactly instead of drifting by whole-dollar rounding.
+ */
+const fmtCents = (n: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(n) ? n : 0);
+
+
 function formatFrequencyLabel(freq: string): string {
   switch (freq) {
     case "weekly":
