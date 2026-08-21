@@ -1720,11 +1720,30 @@ export default function PersonalIncome() {
                       )}
                     </div>
 
-                    {hasAdditional && (
-                      <p className="text-xs text-muted-foreground">
-                        Employer payroll withholding is already included.
+                    <div className="space-y-1" data-testid="w2-withholding-breakdown">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Federal income tax already withheld from this paycheck is included in this
+                        recommendation. Social Security and Medicare are handled separately.
                       </p>
-                    )}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
+                        <span>Federal income tax</span>
+                        <span className="text-right" data-testid="w2-breakdown-federal">
+                          {fmt(Math.round(paycheckSavings.federalIncomeTaxCredited))}
+                        </span>
+                        <span>Social Security</span>
+                        <span className="text-right">{fmt(Math.round(num(form.ss_withholding)))}</span>
+                        <span>Medicare</span>
+                        <span className="text-right">{fmt(Math.round(num(form.medicare_withholding)))}</span>
+                        {num(form.additional_medicare_withholding) > 0 && (
+                          <>
+                            <span>Additional Medicare</span>
+                            <span className="text-right">
+                              {fmt(Math.round(num(form.additional_medicare_withholding)))}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
                     <Button
                       variant="link"
