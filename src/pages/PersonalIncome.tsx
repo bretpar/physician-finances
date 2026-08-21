@@ -1734,14 +1734,6 @@ export default function PersonalIncome() {
                         <span className="text-right">{fmt(Math.round(num(form.ss_withholding)))}</span>
                         <span>Medicare</span>
                         <span className="text-right">{fmt(Math.round(num(form.medicare_withholding)))}</span>
-                        {num(form.additional_medicare_withholding) > 0 && (
-                          <>
-                            <span>Additional Medicare</span>
-                            <span className="text-right">
-                              {fmt(Math.round(num(form.additional_medicare_withholding)))}
-                            </span>
-                          </>
-                        )}
                       </div>
                     </div>
 
