@@ -69,21 +69,25 @@ test.describe("Income Planner date picker", () => {
 
     // 8/9 — complete a one-time planned income and confirm exactly one stream.
     const uniqueName = `E2E DatePicker ${Date.now()}`;
-    await page.getByRole("combobox").first().click();
-    await page.locator('[role="option"]').first().click();
 
-    // Company / employer name field.
-    const companyInput = page.locator('input[placeholder*="ompany"], input[placeholder*="mployer"]').first();
-    if (await companyInput.count()) await companyInput.fill(uniqueName);
+    // Income Source → 1099 / contract style entry (company optional).
+    await incomeSource.click();
+    const source1099 = page.locator('[role="option"]').filter({ hasText: /1099|contract|business/i }).first();
+    await (await source1099.count() ? source1099 : page.locator('[role="option"]').first()).click();
 
-    const gross = page.locator('input[inputmode="decimal"], input[type="number"]').first();
-    await gross.fill("1000");
+    // Company / income source name — free-text "other" mode.
+    await page.getByTestId("paycheck-employer-trigger").click();
+    await page.getByTestId("paycheck-employer-other-button").click();
+    await page.getByTestId("paycheck-employer-input").fill(uniqueName);
 
-    // "One-time" frequency, then save.
-    const oneTime = page.getByRole("button", { name: /one-?time/i }).first();
-    if (await oneTime.count()) await oneTime.click();
+    await page.locator('input[type="number"]').first().fill("1000");
 
-    await page.getByRole("button", { name: /^(save|add planned income|save planned income)$/i }).first().click();
+    // Frequency → One-time.
+    const freqTrigger = page.getByRole("combobox").last();
+    await freqTrigger.click();
+    await page.getByRole("option", { name: /one-?time/i }).click();
+
+    await page.getByRole("button", { name: /save planned income/i }).click();
 
     await expect(page.getByText(uniqueName).first()).toBeVisible({ timeout: 20_000 });
     expect(await page.getByText(uniqueName).count()).toBe(1);
