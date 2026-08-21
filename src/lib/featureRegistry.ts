@@ -375,6 +375,16 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
     status: "active",
     type: "page",
   },
+  {
+    key: "itemizedDeductions",
+    name: "Itemized Deductions (SALT)",
+    description: "SALT + itemized deduction entry with 2026 cap, phase-down and standard-vs-itemized comparison",
+    minimumRole: "developer",
+    status: "active",
+    type: "section",
+    parentFeatureKey: "pageTaxSavings",
+    adminGroup: "Deductions",
+  },
 
   // ---- Planning / recommendation subfeatures (registry-resolved) ----
   // Each gates only the advanced/recommendation content inside an otherwise
