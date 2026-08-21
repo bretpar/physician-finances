@@ -102,11 +102,23 @@ export function DateField({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto max-w-[calc(100vw-1.5rem)] p-0"
+        data-testid="date-field-popover"
+        className={cn(
+          "w-auto max-w-[calc(100vw-1.5rem)] p-0",
+          // Belt-and-braces: if the content is ever kept mounted mid-animation
+          // it can never intercept taps meant for the next field.
+          !open && "pointer-events-none",
+        )}
         align="start"
         side="bottom"
         avoidCollisions
         collisionPadding={12}
+        // Radix would otherwise restore focus on its own schedule and can
+        // re-trigger the trigger's open handler.
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          triggerRef.current?.focus({ preventScroll: true });
+        }}
       >
         <Calendar
           mode="single"
