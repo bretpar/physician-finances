@@ -2462,6 +2462,10 @@ export type Database = {
         }
         Returns: Json
       }
+      auto_link_expenses_for_user: {
+        Args: { _user_id?: string }
+        Returns: Json
+      }
       get_feature_access_overrides: {
         Args: never
         Returns: {
