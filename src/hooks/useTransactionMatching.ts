@@ -716,8 +716,17 @@ export async function runExpenseAutoLink(): Promise<number> {
     let linked = 0;
     for (const pair of pairs) {
       try {
-        await linkTransactionPair({ ...pair, confidence: 100 });
-        linked += 1;
+        // Single atomic DB operation: re-validates eligibility under row locks,
+        // creates the link and flips both rows, or fails safely if another sync
+        // already claimed either transaction.
+        const { data: res, error: rpcErr } = await supabase.rpc("auto_link_expense_pair", {
+          _manual_tx_id: pair.manualTxId,
+          _plaid_tx_id: pair.plaidTxId,
+          _confidence: 100,
+        });
+        if (rpcErr) throw rpcErr;
+        if ((res as any)?.linked) linked += 1;
+        else console.log("[AutoLink] pair not linked:", pair, (res as any)?.reason);
       } catch (err) {
         console.warn("[AutoLink] pair skipped:", pair, err);
       }
