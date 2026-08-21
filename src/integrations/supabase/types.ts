@@ -2454,6 +2454,14 @@ export type Database = {
         Args: { _role: string; _user_id: string }
         Returns: string
       }
+      auto_link_expense_pair: {
+        Args: {
+          _confidence?: number
+          _manual_tx_id: string
+          _plaid_tx_id: string
+        }
+        Returns: Json
+      }
       get_feature_access_overrides: {
         Args: never
         Returns: {
