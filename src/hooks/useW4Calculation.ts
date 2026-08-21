@@ -311,14 +311,30 @@ export function useW4Calculation(): W4CalculationResult {
     try { localStorage.setItem(TOGGLE_KEY, next ? "true" : "false"); } catch { /* ignore */ }
   };
 
-  // Display-only: what the business source is expected to reserve out of its
-  // remaining gross at the canonical bucket rate. NOT used for the W-4 gap.
-  const futureBusinessGross = Math.max(
-    0,
-    Number(forecastDebug?.grossBusinessIncome ?? 0) - Number(actualDebug?.grossBusinessIncome ?? 0),
-  );
+  // Genuinely FUTURE, still-unconverted Planner non-W-2 gross. Derived from the
+  // Planner occurrence ledger (not forecast-minus-actual) so an occurrence that
+  // has been converted into an actual Business Activity transaction — or matched
+  // to one — stops qualifying as a future reserve immediately, using the very
+  // same occurrence state that prevents planned-vs-actual double counting.
+  const futureBusinessGross = useMemo(() => {
+    const nonW2StreamIds = new Set(
+      (streams || [])
+        .filter((s) => !isW2Stream(s))
+        .map((s) => s.id),
+    );
+    let total = 0;
+    for (const p of allProjected) {
+      if (p.isSkipped) continue;
+      if (p.date <= todayStr) continue;
+      if (p.matchStatus === "matched" || p.matchStatus === "converted") continue;
+      if (!nonW2StreamIds.has(p.streamId)) continue;
+      total += Number(p.grossAmount || 0);
+    }
+    return Math.max(0, total);
+  }, [allProjected, streams, todayStr]);
   const projectedPlannedFutureBusinessReserves =
     futureBusinessGross * (businessReserveRate / 100);
+
 
 
   const companyByEmployerKey = useMemo(() => {
