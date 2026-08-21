@@ -1095,6 +1095,7 @@ Deno.serve(async (req) => {
       transactions_tombstoned: totalTombstoned,
       tombstoned_transactions: totalTombstoned,
       duplicate_routes: totalDuplicates,
+      auto_linked_expenses: autoLinkedExpenses,
       relinked_transactions: totalRelinked,
       balances_refreshed: balancesRefreshed,
       balance_warnings: balanceWarnings,
