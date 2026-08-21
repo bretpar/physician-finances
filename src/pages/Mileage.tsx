@@ -1175,6 +1175,14 @@ export default function Mileage() {
     ? `${fmt(hsaContributionTotal)} contributed · ${fmt(hsaSummary.employer)} employer-funded`
     : "From contributions tracked this year";
 
+  // ─── Itemized deductions / SALT (developer MVP) ───
+  // The engine already resolves standard vs itemized; the extra deduction
+  // gained by itemizing is what belongs in the Tax Savings totals.
+  const itemizedEnabled = !!(taxSettings as any)?.itemizedDeductionsEnabled;
+  const itemizedDeductionBenefit = itemizedEnabled && estimate?.deductionType === "itemized"
+    ? Math.max(0, Number(estimate.deductionApplied || 0) - Number(estimate.standardDeduction || 0))
+    : 0;
+
 
   const businessItems: CategoryItem[] = [
     ...(showMileage ? [{
