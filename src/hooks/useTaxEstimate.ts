@@ -897,8 +897,20 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         lastYearTax: rates.lastYearTax,
         standardDeductionOverride: rates.standardDeductionOverride,
         ssWageCap: rates.ssWageCap,
-        deductionType: rates.deductionType,
-        itemizedDeductionAmount: rates.itemizedDeductionAmount,
+        ...resolveItemizedDeductionInputs({
+          rates,
+          stateWithheldEstimate:
+            personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld
+            + businessStateWithheld + cu.business.stateWithheld
+            + (incomeScope === "actualPlusPlanned" ? projTotals.stateWithheld : 0),
+          magiApprox: Math.max(
+            0,
+            totalPersonalIncome + cuW2Gross + cuOtherGross + businessIncome + cuBizGross + netStockGain
+              + (incomeScope === "actualPlusPlanned"
+                ? projTotals.w2Income + projTotals.seIncome + projTotals.otherIncome + savedW2Addon.futureGross
+                : 0),
+          ),
+        }),
         studentLoanInterestPaid: (rates as any).studentLoanInterestAnnual ?? 0,
         qualifyingChildrenCount: rates.qualifyingChildrenCount,
         otherDependentsCount: rates.otherDependentsCount,
