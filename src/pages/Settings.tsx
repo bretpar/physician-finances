@@ -224,7 +224,12 @@ function TaxWithholdingSection() {
     maximumFractionDigits: 0,
   }).format(amount || 0);
 
-  const fmtPercent = (rate: number) => `${(rate * 100).toFixed(1)}%`;
+  // The engine's canonicalEffectiveTaxRate is already a PERCENT (e.g. 19.997).
+  // Only scale legacy 0-1 fractions; never multiply a percent again (bug: 1999.7%).
+  const fmtPercent = (rate: number) => {
+    const n = Number(rate) || 0;
+    return `${(n > 0 && n <= 1 ? n * 100 : n).toFixed(1)}%`;
+  };
 
   const source: WithholdingDraft = useMemo(() => ({
     withholdingMethod: data?.withholdingMethod || "dynamic_planner",
