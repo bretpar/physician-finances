@@ -407,6 +407,17 @@ export function useUpdateTaxSettings() {
       if (rest.manualEffectiveTaxRate !== undefined) payload.manual_effective_tax_rate = rest.manualEffectiveTaxRate;
       if (rest.deductionType !== undefined) payload.deduction_type = rest.deductionType;
       if (rest.itemizedDeductionAmount !== undefined) payload.itemized_deduction_amount = rest.itemizedDeductionAmount;
+      const r = rest as any;
+      if (r.itemizedDeductionsEnabled !== undefined) payload.itemized_deductions_enabled = r.itemizedDeductionsEnabled;
+      if (r.saltPropertyTax !== undefined) payload.salt_property_tax = r.saltPropertyTax;
+      if (r.saltStateIncomeTaxMode !== undefined) payload.salt_state_income_tax_mode = r.saltStateIncomeTaxMode;
+      if (r.saltStateIncomeTaxManual !== undefined) payload.salt_state_income_tax_manual = r.saltStateIncomeTaxManual;
+      if (r.saltSalesTaxBase !== undefined) payload.salt_sales_tax_base = r.saltSalesTaxBase;
+      if (r.saltSalesTaxLargePurchases !== undefined) payload.salt_sales_tax_large_purchases = r.saltSalesTaxLargePurchases;
+      if (r.saltPersonalPropertyTax !== undefined) payload.salt_personal_property_tax = r.saltPersonalPropertyTax;
+      if (r.saltForceSalesTaxElection !== undefined) payload.salt_force_sales_tax_election = r.saltForceSalesTaxElection;
+      if (r.saltCapOverride !== undefined) payload.salt_cap_override = r.saltCapOverride;
+      if (r.itemizedOtherDeductions !== undefined) payload.itemized_other_deductions = r.itemizedOtherDeductions;
       if ((rest as any).studentLoanInterestAnnual !== undefined) payload.student_loan_interest_annual = (rest as any).studentLoanInterestAnnual;
       if (rest.qualifyingChildrenCount !== undefined) payload.qualifying_children_count = rest.qualifyingChildrenCount;
       if (rest.otherDependentsCount !== undefined) payload.other_dependents_count = rest.otherDependentsCount;
