@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
+import { closeOtherPickers } from "@/lib/pickerCoordination";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -1791,6 +1792,7 @@ export default function ProjectedIncome() {
               <Select
                 value={form.ui_income_subtype}
                 onValueChange={(v) => setField("ui_income_subtype", v)}
+                onOpenChange={(o) => { if (o) closeOtherPickers(); }}
               >
                 <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1925,10 +1927,14 @@ export default function ProjectedIncome() {
                   <DefaultBadge field="pay_frequency" />
                 </Label>
 
-                <Select value={form.pay_frequency} onValueChange={(v) => {
-                  setField("pay_frequency", v);
-                  if (v === "single") setField("end_date", "");
-                }}>
+                <Select
+                  value={form.pay_frequency}
+                  onOpenChange={(o) => { if (o) closeOtherPickers(); }}
+                  onValueChange={(v) => {
+                    setField("pay_frequency", v);
+                    if (v === "single") setField("end_date", "");
+                  }}
+                >
                   <SelectTrigger
                     className={cn("h-11", fieldError("pay_frequency") && "border-destructive")}
                     aria-invalid={!!fieldError("pay_frequency")}

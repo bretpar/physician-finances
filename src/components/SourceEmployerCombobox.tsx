@@ -18,6 +18,7 @@ import {
   type IncomeSource,
   type SourceKind,
 } from "@/hooks/useIncomeSources";
+import { closeOtherPickers, createPickerId, registerPicker } from "@/lib/pickerCoordination";
 
 export type SourceSelection =
   | { kind: "linked"; source: IncomeSource }
@@ -65,6 +66,16 @@ export function SourceEmployerCombobox({
   const [otherMode, setOtherMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const otherInputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const pickerId = useRef(createPickerId("source")).current;
+
+  // Only one picker (calendar / combobox / select) may be open at a time.
+  useEffect(() => registerPicker(pickerId, () => setOpen(false)), [pickerId]);
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    if (next) closeOtherPickers(pickerId);
+    setOpen(next);
+  }, [pickerId]);
 
   const isOther = otherMode || (sourceId === null && otherName.length > 0);
 
@@ -121,7 +132,7 @@ export function SourceEmployerCombobox({
       // Force a fresh fetch every time the dropdown opens so newly-created
       // companies (e.g. just added in Settings) always show up.
       qc.invalidateQueries({ queryKey: ["income_sources"] });
-      refetch();
+      refetch?.();
       setTimeout(() => inputRef.current?.focus(), 0);
     } else {
       setSearch("");
@@ -137,6 +148,7 @@ export function SourceEmployerCombobox({
       linkedSource: s,
     });
     setOpen(false);
+    requestAnimationFrame(() => triggerRef.current?.focus());
   }
 
   function selectOther() {
@@ -248,9 +260,10 @@ export function SourceEmployerCombobox({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
+            ref={triggerRef}
             data-testid="paycheck-employer-trigger"
             variant="outline"
             role="combobox"
@@ -270,8 +283,11 @@ export function SourceEmployerCombobox({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[--radix-popover-trigger-width] p-0"
+          className="w-[--radix-popover-trigger-width] max-w-[calc(100vw-1.5rem)] p-0"
           align="start"
+          side="bottom"
+          avoidCollisions
+          collisionPadding={12}
           onWheel={(e) => e.stopPropagation()}
         >
           <div className="p-2 border-b border-border">

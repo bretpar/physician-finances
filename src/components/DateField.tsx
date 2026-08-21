@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { closeOtherPickers, createPickerId, registerPicker } from "@/lib/pickerCoordination";
+
 
 interface DateFieldProps {
   /** ISO date string (yyyy-MM-dd) */
@@ -34,6 +36,22 @@ export function DateField({
   defaultMonth,
 }: DateFieldProps) {
   const [open, setOpen] = React.useState(false);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const pickerId = React.useRef(createPickerId("date")).current;
+
+  // Only one picker may be open at a time.
+  React.useEffect(() => registerPicker(pickerId, () => setOpen(false)), [pickerId]);
+
+  function handleOpenChange(next: boolean) {
+    if (next) closeOtherPickers(pickerId);
+    setOpen(next);
+  }
+
+  function close() {
+    setOpen(false);
+    // Deterministic focus return to the trigger (mobile Safari included).
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  }
 
   const parsed = React.useMemo(() => {
     if (!value) return undefined;
@@ -49,9 +67,10 @@ export function DateField({
   }, [parsed, defaultMonth]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           id={id}
           type="button"
           variant="outline"
@@ -66,18 +85,23 @@ export function DateField({
           {parsed ? format(parsed, "MMM d, yyyy") : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className="w-auto max-w-[calc(100vw-1.5rem)] p-0"
+        align="start"
+        side="bottom"
+        avoidCollisions
+        collisionPadding={12}
+      >
         <Calendar
           mode="single"
           selected={parsed}
           defaultMonth={defaultMonthDate}
           onSelect={(date) => {
-            if (date) {
-              onChange(format(date, "yyyy-MM-dd"));
-              setOpen(false);
-            } else {
-              onChange("");
-            }
+            // react-day-picker hands back `undefined` when the already-selected
+            // day is tapped again — treat that as "confirm & close", never as
+            // "clear the field".
+            if (date) onChange(format(date, "yyyy-MM-dd"));
+            close();
           }}
           initialFocus
           className={cn("p-3 pointer-events-auto")}
@@ -86,3 +110,4 @@ export function DateField({
     </Popover>
   );
 }
+
