@@ -23,6 +23,20 @@ const fmt = (n: number) =>
     Math.round(n),
   );
 
+/**
+ * Cents-preserving formatter. Used for every canonical reconciliation figure
+ * (liability, credits, remaining gap) so the displayed arithmetic reconciles
+ * exactly instead of drifting by whole-dollar rounding.
+ */
+const fmtCents = (n: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(n) ? n : 0);
+
+
 function formatFrequencyLabel(freq: string): string {
   switch (freq) {
     case "weekly":
@@ -930,7 +944,7 @@ export default function W4PaycheckAdjustmentCard() {
               </Tooltip>
             </span>
             <span className="tabular-nums text-muted-foreground">
-              {fmt(remainingW4Gap)}
+              {fmtCents(remainingW4Gap)}
             </span>
           </div>
 
@@ -1028,7 +1042,7 @@ export default function W4PaycheckAdjustmentCard() {
             <CollapsibleContent>
               <div className="mt-2 space-y-3 rounded-md border border-border p-3">
                 <div className="space-y-1" data-testid="w4-calculation-details">
-                  <Row label="Estimated annual tax liability" value={fmt(projectedTotalTax)} />
+                  <Row label="Estimated annual tax liability" value={fmtCents(projectedTotalTax)} />
                   {reconciliation.credits.map((c) => (
                     <Row
                       key={c.key}
@@ -1037,15 +1051,15 @@ export default function W4PaycheckAdjustmentCard() {
                           ? `${c.label} (not counted)`
                           : c.label
                       }
-                      value={fmt(c.amount)}
+                      value={fmtCents(c.amount)}
                     />
                   ))}
                   <div className="my-1 border-t border-border" />
-                  <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
+                  <Row label="Remaining annual W-4 gap" value={fmtCents(remainingW4Gap)} bold />
                   {reconciliation.signedRemainingGap < 0 && (
                     <Row
                       label="Projected over-withholding"
-                      value={fmt(Math.abs(reconciliation.signedRemainingGap))}
+                      value={fmtCents(Math.abs(reconciliation.signedRemainingGap))}
                     />
                   )}
                 </div>

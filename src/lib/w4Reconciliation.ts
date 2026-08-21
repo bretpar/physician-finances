@@ -29,7 +29,10 @@
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const pos = (v: unknown) => Math.max(0, num(v));
-const cents = (n: number) => Math.round(n * 100) / 100;
+const cents = (n: number) => {
+  const v = Math.round(n * 100) / 100;
+  return v === 0 ? 0 : v; // normalize -0 so reconciliation compares cleanly
+};
 
 export interface W4Credit {
   key: string;
@@ -83,7 +86,7 @@ export function buildW4Reconciliation(input: W4ReconciliationInput): W4Reconcili
 
   const step4c = cents(pos(input.futureCurrentStep4c));
 
-  const credits: W4Credit[] = [
+  const creditsBeforeFutureReserves: W4Credit[] = [
     { key: "actualW2Withholding", label: "Actual W-2 withholding YTD", amount: cents(pos(input.actualW2WithholdingYtd)) },
     {
       key: "futureBaselineW2Withholding",
@@ -93,14 +96,30 @@ export function buildW4Reconciliation(input: W4ReconciliationInput): W4Reconcili
     { key: "futureCurrentStep4c", label: "Current extra W-4 withholding on remaining paychecks", amount: step4c },
     { key: "actualSavedReserves", label: "Actual tax saved YTD", amount: cents(pos(input.actualSavedReserves)) },
     { key: "estimatedPaymentsMade", label: "Estimated payments already made", amount: cents(pos(input.estimatedPaymentsMade)) },
-    {
-      key: "eligibleFutureBusinessReserves",
-      label: "Planned future 1099/business/K-1 reserves",
-      amount: cents(pos(input.eligibleFutureBusinessReserves)),
-    },
     ...(input.otherCredits ?? [])
       .filter((c) => c && c.label)
       .map((c) => ({ key: c.key, label: c.label, amount: cents(num(c.amount)) })),
+  ];
+
+  // Remaining need BEFORE crediting future business reserves. The reserve
+  // credit is capped by it so excess planned reserves can never manufacture
+  // phantom over-withholding — the gap floors at exactly $0.00.
+  const remainingNeedBeforeFutureReserves = cents(
+    projectedTotalTax - creditsBeforeFutureReserves.reduce((s, c) => s + c.amount, 0),
+  );
+  const futureBusinessReserveCredit = Math.min(
+    cents(pos(input.eligibleFutureBusinessReserves)),
+    Math.max(0, remainingNeedBeforeFutureReserves),
+  );
+
+  const credits: W4Credit[] = [
+    ...creditsBeforeFutureReserves.slice(0, 5),
+    {
+      key: "eligibleFutureBusinessReserves",
+      label: "Planned future 1099/business/K-1 reserves",
+      amount: futureBusinessReserveCredit,
+    },
+    ...creditsBeforeFutureReserves.slice(5),
   ];
 
   const totalCredits = cents(credits.reduce((s, c) => s + c.amount, 0));
@@ -108,6 +127,7 @@ export function buildW4Reconciliation(input: W4ReconciliationInput): W4Reconcili
   const gapBeforeStep4c = cents(projectedTotalTax - (totalCredits - step4c));
   const signedRemainingGap = cents(gapBeforeStep4c - step4c);
   const remainingGap = Math.max(0, signedRemainingGap);
+
   const requiredFutureW2Withholding = cents(
     Math.max(0, gapBeforeStep4c) + cents(pos(input.futureBaselineW2Withholding)),
   );

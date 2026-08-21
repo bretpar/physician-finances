@@ -189,3 +189,39 @@ describe("2026 employee elective-deferral limits from persisted DOB", () => {
     expect(r.employeeRemainingRoom).toBe(22_500);
   });
 });
+
+describe("future reserve credit is capped by remaining need", () => {
+  const base = {
+    projectedTotalTax: LIABILITY,
+    actualW2WithholdingYtd: ACTUAL_W2_WITHHOLDING,
+    futureBaselineW2Withholding: FUTURE_BASELINE_W2,
+    futureCurrentStep4c: 0,
+    actualSavedReserves: ACTUAL_SAVED,
+    estimatedPaymentsMade: EST_PAYMENTS,
+  };
+
+  it("excess planned reserves land the gap on exactly $0.00 — never a surplus", () => {
+    const r = buildW4Reconciliation({
+      ...base,
+      eligibleFutureBusinessReserves: 999_999,
+    });
+    expect(r.remainingGap).toBe(0);
+    expect(r.signedRemainingGap).toBe(0);
+    expect(
+      r.credits.find((c) => c.key === "eligibleFutureBusinessReserves")!.amount,
+    ).toBeCloseTo(23_240.09, 2);
+    expect(r.reconciliationDifference).toBe(0);
+  });
+
+  it("cents survive the capped path (liability .09 reconciles exactly)", () => {
+    const r = buildW4Reconciliation({
+      ...base,
+      projectedTotalTax: 47_240.09,
+      eligibleFutureBusinessReserves: 23_240.05,
+    });
+    expect(r.projectedTotalTax).toBe(47_240.09);
+    expect(r.signedRemainingGap).toBeCloseTo(0.04, 2);
+    expect(r.remainingGap).toBeCloseTo(0.04, 2);
+    expect(r.reconciliationDifference).toBe(0);
+  });
+});
