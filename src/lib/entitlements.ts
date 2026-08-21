@@ -52,6 +52,7 @@ export type FeatureKey =
   // Staged release: not part of the FREE/PREMIUM tier matrix. Access is
   // resolved purely from the registry's minimumRole via useFeatureAccess.
   | "studentLoanPlanner"
+  | "itemizedDeductions"
   // Planning / recommendation subfeatures. Registry-resolved (default premium)
   // so Admin > Features can change each one independently.
   | "financialAssistantRecommendations"

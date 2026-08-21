@@ -8,6 +8,7 @@ import {
   type OpportunityStatus,
 } from "@/components/tax-savings/OpportunityCard";
 import { RecommendedNextStep } from "@/components/tax-savings/RecommendedNextStep";
+import { ItemizedDeductionsCard } from "@/components/tax-savings/ItemizedDeductionsCard";
 import {
   DEDUCTION_INSIGHTS,
   DeductionInsightPanel,
@@ -1175,6 +1176,14 @@ export default function Mileage() {
     ? `${fmt(hsaContributionTotal)} contributed · ${fmt(hsaSummary.employer)} employer-funded`
     : "From contributions tracked this year";
 
+  // ─── Itemized deductions / SALT (developer MVP) ───
+  // The engine already resolves standard vs itemized; the extra deduction
+  // gained by itemizing is what belongs in the Tax Savings totals.
+  const itemizedEnabled = !!(taxSettings as any)?.itemizedDeductionsEnabled;
+  const itemizedDeductionBenefit = itemizedEnabled && estimate?.deductionType === "itemized"
+    ? Math.max(0, Number(estimate.deductionApplied || 0) - Number(estimate.standardDeduction || 0))
+    : 0;
+
 
   const businessItems: CategoryItem[] = [
     ...(showMileage ? [{
@@ -1264,11 +1273,26 @@ export default function Mileage() {
           description: "Itemized deduction for interest paid on your home loan.",
           status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
         },
-        {
-          value: "salt", label: "State & Local Taxes (SALT)", icon: Info,
-          description: "Itemized deduction for state, local and property taxes paid.",
-          status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
-        },
+        canFeature("itemizedDeductions")
+          ? {
+              value: "salt", label: "Itemized Deductions (SALT)", icon: Info,
+              description: "Property, state income or sales, and personal property taxes — capped and compared to your standard deduction.",
+              status: (itemizedEnabled ? "configured" : "not_configured") as OpportunityStatus,
+              actionLabel: (itemizedEnabled ? "Edit" : "Set Up") as OpportunityActionLabel,
+              amount: itemizedEnabled ? fmt(itemizedDeductionBenefit) : undefined,
+              deductionValue: itemizedEnabled ? itemizedDeductionBenefit : 0,
+              summary: itemizedEnabled
+                ? itemizedDeductionBenefit > 0
+                  ? "Itemizing beats your standard deduction"
+                  : "Standard deduction is currently larger"
+                : "Not set up yet",
+              content: <ItemizedDeductionsCard />,
+            }
+          : {
+              value: "salt", label: "State & Local Taxes (SALT)", icon: Info,
+              description: "Itemized deduction for state, local and property taxes paid.",
+              status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+            },
         {
           value: "charitable", label: "Charitable Giving", icon: HeartPulse,
           description: "Itemized deduction for donations to qualified charities.",

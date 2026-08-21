@@ -94,6 +94,17 @@ export interface TaxRates {
   // New tax profile fields
   deductionType: DeductionType;
   itemizedDeductionAmount: number;
+  // ── SALT + itemized deductions (developer MVP) ──
+  itemizedDeductionsEnabled: boolean;
+  saltPropertyTax: number;
+  saltStateIncomeTaxMode: "estimate" | "manual";
+  saltStateIncomeTaxManual: number;
+  saltSalesTaxBase: number;
+  saltSalesTaxLargePurchases: number;
+  saltPersonalPropertyTax: number;
+  saltForceSalesTaxElection: boolean;
+  saltCapOverride: number | null;
+  itemizedOtherDeductions: number;
   /** Annual student loan interest expected to be paid this year (§221). */
   studentLoanInterestAnnual: number;
   qualifyingChildrenCount: number;
@@ -167,6 +178,16 @@ const DEFAULT_RATES: TaxRates = {
   w2PaycheckRecMethod: "annual_w4",
   deductionType: "standard",
   itemizedDeductionAmount: 0,
+  itemizedDeductionsEnabled: false,
+  saltPropertyTax: 0,
+  saltStateIncomeTaxMode: "estimate",
+  saltStateIncomeTaxManual: 0,
+  saltSalesTaxBase: 0,
+  saltSalesTaxLargePurchases: 0,
+  saltPersonalPropertyTax: 0,
+  saltForceSalesTaxElection: false,
+  saltCapOverride: null,
+  itemizedOtherDeductions: 0,
   studentLoanInterestAnnual: 0,
   qualifyingChildrenCount: 0,
   otherDependentsCount: 0,
@@ -306,6 +327,16 @@ function mapTaxSettingsRow(data: any): TaxRates {
     w2PaycheckRecMethod: (d.w2_paycheck_rec_method as W2PaycheckRecMethod) || "annual_w4",
     deductionType: (d.deduction_type as DeductionType) || "standard",
     itemizedDeductionAmount: Number(d.itemized_deduction_amount) || 0,
+    itemizedDeductionsEnabled: !!d.itemized_deductions_enabled,
+    saltPropertyTax: Number(d.salt_property_tax) || 0,
+    saltStateIncomeTaxMode: d.salt_state_income_tax_mode === "manual" ? "manual" : "estimate",
+    saltStateIncomeTaxManual: Number(d.salt_state_income_tax_manual) || 0,
+    saltSalesTaxBase: Number(d.salt_sales_tax_base) || 0,
+    saltSalesTaxLargePurchases: Number(d.salt_sales_tax_large_purchases) || 0,
+    saltPersonalPropertyTax: Number(d.salt_personal_property_tax) || 0,
+    saltForceSalesTaxElection: !!d.salt_force_sales_tax_election,
+    saltCapOverride: d.salt_cap_override != null ? Number(d.salt_cap_override) : null,
+    itemizedOtherDeductions: Number(d.itemized_other_deductions) || 0,
     studentLoanInterestAnnual: Number((d as any).student_loan_interest_annual) || 0,
     qualifyingChildrenCount: Number(d.qualifying_children_count) || 0,
     otherDependentsCount: Number(d.other_dependents_count) || 0,
@@ -386,6 +417,17 @@ export function useUpdateTaxSettings() {
       if (rest.manualEffectiveTaxRate !== undefined) payload.manual_effective_tax_rate = rest.manualEffectiveTaxRate;
       if (rest.deductionType !== undefined) payload.deduction_type = rest.deductionType;
       if (rest.itemizedDeductionAmount !== undefined) payload.itemized_deduction_amount = rest.itemizedDeductionAmount;
+      const r = rest as any;
+      if (r.itemizedDeductionsEnabled !== undefined) payload.itemized_deductions_enabled = r.itemizedDeductionsEnabled;
+      if (r.saltPropertyTax !== undefined) payload.salt_property_tax = r.saltPropertyTax;
+      if (r.saltStateIncomeTaxMode !== undefined) payload.salt_state_income_tax_mode = r.saltStateIncomeTaxMode;
+      if (r.saltStateIncomeTaxManual !== undefined) payload.salt_state_income_tax_manual = r.saltStateIncomeTaxManual;
+      if (r.saltSalesTaxBase !== undefined) payload.salt_sales_tax_base = r.saltSalesTaxBase;
+      if (r.saltSalesTaxLargePurchases !== undefined) payload.salt_sales_tax_large_purchases = r.saltSalesTaxLargePurchases;
+      if (r.saltPersonalPropertyTax !== undefined) payload.salt_personal_property_tax = r.saltPersonalPropertyTax;
+      if (r.saltForceSalesTaxElection !== undefined) payload.salt_force_sales_tax_election = r.saltForceSalesTaxElection;
+      if (r.saltCapOverride !== undefined) payload.salt_cap_override = r.saltCapOverride;
+      if (r.itemizedOtherDeductions !== undefined) payload.itemized_other_deductions = r.itemizedOtherDeductions;
       if ((rest as any).studentLoanInterestAnnual !== undefined) payload.student_loan_interest_annual = (rest as any).studentLoanInterestAnnual;
       if (rest.qualifyingChildrenCount !== undefined) payload.qualifying_children_count = rest.qualifyingChildrenCount;
       if (rest.otherDependentsCount !== undefined) payload.other_dependents_count = rest.otherDependentsCount;
