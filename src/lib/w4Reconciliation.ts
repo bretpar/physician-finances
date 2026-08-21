@@ -29,7 +29,10 @@
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const pos = (v: unknown) => Math.max(0, num(v));
-const cents = (n: number) => Math.round(n * 100) / 100;
+const cents = (n: number) => {
+  const v = Math.round(n * 100) / 100;
+  return v === 0 ? 0 : v; // normalize -0 so reconciliation compares cleanly
+};
 
 export interface W4Credit {
   key: string;
