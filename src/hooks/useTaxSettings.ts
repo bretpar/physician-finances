@@ -94,6 +94,17 @@ export interface TaxRates {
   // New tax profile fields
   deductionType: DeductionType;
   itemizedDeductionAmount: number;
+  // ── SALT + itemized deductions (developer MVP) ──
+  itemizedDeductionsEnabled: boolean;
+  saltPropertyTax: number;
+  saltStateIncomeTaxMode: "estimate" | "manual";
+  saltStateIncomeTaxManual: number;
+  saltSalesTaxBase: number;
+  saltSalesTaxLargePurchases: number;
+  saltPersonalPropertyTax: number;
+  saltForceSalesTaxElection: boolean;
+  saltCapOverride: number | null;
+  itemizedOtherDeductions: number;
   /** Annual student loan interest expected to be paid this year (§221). */
   studentLoanInterestAnnual: number;
   qualifyingChildrenCount: number;
