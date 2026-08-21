@@ -71,8 +71,19 @@ export interface PaycheckProfileSavingsInput {
    * Prospective catch-up share for this paycheck (from
    * `computeCatchUpRecommendation().quarterlyAdjustmentAmount`). Added on top
    * of the normal profile target so a user who is behind can actually recover.
+   *
+   * IGNORED when `isW2PaycheckTarget` is true — see below.
    */
   catchUpAmount?: number;
+  /**
+   * True when this calculation drives the W-2 "Paycheck Target" card.
+   *
+   * The W-2 paycheck target answers "what should be withheld/saved for THIS
+   * paycheck?" — it must NEVER silently allocate a prior annual/quarterly
+   * shortfall. Quarterly catch-up remains valid for quarterly estimated-tax
+   * planning and non-W-2/business workflows, so it is only suppressed here.
+   */
+  isW2PaycheckTarget?: boolean;
 }
 
 export interface PaycheckProfileSavingsResult {
