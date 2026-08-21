@@ -132,7 +132,7 @@ export function SourceEmployerCombobox({
       // Force a fresh fetch every time the dropdown opens so newly-created
       // companies (e.g. just added in Settings) always show up.
       qc.invalidateQueries({ queryKey: ["income_sources"] });
-      refetch();
+      refetch?.();
       setTimeout(() => inputRef.current?.focus(), 0);
     } else {
       setSearch("");
