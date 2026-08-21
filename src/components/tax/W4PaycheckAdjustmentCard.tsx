@@ -944,7 +944,7 @@ export default function W4PaycheckAdjustmentCard() {
               </Tooltip>
             </span>
             <span className="tabular-nums text-muted-foreground">
-              {fmt(remainingW4Gap)}
+              {fmtCents(remainingW4Gap)}
             </span>
           </div>
 
