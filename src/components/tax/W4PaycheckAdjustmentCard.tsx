@@ -1042,7 +1042,7 @@ export default function W4PaycheckAdjustmentCard() {
             <CollapsibleContent>
               <div className="mt-2 space-y-3 rounded-md border border-border p-3">
                 <div className="space-y-1" data-testid="w4-calculation-details">
-                  <Row label="Estimated annual tax liability" value={fmt(projectedTotalTax)} />
+                  <Row label="Estimated annual tax liability" value={fmtCents(projectedTotalTax)} />
                   {reconciliation.credits.map((c) => (
                     <Row
                       key={c.key}
@@ -1051,15 +1051,15 @@ export default function W4PaycheckAdjustmentCard() {
                           ? `${c.label} (not counted)`
                           : c.label
                       }
-                      value={fmt(c.amount)}
+                      value={fmtCents(c.amount)}
                     />
                   ))}
                   <div className="my-1 border-t border-border" />
-                  <Row label="Remaining annual W-4 gap" value={fmt(remainingW4Gap)} bold />
+                  <Row label="Remaining annual W-4 gap" value={fmtCents(remainingW4Gap)} bold />
                   {reconciliation.signedRemainingGap < 0 && (
                     <Row
                       label="Projected over-withholding"
-                      value={fmt(Math.abs(reconciliation.signedRemainingGap))}
+                      value={fmtCents(Math.abs(reconciliation.signedRemainingGap))}
                     />
                   )}
                 </div>
