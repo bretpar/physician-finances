@@ -705,33 +705,12 @@ export function useLinkTransactions() {
  */
 export async function runExpenseAutoLink(): Promise<number> {
   try {
-    const { data, error } = await supabase
-      .from("transactions")
-      .select("id, transaction_type, transaction_date, amount, source_type, match_status, status")
-      .eq("transaction_type", "expense")
-      .eq("status", "active");
+    // Single implementation of the criteria + atomic linking lives in the
+    // database (auto_link_expenses_for_user → auto_link_expense_pair), shared
+    // with the server-side Plaid import path.
+    const { data, error } = await supabase.rpc("auto_link_expenses_for_user", {});
     if (error) throw error;
-
-    const pairs = findExpenseAutoLinkPairs((data || []) as AutoLinkCandidate[]);
-    let linked = 0;
-    for (const pair of pairs) {
-      try {
-        // Single atomic DB operation: re-validates eligibility under row locks,
-        // creates the link and flips both rows, or fails safely if another sync
-        // already claimed either transaction.
-        const { data: res, error: rpcErr } = await supabase.rpc("auto_link_expense_pair", {
-          _manual_tx_id: pair.manualTxId,
-          _plaid_tx_id: pair.plaidTxId,
-          _confidence: 100,
-        });
-        if (rpcErr) throw rpcErr;
-        if ((res as any)?.linked) linked += 1;
-        else console.log("[AutoLink] pair not linked:", pair, (res as any)?.reason);
-      } catch (err) {
-        console.warn("[AutoLink] pair skipped:", pair, err);
-      }
-    }
-    return linked;
+    return Number((data as any)?.linked || 0);
   } catch (err) {
     console.warn("[AutoLink] pass skipped:", err);
     return 0;
