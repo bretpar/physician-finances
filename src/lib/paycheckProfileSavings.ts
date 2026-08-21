@@ -150,7 +150,8 @@ export function calculatePaycheckProfileSavings(
   const ratePct = pos(input.selectedProfileEffectiveTaxRate);
   const stateIncluded = input.stateTaxIncludedInTarget !== false;
   const additionalReserve = pos(input.additionalTaxReserveForThisEntry);
-  const catchUpApplied = pos(input.catchUpAmount);
+  // W-2 paycheck target mode: catch-up is never folded into this paycheck.
+  const catchUpApplied = input.isW2PaycheckTarget === true ? 0 : pos(input.catchUpAmount);
 
   // FICA is never a credit against the federal income tax / SE tax / state
   // tax target — it is tracked and shown separately.
