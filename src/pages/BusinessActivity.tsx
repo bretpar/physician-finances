@@ -2671,9 +2671,12 @@ export default function Transactions() {
         const lSiblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
 
         const summary: SummaryRow[] = [];
+        // Compact ledger rows rendered above the emphasized net total.
+        const incomeLedgerRows: SummaryRow[] = [];
         let calculatedNetForVariance: number | null = null;
         let netForSummary: number | null = null;
         let savedForTaxes = 0;
+
 
         if (isIncomeTx && linked) {
           const lGross = Number(linked.paycheck_amount) || 0;
