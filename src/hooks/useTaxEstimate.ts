@@ -958,9 +958,23 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const elapsedMonths = Math.max(1, now.getMonth() + 1);
     const annualizationFactor = 12 / elapsedMonths;
     const actual = scopedBaseInputs.actualOnlyTaxInputs;
+    // SALT is recomputed by the engine against the ANNUALIZED canonical AGI.
+    // The YTD-withholding-derived state income tax estimate is annualized too;
+    // a saved annual estimate is already annual and is left alone.
+    const paceItemizedInputs = actual.itemizedInputs
+      ? {
+          ...actual.itemizedInputs,
+          stateIncomeTaxEstimate:
+            (rates?.personalStateTaxAnnualEstimate ?? 0) > 0
+              ? actual.itemizedInputs.stateIncomeTaxEstimate
+              : actual.itemizedInputs.stateIncomeTaxEstimate * annualizationFactor,
+        }
+      : undefined;
 
     return computeUnifiedTaxEstimate({
       ...actual,
+      itemizedInputs: paceItemizedInputs,
+
       businessIncome: actual.businessIncome * annualizationFactor,
       seEligibleBusinessIncome: actual.seEligibleBusinessIncome * annualizationFactor,
       seEligibleBusinessExpenses: (actual.seEligibleBusinessExpenses ?? actual.businessExpenses) * annualizationFactor,
