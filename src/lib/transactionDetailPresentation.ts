@@ -7,7 +7,7 @@
  * `canonicalWithholding`, …) and map them to labels/tones for the modal.
  */
 
-import { isMaterialAmountDivergence } from "@/lib/linkMergeEngine";
+import { hasLargeAmountDiff } from "@/lib/linkMergeEngine";
 import { resolveAdditionalNeeded } from "@/lib/incomeRecommendationSurface";
 
 export type TxStatusLevel = "ok" | "attention" | "error";
@@ -17,7 +17,7 @@ const fmt = (n: number) =>
 
 /**
  * Deposit-variance copy. Uses the app's existing reconciliation tolerance
- * (`isMaterialAmountDivergence`) instead of inventing a new threshold.
+ * (`hasLargeAmountDiff`) instead of inventing a new threshold.
  */
 export function describeDepositVariance(
   bankDeposit: number | null | undefined,
@@ -28,7 +28,7 @@ export function describeDepositVariance(
   if (!Number.isFinite(bank) || !Number.isFinite(calc) || bank <= 0 || calc <= 0) return null;
   const variance = bank - calc;
   if (Math.abs(variance) < 0.01) return { material: false, text: "Deposit matched exactly", variance: 0 };
-  const material = isMaterialAmountDivergence(bank, calc);
+  const material = hasLargeAmountDiff(bank, calc);
   return {
     material,
     variance,
