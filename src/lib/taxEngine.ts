@@ -501,6 +501,12 @@ export function calculateFullEstimate(params: {
   additionalTaxPaid?: number;
   deductionType?: "standard" | "itemized";
   itemizedDeductionAmount?: number;
+  /**
+   * Optional SALT/itemized detail. When supplied, the engine computes SALT
+   * against its OWN canonical AGI/MAGI and applies max(standard, itemized).
+   */
+  itemizedInputs?: EngineItemizedInputs;
+
   qualifyingChildrenCount?: number;
   otherDependentsCount?: number;
   withholdingOverrideType?: "none" | "percent" | "amount";
