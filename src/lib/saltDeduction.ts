@@ -55,8 +55,12 @@ export interface ItemizedDeductionInputs {
   personalPropertyTax: number;
   /** Advanced override: force the sales-tax path even if income tax is larger. */
   forceSalesTaxElection: boolean;
-  /** Advanced override: replace the computed SALT cap. */
+  /**
+   * @deprecated IGNORED. A client-controlled value must never raise (or lower)
+   * the statutory SALT cap. Kept only so persisted values type-check.
+   */
   saltCapOverride?: number | null;
+
   /** Qualified home mortgage interest paid this year. */
   mortgageInterest?: number;
   /**
