@@ -2831,7 +2831,7 @@ export default function Transactions() {
                 : undefined
             }
             sections={sections}
-            detailsLabel="Details"
+            detailsLabel={isIncomeTx ? "Income details" : isTransferTx ? "Transfer details" : "Expense details"}
             moreDetails={moreDetails}
             receipts={
               <div className="space-y-2">
