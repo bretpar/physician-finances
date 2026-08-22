@@ -52,7 +52,13 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
-import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { TransactionDetailSheet, type DetailSection, type SummaryRow } from "@/components/TransactionDetailSheet";
+import {
+  describeDepositVariance,
+  resolveIncomeTaxStatus,
+  shortTypeChip,
+} from "@/lib/transactionDetailPresentation";
+import { isW2FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes, getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { computeEstimatedNet } from "@/lib/estimatedNet";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
@@ -1993,36 +1999,58 @@ export default function PersonalIncome() {
             : null);
         const bankDeposit = importedSibling ? siblingDeposit(importedSibling.entry) : null;
         const depositVariance = bankDeposit != null ? bankDeposit - netReceived : null;
+        const varianceInfo = describeDepositVariance(bankDeposit, netReceived);
+        const isW2Entry = isW2FilingType(uiType);
+        const savedForTaxes = withheld + stateW + reserve;
+        const canonicalRecommended =
+          Number((e as any).dynamic_tax_recommendation || 0) ||
+          Number((e as any).base_tax_estimate || 0) ||
+          null;
+        const taxStatus = isLoss
+          ? null
+          : resolveIncomeTaxStatus({
+              isW2: isW2Entry,
+              recommended: canonicalRecommended,
+              saved: savedForTaxes,
+            });
+
+        // Compact primary summary — everything else lives behind disclosure.
+        const summary: SummaryRow[] = [
+          {
+            label: bankDeposit != null ? "Net deposited" : "Net received",
+            value: fmt(bankDeposit != null ? bankDeposit : netReceived),
+            tone: isLoss ? "expense" : "income",
+            emphasis: true,
+          },
+          ...(withheld > 0 ? [{ label: "Taxes withheld", value: fmt(withheld) }] : []),
+          ...(reserve > 0 ? [{ label: "Saved for taxes", value: fmt(reserve) }] : []),
+          ...(varianceInfo && !varianceInfo.material
+            ? [{ label: "Reconciliation", value: varianceInfo.text, subtle: true }]
+            : []),
+          ...(varianceInfo && varianceInfo.material
+            ? [{ label: "Reconciliation", value: varianceInfo.text, tone: "expense" as const }]
+            : []),
+        ];
+
         const sections: DetailSection[] = [
           {
-            title: "Basic details",
+            title: isW2Entry ? "Paycheck details" : "Transaction details",
+            collapsible: true,
             fields: [
               { label: "Type", value: typeLabel },
-              ...(e.company ? [{ label: "Source", value: e.company }] : []),
-              ...(e.notes ? [{ label: "Notes", value: e.notes }] : []),
-            ],
-          },
-          {
-            title: "Tax details",
-            fields: [
+              ...(e.company && e.company !== (e.name || "") ? [{ label: "Source", value: e.company }] : []),
               { label: "Gross", value: fmt(gross), mono: true },
-              {
-                label: "Net received",
-                value: fmt(bankDeposit != null ? bankDeposit : netReceived),
-                mono: true,
-              },
-              ...(bankDeposit != null && depositVariance != null && Math.abs(depositVariance) >= 0.01
-                ? [
-                    { label: "Calculated payroll net", value: fmt(netReceived), mono: true },
-                    {
-                      label: "Deposit variance",
-                      value: `${depositVariance >= 0 ? "+" : "−"}${fmt(Math.abs(depositVariance))}`,
-                      mono: true,
-                    },
-                  ]
+              ...(preTax > 0 ? [{ label: "Pre-tax", value: fmt(preTax), mono: true }] : []),
+              ...(ret401k > 0 ? [{ label: "401(k)", value: fmt(ret401k), mono: true }] : []),
+              ...(hsa > 0 ? [{ label: "HSA", value: fmt(hsa), mono: true }] : []),
+              ...(healthcare > 0 ? [{ label: "Healthcare", value: fmt(healthcare), mono: true }] : []),
+              ...(otherDed > 0 ? [{ label: "Other deductions", value: fmt(otherDed), mono: true }] : []),
+              { label: "Calculated payroll net", value: fmt(netReceived), mono: true },
+              ...(bankDeposit != null
+                ? [{ label: "Actual net deposit", value: fmt(bankDeposit), mono: true }]
                 : []),
-              ...(withheld > 0
-                ? [{ label: "Federal payroll taxes withheld", value: fmt(withheld), mono: true }]
+              ...(varianceInfo && Math.abs(varianceInfo.variance) >= 0.01
+                ? [{ label: "Deposit variance", value: varianceInfo.text, subtle: !varianceInfo.material }]
                 : []),
               ...(hasPayrollTaxBreakdown && federalIncomeTax > 0
                 ? [{ label: "Federal income tax", value: fmt(federalIncomeTax), mono: true }]
@@ -2033,42 +2061,46 @@ export default function PersonalIncome() {
               ...(hasPayrollTaxBreakdown && medicare > 0
                 ? [{ label: "Medicare", value: fmt(medicare), mono: true }]
                 : []),
-              ...(stateIncomeTaxEnabled && stateW > 0 ? [{ label: "State withheld", value: fmt(stateW), mono: true }] : []),
-              ...(preTax > 0 ? [{ label: "Pre-tax", value: fmt(preTax), mono: true }] : []),
-              ...(ret401k > 0 ? [{ label: "401(k)", value: fmt(ret401k), mono: true }] : []),
-              ...(hsa > 0 ? [{ label: "HSA", value: fmt(hsa), mono: true }] : []),
-              ...(healthcare > 0 ? [{ label: "Healthcare", value: fmt(healthcare), mono: true }] : []),
-              ...(otherDed > 0 ? [{ label: "Other deductions", value: fmt(otherDed), mono: true }] : []),
-              ...(reserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(reserve), mono: true }] : []),
+              ...(stateIncomeTaxEnabled && stateW > 0
+                ? [{ label: "State withholding", value: fmt(stateW), mono: true }]
+                : []),
+              ...(withheld > 0
+                ? [{ label: "Total payroll taxes", value: fmt(withheld), mono: true }]
+                : []),
+              ...(reserve > 0
+                ? [{ label: "Amount saved for taxes", value: fmt(reserve), mono: true }]
+                : []),
             ],
           },
         ];
-        if (fromPlanner) {
-          const kindLabel: Record<string, string> = {
-            normal: "Normal scheduled paycheck",
-            modified: "Modified (amount or withholdings edited)",
-            moved: "Moved to a different date",
-            skipped: "Marked skipped in planner",
-          };
-          sections.push({
-            title: "Source: Income Planner",
+
+        const kindLabel: Record<string, string> = {
+          normal: "Normal scheduled paycheck",
+          modified: "Modified (amount or withholdings edited)",
+          moved: "Moved to a different date",
+          skipped: "Marked skipped in planner",
+        };
+        const moreDetails: DetailSection[] = [
+          {
+            title: "More details",
             fields: [
-              { label: "Created from", value: "Converted from Income Planner" },
-              ...(plannerStream?.company
-                ? [{ label: "Stream", value: plannerStream.company }]
-                : []),
+              ...(e.notes ? [{ label: "Notes", value: e.notes }] : []),
               ...(plannerConv?.occurrence_date
-                ? [{ label: "Planned occurrence date", value: formatDate(plannerConv.occurrence_date) }]
+                ? [{ label: "Planned date", value: formatDate(plannerConv.occurrence_date) }]
                 : []),
               ...(plannerOccurrenceKind
-                ? [{ label: "Occurrence type", value: kindLabel[plannerOccurrenceKind] }]
+                ? [{ label: "Occurrence", value: kindLabel[plannerOccurrenceKind] }]
                 : []),
               ...(plannerConv?.status && plannerConv.status !== "converted"
                 ? [{ label: "Conversion status", value: plannerConv.status.replace(/_/g, " ") }]
                 : []),
+              ...(isYtd ? [{ label: "Origin", value: "YTD catch-up entry" }] : []),
+              ...((e as any).created_at
+                ? [{ label: "Created", value: formatDate(String((e as any).created_at).slice(0, 10)) }]
+                : []),
             ],
-          });
-        }
+          },
+        ];
 
         return (
           <TransactionDetailSheet
@@ -2080,64 +2112,68 @@ export default function PersonalIncome() {
               date: formatDate(e.income_date),
               amount: Number(e.gross_amount) || 0,
               amountTone: isLoss ? "expense" : "income",
+              typeChip: shortTypeChip(uiType),
               badges: [
                 ...((e as any).needs_review ? [{ label: "Review", tone: "warning" as const }] : []),
                 ...(isYtd ? [{ label: "YTD Catch-Up", tone: "muted" as const }] : []),
-                ...(fromPlanner ? [{ label: "Created from Income Planner", tone: "success" as const }] : []),
-                ...(withheld > 0 ? [{ label: `Withheld ${fmt(withheld)}`, tone: "muted" as const }] : []),
-                ...(reserve > 0 ? [{ label: `Reserve ${fmt(reserve)}`, tone: "default" as const }] : []),
+                ...(fromPlanner ? [{ label: "From Income Planner", tone: "success" as const }] : []),
+                ...(bankDeposit != null
+                  ? [{ label: "Bank linked", tone: "default" as const }]
+                  : [{ label: "Manual", tone: "muted" as const }]),
               ],
             }}
+            summary={summary}
+            status={
+              taxStatus
+                ? {
+                    level: taxStatus.level,
+                    title: taxStatus.title,
+                    description: taxStatus.description,
+                    ctaLabel: taxStatus.ctaLabel,
+                    onCta: () => { setDetailEntry(null); navigate("/taxes"); },
+                  }
+                : undefined
+            }
             sections={sections}
-            extraContent={
-              <section className="space-y-3">
-                {fromPlanner && plannerConv && (
-                  <div className="rounded-md border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 px-3 py-2.5 space-y-2">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      This entry was auto-created from an Income Planner paycheck
-                      {plannerStream?.company ? ` for ${plannerStream.company}` : ""}
-                      {plannerConv.occurrence_date ? ` scheduled ${formatDate(plannerConv.occurrence_date)}` : ""}.
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs gap-1"
-                      onClick={() => {
-                        if (!plannerConv.stream_id) {
-                          navigate("/projected-income");
-                          return;
-                        }
-                        navigate(
-                          `/projected-income?highlight=${encodeURIComponent(
-                            `${plannerConv.stream_id}:${plannerConv.occurrence_date}`,
-                          )}`,
-                        );
-                      }}
-                    >
-                      <Link2 className="h-3 w-3" /> View in Income Planner
-                    </Button>
-                  </div>
-                )}
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Receipts</h3>
+            source={
+              fromPlanner
+                ? {
+                    title: "Income Planner",
+                    description: `Created from ${
+                      plannerConv?.occurrence_date ? `${formatDateShort(plannerConv.occurrence_date)} ` : ""
+                    }${plannerStream?.company || e.company || "planned"} paycheck`,
+                    ctaLabel: "View in Income Planner",
+                    onCta: () => {
+                      if (!plannerConv?.stream_id) {
+                        navigate("/projected-income");
+                        return;
+                      }
+                      navigate(
+                        `/projected-income?highlight=${encodeURIComponent(
+                          `${plannerConv.stream_id}:${plannerConv.occurrence_date}`,
+                        )}`,
+                      );
+                    },
+                  }
+                : undefined
+            }
+            receipts={
+              <div className="space-y-2">
                 <TransactionAttachments
                   transactionId={e.id}
                   companyId={(e as any).source_id || null}
                   label="Receipts"
                 />
-                {linkedSiblings.length > 0 && (
-                  <div className="space-y-2">
-                    {linkedSiblings.map((it) => (
-                      <SiblingReceiptsList
-                        key={it.entry.id}
-                        transactionId={it.entry.id}
-                        label={it.entry.name || "(No payor)"}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
+                {linkedSiblings.map((it) => (
+                  <SiblingReceiptsList
+                    key={it.entry.id}
+                    transactionId={it.entry.id}
+                    label={it.entry.name || "(No payor)"}
+                  />
+                ))}
+              </div>
             }
+            moreDetails={moreDetails}
             linked={{
               items: linkedSiblings.map((it) => {
                 const imported =
@@ -2152,11 +2188,15 @@ export default function PersonalIncome() {
                 const dateStr = formatDateShort(it.entry.income_date);
                 return {
                   id: it.itemId,
-                  label: imported
-                    ? `${it.entry.name || "(No payor)"} — Bank deposit`
-                    : it.entry.name || "(No payor)",
+                  label: imported ? acct || it.entry.name || "Bank deposit" : it.entry.name || "(No payor)",
                   amount: imported ? deposit : Number(it.entry.gross_amount) || 0,
-                  date: imported && acct ? `${acct} · ${dateStr}` : dateStr,
+                  date: dateStr,
+                  status:
+                    imported && varianceInfo && Math.abs(varianceInfo.variance) >= 0.01
+                      ? varianceInfo.text
+                      : imported
+                        ? "Deposit matched"
+                        : undefined,
                 };
               }),
 
@@ -2172,6 +2212,7 @@ export default function PersonalIncome() {
                 setTimeout(() => setLinkModalEntry(target), 0);
               },
             }}
+
             onEdit={() => { const target = e; setDetailEntry(null); openEdit(target); }}
             onDelete={isYtd ? undefined : () => { setDeleteId(e.id); setDetailEntry(null); }}
             needsReview={!!(e as any).needs_review}
