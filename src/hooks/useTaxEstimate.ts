@@ -1001,7 +1001,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       includeProjectedIncome: false,
       rateSourceLabel: "actual/YTD income pace",
     });
-  }, [scopedBaseInputs]);
+  }, [scopedBaseInputs, rates?.personalStateTaxAnnualEstimate]);
 
   const forecastResult = useMemo(() => {
     if (!scopedBaseInputs) return null;
