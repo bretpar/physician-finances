@@ -1,4 +1,5 @@
 import type { FilingStatus } from "@/lib/taxBrackets";
+import type { EngineItemizedInputs } from "@/lib/saltDeduction";
 /**
  * Centralized Tax Calculation Service
  *
