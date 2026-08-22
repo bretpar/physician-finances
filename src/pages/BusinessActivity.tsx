@@ -2715,6 +2715,15 @@ export default function Transactions() {
             ...(lState > 0 ? [{ label: "State withheld", value: fmt(lState), mono: true }] : []),
             ...(lReserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(lReserve), mono: true }] : []),
           );
+
+          const lTotalTaxes = lFed + lState;
+          if (lTotalTaxes > 0) incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(lTotalTaxes) });
+          if (lReserve > 0) incomeLedgerRows.push({ label: "Saved for taxes", value: fmt(lReserve) });
+          if (l401 > 0) incomeLedgerRows.push({ label: "401(k) contributions", value: fmt(l401) });
+          if (lHsa > 0) incomeLedgerRows.push({ label: "HSA contributions", value: fmt(lHsa) });
+          if (lHealth > 0) incomeLedgerRows.push({ label: "Healthcare expenses", value: fmt(lHealth) });
+          if (lPreTax > 0) incomeLedgerRows.push({ label: "Pre-tax deductions", value: fmt(lPreTax) });
+          if (lOther > 0) incomeLedgerRows.push({ label: "Other deductions", value: fmt(lOther) });
         } else if (isIncomeTx) {
           // No linked income_entries row — still resolve Net Received through
           // the shared helper so an imported Plaid sibling (or denormalized
