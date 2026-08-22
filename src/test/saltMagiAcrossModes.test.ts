@@ -19,6 +19,7 @@ import {
   resolveCanonicalDeduction,
   type EngineItemizedInputs,
 } from "@/lib/saltDeduction";
+import { STANDARD_DEDUCTION } from "@/lib/taxBrackets";
 
 const PHASEDOWN_THRESHOLD = 505_000;
 
@@ -32,8 +33,11 @@ const itemized = (over: Partial<EngineItemizedInputs> = {}): EngineItemizedInput
   personalPropertyTax: 0,
   forceSalesTaxElection: false,
   otherItemizedDeductions: 0,
-  mortgageInterest: 0,
-  mortgageBalance: null,
+  // Large (fully deductible, $700k balance < $750k MFJ cap) mortgage interest
+  // keeps the itemized total above the standard deduction in every scenario, so
+  // each mode's SALT phase-down is observable in `deductionApplied`.
+  mortgageInterest: 40_000,
+  mortgageBalance: 700_000,
   ...over,
 });
 
@@ -93,6 +97,10 @@ const expectedFor = (magi: number) =>
     itemizedInputs: itemized(),
   }).itemizedDeduction;
 
+/** What the engine should apply: max(standard, SALT-limited itemized). */
+const expectedApplied = (magi: number) =>
+  Math.max(STANDARD_DEDUCTION.married_filing_jointly, expectedFor(magi));
+
 /** Annualize the YTD actual inputs exactly the way useTaxEstimate's current-pace mode does. */
 function annualize(actual: UnifiedTaxInput, factor: number): UnifiedTaxInput {
   return {
@@ -128,9 +136,9 @@ describe("SALT phase-down MAGI source across calculation modes", () => {
     expect(grossBuckets).toBeGreaterThan(PHASEDOWN_THRESHOLD);
     expect(r.estimate.agi).toBeLessThan(PHASEDOWN_THRESHOLD);
     expect(r.estimate.deductionType).toBe("itemized");
-    // No phase-down: full statutory MFJ cap drives the itemized total.
-    expect(r.estimate.deductionApplied).toBeCloseTo(SALT_CAP_2026, 2);
-    expect(r.estimate.deductionApplied).toBeCloseTo(expectedFor(r.estimate.agi), 2);
+    // No phase-down: full statutory MFJ SALT cap flows into the itemized total.
+    expect(expectedFor(r.estimate.agi)).toBeCloseTo(SALT_CAP_2026 + 40_000, 2);
+    expect(r.estimate.deductionApplied).toBeCloseTo(expectedApplied(r.estimate.agi), 2);
   });
 
   it("Include-Planned mode: phases down against the planned-inclusive canonical AGI", () => {
@@ -149,7 +157,7 @@ describe("SALT phase-down MAGI source across calculation modes", () => {
     // Phase-down engaged only in the planned mode, and matches the canonical
     // resolver evaluated at THIS mode's AGI.
     expect(plannedR.estimate.deductionApplied).toBeLessThan(actualR.estimate.deductionApplied);
-    expect(plannedR.estimate.deductionApplied).toBeCloseTo(expectedFor(plannedR.estimate.agi), 2);
+    expect(plannedR.estimate.deductionApplied).toBeCloseTo(expectedApplied(plannedR.estimate.agi), 2);
   });
 
   it("Annualized mode: phases down against its own annualized canonical AGI", () => {
@@ -160,7 +168,7 @@ describe("SALT phase-down MAGI source across calculation modes", () => {
     expect(annualizedR.estimate.agi).toBeCloseTo(actualR.estimate.agi * 3, 0);
     expect(annualizedR.estimate.agi).toBeGreaterThan(PHASEDOWN_THRESHOLD);
     expect(annualizedR.estimate.deductionApplied).toBeCloseTo(
-      expectedFor(annualizedR.estimate.agi),
+      expectedApplied(annualizedR.estimate.agi),
       2,
     );
     expect(annualizedR.estimate.deductionApplied).toBeLessThan(actualR.estimate.deductionApplied);
@@ -190,7 +198,7 @@ describe("SALT phase-down MAGI source across calculation modes", () => {
 
     for (const r of [personalHeavy, businessHeavy, plannedDriven]) {
       expect(r.estimate.agi).toBeCloseTo(600_000, 0);
-      expect(r.estimate.deductionApplied).toBeCloseTo(expectedFor(600_000), 2);
+      expect(r.estimate.deductionApplied).toBeCloseTo(expectedApplied(600_000), 2);
     }
   });
 
@@ -198,8 +206,8 @@ describe("SALT phase-down MAGI source across calculation modes", () => {
     const extreme = computeUnifiedTaxEstimate(
       baseInput({ personalIncome: 3_000_000, personalW2: 3_000_000 }),
     );
-    expect(extreme.estimate.deductionApplied).toBeCloseTo(expectedFor(extreme.estimate.agi), 2);
+    expect(extreme.estimate.deductionApplied).toBeCloseTo(expectedApplied(extreme.estimate.agi), 2);
     // Floor keeps at least $10k of SALT in the itemized total for MFJ.
-    expect(expectedFor(extreme.estimate.agi)).toBeGreaterThanOrEqual(10_000);
+    expect(expectedFor(extreme.estimate.agi)).toBeGreaterThanOrEqual(10_000 + 40_000);
   });
 });
