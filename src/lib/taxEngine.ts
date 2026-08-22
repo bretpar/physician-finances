@@ -750,7 +750,7 @@ export function calculateFullEstimate(params: {
     preTaxDeductions, retirement401k, healthInsuranceDeduction,
     studentLoanInterestDeduction,
     businessDeductions, mileageDeduction, agi, standardDeduction, taxableIncome,
-    deductionApplied, deductionType,
+    deductionApplied, deductionType: resolvedDeductionType,
     federalTaxBeforeCredits, taxCredits,
     ordinaryFederalTaxBeforeCredits: ordinaryFederalTax,
     preferentialFederalTaxBeforeCredits: ltcgFederalTax,
