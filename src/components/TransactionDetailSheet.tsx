@@ -182,14 +182,14 @@ function Disclosure({
   const [open, setOpen] = React.useState(!!defaultOpen);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-lg border border-border/60 bg-muted/30">
+      <div className="rounded-md border border-border/40 bg-muted/20 shadow-none">
         <CollapsibleTrigger asChild>
           <button
             type="button"
             data-testid={testId}
             aria-label={title}
             aria-expanded={open}
-            className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-3 text-left text-sm font-medium min-h-[44px] hover:bg-muted/50 transition-colors"
+            className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-sm font-medium text-foreground/90 min-h-[40px] hover:bg-muted/40 transition-colors"
           >
             <span>{title}</span>
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
