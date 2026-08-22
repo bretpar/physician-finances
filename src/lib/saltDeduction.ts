@@ -25,6 +25,10 @@ export const SALT_PHASEDOWN_THRESHOLD_2026 = 505_000;
 export const SALT_PHASEDOWN_THRESHOLD_2026_MFS = 252_500;
 export const SALT_PHASEDOWN_RATE = 0.3;
 
+/** §163(h)(3) acquisition-debt limits for post-2017 mortgages. */
+export const MORTGAGE_DEBT_LIMIT = 750_000;
+export const MORTGAGE_DEBT_LIMIT_MFS = 375_000;
+
 const nonNeg = (n: unknown) => {
   const v = Number(n);
   return Number.isFinite(v) && v > 0 ? v : 0;
@@ -53,7 +57,15 @@ export interface ItemizedDeductionInputs {
   forceSalesTaxElection: boolean;
   /** Advanced override: replace the computed SALT cap. */
   saltCapOverride?: number | null;
-  /** Other itemized deductions (mortgage interest, charity, etc.). */
+  /** Qualified home mortgage interest paid this year. */
+  mortgageInterest?: number;
+  /**
+   * Average mortgage balance for the year. When provided and above the
+   * acquisition-debt limit, interest is prorated to the deductible share.
+   * Leave blank/undefined to deduct the full interest entered.
+   */
+  mortgageBalance?: number | null;
+  /** Other itemized deductions (charity, etc.). */
   otherItemizedDeductions: number;
   filingStatus: FilingStatus;
   /** Modified AGI driving the cap phase-down. */
@@ -80,8 +92,16 @@ export interface ItemizedDeductionResult {
   saltDeduction: number;
   /** Amount of SALT lost to the cap. */
   saltDisallowed: number;
+  /** Mortgage interest entered. */
+  mortgageInterest: number;
+  /** Deductible share of mortgage interest after the debt limit. */
+  mortgageInterestDeductible: number;
+  /** Interest disallowed by the acquisition-debt limit. */
+  mortgageInterestDisallowed: number;
+  /** Debt limit used for the mortgage interest proration. */
+  mortgageDebtLimit: number;
   otherItemizedDeductions: number;
-  /** Capped SALT + other itemized. */
+  /** Capped SALT + mortgage interest + other itemized. */
   totalItemized: number;
 }
 
@@ -119,6 +139,14 @@ export function computeItemizedDeductions(input: ItemizedDeductionInputs): Itemi
   const saltDeduction = Math.min(saltBeforeCap, effectiveCap);
   const otherItemizedDeductions = nonNeg(input.otherItemizedDeductions);
 
+  const mortgageInterest = nonNeg(input.mortgageInterest);
+  const mortgageDebtLimit = mfs ? MORTGAGE_DEBT_LIMIT_MFS : MORTGAGE_DEBT_LIMIT;
+  const mortgageBalance = nonNeg(input.mortgageBalance);
+  const mortgageInterestDeductible =
+    mortgageBalance > mortgageDebtLimit
+      ? mortgageInterest * (mortgageDebtLimit / mortgageBalance)
+      : mortgageInterest;
+
   return {
     stateIncomeTax,
     salesTaxTotal,
@@ -132,8 +160,12 @@ export function computeItemizedDeductions(input: ItemizedDeductionInputs): Itemi
     effectiveCap,
     saltDeduction,
     saltDisallowed: Math.max(0, saltBeforeCap - saltDeduction),
+    mortgageInterest,
+    mortgageInterestDeductible,
+    mortgageInterestDisallowed: Math.max(0, mortgageInterest - mortgageInterestDeductible),
+    mortgageDebtLimit,
     otherItemizedDeductions,
-    totalItemized: saltDeduction + otherItemizedDeductions,
+    totalItemized: saltDeduction + mortgageInterestDeductible + otherItemizedDeductions,
   };
 }
 
@@ -192,6 +224,8 @@ export function resolveItemizedDeductionInputs(params: {
     saltForceSalesTaxElection?: boolean;
     saltCapOverride?: number | null;
     itemizedOtherDeductions?: number;
+    itemizedMortgageInterest?: number;
+    itemizedMortgageBalance?: number | null;
     personalStateTaxAnnualEstimate?: number;
   };
   /** Fallback state income tax estimate when no annual estimate is saved. */
@@ -219,6 +253,8 @@ export function resolveItemizedDeductionInputs(params: {
     forceSalesTaxElection: !!rates.saltForceSalesTaxElection,
     saltCapOverride: rates.saltCapOverride ?? null,
     otherItemizedDeductions: nonNeg(rates.itemizedOtherDeductions),
+    mortgageInterest: nonNeg(rates.itemizedMortgageInterest),
+    mortgageBalance: rates.itemizedMortgageBalance ?? null,
     filingStatus,
     magi: params.magiApprox,
   });

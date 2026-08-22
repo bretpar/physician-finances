@@ -105,6 +105,8 @@ export interface TaxRates {
   saltForceSalesTaxElection: boolean;
   saltCapOverride: number | null;
   itemizedOtherDeductions: number;
+  itemizedMortgageInterest: number;
+  itemizedMortgageBalance: number | null;
   /** Annual student loan interest expected to be paid this year (§221). */
   studentLoanInterestAnnual: number;
   qualifyingChildrenCount: number;
@@ -188,6 +190,8 @@ const DEFAULT_RATES: TaxRates = {
   saltForceSalesTaxElection: false,
   saltCapOverride: null,
   itemizedOtherDeductions: 0,
+  itemizedMortgageInterest: 0,
+  itemizedMortgageBalance: null,
   studentLoanInterestAnnual: 0,
   qualifyingChildrenCount: 0,
   otherDependentsCount: 0,
@@ -337,6 +341,8 @@ function mapTaxSettingsRow(data: any): TaxRates {
     saltForceSalesTaxElection: !!d.salt_force_sales_tax_election,
     saltCapOverride: d.salt_cap_override != null ? Number(d.salt_cap_override) : null,
     itemizedOtherDeductions: Number(d.itemized_other_deductions) || 0,
+    itemizedMortgageInterest: Number((d as any).itemized_mortgage_interest) || 0,
+    itemizedMortgageBalance: (d as any).itemized_mortgage_balance != null ? Number((d as any).itemized_mortgage_balance) : null,
     studentLoanInterestAnnual: Number((d as any).student_loan_interest_annual) || 0,
     qualifyingChildrenCount: Number(d.qualifying_children_count) || 0,
     otherDependentsCount: Number(d.other_dependents_count) || 0,
@@ -428,6 +434,8 @@ export function useUpdateTaxSettings() {
       if (r.saltForceSalesTaxElection !== undefined) payload.salt_force_sales_tax_election = r.saltForceSalesTaxElection;
       if (r.saltCapOverride !== undefined) payload.salt_cap_override = r.saltCapOverride;
       if (r.itemizedOtherDeductions !== undefined) payload.itemized_other_deductions = r.itemizedOtherDeductions;
+      if (r.itemizedMortgageInterest !== undefined) payload.itemized_mortgage_interest = r.itemizedMortgageInterest;
+      if (r.itemizedMortgageBalance !== undefined) payload.itemized_mortgage_balance = r.itemizedMortgageBalance;
       if ((rest as any).studentLoanInterestAnnual !== undefined) payload.student_loan_interest_annual = (rest as any).studentLoanInterestAnnual;
       if (rest.qualifyingChildrenCount !== undefined) payload.qualifying_children_count = rest.qualifyingChildrenCount;
       if (rest.otherDependentsCount !== undefined) payload.other_dependents_count = rest.otherDependentsCount;

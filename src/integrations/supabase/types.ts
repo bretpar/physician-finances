@@ -1643,6 +1643,8 @@ export type Database = {
           income_profile_type: string
           itemized_deduction_amount: number
           itemized_deductions_enabled: boolean
+          itemized_mortgage_balance: number | null
+          itemized_mortgage_interest: number
           itemized_other_deductions: number
           last_year_tax: number
           manual_effective_tax_rate: number | null
@@ -1724,6 +1726,8 @@ export type Database = {
           income_profile_type?: string
           itemized_deduction_amount?: number
           itemized_deductions_enabled?: boolean
+          itemized_mortgage_balance?: number | null
+          itemized_mortgage_interest?: number
           itemized_other_deductions?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null
@@ -1805,6 +1809,8 @@ export type Database = {
           income_profile_type?: string
           itemized_deduction_amount?: number
           itemized_deductions_enabled?: boolean
+          itemized_mortgage_balance?: number | null
+          itemized_mortgage_interest?: number
           itemized_other_deductions?: number
           last_year_tax?: number
           manual_effective_tax_rate?: number | null

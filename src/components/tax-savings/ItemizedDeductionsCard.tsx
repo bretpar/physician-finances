@@ -27,6 +27,8 @@ interface FormState {
   forceSalesTaxElection: boolean;
   saltCapOverride: string;
   otherItemizedDeductions: string;
+  mortgageInterest: string;
+  mortgageBalance: string;
 }
 
 /**
@@ -49,6 +51,8 @@ export function ItemizedDeductionsCard() {
     forceSalesTaxElection: false,
     saltCapOverride: "",
     otherItemizedDeductions: "",
+    mortgageInterest: "",
+    mortgageBalance: "",
   });
 
   useEffect(() => {
@@ -64,6 +68,8 @@ export function ItemizedDeductionsCard() {
       forceSalesTaxElection: !!s.saltForceSalesTaxElection,
       saltCapOverride: s.saltCapOverride != null ? String(s.saltCapOverride) : "",
       otherItemizedDeductions: s.itemizedOtherDeductions ? String(s.itemizedOtherDeductions) : "",
+      mortgageInterest: s.itemizedMortgageInterest ? String(s.itemizedMortgageInterest) : "",
+      mortgageBalance: s.itemizedMortgageBalance != null ? String(s.itemizedMortgageBalance) : "",
     });
   }, [taxSettings]);
 
@@ -86,6 +92,8 @@ export function ItemizedDeductionsCard() {
     forceSalesTaxElection: form.forceSalesTaxElection,
     saltCapOverride: form.saltCapOverride.trim() === "" ? null : num(form.saltCapOverride),
     otherItemizedDeductions: num(form.otherItemizedDeductions),
+    mortgageInterest: num(form.mortgageInterest),
+    mortgageBalance: form.mortgageBalance.trim() === "" ? null : num(form.mortgageBalance),
     filingStatus,
     magi,
   });
@@ -111,6 +119,8 @@ export function ItemizedDeductionsCard() {
       saltForceSalesTaxElection: form.forceSalesTaxElection,
       saltCapOverride: form.saltCapOverride.trim() === "" ? null : num(form.saltCapOverride),
       itemizedOtherDeductions: num(form.otherItemizedDeductions),
+      itemizedMortgageInterest: num(form.mortgageInterest),
+      itemizedMortgageBalance: form.mortgageBalance.trim() === "" ? null : num(form.mortgageBalance),
       ...extra,
     } as any);
   };
@@ -182,6 +192,20 @@ export function ItemizedDeductionsCard() {
         {field("salesTaxLargePurchases", "Sales tax on large purchases ($)", "Car, boat, or major home materials.")}
       </div>
 
+      <div className="space-y-3" data-testid="itemized-mortgage-section">
+        <div>
+          <p className="text-sm font-medium">Mortgage interest</p>
+          <p className="text-xs text-muted-foreground">
+            Qualified home mortgage interest from your Form 1098. Interest above the{" "}
+            {fmt(preview.mortgageDebtLimit)} acquisition-debt limit is prorated automatically.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {field("mortgageInterest", "Mortgage interest paid ($)", "Box 1 of your Form 1098.")}
+          {field("mortgageBalance", "Average mortgage balance ($)", "Optional — only needed if your loan exceeds the debt limit.")}
+        </div>
+      </div>
+
       <Collapsible>
         <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-sm font-medium">
           Advanced overrides
@@ -202,7 +226,7 @@ export function ItemizedDeductionsCard() {
             />
           </div>
           {field("saltCapOverride", "SALT cap override ($)", "Leave blank to use the 2026 cap and phase-down.")}
-          {field("otherItemizedDeductions", "Other itemized deductions ($)", "Mortgage interest, charitable giving, etc.")}
+          {field("otherItemizedDeductions", "Other itemized deductions ($)", "Charitable giving, etc. (mortgage interest is entered above).")}
         </CollapsibleContent>
       </Collapsible>
 
@@ -216,6 +240,10 @@ export function ItemizedDeductionsCard() {
         <Row label="SALT deduction allowed" value={fmt(preview.saltDeduction)} strong />
         {preview.saltDisallowed > 0 && (
           <Row label="SALT lost to the cap" value={fmt(preview.saltDisallowed)} />
+        )}
+        <Row label="Mortgage interest deductible" value={fmt(preview.mortgageInterestDeductible)} />
+        {preview.mortgageInterestDisallowed > 0 && (
+          <Row label="Mortgage interest over the debt limit" value={`− ${fmt(preview.mortgageInterestDisallowed)}`} />
         )}
         <Row label="Other itemized deductions" value={fmt(preview.otherItemizedDeductions)} />
         <Row label="Total itemized" value={fmt(preview.totalItemized)} strong />
