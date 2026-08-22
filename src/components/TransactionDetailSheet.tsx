@@ -182,14 +182,14 @@ function Disclosure({
   const [open, setOpen] = React.useState(!!defaultOpen);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-lg border border-border/60 bg-muted/30">
+      <div className="rounded-md border border-border/40 bg-muted/20 shadow-none">
         <CollapsibleTrigger asChild>
           <button
             type="button"
             data-testid={testId}
             aria-label={title}
             aria-expanded={open}
-            className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-3 text-left text-sm font-medium min-h-[44px] hover:bg-muted/50 transition-colors"
+            className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-sm font-medium text-foreground/90 min-h-[40px] hover:bg-muted/40 transition-colors"
           >
             <span>{title}</span>
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
@@ -304,7 +304,7 @@ export function TransactionDetailSheet({
         side="right"
         className="w-[85%] max-w-[85%] sm:w-full sm:max-w-lg p-0 flex flex-col gap-0"
       >
-        <SheetHeader className="px-6 pt-10 pb-4 space-y-2 sm:pt-8">
+        <SheetHeader className="px-6 pt-14 pb-5 space-y-2.5 sm:pt-10">
           <div className="flex items-start justify-between gap-3">
             <SheetTitle className="min-w-0 flex-1 text-xl leading-tight truncate">{header.title}</SheetTitle>
             {typeof header.amount === "number" && (
@@ -506,7 +506,7 @@ export function TransactionDetailSheet({
               </Button>
             )}
             {!hideDelete && onDelete && (
-              <Button variant="outline" size="sm" onClick={onDelete} className="gap-1.5 min-h-[48px] sm:min-h-0 text-destructive hover:text-destructive">
+              <Button variant="outline" size="sm" onClick={onDelete} className="gap-1.5 min-h-[48px] sm:min-h-0 bg-background border-border text-destructive hover:bg-destructive/5 hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
                 {deleteLabel}
               </Button>

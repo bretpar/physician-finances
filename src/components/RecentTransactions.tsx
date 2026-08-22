@@ -94,7 +94,7 @@ export default function RecentTransactions({ transactions }: Props) {
               },
             ]}
             sections={sections}
-            detailsLabel="Details"
+            detailsLabel={isIncome ? "Income details" : "Expense details"}
             moreDetails={[
               { title: "More details", fields: tx.notes ? [{ label: "Notes", value: tx.notes }] : [] },
             ]}

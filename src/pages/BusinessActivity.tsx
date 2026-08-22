@@ -2671,9 +2671,12 @@ export default function Transactions() {
         const lSiblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
 
         const summary: SummaryRow[] = [];
+        // Compact ledger rows rendered above the emphasized net total.
+        const incomeLedgerRows: SummaryRow[] = [];
         let calculatedNetForVariance: number | null = null;
         let netForSummary: number | null = null;
         let savedForTaxes = 0;
+
 
         if (isIncomeTx && linked) {
           const lGross = Number(linked.paycheck_amount) || 0;
@@ -2712,6 +2715,15 @@ export default function Transactions() {
             ...(lState > 0 ? [{ label: "State withheld", value: fmt(lState), mono: true }] : []),
             ...(lReserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(lReserve), mono: true }] : []),
           );
+
+          const lTotalTaxes = lFed + lState;
+          if (lTotalTaxes > 0) incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(lTotalTaxes) });
+          if (lReserve > 0) incomeLedgerRows.push({ label: "Saved for taxes", value: fmt(lReserve) });
+          if (l401 > 0) incomeLedgerRows.push({ label: "401(k) contributions", value: fmt(l401) });
+          if (lHsa > 0) incomeLedgerRows.push({ label: "HSA contributions", value: fmt(lHsa) });
+          if (lHealth > 0) incomeLedgerRows.push({ label: "Healthcare expenses", value: fmt(lHealth) });
+          if (lPreTax > 0) incomeLedgerRows.push({ label: "Pre-tax deductions", value: fmt(lPreTax) });
+          if (lOther > 0) incomeLedgerRows.push({ label: "Other deductions", value: fmt(lOther) });
         } else if (isIncomeTx) {
           // No linked income_entries row — still resolve Net Received through
           // the shared helper so an imported Plaid sibling (or denormalized
@@ -2739,22 +2751,26 @@ export default function Transactions() {
             )
           : null;
 
+        // Deposit reconciliation stays secondary — details only, never collapsed view.
+        if (varianceInfo && Math.abs(varianceInfo.variance) >= 0.01) {
+          detailSectionFields.push({
+            label: "Deposit variance",
+            value: varianceInfo.text,
+            subtle: !varianceInfo.material,
+          });
+        }
+
         if (isIncomeTx) {
+          if (incomeLedgerRows.length === 0 && savedForTaxes > 0) {
+            incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(savedForTaxes) });
+          }
+          summary.push(...incomeLedgerRows);
           summary.push({
             label: "Net deposited",
             value: fmt(netForSummary ?? Math.abs(Number(tx.amount) || 0)),
             tone: "income",
             emphasis: true,
           });
-          if (savedForTaxes > 0) summary.push({ label: "Saved for taxes", value: fmt(savedForTaxes) });
-          if (varianceInfo && Math.abs(varianceInfo.variance) >= 0.01) {
-            summary.push({
-              label: "Reconciliation",
-              value: varianceInfo.text,
-              subtle: !varianceInfo.material,
-              tone: varianceInfo.material ? "expense" : undefined,
-            });
-          }
         } else {
           summary.push({
             label: isTransferTx ? "Amount transferred" : "Amount paid",
@@ -2831,7 +2847,7 @@ export default function Transactions() {
                 : undefined
             }
             sections={sections}
-            detailsLabel="Details"
+            detailsLabel={isIncomeTx ? "Income details" : isTransferTx ? "Transfer details" : "Expense details"}
             moreDetails={moreDetails}
             receipts={
               <div className="space-y-2">
