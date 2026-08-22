@@ -2134,6 +2134,7 @@ export default function PersonalIncome() {
                 : undefined
             }
             sections={sections}
+            detailsLabel="Income details"
             source={
               fromPlanner
                 ? {

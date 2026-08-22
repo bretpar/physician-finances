@@ -2865,6 +2865,7 @@ export default function ProjectedIncome() {
               badges: [{ label: statusLabel, tone: statusTone }],
             }}
             sections={sections}
+            detailsLabel="Income details"
             primaryActions={primaryActions}
             onEdit={() => { const t = e; setDetailEntry(null); openOverrideEdit(t); }}
             hideDelete

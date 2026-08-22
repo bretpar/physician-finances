@@ -2831,6 +2831,7 @@ export default function Transactions() {
                 : undefined
             }
             sections={sections}
+            detailsLabel="Details"
             moreDetails={moreDetails}
             receipts={
               <div className="space-y-2">
