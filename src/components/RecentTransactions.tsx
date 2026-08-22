@@ -64,19 +64,13 @@ export default function RecentTransactions({ transactions }: Props) {
         const gross = Math.abs(tx.amount);
         const sections: DetailSection[] = [
           {
-            title: "Basic details",
+            title: "Transaction details",
+            collapsible: true,
             fields: [
               { label: "Vendor", value: tx.vendor || "Unknown" },
               ...(tx.category ? [{ label: "Category", value: tx.category }] : []),
               ...(tx.account_source ? [{ label: "Account", value: tx.account_source }] : []),
-              ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
-            ],
-          },
-          {
-            title: "Amount",
-            fields: [
               { label: "Gross", value: fmt(gross), mono: true },
-              ...(isIncome ? [{ label: "Net received", value: fmt(gross), mono: true }] : []),
             ],
           },
         ];
@@ -89,14 +83,27 @@ export default function RecentTransactions({ transactions }: Props) {
               date: formatDate(tx.transaction_date),
               amount: Math.abs(tx.amount),
               amountTone: isIncome ? "income" : "expense",
+              typeChip: isIncome ? "Income" : "Expense",
             }}
+            summary={[
+              {
+                label: isIncome ? "Net received" : "Amount paid",
+                value: fmt(gross),
+                tone: isIncome ? "income" : "expense",
+                emphasis: true,
+              },
+            ]}
             sections={sections}
+            moreDetails={[
+              { title: "More details", fields: tx.notes ? [{ label: "Notes", value: tx.notes }] : [] },
+            ]}
             onEdit={() => { setDetailTx(null); navigate("/business-activity"); }}
             editLabel="Open in ledger"
             hideDelete
           />
         );
       })()}
+
     </div>
   );
 }

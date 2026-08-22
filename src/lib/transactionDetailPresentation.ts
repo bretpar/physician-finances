@@ -1,0 +1,96 @@
+/**
+ * Presentation helpers for the shared Transaction Detail sheet.
+ *
+ * PRESENTATION ONLY. These helpers never compute tax figures — they take
+ * values that already come from the canonical engines
+ * (`useIncomeRecommendation`, `incomeRecommendationSurface`,
+ * `canonicalWithholding`, …) and map them to labels/tones for the modal.
+ */
+
+import { isMaterialAmountDivergence } from "@/lib/linkMergeEngine";
+import { resolveAdditionalNeeded } from "@/lib/incomeRecommendationSurface";
+
+export type TxStatusLevel = "ok" | "attention" | "error";
+
+const fmt = (n: number) =>
+  Math.abs(n).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+
+/**
+ * Deposit-variance copy. Uses the app's existing reconciliation tolerance
+ * (`isMaterialAmountDivergence`) instead of inventing a new threshold.
+ */
+export function describeDepositVariance(
+  bankDeposit: number | null | undefined,
+  calculatedNet: number | null | undefined,
+): { material: boolean; text: string; variance: number } | null {
+  const bank = Number(bankDeposit);
+  const calc = Number(calculatedNet);
+  if (!Number.isFinite(bank) || !Number.isFinite(calc) || bank <= 0 || calc <= 0) return null;
+  const variance = bank - calc;
+  if (Math.abs(variance) < 0.01) return { material: false, text: "Deposit matched exactly", variance: 0 };
+  const material = isMaterialAmountDivergence(bank, calc);
+  return {
+    material,
+    variance,
+    text: material
+      ? `Deposit differs by ${variance >= 0 ? "+" : "−"}${fmt(variance)}`
+      : `Deposit matched within ${fmt(variance)}`,
+  };
+}
+
+export interface IncomeTaxStatusInput {
+  /** True for W-2 paychecks — their gap is handled by the annual W-4 strategy. */
+  isW2: boolean;
+  /** Canonical recommended reserve for this transaction (gross basis), if known. */
+  recommended?: number | null;
+  /** Total the user withheld/saved for this transaction. */
+  saved: number;
+}
+
+export interface IncomeTaxStatus {
+  level: TxStatusLevel;
+  title: string;
+  description: string;
+  ctaLabel: string;
+}
+
+/**
+ * Compact tax-savings status for a single income transaction.
+ *
+ * W-2 paychecks are never labelled underfunded — the remaining annual gap is
+ * intentionally addressed by the W-4 calculator, not per paycheck (see
+ * `paycheckProfileSavings.isW2PaycheckTarget`).
+ */
+export function resolveIncomeTaxStatus(input: IncomeTaxStatusInput): IncomeTaxStatus | null {
+  const saved = Number(input.saved) || 0;
+
+  if (input.isW2) {
+    return {
+      level: "ok",
+      title: "Tax savings on track",
+      description:
+        "Payroll withholding covers this paycheck. Any remaining annual gap is handled by your W-4 plan.",
+      ctaLabel: "View tax recommendation",
+    };
+  }
+
+  const recommended = Number(input.recommended);
+  if (!Number.isFinite(recommended) || recommended <= 0) return null;
+
+  const additional = resolveAdditionalNeeded(recommended, saved);
+  if (additional <= 0) {
+    return {
+      level: "ok",
+      title: "Tax savings on track",
+      description: "Your withholding and reserves meet the current tax target for this income.",
+      ctaLabel: "View tax recommendation",
+    };
+  }
+
+  return {
+    level: "attention",
+    title: "Tax savings may be low",
+    description: "Your current withholding/savings is below the current tax target.",
+    ctaLabel: "View tax recommendation",
+  };
+}

@@ -636,26 +636,38 @@ export default function InvestmentIncome() {
         const actualSavedRaw = e.actual_tax_saved;
         const hasActual = actualSavedRaw != null && (actualSavedRaw as any) !== "";
         const actualSaved = Number(actualSavedRaw || 0);
+        const summary: SummaryRow[] = [
+          {
+            label: "Net received",
+            value: fmt(taxable - (hasActual ? actualSaved : 0)),
+            tone: taxable < 0 ? "expense" : dividend ? "neutral" : "income",
+            emphasis: true,
+          },
+          ...(hasActual && actualSaved > 0
+            ? [{ label: "Saved for taxes", value: fmt(actualSaved) }]
+            : []),
+        ];
+        const taxStatus = resolveIncomeTaxStatus({
+          isW2: false,
+          recommended: recommended > 0 ? recommended : null,
+          saved: hasActual ? actualSaved : 0,
+        });
         const sections: DetailSection[] = [
           {
-            title: "Basic details",
+            title: "Transaction details",
+            collapsible: true,
             fields: [
               { label: "Type", value: investmentIncomeTypeLabels[e.investment_income_type] },
-              { label: "Asset", value: e.asset_name_or_ticker },
-              ...(e.notes ? [{ label: "Notes", value: e.notes }] : []),
-            ],
-          },
-          {
-            title: "Tax details",
-            fields: [
               ...(dividend || e.sale_proceeds == null ? [] : [{ label: "Proceeds", value: fmt(Number(e.sale_proceeds || 0)), mono: true }]),
               ...(dividend || e.cost_basis == null ? [] : [{ label: "Cost basis", value: fmt(Number(e.cost_basis || 0)), mono: true }]),
               { label: "Gross", value: fmt(taxable), mono: true },
-              { label: "Net received", value: fmt(taxable - (hasActual ? actualSaved : 0)), mono: true },
               ...(recommended > 0 ? [{ label: "Recommended set-aside", value: fmt(recommended), mono: true }] : []),
               ...(hasActual && actualSaved > 0 ? [{ label: "Amount saved for taxes", value: fmt(actualSaved), mono: true }] : []),
             ],
           },
+        ];
+        const moreDetails: DetailSection[] = [
+          { title: "More details", fields: e.notes ? [{ label: "Notes", value: e.notes }] : [] },
         ];
         return (
           <TransactionDetailSheet
@@ -667,8 +679,13 @@ export default function InvestmentIncome() {
               date: formatDate(e.entry_date),
               amount: taxable,
               amountTone: dividend ? "neutral" : taxable < 0 ? "expense" : "income",
+              typeChip: shortTypeChip(e.investment_income_type, "Investment"),
             }}
+            summary={summary}
+            status={taxStatus ? { ...taxStatus, onCta: () => { setDetailEntry(null); navigate("/taxes"); } } : undefined}
             sections={sections}
+            moreDetails={moreDetails}
+
             onEdit={() => { const t = e; setDetailEntry(null); openEdit(t); }}
             onDelete={() => { setDeleteId(e.id); setDetailEntry(null); }}
           />

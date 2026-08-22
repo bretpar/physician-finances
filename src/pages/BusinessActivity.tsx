@@ -47,7 +47,13 @@ import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { txTone } from "@/lib/transactionTones";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
-import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { TransactionDetailSheet, type DetailSection, type DetailField, type SummaryRow } from "@/components/TransactionDetailSheet";
+import {
+  describeDepositVariance,
+  resolveIncomeTaxStatus,
+  shortTypeChip,
+} from "@/lib/transactionDetailPresentation";
+import { useNavigate } from "react-router-dom";
 import { formatDate, formatDateShort, getTodayLocalDateString } from "@/lib/localDate";
 import { DateField } from "@/components/DateField";
 import {
@@ -178,6 +184,7 @@ const emptyExpenseForm: ExpenseFormState = {
 };
 
 export default function Transactions() {
+  const navigate = useNavigate();
   const { companies } = useCompanies();
   const queryClient = useQueryClient();
   const { data: rawTransactions = [], isLoading } = useTransactions();
@@ -2636,19 +2643,16 @@ export default function Transactions() {
         const hasCompany = !!companyLabel && companyLabel !== "—" && companyLabel !== "Unassigned";
         const hasCategory = !!catLabel && catLabel !== "Uncategorized";
         const hasAccount = !!tx.account_source && tx.account_source !== "—";
-        const sections: DetailSection[] = [
-          {
-            title: "Basic details",
-            fields: [
-              { label: "Vendor", value: tx.vendor || "—" },
-              ...(hasCompany ? [{ label: "Company", value: companyLabel }] : []),
+        const detailSectionFields: DetailField[] = isIncomeTx
+          ? []
+          : [
               ...(hasCategory ? [{ label: "Category", value: catLabel }] : []),
-              ...((tx as any).schedule_c_category ? [{ label: "Schedule C", value: (tx as any).schedule_c_category as string }] : []),
+              ...(hasCompany ? [{ label: "Company", value: companyLabel }] : []),
+              ...((tx as any).schedule_c_category
+                ? [{ label: "Schedule C", value: (tx as any).schedule_c_category as string }]
+                : []),
               ...(hasAccount ? [{ label: "Account", value: tx.account_source! }] : []),
-              ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
-            ],
-          },
-        ];
+            ];
         // Compute linked Plaid/imported sibling once, so it applies whether or
         // not this canonical income transaction has a linked income_entries row.
         const lLinkedPlaidAmt = Math.abs(Number((tx as any).linked_plaid_amount) || 0);
@@ -2666,7 +2670,12 @@ export default function Transactions() {
         })) : undefined;
         const lSiblingAmt = plaidSibling ? Math.abs(Number(plaidSibling.transaction.amount) || 0) : 0;
 
-        if (linked) {
+        const summary: SummaryRow[] = [];
+        let calculatedNetForVariance: number | null = null;
+        let netForSummary: number | null = null;
+        let savedForTaxes = 0;
+
+        if (isIncomeTx && linked) {
           const lGross = Number(linked.paycheck_amount) || 0;
           const lFed = getCanonicalTotalFederalPayrollTaxes(linked as any);
           const lState = Number((linked as any).state_withholding) || 0;
@@ -2687,22 +2696,22 @@ export default function Transactions() {
             linkedPlaidAmount: lLinkedPlaidAmt,
             calculatedNet: calcNet,
           });
+          calculatedNetForVariance = calcNet;
+          netForSummary = lNet;
+          savedForTaxes = lFed + lState + lReserve;
 
-          sections.push({
-            title: "Tax details",
-            fields: [
-              { label: "Gross", value: fmt(lGross), mono: true },
-              { label: "Net received", value: fmt(lNet), mono: true },
-              ...(lFed > 0 ? [{ label: "Federal withheld", value: fmt(lFed), mono: true }] : []),
-              ...(lState > 0 ? [{ label: "State withheld", value: fmt(lState), mono: true }] : []),
-              ...(lPreTax > 0 ? [{ label: "Pre-tax", value: fmt(lPreTax), mono: true }] : []),
-              ...(l401 > 0 ? [{ label: "401(k)", value: fmt(l401), mono: true }] : []),
-              ...(lHsa > 0 ? [{ label: "HSA", value: fmt(lHsa), mono: true }] : []),
-              ...(lHealth > 0 ? [{ label: "Healthcare", value: fmt(lHealth), mono: true }] : []),
-              ...(lOther > 0 ? [{ label: "Other deductions", value: fmt(lOther), mono: true }] : []),
-              ...(lReserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(lReserve), mono: true }] : []),
-            ],
-          });
+          detailSectionFields.push(
+            { label: "Gross", value: fmt(lGross), mono: true },
+            ...(lPreTax > 0 ? [{ label: "Pre-tax", value: fmt(lPreTax), mono: true }] : []),
+            ...(l401 > 0 ? [{ label: "401(k)", value: fmt(l401), mono: true }] : []),
+            ...(lHsa > 0 ? [{ label: "HSA", value: fmt(lHsa), mono: true }] : []),
+            ...(lHealth > 0 ? [{ label: "Healthcare", value: fmt(lHealth), mono: true }] : []),
+            ...(lOther > 0 ? [{ label: "Other deductions", value: fmt(lOther), mono: true }] : []),
+            { label: "Net received", value: fmt(lNet), mono: true },
+            ...(lFed > 0 ? [{ label: "Federal withheld", value: fmt(lFed), mono: true }] : []),
+            ...(lState > 0 ? [{ label: "State withheld", value: fmt(lState), mono: true }] : []),
+            ...(lReserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(lReserve), mono: true }] : []),
+          );
         } else if (isIncomeTx) {
           // No linked income_entries row — still resolve Net Received through
           // the shared helper so an imported Plaid sibling (or denormalized
@@ -2713,22 +2722,89 @@ export default function Transactions() {
             siblingAmount: lSiblingAmt,
             linkedPlaidAmount: lLinkedPlaidAmt,
           });
-          sections.push({
-            title: "Tax details",
-            fields: [
-              { label: "Gross", value: fmt(gAmt), mono: true },
-              { label: "Net received", value: fmt(nAmt), mono: true },
-            ],
-          });
+          netForSummary = nAmt;
+          savedForTaxes = Number((tx as any).actual_withholding) || 0;
+          detailSectionFields.push(
+            { label: "Gross", value: fmt(gAmt), mono: true },
+            { label: "Net received", value: fmt(nAmt), mono: true },
+            ...(hasCompany ? [{ label: "Company", value: companyLabel }] : []),
+            ...(hasAccount ? [{ label: "Account", value: tx.account_source! }] : []),
+          );
         }
+
+        const varianceInfo = isIncomeTx
+          ? describeDepositVariance(
+              lSiblingAmt || lLinkedPlaidAmt || null,
+              calculatedNetForVariance ?? netForSummary,
+            )
+          : null;
+
+        if (isIncomeTx) {
+          summary.push({
+            label: "Net deposited",
+            value: fmt(netForSummary ?? Math.abs(Number(tx.amount) || 0)),
+            tone: "income",
+            emphasis: true,
+          });
+          if (savedForTaxes > 0) summary.push({ label: "Saved for taxes", value: fmt(savedForTaxes) });
+          if (varianceInfo && Math.abs(varianceInfo.variance) >= 0.01) {
+            summary.push({
+              label: "Reconciliation",
+              value: varianceInfo.text,
+              subtle: !varianceInfo.material,
+              tone: varianceInfo.material ? "expense" : undefined,
+            });
+          }
+        } else {
+          summary.push({
+            label: isTransferTx ? "Amount transferred" : "Amount paid",
+            value: fmt(Math.abs(Number(tx.amount) || 0)),
+            tone: isTransferTx ? "neutral" : "expense",
+            emphasis: true,
+          });
+          if (!isTransferTx && hasCategory) summary.push({ label: "Category", value: catLabel });
+          if (hasCompany) summary.push({ label: "Business", value: companyLabel });
+        }
+
+        const incomeTypeRaw = isIncomeTx ? (linked as any)?.income_type || null : null;
+        const taxStatus = isIncomeTx
+          ? resolveIncomeTaxStatus({
+              isW2: isW2FilingType(incomeTypeRaw),
+              recommended: Number((tx as any).recommended_withholding || 0) || null,
+              saved: savedForTaxes,
+            })
+          : null;
+
+        const sections: DetailSection[] = [
+          {
+            title: isIncomeTx ? "Income details" : "Transaction details",
+            collapsible: true,
+            fields: detailSectionFields,
+          },
+        ];
+
+        const moreDetails: DetailSection[] = [
+          {
+            title: "More details",
+            fields: [
+              ...(tx.notes ? [{ label: "Notes", value: tx.notes }] : []),
+              { label: "Entry source", value: source === "plaid" ? "Bank import" : source === "merged" ? "Linked" : "Manual" },
+              ...((tx as any).origin_type === "planner_converted"
+                ? [{ label: "Origin", value: "Converted from Income Planner" }]
+                : []),
+              ...((tx as any).created_at
+                ? [{ label: "Created", value: formatDate(String((tx as any).created_at).slice(0, 10)) }]
+                : []),
+            ],
+          },
+        ];
 
         const badges = [];
         if (tx.needs_review) badges.push({ label: "Review", tone: "warning" as const });
-        if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Planner", tone: "success" as const });
-        if (source === "plaid") badges.push({ label: "Imported", tone: "muted" as const });
-        else if (source === "merged") badges.push({ label: "Linked", tone: "default" as const });
+        if ((tx as any).origin_type === "planner_converted") badges.push({ label: "From Income Planner", tone: "success" as const });
+        if (source === "plaid") badges.push({ label: "Bank linked", tone: "muted" as const });
+        else if (source === "merged") badges.push({ label: "Bank linked", tone: "default" as const });
         else badges.push({ label: "Manual", tone: "muted" as const });
-        if (linked) badges.push({ label: "Matched", tone: "success" as const });
         return (
           <TransactionDetailSheet
             open={!!detailTx}
@@ -2739,32 +2815,40 @@ export default function Transactions() {
               date: formatDate(tx.transaction_date),
               amount: Math.abs(Number(tx.amount) || 0),
               amountTone: isIncomeTx ? "income" : isTransferTx ? "neutral" : "expense",
+              typeChip: shortTypeChip(incomeTypeRaw || txType, isIncomeTx ? "Income" : "Expense"),
               badges,
             }}
+            summary={summary}
+            status={
+              taxStatus
+                ? {
+                    level: taxStatus.level,
+                    title: taxStatus.title,
+                    description: taxStatus.description,
+                    ctaLabel: taxStatus.ctaLabel,
+                    onCta: () => { setDetailTx(null); navigate("/taxes"); },
+                  }
+                : undefined
+            }
             sections={sections}
-            extraContent={
-              <section className="space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Receipts
-                </h3>
+            moreDetails={moreDetails}
+            receipts={
+              <div className="space-y-2">
                 <TransactionAttachments
                   transactionId={tx.id}
                   companyId={(tx as any).source_id || null}
                   label="Receipts"
                 />
-                {linkedSiblings.length > 0 && (
-                  <div className="space-y-2">
-                    {linkedSiblings.map((it) => (
-                      <SiblingReceiptsList
-                        key={it.transaction.id}
-                        transactionId={it.transaction.id}
-                        label={it.transaction.vendor || "(No payee)"}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
+                {linkedSiblings.map((it) => (
+                  <SiblingReceiptsList
+                    key={it.transaction.id}
+                    transactionId={it.transaction.id}
+                    label={it.transaction.vendor || "(No payee)"}
+                  />
+                ))}
+              </div>
             }
+
             linked={{
               items: linkedSiblings.map((it) => ({
                 id: it.itemId,
