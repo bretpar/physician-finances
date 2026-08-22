@@ -1,4 +1,5 @@
 import type { FilingStatus } from "@/lib/taxBrackets";
+import type { EngineItemizedInputs } from "@/lib/saltDeduction";
 /**
  * Centralized Tax Calculation Service
  *
@@ -98,6 +99,12 @@ export interface UnifiedTaxInput {
   ssWageCap: number;
   deductionType?: "standard" | "itemized";
   itemizedDeductionAmount?: number;
+  /**
+   * Structured SALT/itemized inputs. The canonical engine computes SALT with
+   * its own AGI/MAGI, so every mode (actual, planned, annualized pace) gets the
+   * MAGI belonging to that mode.
+   */
+  itemizedInputs?: EngineItemizedInputs;
   /** Annual student loan interest the user expects to pay (§221). */
   studentLoanInterestPaid?: number;
   qualifyingChildrenCount?: number;
@@ -267,6 +274,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
+    itemizedInputs,
     studentLoanInterestPaid = 0,
     qualifyingChildrenCount = 0,
     otherDependentsCount = 0,
@@ -399,6 +407,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     additionalTaxPaid,
     deductionType,
     itemizedDeductionAmount,
+    itemizedInputs,
     studentLoanInterestPaid,
     qualifyingChildrenCount,
     otherDependentsCount,

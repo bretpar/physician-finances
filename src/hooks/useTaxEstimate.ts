@@ -34,7 +34,7 @@ import {
 import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { getApplicableHsaLimit } from "@/lib/hsaLimits";
-import { resolveItemizedDeductionInputs } from "@/lib/saltDeduction";
+import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
 
@@ -904,21 +904,21 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         lastYearTax: rates.lastYearTax,
         standardDeductionOverride: rates.standardDeductionOverride,
         ssWageCap: rates.ssWageCap,
-        ...resolveItemizedDeductionInputs({
+        // Legacy flat itemized settings still flow through; the canonical engine
+        // enforces max(standard, itemized) so these can never lower the deduction.
+        deductionType: rates.deductionType,
+        itemizedDeductionAmount: rates.itemizedDeductionAmount,
+        // SALT detail only — no MAGI is computed here. The engine phases the
+        // SALT cap down against its own canonical AGI for this mode.
+        itemizedInputs: buildEngineItemizedInputs({
           rates,
           hasFeatureAccess: itemizedDeductionsAllowed,
           stateWithheldEstimate:
             personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld
             + businessStateWithheld + cu.business.stateWithheld
             + (incomeScope === "actualPlusPlanned" ? projTotals.stateWithheld : 0),
-          magiApprox: Math.max(
-            0,
-            totalPersonalIncome + cuW2Gross + cuOtherGross + businessIncome + cuBizGross + netStockGain
-              + (incomeScope === "actualPlusPlanned"
-                ? projTotals.w2Income + projTotals.seIncome + projTotals.otherIncome + savedW2Addon.futureGross
-                : 0),
-          ),
         }),
+
         studentLoanInterestPaid: (rates as any).studentLoanInterestAnnual ?? 0,
         qualifyingChildrenCount: rates.qualifyingChildrenCount,
         otherDependentsCount: rates.otherDependentsCount,
@@ -958,9 +958,23 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const elapsedMonths = Math.max(1, now.getMonth() + 1);
     const annualizationFactor = 12 / elapsedMonths;
     const actual = scopedBaseInputs.actualOnlyTaxInputs;
+    // SALT is recomputed by the engine against the ANNUALIZED canonical AGI.
+    // The YTD-withholding-derived state income tax estimate is annualized too;
+    // a saved annual estimate is already annual and is left alone.
+    const paceItemizedInputs = actual.itemizedInputs
+      ? {
+          ...actual.itemizedInputs,
+          stateIncomeTaxEstimate:
+            (rates?.personalStateTaxAnnualEstimate ?? 0) > 0
+              ? actual.itemizedInputs.stateIncomeTaxEstimate
+              : actual.itemizedInputs.stateIncomeTaxEstimate * annualizationFactor,
+        }
+      : undefined;
 
     return computeUnifiedTaxEstimate({
       ...actual,
+      itemizedInputs: paceItemizedInputs,
+
       businessIncome: actual.businessIncome * annualizationFactor,
       seEligibleBusinessIncome: actual.seEligibleBusinessIncome * annualizationFactor,
       seEligibleBusinessExpenses: (actual.seEligibleBusinessExpenses ?? actual.businessExpenses) * annualizationFactor,
@@ -987,7 +1001,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       includeProjectedIncome: false,
       rateSourceLabel: "actual/YTD income pace",
     });
-  }, [scopedBaseInputs]);
+  }, [scopedBaseInputs, rates?.personalStateTaxAnnualEstimate]);
 
   const forecastResult = useMemo(() => {
     if (!scopedBaseInputs) return null;

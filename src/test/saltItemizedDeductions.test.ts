@@ -143,10 +143,12 @@ describe("2026 SALT cap and phase-down", () => {
     expect(r.effectiveCap).toBeCloseTo(SALT_CAP_2026_MFS - 3_000, 6);
   });
 
-  it("respects an explicit cap override", () => {
-    const r = computeItemizedDeductions({ ...base, propertyTax: 60000, saltCapOverride: 25_000 });
-    expect(r.effectiveCap).toBe(25_000);
-    expect(r.saltDeduction).toBe(25_000);
+  it("ignores a persisted cap override — the statutory cap always controls", () => {
+    const r = computeItemizedDeductions({ ...base, propertyTax: 60000, saltCapOverride: 99_000 });
+    expect(r.effectiveCap).toBe(SALT_CAP_2026);
+    expect(r.saltDeduction).toBe(SALT_CAP_2026);
+    const low = computeItemizedDeductions({ ...base, propertyTax: 60000, saltCapOverride: 1_000 });
+    expect(low.effectiveCap).toBe(SALT_CAP_2026);
   });
 
   it("adds other itemized deductions on top of capped SALT", () => {

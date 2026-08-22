@@ -55,8 +55,12 @@ export interface ItemizedDeductionInputs {
   personalPropertyTax: number;
   /** Advanced override: force the sales-tax path even if income tax is larger. */
   forceSalesTaxElection: boolean;
-  /** Advanced override: replace the computed SALT cap. */
+  /**
+   * @deprecated IGNORED. A client-controlled value must never raise (or lower)
+   * the statutory SALT cap. Kept only so persisted values type-check.
+   */
   saltCapOverride?: number | null;
+
   /** Qualified home mortgage interest paid this year. */
   mortgageInterest?: number;
   /**
@@ -131,10 +135,10 @@ export function computeItemizedDeductions(input: ItemizedDeductionInputs): Itemi
   const phaseDownAmount = Math.min(rawPhaseDown, Math.max(0, baseCap - floor));
   const phasedCap = Math.max(floor, baseCap - phaseDownAmount);
 
-  const effectiveCap =
-    input.saltCapOverride !== null && input.saltCapOverride !== undefined && Number.isFinite(Number(input.saltCapOverride))
-      ? Math.max(0, Number(input.saltCapOverride))
-      : phasedCap;
+  // Statutory cap/phase-down/floor ALWAYS controls the calculation. Persisted
+  // `saltCapOverride` values are intentionally ignored.
+  const effectiveCap = phasedCap;
+
 
   const saltDeduction = Math.min(saltBeforeCap, effectiveCap);
   const otherItemizedDeductions = nonNeg(input.otherItemizedDeductions);
@@ -277,4 +281,107 @@ export function resolveItemizedDeductionInputs(params: {
   return selection.deductionType === "itemized"
     ? { deductionType: "itemized", itemizedDeductionAmount: selection.deductionApplied }
     : { deductionType: "standard", itemizedDeductionAmount: 0 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonical engine bridge
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * SALT/itemized inputs handed to the canonical tax engine. The engine supplies
+ * `filingStatus` and the canonical AGI/MAGI itself — callers must NOT compute a
+ * second MAGI approximation.
+ */
+export type EngineItemizedInputs = Omit<ItemizedDeductionInputs, "filingStatus" | "magi" | "saltCapOverride">;
+
+export interface ItemizedSettingsRates {
+  filingStatus: string;
+  deductionType: "standard" | "itemized";
+  itemizedDeductionAmount: number;
+  standardDeductionOverride?: number | null;
+  itemizedDeductionsEnabled?: boolean;
+  saltPropertyTax?: number;
+  saltStateIncomeTaxMode?: StateTaxEntryMode;
+  saltStateIncomeTaxManual?: number;
+  saltSalesTaxBase?: number;
+  saltSalesTaxLargePurchases?: number;
+  saltPersonalPropertyTax?: number;
+  saltForceSalesTaxElection?: boolean;
+  saltCapOverride?: number | null;
+  itemizedOtherDeductions?: number;
+  itemizedMortgageInterest?: number;
+  itemizedMortgageBalance?: number | null;
+  personalStateTaxAnnualEstimate?: number;
+}
+
+/**
+ * Builds the engine-side SALT/itemized inputs from saved settings.
+ *
+ * Returns `undefined` when the feature is off or the user lacks the
+ * `itemizedDeductions` entitlement — saved values stay persisted but cannot
+ * affect the canonical calculation. MAGI is deliberately absent: the engine
+ * plugs in its own canonical AGI, so Actual / Include-Planned / current-pace
+ * modes each phase down SALT with the MAGI belonging to that mode.
+ */
+export function buildEngineItemizedInputs(params: {
+  rates: ItemizedSettingsRates;
+  /** Fallback state income tax estimate when no annual estimate is saved. */
+  stateWithheldEstimate: number;
+  /** Authoritative feature-access decision for `itemizedDeductions`. */
+  hasFeatureAccess?: boolean;
+}): EngineItemizedInputs | undefined {
+  const { rates } = params;
+  if (!rates.itemizedDeductionsEnabled || params.hasFeatureAccess === false) return undefined;
+
+  const savedStateEstimate = nonNeg(rates.personalStateTaxAnnualEstimate);
+  return {
+    propertyTax: nonNeg(rates.saltPropertyTax),
+    stateIncomeTaxMode: rates.saltStateIncomeTaxMode === "manual" ? "manual" : "estimate",
+    stateIncomeTaxEstimate: savedStateEstimate > 0 ? savedStateEstimate : nonNeg(params.stateWithheldEstimate),
+    stateIncomeTaxManual: nonNeg(rates.saltStateIncomeTaxManual),
+    salesTaxBase: nonNeg(rates.saltSalesTaxBase),
+    salesTaxLargePurchases: nonNeg(rates.saltSalesTaxLargePurchases),
+    personalPropertyTax: nonNeg(rates.saltPersonalPropertyTax),
+    forceSalesTaxElection: !!rates.saltForceSalesTaxElection,
+    otherItemizedDeductions: nonNeg(rates.itemizedOtherDeductions),
+    mortgageInterest: nonNeg(rates.itemizedMortgageInterest),
+    mortgageBalance: rates.itemizedMortgageBalance ?? null,
+  };
+}
+
+/**
+ * SINGLE point of truth for standard-vs-itemized inside the canonical engine.
+ *
+ * - When `itemizedInputs` is present, SALT is computed here against the
+ *   canonical `magi` and compared to the standard deduction.
+ * - When only a legacy flat `itemizedDeductionAmount` is supplied, it is still
+ *   honoured but can never drop the deduction below the standard amount.
+ */
+export function resolveCanonicalDeduction(params: {
+  filingStatus: FilingStatus;
+  /** Canonical AGI/MAGI from the engine pipeline. */
+  magi: number;
+  standardDeductionOverride?: number | null;
+  deductionType?: "standard" | "itemized";
+  itemizedDeductionAmount?: number;
+  itemizedInputs?: EngineItemizedInputs;
+}): DeductionSelection & { itemizedDetail: ItemizedDeductionResult | null } {
+  const itemizedDetail = params.itemizedInputs
+    ? computeItemizedDeductions({
+        ...params.itemizedInputs,
+        filingStatus: params.filingStatus,
+        magi: params.magi,
+      })
+    : null;
+
+  const flatItemized = params.deductionType === "itemized" ? nonNeg(params.itemizedDeductionAmount) : 0;
+  const itemizedTotal = Math.max(itemizedDetail?.totalItemized ?? 0, flatItemized);
+
+  const selection = selectDeduction({
+    filingStatus: params.filingStatus,
+    itemizedTotal,
+    standardDeductionOverride: params.standardDeductionOverride ?? null,
+  });
+
+  return { ...selection, itemizedDetail };
 }
