@@ -201,8 +201,24 @@ describe("Itemized Deductions card validation + accessibility", () => {
 /* ─── 5. No conflicting "Coming soon" mortgage card ─── */
 
 describe("Tax Savings mortgage-interest presentation", () => {
-  it("no longer shows a standalone Mortgage Interest coming-soon card", () => {
+  it("suppresses the coming-soon mortgage card for developers only", () => {
     const source = readFileSync("src/pages/Mileage.tsx", "utf8");
-    expect(source).not.toContain('value: "mortgage-interest"');
+    // Developer (itemizedDeductions access) → no coming-soon mortgage card.
+    expect(source).toContain('canFeature("itemizedDeductions")\n          ? []');
+    // Non-developers keep the existing coming-soon presentation.
+    expect(source).toContain('value: "mortgage-interest"');
+  });
+
+  it("no longer offers a SALT cap override input", () => {
+    const source = readFileSync("src/components/tax-savings/ItemizedDeductionsCard.tsx", "utf8");
+    expect(source).not.toContain("saltCapOverride");
+  });
+
+  it("labels the developer-only other-itemized field and adds SALT test IDs", () => {
+    const source = readFileSync("src/components/tax-savings/ItemizedDeductionsCard.tsx", "utf8");
+    expect(source).toContain("Other supported itemized deductions ($) — Developer testing only");
+    expect(source).toContain('data-testid="salt-mode-estimate"');
+    expect(source).toContain('data-testid="salt-mode-manual"');
+    expect(source).toContain('data-testid="itemized-advanced-trigger"');
   });
 });
