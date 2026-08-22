@@ -614,12 +614,23 @@ export function calculateFullEstimate(params: {
 
 
 
-  // Standard deduction (fallback) and resolved deduction applied
-  const standardDeduction = standardDeductionOverride ?? STANDARD_DEDUCTION[filingStatus];
-  const deductionApplied = deductionType === "itemized"
-    ? Math.max(0, itemizedDeductionAmount)
-    : standardDeduction;
+  // ── Standard vs itemized: the canonical engine is the final authority ────
+  // Callers may pass a flat itemized amount and/or structured SALT inputs; in
+  // both cases the engine applies max(standard, valid itemized) so no caller
+  // can force a deduction below the standard amount.
+  const deductionResolution = resolveCanonicalDeduction({
+    filingStatus,
+    magi: agi,
+    standardDeductionOverride,
+    deductionType,
+    itemizedDeductionAmount,
+    itemizedInputs: params.itemizedInputs,
+  });
+  const standardDeduction = deductionResolution.standardDeduction;
+  const resolvedDeductionType = deductionResolution.deductionType;
+  const deductionApplied = deductionResolution.deductionApplied;
   const taxableIncomeBeforeQbi = Math.max(0, agi - deductionApplied);
+
 
   // ── §199A QBI deduction ─────────────────────────────────────────────────
   // When the caller does not supply per-entity data, synthesize one aggregate
