@@ -1268,9 +1268,18 @@ export default function Mileage() {
             : "No interest entered",
           content: studentLoanInterestContent,
         },
-        // Mortgage interest is entered inside the Itemized Deductions (SALT)
-        // card below — no separate "Coming soon" card, which conflicted with it.
+        // Mortgage interest: Developer users enter it inside the Itemized
+        // Deductions (SALT) card below, so the conflicting "Coming soon"
+        // mortgage card is suppressed for them and kept for everyone else.
+        ...(canFeature("itemizedDeductions")
+          ? []
+          : [{
+              value: "mortgage-interest", label: "Mortgage Interest", icon: Wallet,
+              description: "Itemized deduction for qualified home mortgage interest.",
+              status: "not_available" as OpportunityStatus, summary: "Coming soon", comingSoon: true,
+            }]),
         canFeature("itemizedDeductions")
+
           ? {
               value: "salt", label: "Itemized Deductions (SALT)", icon: Info,
               description: "Property, state income or sales, and personal property taxes — capped and compared to your standard deduction.",
