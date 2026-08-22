@@ -2751,6 +2751,15 @@ export default function Transactions() {
             )
           : null;
 
+        // Deposit reconciliation stays secondary — details only, never collapsed view.
+        if (varianceInfo && Math.abs(varianceInfo.variance) >= 0.01) {
+          detailSectionFields.push({
+            label: "Deposit variance",
+            value: varianceInfo.text,
+            subtle: !varianceInfo.material,
+          });
+        }
+
         if (isIncomeTx) {
           if (incomeLedgerRows.length === 0 && savedForTaxes > 0) {
             incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(savedForTaxes) });
