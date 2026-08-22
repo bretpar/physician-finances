@@ -94,3 +94,43 @@ export function resolveIncomeTaxStatus(input: IncomeTaxStatusInput): IncomeTaxSt
     ctaLabel: "View tax recommendation",
   };
 }
+
+const TYPE_CHIP_LABELS: Record<string, string> = {
+  w2: "W-2",
+  w2_employee: "W-2",
+  "1099": "1099",
+  "1099_nec": "1099",
+  "1099_schedule_c": "1099",
+  k1: "K-1",
+  k1_partnership: "K-1",
+  scorp_distribution: "S-Corp",
+  capital_gain: "Capital gain",
+  capital_gains: "Capital gain",
+  dividend: "Dividend",
+  interest: "Interest",
+  rental: "Rental",
+  loss: "Loss",
+  other_income: "Other income",
+  income: "Income",
+  expense: "Expense",
+};
+
+/**
+ * Short, human chip label for a raw income/expense/investment type.
+ * Falls back to the provided default, then to a title-cased version of the raw value.
+ */
+export function shortTypeChip(
+  raw: string | null | undefined,
+  fallback = "Other",
+): string {
+  const key = String(raw ?? "").toLowerCase().trim();
+  if (!key) return fallback;
+  if (TYPE_CHIP_LABELS[key]) return TYPE_CHIP_LABELS[key];
+  if (key.startsWith("w2") || key.startsWith("w-2")) return "W-2";
+  if (key.startsWith("1099")) return "1099";
+  if (key.startsWith("k1") || key.startsWith("k-1")) return "K-1";
+  return key
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
