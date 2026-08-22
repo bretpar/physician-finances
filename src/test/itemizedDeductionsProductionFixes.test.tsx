@@ -187,11 +187,13 @@ describe("Itemized Deductions card validation + accessibility", () => {
     expect((screen.getByTestId("itemized-save") as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("keeps the mortgage test IDs and exposes accessible switch names", () => {
+  it("keeps the mortgage test IDs and exposes accessible switch names", async () => {
     render(<ItemizedDeductionsCard />);
     expect(screen.getByTestId("itemized-mortgageInterest")).toBeTruthy();
     expect(screen.getByTestId("itemized-mortgageBalance")).toBeTruthy();
     expect(screen.getByRole("switch", { name: "Use itemized deductions" })).toBeTruthy();
+    // The sales-tax election lives in the collapsed Advanced overrides block.
+    await userEvent.click(screen.getByText("Advanced overrides"));
     expect(screen.getByRole("switch", { name: "Always elect sales tax" })).toBeTruthy();
   });
 });
