@@ -964,12 +964,13 @@ function TaxProfileSection() {
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <Label className="text-xs text-muted-foreground mb-1.5 block">Filing Status</Label>
+          <Label htmlFor="settings-filing-status" className="text-xs text-muted-foreground mb-1.5 block">Filing Status</Label>
           <Select value={d.filingStatus} onValueChange={(v) => set({ filingStatus: v as TaxRates["filingStatus"] })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id="settings-filing-status" aria-label="Filing Status" data-testid="settings-filing-status"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="single">Single</SelectItem>
               <SelectItem value="married_filing_jointly" data-testid="onboarding-filing-status-mfj">Married Filing Jointly</SelectItem>
+              <SelectItem value="married_filing_separately" data-testid="settings-filing-status-mfs">Married Filing Separately</SelectItem>
               <SelectItem value="head_of_household" data-testid="onboarding-filing-status-hoh">Head of Household</SelectItem>
             </SelectContent>
           </Select>
