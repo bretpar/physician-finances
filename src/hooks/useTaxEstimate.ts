@@ -34,7 +34,7 @@ import {
 import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { getApplicableHsaLimit } from "@/lib/hsaLimits";
-import { resolveItemizedDeductionInputs } from "@/lib/saltDeduction";
+import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
 
