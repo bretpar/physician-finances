@@ -30,7 +30,8 @@ import { calculateInvestmentTaxRecommendation } from "@/lib/investmentTaxRecomme
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatDateShort } from "@/lib/localDate";
 import { Switch } from "@/components/ui/switch";
-import { TransactionDetailSheet, type DetailSection } from "@/components/TransactionDetailSheet";
+import { TransactionDetailSheet, type DetailSection, type SummaryRow } from "@/components/TransactionDetailSheet";
+import { resolveIncomeTaxStatus, shortTypeChip } from "@/lib/transactionDetailPresentation";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -682,7 +683,7 @@ export default function InvestmentIncome() {
               typeChip: shortTypeChip(e.investment_income_type, "Investment"),
             }}
             summary={summary}
-            status={taxStatus ? { ...taxStatus, onCta: () => { setDetailEntry(null); navigate("/taxes"); } } : undefined}
+            status={taxStatus ? { ...taxStatus, onCta: () => { setDetailEntry(null); window.location.assign("/taxes"); } } : undefined}
             sections={sections}
             moreDetails={moreDetails}
 
