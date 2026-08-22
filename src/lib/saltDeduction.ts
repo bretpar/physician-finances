@@ -231,9 +231,16 @@ export function resolveItemizedDeductionInputs(params: {
   /** Fallback state income tax estimate when no annual estimate is saved. */
   stateWithheldEstimate: number;
   magiApprox: number;
+  /**
+   * Authoritative feature-access decision for the `itemizedDeductions` feature.
+   * When explicitly `false`, saved itemized settings must NOT affect the tax
+   * calculation, even if `itemizedDeductionsEnabled` is still persisted.
+   * Undefined = no gating information supplied (pure-math callers/tests).
+   */
+  hasFeatureAccess?: boolean;
 }): { deductionType: "standard" | "itemized"; itemizedDeductionAmount: number } {
   const { rates } = params;
-  if (!rates.itemizedDeductionsEnabled) {
+  if (!rates.itemizedDeductionsEnabled || params.hasFeatureAccess === false) {
     return {
       deductionType: rates.deductionType,
       itemizedDeductionAmount: rates.itemizedDeductionAmount,

@@ -35,6 +35,7 @@ import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustment
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { getApplicableHsaLimit } from "@/lib/hsaLimits";
 import { resolveItemizedDeductionInputs } from "@/lib/saltDeduction";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
 
 export type TaxMode = "actual" | "forecast";
@@ -78,6 +79,11 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   const { data: taxPayments = [], isLoading: tpLoading } = useTaxPayments();
   const { data: taxSavings = [], isLoading: tsLoading } = useTaxSavings();
   const { data: hsaRows = [] } = useHsaContributions(currentYear);
+  // Single authoritative access decision: the same gate that shows/hides the
+  // Itemized Deductions UI also decides whether its saved values may affect
+  // the canonical tax calculation.
+  const { accessStatus: featureAccessStatus } = useFeatureAccess();
+  const itemizedDeductionsAllowed = featureAccessStatus("itemizedDeductions") === "allowed";
   const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
   const { companies } = useCompanies();
   const { data: ytdCatchups } = useYtdCatchupEntries();
@@ -900,6 +906,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         ssWageCap: rates.ssWageCap,
         ...resolveItemizedDeductionInputs({
           rates,
+          hasFeatureAccess: itemizedDeductionsAllowed,
           stateWithheldEstimate:
             personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld
             + businessStateWithheld + cu.business.stateWithheld
