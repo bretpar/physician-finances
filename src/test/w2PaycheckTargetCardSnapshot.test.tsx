@@ -55,6 +55,8 @@ vi.mock("@/hooks/useTaxSettings", () => ({
       stateIncomeTaxEnabled: false,
       withholdingMethod: "flat_estimate",
       manualEffectiveTaxRate: 17.2,
+      // Per-paycheck target mode (not annual W-4 messaging).
+      w2PaycheckRecMethod: "paycheck_target",
     },
     isLoading: false,
   }),
