@@ -2547,6 +2547,12 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      link_group_is_active: { Args: { _group_id: string }; Returns: boolean }
+      repair_stale_link_group: { Args: { _group_id: string }; Returns: boolean }
+      repair_stale_links_for_transactions: {
+        Args: { _tx_ids: string[] }
+        Returns: Json
+      }
       select_my_plan: { Args: { _plan: string }; Returns: string }
       store_plaid_token_in_vault: {
         Args: { _item_id: string; _token: string }

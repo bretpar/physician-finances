@@ -1051,6 +1051,16 @@ export function useCreateMatchGroup() {
           .in("id", staleTxIds);
       }
 
+      // Server-side repair for stale/orphaned groups the client cannot see
+      // (e.g. auto-link rows with created_by_user = false). Uses the same
+      // "≥2 live transactions" definition of an active group as
+      // computeLinkEligibility(); genuinely active groups are left alone.
+      const { error: repairErr } = await (supabase as any).rpc(
+        "repair_stale_links_for_transactions",
+        { _tx_ids: transactionIds },
+      );
+      if (repairErr) console.warn("[LinkTx] stale link repair failed:", repairErr.message);
+
       // Pull income_entry enrichment for any rows that have one — used to
       // boost completeness score of the canonical candidate.
       const { data: incomeRows } = await supabase
