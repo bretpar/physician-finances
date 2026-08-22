@@ -2752,21 +2752,16 @@ export default function Transactions() {
           : null;
 
         if (isIncomeTx) {
+          if (incomeLedgerRows.length === 0 && savedForTaxes > 0) {
+            incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(savedForTaxes) });
+          }
+          summary.push(...incomeLedgerRows);
           summary.push({
             label: "Net deposited",
             value: fmt(netForSummary ?? Math.abs(Number(tx.amount) || 0)),
             tone: "income",
             emphasis: true,
           });
-          if (savedForTaxes > 0) summary.push({ label: "Saved for taxes", value: fmt(savedForTaxes) });
-          if (varianceInfo && Math.abs(varianceInfo.variance) >= 0.01) {
-            summary.push({
-              label: "Reconciliation",
-              value: varianceInfo.text,
-              subtle: !varianceInfo.material,
-              tone: varianceInfo.material ? "expense" : undefined,
-            });
-          }
         } else {
           summary.push({
             label: isTransferTx ? "Amount transferred" : "Amount paid",
