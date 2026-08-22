@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PersonalIncome from "@/pages/PersonalIncome";
@@ -101,6 +101,7 @@ function renderPage() {
  * Target = 4230 × 17.2% = $727.56 → additional savings = $390.42 → $390.
  */
 function fillW2Paycheck() {
+  renderPage();
   fireEvent.click(screen.getByRole("button", { name: /add/i }));
   fireEvent.change(screen.getByTestId("paycheck-gross-input"), { target: { value: "4230" } });
   fireEvent.click(screen.getByTestId("paycheck-federal-breakdown-toggle"));
@@ -139,8 +140,7 @@ describe("W-2 Paycheck Target card UI", () => {
     fillW2Paycheck();
     const withoutCatchUp = norm(screen.getByTestId("w2-additional-tax-savings").textContent || "");
 
-    screen.unmount?.();
-    document.body.innerHTML = "";
+    cleanup();
 
     mockCatchUpApplied = 759;
     fillW2Paycheck();
