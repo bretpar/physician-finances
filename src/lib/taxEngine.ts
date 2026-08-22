@@ -15,6 +15,8 @@ import {
 } from "@/lib/taxBrackets";
 import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
 import { computeStudentLoanInterestDeduction } from "@/lib/studentLoanInterestDeduction";
+import { resolveCanonicalDeduction, type EngineItemizedInputs } from "@/lib/saltDeduction";
+
 import {
   computeQbiDeduction,
   type QbiComputation,
