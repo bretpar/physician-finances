@@ -9,6 +9,7 @@
  */
 import { test, expect } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+import { getCurrentQuarter } from "../src/lib/quarters";
 
 const PASSWORD = "Test123!";
 const ENTITY = "Vituity";
