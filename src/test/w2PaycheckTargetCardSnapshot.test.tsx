@@ -126,15 +126,15 @@ describe("W-2 Paycheck Target card UI", () => {
     const card = screen.getByTestId("w2-additional-tax-savings");
 
     expect(norm(card.textContent || "")).toMatchInlineSnapshot(
-      `"Additional Savings RecommendedBased on this paycheck's federal income tax target, consider saving an additional $390 from this paycheck.Additional savings$390Federal income tax already withheld from this paycheck is included in this recommendation. Social Security and Medicare are handled separately.Federal income tax$337Social Security$262Medicare$58Want your employer to withhold this automatically? Open the W-4 Calculator →"`,
+      `"Additional Savings RecommendedBased on this paycheck's federal income tax target, consider saving an additional $390.00 from this paycheck.Additional savings$390.00Federal income tax already withheld from this paycheck is included in this recommendation. Social Security and Medicare are handled separately.Federal income tax$337.00Social Security$262.00Medicare$58.00Want your employer to withhold this automatically? Open the W-4 Calculator →"`,
     );
   });
 
   it("credits only federal income tax withholding in the breakdown", () => {
     fillW2Paycheck();
     // $337 federal credit only: 727.56 − 337.14 = 390.42 → $390 recommended.
-    expect(screen.getByTestId("w2-breakdown-federal").textContent).toBe("$337");
-    expect(screen.getByTestId("w2-additional-tax-savings").textContent).toContain("$390");
+    expect(screen.getByTestId("w2-breakdown-federal").textContent).toBe("$337.00");
+    expect(screen.getByTestId("w2-additional-tax-savings").textContent).toContain("$390.00");
   });
 
   it("ignores the quarterly catch-up amount", () => {
@@ -149,7 +149,7 @@ describe("W-2 Paycheck Target card UI", () => {
     const withCatchUp = norm(screen.getByTestId("w2-additional-tax-savings").textContent || "");
 
     expect(withCatchUp).toBe(withoutCatchUp);
-    expect(withCatchUp).toContain("$390");
+    expect(withCatchUp).toContain("$390.00");
     expect(withCatchUp).not.toContain("1,149");
   });
 });
