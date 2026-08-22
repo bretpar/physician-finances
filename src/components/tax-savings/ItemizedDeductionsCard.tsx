@@ -16,6 +16,24 @@ const num = (v: string) => {
   const n = parseFloat(v);
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
+/** A dollar field is invalid only when the user typed a negative number. */
+const isNegative = (v: string) => {
+  const t = (v ?? "").trim();
+  if (t === "") return false;
+  const n = parseFloat(t);
+  return Number.isFinite(n) && n < 0;
+};
+const DOLLAR_FIELDS = [
+  "propertyTax",
+  "personalPropertyTax",
+  "stateIncomeTaxManual",
+  "salesTaxBase",
+  "salesTaxLargePurchases",
+  "mortgageInterest",
+  "mortgageBalance",
+  "saltCapOverride",
+  "otherItemizedDeductions",
+] as const;
 
 interface FormState {
   propertyTax: string;
@@ -106,8 +124,14 @@ export function ItemizedDeductionsCard() {
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  // Negative dollar amounts are never valid. We surface an inline error and
+  // block saving instead of silently persisting 0 for what the user sees.
+  const invalidFields = DOLLAR_FIELDS.filter((k) => isNegative(form[k] as string));
+  const hasInvalid = invalidFields.length > 0;
+
   const save = (extra: Record<string, unknown> = {}) => {
     if (!taxSettings?.id) return;
+    if (hasInvalid) return;
     updateTaxSettings.mutate({
       id: taxSettings.id,
       saltPropertyTax: num(form.propertyTax),
@@ -125,24 +149,39 @@ export function ItemizedDeductionsCard() {
     } as any);
   };
 
-  const field = (id: keyof FormState, label: string, hint?: string) => (
-    <div className="space-y-1.5">
-      <Label htmlFor={`itemized-${id}`}>{label}</Label>
-      <Input
-        id={`itemized-${id}`}
-        data-testid={`itemized-${id}`}
-        type="number"
-        inputMode="decimal"
-        min="0"
-        step="0.01"
-        placeholder="0.00"
-        className="min-h-[44px]"
-        value={form[id] as string}
-        onChange={(e) => set(id, e.target.value as FormState[typeof id])}
-      />
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
+  const field = (id: keyof FormState, label: string, hint?: string) => {
+    const invalid = isNegative(form[id] as string);
+    return (
+      <div className="space-y-1.5">
+        <Label htmlFor={`itemized-${id}`}>{label}</Label>
+        <Input
+          id={`itemized-${id}`}
+          data-testid={`itemized-${id}`}
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? `itemized-${id}-error` : undefined}
+          className="min-h-[44px]"
+          value={form[id] as string}
+          onChange={(e) => set(id, e.target.value as FormState[typeof id])}
+        />
+        {invalid && (
+          <p
+            id={`itemized-${id}-error`}
+            role="alert"
+            data-testid={`itemized-${id}-error`}
+            className="text-xs text-destructive"
+          >
+            Enter 0 or a positive amount.
+          </p>
+        )}
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-5" data-testid="itemized-deductions-card">
@@ -154,9 +193,11 @@ export function ItemizedDeductionsCard() {
           </p>
         </div>
         <Switch
+          id="itemized-enabled-toggle"
           data-testid="itemized-enabled-toggle"
+          aria-label="Use itemized deductions"
           checked={enabled}
-          disabled={!taxSettings?.id || updateTaxSettings.isPending}
+          disabled={!taxSettings?.id || updateTaxSettings.isPending || hasInvalid}
           onCheckedChange={(v) => save({ itemizedDeductionsEnabled: v })}
         />
       </div>
@@ -220,7 +261,9 @@ export function ItemizedDeductionsCard() {
               </p>
             </div>
             <Switch
+              id="itemized-force-sales-tax"
               data-testid="itemized-force-sales-tax"
+              aria-label="Always elect sales tax"
               checked={form.forceSalesTaxElection}
               onCheckedChange={(v) => set("forceSalesTaxElection", v)}
             />
@@ -255,10 +298,16 @@ export function ItemizedDeductionsCard() {
         </p>
       </div>
 
+      {hasInvalid && (
+        <p role="alert" data-testid="itemized-validation-summary" className="text-sm text-destructive">
+          Fix the highlighted amounts before saving — negative values aren't allowed.
+        </p>
+      )}
+
       <Button
         className="w-full sm:w-auto min-h-[44px]"
         data-testid="itemized-save"
-        disabled={updateTaxSettings.isPending || !taxSettings?.id}
+        disabled={updateTaxSettings.isPending || !taxSettings?.id || hasInvalid}
         onClick={() => save()}
       >
         Save Itemized Deductions
