@@ -9,6 +9,7 @@
  */
 import { test, expect } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+import { getCurrentQuarter } from "../src/lib/quarters";
 
 const PASSWORD = "Test123!";
 const ENTITY = "Vituity";
@@ -51,30 +52,37 @@ test.describe("Onboarding — K-1 estimated tax paid persists to Tax Overview", 
     await page.goto("/taxes");
     await expect(page.getByRole("heading", { name: /tax overview/i })).toBeVisible({ timeout: 20_000 });
 
+    // Deterministic synchronization guard: the quarterly tracker renders only
+    // after its quarter window and totals are resolved, and it publishes those
+    // values as data attributes. Waiting on this element (instead of racing
+    // formatted text while queries stream in) removes all loading-timing and
+    // count-up-animation dependence from the assertions below.
+    const tracker = page.getByTestId("quarterly-tracker").first();
+    await expect(tracker).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(async () => Number(await tracker.getAttribute("data-quarter-payments")), {
+        timeout: 30_000,
+        intervals: [250, 500, 1_000],
+      })
+      .toBe(30_000);
+
     // 1) Tax Overview's "Estimated payments made" summary line must include $30,000.
     const row = page.locator("div", { hasText: /estimated payments made/i }).filter({
       hasText: /\$30,000/,
     });
     await expect(row.first()).toBeVisible({ timeout: 20_000 });
 
-    // 2) Payment History shows exactly one $30,000 payment row, and the
-    //    quarter label on that row matches the quarter label used by the
-    //    summary tracker — otherwise the same payment appears in history
-    //    under one quarter but is excluded from the tracker under another.
-    const paymentRows = page.locator("text=$30,000.00");
-    await expect(paymentRows.first()).toBeVisible({ timeout: 20_000 });
-    // Should appear in payment history exactly once.
+    // 2) Payment History shows at least one $30,000 payment row.
+    await expect(page.getByText(/\$30,000\.00/).first()).toBeVisible({ timeout: 20_000 });
     const historyMatches = await page.getByText(/\$30,000\.00/).count();
     expect(historyMatches).toBeGreaterThanOrEqual(1);
 
-    // 3) The IRS-period quarter label rendered on the payment-history row
-    //    must also be the quarter the tracker uses today, so the $30,000
-    //    appears under "Estimated payments made" for the current quarter.
-    //    Today's IRS-period quarter, per getCurrentQuarter:
-    //      Jan–Mar → Q1, Apr–May → Q2, Jun–Jul → Q3, Aug+ → Q3/Q4.
-    const m = new Date().getMonth();
-    const expectedQ = m < 3 ? "Q1" : m < 5 ? "Q2" : m < 8 ? "Q3" : "Q4";
-    await expect(page.getByText(new RegExp(`${expectedQ}\\b`)).first()).toBeVisible({ timeout: 10_000 });
+    // 3) The quarter the tracker credits the payment to must be today's
+    //    IRS-period quarter. Derived from the app's canonical helper rather
+    //    than duplicated month math, and read from the tracker's own attribute
+    //    so it cannot pass/fail on render order.
+    const expectedQ = getCurrentQuarter(new Date()).label;
+    await expect(tracker).toHaveAttribute("data-quarter", expectedQ);
   });
 });
 

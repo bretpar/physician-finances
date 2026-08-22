@@ -356,7 +356,18 @@ export default function QuarterlyTracker({
   const goNext = () => setView(stepQuarter(view.year, view.quarter, 1));
 
   return (
-    <Card className={cn("border-2 transition-colors relative", toneStyles.ring)}>
+    <Card
+      className={cn("border-2 transition-colors relative", toneStyles.ring)}
+      // Deterministic sync markers for tests: the tracker only renders once its
+      // quarter window and totals are resolved, so waiting on this element (and
+      // reading these attributes) never depends on loading/animation timing.
+      data-testid="quarterly-tracker"
+      data-quarter={q.label}
+      data-quarter-year={q.year}
+      data-quarter-target={Math.round(quarterTarget)}
+      data-quarter-paid={Math.round(paidThisQuarter)}
+      data-quarter-payments={Math.round(recommendation.estimatedPaymentsMade ?? 0)}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2 min-w-0">
