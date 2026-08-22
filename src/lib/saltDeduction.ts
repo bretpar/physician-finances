@@ -135,10 +135,10 @@ export function computeItemizedDeductions(input: ItemizedDeductionInputs): Itemi
   const phaseDownAmount = Math.min(rawPhaseDown, Math.max(0, baseCap - floor));
   const phasedCap = Math.max(floor, baseCap - phaseDownAmount);
 
-  const effectiveCap =
-    input.saltCapOverride !== null && input.saltCapOverride !== undefined && Number.isFinite(Number(input.saltCapOverride))
-      ? Math.max(0, Number(input.saltCapOverride))
-      : phasedCap;
+  // Statutory cap/phase-down/floor ALWAYS controls the calculation. Persisted
+  // `saltCapOverride` values are intentionally ignored.
+  const effectiveCap = phasedCap;
+
 
   const saltDeduction = Math.min(saltBeforeCap, effectiveCap);
   const otherItemizedDeductions = nonNeg(input.otherItemizedDeductions);
