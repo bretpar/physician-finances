@@ -685,6 +685,7 @@ export default function InvestmentIncome() {
             summary={summary}
             status={taxStatus ? { ...taxStatus, onCta: () => { setDetailEntry(null); window.location.assign("/taxes"); } } : undefined}
             sections={sections}
+            detailsLabel="Income details"
             moreDetails={moreDetails}
 
             onEdit={() => { const t = e; setDetailEntry(null); openEdit(t); }}

@@ -94,6 +94,7 @@ export default function RecentTransactions({ transactions }: Props) {
               },
             ]}
             sections={sections}
+            detailsLabel="Details"
             moreDetails={[
               { title: "More details", fields: tx.notes ? [{ label: "Notes", value: tx.notes }] : [] },
             ]}

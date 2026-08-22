@@ -167,9 +167,7 @@ export function TransactionAttachments({
       ) : isLoading ? (
         <div className="text-[11px] text-muted-foreground px-1">Loading attachments…</div>
       ) : attachments.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-3 text-[11px] text-muted-foreground">
-          Add receipt, screenshot, invoice, PDF, or other supporting document.
-        </div>
+        <p className="px-1 text-[11px] text-muted-foreground">No receipts</p>
       ) : (
         <ul className="space-y-1.5">
           {attachments.map((a) => (

@@ -2014,23 +2014,22 @@ export default function PersonalIncome() {
               saved: savedForTaxes,
             });
 
-        // Compact primary summary — everything else lives behind disclosure.
+        // Ledger-style primary summary — everything else lives behind disclosure.
         const summary: SummaryRow[] = [
+          ...(withheld > 0 ? [{ label: "Total taxes paid", value: fmt(withheld) }] : []),
+          ...(reserve > 0 ? [{ label: "Saved for taxes", value: fmt(reserve) }] : []),
+          ...(ret401k > 0 ? [{ label: "401(k) contributions", value: fmt(ret401k) }] : []),
+          ...(hsa > 0 ? [{ label: "HSA contributions", value: fmt(hsa) }] : []),
+          ...(healthcare > 0 ? [{ label: "Healthcare expenses", value: fmt(healthcare) }] : []),
+          ...(otherDed > 0 ? [{ label: "Other pre-tax deductions", value: fmt(otherDed) }] : []),
           {
             label: bankDeposit != null ? "Net deposited" : "Net received",
             value: fmt(bankDeposit != null ? bankDeposit : netReceived),
             tone: isLoss ? "expense" : "income",
             emphasis: true,
           },
-          ...(withheld > 0 ? [{ label: "Taxes withheld", value: fmt(withheld) }] : []),
-          ...(reserve > 0 ? [{ label: "Saved for taxes", value: fmt(reserve) }] : []),
-          ...(varianceInfo && !varianceInfo.material
-            ? [{ label: "Reconciliation", value: varianceInfo.text, subtle: true }]
-            : []),
-          ...(varianceInfo && varianceInfo.material
-            ? [{ label: "Reconciliation", value: varianceInfo.text, tone: "expense" as const }]
-            : []),
         ];
+
 
         const sections: DetailSection[] = [
           {
@@ -2135,6 +2134,7 @@ export default function PersonalIncome() {
                 : undefined
             }
             sections={sections}
+            detailsLabel="Income details"
             source={
               fromPlanner
                 ? {
