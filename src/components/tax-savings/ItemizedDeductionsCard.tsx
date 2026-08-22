@@ -31,7 +31,6 @@ const DOLLAR_FIELDS = [
   "salesTaxLargePurchases",
   "mortgageInterest",
   "mortgageBalance",
-  "saltCapOverride",
   "otherItemizedDeductions",
 ] as const;
 
@@ -43,7 +42,6 @@ interface FormState {
   salesTaxLargePurchases: string;
   personalPropertyTax: string;
   forceSalesTaxElection: boolean;
-  saltCapOverride: string;
   otherItemizedDeductions: string;
   mortgageInterest: string;
   mortgageBalance: string;
@@ -67,7 +65,6 @@ export function ItemizedDeductionsCard() {
     salesTaxLargePurchases: "",
     personalPropertyTax: "",
     forceSalesTaxElection: false,
-    saltCapOverride: "",
     otherItemizedDeductions: "",
     mortgageInterest: "",
     mortgageBalance: "",
@@ -84,7 +81,6 @@ export function ItemizedDeductionsCard() {
       salesTaxLargePurchases: s.saltSalesTaxLargePurchases ? String(s.saltSalesTaxLargePurchases) : "",
       personalPropertyTax: s.saltPersonalPropertyTax ? String(s.saltPersonalPropertyTax) : "",
       forceSalesTaxElection: !!s.saltForceSalesTaxElection,
-      saltCapOverride: s.saltCapOverride != null ? String(s.saltCapOverride) : "",
       otherItemizedDeductions: s.itemizedOtherDeductions ? String(s.itemizedOtherDeductions) : "",
       mortgageInterest: s.itemizedMortgageInterest ? String(s.itemizedMortgageInterest) : "",
       mortgageBalance: s.itemizedMortgageBalance != null ? String(s.itemizedMortgageBalance) : "",
@@ -108,7 +104,6 @@ export function ItemizedDeductionsCard() {
     salesTaxLargePurchases: num(form.salesTaxLargePurchases),
     personalPropertyTax: num(form.personalPropertyTax),
     forceSalesTaxElection: form.forceSalesTaxElection,
-    saltCapOverride: form.saltCapOverride.trim() === "" ? null : num(form.saltCapOverride),
     otherItemizedDeductions: num(form.otherItemizedDeductions),
     mortgageInterest: num(form.mortgageInterest),
     mortgageBalance: form.mortgageBalance.trim() === "" ? null : num(form.mortgageBalance),
@@ -141,7 +136,6 @@ export function ItemizedDeductionsCard() {
       saltSalesTaxLargePurchases: num(form.salesTaxLargePurchases),
       saltPersonalPropertyTax: num(form.personalPropertyTax),
       saltForceSalesTaxElection: form.forceSalesTaxElection,
-      saltCapOverride: form.saltCapOverride.trim() === "" ? null : num(form.saltCapOverride),
       itemizedOtherDeductions: num(form.otherItemizedDeductions),
       itemizedMortgageInterest: num(form.mortgageInterest),
       itemizedMortgageBalance: form.mortgageBalance.trim() === "" ? null : num(form.mortgageBalance),
@@ -208,20 +202,22 @@ export function ItemizedDeductionsCard() {
       </div>
 
       <div className="space-y-2">
-        <Label>State income or sales tax</Label>
+        <Label id="salt-state-tax-mode-label">State income or sales tax</Label>
         <RadioGroup
+          aria-label="State income or sales tax election"
+          data-testid="salt-state-tax-mode"
           value={form.stateIncomeTaxMode}
           onValueChange={(v) => set("stateIncomeTaxMode", v === "manual" ? "manual" : "estimate")}
           className="flex flex-col gap-2"
         >
           <div className="flex items-center gap-2">
-            <RadioGroupItem value="estimate" id="salt-mode-estimate" />
+            <RadioGroupItem value="estimate" id="salt-mode-estimate" data-testid="salt-mode-estimate" aria-label="Use my estimated state income tax" />
             <Label htmlFor="salt-mode-estimate" className="font-normal">
               Use my estimated state income tax ({fmt(stateIncomeTaxEstimate)})
             </Label>
           </div>
           <div className="flex items-center gap-2">
-            <RadioGroupItem value="manual" id="salt-mode-manual" />
+            <RadioGroupItem value="manual" id="salt-mode-manual" data-testid="salt-mode-manual" aria-label="Enter state income tax manually" />
             <Label htmlFor="salt-mode-manual" className="font-normal">Enter state income tax manually</Label>
           </div>
         </RadioGroup>
@@ -248,7 +244,7 @@ export function ItemizedDeductionsCard() {
       </div>
 
       <Collapsible>
-        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-sm font-medium">
+        <CollapsibleTrigger data-testid="itemized-advanced-trigger" aria-label="Advanced overrides" className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-sm font-medium">
           Advanced overrides
           <ChevronDown className="h-4 w-4" />
         </CollapsibleTrigger>
@@ -268,8 +264,11 @@ export function ItemizedDeductionsCard() {
               onCheckedChange={(v) => set("forceSalesTaxElection", v)}
             />
           </div>
-          {field("saltCapOverride", "SALT cap override ($)", "Leave blank to use the 2026 cap and phase-down.")}
-          {field("otherItemizedDeductions", "Other itemized deductions ($)", "Charitable giving, etc. (mortgage interest is entered above).")}
+          {field(
+            "otherItemizedDeductions",
+            "Other supported itemized deductions ($) — Developer testing only",
+            "Do not include anything already entered elsewhere (property, state/sales, personal property, or mortgage interest). Charitable giving is still Coming Soon and is not implemented here.",
+          )}
         </CollapsibleContent>
       </Collapsible>
 
