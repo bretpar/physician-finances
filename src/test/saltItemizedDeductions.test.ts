@@ -297,3 +297,75 @@ describe("tax engine integration", () => {
     expect(est.deductionApplied).toBe(STANDARD_DEDUCTION.single);
   });
 });
+
+describe("mortgage interest", () => {
+  const base = {
+    propertyTax: 0,
+    stateIncomeTaxMode: "manual" as const,
+    stateIncomeTaxEstimate: 0,
+    stateIncomeTaxManual: 0,
+    salesTaxBase: 0,
+    salesTaxLargePurchases: 0,
+    personalPropertyTax: 0,
+    forceSalesTaxElection: false,
+    saltCapOverride: null,
+    otherItemizedDeductions: 0,
+    magi: 200_000,
+  };
+
+  it("adds full mortgage interest when no balance is given", () => {
+    const r = computeItemizedDeductions({ ...base, filingStatus: "single", mortgageInterest: 20_000 });
+    expect(r.mortgageInterestDeductible).toBe(20_000);
+    expect(r.mortgageInterestDisallowed).toBe(0);
+    expect(r.totalItemized).toBe(20_000);
+  });
+
+  it("prorates interest above the $750k acquisition-debt limit", () => {
+    const r = computeItemizedDeductions({
+      ...base,
+      filingStatus: "married_filing_jointly",
+      mortgageInterest: 30_000,
+      mortgageBalance: 1_500_000,
+    });
+    expect(r.mortgageDebtLimit).toBe(750_000);
+    expect(r.mortgageInterestDeductible).toBeCloseTo(15_000, 6);
+    expect(r.mortgageInterestDisallowed).toBeCloseTo(15_000, 6);
+  });
+
+  it("uses the $375k limit for married filing separately", () => {
+    const r = computeItemizedDeductions({
+      ...base,
+      filingStatus: "married_filing_separately",
+      mortgageInterest: 10_000,
+      mortgageBalance: 750_000,
+    });
+    expect(r.mortgageDebtLimit).toBe(375_000);
+    expect(r.mortgageInterestDeductible).toBeCloseTo(5_000, 6);
+  });
+
+  it("can flip the standard-vs-itemized comparison", () => {
+    const withoutMortgage = computeItemizedDeductions({ ...base, filingStatus: "single", propertyTax: 12_000 });
+    expect(selectDeduction({ filingStatus: "single", itemizedTotal: withoutMortgage.totalItemized }).deductionType).toBe("standard");
+    const withMortgage = computeItemizedDeductions({ ...base, filingStatus: "single", propertyTax: 12_000, mortgageInterest: 18_000 });
+    const sel = selectDeduction({ filingStatus: "single", itemizedTotal: withMortgage.totalItemized });
+    expect(sel.deductionType).toBe("itemized");
+    expect(sel.deductionApplied).toBe(30_000);
+  });
+
+  it("bridges saved mortgage settings into the engine inputs", () => {
+    const res = resolveItemizedDeductionInputs({
+      rates: {
+        filingStatus: "single",
+        deductionType: "standard",
+        itemizedDeductionAmount: 0,
+        itemizedDeductionsEnabled: true,
+        saltPropertyTax: 12_000,
+        itemizedMortgageInterest: 18_000,
+        itemizedMortgageBalance: null,
+      },
+      stateWithheldEstimate: 0,
+      magiApprox: 200_000,
+    });
+    expect(res).toEqual({ deductionType: "itemized", itemizedDeductionAmount: 30_000 });
+  });
+});
