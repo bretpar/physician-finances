@@ -904,21 +904,21 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         lastYearTax: rates.lastYearTax,
         standardDeductionOverride: rates.standardDeductionOverride,
         ssWageCap: rates.ssWageCap,
-        ...resolveItemizedDeductionInputs({
+        // Legacy flat itemized settings still flow through; the canonical engine
+        // enforces max(standard, itemized) so these can never lower the deduction.
+        deductionType: rates.deductionType,
+        itemizedDeductionAmount: rates.itemizedDeductionAmount,
+        // SALT detail only — no MAGI is computed here. The engine phases the
+        // SALT cap down against its own canonical AGI for this mode.
+        itemizedInputs: buildEngineItemizedInputs({
           rates,
           hasFeatureAccess: itemizedDeductionsAllowed,
           stateWithheldEstimate:
             personalStateWithheld + cu.w2.stateWithheld + cu.other.stateWithheld
             + businessStateWithheld + cu.business.stateWithheld
             + (incomeScope === "actualPlusPlanned" ? projTotals.stateWithheld : 0),
-          magiApprox: Math.max(
-            0,
-            totalPersonalIncome + cuW2Gross + cuOtherGross + businessIncome + cuBizGross + netStockGain
-              + (incomeScope === "actualPlusPlanned"
-                ? projTotals.w2Income + projTotals.seIncome + projTotals.otherIncome + savedW2Addon.futureGross
-                : 0),
-          ),
         }),
+
         studentLoanInterestPaid: (rates as any).studentLoanInterestAnnual ?? 0,
         qualifyingChildrenCount: rates.qualifyingChildrenCount,
         otherDependentsCount: rates.otherDependentsCount,
