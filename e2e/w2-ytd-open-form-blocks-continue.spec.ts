@@ -20,9 +20,10 @@
  */
 import { test, expect, type ConsoleMessage } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
 const EMAIL = process.env.E2E_W2_OPEN_FORM_EMAIL ?? "brendantparker+w2openform@gmail.com";
-const PASSWORD = process.env.E2E_W2_OPEN_FORM_PASSWORD ?? "Test123!";
+const PASSWORD = process.env.E2E_W2_OPEN_FORM_PASSWORD ?? QA_PASSWORD;
 const FIRST_NAME = "OpenForm";
 
 const EMP1 = { name: "Main Hospital W2", gross: "60000", fed: "9500" } as const;

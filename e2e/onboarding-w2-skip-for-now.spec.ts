@@ -11,10 +11,11 @@
  */
 import { test, expect } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
 const EMAIL =
   process.env.E2E_W2_SKIP_EMAIL ?? "brendantparker+w2skipforward@gmail.com";
-const PASSWORD = process.env.E2E_W2_SKIP_PASSWORD ?? "Test123!";
+const PASSWORD = process.env.E2E_W2_SKIP_PASSWORD ?? QA_PASSWORD;
 
 test.describe("Onboarding — W-2 Skip for now completes and persists", () => {
   test("skip advances to dashboard and survives a reload", async ({ page }) => {

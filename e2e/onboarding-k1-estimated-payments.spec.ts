@@ -10,8 +10,9 @@
 import { test, expect } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
 import { getCurrentQuarter } from "../src/lib/quarters";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
-const PASSWORD = "Test123!";
+const PASSWORD = QA_PASSWORD;
 const ENTITY = "Vituity";
 
 test.describe("Onboarding — K-1 estimated tax paid persists to Tax Overview", () => {

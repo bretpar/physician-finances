@@ -23,9 +23,10 @@
  */
 import { test, expect, type Page } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
 const EMAIL = process.env.E2E_W2_MULTI_EMAIL ?? "brendantparker+w2multi@gmail.com";
-const PASSWORD = process.env.E2E_W2_MULTI_PASSWORD ?? "Test123!";
+const PASSWORD = process.env.E2E_W2_MULTI_PASSWORD ?? QA_PASSWORD;
 const FIRST_NAME = "Multi";
 
 const EMP1 = {
