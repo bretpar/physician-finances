@@ -10,7 +10,10 @@
  *   Q2 = [Apr 1, Jun 1)   Q3 = [Jun 1, Sep 1)   Q4 = [Sep 1, Jan 1)
  */
 import { describe, it, expect, afterAll } from "vitest";
-import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
+import {
+  buildQuarterRecommendation,
+  type QuarterRecommendationInput,
+} from "@/lib/quarterRecommendation";
 
 const Y = 2026;
 const NOW = new Date(Y, 11, 31); // late in year so nothing is "future"
@@ -21,7 +24,7 @@ const w = (date: string, federal_withholding: number) => ({
   federal_withholding,
 });
 
-const q = (quarter: number, entries: ReturnType<typeof w>[]) =>
+const q = (quarter: QuarterRecommendationInput["quarter"], entries: ReturnType<typeof w>[]) =>
   buildQuarterRecommendation({
     annualTaxLiability: 40_000,
     year: Y,
