@@ -1,7 +1,8 @@
 import { test, expect, Page, Locator } from "../playwright-fixture";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
 const EMAIL = "brendantparker@gmail.com";
-const PASSWORD = "Test123!";
+const PASSWORD = QA_PASSWORD;
 const ENTITY = "Vituity";
 
 function parseMoney(s: string | null): number {

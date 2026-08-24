@@ -8,11 +8,12 @@
  */
 import { test, expect } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
 const EMAIL =
   process.env.E2E_W2_COMPANY_PERSIST_EMAIL ??
   "brendantparker+w2companypersist@gmail.com";
-const PASSWORD = process.env.E2E_W2_COMPANY_PERSIST_PASSWORD ?? "Test123!";
+const PASSWORD = process.env.E2E_W2_COMPANY_PERSIST_PASSWORD ?? QA_PASSWORD;
 
 test.describe("Onboarding — W-2 company persistence into YTD step", () => {
   test("two W-2 employers persist as separate YTD cards", async ({ page }) => {
@@ -69,7 +70,7 @@ test.describe("Onboarding — W-2 company persistence into YTD step", () => {
     test.setTimeout(120_000);
 
     const email = "brendantparker+w2goback@gmail.com";
-    const password = "Test123!";
+    const password = QA_PASSWORD;
 
     await ensureFreshScenarioAccount(page, {
       email,

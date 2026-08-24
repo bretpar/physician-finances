@@ -6,9 +6,10 @@
  * signup with the same email → fresh onboarding.
  */
 import { test, expect, type Page } from "../playwright-fixture";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
 const EMAIL = process.env.E2E_ACCOUNT_DELETE_EMAIL ?? "brendantparker+w2delete@gmail.com";
-const PASSWORD = process.env.E2E_ACCOUNT_DELETE_PASSWORD ?? "Test123!";
+const PASSWORD = process.env.E2E_ACCOUNT_DELETE_PASSWORD ?? QA_PASSWORD;
 const FIRST_NAME = "DeleteReset";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "https://app.paycheckmd.com";
 

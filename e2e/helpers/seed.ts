@@ -42,7 +42,9 @@ if (typeof globalThis !== "undefined" && typeof (globalThis as { WebSocket?: unk
 }
 
 export const E2E_EMAIL_DOMAIN = "paycheckmd-e2e.test";
-export const E2E_PASSWORD = "Test1234!";
+import { QA_PASSWORD } from "./qaPassword";
+
+export const E2E_PASSWORD = QA_PASSWORD;
 
 export interface DisposableUser {
   email: string;

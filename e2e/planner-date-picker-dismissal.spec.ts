@@ -9,9 +9,10 @@
  * behavior included) — a jsdom unit test cannot reproduce it.
  */
 import { test, expect } from "../playwright-fixture";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
 const EMAIL = process.env.E2E_EMAIL ?? "brendantparker@gmail.com";
-const PASSWORD = process.env.E2E_PASSWORD ?? "Test123!";
+const PASSWORD = process.env.E2E_PASSWORD ?? QA_PASSWORD;
 
 async function signIn(page: import("@playwright/test").Page) {
   await page.goto("/login");

@@ -7,8 +7,9 @@
  */
 import { test, expect, type Page } from "../playwright-fixture";
 import { ensureFreshScenarioAccount } from "./helpers/ensureFreshScenarioAccount";
+import { QA_PASSWORD } from "./helpers/qaPassword";
 
-const PASSWORD = "Test123!";
+const PASSWORD = QA_PASSWORD;
 const EMPLOYER = "Evergreen Medical Center";
 
 async function completeW2CatchupToPremium(page: Page, email: string, incomeTypeTestId: string) {
