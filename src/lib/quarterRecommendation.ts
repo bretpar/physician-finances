@@ -42,6 +42,7 @@ import {
 } from "@/lib/catchUpRecommendation";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { isBusinessIncomeType } from "@/lib/ledgerRouting";
+import { parseLocalDate } from "@/lib/localDate";
 
 import type { InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 
@@ -266,12 +267,14 @@ export function buildQuarterRecommendation(
   const todayCutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const inWin = (iso?: string | null) => {
     if (!iso) return false;
-    const d = new Date(iso);
+    const d = parseLocalDate(iso);
+    if (!d) return false;
     return d >= start && d < end;
   };
   const isPast = (iso?: string | null) => {
     if (!iso) return false;
-    const d = new Date(iso);
+    const d = parseLocalDate(iso);
+    if (!d) return false;
     return d < todayCutoff;
   };
 
@@ -284,7 +287,8 @@ export function buildQuarterRecommendation(
     const yearEnd = new Date(year + 1, 0, 1);
     const inYear = (iso?: string | null) => {
       if (!iso) return false;
-      const d = new Date(iso);
+      const d = parseLocalDate(iso);
+    if (!d) return false;
       return d >= yearStart && d < yearEnd;
     };
     let qIncome = 0;
@@ -466,7 +470,7 @@ export function buildQuarterRecommendation(
       (e as any).entry_kind === "ytd_catchup";
     let paid = 0;
     if (isYtdCatchup) {
-      const periodEnd = e.income_date ? new Date(e.income_date) : null;
+      const periodEnd = parseLocalDate(e.income_date);
       if (periodEnd && periodEnd.getFullYear() === year) {
         const jan1 = new Date(year, 0, 1);
         const totalMs = Math.max(1, periodEnd.getTime() - jan1.getTime());
