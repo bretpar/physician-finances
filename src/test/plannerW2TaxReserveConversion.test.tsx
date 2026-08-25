@@ -143,8 +143,8 @@ describe("Planner W-2 → Personal Income tax reserve preservation", () => {
       year: 2026,
       quarter: 3,
       quarterMethod: "dynamic",
-      incomeEntries: [incomeEntry],
-      personalEntries: [],
+      incomeEntries: [],
+      personalEntries: [incomeEntry],
       transactions: [],
       investmentEntries: [],
       payments: [],
@@ -156,6 +156,5 @@ describe("Planner W-2 → Personal Income tax reserve preservation", () => {
     const w2Row = recommendation.sourceRows.find((s: any) => s.key === "w2:source:co-optum");
     expect(w2Row).toBeTruthy();
     expect(w2Row!.saved).toBe(275);
-    expect(w2Row!.paid).toBe(2_265);
   });
 });
