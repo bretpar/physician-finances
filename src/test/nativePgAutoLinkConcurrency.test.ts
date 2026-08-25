@@ -34,6 +34,12 @@ import {
 
 const d = hasNativePg ? describe : describe.skip;
 
+/**
+ * Refusal reasons that are safe by construction: each is returned BEFORE any
+ * write, so the losing caller cannot mutate state.
+ */
+const SAFE_REFUSALS = ["already_claimed", "already_linked", "race_lost", "ambiguous_candidates", "wrong_sides"];
+
 d("native PostgreSQL expense auto-link", () => {
   let a: Client; // primary / worker 1
   let b: Client; // worker 2 / racer
@@ -153,7 +159,9 @@ d("native PostgreSQL expense auto-link", () => {
       const results = settled.map((s) => (s.status === "fulfilled" ? s.value : { linked: false, reason: "threw" }));
       expect(results.filter((r) => r.linked)).toHaveLength(1);
       for (const loser of results.filter((r) => !r.linked)) {
-        expect(["already_claimed", "already_linked", "race_lost", "ambiguous_candidates"]).toContain(loser.reason);
+        // `wrong_sides` is the RPC's safe refusal once the winner has flipped the
+        // canonical manual row to source_type='merged' — a pre-mutation bail, not a defect.
+        expect(SAFE_REFUSALS).toContain(loser.reason);
       }
 
       const links = await activeLinks(o);
@@ -198,7 +206,8 @@ d("native PostgreSQL expense auto-link", () => {
       const third = await pair(b, m, p);
       expect(second.linked).toBe(false);
       expect(third.linked).toBe(false);
-      expect(["already_claimed", "already_linked"]).toContain(second.reason);
+      expect(SAFE_REFUSALS).toContain(second.reason);
+      expect(SAFE_REFUSALS).toContain(third.reason);
 
       expect(await snapshot()).toEqual(before);
     });
