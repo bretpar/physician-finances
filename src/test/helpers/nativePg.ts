@@ -49,7 +49,6 @@ export async function provisionSchema(): Promise<void> {
     await c.query("DROP SCHEMA IF EXISTS public CASCADE");
     await c.query("DROP SCHEMA IF EXISTS auth CASCADE");
     await c.query("CREATE SCHEMA public");
-    await c.query("GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role");
     await c.query(BOOTSTRAP());
     for (const f of AUTO_LINK_MIGRATIONS) await c.query(migrationSql(f));
   } finally {

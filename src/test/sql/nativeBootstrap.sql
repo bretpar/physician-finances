@@ -21,6 +21,8 @@ END $$;
 
 GRANT anon, authenticated, service_role TO CURRENT_USER;
 
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
 CREATE SCHEMA IF NOT EXISTS auth;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 
