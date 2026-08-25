@@ -1,0 +1,84 @@
+name: Native PostgreSQL auto-link concurrency
+
+on:
+  push:
+    paths:
+      - "supabase/migrations/**"
+      - "src/lib/expenseAutoLink.ts"
+      - "src/test/nativePgAutoLinkConcurrency.test.ts"
+      - "src/test/helpers/nativePg.ts"
+      - "src/test/sql/nativeBootstrap.sql"
+      - ".github/workflows/native-pg-autolink.yml"
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "src/lib/expenseAutoLink.ts"
+      - "src/test/nativePgAutoLinkConcurrency.test.ts"
+      - "src/test/helpers/nativePg.ts"
+      - "src/test/sql/nativeBootstrap.sql"
+      - ".github/workflows/native-pg-autolink.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: native-pg-autolink-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-pg:
+    name: PostgreSQL 18 concurrency suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autolink_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/autolink_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Report native PostgreSQL version
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d autolink_ci -c "select version()"
+
+      - name: Native PostgreSQL auto-link concurrency suite
+        run: bunx vitest run src/test/nativePgAutoLinkConcurrency.test.ts --reporter=verbose
+
+      - name: Existing auto-link, split/many-to-many, cleanup and isolation tests
+        if: always()
+        run: |
+          bunx vitest run \
+            src/test/expenseAutoLink.test.ts \
+            src/test/expenseAutoLinkAtomic.test.ts \
+            src/test/expenseAutoLinkDb.test.ts \
+            src/test/expenseAutoLinkGroups.test.ts \
+            src/test/staleLinkGroupRepair.test.ts \
+            src/test/transactionLinkingDedupe.test.ts \
+            src/test/linkEligibility.test.ts \
+            src/test/linkMergeEngine.test.ts \
+            --reporter=verbose
+
+      - name: Tear down disposable data
+        if: always()
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d autolink_ci \
+            -c "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS auth CASCADE; CREATE SCHEMA public;"
