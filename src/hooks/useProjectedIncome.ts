@@ -1053,6 +1053,11 @@ export function useManualPlannerConvert() {
             ui_income_subtype: input.uiIncomeSubtype ?? input.incomeType,
             income_date: input.occurrenceDate,
             ...ledger,
+            // Preserve the user's saved-for-taxes amount as "Saved" (distinct from
+            // payroll withholding, which counts as "Paid"). The ledger fields already
+            // carry this from the planner occurrence's additionalTaxReserve; the
+            // explicit assignment guarantees it round-trips to income_entries.
+            additional_tax_reserve: ledger.additional_tax_reserve,
             source_bucket: "personal",
             tax_category: "ordinary",
             is_actual: true,
