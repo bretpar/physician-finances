@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "predeploy": "echo 'no-op'"
+    "predeploy": "echo 'no-op'",
+    "test:native-pg": "vitest run src/test/nativePgAutoLinkConcurrency.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

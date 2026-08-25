@@ -198,6 +198,6 @@ export async function asServiceRoleForUser<T>(c: Client, userId: string, fn: () 
 }
 
 export async function serverVersion(c: Client): Promise<string> {
-  const res = await c.query<{ v: string }>("SHOW server_version");
-  return res.rows[0].v;
+  const res = await c.query<{ server_version: string }>("SHOW server_version");
+  return res.rows[0].server_version;
 }
