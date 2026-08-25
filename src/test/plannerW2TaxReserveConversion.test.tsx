@@ -153,7 +153,7 @@ describe("Planner W-2 → Personal Income tax reserve preservation", () => {
       now: new Date(2026, 7, 15, 12, 0, 0),
     });
 
-    const w2Row = recommendation.sourceRows.find((s: any) => s.key === "__w2__");
+    const w2Row = recommendation.sourceRows.find((s: any) => s.key === "w2:source:co-optum");
     expect(w2Row).toBeTruthy();
     expect(w2Row!.saved).toBe(275);
     expect(w2Row!.paid).toBe(2_265);
