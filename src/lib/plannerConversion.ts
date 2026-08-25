@@ -214,6 +214,7 @@ async function convertOne(args: ConvertOneArgs): Promise<"converted" | "duplicat
 
   // 4. Create the ledger row
   if (bucket === "personal") {
+    const ledgerFields = buildOccurrenceLedgerFields(paycheck);
     const { data: ie, error } = await supabase
       .from("income_entries")
       .insert({
@@ -227,7 +228,12 @@ async function convertOne(args: ConvertOneArgs): Promise<"converted" | "duplicat
         income_date: paycheck.date,
         // Occurrence-level values are the source of truth — never the parent
         // stream defaults (a modified paycheck has its own withholding).
-        ...buildOccurrenceLedgerFields(paycheck),
+        ...ledgerFields,
+        // Preserve the user's saved-for-taxes amount as "Saved" (distinct from
+        // payroll withholding, which counts as "Paid"). buildOccurrenceLedgerFields
+        // already maps this from the occurrence's additionalTaxReserve; the
+        // explicit assignment below ensures the mapping is never silently dropped.
+        additional_tax_reserve: ledgerFields.additional_tax_reserve,
         source_bucket: "personal",
         tax_category: "ordinary",
         is_actual: true,
