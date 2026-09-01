@@ -7,7 +7,7 @@ import { useIncomeEntries, useWeightedIncome } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
-import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
+import { useMileageYTD, getMileageEntryDeduction } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
 import { aggregateInvestmentTaxBuckets, sumInvestmentActualTaxSaved, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
@@ -635,7 +635,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
 
       const totalMiles = (mileageEntries || []).reduce((s, e) => s + Number(e.miles), 0);
       const mileageDeduction = (mileageEntries || []).reduce(
-        (s, e) => s + Number(e.miles) * getIrsMileageRate(e.year),
+        (s, e) => s + getMileageEntryDeduction(e),
         0,
       );
 

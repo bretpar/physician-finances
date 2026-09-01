@@ -7,7 +7,7 @@ import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
+import { useMileageYTD, getMileageEntryDeduction } from "@/hooks/useMileage";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
 import { computeHsaContributionSummary } from "@/lib/hsaComputation";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
@@ -124,7 +124,7 @@ export default function Reports() {
       if (!e.company_id) continue;
       const c = companies.find((x) => x.id === e.company_id);
       if (!c) continue;
-      const dollars = Number(e.miles) * getIrsMileageRate(e.year);
+      const dollars = getMileageEntryDeduction(e);
       m.set(c.name, (m.get(c.name) || 0) + dollars);
     }
     return m;

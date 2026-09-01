@@ -28,7 +28,7 @@
  */
 
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
-import { getIrsMileageRate } from "@/hooks/useMileage";
+import { getMileageEntryDeduction } from "@/hooks/useMileage";
 
 export const BUSINESS_COMPANY_TYPES: ReadonlySet<string> = new Set([
   "1099_schedule_c",
@@ -134,7 +134,7 @@ export function computeBusinessSummary({
     const cid = (m as any).company_id as string | null | undefined;
     if (!cid || !scheduleCCompanyIds.has(cid)) continue;
     if (!companyPasses(cid, companyFilter)) continue;
-    mileageDeduction += Number((m as any).miles || 0) * getIrsMileageRate((m as any).year);
+    mileageDeduction += getMileageEntryDeduction(m as any);
   }
 
   if (includePlanned) {
