@@ -68,6 +68,8 @@ import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSum
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+/** Display form of the IRS rate applied to a specific entry, e.g. "72.5¢/mi". */
+const fmtRate = (rate: number) => `${(rate * 100).toFixed(1)}¢/mi`;
 const num = (v: string) => parseFloat(v) || 0;
 
 // ─── Retirement Contribution Form ───────────────────────────
