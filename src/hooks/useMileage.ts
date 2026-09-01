@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { parseLocalDate } from "@/lib/localDate";
 
 export interface MileageEntry {
   id: string;
@@ -136,7 +137,7 @@ export function getMileageDeductionByCompany(
   const map = new Map<string, number>();
   for (const e of entries || []) {
     const key = e.company_id || "";
-    const amt = Number(e.miles) * getIrsMileageRate(e.year);
+    const amt = getMileageEntryDeduction(e);
     map.set(key, (map.get(key) || 0) + amt);
   }
   return map;
