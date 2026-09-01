@@ -36,7 +36,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { HsaLedgerSection } from "@/components/settings/HsaSection";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
-import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, getIrsMileageRate, getMileageEntryDeduction, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
+import { useMileageEntries, useMileageYTD, useAddMileageEntry, useUpdateMileageEntry, useDeleteMileageEntry, getIrsMileageRate, getMileageEntryDeduction, getMileageRateForEntry, UNASSIGNED_COMPANY_VALUE } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOfficeDeduction, calculateHomeOfficeAmounts, type HomeOfficeDeduction, type HomeOfficeMethod } from "@/hooks/useHomeOfficeDeductions";
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
@@ -68,6 +68,8 @@ import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSum
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+/** Display form of the IRS rate applied to a specific entry, e.g. "72.5¢/mi". */
+const fmtRate = (rate: number) => `${(rate * 100).toFixed(1)}¢/mi`;
 const num = (v: string) => parseFloat(v) || 0;
 
 // ─── Retirement Contribution Form ───────────────────────────
@@ -623,7 +625,10 @@ export default function Mileage() {
                   .map((e) => (
                     <div key={e.id} className="flex items-center justify-between text-sm gap-3">
                       <span className="text-muted-foreground truncate">{MONTHS[e.month - 1]} {e.year} — {companyNameById(e.company_id, e.company_name)}</span>
-                      <span className="tabular-nums font-medium shrink-0">{Number(e.miles).toLocaleString()} mi</span>
+                      <span className="tabular-nums font-medium shrink-0">
+                        {Number(e.miles).toLocaleString()} mi
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">{fmtRate(getMileageRateForEntry(e))}</span>
+                      </span>
                     </div>
                   ))}
               </CardContent>
@@ -711,7 +716,12 @@ export default function Mileage() {
                       )}
                     </span>
                     <span className="text-sm tabular-nums text-right">{Number(entry.miles).toLocaleString()}</span>
-                    <span className="text-sm tabular-nums text-right text-success">{fmt(getMileageEntryDeduction(entry))}</span>
+                    <span className="text-sm tabular-nums text-right text-success">
+                      {fmt(getMileageEntryDeduction(entry))}
+                      <span className="block text-[11px] font-normal text-muted-foreground">
+                        {fmtRate(getMileageRateForEntry(entry))}
+                      </span>
+                    </span>
                     <div className="flex gap-1 justify-end">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditMileage(entry)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(entry.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
