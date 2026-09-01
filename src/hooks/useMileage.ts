@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { parseLocalDate } from "@/lib/localDate";
 
 export interface MileageEntry {
   id: string;
@@ -18,33 +19,84 @@ export interface MileageEntry {
 
 /**
  * Default / pre-2026 IRS business standard mileage rate (dollars per mile).
- * Kept exported for legacy callers and tests; prefer `getIrsMileageRate(year)`
- * for any new calculation so we respect per-tax-year IRS updates.
+ * Kept exported for legacy callers and tests; prefer
+ * `getIrsMileageRate(year, month)` / `getMileageRateForDate(date)` for any new
+ * calculation so we respect per-tax-year AND mid-year IRS rate changes.
  */
 export const IRS_MILEAGE_RATE = 0.67;
 
 /**
- * IRS business standard mileage rates by tax year (dollars per mile).
+ * Canonical IRS business standard mileage rate config.
+ *
  * Only list years that differ from the legacy default above. Historical
  * years (≤ 2025) intentionally fall through to `IRS_MILEAGE_RATE` so prior
  * deductions are not retroactively changed.
  *
- * 2026: $0.725 / mile (IRS business standard mileage rate).
+ * 2026 has a mid-year IRS rate change:
+ *   - Jan 1 – Jun 30, 2026 → $0.725 / mile
+ *   - Jul 1 – Dec 31, 2026 → $0.760 / mile
+ *
+ * Each period entry is `{ fromMonth, rate }` where `fromMonth` is the 1-based
+ * month the rate becomes effective (periods listed in ascending order).
  */
-const IRS_MILEAGE_RATE_BY_YEAR: Record<number, number> = {
-  2026: 0.725,
+const IRS_MILEAGE_RATE_PERIODS_BY_YEAR: Record<
+  number,
+  ReadonlyArray<{ fromMonth: number; rate: number }>
+> = {
+  2026: [
+    { fromMonth: 1, rate: 0.725 },
+    { fromMonth: 7, rate: 0.76 },
+  ],
 };
 
-/** Returns the IRS business standard mileage rate for the given tax year. */
-export function getIrsMileageRate(year: number | null | undefined): number {
-  if (typeof year === "number" && IRS_MILEAGE_RATE_BY_YEAR[year] !== undefined) {
-    return IRS_MILEAGE_RATE_BY_YEAR[year];
+/**
+ * Returns the IRS business standard mileage rate for the given tax year and
+ * (optional) 1-based month. When the month is omitted for a year with a
+ * mid-year change, the first (earliest) period rate is used.
+ */
+export function getIrsMileageRate(
+  year: number | null | undefined,
+  month?: number | null,
+): number {
+  if (typeof year !== "number") return IRS_MILEAGE_RATE;
+  const periods = IRS_MILEAGE_RATE_PERIODS_BY_YEAR[year];
+  if (!periods || periods.length === 0) return IRS_MILEAGE_RATE;
+  const m = typeof month === "number" && month >= 1 && month <= 12 ? month : 1;
+  let rate = periods[0].rate;
+  for (const p of periods) {
+    if (m >= p.fromMonth) rate = p.rate;
   }
-  return IRS_MILEAGE_RATE;
+  return rate;
+}
+
+/**
+ * Date-aware convenience wrapper: resolves the rate from an actual
+ * mileage/expense date (`YYYY-MM-DD` string or Date). Used by any flow that
+ * has a real occurrence date rather than a month/year pair.
+ */
+export function getMileageRateForDate(input: string | Date | null | undefined): number {
+  const d = parseLocalDate(input);
+  if (!d) return IRS_MILEAGE_RATE;
+  return getIrsMileageRate(d.getFullYear(), d.getMonth() + 1);
+}
+
+/** Canonical rate for a stored mileage entry (month + year). */
+export function getMileageRateForEntry(
+  entry: { month?: number | null; year?: number | null } | null | undefined,
+): number {
+  return getIrsMileageRate(entry?.year, entry?.month);
+}
+
+/** Canonical deductible dollars for a stored mileage entry. */
+export function getMileageEntryDeduction(
+  entry: { month?: number | null; year?: number | null; miles?: number | null } | null | undefined,
+): number {
+  return Number(entry?.miles || 0) * getMileageRateForEntry(entry);
 }
 
 /** Sentinel value used in selects to represent "no company / legacy". */
 export const UNASSIGNED_COMPANY_VALUE = "__unassigned__";
+
 
 export function useMileageEntries(month?: number, year?: number) {
   return useQuery({
@@ -85,7 +137,7 @@ export function getMileageDeductionByCompany(
   const map = new Map<string, number>();
   for (const e of entries || []) {
     const key = e.company_id || "";
-    const amt = Number(e.miles) * getIrsMileageRate(e.year);
+    const amt = getMileageEntryDeduction(e);
     map.set(key, (map.get(key) || 0) + amt);
   }
   return map;

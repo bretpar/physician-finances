@@ -39,7 +39,7 @@ import {
   generateProjectedPaychecks,
 } from "@/hooks/useProjectedIncome";
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
-import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
+import { useMileageYTD, getMileageEntryDeduction } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useInvestmentIncomeEntries, aggregateInvestmentTaxBuckets } from "@/hooks/useInvestmentIncome";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
@@ -487,7 +487,7 @@ export function useTaxBreakdown(
       const company = companies.find((c) => c.id === m.company_id);
       if (!company) continue; // company deleted → skip
       if (!matchCompany(company.name)) continue;
-      const dollars = Number(m.miles) * getIrsMileageRate(m.year);
+      const dollars = getMileageEntryDeduction(m);
       if (dollars <= 0) continue;
       const agg = expensesByCompany.get(company.id) ?? {
         total: 0, byCategory: new Map(), txCount: 0,
