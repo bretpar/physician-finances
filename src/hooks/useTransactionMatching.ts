@@ -872,8 +872,8 @@ export function canPlaidOverwriteDeposited(ie: any): boolean {
   const ret = Number(ie?.retirement_401k) || 0;
   const hsa = Number(ie?.hsa_contribution) || 0;
   const health = Number(ie?.healthcare_deduction) || 0;
-  const other = Number(ie?.other_deductions) || 0;
-  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health - other);
+  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health);
+
   if (calcNet > 0 && Math.abs(dep - calcNet) < 0.5) return true;
   return false;
 }
