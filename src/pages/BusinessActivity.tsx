@@ -2748,13 +2748,20 @@ export default function Transactions() {
             linkedPlaidAmount: lLinkedPlaidAmt,
           });
           netForSummary = nAmt;
-          savedForTaxes = Number((tx as any).actual_withholding) || 0;
+          const txOnlyReserve = Number((tx as any).actual_withholding) || 0;
+          savedForTaxes = txOnlyReserve;
           detailSectionFields.push(
             { label: "Gross", value: fmt(gAmt), mono: true },
             { label: "Net received", value: fmt(nAmt), mono: true },
+            ...(txOnlyReserve > 0
+              ? [{ label: "Saved for future taxes (reserve)", value: fmt(txOnlyReserve), mono: true }]
+              : []),
             ...(hasCompany ? [{ label: "Company", value: companyLabel }] : []),
             ...(hasAccount ? [{ label: "Account", value: tx.account_source! }] : []),
           );
+          if (txOnlyReserve > 0) {
+            incomeLedgerRows.push({ label: "Saved for future taxes", value: fmt(txOnlyReserve) });
+          }
         }
 
         const varianceInfo = isIncomeTx
@@ -2774,9 +2781,7 @@ export default function Transactions() {
         }
 
         if (isIncomeTx) {
-          if (incomeLedgerRows.length === 0 && savedForTaxes > 0) {
-            incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(savedForTaxes) });
-          }
+
           summary.push(...incomeLedgerRows);
           summary.push({
             label: "Net deposited",
