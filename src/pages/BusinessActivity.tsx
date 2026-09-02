@@ -1839,6 +1839,22 @@ export default function Transactions() {
                   const linked = incomeByLinkedTx.get(tx.id);
                   const deposited = Number(linked?.deposited_amount || 0);
                   const showDeposited = isIncomeTx && deposited > 0 && Math.abs(deposited - Math.abs(tx.amount)) > 0.5;
+                  // Presentation only — surfaces already-stored financial fields.
+                  const rowTaxesWithheld = linked
+                    ? getCanonicalTotalFederalPayrollTaxes(linked as any) +
+                      (Number((linked as any).state_withholding) || 0)
+                    : 0;
+                  const rowReserve =
+                    (Number((linked as any)?.additional_tax_reserve) || 0) +
+                    (Number((tx as any).actual_withholding) || 0);
+                  const rowRetirement =
+                    (Number((linked as any)?.retirement_401k) || 0) +
+                    (Number((linked as any)?.employer_retirement_contribution) || 0);
+                  const rowHealthcare =
+                    (Number((linked as any)?.healthcare_deduction) || 0) +
+                    (Number((linked as any)?.hsa_contribution) || 0) +
+                    (Number((linked as any)?.employer_hsa_contribution) || 0);
+
 
                   const isMobileSelected = mobileSelectedOrder.includes(tx.id);
 
