@@ -1859,6 +1859,19 @@ export default function Transactions() {
                       {showDeposited && (
                         <div className="flex justify-between gap-3"><span>Deposited</span><span className="text-foreground text-right tabular-nums">{fmt(deposited)}</span></div>
                       )}
+                      {isIncomeTx && rowTaxesWithheld > 0 && (
+                        <div className="flex justify-between gap-3"><span>Taxes withheld / paid</span><span className="text-foreground text-right tabular-nums">{fmt(rowTaxesWithheld)}</span></div>
+                      )}
+                      {isIncomeTx && rowReserve > 0 && (
+                        <div className="flex justify-between gap-3"><span>Saved for future taxes</span><span className="text-foreground text-right tabular-nums">{fmt(rowReserve)}</span></div>
+                      )}
+                      {isIncomeTx && rowRetirement > 0 && (
+                        <div className="flex justify-between gap-3"><span>Retirement contributions</span><span className="text-foreground text-right tabular-nums">{fmt(rowRetirement)}</span></div>
+                      )}
+                      {isIncomeTx && rowHealthcare > 0 && (
+                        <div className="flex justify-between gap-3"><span>Healthcare / insurance</span><span className="text-foreground text-right tabular-nums">{fmt(rowHealthcare)}</span></div>
+                      )}
+
                       {tx.excluded_from_reports && (
                         <div className="flex justify-between gap-3"><span>Status</span><span className="text-foreground text-right">Excluded from reports</span></div>
                       )}
