@@ -651,7 +651,7 @@ export async function linkTransactionPair({
         const { data: linkedIE } = await supabase
           .from("income_entries")
           .select(
-            "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, other_deductions, origin_type, entry_kind, origin_planner_conversion_id, notes",
+            "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, origin_type, entry_kind, origin_planner_conversion_id, notes",
           )
           .eq("linked_transaction_id", manualTxId)
           .maybeSingle();
@@ -1158,7 +1158,7 @@ export function useCreateMatchGroup() {
           const { data: linkedIE } = await supabase
             .from("income_entries")
             .select(
-              "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, other_deductions, origin_type, entry_kind, origin_planner_conversion_id, notes",
+              "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, origin_type, entry_kind, origin_planner_conversion_id, notes",
             )
             .eq("linked_transaction_id", canonical.id)
             .maybeSingle();
