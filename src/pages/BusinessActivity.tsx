@@ -1839,6 +1839,22 @@ export default function Transactions() {
                   const linked = incomeByLinkedTx.get(tx.id);
                   const deposited = Number(linked?.deposited_amount || 0);
                   const showDeposited = isIncomeTx && deposited > 0 && Math.abs(deposited - Math.abs(tx.amount)) > 0.5;
+                  // Presentation only — surfaces already-stored financial fields.
+                  const rowTaxesWithheld = linked
+                    ? getCanonicalTotalFederalPayrollTaxes(linked as any) +
+                      (Number((linked as any).state_withholding) || 0)
+                    : 0;
+                  const rowReserve =
+                    (Number((linked as any)?.additional_tax_reserve) || 0) +
+                    (Number((tx as any).actual_withholding) || 0);
+                  const rowRetirement =
+                    (Number((linked as any)?.retirement_401k) || 0) +
+                    (Number((linked as any)?.employer_retirement_contribution) || 0);
+                  const rowHealthcare =
+                    (Number((linked as any)?.healthcare_deduction) || 0) +
+                    (Number((linked as any)?.hsa_contribution) || 0) +
+                    (Number((linked as any)?.employer_hsa_contribution) || 0);
+
 
                   const isMobileSelected = mobileSelectedOrder.includes(tx.id);
 
@@ -1859,6 +1875,19 @@ export default function Transactions() {
                       {showDeposited && (
                         <div className="flex justify-between gap-3"><span>Deposited</span><span className="text-foreground text-right tabular-nums">{fmt(deposited)}</span></div>
                       )}
+                      {isIncomeTx && rowTaxesWithheld > 0 && (
+                        <div className="flex justify-between gap-3"><span>Taxes withheld / paid</span><span className="text-foreground text-right tabular-nums">{fmt(rowTaxesWithheld)}</span></div>
+                      )}
+                      {isIncomeTx && rowReserve > 0 && (
+                        <div className="flex justify-between gap-3"><span>Saved for future taxes</span><span className="text-foreground text-right tabular-nums">{fmt(rowReserve)}</span></div>
+                      )}
+                      {isIncomeTx && rowRetirement > 0 && (
+                        <div className="flex justify-between gap-3"><span>Retirement contributions</span><span className="text-foreground text-right tabular-nums">{fmt(rowRetirement)}</span></div>
+                      )}
+                      {isIncomeTx && rowHealthcare > 0 && (
+                        <div className="flex justify-between gap-3"><span>Healthcare / insurance</span><span className="text-foreground text-right tabular-nums">{fmt(rowHealthcare)}</span></div>
+                      )}
+
                       {tx.excluded_from_reports && (
                         <div className="flex justify-between gap-3"><span>Status</span><span className="text-foreground text-right">Excluded from reports</span></div>
                       )}
@@ -2687,7 +2716,13 @@ export default function Transactions() {
           const lHsa = Number((linked as any).hsa_contribution) || 0;
           const lHealth = Number((linked as any).healthcare_deduction) || 0;
           const lOther = Number((linked as any).other_deductions) || 0;
+          const lEmployer401 = Number((linked as any).employer_retirement_contribution) || 0;
+          const lEmployerHsa = Number((linked as any).employer_hsa_contribution) || 0;
           const lReserve = Number((linked as any).additional_tax_reserve) || 0;
+          // Reserve saved on the canonical transaction row ("Amount you're
+          // saving for taxes"). This is a reserve, NOT taxes paid.
+          const txReserve = Number((tx as any).actual_withholding) || 0;
+          const totalReserve = lReserve + txReserve;
           // Net Received precedence — resolved via the shared helper so the
           // edit modal, transaction detail, CSV export, and reports stay in
           // lockstep. See src/lib/netReceivedPrecedence.ts for the rules.
@@ -2701,29 +2736,36 @@ export default function Transactions() {
           });
           calculatedNetForVariance = calcNet;
           netForSummary = lNet;
-          savedForTaxes = lFed + lState + lReserve;
+          savedForTaxes = lFed + lState + totalReserve;
 
           detailSectionFields.push(
             { label: "Gross", value: fmt(lGross), mono: true },
             ...(lPreTax > 0 ? [{ label: "Pre-tax", value: fmt(lPreTax), mono: true }] : []),
             ...(l401 > 0 ? [{ label: "401(k)", value: fmt(l401), mono: true }] : []),
+            ...(lEmployer401 > 0 ? [{ label: "Employer retirement", value: fmt(lEmployer401), mono: true }] : []),
             ...(lHsa > 0 ? [{ label: "HSA", value: fmt(lHsa), mono: true }] : []),
+            ...(lEmployerHsa > 0 ? [{ label: "Employer HSA", value: fmt(lEmployerHsa), mono: true }] : []),
             ...(lHealth > 0 ? [{ label: "Healthcare", value: fmt(lHealth), mono: true }] : []),
             ...(lOther > 0 ? [{ label: "Other deductions", value: fmt(lOther), mono: true }] : []),
             { label: "Net received", value: fmt(lNet), mono: true },
             ...(lFed > 0 ? [{ label: "Federal withheld", value: fmt(lFed), mono: true }] : []),
             ...(lState > 0 ? [{ label: "State withheld", value: fmt(lState), mono: true }] : []),
-            ...(lReserve > 0 ? [{ label: "Amount saved for taxes", value: fmt(lReserve), mono: true }] : []),
+            ...(totalReserve > 0
+              ? [{ label: "Saved for future taxes (reserve)", value: fmt(totalReserve), mono: true }]
+              : []),
           );
 
           const lTotalTaxes = lFed + lState;
-          if (lTotalTaxes > 0) incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(lTotalTaxes) });
-          if (lReserve > 0) incomeLedgerRows.push({ label: "Saved for taxes", value: fmt(lReserve) });
+          if (lTotalTaxes > 0) incomeLedgerRows.push({ label: "Taxes withheld / paid", value: fmt(lTotalTaxes) });
+          if (totalReserve > 0) incomeLedgerRows.push({ label: "Saved for future taxes", value: fmt(totalReserve) });
           if (l401 > 0) incomeLedgerRows.push({ label: "401(k) contributions", value: fmt(l401) });
+          if (lEmployer401 > 0) incomeLedgerRows.push({ label: "Employer retirement", value: fmt(lEmployer401) });
           if (lHsa > 0) incomeLedgerRows.push({ label: "HSA contributions", value: fmt(lHsa) });
-          if (lHealth > 0) incomeLedgerRows.push({ label: "Healthcare expenses", value: fmt(lHealth) });
+          if (lEmployerHsa > 0) incomeLedgerRows.push({ label: "Employer HSA", value: fmt(lEmployerHsa) });
+          if (lHealth > 0) incomeLedgerRows.push({ label: "Healthcare / insurance", value: fmt(lHealth) });
           if (lPreTax > 0) incomeLedgerRows.push({ label: "Pre-tax deductions", value: fmt(lPreTax) });
           if (lOther > 0) incomeLedgerRows.push({ label: "Other deductions", value: fmt(lOther) });
+
         } else if (isIncomeTx) {
           // No linked income_entries row — still resolve Net Received through
           // the shared helper so an imported Plaid sibling (or denormalized
@@ -2735,13 +2777,20 @@ export default function Transactions() {
             linkedPlaidAmount: lLinkedPlaidAmt,
           });
           netForSummary = nAmt;
-          savedForTaxes = Number((tx as any).actual_withholding) || 0;
+          const txOnlyReserve = Number((tx as any).actual_withholding) || 0;
+          savedForTaxes = txOnlyReserve;
           detailSectionFields.push(
             { label: "Gross", value: fmt(gAmt), mono: true },
             { label: "Net received", value: fmt(nAmt), mono: true },
+            ...(txOnlyReserve > 0
+              ? [{ label: "Saved for future taxes (reserve)", value: fmt(txOnlyReserve), mono: true }]
+              : []),
             ...(hasCompany ? [{ label: "Company", value: companyLabel }] : []),
             ...(hasAccount ? [{ label: "Account", value: tx.account_source! }] : []),
           );
+          if (txOnlyReserve > 0) {
+            incomeLedgerRows.push({ label: "Saved for future taxes", value: fmt(txOnlyReserve) });
+          }
         }
 
         const varianceInfo = isIncomeTx
@@ -2761,9 +2810,7 @@ export default function Transactions() {
         }
 
         if (isIncomeTx) {
-          if (incomeLedgerRows.length === 0 && savedForTaxes > 0) {
-            incomeLedgerRows.push({ label: "Total taxes paid", value: fmt(savedForTaxes) });
-          }
+
           summary.push(...incomeLedgerRows);
           summary.push({
             label: "Net deposited",
