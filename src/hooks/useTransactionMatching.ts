@@ -651,7 +651,7 @@ export async function linkTransactionPair({
         const { data: linkedIE } = await supabase
           .from("income_entries")
           .select(
-            "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, other_deductions, origin_type, entry_kind, origin_planner_conversion_id, notes",
+            "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, origin_type, entry_kind, origin_planner_conversion_id, notes",
           )
           .eq("linked_transaction_id", manualTxId)
           .maybeSingle();
@@ -872,8 +872,8 @@ export function canPlaidOverwriteDeposited(ie: any): boolean {
   const ret = Number(ie?.retirement_401k) || 0;
   const hsa = Number(ie?.hsa_contribution) || 0;
   const health = Number(ie?.healthcare_deduction) || 0;
-  const other = Number(ie?.other_deductions) || 0;
-  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health - other);
+  const calcNet = Math.max(0, gross - fed - ss - med - state - preTax - ret - hsa - health);
+
   if (calcNet > 0 && Math.abs(dep - calcNet) < 0.5) return true;
   return false;
 }
@@ -1158,7 +1158,7 @@ export function useCreateMatchGroup() {
           const { data: linkedIE } = await supabase
             .from("income_entries")
             .select(
-              "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, other_deductions, origin_type, entry_kind, origin_planner_conversion_id, notes",
+              "id, deposited_amount, paycheck_amount, gross_amount, federal_withholding, state_withholding, ss_withholding, medicare_withholding, pre_tax_deductions, retirement_401k, hsa_contribution, healthcare_deduction, origin_type, entry_kind, origin_planner_conversion_id, notes",
             )
             .eq("linked_transaction_id", canonical.id)
             .maybeSingle();
