@@ -876,7 +876,12 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         businessStateWithheld: businessStateWithheld + cu.business.stateWithheld,
         businessPreTax: businessPreTax + cu.business.payrollPreTax,
         businessNonW2HsaAboveLine: cappedBusinessNonW2Hsa,
-        businessRetirement: businessRetirement + cu.business.retirement,
+        // Standalone EMPLOYER plan money (e.g. employer Solo 401(k)) is routed
+        // through the existing business/employer retirement path — never through
+        // the generic employee retirement bucket.
+        businessRetirement:
+          businessRetirement + cu.business.retirement +
+          (incomeScope === "actualPlusPlanned" ? annualizedRetirement.employerTotal : 0),
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
@@ -898,9 +903,10 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         longTermCapitalGains,
         businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses + cu.business.expenses,
         mileageDeduction,
-        // Only pre-tax plan money is deductible: Roth IRA never is, and
-        // Traditional IRA deductibility is not modeled, so it is tracked only.
-        annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.deductibleTotal : 0,
+        // EMPLOYEE pre-tax plan money only. Employer plan money goes through
+        // businessRetirement; Roth IRA is never deductible and Traditional IRA
+        // deductibility is not modeled, so both are tracked only.
+        annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.employeeTotal : 0,
         txActualWithholding,
         actualEstimatedPaymentsMade: quarterlyPaid,
         taxSavingsSetAside: savingsTotal,

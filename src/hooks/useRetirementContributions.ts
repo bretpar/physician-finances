@@ -86,6 +86,8 @@ export interface RetirementContribution {
   company_id: string | null;
   contribution_amount: number;
   frequency: string;
+  /** Semantic date of the contribution (authoritative for one-time entries). */
+  contribution_date: string;
   start_date: string;
   end_date: string | null;
   employer_match: number;
@@ -108,6 +110,8 @@ export function useRetirementContributions() {
         ...c,
         contribution_type: c.contribution_type || "employee",
         company_id: c.company_id ?? null,
+        // Legacy rows without the dedicated column fall back to start_date.
+        contribution_date: c.contribution_date || c.start_date,
       }));
     },
   });
@@ -129,7 +133,10 @@ export function useAddRetirementContribution() {
         company_id: isIraPlan(accountType) ? null : entry.company_id || null,
         contribution_amount: entry.contribution_amount || 0,
         frequency: entry.frequency || "one_time",
-        start_date: entry.start_date || new Date().toISOString().split("T")[0],
+        contribution_date:
+          entry.contribution_date || entry.start_date || new Date().toISOString().split("T")[0],
+        start_date:
+          entry.start_date || entry.contribution_date || new Date().toISOString().split("T")[0],
         end_date: entry.end_date || null,
         employer_match: entry.employer_match || 0,
         apply_to_withholding: entry.apply_to_withholding ?? true,
@@ -151,6 +158,8 @@ export function useUpdateRetirementContribution() {
     mutationFn: async ({ id, ...updates }: Partial<RetirementContribution> & { id: string }) => {
       const patch: any = { ...updates };
       if (patch.account_type && isIraPlan(patch.account_type)) patch.company_id = null;
+      // One-time entries keep start_date aligned with the semantic date.
+      if (patch.contribution_date && !patch.start_date) patch.start_date = patch.contribution_date;
       const { error } = await supabase
         .from("retirement_contributions" as any)
         .update(patch)

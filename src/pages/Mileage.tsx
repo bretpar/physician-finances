@@ -82,6 +82,8 @@ interface ContribForm {
   company_id: string;
   contribution_amount: string;
   frequency: string;
+  /** Semantic contribution date (authoritative for one-time entries). */
+  contribution_date: string;
   start_date: string;
   end_date: string;
   employer_match: string;
@@ -113,6 +115,7 @@ const emptyContribForm: ContribForm = {
   company_id: "",
   contribution_amount: "",
   frequency: "one_time",
+  contribution_date: new Date().toISOString().split("T")[0],
   start_date: new Date().toISOString().split("T")[0],
   end_date: "",
   employer_match: "",
@@ -503,7 +506,11 @@ export default function Mileage() {
       company_id: isIraPlan(contribForm.account_type) ? null : contribForm.company_id || null,
       contribution_amount: num(contribForm.contribution_amount),
       frequency: contribForm.frequency,
-      start_date: contribForm.start_date,
+      contribution_date: contribForm.contribution_date,
+      // Recurring windows keep using start_date; one-time rows mirror the date.
+      start_date: contribForm.frequency === "one_time"
+        ? contribForm.contribution_date
+        : contribForm.start_date || contribForm.contribution_date,
       end_date: contribForm.end_date || null,
       employer_match: num(contribForm.employer_match),
       apply_to_withholding: contribForm.apply_to_withholding,
@@ -524,6 +531,7 @@ export default function Mileage() {
       company_id: c.company_id || "",
       contribution_amount: String(c.contribution_amount),
       frequency: c.frequency,
+      contribution_date: c.contribution_date || c.start_date,
       start_date: c.start_date,
       end_date: c.end_date || "",
       employer_match: String(c.employer_match),
@@ -889,7 +897,7 @@ export default function Mileage() {
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Estimated Personal Deduction</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.deductibleTotal + paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">Employer contributions excluded</p></CardContent>
+              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.employeeTotal + paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">Employer contributions excluded</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
@@ -1005,7 +1013,7 @@ export default function Mileage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Contribution Date</Label>
-                    <DateField value={contribForm.start_date} onChange={(v) => setContribField("start_date", v)} />
+                    <DateField value={contribForm.contribution_date} onChange={(v) => setContribField("contribution_date", v)} />
                   </div>
                   {contribForm.frequency !== "one_time" && (
                     <div className="space-y-1.5">
@@ -1094,7 +1102,7 @@ export default function Mileage() {
                             </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(amt)}</TableCell>
                             <TableCell className="hidden sm:table-cell">
-                              <span className="block whitespace-nowrap">{c.start_date}</span>
+                              <span className="block whitespace-nowrap">{c.contribution_date || c.start_date}</span>
                               <Badge variant="outline" className="mt-1">{getFreqLabel(c.frequency)}</Badge>
                             </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap font-medium hidden md:table-cell">{fmt(annual)}</TableCell>
@@ -1272,11 +1280,12 @@ export default function Mileage() {
   const hsaContributionTotal = hsaSummary.total;
   const hsaPersonalDeduction = hsaSummary.deductibleTotal;
   const retirementSummary = computeRetirementSavingsSummary({
-    // Deduction math uses pre-tax plan money only (Roth / Traditional IRA are
-    // tracked separately in the IRA section).
-    standaloneAnnualizedTotal: annualized.deductibleTotal,
+    // Deduction math uses employee pre-tax plan money only. Standalone employer
+    // money counts toward totals via the employer bucket (Roth / Traditional IRA
+    // are tracked separately in the IRA section).
+    standaloneAnnualizedTotal: annualized.employeeTotal,
     paycheckEmployeeTotal: paycheckLinked.employeeTotal,
-    paycheckEmployerTotal: paycheckLinked.employerTotal,
+    paycheckEmployerTotal: paycheckLinked.employerTotal + annualized.employerTotal,
   });
   const retirementContributionTotal = retirementSummary.contributionTotal;
   const retirementPersonalDeduction = retirementSummary.personalDeduction;
