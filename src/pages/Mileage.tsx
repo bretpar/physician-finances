@@ -1102,7 +1102,7 @@ export default function Mileage() {
                             </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(amt)}</TableCell>
                             <TableCell className="hidden sm:table-cell">
-                              <span className="block whitespace-nowrap">{c.start_date}</span>
+                              <span className="block whitespace-nowrap">{c.contribution_date || c.start_date}</span>
                               <Badge variant="outline" className="mt-1">{getFreqLabel(c.frequency)}</Badge>
                             </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap font-medium hidden md:table-cell">{fmt(annual)}</TableCell>
